@@ -1,0 +1,86 @@
+.balance {
+  font-size: 28rpx;
+  color: #5b5cf1;
+}
+
+.progress {
+  margin-top: 24rpx;
+}
+
+.progress-bar {
+  background: #edf0fe;
+  border-radius: 16rpx;
+  height: 16rpx;
+  overflow: hidden;
+}
+
+.progress-inner {
+  height: 100%;
+  background: linear-gradient(135deg, #5b8cff, #8645ff);
+  border-radius: 16rpx;
+}
+
+.progress-text {
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  color: #6d758c;
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-gap: 24rpx;
+}
+
+.shortcut {
+  background: #f7f9ff;
+  border-radius: 16rpx;
+  padding: 24rpx 16rpx;
+  text-align: center;
+}
+
+.shortcut-icon {
+  font-size: 48rpx;
+  margin-bottom: 12rpx;
+}
+
+.shortcut-label {
+  font-size: 26rpx;
+  color: #334155;
+}
+
+.more {
+  font-size: 26rpx;
+  color: #5b5cf1;
+}
+
+.task-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid #eceff9;
+}
+
+.task-item:last-child {
+  border-bottom: none;
+}
+
+.task-title {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #0f244a;
+}
+
+.task-desc {
+  font-size: 24rpx;
+  color: #6d758c;
+  margin-top: 8rpx;
+  max-width: 420rpx;
+}
+
+.task-reward {
+  font-size: 24rpx;
+  color: #5b5cf1;
+  margin-left: 16rpx;
+}

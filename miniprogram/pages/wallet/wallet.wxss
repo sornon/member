@@ -1,0 +1,80 @@
+.balance {
+  font-size: 44rpx;
+  font-weight: 700;
+  color: #0f244a;
+}
+
+.meta {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #6d758c;
+}
+
+.presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-bottom: 24rpx;
+}
+
+.preset {
+  padding: 16rpx 32rpx;
+  border-radius: 999rpx;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 26rpx;
+}
+
+.preset.active {
+  background: linear-gradient(135deg, #5b8cff, #8645ff);
+  color: #ffffff;
+}
+
+.input-box {
+  margin-bottom: 24rpx;
+  background: #f8fafc;
+  border-radius: 16rpx;
+  padding: 16rpx 24rpx;
+}
+
+.input-box input {
+  width: 100%;
+  font-size: 32rpx;
+  color: #0f244a;
+}
+
+.transaction {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid #eceff9;
+}
+
+.transaction:last-child {
+  border-bottom: none;
+}
+
+.txn-title {
+  font-size: 28rpx;
+  color: #0f244a;
+}
+
+.txn-date {
+  font-size: 24rpx;
+  color: #94a3b8;
+  margin-top: 6rpx;
+}
+
+.txn-amount {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.txn-amount.income {
+  color: #16a34a;
+}
+
+.txn-amount.expense {
+  color: #dc2626;
+}

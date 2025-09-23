@@ -1,0 +1,22 @@
+<view class="container">
+  <view class="card">
+    <view class="section-title">任务列表</view>
+    <view wx:if="{{loading}}">加载中...</view>
+    <view wx:elif="{{!tasks.length}}" class="empty-state">暂无任务，敬请期待</view>
+    <view wx:else>
+      <view class="task-card" wx:for="{{tasks}}" wx:key="_id">
+        <view class="task-info">
+          <view class="task-title">{{item.title}}</view>
+          <view class="task-desc">{{item.description}}</view>
+          <view class="task-meta">类型：{{item.typeLabel}} · 进度：{{item.progressText}}</view>
+        </view>
+        <view class="task-action">
+          <view class="reward">奖励：{{item.rewardSummary}}</view>
+          <button size="mini" type="primary" disabled="{{!item.canClaim}}" data-task-id="{{item._id}}" bindtap="handleClaim">
+            {{item.actionLabel}}
+          </button>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

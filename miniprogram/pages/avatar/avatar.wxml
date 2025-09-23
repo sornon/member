@@ -1,0 +1,33 @@
+<view class="container">
+  <view class="card">
+    <view class="section-title">虚拟形象</view>
+    <view wx:if="{{loading}}">加载中...</view>
+    <view wx:else>
+      <view class="avatar-preview">
+        <view class="avatar-circle">
+          <text class="avatar-placeholder">{{categories.length ? categories[0].name : '修仙者'}}</text>
+        </view>
+        <view class="avatar-desc">搭配越高级的道具越显尊贵，可分享到朋友圈炫耀</view>
+      </view>
+
+      <view class="category-tabs">
+        <view class="tab {{activeCategoryIndex === index ? 'active' : ''}}" wx:for="{{categories}}" wx:key="_id" data-index="{{index}}" bindtap="handleCategoryChange">
+          {{item.name}}
+        </view>
+      </view>
+
+      <view class="assets">
+        <view class="asset-card" wx:for="{{assetsByCategory[categories.length ? categories[activeCategoryIndex]._id : '']}}" wx:key="_id" bindtap="handleEquip" data-category-id="{{categories.length ? categories[activeCategoryIndex]._id : ''}}" data-asset-id="{{item._id}}">
+          <view class="asset-title">{{item.name}}</view>
+          <view class="asset-desc">{{item.description}}</view>
+          <view class="asset-meta">解锁条件：{{item.unlockText}}</view>
+          <view class="asset-action" wx:if="{{categories.length && equipped[categories[activeCategoryIndex]._id] === item._id}}">已装备</view>
+        </view>
+        <view wx:if="{{!(assetsByCategory[categories.length ? categories[activeCategoryIndex]._id : ''] || []).length}}" class="empty-state">
+          该类别暂无可用装扮
+        </view>
+      </view>
+      <button type="primary" bindtap="handleSave">保存形象</button>
+    </view>
+  </view>
+</view>

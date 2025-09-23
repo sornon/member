@@ -1,0 +1,58 @@
+.right-item {
+  padding: 24rpx 0;
+  border-bottom: 1rpx solid #eceff9;
+}
+
+.right-item:last-child {
+  border-bottom: none;
+}
+
+.right-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.right-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #0f244a;
+}
+
+.status {
+  font-size: 24rpx;
+  padding: 8rpx 16rpx;
+  border-radius: 16rpx;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.status.active {
+  background: rgba(91, 140, 255, 0.16);
+  color: #5b5cf1;
+}
+
+.status.used {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.status.expired {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.right-desc {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #6d758c;
+}
+
+.right-footer {
+  margin-top: 16rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 24rpx;
+  color: #6d758c;
+}

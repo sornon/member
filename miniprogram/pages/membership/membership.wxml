@@ -1,0 +1,31 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="card">
+    <text>加载中...</text>
+  </view>
+
+  <view wx:if="{{!loading}}">
+    <view class="card member-card">
+      <view class="section-title">修仙等级</view>
+      <view class="current-level">{{member.level ? member.level.name : '练气'}} · 当前经验 {{member.experience || 0}}</view>
+      <view class="progress-bar">
+        <view class="progress-inner" style="width: {{progress ? progress.percentage : 0}}%;"></view>
+      </view>
+      <view class="progress-text">距离下个境界还差 {{progress ? progress.nextDiff : 0}} 经验</view>
+    </view>
+
+    <view class="card">
+      <view class="section-title">等级列表</view>
+      <view wx:for="{{levels}}" wx:key="_id" class="level-item">
+        <view class="level-rank" style="background: {{levelBadgeColor(item.order)}}">{{item.name}}</view>
+        <view class="level-info">
+          <view class="level-title">累计充值满 {{formatCurrency(item.threshold)}}</view>
+          <view class="level-desc">折扣：{{(item.discount || 1) * 10}} 折</view>
+          <view class="level-rewards" wx:if="{{item.rewards && item.rewards.length}}">
+            <text class="reward-label">升级奖励：</text>
+            <text class="reward-text" wx:for="{{item.rewards}}" wx:key="{{index}}">{{item}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,24 @@
+{
+  "appid": "touristappid",
+  "projectname": "member-system",
+  "description": "修仙主题会员体系示例小程序",
+  "setting": {
+    "postcss": true,
+    "es6": true,
+    "enhance": true,
+    "compileHotReLoad": true,
+    "urlCheck": false,
+    "minified": true,
+    "newFeature": true,
+    "bigPackageSizeSupport": true,
+    "condition": false
+  },
+  "compileType": "miniprogram",
+  "libVersion": "2.31.0",
+  "cloudfunctionRoot": "cloudfunctions/",
+  "packOptions": {
+    "ignore": []
+  },
+  "miniprogramRoot": "miniprogram/",
+  "condition": {}
+}

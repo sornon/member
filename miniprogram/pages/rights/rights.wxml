@@ -1,0 +1,25 @@
+<view class="container">
+  <view wx:if="{{loading}}" class="card">
+    <text>权益加载中...</text>
+  </view>
+
+  <view wx:if="{{!loading}}">
+    <view class="card">
+      <view class="section-title">我的权益</view>
+      <view wx:if="{{rights.length}}">
+        <view class="right-item" wx:for="{{rights}}" wx:key="_id">
+          <view class="right-header">
+            <view class="right-name">{{item.name}}</view>
+            <view class="status {{item.status}}">{{item.statusLabel}}</view>
+          </view>
+          <view class="right-desc">{{item.description}}</view>
+          <view class="right-footer">
+            <text>有效期：{{formatDate(item.validUntil) || '长期有效'}}</text>
+            <button wx:if="{{item.canReserve}}" size="mini" type="primary" data-right-id="{{item._id}}" bindtap="handleReserve">预约</button>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="empty-state">暂无权益，快去升级或完成任务获取吧</view>
+    </view>
+  </view>
+</view>
