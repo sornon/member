@@ -1,0 +1,9 @@
+{
+  "name": "wallet",
+  "version": "1.0.0",
+  "description": "余额与支付管理云函数",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}

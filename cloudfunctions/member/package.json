@@ -1,0 +1,9 @@
+{
+  "name": "member",
+  "version": "1.0.0",
+  "description": "会员档案与等级管理云函数",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}

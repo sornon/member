@@ -1,0 +1,19 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/membership/membership",
+    "pages/rights/rights",
+    "pages/tasks/tasks",
+    "pages/reservation/reservation",
+    "pages/wallet/wallet",
+    "pages/avatar/avatar"
+  ],
+  "window": {
+    "backgroundTextStyle": "light",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTitleText": "会员中心",
+    "navigationBarTextStyle": "black"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

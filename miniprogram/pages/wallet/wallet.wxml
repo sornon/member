@@ -1,0 +1,36 @@
+<view class="container">
+  <view class="card">
+    <view class="section-title">账户余额</view>
+    <view wx:if="{{loading}}">加载中...</view>
+    <view wx:elif="{{summary}}">
+      <view class="balance">{{formatCurrency(summary.balance || 0)}}</view>
+      <view class="meta">累计充值：{{formatCurrency(summary.totalRecharge || 0)}} · 累计消费：{{formatCurrency(summary.totalSpend || 0)}}</view>
+    </view>
+  </view>
+
+  <view class="card">
+    <view class="section-title">快捷充值</view>
+    <view class="presets">
+      <view class="preset {{amount === item ? 'active' : ''}}" wx:for="{{presets}}" wx:key="value" data-value="{{item}}" bindtap="handlePresetTap">¥{{item}}</view>
+    </view>
+    <view class="input-box">
+      <input type="number" placeholder="输入自定义金额" value="{{amount}}" bindinput="handleAmountInput"/>
+    </view>
+    <button type="primary" bindtap="handleRecharge">立即充值</button>
+  </view>
+
+  <view class="card">
+    <view class="section-title">余额流水</view>
+    <view wx:if="{{loading}}">加载中...</view>
+    <view wx:elif="{{!summary || !summary.transactions.length}}" class="empty-state">暂无流水记录</view>
+    <view wx:else>
+      <view class="transaction" wx:for="{{summary.transactions}}" wx:key="_id">
+        <view>
+          <view class="txn-title">{{item.typeLabel}}</view>
+          <view class="txn-date">{{formatDate(item.createdAt)}}</view>
+        </view>
+        <view class="txn-amount {{item.amount > 0 ? 'income' : 'expense'}}">{{item.amount > 0 ? '+' : ''}}{{formatCurrency(item.amount)}}</view>
+      </view>
+    </view>
+  </view>
+</view>
