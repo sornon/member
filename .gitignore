@@ -3,3 +3,4 @@ package-lock.json
 miniprogram/miniprogram_npm/
 .DS_Store            # Finder 元数据文件（必加！）[1,7,8](@ref)
 ._*                  # 资源派生文件（如 ._Document）[1,8](@ref)
+*.DS_Store            # Finder 元数据文件（必加！）[1,7,8](@ref)
