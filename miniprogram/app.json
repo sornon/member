@@ -4,6 +4,7 @@
     "pages/membership/membership",
     "pages/rights/rights",
     "pages/tasks/tasks",
+    "pages/pve/pve",
     "pages/reservation/reservation",
     "pages/wallet/wallet",
     "pages/avatar/avatar"

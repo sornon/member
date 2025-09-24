@@ -99,3 +99,41 @@ export const AvatarService = {
     });
   }
 };
+
+export const PveService = {
+  async getProfile() {
+    return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'profile' });
+  },
+  async allocateAttributes(distribution) {
+    return callCloud(CLOUD_FUNCTIONS.PVE, {
+      action: 'allocateAttributes',
+      distribution
+    });
+  },
+  async drawSkills(count = 1) {
+    return callCloud(CLOUD_FUNCTIONS.PVE, {
+      action: 'drawSkills',
+      count
+    });
+  },
+  async equipItem(itemId) {
+    return callCloud(CLOUD_FUNCTIONS.PVE, {
+      action: 'equipItem',
+      itemId
+    });
+  },
+  async equipSkill(skillId, slotType, slotIndex) {
+    return callCloud(CLOUD_FUNCTIONS.PVE, {
+      action: 'equipSkill',
+      skillId,
+      slotType,
+      slotIndex
+    });
+  },
+  async startBattle(stageId) {
+    return callCloud(CLOUD_FUNCTIONS.PVE, {
+      action: 'startBattle',
+      stageId
+    });
+  }
+};

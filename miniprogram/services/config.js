@@ -4,6 +4,7 @@ export const CLOUD_FUNCTIONS = {
   RESERVATION: 'reservation',
   WALLET: 'wallet',
   AVATAR: 'avatar',
+  PVE: 'pve',
   BOOTSTRAP: 'bootstrap'
 };
 
