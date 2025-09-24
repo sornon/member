@@ -12,6 +12,7 @@ export const formatDate = (date) => {
 };
 
 export const levelBadgeColor = (order = 1) => {
-  const colors = ['#a0a4ff', '#7c4dff', '#ff7e67', '#ffd166', '#4dd0e1', '#9ccc65'];
-  return colors[(order - 1) % colors.length];
+  const colors = ['#a0a4ff', '#7c4dff', '#ff7e67', '#ffd166', '#4dd0e1', '#9ccc65', '#b388ff', '#ff9f1c', '#00b894', '#ff6f91'];
+  const index = Math.max((order || 1) - 1, 0) % colors.length;
+  return colors[index];
 };
