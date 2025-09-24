@@ -17,13 +17,13 @@
       </view>
 
       <view class="assets">
-        <view class="asset-card" wx:for="{{assetsByCategory[categories.length ? categories[activeCategoryIndex]._id : '']}}" wx:key="_id" bindtap="handleEquip" data-category-id="{{categories.length ? categories[activeCategoryIndex]._id : ''}}" data-asset-id="{{item._id}}">
+        <view class="asset-card" wx:for="{{currentCategoryAssets}}" wx:key="_id" bindtap="handleEquip" data-category-id="{{currentCategoryId}}" data-asset-id="{{item._id}}">
           <view class="asset-title">{{item.name}}</view>
           <view class="asset-desc">{{item.description}}</view>
           <view class="asset-meta">解锁条件：{{item.unlockText}}</view>
-          <view class="asset-action" wx:if="{{categories.length && equipped[categories[activeCategoryIndex]._id] === item._id}}">已装备</view>
+          <view class="asset-action" wx:if="{{currentCategoryId && currentEquippedAssetId === item._id}}">已装备</view>
         </view>
-        <view wx:if="{{!(assetsByCategory[categories.length ? categories[activeCategoryIndex]._id : ''] || []).length}}" class="empty-state">
+        <view wx:if="{{!currentCategoryAssets.length}}" class="empty-state">
           该类别暂无可用装扮
         </view>
       </view>
