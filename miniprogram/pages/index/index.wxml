@@ -1,54 +1,96 @@
-<view class="container">
-  <view wx:if="{{loading}}" class="card">
-    <text>加载中...</text>
-  </view>
+<view class="home-page">
+  <image class="background" src="{{backgroundImage}}" mode="aspectFill"></image>
+  <view class="mist-layer mist-layer--one"></view>
+  <view class="mist-layer mist-layer--two"></view>
 
-  <view wx:if="{{member}}" class="card">
-    <view class="flex-between">
-      <view>
-        <view class="section-title">{{member.nickName ? member.nickName : '仙友'}}</view>
-        <view class="badge" style="background: rgba(123, 97, 255, 0.16); color: #5b5cf1;">
-          当前境界：{{member.level ? member.level.name : '练气'}}
+  <view class="content" wx:if="{{!loading}}">
+    <view class="top-bar">
+      <view class="profile-card" bindtap="handleProfileTap">
+        <image class="profile-avatar" src="{{(member && member.avatarUrl) ? member.avatarUrl : defaultAvatar}}" mode="cover"></image>
+        <view class="profile-info">
+          <view class="profile-name">{{member ? (member.nickName || '无名仙友') : '无名仙友'}}</view>
+          <view class="profile-level">境界：{{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</view>
+          <view class="profile-meta">
+            <text>灵石 {{formatCurrency(member ? (member.balance || 0) : 0)}}</text>
+            <text>修为 {{formatCurrency(member ? (member.experience || 0) : 0)}}</text>
+          </view>
         </view>
       </view>
-      <view>
-        <text class="balance">余额 {{formatCurrency(member.balance || 0)}}</text>
-      </view>
-    </view>
-    <view class="progress">
-      <view class="progress-bar">
-        <view class="progress-inner" style="width: {{progress ? progress.percentage : 0}}%;"></view>
-      </view>
-      <view class="progress-text">
-        <text>距离下个境界还需 {{progress ? progress.nextDiff : 0}} 经验</text>
-      </view>
-    </view>
-  </view>
 
-  <view class="card">
-    <view class="section-title">快速入口</view>
-    <view class="shortcut-grid">
-      <view class="shortcut" wx:for="{{shortcuts}}" wx:key="label" data-url="{{item.url}}" bindtap="handleShortcutTap">
-        <view class="shortcut-icon">{{item.icon}}</view>
-        <view class="shortcut-label">{{item.label}}</view>
-      </view>
-    </view>
-  </view>
-
-  <view class="card">
-    <view class="flex-between">
-      <view class="section-title">今日任务</view>
-      <navigator url="/pages/tasks/tasks" class="more">全部</navigator>
-    </view>
-    <view wx:if="{{tasks.length}}">
-      <view class="task-item" wx:for="{{tasks}}" wx:key="_id">
-        <view>
-          <view class="task-title">{{item.title}}</view>
-          <view class="task-desc">{{item.description}}</view>
+      <view class="activity-panel">
+        <view class="activity-item" wx:for="{{activityIcons}}" wx:key="label" data-url="{{item.url}}" data-label="{{item.label}}" bindtap="handleActivityTap">
+          <view class="activity-icon">{{item.icon}}</view>
+          <view class="activity-label">{{item.label}}</view>
         </view>
-        <view class="task-reward">奖励：{{item.rewardSummary}}</view>
       </view>
     </view>
-    <view wx:else class="empty-state">今日暂无任务，敬请期待</view>
+
+    <view class="hero-section">
+      <view class="hero-copy">
+        <view class="today">{{today}}</view>
+        <view class="hero-title">寻道大千 · 仙缘启程</view>
+        <view class="hero-subtitle">灵气回荡的天穹下，万道齐鸣，等你归位。</view>
+        <view class="progress-info">
+          <view class="progress-track">
+            <view class="progress-inner" style="width: {{progress ? progress.percentage : 0}}%;"></view>
+          </view>
+          <view class="progress-text">距下境界还需 {{progress ? progress.nextDiff : 0}} 修为</view>
+        </view>
+      </view>
+
+      <view class="hero-figure">
+        <image class="hero-image" src="{{heroImage}}" mode="widthFix"></image>
+        <view class="aura aura-1"></view>
+        <view class="aura aura-2"></view>
+      </view>
+    </view>
+
+    <view class="bottom-nav">
+      <view class="nav-item" wx:for="{{navItems}}" wx:key="label" data-url="{{item.url}}" bindtap="handleNavTap">
+        <view class="nav-icon">{{item.icon}}</view>
+        <view class="nav-label">{{item.label}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading-state">
+    <text>灵力汇聚中...</text>
+  </view>
+
+  <view wx:if="{{showProfile}}" class="profile-modal">
+    <view class="modal-mask" bindtap="handleCloseProfile"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <view class="modal-title">仙缘档案</view>
+        <view class="modal-close" bindtap="handleCloseProfile">×</view>
+      </view>
+      <view class="modal-body">
+        <view class="modal-row">
+          <text class="modal-label">道号</text>
+          <text class="modal-value">{{member ? (member.nickName || '神秘仙友') : '神秘仙友'}}</text>
+        </view>
+        <view class="modal-row">
+          <text class="modal-label">当前境界</text>
+          <text class="modal-value">{{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</text>
+        </view>
+        <view class="modal-row">
+          <text class="modal-label">修为值</text>
+          <text class="modal-value">{{formatCurrency(member ? (member.experience || 0) : 0)}}</text>
+        </view>
+        <view class="modal-row">
+          <text class="modal-label">灵石余额</text>
+          <text class="modal-value">{{formatCurrency(member ? (member.balance || 0) : 0)}}</text>
+        </view>
+        <view class="modal-divider"></view>
+        <view class="modal-section-title">今日任务</view>
+        <view wx:if="{{tasks.length}}" class="modal-task-list">
+          <view class="modal-task" wx:for="{{tasks}}" wx:key="_id">
+            <view class="task-name">{{item.title}}</view>
+            <view class="task-reward">{{item.rewardSummary}}</view>
+          </view>
+        </view>
+        <view wx:else class="modal-empty">今日暂无任务，稍后再来查看~</view>
+      </view>
+    </view>
   </view>
 </view>
