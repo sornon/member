@@ -6,22 +6,68 @@
   <view wx:if="{{!loading}}">
     <view class="card member-card">
       <view class="section-title">修仙等级</view>
-      <view class="current-level">{{member.level ? member.level.name : '练气'}} · 当前经验 {{member.experience || 0}}</view>
+      <view class="current-level">{{currentLevel ? currentLevel.displayName : '炼气期 · 一层'}}</view>
+      <view class="current-summary" wx:if="{{currentLevel && currentLevel.realmDescription}}">{{currentLevel.realmDescription}}</view>
+      <view class="current-stats">
+        <text class="stat">当前修为 {{formatCurrency(member.experience || 0)}}</text>
+        <text class="stat" wx:if="{{nextLevel}}">下一级 {{nextLevel.displayName}}</text>
+      </view>
       <view class="progress-bar">
         <view class="progress-inner" style="width: {{progress ? progress.percentage : 0}}%;"></view>
       </view>
-      <view class="progress-text">距离下个境界还差 {{progress ? progress.nextDiff : 0}} 经验</view>
+      <view class="progress-text" wx:if="{{nextLevel}}">距离 {{nextLevel.displayName}} 还差 {{formatCurrency(progress ? progress.nextDiff : 0)}}</view>
+      <view class="progress-text" wx:else>恭喜飞升圆满，尊享终极特权</view>
+      <view class="milestone-hint" wx:if="{{upcomingMilestone}}">
+        <text class="milestone-tag">境界大奖</text>
+        <text class="milestone-text">冲刺至 {{upcomingMilestone.displayName}} 可得 {{upcomingMilestone.milestoneReward}}</text>
+      </view>
+    </view>
+
+    <view class="card realm-card" wx:if="{{realms.length}}">
+      <view class="section-title">主境界进阶</view>
+      <view class="realm-grid">
+        <view class="realm-item" wx:for="{{realms}}" wx:key="{{item.realm}}">
+          <view class="realm-header">
+            <text class="realm-name">{{item.realm}}</text>
+            <text class="realm-range">{{formatCurrency(item.start)}} ~ {{formatCurrency(item.end)}}</text>
+          </view>
+          <view class="realm-desc" wx:if="{{item.description}}">{{item.description}}</view>
+          <view class="realm-milestone" wx:if="{{item.milestoneReward}}">
+            <text class="reward-label">{{item.milestoneType ? item.milestoneType + '：' : '境界大奖：'}}</text>
+            <text class="reward-text">{{item.milestoneReward}}</text>
+            <text class="milestone-threshold" wx:if="{{item.milestoneThreshold}}">（累计 {{formatCurrency(item.milestoneThreshold)}} 解锁）</text>
+          </view>
+        </view>
+      </view>
     </view>
 
     <view class="card">
       <view class="section-title">等级列表</view>
-      <view wx:for="{{levels}}" wx:key="_id" class="level-item">
-        <view class="level-rank" style="background: {{levelBadgeColor(item.order)}}">{{item.name}}</view>
+      <view wx:for="{{levels}}" wx:key="_id" class="level-item {{item.milestoneReward ? 'level-item--milestone' : ''}}">
+        <view class="level-rank" style="background: {{levelBadgeColor(item.realmOrder)}}">
+          <text class="rank-realm">{{item.realmShort}}</text>
+          <text class="rank-stage">{{item.subLevelLabel}}</text>
+        </view>
         <view class="level-info">
-          <view class="level-title">累计充值满 {{formatCurrency(item.threshold)}}</view>
-          <view class="level-desc">折扣：{{(item.discount || 1) * 10}} 折</view>
-          <view class="level-rewards" wx:if="{{item.rewards && item.rewards.length}}">
-            <text class="reward-label">升级奖励：</text>
+          <view class="level-title">LV{{item.order}} · {{item.name}}</view>
+          <view class="level-meta">
+            <text>累计充值 {{formatCurrency(item.threshold)}}</text>
+            <text class="level-discount">尊享 {{formatDiscount(item.discount)}} 折</text>
+          </view>
+          <view class="level-desc" wx:if="{{item.subLevel === 1 && item.realmDescription}}">{{item.realmDescription}}</view>
+          <view class="level-virtual" wx:if="{{item.virtualRewards && item.virtualRewards.length}}">
+            <text class="reward-label">常规奖励：</text>
+            <view class="reward-list">
+              <text class="reward-text" wx:for="{{item.virtualRewards}}" wx:key="{{index}}">{{item}}</text>
+            </view>
+          </view>
+          <view class="level-milestone" wx:if="{{item.milestoneReward}}">
+            <text class="reward-label">境界突破：</text>
+            <text class="reward-text">{{item.milestoneReward}}</text>
+            <text class="reward-type" wx:if="{{item.milestoneType}}">（{{item.milestoneType}}）</text>
+          </view>
+          <view class="level-bonus" wx:if="{{item.rewards && item.rewards.length}}">
+            <text class="reward-label">实体权益：</text>
             <text class="reward-text" wx:for="{{item.rewards}}" wx:key="{{index}}">{{item}}</text>
           </view>
         </view>

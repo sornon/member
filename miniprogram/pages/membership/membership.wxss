@@ -9,6 +9,28 @@
   margin-bottom: 24rpx;
 }
 
+.current-summary {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+  margin-bottom: 20rpx;
+}
+
+.current-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx 24rpx;
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 20rpx;
+}
+
+.stat {
+  background: rgba(255, 255, 255, 0.12);
+  padding: 8rpx 16rpx;
+  border-radius: 12rpx;
+}
+
 .progress-bar {
   background: rgba(255, 255, 255, 0.3);
   border-radius: 16rpx;
@@ -28,6 +50,85 @@
   color: rgba(255, 255, 255, 0.9);
 }
 
+.milestone-hint {
+  margin-top: 24rpx;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 16rpx;
+  padding: 16rpx;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.milestone-tag {
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+  font-size: 22rpx;
+  color: #ffe57f;
+  background: rgba(255, 229, 127, 0.2);
+}
+
+.milestone-text {
+  font-size: 24rpx;
+  color: #ffffff;
+  line-height: 1.5;
+}
+
+.realm-card {
+  margin-top: 24rpx;
+}
+
+.realm-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.realm-item {
+  padding: 24rpx;
+  border-radius: 20rpx;
+  border: 1rpx solid #e2e6ff;
+  background: #f8f9ff;
+}
+
+.realm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.realm-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1a237e;
+}
+
+.realm-range {
+  font-size: 24rpx;
+  color: #53627c;
+}
+
+.realm-desc {
+  font-size: 24rpx;
+  color: #5c6785;
+  line-height: 1.6;
+}
+
+.realm-milestone {
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  color: #3d4fdd;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+}
+
+.milestone-threshold {
+  color: #8a94b3;
+  font-size: 22rpx;
+}
+
 .level-item {
   display: flex;
   padding: 24rpx 0;
@@ -38,17 +139,36 @@
   border-bottom: none;
 }
 
+.level-item--milestone {
+  background: #f4f7ff;
+  border-radius: 20rpx;
+  padding: 24rpx;
+  margin: 12rpx 0;
+  border-bottom: none;
+}
+
 .level-rank {
   min-width: 120rpx;
   height: 120rpx;
   border-radius: 16rpx;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   color: #ffffff;
   font-size: 28rpx;
   font-weight: 600;
   margin-right: 24rpx;
+}
+
+.rank-realm {
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.rank-stage {
+  font-size: 22rpx;
+  margin-top: 4rpx;
 }
 
 .level-info {
@@ -61,22 +181,65 @@
   color: #0f244a;
 }
 
+.level-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx 24rpx;
+  font-size: 24rpx;
+  color: #4a5d7d;
+  margin-top: 12rpx;
+}
+
+.level-discount {
+  color: #ff7043;
+  font-weight: 600;
+}
+
 .level-desc {
   font-size: 24rpx;
   color: #6d758c;
   margin-top: 12rpx;
+  line-height: 1.6;
 }
 
-.level-rewards {
-  margin-top: 12rpx;
+.level-virtual,
+.level-milestone,
+.level-bonus {
+  margin-top: 16rpx;
   font-size: 24rpx;
-  color: #4d5ef6;
+  line-height: 1.6;
+}
+
+.level-virtual {
+  color: #4f5b7d;
+}
+
+.level-milestone {
+  color: #d35400;
+}
+
+.level-bonus {
+  color: #1b8367;
 }
 
 .reward-label {
-  font-weight: 500;
+  font-weight: 600;
+  margin-right: 8rpx;
+}
+
+.reward-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx 16rpx;
+  margin-top: 8rpx;
 }
 
 .reward-text {
-  margin-right: 16rpx;
+  display: inline-block;
+}
+
+.reward-type {
+  margin-left: 8rpx;
+  color: #9a7b4f;
+  font-size: 22rpx;
 }
