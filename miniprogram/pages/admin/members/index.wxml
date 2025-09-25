@@ -1,0 +1,39 @@
+<view class="admin-members">
+  <view class="search-bar">
+    <input
+      class="search-input"
+      value="{{keyword}}"
+      bindinput="handleKeywordInput"
+      confirm-type="search"
+      bindconfirm="handleSearch"
+      placeholder="搜索昵称 / 手机 / OpenID"
+    />
+    <button class="search-button" bindtap="handleSearch">搜索</button>
+  </view>
+
+  <view wx:if="{{loading && !members.length}}" class="loading">加载中...</view>
+  <view wx:elif="{{!members.length}}" class="empty">未找到相关会员</view>
+
+  <view wx:else class="member-list">
+    <view
+      wx:for="{{members}}"
+      wx:key="_id"
+      class="member-item"
+      data-id="{{item._id}}"
+      bindtap="handleMemberTap"
+    >
+      <image class="member-avatar" src="{{item.avatarUrl || defaultAvatar}}" mode="aspectFill"></image>
+      <view class="member-info">
+        <view class="member-name">{{item.nickName || '未命名会员'}}</view>
+        <view class="member-meta">
+          <text>ID：{{item._id}}</text>
+          <text wx:if="{{item.mobile}}"> · 手机：{{item.mobile}}</text>
+        </view>
+        <view class="member-status">境界：{{item.levelName || '未设置'}} · 角色：{{item.roles.join(' / ')}}</view>
+      </view>
+      <view class="member-arrow">›</view>
+    </view>
+    <view wx:if="{{loading && members.length}}" class="loading-inline">继续加载中...</view>
+    <view wx:if="{{finished && members.length}}" class="end">没有更多数据了</view>
+  </view>
+</view>

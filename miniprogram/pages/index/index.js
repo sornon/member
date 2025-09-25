@@ -1,6 +1,16 @@
 import { MemberService, TaskService } from '../../services/api';
 import { formatCurrency } from '../../utils/format';
 
+const BASE_NAV_ITEMS = [
+  { icon: '💳', label: '境界等级', url: '/pages/membership/membership' },
+  { icon: '🎁', label: '权益宝库', url: '/pages/rights/rights' },
+  { icon: '📅', label: '灵阁预订', url: '/pages/reservation/reservation' },
+  { icon: '💰', label: '灵石钱包', url: '/pages/wallet/wallet' },
+  { icon: '🧙‍♀️', label: '捏脸塑形', url: '/pages/avatar/avatar' }
+];
+
+const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
+
 const BACKGROUND_IMAGE =
   'data:image/svg+xml;base64,' +
   'PHN2ZyB3aWR0aD0iNzIwIiBoZWlnaHQ9IjEyODAiIHZpZXdCb3g9IjAgMCA3MjAgMTI4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVm' +
@@ -46,6 +56,15 @@ const DEFAULT_AVATAR =
   'BmaWxsPSIjZmNlMWMyIi8+CiAgPHBhdGggZD0iTTQwIDEzMCBRODAgMTAwIDEyMCAxMzAiIGZpbGw9IiNmMGY0ZmYiIHN0cm9rZT0iI2Q5ZGVmZiIgc3Ryb2tlLXdpZHRo' +
   'PSI0Ii8+Cjwvc3ZnPg==';
 
+function resolveNavItems(member) {
+  const roles = Array.isArray(member && member.roles) ? member.roles : [];
+  const navItems = [...BASE_NAV_ITEMS];
+  if (roles.some((role) => ADMIN_ALLOWED_ROLES.includes(role))) {
+    navItems.push({ icon: '🛡️', label: '管理员', url: '/pages/admin/index' });
+  }
+  return navItems;
+}
+
 Page({
   data: {
     member: null,
@@ -62,13 +81,7 @@ Page({
       { icon: '🎉', label: '灵境盛典', url: '/pages/rights/rights' },
       { icon: '🔥', label: '冲榜比武' }
     ],
-    navItems: [
-      { icon: '💳', label: '境界等级', url: '/pages/membership/membership' },
-      { icon: '🎁', label: '权益宝库', url: '/pages/rights/rights' },
-      { icon: '📅', label: '灵阁预订', url: '/pages/reservation/reservation' },
-      { icon: '💰', label: '灵石钱包', url: '/pages/wallet/wallet' },
-      { icon: '🧙‍♀️', label: '捏脸塑形', url: '/pages/avatar/avatar' }
-    ]
+    navItems: [...BASE_NAV_ITEMS]
   },
 
   onLoad() {
@@ -92,7 +105,8 @@ Page({
         member,
         progress,
         tasks: tasks.slice(0, 3),
-        loading: false
+        loading: false,
+        navItems: resolveNavItems(member)
       });
     } catch (err) {
       this.setData({ loading: false });

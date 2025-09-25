@@ -1,0 +1,66 @@
+.admin-home {
+  min-height: 100vh;
+  background: #0f172a;
+  padding: 32rpx;
+  color: #e2e8f0;
+}
+
+.intro {
+  margin-bottom: 32rpx;
+}
+
+.title {
+  font-size: 36rpx;
+  font-weight: 600;
+  margin-bottom: 8rpx;
+}
+
+.subtitle {
+  font-size: 28rpx;
+  color: #94a3b8;
+}
+
+.action-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.action-card {
+  display: flex;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 20rpx;
+  padding: 24rpx;
+  backdrop-filter: blur(12px);
+}
+
+.action-card:active {
+  opacity: 0.8;
+}
+
+.action-icon {
+  font-size: 48rpx;
+  margin-right: 24rpx;
+}
+
+.action-info {
+  flex: 1;
+}
+
+.action-label {
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-bottom: 4rpx;
+}
+
+.action-desc {
+  font-size: 26rpx;
+  color: #94a3b8;
+}
+
+.action-arrow {
+  font-size: 40rpx;
+  color: #64748b;
+}

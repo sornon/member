@@ -47,6 +47,7 @@ async function initMember(openid, profile) {
     levelId: defaultLevel ? defaultLevel._id : '',
     experience: 0,
     balance: 0,
+    roles: ['member'],
     createdAt: new Date(),
     avatarConfig: {}
   };
@@ -261,8 +262,21 @@ async function loadLevels() {
 
 function decorateMember(member, levels) {
   const level = levels.find((lvl) => lvl._id === member.levelId) || null;
+  const roles = Array.isArray(member.roles) && member.roles.length ? member.roles : ['member'];
+  if (roles !== member.roles) {
+    db.collection(COLLECTIONS.MEMBERS)
+      .doc(member._id)
+      .update({
+        data: {
+          roles,
+          updatedAt: new Date()
+        }
+      })
+      .catch(() => {});
+  }
   return {
     ...member,
+    roles,
     level
   };
 }
