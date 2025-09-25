@@ -6,7 +6,10 @@
     "pages/tasks/tasks",
     "pages/reservation/reservation",
     "pages/wallet/wallet",
-    "pages/avatar/avatar"
+    "pages/avatar/avatar",
+    "pages/admin/index",
+    "pages/admin/members/index",
+    "pages/admin/member-detail/index"
   ],
   "window": {
     "backgroundTextStyle": "light",

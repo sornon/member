@@ -1,0 +1,89 @@
+<view class="member-detail" wx:if="{{!loading}}">
+  <view class="section">
+    <view class="section-title">账号信息</view>
+    <view class="info-row">
+      <view class="info-label">会员 ID</view>
+      <view class="info-value">{{member._id}}</view>
+    </view>
+    <view class="info-row">
+      <view class="info-label">注册时间</view>
+      <view class="info-value">{{member.createdAt || '—'}}</view>
+    </view>
+    <view class="info-row">
+      <view class="info-label">最近更新</view>
+      <view class="info-value">{{member.updatedAt || '—'}}</view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">基础资料</view>
+    <view class="form-item">
+      <view class="form-label">昵称</view>
+      <input
+        class="form-input"
+        value="{{form.nickName}}"
+        placeholder="请输入昵称"
+        data-field="nickName"
+        bindinput="handleInputChange"
+      />
+    </view>
+    <view class="form-item">
+      <view class="form-label">手机号</view>
+      <input
+        class="form-input"
+        value="{{form.mobile}}"
+        placeholder="请输入手机号"
+        data-field="mobile"
+        bindinput="handleInputChange"
+      />
+    </view>
+    <view class="form-item">
+      <view class="form-label">修为值</view>
+      <input
+        class="form-input"
+        type="number"
+        value="{{form.experience}}"
+        placeholder="请输入修为值"
+        data-field="experience"
+        bindinput="handleInputChange"
+      />
+    </view>
+    <view class="form-item">
+      <view class="form-label">灵石余额</view>
+      <input
+        class="form-input"
+        type="number"
+        value="{{form.balance}}"
+        placeholder="请输入余额"
+        data-field="balance"
+        bindinput="handleInputChange"
+      />
+    </view>
+    <view class="form-item">
+      <view class="form-label">当前境界</view>
+      <picker mode="selector" range="{{levels}}" range-key="name" value="{{levelIndex}}" bindchange="handleLevelChange">
+        <view class="picker-value">{{currentLevelName || '请选择境界'}}</view>
+      </picker>
+    </view>
+    <view class="form-item">
+      <view class="form-label">角色权限</view>
+      <checkbox-group class="role-group" bindchange="handleRolesChange">
+        <label
+          wx:for="{{roleOptions}}"
+          wx:key="value"
+          class="role-option"
+        >
+          <checkbox
+            value="{{item.value}}"
+            checked="{{form.roles.indexOf(item.value) !== -1}}"
+          />
+          <text class="role-label">{{item.label}}</text>
+        </label>
+      </checkbox-group>
+    </view>
+  </view>
+
+  <button class="submit" type="primary" loading="{{saving}}" bindtap="handleSubmit">保存修改</button>
+</view>
+
+<view wx:if="{{loading}}" class="loading">加载会员资料...</view>

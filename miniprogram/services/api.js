@@ -105,3 +105,27 @@ export const AvatarService = {
     });
   }
 };
+
+export const AdminService = {
+  async listMembers({ keyword = '', page = 1, pageSize = 20 } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'listMembers',
+      keyword,
+      page,
+      pageSize
+    });
+  },
+  async getMemberDetail(memberId) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'getMemberDetail',
+      memberId
+    });
+  },
+  async updateMember(memberId, updates) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'updateMember',
+      memberId,
+      updates
+    });
+  }
+};

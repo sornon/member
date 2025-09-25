@@ -1,0 +1,23 @@
+<view class="admin-home">
+  <view class="intro">
+    <view class="title">管理员入口</view>
+    <view class="subtitle">快速访问后台常用功能</view>
+  </view>
+
+  <view class="action-grid">
+    <view
+      wx:for="{{quickActions}}"
+      wx:key="label"
+      class="action-card"
+      data-url="{{item.url}}"
+      bindtap="handleActionTap"
+    >
+      <view class="action-icon">{{item.icon}}</view>
+      <view class="action-info">
+        <view class="action-label">{{item.label}}</view>
+        <view class="action-desc">{{item.description}}</view>
+      </view>
+      <view class="action-arrow">›</view>
+    </view>
+  </view>
+</view>
