@@ -54,9 +54,15 @@ Page({
       }
       wx.requestPayment({
         ...result.payment,
-        success: () => {
-          wx.showToast({ title: '充值成功', icon: 'success' });
-          this.fetchSummary();
+        success: async () => {
+          try {
+            await WalletService.completeRecharge(result.transactionId);
+            wx.showToast({ title: '充值成功', icon: 'success' });
+          } catch (error) {
+            wx.showToast({ title: '充值状态更新失败', icon: 'none' });
+          } finally {
+            this.fetchSummary();
+          }
         },
         fail: () => {
           wx.showToast({ title: '支付已取消', icon: 'none' });
