@@ -58,11 +58,12 @@ Page({
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
     activityIcons: [
-      { icon: '⚔️', label: '宗门试炼', url: '/pages/tasks/tasks' },
+      { icon: '⚔️', label: '宗门闯关', url: '/pages/pve/pve' },
       { icon: '🎉', label: '灵境盛典', url: '/pages/rights/rights' },
       { icon: '🔥', label: '冲榜比武' }
     ],
     navItems: [
+      { icon: '⚔️', label: '闯关试炼', url: '/pages/pve/pve' },
       { icon: '💳', label: '境界等级', url: '/pages/membership/membership' },
       { icon: '🎁', label: '权益宝库', url: '/pages/rights/rights' },
       { icon: '📅', label: '灵阁预订', url: '/pages/reservation/reservation' },

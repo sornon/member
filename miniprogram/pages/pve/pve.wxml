@@ -1,0 +1,104 @@
+<view class="pve-page">
+  <view wx:if="{{loading}}" class="loading">
+    <text>灵气汇聚中...</text>
+  </view>
+
+  <view wx:else>
+    <view class="summary-card">
+      <view class="summary-title">宗门战力总览</view>
+      <view class="summary-power">战力 {{profile.combatPower}}</view>
+      <view class="summary-points">剩余自由属性：{{profile.freePoints}}</view>
+      <view class="summary-attr">
+        <view class="attr-item" wx:for="{{ATTRIBUTES}}" wx:key="key">
+          <view class="attr-label">{{item.label}}</view>
+          <view class="attr-value">{{profile.attributes[item.key]}}</view>
+          <input class="attr-input" type="number" placeholder="分配" data-key="{{item.key}}" value="{{allocation[item.key]}}" bindinput="handleAllocationInput" />
+        </view>
+      </view>
+      <button class="primary" loading="{{allocating}}" bindtap="handleAllocate">分配属性</button>
+    </view>
+
+    <view class="section">
+      <view class="section-title">装备一览</view>
+      <view class="equipment-grid">
+        <view class="equipment-slot" wx:for="{{equipmentEntries}}" wx:key="slot">
+          <view class="slot-title">{{item.slot}}</view>
+          <view wx:if="{{item.item}}" class="slot-card">
+            <view class="item-name">{{item.item.name}}</view>
+            <view class="item-rarity">品阶 {{item.item.rarity}}</view>
+            <view class="item-stats">
+              <text wx:for="{{item.item.stats}}" wx:key="{{index}}">{{index}} +{{item.item.stats[index]}}</text>
+            </view>
+          </view>
+          <view wx:else class="slot-card empty">未装备</view>
+        </view>
+      </view>
+      <view class="inventory-list">
+        <view class="inventory-item" wx:for="{{profile.inventory.equipment}}" wx:key="index" data-item-id="{{item.id || item.itemId}}" bindtap="handleEquipItem">
+          <view class="item-name">{{item.name}}</view>
+          <view class="item-meta">Lv.{{item.level}} · {{item.rarity}}</view>
+          <view class="item-desc">点击穿戴</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="section">
+      <view class="section-title">技能书库</view>
+      <view class="skill-loadout">
+        <view class="loadout-column">
+          <view class="column-title">主动技能 ({{profile.skills.loadout.active.length}} / {{profile.skills.slots.active}})</view>
+          <view class="tag" wx:for="{{profile.skills.loadout.active}}" wx:key="id">{{(skillMap[item] && skillMap[item].name) || '未配置'}}</view>
+        </view>
+        <view class="loadout-column">
+          <view class="column-title">被动技能 ({{profile.skills.loadout.passive.length}} / {{profile.skills.slots.passive}})</view>
+          <view class="tag" wx:for="{{profile.skills.loadout.passive}}" wx:key="id">{{(skillMap[item] && skillMap[item].name) || '未配置'}}</view>
+        </view>
+      </view>
+      <view class="skill-list">
+        <view class="skill-card" wx:for="{{profile.skills.owned}}" wx:key="id">
+          <view class="skill-header">
+            <view class="skill-name">{{item.name}}</view>
+            <view class="skill-rarity">{{item.rarity}}</view>
+          </view>
+          <view class="skill-desc">{{item.description}}</view>
+          <view class="skill-meta">等级 {{item.level}} · 持有 {{item.copies}} · 碎片 {{item.fragments}}</view>
+          <view class="skill-actions">
+            <button wx:if="{{item.type === 'active'}}" size="mini" data-skill-id="{{item.id}}" data-type="active" bindtap="handleEquipSkill">设为主动</button>
+            <button wx:if="{{item.type === 'passive'}}" size="mini" data-skill-id="{{item.id}}" data-type="passive" bindtap="handleEquipSkill">设为被动</button>
+          </view>
+        </view>
+      </view>
+      <view class="draw-actions">
+        <button class="primary" size="mini" loading="{{drawing}}" data-mode="single" bindtap="handleDraw">灵石单抽 (180)</button>
+        <button class="primary" size="mini" loading="{{drawing}}" data-mode="ten" bindtap="handleDraw">十连召唤 (1700)</button>
+        <view class="resource">剩余灵石：{{profile.resources.spiritStones}}</view>
+      </view>
+    </view>
+
+    <view class="section">
+      <view class="section-title">副本挑战</view>
+      <view class="stage-list">
+        <view
+          class="stage-card {{item.unlocked ? '' : 'stage-locked'}}"
+          wx:for="{{profile.stages}}"
+          wx:key="id"
+          data-stage-id="{{item.id}}"
+          data-unlocked="{{item.unlocked}}"
+          bindtap="handleSelectStage"
+        >
+          <view class="stage-header">
+            <view class="stage-name">{{item.name}}</view>
+            <view class="stage-tag">推荐 {{item.recommendedPower}}</view>
+          </view>
+          <view class="stage-status">
+            <text wx:if="{{item.cleared}}">已通关</text>
+            <text wx:elif="{{item.unlocked}}">可挑战</text>
+            <text wx:else>未解锁</text>
+          </view>
+          <view wx:if="{{selectedStageId === item.id}}" class="stage-selected">当前选择</view>
+        </view>
+      </view>
+      <button class="primary" loading="{{battling}}" bindtap="handleBattle">开始战斗</button>
+    </view>
+  </view>
+</view>
