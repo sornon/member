@@ -29,6 +29,7 @@ async function seedCollection(name, dataList) {
 }
 
 const subLevelLabels = ['一层', '二层', '三层', '四层', '五层', '六层', '七层', '八层', '九层', '圆满'];
+const EXPERIENCE_PER_YUAN = 100;
 
 const realmConfigs = [
   {
@@ -475,7 +476,7 @@ function buildMembershipLevels() {
         realmDescription: realm.description,
         subLevel,
         subLevelLabel: label,
-        threshold: thresholdYuan * 100,
+        threshold: Math.round(thresholdYuan * EXPERIENCE_PER_YUAN),
         discount,
         order,
         virtualRewards: [],

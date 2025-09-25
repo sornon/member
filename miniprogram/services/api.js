@@ -79,6 +79,12 @@ export const WalletService = {
       amount
     });
   },
+  async completeRecharge(transactionId) {
+    return callCloud(CLOUD_FUNCTIONS.WALLET, {
+      action: 'completeRecharge',
+      transactionId
+    });
+  },
   async payWithBalance(orderId, amount) {
     return callCloud(CLOUD_FUNCTIONS.WALLET, {
       action: 'balancePay',
