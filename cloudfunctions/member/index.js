@@ -47,6 +47,7 @@ async function initMember(openid, profile) {
     levelId: defaultLevel ? defaultLevel._id : '',
     experience: 0,
     balance: 0,
+    roles: ['member'],
     createdAt: new Date(),
     avatarConfig: {}
   };
@@ -55,6 +56,19 @@ async function initMember(openid, profile) {
     await grantLevelRewards(openid, defaultLevel, []);
   }
   return doc;
+}
+
+function normalizeRoles(rawRoles) {
+  if (Array.isArray(rawRoles)) {
+    const cleaned = rawRoles
+      .filter((role) => typeof role === 'string' && role.trim())
+      .map((role) => role.trim());
+    return cleaned.length ? Array.from(new Set(cleaned)) : ['member'];
+  }
+  if (typeof rawRoles === 'string' && rawRoles.trim()) {
+    return [rawRoles.trim()];
+  }
+  return ['member'];
 }
 
 async function getProfile(openid) {
@@ -261,8 +275,21 @@ async function loadLevels() {
 
 function decorateMember(member, levels) {
   const level = levels.find((lvl) => lvl._id === member.levelId) || null;
+  const roles = normalizeRoles(member.roles);
+  if (roles !== member.roles) {
+    db.collection(COLLECTIONS.MEMBERS)
+      .doc(member._id)
+      .update({
+        data: {
+          roles,
+          updatedAt: new Date()
+        }
+      })
+      .catch(() => {});
+  }
   return {
     ...member,
+    roles,
     level
   };
 }
