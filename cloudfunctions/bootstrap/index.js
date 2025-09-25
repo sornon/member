@@ -20,15 +20,12 @@ exports.main = async () => {
 
 async function seedCollection(name, dataList) {
   const collection = db.collection(name);
-  for (const item of dataList) {
-    const doc = await collection.doc(item._id).get().catch(() => null);
-    if (!doc || !doc.data) {
-      await collection.add({ data: item });
-    } else {
+  await Promise.all(
+    dataList.map(async (item) => {
       const { _id, ...payload } = item;
-      await collection.doc(item._id).update({ data: payload });
-    }
-  }
+      await collection.doc(_id).set({ data: payload });
+    })
+  );
 }
 
 const subLevelLabels = ['一层', '二层', '三层', '四层', '五层', '六层', '七层', '八层', '九层', '圆满'];
