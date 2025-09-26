@@ -13,8 +13,8 @@
           <view class="profile-name">{{member ? (member.nickName || '无名仙友') : '无名仙友'}}</view>
           <view class="profile-level">境界：{{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</view>
           <view class="profile-meta">
-            <text>灵石 {{formatCurrency(member ? (member.balance || 0) : 0)}}</text>
-            <text>修为 {{formatCurrency(member ? (member.experience || 0) : 0)}}</text>
+            <text>灵石 {{memberStats.balance}}</text>
+            <text>修为 {{memberStats.experience}}</text>
           </view>
         </view>
       </view>
@@ -77,11 +77,11 @@
         </view>
         <view class="modal-row">
           <text class="modal-label">修为值</text>
-          <text class="modal-value">{{formatCurrency(member ? (member.experience || 0) : 0)}}</text>
+          <text class="modal-value">{{memberStats.experience}}</text>
         </view>
         <view class="modal-row">
           <text class="modal-label">灵石余额</text>
-          <text class="modal-value">{{formatCurrency(member ? (member.balance || 0) : 0)}}</text>
+          <text class="modal-value">{{memberStats.balance}}</text>
         </view>
         <view class="modal-divider"></view>
         <view class="modal-section-title">今日任务</view>
