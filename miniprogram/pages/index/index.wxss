@@ -263,6 +263,7 @@ page {
 
 .bottom-nav {
   margin-top: auto;
+  margin-bottom: 32rpx;
   padding: 18rpx 24rpx;
   border-radius: 36rpx;
   background: rgba(21, 32, 84, 0.85);
