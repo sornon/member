@@ -78,18 +78,14 @@ page {
 .profile-card {
   display: flex;
   align-items: center;
-  padding: 24rpx 28rpx;
+  padding: 24rpx 0;
   border-radius: 32rpx;
-  background: linear-gradient(135deg, rgba(33, 52, 112, 0.72), rgba(87, 82, 176, 0.48));
-  box-shadow: 0 12rpx 32rpx rgba(24, 21, 77, 0.45);
 }
 
 .profile-avatar {
   width: 120rpx;
   height: 120rpx;
   border-radius: 32rpx;
-  border: 2rpx solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 8rpx 18rpx rgba(30, 23, 89, 0.52);
 }
 
 .profile-info {
@@ -131,18 +127,16 @@ page {
 
 .activity-panel {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
-  gap: 12rpx;
+  align-items: center;
+  gap: 8rpx;
 }
 
 .activity-item {
-  min-width: 108rpx;
-  padding: 16rpx 20rpx;
+  padding: 12rpx 0;
   text-align: center;
   border-radius: 24rpx;
-  background: rgba(43, 50, 118, 0.62);
-  box-shadow: 0 12rpx 26rpx rgba(24, 17, 68, 0.36);
 }
 
 .activity-icon {
