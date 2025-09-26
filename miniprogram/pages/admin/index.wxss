@@ -1,7 +1,15 @@
+page {
+  background: #0f172a;
+}
+
 .admin-home {
   min-height: 100vh;
-  background: #0f172a;
+  min-height: calc(100vh - constant(safe-area-inset-top) - constant(safe-area-inset-bottom));
+  min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   padding: 32rpx;
+  padding-bottom: calc(32rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
+  background: #0f172a;
   color: #e2e8f0;
 }
 
