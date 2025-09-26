@@ -1,5 +1,16 @@
 export const formatCurrency = (amount = 0) => {
-  return `¥${(amount / 100).toFixed(2)}`;
+  const numeric =
+    typeof amount === 'number'
+      ? amount
+      : typeof amount === 'string'
+      ? Number(amount)
+      : 0;
+
+  if (!Number.isFinite(numeric)) {
+    return '¥0.00';
+  }
+
+  return `¥${(numeric / 100).toFixed(2)}`;
 };
 
 export const formatDate = (date) => {
