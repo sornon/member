@@ -5,7 +5,6 @@
   right: 0;
   z-index: 999;
   box-sizing: border-box;
-  backdrop-filter: blur(18rpx);
 }
 
 .custom-nav .nav-content {
@@ -19,6 +18,7 @@
 .custom-nav .nav-title {
   font-size: 32rpx;
   font-weight: 600;
+  text-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.35);
 }
 
 .custom-nav .back-button {
@@ -49,27 +49,25 @@
 }
 
 .custom-nav.light {
-  background: rgba(255, 255, 255, 0.95);
-  color: #0f244a;
-  border-bottom: 1rpx solid rgba(15, 36, 74, 0.06);
+  background: transparent;
+  color: #f5f7ff;
 }
 
 .custom-nav.light .back-button {
-  background: rgba(15, 36, 74, 0.06);
+  background: rgba(15, 36, 74, 0.18);
 }
 
 .custom-nav.light .back-icon {
-  color: #0f244a;
+  color: #f5f7ff;
 }
 
 .custom-nav.dark {
-  background: linear-gradient(135deg, rgba(12, 18, 46, 0.92), rgba(36, 28, 84, 0.88));
+  background: transparent;
   color: #f5f7ff;
-  border-bottom: 1rpx solid rgba(137, 155, 255, 0.28);
 }
 
 .custom-nav.dark .back-button {
-  background: rgba(245, 247, 255, 0.1);
+  background: rgba(245, 247, 255, 0.16);
 }
 
 .custom-nav.dark .back-icon {
