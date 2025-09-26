@@ -77,9 +77,9 @@ Page({
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
     activityIcons: [
-      { icon: '⚔️', label: '宗门试炼', url: '/pages/tasks/tasks' },
-      { icon: '🎉', label: '灵境盛典', url: '/pages/rights/rights' },
-      { icon: '🔥', label: '冲榜比武' }
+      { icon: '⚔️', label: '试炼', url: '/pages/tasks/tasks' },
+      { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
+      { icon: '🔥', label: '比武' }
     ],
     navItems: [...BASE_NAV_ITEMS]
   },
