@@ -1,5 +1,5 @@
 import { MemberService, TaskService } from '../../services/api';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, formatExperience } from '../../utils/format';
 
 const BASE_NAV_ITEMS = [
   { icon: '💳', label: '境界等级', url: '/pages/membership/membership' },
@@ -56,6 +56,22 @@ const DEFAULT_AVATAR =
   'BmaWxsPSIjZmNlMWMyIi8+CiAgPHBhdGggZD0iTTQwIDEzMCBRODAgMTAwIDEyMCAxMzAiIGZpbGw9IiNmMGY0ZmYiIHN0cm9rZT0iI2Q5ZGVmZiIgc3Ryb2tlLXdpZHRo' +
   'PSI0Ii8+Cjwvc3ZnPg==';
 
+const EMPTY_MEMBER_STATS = {
+  balance: formatCurrency(0),
+  experience: formatExperience(0)
+};
+
+function deriveMemberStats(member) {
+  if (!member) {
+    return { ...EMPTY_MEMBER_STATS };
+  }
+
+  return {
+    balance: formatCurrency(member.balance ?? 0),
+    experience: formatExperience(member.experience ?? 0)
+  };
+}
+
 function resolveNavItems(member) {
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
   const navItems = [...BASE_NAV_ITEMS];
@@ -81,7 +97,8 @@ Page({
       { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
       { icon: '🔥', label: '比武' }
     ],
-    navItems: [...BASE_NAV_ITEMS]
+    navItems: [...BASE_NAV_ITEMS],
+    memberStats: { ...EMPTY_MEMBER_STATS }
   },
 
   onLoad() {
@@ -136,14 +153,19 @@ Page({
         progress,
         tasks: tasks.slice(0, 3),
         loading: false,
-        navItems: resolveNavItems(member)
+        navItems: resolveNavItems(member),
+        memberStats: deriveMemberStats(member)
       });
     } catch (err) {
-      this.setData({ loading: false });
+      this.setData({
+        loading: false,
+        memberStats: deriveMemberStats(this.data.member)
+      });
     }
   },
 
   formatCurrency,
+  formatExperience,
 
   handleProfileTap() {
     this.setData({ showProfile: true });

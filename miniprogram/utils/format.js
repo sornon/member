@@ -1,5 +1,63 @@
+const FALLBACK_CURRENCY = '¥0.00';
+const NESTED_AMOUNT_KEYS = ['amount', 'value', 'total', 'balance'];
+
+function coerceToNumber(input) {
+  if (input == null || input === '') {
+    return 0;
+  }
+
+  if (typeof input === 'number') {
+    return input;
+  }
+
+  if (typeof input === 'bigint') {
+    return Number(input);
+  }
+
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (!trimmed) {
+      return 0;
+    }
+    const sanitized = trimmed.replace(/[^0-9+.,-]/g, '').replace(/,/g, '');
+    const parsed = Number(sanitized);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  if (typeof input === 'object') {
+    for (const key of NESTED_AMOUNT_KEYS) {
+      if (Object.prototype.hasOwnProperty.call(input, key)) {
+        const candidate = coerceToNumber(input[key]);
+        if (Number.isFinite(candidate)) {
+          return candidate;
+        }
+      }
+    }
+  }
+
+  const fallback = Number(input);
+  return Number.isFinite(fallback) ? fallback : 0;
+}
+
 export const formatCurrency = (amount = 0) => {
-  return `¥${(amount / 100).toFixed(2)}`;
+  const numeric = coerceToNumber(amount);
+  if (!Number.isFinite(numeric)) {
+    return FALLBACK_CURRENCY;
+  }
+
+  const value = numeric / 100;
+  const normalizedValue = Object.is(value, -0) ? 0 : value;
+  return `¥${normalizedValue.toFixed(2)}`;
+};
+
+export const formatExperience = (value = 0) => {
+  const numeric = coerceToNumber(value);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+
+  const normalized = Math.max(0, Math.floor(numeric));
+  return normalized.toString();
 };
 
 export const formatDate = (date) => {

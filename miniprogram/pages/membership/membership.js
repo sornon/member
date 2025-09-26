@@ -1,5 +1,5 @@
 import { MemberService } from '../../services/api';
-import { formatCurrency, levelBadgeColor } from '../../utils/format';
+import { formatCurrency, formatExperience, levelBadgeColor } from '../../utils/format';
 
 Page({
   data: {
@@ -80,6 +80,7 @@ Page({
   },
 
   formatCurrency,
+  formatExperience,
   levelBadgeColor,
 
   formatDiscount(value) {
