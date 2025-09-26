@@ -59,6 +59,7 @@ page {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  gap: 48rpx;
   min-height: 100vh;
   min-height: calc(100vh - constant(safe-area-inset-top) - constant(safe-area-inset-bottom));
   min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
@@ -261,7 +262,7 @@ page {
 }
 
 .bottom-nav {
-  margin-top: 48rpx;
+  margin-top: auto;
   padding: 18rpx 24rpx;
   border-radius: 36rpx;
   background: rgba(21, 32, 84, 0.85);

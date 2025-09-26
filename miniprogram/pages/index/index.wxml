@@ -3,6 +3,8 @@
   <view class="mist-layer mist-layer--one"></view>
   <view class="mist-layer mist-layer--two"></view>
 
+  <custom-nav title="会员中心" enable-back="{{false}}" theme="dark"></custom-nav>
+
   <view class="content" wx:if="{{!loading}}">
     <view class="top-bar">
       <view class="profile-card" bindtap="handleProfileTap">

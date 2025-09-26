@@ -1,3 +1,4 @@
+<custom-nav title="灵石钱包"></custom-nav>
 <view class="container">
   <view class="card">
     <view class="section-title">账户余额</view>

@@ -1,3 +1,4 @@
+<custom-nav title="修仙等级"></custom-nav>
 <view class="container">
   <view wx:if="{{loading}}" class="card">
     <text>加载中...</text>

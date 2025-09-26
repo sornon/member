@@ -1,3 +1,4 @@
+<custom-nav title="会员列表" theme="dark"></custom-nav>
 <view class="admin-members">
   <view class="search-bar">
     <input
