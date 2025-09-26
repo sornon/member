@@ -1,0 +1,12 @@
+<view class="custom-nav {{theme}}" style="height: {{navHeight}}px; padding-top: {{statusBarHeight}}px;">
+  <view class="nav-content" style="height: {{navBarHeight}}px;">
+    <view class="back-button" wx:if="{{showBack}}" bindtap="handleBack">
+      <text class="back-icon">‹</text>
+    </view>
+    <view class="nav-title">{{title}}</view>
+    <view class="nav-extra">
+      <slot name="actions"></slot>
+    </view>
+  </view>
+</view>
+<view class="nav-placeholder" style="height: {{navPlaceholderHeight}}px;"></view>

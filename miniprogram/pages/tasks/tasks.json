@@ -1,5 +1,4 @@
 {
-  "navigationBarTitleText": "管理员中心",
   "navigationStyle": "custom",
   "usingComponents": {
     "custom-nav": "/components/custom-nav/custom-nav"
