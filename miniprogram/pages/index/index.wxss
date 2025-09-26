@@ -130,7 +130,7 @@ page {
   flex-wrap: nowrap;
   justify-content: flex-end;
   align-items: center;
-  gap: 12rpx;
+  gap: 32rpx;
 }
 
 .activity-item {
@@ -141,7 +141,7 @@ page {
 
 .activity-icon {
   font-size: 38rpx;
-  margin-bottom: 8rpx;
+  margin-bottom: 0rpx;
 }
 
 .activity-label {
