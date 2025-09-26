@@ -81,7 +81,6 @@ page {
   padding: 24rpx 28rpx;
   border-radius: 32rpx;
   background: linear-gradient(135deg, rgba(33, 52, 112, 0.72), rgba(87, 82, 176, 0.48));
-  border: 1rpx solid rgba(136, 154, 255, 0.4);
   box-shadow: 0 12rpx 32rpx rgba(24, 21, 77, 0.45);
 }
 
@@ -95,40 +94,54 @@ page {
 
 .profile-info {
   margin-left: 24rpx;
+  max-width: 360rpx;
 }
 
 .profile-name {
-  font-size: 34rpx;
+  font-size: 30rpx;
   font-weight: 600;
   letter-spacing: 2rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .profile-level {
   margin-top: 8rpx;
   font-size: 26rpx;
   color: rgba(217, 225, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .profile-meta {
   margin-top: 12rpx;
   display: flex;
-  gap: 16rpx;
+  flex-direction: column;
+  gap: 8rpx;
   font-size: 24rpx;
   color: rgba(220, 230, 255, 0.8);
 }
 
+.profile-meta text {
+  display: block;
+  white-space: nowrap;
+}
+
 .activity-panel {
   display: flex;
-  gap: 16rpx;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12rpx;
 }
 
 .activity-item {
-  width: 120rpx;
-  padding: 18rpx 12rpx;
+  min-width: 108rpx;
+  padding: 16rpx 20rpx;
   text-align: center;
-  border-radius: 28rpx;
+  border-radius: 24rpx;
   background: rgba(43, 50, 118, 0.62);
-  border: 1rpx solid rgba(143, 160, 255, 0.3);
   box-shadow: 0 12rpx 26rpx rgba(24, 17, 68, 0.36);
 }
 
