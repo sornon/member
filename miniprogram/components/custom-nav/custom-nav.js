@@ -24,7 +24,7 @@ Component({
     statusBarHeight: 0,
     navHeight: 64,
     navBarHeight: 44,
-    navPlaceholderHeight: 44,
+    navPlaceholderHeight: 64,
     showBack: false,
     canNavigateBack: false
   },
@@ -43,7 +43,7 @@ Component({
         statusBarHeight,
         navHeight,
         navBarHeight: navBarHeight > 0 ? navBarHeight : 44,
-        navPlaceholderHeight: navHeight > statusBarHeight ? navHeight - statusBarHeight : navHeight,
+        navPlaceholderHeight: navHeight > 0 ? navHeight : 64,
         showBack,
         canNavigateBack
       });
