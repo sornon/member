@@ -93,6 +93,36 @@ Page({
     this.bootstrap();
   },
 
+  onShow() {
+    wx.setNavigationBarColor({
+      frontColor: '#ffffff',
+      backgroundColor: '#050921',
+      animation: {
+        duration: 200,
+        timingFunc: 'easeIn'
+      }
+    });
+  },
+
+  onHide() {
+    this.restoreNavigationBar();
+  },
+
+  onUnload() {
+    this.restoreNavigationBar();
+  },
+
+  restoreNavigationBar() {
+    wx.setNavigationBarColor({
+      frontColor: '#000000',
+      backgroundColor: '#ffffff',
+      animation: {
+        duration: 200,
+        timingFunc: 'easeOut'
+      }
+    });
+  },
+
   async bootstrap() {
     this.setData({ loading: true });
     try {
