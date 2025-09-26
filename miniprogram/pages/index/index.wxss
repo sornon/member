@@ -130,7 +130,7 @@ page {
   flex-wrap: nowrap;
   justify-content: flex-end;
   align-items: center;
-  gap: 8rpx;
+  gap: 12rpx;
 }
 
 .activity-item {
