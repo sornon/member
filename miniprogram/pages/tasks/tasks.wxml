@@ -1,3 +1,4 @@
+<custom-nav title="日常任务"></custom-nav>
 <view class="container">
   <view class="card">
     <view class="section-title">任务列表</view>

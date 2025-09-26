@@ -1,3 +1,4 @@
+<custom-nav title="会员资料" theme="dark"></custom-nav>
 <view class="member-detail" wx:if="{{!loading}}">
   <view class="section">
     <view class="section-title">账号信息</view>
