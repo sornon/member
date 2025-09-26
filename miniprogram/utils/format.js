@@ -1,5 +1,5 @@
 const FALLBACK_CURRENCY = '¥0.00';
-const NESTED_AMOUNT_KEYS = ['amount', 'value', 'total', 'balance', 'experience'];
+const NESTED_AMOUNT_KEYS = ['amount', 'value', 'total', 'balance'];
 
 function coerceToNumber(input) {
   if (input == null || input === '') {
@@ -48,6 +48,16 @@ export const formatCurrency = (amount = 0) => {
   const value = numeric / 100;
   const normalizedValue = Object.is(value, -0) ? 0 : value;
   return `¥${normalizedValue.toFixed(2)}`;
+};
+
+export const formatExperience = (value = 0) => {
+  const numeric = coerceToNumber(value);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+
+  const normalized = Math.max(0, Math.floor(numeric));
+  return normalized.toString();
 };
 
 export const formatDate = (date) => {

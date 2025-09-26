@@ -162,25 +162,29 @@ async function completeRecharge(openid, transactionId) {
 }
 
 async function payWithBalance(openid, orderId, amount) {
-  if (!amount || amount <= 0) {
+  const normalizedAmount = Number(amount);
+  if (!normalizedAmount || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
     throw new Error('扣款金额无效');
   }
+  let experienceGain = 0;
   await db.runTransaction(async (transaction) => {
     const memberDoc = await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).get();
     const member = memberDoc.data;
-    if (!member || typeof member.balance !== 'number' || member.balance < amount) {
+    if (!member || typeof member.balance !== 'number' || member.balance < normalizedAmount) {
       throw new Error('余额不足');
     }
+    experienceGain = calculateExperienceGain(normalizedAmount);
     await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).update({
       data: {
-        balance: _.inc(-amount),
-        updatedAt: new Date()
+        balance: _.inc(-normalizedAmount),
+        updatedAt: new Date(),
+        ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
       }
     });
     await transaction.collection(COLLECTIONS.TRANSACTIONS).add({
       data: {
         memberId: openid,
-        amount: -amount,
+        amount: -normalizedAmount,
         type: 'spend',
         status: 'success',
         orderId: orderId || null,
@@ -198,7 +202,11 @@ async function payWithBalance(openid, orderId, amount) {
     }
   });
 
-  return { success: true, message: '支付成功' };
+  if (experienceGain > 0) {
+    await syncMemberLevel(openid);
+  }
+
+  return { success: true, message: '支付成功', experienceGain };
 }
 
 const transactionTypeLabel = {

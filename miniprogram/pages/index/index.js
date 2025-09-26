@@ -1,5 +1,5 @@
 import { MemberService, TaskService } from '../../services/api';
-import { formatCurrency } from '../../utils/format';
+import { formatCurrency, formatExperience } from '../../utils/format';
 
 const BASE_NAV_ITEMS = [
   { icon: '💳', label: '境界等级', url: '/pages/membership/membership' },
@@ -58,7 +58,7 @@ const DEFAULT_AVATAR =
 
 const EMPTY_MEMBER_STATS = {
   balance: formatCurrency(0),
-  experience: formatCurrency(0)
+  experience: formatExperience(0)
 };
 
 function deriveMemberStats(member) {
@@ -68,7 +68,7 @@ function deriveMemberStats(member) {
 
   return {
     balance: formatCurrency(member.balance ?? 0),
-    experience: formatCurrency(member.experience ?? 0)
+    experience: formatExperience(member.experience ?? 0)
   };
 }
 
@@ -165,6 +165,7 @@ Page({
   },
 
   formatCurrency,
+  formatExperience,
 
   handleProfileTap() {
     this.setData({ showProfile: true });

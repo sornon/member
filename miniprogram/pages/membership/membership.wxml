@@ -10,7 +10,7 @@
       <view class="current-level">{{currentLevel ? currentLevel.displayName : '炼气期 · 一层'}}</view>
       <view class="current-summary" wx:if="{{currentLevel && currentLevel.realmDescription}}">{{currentLevel.realmDescription}}</view>
       <view class="current-stats">
-        <text class="stat">当前修为 {{formatCurrency(member.experience || 0)}}</text>
+        <text class="stat">当前修为 {{formatExperience(member.experience || 0)}}</text>
         <text class="stat" wx:if="{{nextLevel}}">下一级 {{nextLevel.displayName}}</text>
       </view>
       <view class="progress-bar">
