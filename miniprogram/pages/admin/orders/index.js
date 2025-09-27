@@ -85,9 +85,12 @@ Page({
     this.loadOrders({ reset: true });
   },
 
-  handleViewOrder(event) {
-    const { id } = event.currentTarget.dataset || {};
+  handleStatusTap(event) {
+    const { id, status } = event.currentTarget.dataset || {};
     if (!id) return;
+    if (status !== 'pending' && status !== 'created') {
+      return;
+    }
     wx.navigateTo({
       url: `/pages/admin/charge/index?orderId=${encodeURIComponent(id)}`
     });

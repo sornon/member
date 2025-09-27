@@ -1,5 +1,9 @@
-.page {
+page {
   background: #0f172a;
+}
+
+.page {
+  background: transparent;
   min-height: 100vh;
   padding: 24rpx 24rpx 120rpx;
   box-sizing: border-box;
@@ -91,6 +95,9 @@
 }
 
 .status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 24rpx;
   padding: 6rpx 18rpx;
   border-radius: 32rpx;
@@ -120,17 +127,17 @@
   color: #93c5fd;
 }
 
-.status-action {
-  background: transparent;
-  color: #bfdbfe;
-  border: 1px solid rgba(191, 219, 254, 0.4);
-  border-radius: 32rpx;
-  line-height: 1;
-  padding: 10rpx 24rpx;
+.status.status-clickable {
+  position: relative;
 }
 
-.status-action::after {
-  display: none;
+.status.status-clickable::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1rpx dashed rgba(191, 219, 254, 0.4);
+  pointer-events: none;
 }
 
 .order-meta,

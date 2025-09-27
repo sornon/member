@@ -29,14 +29,14 @@
         <view class="order-header">
           <text class="order-id">#{{item._id}}</text>
           <view class="status-wrap">
-            <text class="status status-{{item.status}}">{{item.statusLabel}}</text>
-            <button
+            <view
               wx:if="{{item.status === 'pending' || item.status === 'created'}}"
-              class="status-action"
-              size="mini"
+              class="status status-{{item.status}} status-clickable"
               data-id="{{item._id}}"
-              bindtap="handleViewOrder"
-            >去支付</button>
+              data-status="{{item.status}}"
+              bindtap="handleStatusTap"
+            >{{item.statusLabel}}</view>
+            <view wx:else class="status status-{{item.status}}">{{item.statusLabel}}</view>
           </view>
         </view>
         <view class="order-meta">
