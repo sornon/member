@@ -1,8 +1,15 @@
+page {
+  background: #0f172a;
+}
+
 .container {
   padding: 24rpx 32rpx 64rpx;
-  background: #0d1024;
-  min-height: 100vh;
-  color: #f3f6ff;
+  padding-bottom: calc(64rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(64rpx + env(safe-area-inset-bottom));
+  background: #0f172a;
+  min-height: calc(100vh - constant(safe-area-inset-top) - constant(safe-area-inset-bottom));
+  min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  color: #e2e8f0;
 }
 
 .section {
