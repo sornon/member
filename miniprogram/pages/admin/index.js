@@ -12,6 +12,12 @@ Page({
         label: '创建扣费单',
         description: '录入商品生成扫码扣费单',
         url: '/pages/admin/charge/index'
+      },
+      {
+        icon: '📊',
+        label: '订单查询',
+        description: '按会员查看扣费订单记录',
+        url: '/pages/admin/orders/index'
       }
     ]
   },

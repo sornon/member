@@ -309,14 +309,43 @@ function createQRCode(text) {
   return modules;
 }
 
-export function drawQrCode({ text, size = 256, canvasId, background = '#ffffff', foreground = '#000000' }, context) {
-  if (!canvasId) {
-    throw new Error('canvasId is required');
-  }
-  if (!text) {
+function drawWith2dContext({ canvas, modules, size, background, foreground }) {
+  const moduleCount = modules.length;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
     return Promise.resolve();
   }
-  const modules = createQRCode(text);
+  const dpr = wx.getSystemInfoSync ? wx.getSystemInfoSync().pixelRatio || 1 : 1;
+  if (typeof canvas.width === 'number') {
+    canvas.width = size * dpr;
+  }
+  if (typeof canvas.height === 'number') {
+    canvas.height = size * dpr;
+  }
+  if (canvas.style) {
+    canvas.style.width = `${size}px`;
+    canvas.style.height = `${size}px`;
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, size, size);
+  ctx.fillStyle = foreground;
+  const scale = size / moduleCount;
+  for (let row = 0; row < moduleCount; row += 1) {
+    for (let col = 0; col < moduleCount; col += 1) {
+      if (modules[row][col]) {
+        const x = Math.round(col * scale);
+        const y = Math.round(row * scale);
+        const w = Math.ceil((col + 1) * scale) - Math.floor(col * scale);
+        const h = Math.ceil((row + 1) * scale) - Math.floor(row * scale);
+        ctx.fillRect(x, y, w, h);
+      }
+    }
+  }
+  return Promise.resolve();
+}
+
+function drawWithLegacyContext({ canvasId, modules, size, background, foreground }, context) {
   const moduleCount = modules.length;
   const scale = size / moduleCount;
   const ctx = wx.createCanvasContext(canvasId, context);
@@ -332,11 +361,56 @@ export function drawQrCode({ text, size = 256, canvasId, background = '#ffffff',
       }
     }
   }
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     ctx.draw(false, () => {
       resolve();
     });
   });
+}
+
+export function drawQrCode(
+  { text, size = 256, canvasId, background = '#ffffff', foreground = '#000000' },
+  context
+) {
+  if (!canvasId) {
+    throw new Error('canvasId is required');
+  }
+  if (!text) {
+    return Promise.resolve();
+  }
+  const modules = createQRCode(text);
+
+  const query = wx.createSelectorQuery ? wx.createSelectorQuery() : null;
+  if (query) {
+    if (context) {
+      query.in(context);
+    }
+    return new Promise((resolve, reject) => {
+      query
+        .select(`#${canvasId}`)
+        .fields({ node: true, size: true })
+        .exec((res) => {
+          const target = res && res[0];
+          if (target && target.node) {
+            drawWith2dContext({
+              canvas: target.node,
+              modules,
+              size: size || target.width || 256,
+              background,
+              foreground
+            })
+              .then(resolve)
+              .catch(reject);
+          } else {
+            drawWithLegacyContext({ canvasId, modules, size, background, foreground }, context)
+              .then(resolve)
+              .catch(reject);
+          }
+        });
+    });
+  }
+
+  return drawWithLegacyContext({ canvasId, modules, size, background, foreground }, context);
 }
 
 export default {

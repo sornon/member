@@ -29,6 +29,13 @@ exports.main = async (event) => {
       return createChargeOrder(OPENID, event.items || []);
     case 'getChargeOrder':
       return getChargeOrder(OPENID, event.orderId);
+    case 'listChargeOrders':
+      return listChargeOrders(OPENID, {
+        page: event.page || 1,
+        pageSize: event.pageSize || 20,
+        memberId: event.memberId || '',
+        keyword: event.keyword || ''
+      });
     case 'rechargeMember':
       return rechargeMember(OPENID, event.memberId, event.amount);
     default:
@@ -175,6 +182,69 @@ async function getChargeOrder(openid, orderId) {
     _id: doc.data._id || orderId,
     ...doc.data
   });
+}
+
+async function listChargeOrders(openid, { page = 1, pageSize = 20, memberId = '', keyword = '' }) {
+  await ensureAdmin(openid);
+  const limit = Math.min(Math.max(pageSize, 1), 50);
+  const skip = Math.max(page - 1, 0) * limit;
+
+  let baseQuery = db.collection(COLLECTIONS.CHARGE_ORDERS);
+  let memberIdFilter = memberId && typeof memberId === 'string' ? memberId.trim() : '';
+
+  if (!memberIdFilter && keyword) {
+    const matchedMemberIds = (await searchMemberIdsByKeyword(keyword)).slice(0, 10);
+    if (!matchedMemberIds.length) {
+      return {
+        orders: [],
+        total: 0,
+        page,
+        pageSize: limit
+      };
+    }
+    memberIdFilter = null;
+    baseQuery = baseQuery.where({
+      memberId: _.in(matchedMemberIds)
+    });
+  } else if (memberIdFilter) {
+    baseQuery = baseQuery.where({ memberId: memberIdFilter });
+  }
+
+  const [snapshot, countResult] = await Promise.all([
+    baseQuery
+      .orderBy('createdAt', 'desc')
+      .skip(skip)
+      .limit(limit)
+      .get(),
+    baseQuery.count()
+  ]);
+
+  const rawOrders = snapshot.data || [];
+  const memberIds = Array.from(
+    new Set(
+      rawOrders
+        .map((order) => order.memberId)
+        .filter((id) => typeof id === 'string' && id)
+    )
+  );
+  const memberMap = await loadMembersMap(memberIds);
+
+  const orders = rawOrders.map((order) =>
+    decorateChargeOrderRecord(
+      mapChargeOrder({
+        _id: order._id,
+        ...order
+      }),
+      memberMap[order.memberId]
+    )
+  );
+
+  return {
+    orders,
+    total: countResult.total,
+    page,
+    pageSize: limit
+  };
 }
 
 async function rechargeMember(openid, memberId, amount) {
@@ -376,6 +446,91 @@ function mapChargeOrder(order) {
 function buildChargeOrderPayload(orderId) {
   if (!orderId) return '';
   return `member-charge:${orderId}`;
+}
+
+function decorateChargeOrderRecord(order, member) {
+  if (!order) return null;
+  return {
+    ...order,
+    totalAmountLabel: `¥${formatFenToYuan(order.totalAmount)}`,
+    stoneRewardLabel: `${formatStoneLabel(order.stoneReward)} 枚`,
+    createdAtLabel: formatDate(order.createdAt),
+    updatedAtLabel: formatDate(order.updatedAt),
+    confirmedAtLabel: formatDate(order.confirmedAt),
+    statusLabel: describeChargeOrderStatus(order.status),
+    memberId: order.memberId || '',
+    memberName: member ? member.nickName || '' : '',
+    memberMobile: member ? member.mobile || '' : ''
+  };
+}
+
+function describeChargeOrderStatus(status) {
+  switch (status) {
+    case 'paid':
+      return '已完成';
+    case 'cancelled':
+      return '已取消';
+    case 'expired':
+      return '已过期';
+    default:
+      return '待支付';
+  }
+}
+
+async function loadMembersMap(memberIds) {
+  if (!Array.isArray(memberIds) || !memberIds.length) {
+    return {};
+  }
+  const chunks = [];
+  const size = 10;
+  for (let i = 0; i < memberIds.length; i += size) {
+    chunks.push(memberIds.slice(i, i + size));
+  }
+  const results = await Promise.all(
+    chunks.map((ids) =>
+      db
+        .collection(COLLECTIONS.MEMBERS)
+        .where({ _id: _.in(ids) })
+        .get()
+        .catch(() => ({ data: [] }))
+    )
+  );
+  const map = {};
+  results.forEach((res) => {
+    (res.data || []).forEach((member) => {
+      map[member._id] = member;
+    });
+  });
+  return map;
+}
+
+async function searchMemberIdsByKeyword(keyword) {
+  if (!keyword) {
+    return [];
+  }
+  const regex = db.RegExp({
+    regexp: keyword,
+    options: 'i'
+  });
+  const snapshot = await db
+    .collection(COLLECTIONS.MEMBERS)
+    .where(
+      _.or([
+        { _id: regex },
+        { nickName: regex },
+        { mobile: regex }
+      ])
+    )
+    .limit(20)
+    .get()
+    .catch(() => ({ data: [] }));
+  const ids = new Set();
+  (snapshot.data || []).forEach((member) => {
+    if (member && member._id) {
+      ids.add(member._id);
+    }
+  });
+  return Array.from(ids);
 }
 
 function resolveCashBalance(member) {

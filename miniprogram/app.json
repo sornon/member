@@ -12,6 +12,7 @@
     "pages/admin/members/index",
     "pages/admin/member-detail/index",
     "pages/admin/charge/index",
+    "pages/admin/orders/index",
     "pages/wallet/charge-confirm/index"
   ],
   "window": {
