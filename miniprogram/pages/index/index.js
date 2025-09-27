@@ -1,11 +1,12 @@
 import { MemberService, TaskService } from '../../services/api';
-import { formatCurrency, formatExperience } from '../../utils/format';
+import { formatCurrency, formatExperience, formatStones } from '../../utils/format';
 
 const BASE_NAV_ITEMS = [
   { icon: '💳', label: '境界等级', url: '/pages/membership/membership' },
   { icon: '🎁', label: '权益宝库', url: '/pages/rights/rights' },
   { icon: '📅', label: '灵阁预订', url: '/pages/reservation/reservation' },
-  { icon: '💰', label: '灵石钱包', url: '/pages/wallet/wallet' },
+  { icon: '🪙', label: '灵石账户', url: '/pages/stones/stones' },
+  { icon: '💰', label: '现金钱包', url: '/pages/wallet/wallet' },
   { icon: '🧙‍♀️', label: '捏脸塑形', url: '/pages/avatar/avatar' }
 ];
 
@@ -79,7 +80,8 @@ const DEFAULT_AVATAR =
   'PSI0Ii8+Cjwvc3ZnPg==';
 
 const EMPTY_MEMBER_STATS = {
-  balance: formatCurrency(0),
+  stoneBalance: formatStones(0),
+  cashBalance: formatCurrency(0),
   experience: formatExperience(0)
 };
 
@@ -89,7 +91,8 @@ function deriveMemberStats(member) {
   }
 
   return {
-    balance: formatCurrency(member.balance ?? 0),
+    stoneBalance: formatStones(member.stoneBalance ?? 0),
+    cashBalance: formatCurrency(member.cashBalance ?? member.balance ?? 0),
     experience: formatExperience(member.experience ?? 0)
   };
 }

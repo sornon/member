@@ -46,7 +46,8 @@ async function initMember(openid, profile) {
     mobile: profile.mobile || '',
     levelId: defaultLevel ? defaultLevel._id : '',
     experience: 0,
-    balance: 0,
+    cashBalance: 0,
+    stoneBalance: 0,
     roles: ['member'],
     createdAt: new Date(),
     avatarConfig: {}
@@ -67,7 +68,7 @@ async function getProfile(openid) {
     await initMember(openid, {});
     return getProfile(openid);
   }
-  const member = memberDoc.data;
+  const member = normalizeAssetFields(memberDoc.data);
   const synced = await ensureLevelSync(member, levels);
   return decorateMember(synced, levels);
 }
@@ -81,7 +82,7 @@ async function getProgress(openid) {
     await initMember(openid, {});
     return getProgress(openid);
   }
-  const member = await ensureLevelSync(memberDoc.data, levels);
+  const member = await ensureLevelSync(normalizeAssetFields(memberDoc.data), levels);
   const currentLevel = levels.find((lvl) => lvl._id === member.levelId) || levels[0];
   const nextLevel = getNextLevel(levels, currentLevel);
   const percentage = calculatePercentage(member.experience, currentLevel, nextLevel);
@@ -279,4 +280,36 @@ function decorateMember(member, levels) {
     roles,
     level
   };
+}
+
+function normalizeAssetFields(member) {
+  if (!member) return member;
+  const normalized = { ...member };
+  const updates = {};
+  const hasCashBalance = typeof normalized.cashBalance === 'number' && Number.isFinite(normalized.cashBalance);
+  const hasLegacyBalance = typeof normalized.balance === 'number' && Number.isFinite(normalized.balance);
+  if (!hasCashBalance) {
+    const cash = hasLegacyBalance ? normalized.balance : 0;
+    normalized.cashBalance = cash;
+    updates.cashBalance = cash;
+  }
+  if (typeof normalized.stoneBalance !== 'number' || !Number.isFinite(normalized.stoneBalance)) {
+    normalized.stoneBalance = 0;
+    updates.stoneBalance = 0;
+  } else {
+    normalized.stoneBalance = Math.max(0, Math.floor(normalized.stoneBalance));
+    if (normalized.stoneBalance !== member.stoneBalance) {
+      updates.stoneBalance = normalized.stoneBalance;
+    }
+  }
+  if (Object.keys(updates).length) {
+    updates.updatedAt = new Date();
+    db.collection(COLLECTIONS.MEMBERS)
+      .doc(member._id)
+      .update({
+        data: updates
+      })
+      .catch(() => {});
+  }
+  return normalized;
 }

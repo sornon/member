@@ -3,6 +3,7 @@ export const CLOUD_FUNCTIONS = {
   TASKS: 'tasks',
   RESERVATION: 'reservation',
   WALLET: 'wallet',
+  STONES: 'stones',
   AVATAR: 'avatar',
   ADMIN: 'admin',
   BOOTSTRAP: 'bootstrap'

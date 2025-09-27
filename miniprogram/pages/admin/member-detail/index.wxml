@@ -50,13 +50,24 @@
       />
     </view>
     <view class="form-item">
-      <view class="form-label">灵石余额</view>
+      <view class="form-label">灵石余额（枚）</view>
       <input
         class="form-input"
         type="number"
-        value="{{form.balance}}"
-        placeholder="请输入余额"
-        data-field="balance"
+        value="{{form.stoneBalance}}"
+        placeholder="请输入灵石余额"
+        data-field="stoneBalance"
+        bindinput="handleInputChange"
+      />
+    </view>
+    <view class="form-item">
+      <view class="form-label">现金余额（分）</view>
+      <input
+        class="form-input"
+        type="number"
+        value="{{form.cashBalance}}"
+        placeholder="请输入现金余额"
+        data-field="cashBalance"
         bindinput="handleInputChange"
       />
     </view>

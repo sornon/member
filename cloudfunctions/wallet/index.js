@@ -44,7 +44,7 @@ async function getSummary(openid) {
       .limit(20)
       .get()
   ]);
-  const member = memberDoc && memberDoc.data ? memberDoc.data : { balance: 0 };
+  const member = memberDoc && memberDoc.data ? memberDoc.data : { cashBalance: 0 };
   const transactions = transactionsSnapshot.data || [];
   const totalRecharge = transactions
     .filter((item) => item.type === 'recharge' && item.status === 'success')
@@ -53,7 +53,8 @@ async function getSummary(openid) {
     .filter((item) => item.type === 'spend')
     .reduce((sum, item) => sum + Math.abs(item.amount || 0), 0);
   return {
-    balance: member.balance || 0,
+    cashBalance: resolveCashBalance(member),
+    balance: resolveCashBalance(member),
     totalRecharge,
     totalSpend,
     transactions: transactions.map((txn) => ({
@@ -61,6 +62,8 @@ async function getSummary(openid) {
       type: txn.type,
       typeLabel: transactionTypeLabel[txn.type] || '交易',
       amount: txn.amount || 0,
+      source: txn.source || '',
+      remark: txn.remark || '',
       createdAt: txn.createdAt || new Date(),
       status: txn.status || 'success'
     }))
@@ -135,7 +138,7 @@ async function completeRecharge(openid, transactionId) {
     });
 
     const memberUpdate = {
-      balance: _.inc(amount),
+      cashBalance: _.inc(amount),
       updatedAt: new Date()
     };
     if (experienceGain > 0) {
@@ -170,13 +173,14 @@ async function payWithBalance(openid, orderId, amount) {
   await db.runTransaction(async (transaction) => {
     const memberDoc = await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).get();
     const member = memberDoc.data;
-    if (!member || typeof member.balance !== 'number' || member.balance < normalizedAmount) {
+    const currentBalance = resolveCashBalance(member);
+    if (!member || currentBalance < normalizedAmount) {
       throw new Error('余额不足');
     }
     experienceGain = calculateExperienceGain(normalizedAmount);
     await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).update({
       data: {
-        balance: _.inc(-normalizedAmount),
+        cashBalance: _.inc(-normalizedAmount),
         updatedAt: new Date(),
         ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
       }
@@ -220,6 +224,17 @@ function calculateExperienceGain(amountFen) {
     return 0;
   }
   return Math.max(0, Math.round((amountFen * EXPERIENCE_PER_YUAN) / 100));
+}
+
+function resolveCashBalance(member) {
+  if (!member) return 0;
+  if (typeof member.cashBalance === 'number' && Number.isFinite(member.cashBalance)) {
+    return member.cashBalance;
+  }
+  if (typeof member.balance === 'number' && Number.isFinite(member.balance)) {
+    return member.balance;
+  }
+  return 0;
 }
 
 async function syncMemberLevel(openid) {

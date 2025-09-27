@@ -74,5 +74,14 @@ Page({
   },
 
   formatCurrency,
-  formatDate
+  formatDate,
+
+  formatTxnAmount(amount) {
+    const numeric = Number(amount || 0);
+    if (!Number.isFinite(numeric) || numeric === 0) {
+      return formatCurrency(0);
+    }
+    const prefix = numeric > 0 ? '+' : '-';
+    return `${prefix}${formatCurrency(Math.abs(numeric))}`;
+  }
 });

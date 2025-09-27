@@ -90,6 +90,12 @@ page {
   margin-bottom: 6rpx;
 }
 
+.member-assets {
+  font-size: 26rpx;
+  color: #cbd5f5;
+  margin-bottom: 6rpx;
+}
+
 .member-status {
   font-size: 26rpx;
   color: #cbd5f5;

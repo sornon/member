@@ -26,7 +26,8 @@ Page({
       nickName: '',
       mobile: '',
       experience: '',
-      balance: '',
+      cashBalance: '',
+      stoneBalance: '',
       levelId: '',
       roles: []
     }
@@ -79,7 +80,8 @@ Page({
         nickName: member.nickName || '',
         mobile: member.mobile || '',
         experience: String(member.experience ?? 0),
-        balance: String(member.balance ?? 0),
+        cashBalance: String(member.cashBalance ?? member.balance ?? 0),
+        stoneBalance: String(member.stoneBalance ?? 0),
         levelId: member.levelId || currentLevel._id || '',
         roles: ensureMemberRole(member.roles)
       }
@@ -119,7 +121,8 @@ Page({
         nickName: (this.data.form.nickName || '').trim(),
         mobile: (this.data.form.mobile || '').trim(),
         experience: Number(this.data.form.experience || 0),
-        balance: Number(this.data.form.balance || 0),
+        cashBalance: Number(this.data.form.cashBalance || 0),
+        stoneBalance: Number(this.data.form.stoneBalance || 0),
         levelId: this.data.form.levelId,
         roles: ensureMemberRole(this.data.form.roles)
       };

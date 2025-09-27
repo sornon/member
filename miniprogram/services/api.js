@@ -94,6 +94,12 @@ export const WalletService = {
   }
 };
 
+export const StoneService = {
+  async summary() {
+    return callCloud(CLOUD_FUNCTIONS.STONES, { action: 'summary' });
+  }
+};
+
 export const AvatarService = {
   async listAssets() {
     return callCloud(CLOUD_FUNCTIONS.AVATAR, { action: 'assets' });
