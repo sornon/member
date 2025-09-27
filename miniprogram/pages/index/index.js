@@ -2,12 +2,12 @@ import { MemberService, TaskService } from '../../services/api';
 import { formatCurrency, formatExperience, formatStones } from '../../utils/format';
 
 const BASE_NAV_ITEMS = [
-  { icon: '💳', label: '境界等级', url: '/pages/membership/membership' },
-  { icon: '🎁', label: '权益宝库', url: '/pages/rights/rights' },
-  { icon: '📅', label: '灵阁预订', url: '/pages/reservation/reservation' },
-  { icon: '🪙', label: '灵石账户', url: '/pages/stones/stones' },
-  { icon: '💰', label: '现金钱包', url: '/pages/wallet/wallet' },
-  { icon: '🧙‍♀️', label: '捏脸塑形', url: '/pages/avatar/avatar' }
+  { icon: '💳', label: '等级', url: '/pages/membership/membership' },
+  { icon: '🎁', label: '权益', url: '/pages/rights/rights' },
+  { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
+  { icon: '🪙', label: '灵石', url: '/pages/stones/stones' },
+  { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
+  { icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
 
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
