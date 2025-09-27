@@ -13,7 +13,8 @@ const COLLECTIONS = {
   MEMBERS: 'members',
   MEMBER_RIGHTS: 'memberRights',
   MEMBERSHIP_LEVELS: 'membershipLevels',
-  MEMBERSHIP_RIGHTS: 'membershipRights'
+  MEMBERSHIP_RIGHTS: 'membershipRights',
+  STONE_TRANSACTIONS: 'stoneTransactions'
 };
 
 exports.main = async (event, context) => {
@@ -143,7 +144,10 @@ function buildRewardSummary(reward) {
     return `经验 +${reward.amount || 0}`;
   }
   if (reward.type === 'balance') {
-    return `余额 +${(reward.amount || 0) / 100}`;
+    return `现金余额 +¥${((reward.amount || 0) / 100).toFixed(2)}`;
+  }
+  if (reward.type === 'stones') {
+    return `灵石 +${Math.max(0, Math.floor(reward.amount || 0))}`;
   }
   return '奖励';
 }
@@ -163,7 +167,9 @@ async function issueReward(openid, reward) {
   } else if (reward.type === 'experience') {
     await applyExperience(openid, reward.amount || 0);
   } else if (reward.type === 'balance') {
-    await applyBalance(openid, reward.amount || 0);
+    await applyCashBalance(openid, reward.amount || 0, reward);
+  } else if (reward.type === 'stones') {
+    await applyStones(openid, reward.amount || 0, reward);
   }
 }
 
@@ -196,23 +202,49 @@ async function issueCouponReward(openid, reward) {
   });
 }
 
-async function applyBalance(openid, amount) {
+async function applyCashBalance(openid, amount, reward = {}) {
   if (!amount) return;
+  const normalized = Number(amount);
+  if (!Number.isFinite(normalized) || normalized <= 0) return;
   await db
     .collection(COLLECTIONS.MEMBERS)
     .doc(openid)
     .update({
       data: {
-        balance: _.inc(amount),
+        cashBalance: _.inc(normalized),
         updatedAt: new Date()
       }
     });
   await db.collection('walletTransactions').add({
     data: {
       memberId: openid,
-      amount,
+      amount: normalized,
       type: 'reward',
-      remark: '任务奖励余额',
+      source: 'task',
+      remark: reward.description || '任务奖励余额',
+      createdAt: new Date()
+    }
+  });
+}
+
+async function applyStones(openid, amount, reward = {}) {
+  const normalized = Number(amount);
+  if (!Number.isFinite(normalized) || normalized <= 0) return;
+  const integerAmount = Math.max(0, Math.floor(normalized));
+  const membersCollection = db.collection(COLLECTIONS.MEMBERS);
+  await membersCollection.doc(openid).update({
+    data: {
+      stoneBalance: _.inc(integerAmount),
+      updatedAt: new Date()
+    }
+  });
+  await db.collection(COLLECTIONS.STONE_TRANSACTIONS).add({
+    data: {
+      memberId: openid,
+      amount: integerAmount,
+      type: 'earn',
+      source: 'task',
+      description: reward.description || reward.rewardSummary || '任务奖励灵石',
       createdAt: new Date()
     }
   });

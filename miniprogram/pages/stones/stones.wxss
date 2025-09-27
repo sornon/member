@@ -1,0 +1,97 @@
+page {
+  background: #f5f7fb;
+  min-height: 100%;
+}
+
+.container {
+  padding: 120rpx 32rpx 32rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 24rpx;
+  padding: 32rpx;
+  box-shadow: 0 12rpx 32rpx rgba(5, 14, 40, 0.08);
+}
+
+.section-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #1b1f36;
+  margin-bottom: 16rpx;
+}
+
+.balance {
+  font-size: 56rpx;
+  font-weight: 700;
+  color: #5b35d5;
+  margin-bottom: 12rpx;
+}
+
+.meta {
+  font-size: 24rpx;
+  color: #697089;
+}
+
+.tip {
+  margin-top: 16rpx;
+  padding: 16rpx;
+  background: rgba(91, 53, 213, 0.08);
+  border-radius: 16rpx;
+  color: #5b35d5;
+  font-size: 22rpx;
+}
+
+.empty-state {
+  padding: 32rpx 0;
+  text-align: center;
+  color: #8a91a6;
+}
+
+.transaction {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20rpx 0;
+  border-bottom: 1px solid #eef1f7;
+}
+
+.transaction:last-child {
+  border-bottom: none;
+}
+
+.txn-title {
+  font-size: 28rpx;
+  color: #1b1f36;
+  font-weight: 600;
+}
+
+.txn-meta {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #8a91a6;
+}
+
+.txn-desc {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #4a5070;
+}
+
+.txn-amount {
+  font-size: 32rpx;
+  font-weight: 700;
+  min-width: 150rpx;
+  text-align: right;
+}
+
+.txn-amount.income {
+  color: #18a058;
+}
+
+.txn-amount.expense {
+  color: #d9304f;
+}

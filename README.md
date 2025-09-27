@@ -9,7 +9,7 @@
 - **权益管理**：权益数据存储于数据库，可按等级自动发放、设定有效期并支持后续重写。
 - **任务与优惠券**：拉新、签到、消费返券、互动任务等统一由任务引擎处理，奖励发券自动化。
 - **在线预订与下单**：可视化包房/卡座预约，支持定金/全额支付与权益券抵扣。
-- **支付与余额**：充值、消费流水管理，余额支付与微信支付组合；提供交易明细查询。
+- **资产体系**：现金钱包支持充值消费流水，灵石作为虚拟货币独立结算；提供明细查询。
 - **虚拟形象（Avatar）**：QQ 秀风格的装扮系统，等级与任务可解锁服饰并分享展示。
 
 ## 技术栈
@@ -44,6 +44,7 @@
    - `reservations`
    - `rooms`
    - `walletTransactions`
+   - `stoneTransactions`
    - `avatars`
 3. 在“云函数”面板中右键部署以下函数（需先安装依赖）：
    - `bootstrap`
@@ -82,9 +83,12 @@ cd cloudfunctions/member && npm install && cd -
 | `mobile` | string | 绑定手机号 |
 | `levelId` | string | 当前等级 ID |
 | `experience` | number | 累积经验值（可映射到充值额） |
-| `balance` | number | 账户余额（分） |
+| `cashBalance` | number | 现金钱包余额（单位：分，用于店内实体消费） |
+| `stoneBalance` | number | 灵石余额（整数，仅用于虚拟商品与玩法） |
 | `createdAt` | Date | 注册时间 |
 | `avatarConfig` | object | 虚拟形象配置 |
+
+> 现金钱包与灵石为两套完全独立的账户体系，当前版本不支持兑换或折现，灵石数值仅以整数形式发放与消耗。
 
 ### membershipLevels
 
@@ -114,6 +118,10 @@ cd cloudfunctions/member && npm install && cd -
 
 充值与消费流水，区分 `type`（`recharge`、`spend`、`refund`）方便财务对账。
 
+### stoneTransactions
+
+灵石收支流水，记录任务奖励、活动发放与消耗，所有数值均以整数存储，且不可与现金钱包互转。
+
 ### avatars
 
 虚拟形象素材表，记录可穿戴的部件、解锁条件、资源链接。
@@ -126,7 +134,8 @@ cd cloudfunctions/member && npm install && cd -
 | `member` | 会员档案、等级逻辑 | 注册、查询、经验更新、权益发放、获取权益列表 |
 | `tasks` | 任务与优惠券 | 列表、进度更新、领取优惠券、校验使用次数 |
 | `reservation` | 卡座预约 | 查询可用房间、创建订单、核销权益、取消订单 |
-| `wallet` | 支付余额 | 充值下单、余额支付、流水记录、组合支付计算 |
+| `wallet` | 现金钱包 | 充值下单、余额支付、流水记录、组合支付计算 |
+| `stones` | 灵石账户 | 灵石余额查询、流水记录 |
 | `avatar` | 虚拟形象 | 查询素材、保存用户搭配、生成分享图占位 |
 
 > 如需迁移至自建后端，只需在 `miniprogram/services` 中替换为 HTTPS 请求，即可保持前端逻辑不变。

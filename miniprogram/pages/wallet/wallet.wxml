@@ -1,10 +1,10 @@
-<custom-nav title="灵石钱包"></custom-nav>
+<custom-nav title="现金钱包"></custom-nav>
 <view class="container">
   <view class="card">
-    <view class="section-title">账户余额</view>
+    <view class="section-title">现金余额</view>
     <view wx:if="{{loading}}">加载中...</view>
     <view wx:elif="{{summary}}">
-      <view class="balance">{{formatCurrency(summary.balance || 0)}}</view>
+      <view class="balance">{{formatCurrency(summary.cashBalance || 0)}}</view>
       <view class="meta">累计充值：{{formatCurrency(summary.totalRecharge || 0)}} · 累计消费：{{formatCurrency(summary.totalSpend || 0)}}</view>
     </view>
   </view>
@@ -29,8 +29,9 @@
         <view>
           <view class="txn-title">{{item.typeLabel}}</view>
           <view class="txn-date">{{formatDate(item.createdAt)}}</view>
+          <view class="txn-remark" wx:if="{{item.remark}}">{{item.remark}}</view>
         </view>
-        <view class="txn-amount {{item.amount > 0 ? 'income' : 'expense'}}">{{item.amount > 0 ? '+' : ''}}{{formatCurrency(item.amount)}}</view>
+        <view class="txn-amount {{item.amount > 0 ? 'income' : item.amount < 0 ? 'expense' : ''}}">{{formatTxnAmount(item.amount)}}</view>
       </view>
     </view>
   </view>

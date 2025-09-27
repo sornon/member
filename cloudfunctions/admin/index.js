@@ -158,12 +158,18 @@ function buildLevelMap(levels) {
 function decorateMemberRecord(member, levelMap) {
   const level = member.levelId ? levelMap[member.levelId] : null;
   const roles = Array.isArray(member.roles) && member.roles.length ? Array.from(new Set(member.roles)) : ['member'];
+  const cashBalance = resolveCashBalance(member);
+  const stoneBalance = resolveStoneBalance(member);
   return {
     _id: member._id,
     nickName: member.nickName || '',
     avatarUrl: member.avatarUrl || '',
     mobile: member.mobile || '',
-    balance: Number(member.balance || 0),
+    balance: cashBalance,
+    cashBalance,
+    cashBalanceYuan: formatFenToYuan(cashBalance),
+    stoneBalance,
+    stoneBalanceLabel: formatStoneLabel(stoneBalance),
     experience: Number(member.experience || 0),
     levelId: member.levelId || '',
     levelName: level ? level.displayName || level.name : '',
@@ -189,9 +195,16 @@ function buildUpdatePayload(updates) {
     const experience = Number(updates.experience || 0);
     payload.experience = Number.isFinite(experience) ? experience : 0;
   }
-  if (Object.prototype.hasOwnProperty.call(updates, 'balance')) {
-    const balance = Number(updates.balance || 0);
-    payload.balance = Number.isFinite(balance) ? balance : 0;
+  if (Object.prototype.hasOwnProperty.call(updates, 'cashBalance')) {
+    const cash = Number(updates.cashBalance || 0);
+    payload.cashBalance = Number.isFinite(cash) ? Math.round(cash) : 0;
+  } else if (Object.prototype.hasOwnProperty.call(updates, 'balance')) {
+    const legacy = Number(updates.balance || 0);
+    payload.cashBalance = Number.isFinite(legacy) ? Math.round(legacy) : 0;
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'stoneBalance')) {
+    const stones = Number(updates.stoneBalance || 0);
+    payload.stoneBalance = Number.isFinite(stones) ? Math.max(0, Math.floor(stones)) : 0;
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'roles')) {
     const roles = Array.isArray(updates.roles) ? updates.roles : [];
@@ -201,16 +214,63 @@ function buildUpdatePayload(updates) {
   return payload;
 }
 
+function resolveCashBalance(member) {
+  if (!member) return 0;
+  if (typeof member.cashBalance === 'number' && Number.isFinite(member.cashBalance)) {
+    return member.cashBalance;
+  }
+  if (typeof member.balance === 'number' && Number.isFinite(member.balance)) {
+    return member.balance;
+  }
+  return 0;
+}
+
+function resolveStoneBalance(member) {
+  if (!member) return 0;
+  const value = Number(member.stoneBalance);
+  if (Number.isFinite(value) && value >= 0) {
+    return Math.floor(value);
+  }
+  return 0;
+}
+
+function formatFenToYuan(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '0.00';
+  }
+  return (numeric / 100).toFixed(2);
+}
+
+function formatStoneLabel(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+  return Math.max(0, Math.floor(numeric)).toLocaleString('zh-CN');
+}
+
 function formatDate(value) {
   if (!value) return '';
-  if (typeof value === 'string') return value;
-  if (value instanceof Date) return value.toISOString();
-  if (value && typeof value.toDate === 'function') {
+  let date = null;
+  if (value instanceof Date) {
+    date = value;
+  } else if (typeof value === 'string' || typeof value === 'number') {
+    date = new Date(value);
+  } else if (value && typeof value.toDate === 'function') {
     try {
-      return value.toDate().toISOString();
+      date = value.toDate();
     } catch (err) {
-      return '';
+      date = null;
     }
   }
-  return '';
+  if (!date || Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, '0');
+  const d = `${date.getDate()}`.padStart(2, '0');
+  const hh = `${date.getHours()}`.padStart(2, '0');
+  const mm = `${date.getMinutes()}`.padStart(2, '0');
+  return `${y}-${m}-${d} ${hh}:${mm}`;
 }

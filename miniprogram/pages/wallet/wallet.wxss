@@ -66,6 +66,12 @@
   margin-top: 6rpx;
 }
 
+.txn-remark {
+  font-size: 24rpx;
+  color: #64748b;
+  margin-top: 6rpx;
+}
+
 .txn-amount {
   font-size: 28rpx;
   font-weight: 600;

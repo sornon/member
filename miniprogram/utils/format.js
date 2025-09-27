@@ -1,5 +1,5 @@
 const FALLBACK_CURRENCY = '¥0.00';
-const NESTED_AMOUNT_KEYS = ['amount', 'value', 'total', 'balance'];
+const NESTED_AMOUNT_KEYS = ['amount', 'value', 'total', 'balance', 'cashBalance'];
 
 function coerceToNumber(input) {
   if (input == null || input === '') {
@@ -58,6 +58,24 @@ export const formatExperience = (value = 0) => {
 
   const normalized = Math.max(0, Math.floor(numeric));
   return normalized.toString();
+};
+
+export const formatStones = (value = 0) => {
+  const numeric = coerceToNumber(value);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+  const normalized = Math.max(0, Math.floor(numeric));
+  return normalized.toLocaleString('zh-CN');
+};
+
+export const formatStoneChange = (value = 0) => {
+  const numeric = coerceToNumber(value);
+  if (!Number.isFinite(numeric) || numeric === 0) {
+    return '0';
+  }
+  const prefix = numeric > 0 ? '+' : '';
+  return `${prefix}${Math.abs(Math.floor(numeric)).toLocaleString('zh-CN')}`;
 };
 
 export const formatDate = (date) => {
