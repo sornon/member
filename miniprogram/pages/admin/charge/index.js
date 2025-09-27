@@ -1,5 +1,5 @@
 import { AdminService } from '../../../services/api';
-import { formatCurrency } from '../../../utils/format';
+import { formatCurrency as formatCurrencyLabel } from '../../../utils/format';
 import { drawQrCode } from '../../../utils/qrcode';
 
 function toFen(value) {
@@ -76,7 +76,16 @@ Page({
     totalAmount: 0,
     generating: false,
     currentOrder: null,
-    loadingOrder: false
+    loadingOrder: false,
+    viewingOrderId: ''
+  },
+
+  async onLoad(options = {}) {
+    const orderId = options.orderId ? decodeURIComponent(options.orderId) : '';
+    if (orderId) {
+      this.setData({ viewingOrderId: orderId });
+      await this.loadExistingOrder(orderId);
+    }
   },
 
   onUnload() {
@@ -136,6 +145,7 @@ Page({
 
   async handleGenerate() {
     if (this.data.generating) return;
+    if (this.data.viewingOrderId) return;
     const payloadItems = buildPayload(this.data.items);
     if (!payloadItems.length) {
       wx.showToast({ title: '请完善商品信息', icon: 'none' });
@@ -155,6 +165,10 @@ Page({
   },
 
   async handleRefresh() {
+    if (this.data.viewingOrderId) {
+      await this.loadExistingOrder(this.data.viewingOrderId);
+      return;
+    }
     if (!this.data.currentOrder) return;
     this.setData({ loadingOrder: true });
     try {
@@ -169,13 +183,36 @@ Page({
     }
   },
 
+  async loadExistingOrder(orderId) {
+    if (!orderId) return;
+    this.setData({ loadingOrder: true });
+    try {
+      const order = await AdminService.getChargeOrder(orderId);
+      if (!order) {
+        wx.showToast({ title: '订单不存在', icon: 'none' });
+        this.setData({ loadingOrder: false });
+        return;
+      }
+      const decorated = this.decorateOrder(order);
+      this.setData({
+        currentOrder: decorated,
+        loadingOrder: false,
+        totalAmount: decorated.totalAmount || 0
+      });
+      this.renderQr();
+    } catch (error) {
+      this.setData({ loadingOrder: false });
+      wx.showToast({ title: '加载订单失败', icon: 'none' });
+    }
+  },
+
   decorateOrder(order) {
     if (!order) return null;
     const totalAmount = Number(order.totalAmount || 0);
     return {
       ...order,
       totalAmount,
-      totalAmountLabel: formatCurrency(totalAmount),
+      totalAmountLabel: formatCurrencyLabel(totalAmount),
       stoneRewardLabel: `${Number(order.stoneReward || totalAmount || 0)} 枚`,
       statusLabel: describeStatus(order.status),
       expireAtLabel: order.expireAt ? this.formatDateTime(order.expireAt) : '—'
@@ -204,5 +241,7 @@ Page({
     }, this);
   },
 
-  formatCurrency
+  formatCurrency(value) {
+    return formatCurrencyLabel(value || 0);
+  }
 });

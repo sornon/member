@@ -28,7 +28,16 @@
       <view class="order-card">
         <view class="order-header">
           <text class="order-id">#{{item._id}}</text>
-          <text class="status status-{{item.status}}">{{item.statusLabel}}</text>
+          <view class="status-wrap">
+            <view
+              wx:if="{{item.status === 'pending' || item.status === 'created'}}"
+              class="status status-{{item.status}} status-clickable"
+              data-id="{{item._id}}"
+              data-status="{{item.status}}"
+              bindtap="handleStatusTap"
+            >{{item.statusLabel}}</view>
+            <view wx:else class="status status-{{item.status}}">{{item.statusLabel}}</view>
+          </view>
         </view>
         <view class="order-meta">
           <text class="meta-text">创建：{{item.createdAtLabel || '—'}}</text>
