@@ -42,7 +42,13 @@ Page({
       return;
     }
     this.setData({ memberId: id });
-    this.loadMember(id);
+  },
+
+  onShow() {
+    if (!this.data.memberId) {
+      return;
+    }
+    this.loadMember(this.data.memberId);
   },
 
   onPullDownRefresh() {

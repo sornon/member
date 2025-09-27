@@ -1,4 +1,8 @@
 import { MemberService } from '../../services/api';
+import {
+  ensureWatcher as ensureMemberWatcher,
+  subscribe as subscribeMemberRealtime
+} from '../../services/member-realtime';
 import { formatCurrency, formatExperience, levelBadgeColor } from '../../utils/format';
 
 function normalizePercentage(progress) {
@@ -51,11 +55,50 @@ Page({
   },
 
   onShow() {
+    this.attachMemberRealtime();
+    ensureMemberWatcher().catch(() => {
+      // ignore; fetchData will report if necessary
+    });
     this.fetchData();
   },
 
-  async fetchData() {
-    this.setData({ loading: true });
+  onHide() {
+    this.detachMemberRealtime();
+  },
+
+  onUnload() {
+    this.detachMemberRealtime();
+  },
+
+  attachMemberRealtime() {
+    if (this.unsubscribeMemberRealtime) {
+      return;
+    }
+    this.unsubscribeMemberRealtime = subscribeMemberRealtime((event) => {
+      if (!event || event.type !== 'memberChanged') {
+        return;
+      }
+      this.fetchData({ showLoading: false });
+    });
+  },
+
+  detachMemberRealtime() {
+    if (this.unsubscribeMemberRealtime) {
+      this.unsubscribeMemberRealtime();
+      this.unsubscribeMemberRealtime = null;
+    }
+  },
+
+  async fetchData(options = {}) {
+    if (this.fetchingData) {
+      this.pendingFetchData = true;
+      return;
+    }
+    this.fetchingData = true;
+    const showLoading = options.showLoading !== false;
+    if (showLoading) {
+      this.setData({ loading: true });
+    }
     try {
       const [member, progress] = await Promise.all([
         MemberService.getMember(),
@@ -122,6 +165,11 @@ Page({
         progressWidth: width,
         progressStyle: buildWidthStyle(width)
       });
+    }
+    this.fetchingData = false;
+    if (this.pendingFetchData) {
+      this.pendingFetchData = false;
+      this.fetchData({ showLoading: false });
     }
   },
 

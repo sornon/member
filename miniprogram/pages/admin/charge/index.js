@@ -80,11 +80,20 @@ Page({
     viewingOrderId: ''
   },
 
-  async onLoad(options = {}) {
+  onLoad(options = {}) {
     const orderId = options.orderId ? decodeURIComponent(options.orderId) : '';
     if (orderId) {
       this.setData({ viewingOrderId: orderId });
-      await this.loadExistingOrder(orderId);
+    }
+  },
+
+  onShow() {
+    if (this.data.viewingOrderId) {
+      this.loadExistingOrder(this.data.viewingOrderId);
+      return;
+    }
+    if (this.data.currentOrder && this.data.currentOrder._id) {
+      this.handleRefresh();
     }
   },
 
