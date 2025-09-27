@@ -47,6 +47,8 @@ async function initMember(openid, profile) {
     levelId: defaultLevel ? defaultLevel._id : '',
     experience: 0,
     cashBalance: 0,
+    totalRecharge: 0,
+    totalSpend: 0,
     stoneBalance: 0,
     roles: ['member'],
     createdAt: new Date(),
@@ -286,21 +288,29 @@ function normalizeAssetFields(member) {
   if (!member) return member;
   const normalized = { ...member };
   const updates = {};
-  const hasCashBalance = typeof normalized.cashBalance === 'number' && Number.isFinite(normalized.cashBalance);
-  const hasLegacyBalance = typeof normalized.balance === 'number' && Number.isFinite(normalized.balance);
-  if (!hasCashBalance) {
-    const cash = hasLegacyBalance ? normalized.balance : 0;
-    normalized.cashBalance = cash;
-    updates.cashBalance = cash;
+  const cashBalance = coerceAmountValue(normalized.cashBalance, normalized.balance);
+  normalized.cashBalance = cashBalance;
+  if (!Object.is(cashBalance, member.cashBalance)) {
+    updates.cashBalance = cashBalance;
   }
-  if (typeof normalized.stoneBalance !== 'number' || !Number.isFinite(normalized.stoneBalance)) {
-    normalized.stoneBalance = 0;
-    updates.stoneBalance = 0;
-  } else {
-    normalized.stoneBalance = Math.max(0, Math.floor(normalized.stoneBalance));
-    if (normalized.stoneBalance !== member.stoneBalance) {
-      updates.stoneBalance = normalized.stoneBalance;
-    }
+
+  const totalRecharge = coerceAmountValue(normalized.totalRecharge, 0);
+  normalized.totalRecharge = totalRecharge;
+  if (!Object.is(totalRecharge, member.totalRecharge)) {
+    updates.totalRecharge = totalRecharge;
+  }
+
+  const totalSpend = Math.max(0, coerceAmountValue(normalized.totalSpend, 0));
+  normalized.totalSpend = totalSpend;
+  if (!Object.is(totalSpend, member.totalSpend)) {
+    updates.totalSpend = totalSpend;
+  }
+
+  const stoneNumeric = resolveAmountNumber(normalized.stoneBalance);
+  const stoneBalance = Number.isFinite(stoneNumeric) ? Math.max(0, Math.floor(stoneNumeric)) : 0;
+  normalized.stoneBalance = stoneBalance;
+  if (!Object.is(stoneBalance, member.stoneBalance)) {
+    updates.stoneBalance = stoneBalance;
   }
   if (Object.keys(updates).length) {
     updates.updatedAt = new Date();
@@ -312,4 +322,65 @@ function normalizeAssetFields(member) {
       .catch(() => {});
   }
   return normalized;
+}
+
+function coerceAmountValue(value, fallback = 0) {
+  const numeric = resolveAmountNumber(value);
+  if (Number.isFinite(numeric)) {
+    return Math.round(numeric);
+  }
+  const fallbackNumeric = resolveAmountNumber(fallback);
+  if (Number.isFinite(fallbackNumeric)) {
+    return Math.round(fallbackNumeric);
+  }
+  return 0;
+}
+
+function resolveAmountNumber(value) {
+  if (value == null) {
+    return NaN;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : NaN;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return 0;
+    }
+    const sanitized = trimmed.replace(/[^0-9+.,-]/g, '').replace(/,/g, '');
+    const parsed = Number(sanitized);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  }
+  if (typeof value === 'bigint') {
+    return Number(value);
+  }
+  if (typeof value === 'object') {
+    if (typeof value.toNumber === 'function') {
+      try {
+        const numeric = value.toNumber();
+        return Number.isFinite(numeric) ? numeric : NaN;
+      } catch (err) {
+        // ignore
+      }
+    }
+    if (typeof value.valueOf === 'function') {
+      const primitive = value.valueOf();
+      if (typeof primitive === 'number' && Number.isFinite(primitive)) {
+        return primitive;
+      }
+      const numeric = Number(primitive);
+      if (Number.isFinite(numeric)) {
+        return numeric;
+      }
+    }
+    if (typeof value.toString === 'function') {
+      const numeric = Number(value.toString());
+      if (Number.isFinite(numeric)) {
+        return numeric;
+      }
+    }
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : NaN;
 }

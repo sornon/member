@@ -17,6 +17,7 @@ const COLLECTIONS = {
 };
 
 const EXPERIENCE_PER_YUAN = 100;
+const EXCLUDED_TRANSACTION_STATUSES = ['pending', 'processing', 'failed', 'cancelled', 'refunded', 'closed'];
 
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext();
@@ -41,39 +42,157 @@ exports.main = async (event, context) => {
 };
 
 async function getSummary(openid) {
-  const [memberDoc, transactionsSnapshot] = await Promise.all([
+  const transactionsCollection = db.collection(COLLECTIONS.TRANSACTIONS);
+  const totalsPromise = resolveEffectiveTotals(transactionsCollection, openid);
+  const [memberDoc, transactionsSnapshot, totals] = await Promise.all([
     db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null),
-    db
-      .collection(COLLECTIONS.TRANSACTIONS)
+    transactionsCollection
       .where({ memberId: openid })
       .orderBy('createdAt', 'desc')
       .limit(20)
-      .get()
+      .get(),
+    totalsPromise
   ]);
+
   const member = memberDoc && memberDoc.data ? memberDoc.data : { cashBalance: 0 };
   const transactions = transactionsSnapshot.data || [];
-  const totalRecharge = transactions
-    .filter((item) => item.type === 'recharge' && item.status === 'success')
-    .reduce((sum, item) => sum + (item.amount || 0), 0);
-  const totalSpend = transactions
-    .filter((item) => item.type === 'spend')
-    .reduce((sum, item) => sum + Math.abs(item.amount || 0), 0);
-  return {
-    cashBalance: resolveCashBalance(member),
-    balance: resolveCashBalance(member),
-    totalRecharge,
-    totalSpend,
-    transactions: transactions.map((txn) => ({
-      _id: txn._id,
-      type: txn.type,
-      typeLabel: transactionTypeLabel[txn.type] || '交易',
-      amount: txn.amount || 0,
-      source: txn.source || '',
-      remark: txn.remark || '',
-      createdAt: txn.createdAt || new Date(),
-      status: txn.status || 'success'
-    }))
+  const resolvedCashBalance = resolveCashBalance(member);
+  const storedRecharge = resolveAmountNumber(member.totalRecharge);
+  const storedSpend = resolveAmountNumber(member.totalSpend);
+  const normalizedTotals = {
+    totalRecharge: Math.max(
+      0,
+      Number.isFinite(storedRecharge) ? Math.max(storedRecharge, totals.totalRecharge) : totals.totalRecharge
+    ),
+    totalSpend: Math.max(
+      0,
+      Number.isFinite(storedSpend) ? Math.max(storedSpend, totals.totalSpend) : totals.totalSpend
+    )
   };
+
+  await persistMemberTotalsIfNeeded(openid, member, normalizedTotals);
+
+  return {
+    cashBalance: resolvedCashBalance,
+    balance: resolvedCashBalance,
+    totalRecharge: normalizedTotals.totalRecharge,
+    totalSpend: normalizedTotals.totalSpend,
+    transactions: transactions.map((txn) => {
+      const amount = resolveAmountNumber(txn.amount);
+      const status = normalizeTransactionStatus(txn.status);
+      const type = resolveTransactionType(txn.type, amount);
+      return {
+        _id: txn._id,
+        type,
+        typeLabel: transactionTypeLabel[type] || transactionTypeLabel.unknown,
+        amount,
+        source: txn.source || '',
+        remark: txn.remark || '',
+        createdAt: resolveDate(txn.createdAt) || new Date(),
+        status
+      };
+    })
+  };
+}
+
+async function resolveEffectiveTotals(collection, memberId) {
+  const pageSize = 500;
+  let offset = 0;
+  let totalRecharge = 0;
+  let totalSpend = 0;
+  let hasMore = true;
+  let guard = 0;
+
+  while (hasMore && guard < 40) {
+    const snapshot = await collection
+      .aggregate()
+      .match({ memberId })
+      .sort({ createdAt: -1 })
+      .skip(offset)
+      .limit(pageSize)
+      .project({ amount: 1, type: 1, status: 1 })
+      .end()
+      .catch(() => ({ list: [] }));
+
+    const batch = Array.isArray(snapshot.list) ? snapshot.list : [];
+    if (!batch.length) {
+      break;
+    }
+
+    batch.forEach((txn) => {
+      const amount = resolveAmountNumber(txn.amount);
+      if (!Number.isFinite(amount) || amount === 0) {
+        return;
+      }
+      const status = normalizeTransactionStatus(txn.status);
+      if (EXCLUDED_TRANSACTION_STATUSES.includes(status)) {
+        return;
+      }
+      const type = resolveTransactionType(txn.type, amount);
+      if (type === 'recharge') {
+        totalRecharge += Math.abs(amount);
+      } else if (type === 'spend') {
+        totalSpend += Math.abs(amount);
+      }
+    });
+
+    if (batch.length < pageSize) {
+      hasMore = false;
+    } else {
+      offset += pageSize;
+    }
+
+    guard += 1;
+  }
+
+  return {
+    totalRecharge: Math.round(Math.max(totalRecharge, 0)),
+    totalSpend: Math.round(Math.max(totalSpend, 0))
+  };
+}
+
+async function persistMemberTotalsIfNeeded(memberId, member, totals) {
+  if (!member || !member._id) {
+    return;
+  }
+  const hasRechargeField = Object.prototype.hasOwnProperty.call(member, 'totalRecharge');
+  const hasSpendField = Object.prototype.hasOwnProperty.call(member, 'totalSpend');
+  const currentRecharge = resolveAmountNumber(member.totalRecharge);
+  const currentSpend = resolveAmountNumber(member.totalSpend);
+  const updates = {};
+
+  if (!hasRechargeField || !Number.isFinite(currentRecharge) || Math.round(currentRecharge) !== totals.totalRecharge) {
+    updates.totalRecharge = totals.totalRecharge;
+  }
+  if (!hasSpendField || !Number.isFinite(currentSpend) || Math.round(currentSpend) !== totals.totalSpend) {
+    updates.totalSpend = totals.totalSpend;
+  }
+
+  if (Object.keys(updates).length) {
+    updates.updatedAt = new Date();
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(memberId)
+      .update({
+        data: updates
+      })
+      .catch(() => null);
+  }
+}
+
+function resolveTransactionType(type, amount) {
+  if (type) {
+    return type;
+  }
+  if (Number.isFinite(amount)) {
+    if (amount > 0) {
+      return 'recharge';
+    }
+    if (amount < 0) {
+      return 'spend';
+    }
+  }
+  return 'unknown';
 }
 
 async function createRecharge(openid, amount) {
@@ -145,6 +264,7 @@ async function completeRecharge(openid, transactionId) {
 
     const memberUpdate = {
       cashBalance: _.inc(amount),
+      totalRecharge: _.inc(amount),
       updatedAt: new Date()
     };
     if (experienceGain > 0) {
@@ -187,6 +307,7 @@ async function payWithBalance(openid, orderId, amount) {
     await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).update({
       data: {
         cashBalance: _.inc(-normalizedAmount),
+        totalSpend: _.inc(normalizedAmount),
         updatedAt: new Date(),
         ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
       }
@@ -293,6 +414,7 @@ async function confirmChargeOrder(openid, orderId) {
     await memberRef.update({
       data: {
         cashBalance: _.inc(-amount),
+        totalSpend: _.inc(amount),
         stoneBalance: _.inc(stoneReward),
         updatedAt: now
       }
@@ -342,9 +464,12 @@ async function confirmChargeOrder(openid, orderId) {
 }
 
 const transactionTypeLabel = {
-  recharge: '充',
+  recharge: '充值',
   spend: '消费',
-  reward: '奖励'
+  reward: '奖励',
+  refund: '退款',
+  adjust: '调整',
+  unknown: '交易'
 };
 
 function mapChargeOrder(raw, orderId, now = new Date()) {
@@ -401,13 +526,64 @@ function calculateExperienceGain(amountFen) {
 
 function resolveCashBalance(member) {
   if (!member) return 0;
-  if (typeof member.cashBalance === 'number' && Number.isFinite(member.cashBalance)) {
-    return member.cashBalance;
+  if (Object.prototype.hasOwnProperty.call(member, 'cashBalance')) {
+    const resolved = resolveAmountNumber(member.cashBalance);
+    if (Number.isFinite(resolved)) {
+      return resolved;
+    }
   }
-  if (typeof member.balance === 'number' && Number.isFinite(member.balance)) {
-    return member.balance;
+  if (Object.prototype.hasOwnProperty.call(member, 'balance')) {
+    const legacy = resolveAmountNumber(member.balance);
+    if (Number.isFinite(legacy)) {
+      return legacy;
+    }
   }
   return 0;
+}
+
+function resolveAmountNumber(value) {
+  if (value == null) return 0;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === 'object') {
+    if (typeof value.toNumber === 'function') {
+      try {
+        const numeric = value.toNumber();
+        return Number.isFinite(numeric) ? numeric : 0;
+      } catch (err) {
+        // fall through
+      }
+    }
+    if (typeof value.valueOf === 'function') {
+      const primitive = value.valueOf();
+      if (typeof primitive === 'number' && Number.isFinite(primitive)) {
+        return primitive;
+      }
+      const numeric = Number(primitive);
+      if (Number.isFinite(numeric)) {
+        return numeric;
+      }
+    }
+    if (typeof value.toString === 'function') {
+      const numeric = Number(value.toString());
+      if (Number.isFinite(numeric)) {
+        return numeric;
+      }
+    }
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function normalizeTransactionStatus(status) {
+  if (!status) {
+    return 'success';
+  }
+  if (status === 'completed') {
+    return 'success';
+  }
+  return status;
 }
 
 async function syncMemberLevel(openid) {
