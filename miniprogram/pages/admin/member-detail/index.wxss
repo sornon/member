@@ -28,6 +28,20 @@ page {
   margin-bottom: 20rpx;
 }
 
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16rpx;
+}
+
+.toolbar .recharge {
+  background: rgba(125, 200, 255, 0.16);
+  color: #8bd5ff;
+  border-radius: 32rpx;
+  padding: 12rpx 24rpx;
+  border: none;
+}
+
 .info-row {
   display: flex;
   justify-content: space-between;
@@ -103,4 +117,68 @@ page {
   background: #0b1120;
   color: #94a3b8;
   font-size: 28rpx;
+}
+
+.dialog-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 9, 33, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.dialog {
+  width: 80%;
+  background: #13183a;
+  border-radius: 24rpx;
+  padding: 32rpx;
+  color: #f2f6ff;
+  box-shadow: 0 24rpx 60rpx rgba(3, 8, 30, 0.45);
+}
+
+.dialog-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+
+.dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.dialog-tip {
+  font-size: 24rpx;
+  opacity: 0.7;
+}
+
+.dialog-input {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12rpx;
+  padding: 20rpx;
+  color: #fff;
+}
+
+.dialog-actions {
+  margin-top: 32rpx;
+  display: flex;
+  justify-content: flex-end;
+  gap: 24rpx;
+}
+
+.dialog-btn {
+  border: none;
+  border-radius: 24rpx;
+  padding: 16rpx 32rpx;
+  background: rgba(255, 255, 255, 0.12);
+  color: #d0deff;
+}
+
+.dialog-btn.primary {
+  background: linear-gradient(90deg, #7cc4ff, #6a8bff);
+  color: #0b1330;
+  font-weight: 600;
 }

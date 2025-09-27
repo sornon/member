@@ -91,6 +91,18 @@ export const WalletService = {
       orderId,
       amount
     });
+  },
+  async loadChargeOrder(orderId) {
+    return callCloud(CLOUD_FUNCTIONS.WALLET, {
+      action: 'loadChargeOrder',
+      orderId
+    });
+  },
+  async confirmChargeOrder(orderId) {
+    return callCloud(CLOUD_FUNCTIONS.WALLET, {
+      action: 'confirmChargeOrder',
+      orderId
+    });
   }
 };
 
@@ -132,6 +144,25 @@ export const AdminService = {
       action: 'updateMember',
       memberId,
       updates
+    });
+  },
+  async createChargeOrder(items) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'createChargeOrder',
+      items
+    });
+  },
+  async getChargeOrder(orderId) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'getChargeOrder',
+      orderId
+    });
+  },
+  async rechargeMember(memberId, amount) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'rechargeMember',
+      memberId,
+      amount
     });
   }
 };

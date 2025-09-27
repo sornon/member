@@ -7,7 +7,9 @@ const _ = db.command;
 
 const COLLECTIONS = {
   MEMBERS: 'members',
-  LEVELS: 'membershipLevels'
+  LEVELS: 'membershipLevels',
+  CHARGE_ORDERS: 'chargeOrders',
+  WALLET_TRANSACTIONS: 'walletTransactions'
 };
 
 const ADMIN_ROLES = ['admin', 'developer'];
@@ -23,6 +25,12 @@ exports.main = async (event) => {
       return getMemberDetail(OPENID, event.memberId);
     case 'updateMember':
       return updateMember(OPENID, event.memberId, event.updates || {});
+    case 'createChargeOrder':
+      return createChargeOrder(OPENID, event.items || []);
+    case 'getChargeOrder':
+      return getChargeOrder(OPENID, event.orderId);
+    case 'rechargeMember':
+      return rechargeMember(OPENID, event.memberId, event.amount);
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -119,6 +127,94 @@ async function updateMember(openid, memberId, updates) {
   return fetchMemberDetail(memberId);
 }
 
+async function createChargeOrder(openid, items) {
+  const admin = await ensureAdmin(openid);
+  const normalizedItems = normalizeChargeItems(items);
+  if (!normalizedItems.length) {
+    throw new Error('请添加有效的扣费商品');
+  }
+  const totalAmount = normalizedItems.reduce((sum, item) => sum + item.amount, 0);
+  if (!totalAmount || totalAmount <= 0) {
+    throw new Error('扣费金额无效');
+  }
+  const now = new Date();
+  const expireAt = new Date(now.getTime() + 10 * 60 * 1000);
+  const orderData = {
+    status: 'pending',
+    items: normalizedItems,
+    totalAmount,
+    stoneReward: totalAmount,
+    createdBy: admin._id,
+    createdAt: now,
+    updatedAt: now,
+    expireAt
+  };
+  const result = await db.collection(COLLECTIONS.CHARGE_ORDERS).add({
+    data: orderData
+  });
+  return mapChargeOrder({
+    _id: result._id,
+    ...orderData
+  });
+}
+
+async function getChargeOrder(openid, orderId) {
+  await ensureAdmin(openid);
+  if (!orderId) {
+    throw new Error('缺少扣费单编号');
+  }
+  const doc = await db
+    .collection(COLLECTIONS.CHARGE_ORDERS)
+    .doc(orderId)
+    .get()
+    .catch(() => null);
+  if (!doc || !doc.data) {
+    throw new Error('扣费单不存在');
+  }
+  return mapChargeOrder({
+    _id: doc.data._id || orderId,
+    ...doc.data
+  });
+}
+
+async function rechargeMember(openid, memberId, amount) {
+  await ensureAdmin(openid);
+  const numericAmount = normalizeAmountFen(amount);
+  if (!numericAmount || numericAmount <= 0) {
+    throw new Error('充值金额无效');
+  }
+  if (!memberId) {
+    throw new Error('缺少会员编号');
+  }
+  const now = new Date();
+  await db.runTransaction(async (transaction) => {
+    const memberRef = transaction.collection(COLLECTIONS.MEMBERS).doc(memberId);
+    const memberDoc = await memberRef.get().catch(() => null);
+    if (!memberDoc || !memberDoc.data) {
+      throw new Error('会员不存在');
+    }
+    await memberRef.update({
+      data: {
+        cashBalance: _.inc(numericAmount),
+        updatedAt: now
+      }
+    });
+    await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
+      data: {
+        memberId,
+        amount: numericAmount,
+        type: 'recharge',
+        status: 'success',
+        source: 'admin',
+        remark: '管理员充值',
+        createdAt: now,
+        updatedAt: now
+      }
+    });
+  });
+  return fetchMemberDetail(memberId);
+}
+
 async function fetchMemberDetail(memberId) {
   const [memberDoc, levels] = await Promise.all([
     db
@@ -212,6 +308,74 @@ function buildUpdatePayload(updates) {
     payload.roles = filtered.length ? filtered : ['member'];
   }
   return payload;
+}
+
+function normalizeAmountFen(value) {
+  if (value == null) return 0;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) {
+    return Math.round(numeric);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return 0;
+    const sanitized = trimmed.replace(/[^0-9.-]/g, '');
+    const parsed = Number(sanitized);
+    return Number.isFinite(parsed) ? Math.round(parsed) : 0;
+  }
+  return 0;
+}
+
+function normalizeChargeItems(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items
+    .map((raw) => {
+      const name = typeof raw.name === 'string' ? raw.name.trim() : '';
+      const quantity = Number(raw.quantity || 0);
+      const price = normalizeAmountFen(raw.price);
+      if (!name || !Number.isFinite(quantity) || quantity <= 0 || !price || price <= 0) {
+        return null;
+      }
+      const normalizedQuantity = Math.floor(quantity);
+      const amount = price * normalizedQuantity;
+      return {
+        name,
+        price,
+        quantity: normalizedQuantity,
+        amount
+      };
+    })
+    .filter(Boolean);
+}
+
+function mapChargeOrder(order) {
+  if (!order) return null;
+  const totalAmount = Number(order.totalAmount || 0);
+  return {
+    _id: order._id,
+    status: order.status || 'pending',
+    items: (order.items || []).map((item) => ({
+      name: item.name || '',
+      price: Number(item.price || 0),
+      quantity: Number(item.quantity || 0),
+      amount: Number(item.amount || 0)
+    })),
+    totalAmount,
+    stoneReward: Number(order.stoneReward || totalAmount || 0),
+    createdAt: order.createdAt || null,
+    updatedAt: order.updatedAt || null,
+    expireAt: order.expireAt || null,
+    memberId: order.memberId || '',
+    confirmedAt: order.confirmedAt || null,
+    qrPayload: buildChargeOrderPayload(order._id)
+  };
+}
+
+function buildChargeOrderPayload(orderId) {
+  if (!orderId) return '';
+  return `member-charge:${orderId}`;
 }
 
 function resolveCashBalance(member) {
