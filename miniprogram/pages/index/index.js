@@ -130,6 +130,7 @@ Page({
   },
 
   onLoad() {
+    this.hasBootstrapped = false;
     this.updateToday();
   },
 
@@ -216,7 +217,7 @@ Page({
       return;
     }
     this.bootstrapRunning = true;
-    const showLoading = options.showLoading !== false;
+    const showLoading = options.showLoading ?? !this.hasBootstrapped;
     if (showLoading) {
       this.setData({ loading: true });
     }
@@ -248,6 +249,9 @@ Page({
       });
     }
     this.bootstrapRunning = false;
+    if (!this.hasBootstrapped) {
+      this.hasBootstrapped = true;
+    }
     if (this.bootstrapPending) {
       this.bootstrapPending = false;
       this.bootstrap({ showLoading: false });
