@@ -14,7 +14,7 @@
         <text class="stat" wx:if="{{nextLevel}}">下一级 {{nextLevel.displayName}}</text>
       </view>
       <view class="progress-bar">
-        <view class="progress-inner" style="width: {{progress ? progress.percentage : 0}}%;"></view>
+        <view class="progress-inner" style="{{progressStyle}}"></view>
       </view>
       <view class="progress-text" wx:if="{{nextLevel}}">距离 {{nextLevel.displayName}} 还差 {{formatCurrency(progress ? progress.nextDiff : 0)}}</view>
       <view class="progress-text" wx:else>恭喜飞升圆满，尊享终极特权</view>
@@ -45,7 +45,7 @@
     <view class="card">
       <view class="section-title">等级列表</view>
       <view wx:for="{{levels}}" wx:key="_id" class="level-item {{item.milestoneReward ? 'level-item--milestone' : ''}}">
-        <view class="level-rank" style="background: {{levelBadgeColor(item.realmOrder)}}">
+        <view class="level-rank" style="{{item.badgeStyle}}">
           <text class="rank-realm">{{item.realmShort}}</text>
           <text class="rank-stage">{{item.subLevelLabel}}</text>
         </view>
