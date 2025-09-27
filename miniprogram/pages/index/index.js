@@ -129,12 +129,7 @@ Page({
   },
 
   onLoad() {
-    const now = new Date();
-    const formatNumber = (value) => (value < 10 ? `0${value}` : `${value}`);
-    this.setData({
-      today: `${now.getFullYear()} · ${formatNumber(now.getMonth() + 1)} · ${formatNumber(now.getDate())}`
-    });
-    this.bootstrap();
+    this.updateToday();
   },
 
   onShow() {
@@ -146,6 +141,8 @@ Page({
         timingFunc: 'easeIn'
       }
     });
+    this.updateToday();
+    this.bootstrap();
   },
 
   onHide() {
@@ -195,6 +192,14 @@ Page({
         progressStyle: buildWidthStyle(width)
       });
     }
+  },
+
+  updateToday() {
+    const now = new Date();
+    const formatNumber = (value) => (value < 10 ? `0${value}` : `${value}`);
+    this.setData({
+      today: `${now.getFullYear()} · ${formatNumber(now.getMonth() + 1)} · ${formatNumber(now.getDate())}`
+    });
   },
 
   formatCurrency,
