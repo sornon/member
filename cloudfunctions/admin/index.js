@@ -14,46 +14,67 @@ const COLLECTIONS = {
 
 const ADMIN_ROLES = ['admin', 'developer'];
 
+const ACTIONS = {
+  LIST_MEMBERS: 'listMembers',
+  GET_MEMBER_DETAIL: 'getMemberDetail',
+  UPDATE_MEMBER: 'updateMember',
+  CREATE_CHARGE_ORDER: 'createChargeOrder',
+  GET_CHARGE_ORDER: 'getChargeOrder',
+  LIST_CHARGE_ORDERS: 'listChargeOrders',
+  RECHARGE_MEMBER: 'rechargeMember'
+};
+
+const ACTION_ALIASES = {
+  listmembers: ACTIONS.LIST_MEMBERS,
+  getmemberdetail: ACTIONS.GET_MEMBER_DETAIL,
+  updatemember: ACTIONS.UPDATE_MEMBER,
+  createchargeorder: ACTIONS.CREATE_CHARGE_ORDER,
+  getchargeorder: ACTIONS.GET_CHARGE_ORDER,
+  listchargeorders: ACTIONS.LIST_CHARGE_ORDERS,
+  listchargeorder: ACTIONS.LIST_CHARGE_ORDERS,
+  rechargemember: ACTIONS.RECHARGE_MEMBER
+};
+
 function normalizeAction(action) {
-  if (typeof action === 'string') {
-    const trimmed = action.trim();
+  if (typeof action === 'string' || action instanceof String) {
+    const trimmed = String(action).trim();
     if (trimmed) {
-      if (trimmed === 'listChargeOrder') {
-        return 'listChargeOrders';
-      }
-      return trimmed;
+      const canonical = trimmed.replace(/[\s_-]+/g, '').toLowerCase();
+      return ACTION_ALIASES[canonical] || trimmed;
     }
   }
-  return 'listMembers';
+  return ACTIONS.LIST_MEMBERS;
 }
 
-exports.main = async (event) => {
-  const { OPENID } = cloud.getWXContext();
-  const action = normalizeAction(event.action);
+const ACTION_HANDLERS = {
+  [ACTIONS.LIST_MEMBERS]: (openid, event) =>
+    listMembers(openid, event.keyword || '', event.page || 1, event.pageSize || 20),
+  [ACTIONS.GET_MEMBER_DETAIL]: (openid, event) => getMemberDetail(openid, event.memberId),
+  [ACTIONS.UPDATE_MEMBER]: (openid, event) => updateMember(openid, event.memberId, event.updates || {}),
+  [ACTIONS.CREATE_CHARGE_ORDER]: (openid, event) => createChargeOrder(openid, event.items || []),
+  [ACTIONS.GET_CHARGE_ORDER]: (openid, event) => getChargeOrder(openid, event.orderId),
+  [ACTIONS.LIST_CHARGE_ORDERS]: (openid, event) =>
+    listChargeOrders(openid, {
+      page: event.page || 1,
+      pageSize: event.pageSize || 20,
+      memberId: event.memberId || '',
+      keyword: event.keyword || ''
+    }),
+  [ACTIONS.RECHARGE_MEMBER]: (openid, event) => rechargeMember(openid, event.memberId, event.amount)
+};
 
-  switch (action) {
-    case 'listMembers':
-      return listMembers(OPENID, event.keyword || '', event.page || 1, event.pageSize || 20);
-    case 'getMemberDetail':
-      return getMemberDetail(OPENID, event.memberId);
-    case 'updateMember':
-      return updateMember(OPENID, event.memberId, event.updates || {});
-    case 'createChargeOrder':
-      return createChargeOrder(OPENID, event.items || []);
-    case 'getChargeOrder':
-      return getChargeOrder(OPENID, event.orderId);
-    case 'listChargeOrders':
-      return listChargeOrders(OPENID, {
-        page: event.page || 1,
-        pageSize: event.pageSize || 20,
-        memberId: event.memberId || '',
-        keyword: event.keyword || ''
-      });
-    case 'rechargeMember':
-      return rechargeMember(OPENID, event.memberId, event.amount);
-    default:
-      throw new Error(`Unknown action: ${action}`);
+exports.main = async (event = {}) => {
+  const { OPENID } = cloud.getWXContext();
+  const rawAction =
+    event.action ?? event.actionName ?? event.action_type ?? event.type ?? event.operation;
+  const action = normalizeAction(rawAction);
+  const handler = ACTION_HANDLERS[action];
+
+  if (!handler) {
+    throw new Error(`Unknown action: ${action}`);
   }
+
+  return handler(OPENID, event);
 };
 
 async function ensureAdmin(openid) {
