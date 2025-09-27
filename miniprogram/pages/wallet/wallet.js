@@ -3,6 +3,98 @@ import { formatCurrency, formatDate } from '../../utils/format';
 
 const presets = [200, 500, 1000, 2000, 5000];
 
+function toNumeric(value, fallback = 0) {
+  if (value == null || value === '') {
+    return fallback;
+  }
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) {
+    return numeric;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return fallback;
+    }
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+}
+
+function formatTransactionAmount(amount) {
+  const numeric = toNumeric(amount, 0);
+  if (numeric === 0) {
+    return formatCurrency(0);
+  }
+  const prefix = numeric > 0 ? '+' : '-';
+  return `${prefix}${formatCurrency(Math.abs(numeric))}`;
+}
+
+function decorateTransaction(txn) {
+  if (!txn || typeof txn !== 'object') {
+    return {
+      _id: '',
+      type: 'unknown',
+      typeLabel: '',
+      amount: 0,
+      amountText: formatCurrency(0),
+      amountClass: '',
+      source: '',
+      remark: '',
+      createdAt: '',
+      displayDate: ''
+    };
+  }
+
+  const amount = toNumeric(txn.amount, 0);
+  const amountClass = amount > 0 ? 'income' : amount < 0 ? 'expense' : '';
+
+  return {
+    ...txn,
+    amount,
+    amountText: formatTransactionAmount(amount),
+    amountClass,
+    createdAt: txn.createdAt,
+    displayDate: formatDate(txn.createdAt)
+  };
+}
+
+function decorateSummary(summary) {
+  if (!summary || typeof summary !== 'object') {
+    return {
+      cashBalance: 0,
+      balance: 0,
+      totalRecharge: 0,
+      totalSpend: 0,
+      cashBalanceText: formatCurrency(0),
+      totalRechargeText: formatCurrency(0),
+      totalSpendText: formatCurrency(0),
+      transactions: []
+    };
+  }
+
+  const cashBalance = toNumeric(summary.cashBalance ?? summary.balance, 0);
+  const balance = toNumeric(summary.balance ?? summary.cashBalance, cashBalance);
+  const totalRecharge = toNumeric(summary.totalRecharge, 0);
+  const totalSpend = toNumeric(summary.totalSpend, 0);
+  const transactions = Array.isArray(summary.transactions)
+    ? summary.transactions.map((txn) => decorateTransaction(txn))
+    : [];
+
+  return {
+    ...summary,
+    cashBalance,
+    balance,
+    totalRecharge,
+    totalSpend,
+    cashBalanceText: formatCurrency(cashBalance),
+    totalRechargeText: formatCurrency(totalRecharge),
+    totalSpendText: formatCurrency(totalSpend),
+    transactions
+  };
+}
+
 Page({
   data: {
     loading: true,
@@ -19,7 +111,8 @@ Page({
     this.setData({ loading: true });
     try {
       const summary = await WalletService.summary();
-      this.setData({ summary, loading: false });
+      const normalizedSummary = decorateSummary(summary);
+      this.setData({ summary: normalizedSummary, loading: false });
     } catch (error) {
       this.setData({ loading: false });
     }
@@ -110,14 +203,5 @@ Page({
   },
 
   formatCurrency,
-  formatDate,
-
-  formatTxnAmount(amount) {
-    const numeric = Number(amount || 0);
-    if (!Number.isFinite(numeric) || numeric === 0) {
-      return formatCurrency(0);
-    }
-    const prefix = numeric > 0 ? '+' : '-';
-    return `${prefix}${formatCurrency(Math.abs(numeric))}`;
-  }
+  formatDate
 });
