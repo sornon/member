@@ -1,6 +1,6 @@
 <custom-nav title="创建扣费单" theme="dark"></custom-nav>
 <view class="container">
-  <view class="section">
+  <view class="section" wx:if="{{!viewingOrderId}}">
     <view class="section-title">扣费明细</view>
     <view class="items">
       <view class="item" wx:for="{{items}}" wx:key="index">
@@ -50,6 +50,11 @@
       应扣合计：<text class="amount">{{formatCurrency(totalAmount || 0)}}</text>
     </view>
     <button class="primary" type="primary" loading="{{generating}}" bindtap="handleGenerate">生成扣费单</button>
+  </view>
+
+  <view class="section" wx:if="{{viewingOrderId && !currentOrder}}">
+    <view class="section-title">订单加载中</view>
+    <view class="placeholder">正在拉取订单信息，请稍候…</view>
   </view>
 
   <view class="section" wx:if="{{currentOrder}}">

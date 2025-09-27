@@ -85,6 +85,14 @@ Page({
     this.loadOrders({ reset: true });
   },
 
+  handleViewOrder(event) {
+    const { id } = event.currentTarget.dataset || {};
+    if (!id) return;
+    wx.navigateTo({
+      url: `/pages/admin/charge/index?orderId=${encodeURIComponent(id)}`
+    });
+  },
+
   async loadOrders({ reset = false, page = null } = {}) {
     if (this.data.loading) return;
     const targetPage = page || (reset ? 1 : this.data.page);

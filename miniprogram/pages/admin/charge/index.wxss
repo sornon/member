@@ -153,3 +153,9 @@ page {
   border-radius: 12rpx;
   padding: 20rpx;
 }
+
+.placeholder {
+  font-size: 26rpx;
+  color: rgba(226, 232, 240, 0.7);
+  line-height: 1.6;
+}
