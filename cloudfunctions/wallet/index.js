@@ -4,6 +4,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 const _ = db.command;
+const $ = _.aggregate;
 
 const COLLECTIONS = {
   MEMBERS: 'members',
@@ -41,23 +42,41 @@ exports.main = async (event, context) => {
 };
 
 async function getSummary(openid) {
-  const [memberDoc, transactionsSnapshot] = await Promise.all([
+  const transactionsCollection = db.collection(COLLECTIONS.TRANSACTIONS);
+  const [memberDoc, transactionsSnapshot, rechargeAgg, spendAgg] = await Promise.all([
     db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null),
-    db
-      .collection(COLLECTIONS.TRANSACTIONS)
+    transactionsCollection
       .where({ memberId: openid })
       .orderBy('createdAt', 'desc')
       .limit(20)
-      .get()
+      .get(),
+    transactionsCollection
+      .aggregate()
+      .match({ memberId: openid, type: 'recharge', status: 'success' })
+      .group({
+        _id: null,
+        total: $.sum('$amount')
+      })
+      .end()
+      .catch(() => ({ list: [] })),
+    transactionsCollection
+      .aggregate()
+      .match({ memberId: openid, type: 'spend', status: 'success' })
+      .group({
+        _id: null,
+        total: $.sum('$amount')
+      })
+      .end()
+      .catch(() => ({ list: [] }))
   ]);
   const member = memberDoc && memberDoc.data ? memberDoc.data : { cashBalance: 0 };
   const transactions = transactionsSnapshot.data || [];
-  const totalRecharge = transactions
-    .filter((item) => item.type === 'recharge' && item.status === 'success')
-    .reduce((sum, item) => sum + (item.amount || 0), 0);
-  const totalSpend = transactions
-    .filter((item) => item.type === 'spend')
-    .reduce((sum, item) => sum + Math.abs(item.amount || 0), 0);
+  const aggregatedRecharge = extractAggregateTotal(rechargeAgg);
+  const aggregatedSpend = Math.abs(extractAggregateTotal(spendAgg));
+  const hasStoredRecharge = Object.prototype.hasOwnProperty.call(member, 'totalRecharge');
+  const hasStoredSpend = Object.prototype.hasOwnProperty.call(member, 'totalSpend');
+  const totalRecharge = hasStoredRecharge ? resolveAmountNumber(member.totalRecharge) : aggregatedRecharge;
+  const totalSpend = hasStoredSpend ? resolveAmountNumber(member.totalSpend) : aggregatedSpend;
   return {
     cashBalance: resolveCashBalance(member),
     balance: resolveCashBalance(member),
@@ -67,7 +86,7 @@ async function getSummary(openid) {
       _id: txn._id,
       type: txn.type,
       typeLabel: transactionTypeLabel[txn.type] || '交易',
-      amount: txn.amount || 0,
+      amount: resolveAmountNumber(txn.amount),
       source: txn.source || '',
       remark: txn.remark || '',
       createdAt: txn.createdAt || new Date(),
@@ -145,6 +164,7 @@ async function completeRecharge(openid, transactionId) {
 
     const memberUpdate = {
       cashBalance: _.inc(amount),
+      totalRecharge: _.inc(amount),
       updatedAt: new Date()
     };
     if (experienceGain > 0) {
@@ -187,6 +207,7 @@ async function payWithBalance(openid, orderId, amount) {
     await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).update({
       data: {
         cashBalance: _.inc(-normalizedAmount),
+        totalSpend: _.inc(normalizedAmount),
         updatedAt: new Date(),
         ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
       }
@@ -293,6 +314,7 @@ async function confirmChargeOrder(openid, orderId) {
     await memberRef.update({
       data: {
         cashBalance: _.inc(-amount),
+        totalSpend: _.inc(amount),
         stoneBalance: _.inc(stoneReward),
         updatedAt: now
       }
@@ -408,6 +430,48 @@ function resolveCashBalance(member) {
     return member.balance;
   }
   return 0;
+}
+
+function extractAggregateTotal(snapshot) {
+  if (!snapshot || !Array.isArray(snapshot.list) || !snapshot.list.length) {
+    return 0;
+  }
+  return resolveAmountNumber(snapshot.list[0].total);
+}
+
+function resolveAmountNumber(value) {
+  if (value == null) return 0;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === 'object') {
+    if (typeof value.toNumber === 'function') {
+      try {
+        const numeric = value.toNumber();
+        return Number.isFinite(numeric) ? numeric : 0;
+      } catch (err) {
+        // fall through
+      }
+    }
+    if (typeof value.valueOf === 'function') {
+      const primitive = value.valueOf();
+      if (typeof primitive === 'number' && Number.isFinite(primitive)) {
+        return primitive;
+      }
+      const numeric = Number(primitive);
+      if (Number.isFinite(numeric)) {
+        return numeric;
+      }
+    }
+    if (typeof value.toString === 'function') {
+      const numeric = Number(value.toString());
+      if (Number.isFinite(numeric)) {
+        return numeric;
+      }
+    }
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
 async function syncMemberLevel(openid) {

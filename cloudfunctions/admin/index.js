@@ -300,6 +300,7 @@ async function rechargeMember(openid, memberId, amount) {
     await memberRef.update({
       data: {
         cashBalance: _.inc(numericAmount),
+        totalRecharge: _.inc(numericAmount),
         updatedAt: now
       }
     });

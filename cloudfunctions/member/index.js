@@ -47,6 +47,8 @@ async function initMember(openid, profile) {
     levelId: defaultLevel ? defaultLevel._id : '',
     experience: 0,
     cashBalance: 0,
+    totalRecharge: 0,
+    totalSpend: 0,
     stoneBalance: 0,
     roles: ['member'],
     createdAt: new Date(),
@@ -292,6 +294,14 @@ function normalizeAssetFields(member) {
     const cash = hasLegacyBalance ? normalized.balance : 0;
     normalized.cashBalance = cash;
     updates.cashBalance = cash;
+  }
+  if (typeof normalized.totalRecharge !== 'number' || !Number.isFinite(normalized.totalRecharge)) {
+    normalized.totalRecharge = 0;
+    updates.totalRecharge = 0;
+  }
+  if (typeof normalized.totalSpend !== 'number' || !Number.isFinite(normalized.totalSpend)) {
+    normalized.totalSpend = 0;
+    updates.totalSpend = 0;
   }
   if (typeof normalized.stoneBalance !== 'number' || !Number.isFinite(normalized.stoneBalance)) {
     normalized.stoneBalance = 0;
