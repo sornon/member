@@ -12,6 +12,8 @@ const COLLECTIONS = {
   WALLET_TRANSACTIONS: 'walletTransactions'
 };
 
+const EXPERIENCE_PER_YUAN = 100;
+
 const ADMIN_ROLES = ['admin', 'developer'];
 
 const ACTIONS = {
@@ -291,6 +293,7 @@ async function rechargeMember(openid, memberId, amount) {
     throw new Error('缺少会员编号');
   }
   const now = new Date();
+  const experienceGain = calculateExperienceGain(numericAmount);
   await db.runTransaction(async (transaction) => {
     const memberRef = transaction.collection(COLLECTIONS.MEMBERS).doc(memberId);
     const memberDoc = await memberRef.get().catch(() => null);
@@ -301,7 +304,8 @@ async function rechargeMember(openid, memberId, amount) {
       data: {
         cashBalance: _.inc(numericAmount),
         totalRecharge: _.inc(numericAmount),
-        updatedAt: now
+        updatedAt: now,
+        ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
       }
     });
     await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
@@ -317,6 +321,9 @@ async function rechargeMember(openid, memberId, amount) {
       }
     });
   });
+  if (experienceGain > 0) {
+    await syncMemberLevel(memberId);
+  }
   return fetchMemberDetail(memberId);
 }
 
@@ -346,6 +353,33 @@ async function fetchMemberDetail(memberId) {
 async function loadLevels() {
   const snapshot = await db.collection(COLLECTIONS.LEVELS).orderBy('order', 'asc').get();
   return snapshot.data || [];
+}
+
+async function syncMemberLevel(memberId) {
+  const [memberDoc, levels] = await Promise.all([
+    db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(memberId)
+      .get()
+      .catch(() => null),
+    loadLevels()
+  ]);
+  if (!memberDoc || !memberDoc.data) return;
+  const member = memberDoc.data;
+  if (!Array.isArray(levels) || !levels.length) return;
+  const targetLevel = resolveLevelByExperience(Number(member.experience || 0), levels);
+  if (!targetLevel || targetLevel._id === member.levelId) {
+    return;
+  }
+  await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(memberId)
+    .update({
+      data: {
+        levelId: targetLevel._id,
+        updatedAt: new Date()
+      }
+    });
 }
 
 function buildLevelMap(levels) {
@@ -627,4 +661,26 @@ function formatDate(value) {
   const hh = `${date.getHours()}`.padStart(2, '0');
   const mm = `${date.getMinutes()}`.padStart(2, '0');
   return `${y}-${m}-${d} ${hh}:${mm}`;
+}
+
+function calculateExperienceGain(amountFen) {
+  if (!amountFen || amountFen <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.round((amountFen * EXPERIENCE_PER_YUAN) / 100));
+}
+
+function resolveLevelByExperience(exp, levels) {
+  if (!Array.isArray(levels) || !levels.length) {
+    return null;
+  }
+  const numericExp = Number(exp) || 0;
+  let target = levels[0];
+  levels.forEach((level) => {
+    const threshold = Number(level.threshold || 0);
+    if (Number.isFinite(threshold) && numericExp >= threshold) {
+      target = level;
+    }
+  });
+  return target;
 }
