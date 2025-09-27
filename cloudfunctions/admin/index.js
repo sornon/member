@@ -14,9 +14,22 @@ const COLLECTIONS = {
 
 const ADMIN_ROLES = ['admin', 'developer'];
 
+function normalizeAction(action) {
+  if (typeof action === 'string') {
+    const trimmed = action.trim();
+    if (trimmed) {
+      if (trimmed === 'listChargeOrder') {
+        return 'listChargeOrders';
+      }
+      return trimmed;
+    }
+  }
+  return 'listMembers';
+}
+
 exports.main = async (event) => {
   const { OPENID } = cloud.getWXContext();
-  const action = event.action || 'listMembers';
+  const action = normalizeAction(event.action);
 
   switch (action) {
     case 'listMembers':
