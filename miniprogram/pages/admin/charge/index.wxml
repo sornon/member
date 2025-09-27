@@ -1,0 +1,69 @@
+<custom-nav title="创建扣费单" theme="dark"></custom-nav>
+<view class="container">
+  <view class="section">
+    <view class="section-title">扣费明细</view>
+    <view class="items">
+      <view class="item" wx:for="{{items}}" wx:key="index">
+        <view class="field">
+          <view class="label">名称</view>
+          <input
+            class="input"
+            placeholder="请输入商品名称"
+            value="{{item.name}}"
+            data-index="{{index}}"
+            data-field="name"
+            bindinput="handleItemInput"
+          />
+        </view>
+        <view class="field">
+          <view class="label">单价（元）</view>
+          <input
+            class="input"
+            type="digit"
+            placeholder="0.00"
+            value="{{item.priceYuan}}"
+            data-index="{{index}}"
+            data-field="priceYuan"
+            bindinput="handleItemInput"
+          />
+        </view>
+        <view class="field quantity">
+          <view class="label">数量</view>
+          <view class="stepper">
+            <button class="step" data-index="{{index}}" data-delta="-1" bindtap="handleQuantityStep">-</button>
+            <input
+              class="input"
+              type="number"
+              value="{{item.quantity}}"
+              data-index="{{index}}"
+              data-field="quantity"
+              bindinput="handleItemInput"
+            />
+            <button class="step" data-index="{{index}}" data-delta="1" bindtap="handleQuantityStep">+</button>
+          </view>
+        </view>
+        <button class="remove" wx:if="{{items.length > 1}}" data-index="{{index}}" bindtap="handleRemoveItem">移除</button>
+      </view>
+    </view>
+    <button class="add" bindtap="handleAddItem">新增商品</button>
+    <view class="total">
+      应扣合计：<text class="amount">{{formatCurrency(totalAmount || 0)}}</text>
+    </view>
+    <button class="primary" type="primary" loading="{{generating}}" bindtap="handleGenerate">生成扣费单</button>
+  </view>
+
+  <view class="section" wx:if="{{currentOrder}}">
+    <view class="section-title">二维码信息</view>
+    <view class="order-summary">
+      <view class="row"><text class="label">订单编号</text><text class="value">{{currentOrder._id}}</text></view>
+      <view class="row"><text class="label">金额合计</text><text class="value highlight">{{currentOrder.totalAmountLabel}}</text></view>
+      <view class="row"><text class="label">灵石奖励</text><text class="value">{{currentOrder.stoneRewardLabel}}</text></view>
+      <view class="row"><text class="label">订单状态</text><text class="value">{{currentOrder.statusLabel}}</text></view>
+      <view class="row"><text class="label">有效期至</text><text class="value">{{currentOrder.expireAtLabel}}</text></view>
+    </view>
+    <view class="qr-wrapper">
+      <canvas type="2d" canvas-id="charge-qr" style="width:240px;height:240px;"></canvas>
+    </view>
+    <button class="outline" loading="{{loadingOrder}}" bindtap="handleRefresh">刷新状态</button>
+  </view>
+</view>

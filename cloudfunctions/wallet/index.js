@@ -11,7 +11,9 @@ const COLLECTIONS = {
   RESERVATIONS: 'reservations',
   MEMBER_RIGHTS: 'memberRights',
   MEMBERSHIP_LEVELS: 'membershipLevels',
-  MEMBERSHIP_RIGHTS: 'membershipRights'
+  MEMBERSHIP_RIGHTS: 'membershipRights',
+  CHARGE_ORDERS: 'chargeOrders',
+  STONE_TRANSACTIONS: 'stoneTransactions'
 };
 
 const EXPERIENCE_PER_YUAN = 100;
@@ -29,6 +31,10 @@ exports.main = async (event, context) => {
       return completeRecharge(OPENID, event.transactionId);
     case 'balancePay':
       return payWithBalance(OPENID, event.orderId, event.amount);
+    case 'loadChargeOrder':
+      return loadChargeOrder(OPENID, event.orderId);
+    case 'confirmChargeOrder':
+      return confirmChargeOrder(OPENID, event.orderId);
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -213,11 +219,178 @@ async function payWithBalance(openid, orderId, amount) {
   return { success: true, message: '支付成功', experienceGain };
 }
 
+async function loadChargeOrder(openid, orderId) {
+  if (!orderId) {
+    throw new Error('扣费单不存在');
+  }
+  const doc = await db
+    .collection(COLLECTIONS.CHARGE_ORDERS)
+    .doc(orderId)
+    .get()
+    .catch(() => null);
+  if (!doc || !doc.data) {
+    throw new Error('扣费单不存在');
+  }
+  const order = mapChargeOrder(doc.data, orderId);
+  if (order.status === 'expired' && doc.data.status !== 'expired') {
+    await db
+      .collection(COLLECTIONS.CHARGE_ORDERS)
+      .doc(orderId)
+      .update({
+        data: {
+          status: 'expired',
+          updatedAt: new Date()
+        }
+      })
+      .catch(() => null);
+  }
+  return { order };
+}
+
+async function confirmChargeOrder(openid, orderId) {
+  if (!orderId) {
+    throw new Error('扣费单不存在');
+  }
+  let result = { success: false };
+  await db.runTransaction(async (transaction) => {
+    const orderRef = transaction.collection(COLLECTIONS.CHARGE_ORDERS).doc(orderId);
+    const orderDoc = await orderRef.get().catch(() => null);
+    if (!orderDoc || !orderDoc.data) {
+      throw new Error('扣费单不存在');
+    }
+    const now = new Date();
+    const order = orderDoc.data;
+    const normalizedOrder = mapChargeOrder(order, orderId, now);
+    if (normalizedOrder.status === 'expired') {
+      await orderRef.update({
+        data: {
+          status: 'expired',
+          updatedAt: now
+        }
+      });
+      throw new Error('扣费单已过期');
+    }
+    if (order.status === 'paid') {
+      throw new Error('扣费单已完成');
+    }
+    if (order.status === 'cancelled') {
+      throw new Error('扣费单已取消');
+    }
+    const amount = Number(order.totalAmount || 0);
+    if (!amount || amount <= 0) {
+      throw new Error('扣费金额无效');
+    }
+    const memberRef = transaction.collection(COLLECTIONS.MEMBERS).doc(openid);
+    const memberDoc = await memberRef.get().catch(() => null);
+    if (!memberDoc || !memberDoc.data) {
+      throw new Error('会员不存在');
+    }
+    const balance = resolveCashBalance(memberDoc.data);
+    if (balance < amount) {
+      throw new Error('余额不足，请先充值');
+    }
+    const stoneReward = Number(order.stoneReward || amount);
+    await memberRef.update({
+      data: {
+        cashBalance: _.inc(-amount),
+        stoneBalance: _.inc(stoneReward),
+        updatedAt: now
+      }
+    });
+    await transaction.collection(COLLECTIONS.TRANSACTIONS).add({
+      data: {
+        memberId: openid,
+        amount: -amount,
+        type: 'spend',
+        status: 'success',
+        source: 'chargeOrder',
+        orderId,
+        createdAt: now,
+        remark: '扫码扣费'
+      }
+    });
+    await transaction.collection(COLLECTIONS.STONE_TRANSACTIONS).add({
+      data: {
+        memberId: openid,
+        amount: stoneReward,
+        type: 'earn',
+        source: 'chargeOrder',
+        description: '扫码消费赠送灵石',
+        createdAt: now,
+        meta: {
+          orderId
+        }
+      }
+    });
+    await orderRef.update({
+      data: {
+        status: 'paid',
+        memberId: openid,
+        confirmedAt: now,
+        stoneReward,
+        updatedAt: now
+      }
+    });
+    result = {
+      success: true,
+      message: '扣费成功',
+      amount,
+      stoneReward
+    };
+  });
+  return result;
+}
+
 const transactionTypeLabel = {
   recharge: '充',
   spend: '消费',
   reward: '奖励'
 };
+
+function mapChargeOrder(raw, orderId, now = new Date()) {
+  if (!raw) return null;
+  const expireAt = resolveDate(raw.expireAt);
+  let status = raw.status || 'pending';
+  if (status === 'pending' && expireAt && expireAt.getTime() <= now.getTime()) {
+    status = 'expired';
+  }
+  const items = Array.isArray(raw.items)
+    ? raw.items.map((item) => ({
+        name: item.name || '',
+        price: Number(item.price || 0),
+        quantity: Number(item.quantity || 0),
+        amount: Number(item.amount || 0)
+      }))
+    : [];
+  return {
+    _id: raw._id || orderId,
+    status,
+    items,
+    totalAmount: Number(raw.totalAmount || 0),
+    stoneReward: Number(raw.stoneReward || raw.totalAmount || 0),
+    createdAt: resolveDate(raw.createdAt),
+    updatedAt: resolveDate(raw.updatedAt),
+    expireAt,
+    memberId: raw.memberId || '',
+    confirmedAt: resolveDate(raw.confirmedAt)
+  };
+}
+
+function resolveDate(value) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return value;
+  }
+  if (value && typeof value.toDate === 'function') {
+    try {
+      return value.toDate();
+    } catch (err) {
+      return null;
+    }
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 function calculateExperienceGain(amountFen) {
   if (!amountFen || amountFen <= 0) {

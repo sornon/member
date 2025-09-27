@@ -1,0 +1,50 @@
+<custom-nav title="确认消费" theme="dark"></custom-nav>
+<view class="page">
+  <view wx:if="{{loading}}" class="loading">加载扣费信息...</view>
+  <view wx:elif="{{error}}" class="error">
+    <text>{{error}}</text>
+    <button size="mini" bindtap="handleRetry">重新加载</button>
+  </view>
+  <view wx:elif="{{order}}" class="content">
+    <view class="card">
+      <view class="title">消费明细</view>
+      <view class="item" wx:for="{{order.items}}" wx:key="index">
+        <view class="item-left">
+          <view class="name">{{item.name}}</view>
+          <view class="quantity">数量：{{item.quantity}}</view>
+        </view>
+        <view class="item-right">{{formatCurrency(item.amount || (item.price * item.quantity))}}</view>
+      </view>
+      <view class="divider"></view>
+      <view class="row">
+        <text>应扣金额</text>
+        <text class="amount">{{order.totalLabel}}</text>
+      </view>
+      <view class="row">
+        <text>灵石奖励</text>
+        <text class="stones">+{{order.stoneLabel}}</text>
+      </view>
+      <view class="row status">
+        <text>当前状态</text>
+        <text>{{order.statusLabel}}</text>
+      </view>
+      <view class="row" wx:if="{{order.expireAtLabel}}">
+        <text>有效期至</text>
+        <text>{{order.expireAtLabel}}</text>
+      </view>
+    </view>
+
+    <button
+      class="confirm"
+      type="primary"
+      loading="{{confirming}}"
+      disabled="{{order.status !== 'pending'}}"
+      bindtap="handleConfirm"
+    >确认扣费</button>
+
+    <view class="tips">
+      <view>确认后将从余额扣除金额并立即获得对应灵石奖励。</view>
+      <view>若余额不足，请先返回钱包进行充值。</view>
+    </view>
+  </view>
+</view>

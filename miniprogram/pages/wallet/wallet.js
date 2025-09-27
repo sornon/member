@@ -73,6 +73,42 @@ Page({
     }
   },
 
+  async handleScanCharge() {
+    try {
+      const res = await wx.scanCode({ onlyFromCamera: true });
+      const orderId = this.parseScanResult(res && res.result);
+      if (!orderId) {
+        wx.showToast({ title: '二维码无效', icon: 'none' });
+        return;
+      }
+      wx.navigateTo({ url: `/pages/wallet/charge-confirm/index?orderId=${orderId}` });
+    } catch (error) {
+      if (error && error.errMsg && error.errMsg.includes('cancel')) {
+        return;
+      }
+      wx.showToast({ title: '扫码失败，请重试', icon: 'none' });
+    }
+  },
+
+  parseScanResult(result) {
+    if (!result || typeof result !== 'string') {
+      return '';
+    }
+    const trimmed = result.trim();
+    if (trimmed.startsWith('member-charge:')) {
+      return trimmed.slice('member-charge:'.length);
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && parsed.type === 'member_charge' && parsed.orderId) {
+        return parsed.orderId;
+      }
+    } catch (err) {
+      // ignore
+    }
+    return '';
+  },
+
   formatCurrency,
   formatDate,
 

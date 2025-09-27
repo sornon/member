@@ -30,7 +30,9 @@ Page({
       stoneBalance: '',
       levelId: '',
       roles: []
-    }
+    },
+    rechargeVisible: false,
+    rechargeAmount: ''
   },
 
   onLoad(options) {
@@ -80,7 +82,7 @@ Page({
         nickName: member.nickName || '',
         mobile: member.mobile || '',
         experience: String(member.experience ?? 0),
-        cashBalance: String(member.cashBalance ?? member.balance ?? 0),
+        cashBalance: this.formatYuan(member.cashBalance ?? member.balance ?? 0),
         stoneBalance: String(member.stoneBalance ?? 0),
         levelId: member.levelId || currentLevel._id || '',
         roles: ensureMemberRole(member.roles)
@@ -121,7 +123,7 @@ Page({
         nickName: (this.data.form.nickName || '').trim(),
         mobile: (this.data.form.mobile || '').trim(),
         experience: Number(this.data.form.experience || 0),
-        cashBalance: Number(this.data.form.cashBalance || 0),
+        cashBalance: this.parseYuanToFen(this.data.form.cashBalance),
         stoneBalance: Number(this.data.form.stoneBalance || 0),
         levelId: this.data.form.levelId,
         roles: ensureMemberRole(this.data.form.roles)
@@ -135,5 +137,61 @@ Page({
     } finally {
       this.setData({ saving: false });
     }
+  },
+
+  showRechargeDialog() {
+    this.setData({ rechargeVisible: true, rechargeAmount: '' });
+  },
+
+  hideRechargeDialog() {
+    this.setData({ rechargeVisible: false, rechargeAmount: '' });
+  },
+
+  handleRechargeInput(event) {
+    this.setData({ rechargeAmount: event.detail.value });
+  },
+
+  async handleRechargeConfirm() {
+    if (!this.data.memberId) return;
+    const amountFen = this.parseYuanToFen(this.data.rechargeAmount);
+    if (!amountFen || amountFen <= 0) {
+      wx.showToast({ title: '请输入正确的金额', icon: 'none' });
+      return;
+    }
+    wx.showLoading({ title: '充值中', mask: true });
+    try {
+      const detail = await AdminService.rechargeMember(this.data.memberId, amountFen);
+      this.applyDetail(detail);
+      wx.showToast({ title: '充值成功', icon: 'success' });
+      this.hideRechargeDialog();
+    } catch (error) {
+      wx.showToast({ title: error.errMsg || error.message || '充值失败', icon: 'none' });
+    } finally {
+      wx.hideLoading();
+    }
+  },
+
+  formatYuan(fen) {
+    const value = Number(fen || 0);
+    if (!Number.isFinite(value)) {
+      return '0.00';
+    }
+    return (value / 100).toFixed(2);
+  },
+
+  parseYuanToFen(input) {
+    if (input == null || input === '') {
+      return 0;
+    }
+    const numeric = Number(input);
+    if (Number.isFinite(numeric)) {
+      return Math.round(numeric * 100);
+    }
+    if (typeof input === 'string') {
+      const sanitized = input.trim().replace(/[^0-9.-]/g, '');
+      const parsed = Number(sanitized);
+      return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+    }
+    return 0;
   }
 });

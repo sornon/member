@@ -18,6 +18,9 @@
 
   <view class="section">
     <view class="section-title">基础资料</view>
+    <view class="toolbar">
+      <button class="recharge" size="mini" bindtap="showRechargeDialog">为该会员充值</button>
+    </view>
     <view class="form-item">
       <view class="form-label">昵称</view>
       <input
@@ -61,10 +64,10 @@
       />
     </view>
     <view class="form-item">
-      <view class="form-label">现金余额（分）</view>
+      <view class="form-label">现金余额（元）</view>
       <input
         class="form-input"
-        type="number"
+        type="digit"
         value="{{form.cashBalance}}"
         placeholder="请输入现金余额"
         data-field="cashBalance"
@@ -99,3 +102,23 @@
 </view>
 
 <view wx:if="{{loading}}" class="loading">加载会员资料...</view>
+
+<view wx:if="{{rechargeVisible}}" class="dialog-mask" bindtap="hideRechargeDialog">
+  <view class="dialog" catchtap="">
+    <view class="dialog-title">充值到账户余额</view>
+    <view class="dialog-body">
+      <view class="dialog-tip">金额单位：元（保留两位小数）</view>
+      <input
+        class="dialog-input"
+        type="digit"
+        placeholder="请输入充值金额"
+        value="{{rechargeAmount}}"
+        bindinput="handleRechargeInput"
+      />
+    </view>
+    <view class="dialog-actions">
+      <button size="mini" class="dialog-btn" bindtap="hideRechargeDialog">取消</button>
+      <button size="mini" class="dialog-btn primary" bindtap="handleRechargeConfirm">确认充值</button>
+    </view>
+  </view>
+</view>

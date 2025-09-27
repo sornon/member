@@ -6,6 +6,7 @@
     <view wx:elif="{{summary}}">
       <view class="balance">{{formatCurrency(summary.cashBalance || 0)}}</view>
       <view class="meta">累计充值：{{formatCurrency(summary.totalRecharge || 0)}} · 累计消费：{{formatCurrency(summary.totalSpend || 0)}}</view>
+      <button class="scan" size="mini" bindtap="handleScanCharge">扫码扣费</button>
     </view>
   </view>
 

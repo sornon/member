@@ -10,7 +10,9 @@
     "pages/avatar/avatar",
     "pages/admin/index",
     "pages/admin/members/index",
-    "pages/admin/member-detail/index"
+    "pages/admin/member-detail/index",
+    "pages/admin/charge/index",
+    "pages/wallet/charge-confirm/index"
   ],
   "window": {
     "backgroundTextStyle": "light",
