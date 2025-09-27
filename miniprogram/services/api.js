@@ -158,6 +158,15 @@ export const AdminService = {
       orderId
     });
   },
+  async listChargeOrders({ page = 1, pageSize = 20, memberId = '', keyword = '' } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'listChargeOrders',
+      page,
+      pageSize,
+      memberId,
+      keyword
+    });
+  },
   async rechargeMember(memberId, amount) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'rechargeMember',

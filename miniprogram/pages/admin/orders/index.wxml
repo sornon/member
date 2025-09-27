@@ -1,0 +1,66 @@
+<custom-nav title="订单查询" theme="dark"></custom-nav>
+<view class="page">
+  <view class="filters">
+    <view class="filter-input">
+      <input
+        class="input"
+        placeholder="输入会员昵称 / 手机号 / 编号"
+        value="{{keyword}}"
+        confirm-type="search"
+        bindinput="handleKeywordInput"
+        bindconfirm="handleSearch"
+      />
+    </view>
+    <view class="filter-actions">
+      <button class="btn primary" type="primary" size="mini" loading="{{loading}}" bindtap="handleSearch">查询</button>
+      <button class="btn" size="mini" bindtap="handleResetFilters">重置</button>
+    </view>
+  </view>
+
+  <view class="summary">共 {{total}} 单</view>
+
+  <view class="orders">
+    <view class="empty" wx:if="{{!loading && !orders.length}}">
+      暂无符合条件的订单
+    </view>
+
+    <block wx:for="{{orders}}" wx:key="_id">
+      <view class="order-card">
+        <view class="order-header">
+          <text class="order-id">#{{item._id}}</text>
+          <text class="status status-{{item.status}}">{{item.statusLabel}}</text>
+        </view>
+        <view class="order-meta">
+          <text class="meta-text">创建：{{item.createdAtLabel || '—'}}</text>
+          <text class="meta-text" wx:if="{{item.confirmedAtLabel}}">完成：{{item.confirmedAtLabel}}</text>
+        </view>
+        <view class="order-member">
+          <text class="meta-text">会员：{{item.memberName || '—'}}</text>
+          <text class="meta-text" wx:if="{{item.memberId}}">编号：{{item.memberId}}</text>
+          <text class="meta-text" wx:if="{{item.memberMobile}}">手机：{{item.memberMobile}}</text>
+        </view>
+        <view class="order-amount">
+          <text class="amount">{{item.totalAmountLabel}}</text>
+          <text class="reward">赠送 {{item.stoneRewardLabel}}</text>
+        </view>
+        <view class="order-items" wx:if="{{item.items && item.items.length}}">
+          <view
+            class="order-item"
+            wx:for="{{item.items}}"
+            wx:key="goodsIndex"
+            wx:for-item="goods"
+            wx:for-index="goodsIndex"
+          >
+            <text class="name">{{goods.name || '未命名'}}</text>
+            <text class="quantity">x{{goods.quantity}}</text>
+            <text class="price">{{goods.priceLabel}}</text>
+            <text class="item-amount">{{goods.amountLabel}}</text>
+          </view>
+        </view>
+      </view>
+    </block>
+
+    <view class="loading" wx:if="{{loading && orders.length}}">加载中...</view>
+    <view class="no-more" wx:elif="{{orders.length >= total && total > 0}}">没有更多订单</view>
+  </view>
+</view>

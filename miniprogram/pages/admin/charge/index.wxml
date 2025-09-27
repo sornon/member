@@ -62,7 +62,12 @@
       <view class="row"><text class="label">有效期至</text><text class="value">{{currentOrder.expireAtLabel}}</text></view>
     </view>
     <view class="qr-wrapper">
-      <canvas type="2d" canvas-id="charge-qr" style="width:240px;height:240px;"></canvas>
+      <canvas
+        type="2d"
+        id="charge-qr"
+        canvas-id="charge-qr"
+        style="width:240px;height:240px;"
+      ></canvas>
     </view>
     <button class="outline" loading="{{loadingOrder}}" bindtap="handleRefresh">刷新状态</button>
   </view>
