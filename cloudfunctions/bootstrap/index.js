@@ -6,6 +6,10 @@ const db = cloud.database();
 
 exports.main = async () => {
   await Promise.all([
+    ensureCollection('chargeOrders')
+  ]);
+
+  await Promise.all([
     seedCollection('membershipRights', membershipRights),
     seedCollection('membershipLevels', membershipLevels),
     seedCollection('rooms', rooms),
@@ -17,6 +21,23 @@ exports.main = async () => {
 
   return { success: true };
 };
+
+async function ensureCollection(name) {
+  try {
+    await db.createCollection(name);
+  } catch (error) {
+    if (!error || !error.errMsg) {
+      throw error;
+    }
+    const alreadyExists =
+      error.errCode === -501001 ||
+      error.errCode === -501002 ||
+      /already exists/i.test(error.errMsg);
+    if (!alreadyExists) {
+      throw error;
+    }
+  }
+}
 
 async function seedCollection(name, dataList) {
   const collection = db.collection(name);
