@@ -18,6 +18,7 @@ const COLLECTIONS = {
 };
 
 const EXPERIENCE_PER_YUAN = 100;
+const EXCLUDED_TRANSACTION_STATUSES = ['pending', 'processing', 'failed', 'cancelled', 'refunded', 'closed'];
 
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext();
@@ -52,7 +53,11 @@ async function getSummary(openid) {
       .get(),
     transactionsCollection
       .aggregate()
-      .match({ memberId: openid, type: 'recharge', status: 'success' })
+      .match({
+        memberId: openid,
+        type: 'recharge',
+        status: _.nin(EXCLUDED_TRANSACTION_STATUSES)
+      })
       .group({
         _id: null,
         total: $.sum('$amount')
@@ -61,7 +66,11 @@ async function getSummary(openid) {
       .catch(() => ({ list: [] })),
     transactionsCollection
       .aggregate()
-      .match({ memberId: openid, type: 'spend', status: 'success' })
+      .match({
+        memberId: openid,
+        type: 'spend',
+        status: _.nin(EXCLUDED_TRANSACTION_STATUSES)
+      })
       .group({
         _id: null,
         total: $.sum('$amount')
@@ -89,8 +98,8 @@ async function getSummary(openid) {
       amount: resolveAmountNumber(txn.amount),
       source: txn.source || '',
       remark: txn.remark || '',
-      createdAt: txn.createdAt || new Date(),
-      status: txn.status || 'success'
+      createdAt: resolveDate(txn.createdAt) || new Date(),
+      status: normalizeTransactionStatus(txn.status)
     }))
   };
 }
@@ -423,11 +432,17 @@ function calculateExperienceGain(amountFen) {
 
 function resolveCashBalance(member) {
   if (!member) return 0;
-  if (typeof member.cashBalance === 'number' && Number.isFinite(member.cashBalance)) {
-    return member.cashBalance;
+  if (Object.prototype.hasOwnProperty.call(member, 'cashBalance')) {
+    const resolved = resolveAmountNumber(member.cashBalance);
+    if (Number.isFinite(resolved)) {
+      return resolved;
+    }
   }
-  if (typeof member.balance === 'number' && Number.isFinite(member.balance)) {
-    return member.balance;
+  if (Object.prototype.hasOwnProperty.call(member, 'balance')) {
+    const legacy = resolveAmountNumber(member.balance);
+    if (Number.isFinite(legacy)) {
+      return legacy;
+    }
   }
   return 0;
 }
@@ -472,6 +487,16 @@ function resolveAmountNumber(value) {
   }
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function normalizeTransactionStatus(status) {
+  if (!status) {
+    return 'success';
+  }
+  if (status === 'completed') {
+    return 'success';
+  }
+  return status;
 }
 
 async function syncMemberLevel(openid) {
