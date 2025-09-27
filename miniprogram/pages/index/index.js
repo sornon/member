@@ -11,6 +11,23 @@ const BASE_NAV_ITEMS = [
 
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
 
+function normalizePercentage(progress) {
+  if (!progress || typeof progress.percentage !== 'number') {
+    return 0;
+  }
+  const value = Number(progress.percentage);
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (value < 0) {
+    return 0;
+  }
+  if (value > 100) {
+    return 100;
+  }
+  return value;
+}
+
 const BACKGROUND_IMAGE =
   'data:image/svg+xml;base64,' +
   'PHN2ZyB3aWR0aD0iNzIwIiBoZWlnaHQ9IjEyODAiIHZpZXdCb3g9IjAgMCA3MjAgMTI4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVm' +
@@ -98,7 +115,8 @@ Page({
       { icon: '🔥', label: '比武' }
     ],
     navItems: [...BASE_NAV_ITEMS],
-    memberStats: { ...EMPTY_MEMBER_STATS }
+    memberStats: { ...EMPTY_MEMBER_STATS },
+    progressWidth: 0
   },
 
   onLoad() {
@@ -154,12 +172,14 @@ Page({
         tasks: tasks.slice(0, 3),
         loading: false,
         navItems: resolveNavItems(member),
-        memberStats: deriveMemberStats(member)
+        memberStats: deriveMemberStats(member),
+        progressWidth: normalizePercentage(progress)
       });
     } catch (err) {
       this.setData({
         loading: false,
-        memberStats: deriveMemberStats(this.data.member)
+        memberStats: deriveMemberStats(this.data.member),
+        progressWidth: normalizePercentage(this.data.progress)
       });
     }
   },

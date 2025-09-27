@@ -1,6 +1,32 @@
 import { MemberService } from '../../services/api';
 import { formatCurrency, formatExperience, levelBadgeColor } from '../../utils/format';
 
+function normalizePercentage(progress) {
+  if (!progress || typeof progress.percentage !== 'number') {
+    return 0;
+  }
+  const value = Number(progress.percentage);
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (value < 0) {
+    return 0;
+  }
+  if (value > 100) {
+    return 100;
+  }
+  return value;
+}
+
+function decorateLevels(levels = []) {
+  return levels
+    .filter(Boolean)
+    .map((level) => ({
+      ...level,
+      badgeColor: levelBadgeColor(level.realmOrder || level.order || 1)
+    }));
+}
+
 Page({
   data: {
     loading: true,
@@ -10,7 +36,8 @@ Page({
     realms: [],
     currentLevel: null,
     nextLevel: null,
-    upcomingMilestone: null
+    upcomingMilestone: null,
+    progressWidth: 0
   },
 
   onShow() {
@@ -24,9 +51,10 @@ Page({
         MemberService.getMember(),
         MemberService.getLevelProgress()
       ]);
-      const levels = progress.levels || [];
+      const rawLevels = Array.isArray(progress.levels) ? progress.levels : [];
+      const levels = decorateLevels(rawLevels);
       const realmMap = {};
-      levels.forEach((lvl) => {
+      rawLevels.forEach((lvl) => {
         if (!lvl) return;
         const key = lvl.realmId || `${lvl.realm || ''}_${lvl.realmOrder || lvl.order}`;
         if (!key) return;
@@ -72,16 +100,19 @@ Page({
         realms,
         currentLevel,
         nextLevel,
-        upcomingMilestone
+        upcomingMilestone,
+        progressWidth: normalizePercentage(progress)
       });
     } catch (error) {
-      this.setData({ loading: false });
+      this.setData({
+        loading: false,
+        progressWidth: normalizePercentage(this.data.progress)
+      });
     }
   },
 
   formatCurrency,
   formatExperience,
-  levelBadgeColor,
 
   formatDiscount(value) {
     const numeric = typeof value === 'number' ? value : 1;
