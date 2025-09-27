@@ -34,7 +34,7 @@
         <view class="hero-subtitle">灵气回荡的天穹下，万道齐鸣，等你归位。</view>
         <view class="progress-info">
           <view class="progress-track">
-            <view class="progress-inner" style="width: {{progressWidth}}%;"></view>
+            <view class="progress-inner" style="{{progressStyle}}"></view>
           </view>
           <view class="progress-text">距下境界还需 {{progress ? progress.nextDiff : 0}} 修为</view>
         </view>

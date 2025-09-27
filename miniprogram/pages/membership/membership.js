@@ -18,13 +18,22 @@ function normalizePercentage(progress) {
   return value;
 }
 
+function buildWidthStyle(width) {
+  const safeWidth = typeof width === 'number' && Number.isFinite(width) ? width : 0;
+  return `width: ${safeWidth}%;`;
+}
+
 function decorateLevels(levels = []) {
   return levels
     .filter(Boolean)
-    .map((level) => ({
-      ...level,
-      badgeColor: levelBadgeColor(level.realmOrder || level.order || 1)
-    }));
+    .map((level) => {
+      const color = levelBadgeColor(level.realmOrder || level.order || 1);
+      return {
+        ...level,
+        badgeColor: color,
+        badgeStyle: `background: ${color};`
+      };
+    });
 }
 
 Page({
@@ -37,7 +46,8 @@ Page({
     currentLevel: null,
     nextLevel: null,
     upcomingMilestone: null,
-    progressWidth: 0
+    progressWidth: 0,
+    progressStyle: buildWidthStyle(0)
   },
 
   onShow() {
@@ -91,6 +101,7 @@ Page({
       const nextLevel = progress.nextLevel || null;
       const currentOrder = currentLevel && currentLevel.order ? currentLevel.order : 0;
       const upcomingMilestone = levels.find((lvl) => lvl.order > currentOrder && lvl.milestoneReward) || null;
+      const width = normalizePercentage(progress);
 
       this.setData({
         loading: false,
@@ -101,12 +112,15 @@ Page({
         currentLevel,
         nextLevel,
         upcomingMilestone,
-        progressWidth: normalizePercentage(progress)
+        progressWidth: width,
+        progressStyle: buildWidthStyle(width)
       });
     } catch (error) {
+      const width = normalizePercentage(this.data.progress);
       this.setData({
         loading: false,
-        progressWidth: normalizePercentage(this.data.progress)
+        progressWidth: width,
+        progressStyle: buildWidthStyle(width)
       });
     }
   },

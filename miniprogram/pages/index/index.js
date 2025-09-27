@@ -28,6 +28,11 @@ function normalizePercentage(progress) {
   return value;
 }
 
+function buildWidthStyle(width) {
+  const safeWidth = typeof width === 'number' && Number.isFinite(width) ? width : 0;
+  return `width: ${safeWidth}%;`;
+}
+
 const BACKGROUND_IMAGE =
   'data:image/svg+xml;base64,' +
   'PHN2ZyB3aWR0aD0iNzIwIiBoZWlnaHQ9IjEyODAiIHZpZXdCb3g9IjAgMCA3MjAgMTI4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVm' +
@@ -116,7 +121,8 @@ Page({
     ],
     navItems: [...BASE_NAV_ITEMS],
     memberStats: { ...EMPTY_MEMBER_STATS },
-    progressWidth: 0
+    progressWidth: 0,
+    progressStyle: buildWidthStyle(0)
   },
 
   onLoad() {
@@ -166,6 +172,7 @@ Page({
         MemberService.getLevelProgress(),
         TaskService.list()
       ]);
+      const width = normalizePercentage(progress);
       this.setData({
         member,
         progress,
@@ -173,13 +180,16 @@ Page({
         loading: false,
         navItems: resolveNavItems(member),
         memberStats: deriveMemberStats(member),
-        progressWidth: normalizePercentage(progress)
+        progressWidth: width,
+        progressStyle: buildWidthStyle(width)
       });
     } catch (err) {
+      const width = normalizePercentage(this.data.progress);
       this.setData({
         loading: false,
         memberStats: deriveMemberStats(this.data.member),
-        progressWidth: normalizePercentage(this.data.progress)
+        progressWidth: width,
+        progressStyle: buildWidthStyle(width)
       });
     }
   },
