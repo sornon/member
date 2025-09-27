@@ -76,9 +76,7 @@
     </view>
     <view class="form-item">
       <view class="form-label">当前境界</view>
-      <picker mode="selector" range="{{levels}}" range-key="name" value="{{levelIndex}}" bindchange="handleLevelChange">
-        <view class="picker-value">{{currentLevelName || '请选择境界'}}</view>
-      </picker>
+      <view class="readonly-value">{{currentLevelName || '—'}}</view>
     </view>
     <view class="form-item">
       <view class="form-label">角色权限</view>
@@ -86,11 +84,12 @@
         <label
           wx:for="{{roleOptions}}"
           wx:key="value"
-          class="role-option"
+          class="role-option {{item.checked ? 'checked' : ''}}"
         >
           <checkbox
             value="{{item.value}}"
-            checked="{{form.roles.indexOf(item.value) !== -1}}"
+            checked="{{item.checked}}"
+            disabled="{{item.disabled}}"
           />
           <text class="role-label">{{item.label}}</text>
         </label>
@@ -104,7 +103,7 @@
 <view wx:if="{{loading}}" class="loading">加载会员资料...</view>
 
 <view wx:if="{{rechargeVisible}}" class="dialog-mask" bindtap="hideRechargeDialog">
-  <view class="dialog" catchtap="">
+  <view class="dialog" catchtap="noop" catchtouchmove="noop">
     <view class="dialog-title">充值到账户余额</view>
     <view class="dialog-body">
       <view class="dialog-tip">金额单位：元（保留两位小数）</view>

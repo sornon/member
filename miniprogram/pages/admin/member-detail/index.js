@@ -18,9 +18,9 @@ Page({
     levelIndex: 0,
     currentLevelName: '',
     roleOptions: [
-      { value: 'member', label: '会员' },
-      { value: 'admin', label: '管理员' },
-      { value: 'developer', label: '开发' }
+      { value: 'member', label: '会员', checked: false, disabled: true },
+      { value: 'admin', label: '管理员', checked: false },
+      { value: 'developer', label: '开发', checked: false }
     ],
     form: {
       nickName: '',
@@ -72,6 +72,11 @@ Page({
       0
     );
     const currentLevel = levels[levelIndex] || levels[0] || { _id: '', name: '' };
+    const roles = ensureMemberRole(member.roles);
+    const roleOptions = (this.data.roleOptions || []).map((option) => ({
+      ...option,
+      checked: roles.includes(option.value)
+    }));
     this.setData({
       member,
       levels,
@@ -85,8 +90,9 @@ Page({
         cashBalance: this.formatYuan(member.cashBalance ?? member.balance ?? 0),
         stoneBalance: String(member.stoneBalance ?? 0),
         levelId: member.levelId || currentLevel._id || '',
-        roles: ensureMemberRole(member.roles)
-      }
+        roles
+      },
+      roleOptions
     });
   },
 
@@ -108,11 +114,15 @@ Page({
   },
 
   handleRolesChange(event) {
-    const roles = event.detail.value || [];
-    if (!roles.includes('member')) {
-      roles.push('member');
-    }
-    this.setData({ 'form.roles': roles });
+    const roles = ensureMemberRole(event.detail.value || []);
+    const roleOptions = (this.data.roleOptions || []).map((option) => ({
+      ...option,
+      checked: roles.includes(option.value)
+    }));
+    this.setData({
+      'form.roles': roles,
+      roleOptions
+    });
   },
 
   async handleSubmit() {
@@ -138,6 +148,8 @@ Page({
       this.setData({ saving: false });
     }
   },
+
+  noop() {},
 
   showRechargeDialog() {
     this.setData({ rechargeVisible: true, rechargeAmount: '' });
