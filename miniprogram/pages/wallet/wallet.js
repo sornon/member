@@ -1,4 +1,8 @@
 import { WalletService } from '../../services/api';
+import {
+  ensureWatcher as ensureMemberWatcher,
+  subscribe as subscribeMemberRealtime
+} from '../../services/member-realtime';
 import { formatCurrency, formatDate } from '../../utils/format';
 
 const presets = [200, 500, 1000, 2000, 5000];
@@ -104,17 +108,61 @@ Page({
   },
 
   onShow() {
+    this.attachMemberRealtime();
+    ensureMemberWatcher().catch(() => {
+      // ignore ensure errors here; fetchSummary will handle errors when needed
+    });
     this.fetchSummary();
   },
 
-  async fetchSummary() {
-    this.setData({ loading: true });
+  onHide() {
+    this.detachMemberRealtime();
+  },
+
+  onUnload() {
+    this.detachMemberRealtime();
+  },
+
+  attachMemberRealtime() {
+    if (this.unsubscribeMemberRealtime) {
+      return;
+    }
+    this.unsubscribeMemberRealtime = subscribeMemberRealtime((event) => {
+      if (!event || event.type !== 'memberChanged') {
+        return;
+      }
+      this.fetchSummary({ showLoading: false });
+    });
+  },
+
+  detachMemberRealtime() {
+    if (this.unsubscribeMemberRealtime) {
+      this.unsubscribeMemberRealtime();
+      this.unsubscribeMemberRealtime = null;
+    }
+  },
+
+  async fetchSummary(options = {}) {
+    if (this.fetchingSummary) {
+      this.pendingFetchSummary = true;
+      return;
+    }
+    this.fetchingSummary = true;
+    const showLoading = options.showLoading !== false;
+    if (showLoading) {
+      this.setData({ loading: true });
+    }
     try {
       const summary = await WalletService.summary();
       const normalizedSummary = decorateSummary(summary);
       this.setData({ summary: normalizedSummary, loading: false });
     } catch (error) {
       this.setData({ loading: false });
+    }
+    this.fetchingSummary = false;
+    if (this.pendingFetchSummary) {
+      this.pendingFetchSummary = false;
+      this.fetchSummary({ showLoading: false });
     }
   },
 
