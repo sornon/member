@@ -1,4 +1,5 @@
 import { MemberService, TaskService } from '../../services/api';
+import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../services/member-realtime';
 import { formatCurrency, formatExperience, formatStones } from '../../utils/format';
 
 const BASE_NAV_ITEMS = [
@@ -129,12 +130,7 @@ Page({
   },
 
   onLoad() {
-    const now = new Date();
-    const formatNumber = (value) => (value < 10 ? `0${value}` : `${value}`);
-    this.setData({
-      today: `${now.getFullYear()} · ${formatNumber(now.getMonth() + 1)} · ${formatNumber(now.getDate())}`
-    });
-    this.bootstrap();
+    this.updateToday();
   },
 
   onShow() {
@@ -146,14 +142,19 @@ Page({
         timingFunc: 'easeIn'
       }
     });
+    this.updateToday();
+    this.attachMemberRealtime();
+    this.bootstrap();
   },
 
   onHide() {
     this.restoreNavigationBar();
+    this.detachMemberRealtime();
   },
 
   onUnload() {
     this.restoreNavigationBar();
+    this.detachMemberRealtime();
   },
 
   restoreNavigationBar() {
@@ -167,8 +168,58 @@ Page({
     });
   },
 
-  async bootstrap() {
-    this.setData({ loading: true });
+  attachMemberRealtime() {
+    if (this.unsubscribeMemberRealtime) {
+      return;
+    }
+    this.unsubscribeMemberRealtime = subscribeMemberRealtime((event) => {
+      if (!event || event.type !== 'memberChanged') {
+        return;
+      }
+      const { snapshot } = event;
+      if (!snapshot || snapshot.type === 'init') {
+        return;
+      }
+      const memberId = this.data.member && this.data.member._id;
+      if (!memberId) {
+        return;
+      }
+      const docChanges = Array.isArray(snapshot.docChanges) ? snapshot.docChanges : [];
+      let affectedIds = docChanges
+        .map((change) => {
+          const doc = change && change.doc ? change.doc : null;
+          return doc ? doc._id || doc.id : '';
+        })
+        .filter(Boolean);
+      if (!affectedIds.length && Array.isArray(snapshot.docs)) {
+        affectedIds = snapshot.docs
+          .map((doc) => (doc ? doc._id || doc.id : ''))
+          .filter(Boolean);
+      }
+      if (!affectedIds.includes(memberId)) {
+        return;
+      }
+      this.bootstrap({ showLoading: false });
+    });
+  },
+
+  detachMemberRealtime() {
+    if (this.unsubscribeMemberRealtime) {
+      this.unsubscribeMemberRealtime();
+      this.unsubscribeMemberRealtime = null;
+    }
+  },
+
+  async bootstrap(options = {}) {
+    if (this.bootstrapRunning) {
+      this.bootstrapPending = true;
+      return;
+    }
+    this.bootstrapRunning = true;
+    const showLoading = options.showLoading !== false;
+    if (showLoading) {
+      this.setData({ loading: true });
+    }
     try {
       const [member, progress, tasks] = await Promise.all([
         MemberService.getMember(),
@@ -186,6 +237,7 @@ Page({
         progressWidth: width,
         progressStyle: buildWidthStyle(width)
       });
+      setActiveMember(member);
     } catch (err) {
       const width = normalizePercentage(this.data.progress);
       this.setData({
@@ -195,6 +247,19 @@ Page({
         progressStyle: buildWidthStyle(width)
       });
     }
+    this.bootstrapRunning = false;
+    if (this.bootstrapPending) {
+      this.bootstrapPending = false;
+      this.bootstrap({ showLoading: false });
+    }
+  },
+
+  updateToday() {
+    const now = new Date();
+    const formatNumber = (value) => (value < 10 ? `0${value}` : `${value}`);
+    this.setData({
+      today: `${now.getFullYear()} · ${formatNumber(now.getMonth() + 1)} · ${formatNumber(now.getDate())}`
+    });
   },
 
   formatCurrency,

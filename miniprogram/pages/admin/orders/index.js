@@ -81,7 +81,7 @@ Page({
     refreshing: false
   },
 
-  onLoad() {
+  onShow() {
     this.loadOrders({ reset: true });
   },
 

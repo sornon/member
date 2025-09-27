@@ -22,6 +22,9 @@ Page({
     if (options && options.rightId) {
       this.setData({ rightId: options.rightId });
     }
+  },
+
+  onShow() {
     this.fetchRooms();
   },
 

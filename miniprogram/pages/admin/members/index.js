@@ -26,7 +26,7 @@ Page({
     defaultAvatar: DEFAULT_AVATAR
   },
 
-  onLoad() {
+  onShow() {
     this.fetchMembers(true);
   },
 
