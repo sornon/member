@@ -4,7 +4,7 @@ page {
 }
 
 .page {
-  padding: 32rpx;
+  padding: 0 32rpx;
   padding-bottom: calc(48rpx + constant(safe-area-inset-bottom));
   padding-bottom: calc(48rpx + env(safe-area-inset-bottom));
   min-height: 100%;
@@ -224,7 +224,7 @@ page {
 .slot {
   flex: 1 1 220rpx;
   min-width: 220rpx;
-  background: #f8f9fd;
+  background: #c5d0ff;
   border-radius: 24rpx;
   padding: 24rpx;
 }
