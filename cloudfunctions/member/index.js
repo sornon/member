@@ -25,6 +25,8 @@ exports.main = async (event, context) => {
       return getProgress(OPENID);
     case 'rights':
       return getRights(OPENID);
+    case 'completeProfile':
+      return completeProfile(OPENID, event);
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -39,6 +41,7 @@ async function initMember(openid, profile) {
 
   const levels = await loadLevels();
   const defaultLevel = levels[0];
+  const now = new Date();
   const doc = {
     _id: openid,
     nickName: profile.nickName || '',
@@ -51,7 +54,8 @@ async function initMember(openid, profile) {
     totalSpend: 0,
     stoneBalance: 0,
     roles: ['member'],
-    createdAt: new Date(),
+    createdAt: now,
+    updatedAt: now,
     avatarConfig: {}
   };
   await membersCollection.add({ data: doc });
@@ -150,6 +154,80 @@ async function getRights(openid) {
       meta: item.meta || {}
     };
   });
+}
+
+async function completeProfile(openid, payload = {}) {
+  const profile = payload.profile || {};
+  const membersCollection = db.collection(COLLECTIONS.MEMBERS);
+
+  const nickName = typeof profile.nickName === 'string' ? profile.nickName.trim() : '';
+  const avatarUrl = typeof profile.avatarUrl === 'string' ? profile.avatarUrl : '';
+  const mobile = await resolveMobile(payload);
+
+  const updates = {};
+  if (nickName) {
+    updates.nickName = nickName;
+  }
+  if (avatarUrl) {
+    updates.avatarUrl = avatarUrl;
+  }
+  if (mobile) {
+    updates.mobile = mobile;
+  }
+
+  const existing = await membersCollection.doc(openid).get().catch(() => null);
+  if (!existing || !existing.data) {
+    await initMember(openid, {
+      nickName,
+      avatarUrl,
+      mobile
+    });
+    return getProfile(openid);
+  }
+
+  if (!Object.keys(updates).length) {
+    const levels = await loadLevels();
+    return decorateMember(normalizeAssetFields(existing.data), levels);
+  }
+
+  updates.updatedAt = new Date();
+  await membersCollection.doc(openid).update({
+    data: updates
+  });
+
+  return getProfile(openid);
+}
+
+async function resolveMobile(payload) {
+  if (!payload) return '';
+  const { phone, phoneNumber, phoneCode } = payload;
+  if (phone && typeof phone === 'object') {
+    if (phone.data && phone.data.phoneNumber) {
+      return String(phone.data.phoneNumber).trim();
+    }
+    if (phone.phoneNumber) {
+      return String(phone.phoneNumber).trim();
+    }
+  }
+  if (typeof phoneCode === 'string' && phoneCode.trim()) {
+    try {
+      const res = await cloud.openapi.wxa.business.getUserPhoneNumber({
+        code: phoneCode.trim()
+      });
+      if (res && res.phoneInfo && res.phoneInfo.phoneNumber) {
+        return String(res.phoneInfo.phoneNumber).trim();
+      }
+    } catch (error) {
+      console.error('[member:resolveMobile] getUserPhoneNumber failed', error);
+    }
+  }
+  if (typeof phoneNumber === 'string') {
+    return phoneNumber.trim();
+  }
+  if (payload.profile && typeof payload.profile.mobile === 'string') {
+    return payload.profile.mobile.trim();
+  }
+  return '';
 }
 
 const statusLabelMap = {
