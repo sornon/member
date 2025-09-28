@@ -115,13 +115,32 @@ page {
   margin-top: 12rpx;
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
-  font-size: 24rpx;
-  color: rgba(220, 230, 255, 0.8);
+  gap: 10rpx;
 }
 
-.profile-meta text {
-  display: block;
+.profile-meta__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 10rpx 16rpx;
+  border-radius: 999rpx;
+  background: rgba(18, 26, 53, 0.36);
+  color: rgba(220, 230, 255, 0.88);
+  transition: background 0.2s ease;
+}
+
+.profile-meta__item--hover {
+  background: rgba(51, 77, 135, 0.56);
+}
+
+.profile-meta__label {
+  font-size: 22rpx;
+  letter-spacing: 2rpx;
+}
+
+.profile-meta__value {
+  font-size: 26rpx;
+  font-weight: 600;
   white-space: nowrap;
 }
 

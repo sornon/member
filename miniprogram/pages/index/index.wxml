@@ -13,8 +13,22 @@
           <view class="profile-name">{{member ? (member.nickName || '无名仙友') : '无名仙友'}}</view>
           <view class="profile-level">境界：{{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</view>
           <view class="profile-meta">
-            <text>灵石 {{memberStats.stoneBalance}}</text>
-            <text>修为 {{memberStats.experience}}</text>
+            <view
+              class="profile-meta__item"
+              hover-class="profile-meta__item--hover"
+              bindtap="handleStoneTap"
+            >
+              <text class="profile-meta__label">灵石</text>
+              <text class="profile-meta__value">{{memberStats.stoneBalance}}</text>
+            </view>
+            <view
+              class="profile-meta__item"
+              hover-class="profile-meta__item--hover"
+              bindtap="handleExperienceTap"
+            >
+              <text class="profile-meta__label">修为</text>
+              <text class="profile-meta__value">{{memberStats.experience}}</text>
+            </view>
           </view>
         </view>
       </view>

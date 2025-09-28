@@ -3,11 +3,12 @@ import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../ser
 import { formatCurrency, formatExperience, formatStones } from '../../utils/format';
 
 const BASE_NAV_ITEMS = [
+  { icon: '🧝', label: '角色', url: '/pages/pve/pve?tab=character' },
+  { icon: '🛡️', label: '装备', url: '/pages/pve/pve?tab=equipment' },
+  { icon: '⚔️', label: '秘境', url: '/pages/pve/pve?tab=dungeon' },
   { icon: '💳', label: '等级', url: '/pages/membership/membership' },
   { icon: '🎁', label: '权益', url: '/pages/rights/rights' },
   { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
-  { icon: '🪙', label: '灵石', url: '/pages/stones/stones' },
-  { icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
   { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
   { icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
@@ -315,7 +316,7 @@ Page({
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
     activityIcons: [
-      { icon: '⚔️', label: '试炼', url: '/pages/tasks/tasks' },
+      { icon: '🗝️', label: '秘境', url: '/pages/pve/pve?tab=dungeon' },
       { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
       { icon: '🔥', label: '比武' }
     ],
@@ -518,6 +519,14 @@ Page({
 
   handleProfileTap() {
     this.openArchiveEditor();
+  },
+
+  handleStoneTap() {
+    wx.navigateTo({ url: '/pages/stones/stones' });
+  },
+
+  handleExperienceTap() {
+    wx.navigateTo({ url: '/pages/membership/membership' });
   },
 
   openArchiveEditor() {

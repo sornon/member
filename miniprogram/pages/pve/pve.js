@@ -1,4 +1,5 @@
-import { PveService } from '../../services/api';
+import { PveService, MemberService } from '../../services/api';
+import { formatStones } from '../../utils/format';
 
 const ALLOCATABLE_KEYS = ['hp', 'attack', 'defense', 'speed', 'luck'];
 
@@ -9,17 +10,30 @@ Page({
     battleResult: null,
     battleLoading: false,
     selectedEnemyId: '',
-    drawing: false
+    drawing: false,
+    activeTab: 'character',
+    stoneBalance: 0,
+    formattedStoneBalance: formatStones(0)
+  },
+
+  onLoad(options = {}) {
+    const initialTab = this.normalizeTab(options.tab);
+    if (initialTab) {
+      this.setData({ activeTab: initialTab });
+    }
   },
 
   onShow() {
     this.fetchProfile();
+    this.refreshStoneBalance();
   },
 
   onPullDownRefresh() {
-    this.fetchProfile(false).finally(() => {
-      wx.stopPullDownRefresh();
-    });
+    Promise.all([this.fetchProfile(false), this.refreshStoneBalance()])
+      .catch(() => {})
+      .finally(() => {
+        wx.stopPullDownRefresh();
+      });
   },
 
   async fetchProfile(showLoading = true) {
@@ -37,6 +51,62 @@ Page({
       wx.showToast({ title: error.errMsg || '加载失败', icon: 'none' });
       this.setData({ loading: false });
     }
+    return null;
+  },
+
+  normalizeTab(tab) {
+    if (typeof tab !== 'string') {
+      return '';
+    }
+    const value = tab.toLowerCase();
+    if (value === 'character' || value === 'role') {
+      return 'character';
+    }
+    if (value === 'equipment' || value === 'equip' || value === 'bag') {
+      return 'equipment';
+    }
+    if (value === 'dungeon' || value === 'secret' || value === 'mystic') {
+      return 'dungeon';
+    }
+    return '';
+  },
+
+  handleTabChange(event) {
+    const dataset = event && event.currentTarget ? event.currentTarget.dataset : {};
+    const target = this.normalizeTab(dataset.tab);
+    if (target && target !== this.data.activeTab) {
+      this.setData({ activeTab: target });
+    }
+  },
+
+  async refreshStoneBalance() {
+    try {
+      const app = typeof getApp === 'function' ? getApp() : null;
+      if (app && app.globalData && app.globalData.memberInfo && app.globalData.memberInfo.stoneBalance != null) {
+        this.setStoneBalance(app.globalData.memberInfo.stoneBalance);
+      }
+      const member = await MemberService.getMember();
+      if (member && typeof member.stoneBalance !== 'undefined') {
+        this.setStoneBalance(member.stoneBalance);
+        if (app && app.globalData) {
+          app.globalData.memberInfo = { ...(app.globalData.memberInfo || {}), ...member };
+        }
+      }
+    } catch (error) {
+      console.error('[pve] refresh stone balance failed', error);
+    }
+  },
+
+  setStoneBalance(balance) {
+    const value = Number(balance) || 0;
+    this.setData({
+      stoneBalance: value,
+      formattedStoneBalance: formatStones(value)
+    });
+  },
+
+  handleOpenStones() {
+    wx.navigateTo({ url: '/pages/stones/stones' });
   },
 
   async handleBattle(event) {
