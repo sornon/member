@@ -3,6 +3,7 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
+const $ = db.command.aggregate;
 
 const COLLECTIONS = {
   MEMBERS: 'members',
@@ -22,26 +23,24 @@ exports.main = async (event) => {
 };
 
 async function getSummary(openid) {
-  const [memberDoc, transactionsSnapshot] = await Promise.all([
+  const [memberDoc, transactionsSnapshot, totalsSnapshot] = await Promise.all([
     db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null),
     db
       .collection(COLLECTIONS.STONE_TRANSACTIONS)
       .where({ memberId: openid })
       .orderBy('createdAt', 'desc')
       .limit(30)
-      .get()
+      .get(),
+    aggregateStoneTotals(openid)
   ]);
 
   const member = memberDoc && memberDoc.data ? memberDoc.data : {};
   const balance = resolveStoneBalance(member);
   const transactions = transactionsSnapshot.data || [];
-
-  const totalEarned = transactions
-    .filter((item) => (item.amount || 0) > 0)
-    .reduce((sum, item) => sum + Math.max(0, Math.trunc(item.amount || 0)), 0);
-  const totalSpent = transactions
-    .filter((item) => (item.amount || 0) < 0)
-    .reduce((sum, item) => sum + Math.abs(Math.trunc(item.amount || 0)), 0);
+  const { totalEarned, totalSpent } = resolveTotals({
+    snapshot: totalsSnapshot,
+    transactions
+  });
 
   return {
     stoneBalance: balance,
@@ -50,6 +49,74 @@ async function getSummary(openid) {
     totalSpent,
     transactions: transactions.map(mapTransaction)
   };
+}
+
+async function aggregateStoneTotals(memberId) {
+  if (!memberId) {
+    return null;
+  }
+  try {
+    return await db
+      .collection(COLLECTIONS.STONE_TRANSACTIONS)
+      .aggregate()
+      .match({ memberId })
+      .group({
+        _id: null,
+        totalEarned: $.sum(
+          $.cond({
+            if: $.gt(['$amount', 0]),
+            then: $.floor('$amount'),
+            else: 0
+          })
+        ),
+        totalSpent: $.sum(
+          $.cond({
+            if: $.lt(['$amount', 0]),
+            then: $.abs($.floor('$amount')),
+            else: 0
+          })
+        )
+      })
+      .end();
+  } catch (error) {
+    console.error('[stones] aggregate totals failed', error);
+    return null;
+  }
+}
+
+function resolveTotals({ snapshot, transactions }) {
+  const fallbackTotals = calculateTotalsFromTransactions(transactions);
+  if (!snapshot || !snapshot.list || !snapshot.list.length) {
+    return fallbackTotals;
+  }
+  const doc = snapshot.list[0] || {};
+  const totalEarned = normalizeAmount(doc.totalEarned);
+  const totalSpent = Math.abs(normalizeAmount(doc.totalSpent));
+  if (!Number.isFinite(totalEarned) || !Number.isFinite(totalSpent)) {
+    return fallbackTotals;
+  }
+  return {
+    totalEarned: Math.max(0, totalEarned),
+    totalSpent: Math.max(0, totalSpent)
+  };
+}
+
+function calculateTotalsFromTransactions(transactions) {
+  if (!Array.isArray(transactions) || !transactions.length) {
+    return { totalEarned: 0, totalSpent: 0 };
+  }
+  return transactions.reduce(
+    (acc, item) => {
+      const amount = normalizeAmount(item.amount);
+      if (amount > 0) {
+        acc.totalEarned += amount;
+      } else if (amount < 0) {
+        acc.totalSpent += Math.abs(amount);
+      }
+      return acc;
+    },
+    { totalEarned: 0, totalSpent: 0 }
+  );
 }
 
 function mapTransaction(txn) {
