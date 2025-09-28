@@ -333,15 +333,6 @@ async function cancelReservation(openid, reservationId) {
 
     await releaseReservationResources(transaction, reservation, { refundUsage: true, unlockRight: true });
 
-    await transaction
-      .collection(COLLECTIONS.MEMBERS)
-      .doc(openid)
-      .update({
-        data: {
-          'reservationBadges.memberVersion': _.inc(1)
-        }
-      })
-      .catch(() => {});
   });
 
   await updateAdminReservationBadges({ incrementVersion: false });
