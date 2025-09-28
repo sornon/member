@@ -5,6 +5,82 @@ import {
 } from '../../services/member-realtime';
 import { formatDate, formatStones, formatStoneChange } from '../../utils/format';
 
+function toNumeric(value, fallback = 0) {
+  if (value == null || value === '') {
+    return fallback;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : fallback;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return fallback;
+    }
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  if (typeof value === 'object') {
+    if ('value' in value) {
+      return toNumeric(value.value, fallback);
+    }
+    if ('amount' in value) {
+      return toNumeric(value.amount, fallback);
+    }
+  }
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function normalizeTransaction(txn = {}) {
+  const change = toNumeric(txn.change ?? txn.amount ?? 0, 0);
+  const amount = toNumeric(txn.amount ?? change, change);
+  const createdAt = txn.createdAt || txn.timestamp || '';
+  const type = txn.type || (change >= 0 ? 'earn' : 'spend');
+  const typeLabel = txn.typeLabel || (change >= 0 ? '获得' : '消耗');
+  return {
+    _id: txn._id || txn.id || `${type}-${createdAt || 'unknown'}-${amount}`,
+    ...txn,
+    amount,
+    change,
+    createdAt,
+    type,
+    typeLabel,
+    source: txn.source || '',
+    description: txn.description || ''
+  };
+}
+
+function normalizeSummary(summary) {
+  const payload = summary && typeof summary === 'object' && summary.result && typeof summary.result === 'object'
+    ? summary.result
+    : summary;
+  if (!payload || typeof payload !== 'object') {
+    return {
+      stoneBalance: 0,
+      balance: 0,
+      totalEarned: 0,
+      totalSpent: 0,
+      transactions: []
+    };
+  }
+  const stoneBalance = toNumeric(payload.stoneBalance ?? payload.balance, 0);
+  const balance = toNumeric(payload.balance ?? payload.stoneBalance, stoneBalance);
+  const totalEarned = toNumeric(payload.totalEarned, 0);
+  const totalSpent = toNumeric(payload.totalSpent, 0);
+  const transactions = Array.isArray(payload.transactions)
+    ? payload.transactions.map((item) => normalizeTransaction(item))
+    : [];
+  return {
+    ...payload,
+    stoneBalance,
+    balance,
+    totalEarned,
+    totalSpent,
+    transactions
+  };
+}
+
 Page({
   data: {
     loading: true,
@@ -58,7 +134,8 @@ Page({
     }
     try {
       const summary = await StoneService.summary();
-      this.setData({ summary, loading: false });
+      const normalizedSummary = normalizeSummary(summary);
+      this.setData({ summary: normalizedSummary, loading: false });
     } catch (error) {
       console.error('[stones:summary]', error);
       this.setData({ loading: false });
