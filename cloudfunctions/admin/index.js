@@ -253,20 +253,34 @@ async function getChargeOrderQrCode(openid, orderId) {
   }
 
   let qrBuffer = null;
-  try {
-    const response = await cloud.openapi.wxacode.getUnlimited({
-      scene,
-      page: 'pages/wallet/charge-confirm/index',
-      check_path: true,
-      env_version: 'release'
-    });
-    qrBuffer = response && response.buffer ? response.buffer : null;
-  } catch (error) {
-    console.error('Failed to generate mini program code for charge order', error);
-    throw new Error('生成微信扫码二维码失败，请稍后重试');
+  const envOptions = resolveMiniProgramCodeEnvOptions();
+  let lastError = null;
+
+  for (const option of envOptions) {
+    try {
+      const response = await cloud.openapi.wxacode.getUnlimited({
+        scene,
+        page: 'pages/wallet/charge-confirm/index',
+        check_path: option.checkPath,
+        env_version: option.envVersion
+      });
+      qrBuffer = response && response.buffer ? response.buffer : null;
+      if (qrBuffer && qrBuffer.length) {
+        break;
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `Failed to generate mini program code for charge order in env ${option.envVersion}`,
+        error
+      );
+    }
   }
 
   if (!qrBuffer || !qrBuffer.length) {
+    if (lastError) {
+      console.error('Failed to generate mini program code for charge order', lastError);
+    }
     throw new Error('生成微信扫码二维码失败，请稍后重试');
   }
 
@@ -671,6 +685,71 @@ function buildChargeOrderScene(orderId) {
     return '';
   }
   return value.length > 32 ? '' : value;
+}
+
+function resolveMiniProgramCodeEnvOptions() {
+  const configuredEnvVersion = getConfiguredEnvVersion();
+  const configuredCheckPath = getConfiguredCheckPath();
+
+  if (configuredEnvVersion) {
+    return [
+      {
+        envVersion: configuredEnvVersion,
+        checkPath: configuredCheckPath
+      }
+    ];
+  }
+
+  return [
+    { envVersion: 'release', checkPath: true },
+    { envVersion: 'trial', checkPath: false },
+    { envVersion: 'develop', checkPath: false }
+  ];
+}
+
+function getConfiguredEnvVersion() {
+  const value =
+    process.env.MINI_PROGRAM_QR_ENV_VERSION ||
+    process.env.MINIPROGRAM_QR_ENV_VERSION ||
+    process.env.WXACODE_ENV_VERSION ||
+    '';
+
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (!normalized) {
+    return '';
+  }
+
+  if (['release', 'trial', 'develop'].includes(normalized)) {
+    return normalized;
+  }
+
+  return '';
+}
+
+function getConfiguredCheckPath() {
+  const value =
+    process.env.MINI_PROGRAM_QR_CHECK_PATH ||
+    process.env.MINIPROGRAM_QR_CHECK_PATH ||
+    process.env.WXACODE_CHECK_PATH;
+
+  if (value === undefined || value === null) {
+    return true;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  if (['0', 'false', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+
+  return true;
 }
 
 function decorateChargeOrderRecord(order, member) {
