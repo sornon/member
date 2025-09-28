@@ -25,8 +25,20 @@
             class="section-actions"
             wx:if="{{profile.attributes && profile.attributes.attributePoints > 0}}"
           >
-            <button class="action-btn" size="mini" data-mode="single" bindtap="handleAllocate">分配属性点</button>
-            <button class="action-btn" size="mini" type="primary" data-mode="auto" bindtap="handleAllocate">均衡分配</button>
+            <button
+              class="action-btn action-btn--ghost"
+              hover-class="action-btn--hover"
+              size="mini"
+              data-mode="single"
+              bindtap="handleAllocate"
+            >分配属性点</button>
+            <button
+              class="action-btn action-btn--primary"
+              hover-class="action-btn--primary-hover"
+              size="mini"
+              data-mode="auto"
+              bindtap="handleAllocate"
+            >均衡分配</button>
           </view>
         </view>
         <view class="level-line">
@@ -119,7 +131,14 @@
             <text wx:for="{{item.statsText || []}}" wx:key="index">{{stat}}</text>
           </view>
           <view class="equipment-actions">
-            <button size="mini" data-item-id="{{item.itemId}}" bindtap="handleEquipItem" disabled="{{item.equipped}}">
+            <button
+              class="pill-btn pill-btn--primary"
+              hover-class="pill-btn--primary-hover"
+              size="mini"
+              data-item-id="{{item.itemId}}"
+              bindtap="handleEquipItem"
+              disabled="{{item.equipped}}"
+            >
               {{item.equipped ? '使用中' : '装备'}}
             </button>
             <view class="equipment-refine">{{item.refineLabel}}</view>
@@ -138,7 +157,13 @@
         <view class="section-header">
           <view class="section-title">技能与抽卡</view>
           <view class="section-actions">
-            <button class="action-btn" type="primary" size="mini" loading="{{drawing}}" bindtap="handleDrawSkill">抽取灵技</button>
+            <button
+              class="action-btn action-btn--primary"
+              hover-class="action-btn--primary-hover"
+              size="mini"
+              loading="{{drawing}}"
+              bindtap="handleDrawSkill"
+            >抽取灵技</button>
           </view>
         </view>
         <view class="skill-slots">
@@ -149,7 +174,13 @@
               <view class="skill-effects">
                 <text wx:for="{{item.detail.effectsSummary || []}}" wx:key="index">{{effect}}</text>
               </view>
-              <button size="mini" data-slot="{{item.slot}}" bindtap="handleUnequipSkill">卸下</button>
+              <button
+                class="pill-btn pill-btn--ghost"
+                hover-class="pill-btn--hover"
+                size="mini"
+                data-slot="{{item.slot}}"
+                bindtap="handleUnequipSkill"
+              >卸下</button>
             </view>
             <view wx:else class="slot-empty">未装备技能</view>
           </view>
@@ -169,7 +200,14 @@
             <text wx:for="{{item.effectsSummary || []}}" wx:key="index">{{effect}}</text>
           </view>
           <view class="skill-actions">
-            <button size="mini" data-skill-id="{{item.skillId}}" bindtap="handleEquipSkill" disabled="{{item.equipped}}">
+            <button
+              class="pill-btn pill-btn--primary"
+              hover-class="pill-btn--primary-hover"
+              size="mini"
+              data-skill-id="{{item.skillId}}"
+              bindtap="handleEquipSkill"
+              disabled="{{item.equipped}}"
+            >
               {{item.equipped ? '使用中' : '装备'}}
             </button>
             <view class="skill-time">获得于 {{item.obtainedAtText}}</view>
