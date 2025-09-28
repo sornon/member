@@ -301,6 +301,12 @@ export const AdminService = {
       orderId
     });
   },
+  async getChargeOrderQrCode(orderId) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'getChargeOrderQrCode',
+      orderId
+    });
+  },
   async listChargeOrders({ page = 1, pageSize = 20, memberId = '', keyword = '' } = {}) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'listChargeOrders',

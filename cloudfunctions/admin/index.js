@@ -23,6 +23,7 @@ const ACTIONS = {
   CREATE_CHARGE_ORDER: 'createChargeOrder',
   GET_CHARGE_ORDER: 'getChargeOrder',
   LIST_CHARGE_ORDERS: 'listChargeOrders',
+  GET_CHARGE_ORDER_QR_CODE: 'getChargeOrderQrCode',
   RECHARGE_MEMBER: 'rechargeMember'
 };
 
@@ -32,6 +33,7 @@ const ACTION_ALIASES = {
   updatemember: ACTIONS.UPDATE_MEMBER,
   createchargeorder: ACTIONS.CREATE_CHARGE_ORDER,
   getchargeorder: ACTIONS.GET_CHARGE_ORDER,
+  getchargeorderqrcode: ACTIONS.GET_CHARGE_ORDER_QR_CODE,
   listchargeorders: ACTIONS.LIST_CHARGE_ORDERS,
   listchargeorder: ACTIONS.LIST_CHARGE_ORDERS,
   rechargemember: ACTIONS.RECHARGE_MEMBER
@@ -55,6 +57,7 @@ const ACTION_HANDLERS = {
   [ACTIONS.UPDATE_MEMBER]: (openid, event) => updateMember(openid, event.memberId, event.updates || {}),
   [ACTIONS.CREATE_CHARGE_ORDER]: (openid, event) => createChargeOrder(openid, event.items || []),
   [ACTIONS.GET_CHARGE_ORDER]: (openid, event) => getChargeOrder(openid, event.orderId),
+  [ACTIONS.GET_CHARGE_ORDER_QR_CODE]: (openid, event) => getChargeOrderQrCode(openid, event.orderId),
   [ACTIONS.LIST_CHARGE_ORDERS]: (openid, event) =>
     listChargeOrders(openid, {
       page: event.page || 1,
@@ -226,6 +229,52 @@ async function getChargeOrder(openid, orderId) {
     _id: doc.data._id || orderId,
     ...doc.data
   });
+}
+
+async function getChargeOrderQrCode(openid, orderId) {
+  await ensureAdmin(openid);
+  if (!orderId) {
+    throw new Error('缺少扣费单编号');
+  }
+
+  const doc = await db
+    .collection(COLLECTIONS.CHARGE_ORDERS)
+    .doc(orderId)
+    .get()
+    .catch(() => null);
+
+  if (!doc || !doc.data) {
+    throw new Error('扣费单不存在');
+  }
+
+  const scene = buildChargeOrderScene(orderId);
+  if (!scene) {
+    throw new Error('扣费单编号无效');
+  }
+
+  let qrBuffer = null;
+  try {
+    const response = await cloud.openapi.wxacode.getUnlimited({
+      scene,
+      page: 'pages/wallet/charge-confirm/index',
+      check_path: true,
+      env_version: 'release'
+    });
+    qrBuffer = response && response.buffer ? response.buffer : null;
+  } catch (error) {
+    console.error('Failed to generate mini program code for charge order', error);
+    throw new Error('生成微信扫码二维码失败，请稍后重试');
+  }
+
+  if (!qrBuffer || !qrBuffer.length) {
+    throw new Error('生成微信扫码二维码失败，请稍后重试');
+  }
+
+  return {
+    scene,
+    imageBase64: qrBuffer.toString('base64'),
+    page: 'pages/wallet/charge-confirm/index'
+  };
 }
 
 async function listChargeOrders(openid, { page = 1, pageSize = 20, memberId = '', keyword = '' }) {
@@ -603,13 +652,25 @@ function mapChargeOrder(order) {
     expireAt: order.expireAt || null,
     memberId: order.memberId || '',
     confirmedAt: order.confirmedAt || null,
-    qrPayload: buildChargeOrderPayload(order._id)
+    qrPayload: buildChargeOrderPayload(order._id),
+    miniProgramScene: buildChargeOrderScene(order._id)
   };
 }
 
 function buildChargeOrderPayload(orderId) {
   if (!orderId) return '';
   return `member-charge:${orderId}`;
+}
+
+function buildChargeOrderScene(orderId) {
+  if (!orderId) {
+    return '';
+  }
+  const value = typeof orderId === 'string' ? orderId.trim() : String(orderId || '');
+  if (!value) {
+    return '';
+  }
+  return value.length > 32 ? '' : value;
 }
 
 function decorateChargeOrderRecord(order, member) {

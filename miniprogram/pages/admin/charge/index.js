@@ -77,7 +77,11 @@ Page({
     generating: false,
     currentOrder: null,
     loadingOrder: false,
-    viewingOrderId: ''
+    viewingOrderId: '',
+    miniProgramQr: '',
+    miniProgramQrLoading: false,
+    miniProgramQrError: '',
+    miniProgramScene: ''
   },
 
   onLoad(options = {}) {
@@ -165,9 +169,12 @@ Page({
       const order = await AdminService.createChargeOrder(payloadItems);
       this.setData({
         currentOrder: this.decorateOrder(order),
-        generating: false
+        generating: false,
+        miniProgramQr: '',
+        miniProgramScene: order && order.miniProgramScene ? order.miniProgramScene : ''
       });
       this.renderQr();
+      this.ensureMiniProgramQr();
     } catch (error) {
       this.setData({ generating: false });
     }
@@ -182,11 +189,16 @@ Page({
     this.setData({ loadingOrder: true });
     try {
       const order = await AdminService.getChargeOrder(this.data.currentOrder._id);
+      const decoratedOrder = this.decorateOrder(order);
+      const shouldResetQr = !this.data.currentOrder || this.data.currentOrder._id !== decoratedOrder._id;
       this.setData({
-        currentOrder: this.decorateOrder(order),
-        loadingOrder: false
+        currentOrder: decoratedOrder,
+        loadingOrder: false,
+        miniProgramQr: shouldResetQr ? '' : this.data.miniProgramQr,
+        miniProgramScene: decoratedOrder.miniProgramScene || ''
       });
       this.renderQr();
+      this.ensureMiniProgramQr(shouldResetQr);
     } catch (error) {
       this.setData({ loadingOrder: false });
     }
@@ -203,12 +215,16 @@ Page({
         return;
       }
       const decorated = this.decorateOrder(order);
+      const shouldResetQr = !this.data.currentOrder || this.data.currentOrder._id !== decorated._id;
       this.setData({
         currentOrder: decorated,
         loadingOrder: false,
-        totalAmount: decorated.totalAmount || 0
+        totalAmount: decorated.totalAmount || 0,
+        miniProgramQr: shouldResetQr ? '' : this.data.miniProgramQr,
+        miniProgramScene: decorated.miniProgramScene || ''
       });
       this.renderQr();
+      this.ensureMiniProgramQr(shouldResetQr);
     } catch (error) {
       this.setData({ loadingOrder: false });
       wx.showToast({ title: '加载订单失败', icon: 'none' });
@@ -248,6 +264,45 @@ Page({
       text: this.data.currentOrder.qrPayload,
       size: 240
     }, this);
+  },
+
+  ensureMiniProgramQr(force = false) {
+    if (!this.data.currentOrder || !this.data.currentOrder._id) {
+      return;
+    }
+    if (this.data.miniProgramQr && !force) {
+      return;
+    }
+    this.loadMiniProgramQr(this.data.currentOrder._id, force);
+  },
+
+  async loadMiniProgramQr(orderId, force = false) {
+    if (!orderId) return;
+    if (this.data.miniProgramQrLoading && !force) return;
+    if (this.data.miniProgramQr && !force) return;
+    this.setData({ miniProgramQrLoading: true, miniProgramQrError: '' });
+    try {
+      const result = await AdminService.getChargeOrderQrCode(orderId);
+      const base64 = result && result.imageBase64 ? result.imageBase64 : '';
+      const scene = result && result.scene ? result.scene : '';
+      const imageSrc = base64 ? `data:image/png;base64,${base64}` : '';
+      this.setData({
+        miniProgramQr: imageSrc,
+        miniProgramQrLoading: false,
+        miniProgramScene: scene
+      });
+    } catch (error) {
+      this.setData({
+        miniProgramQrLoading: false,
+        miniProgramQrError: error && (error.errMsg || error.message) ? error.errMsg || error.message : '二维码生成失败'
+      });
+    }
+  },
+
+  handleReloadMiniProgramQr() {
+    if (!this.data.currentOrder || !this.data.currentOrder._id) return;
+    this.setData({ miniProgramQr: '' });
+    this.loadMiniProgramQr(this.data.currentOrder._id, true);
   },
 
   formatCurrency(value) {

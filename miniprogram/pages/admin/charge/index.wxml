@@ -67,12 +67,28 @@
       <view class="row"><text class="label">有效期至</text><text class="value">{{currentOrder.expireAtLabel}}</text></view>
     </view>
     <view class="qr-wrapper">
-      <canvas
-        type="2d"
-        id="charge-qr"
-        canvas-id="charge-qr"
-        style="width:240px;height:240px;"
-      ></canvas>
+      <view class="qr-block">
+        <view class="qr-title">微信扫一扫</view>
+        <view class="qr-image" wx:if="{{miniProgramQr}}">
+          <image mode="aspectFit" src="{{miniProgramQr}}"></image>
+        </view>
+        <view class="qr-placeholder" wx:elif="{{miniProgramQrLoading}}">小程序码生成中…</view>
+        <view class="qr-placeholder error" wx:elif="{{miniProgramQrError}}">
+          <text>{{miniProgramQrError}}</text>
+          <button class="retry" size="mini" bindtap="handleReloadMiniProgramQr">重新生成</button>
+        </view>
+        <view class="qr-tip">管理员可直接使用微信扫一扫完成扣费</view>
+      </view>
+      <view class="qr-block">
+        <view class="qr-title">会员钱包扫码</view>
+        <canvas
+          type="2d"
+          id="charge-qr"
+          canvas-id="charge-qr"
+          style="width:240px;height:240px;"
+        ></canvas>
+        <view class="qr-tip">会员也可在钱包页使用扫码功能识别</view>
+      </view>
     </view>
     <button class="outline" loading="{{loadingOrder}}" bindtap="handleRefresh">刷新状态</button>
   </view>

@@ -42,14 +42,69 @@ Page({
     confirming: false
   },
 
-  onLoad(options) {
-    const { orderId } = options;
+  onLoad(options = {}) {
+    const orderId = this.resolveOrderId(options);
     if (!orderId) {
       wx.showToast({ title: '扣费单不存在', icon: 'none' });
       return;
     }
     this.setData({ orderId });
     this.loadOrder(orderId);
+  },
+
+  resolveOrderId(options = {}) {
+    if (!options || typeof options !== 'object') {
+      return '';
+    }
+    if (options.orderId) {
+      const direct = String(options.orderId).trim();
+      if (direct) {
+        return direct;
+      }
+    }
+    if (options.scene) {
+      let scene = '';
+      try {
+        scene = decodeURIComponent(options.scene);
+      } catch (e) {
+        scene = options.scene;
+      }
+      if (!scene) {
+        return '';
+      }
+      if (scene.includes('=')) {
+        const params = scene.split('&').reduce((acc, pair) => {
+          if (!pair) {
+            return acc;
+          }
+          const [rawKey, rawValue = ''] = pair.split('=');
+          if (rawKey) {
+            let key = rawKey;
+            let value = rawValue;
+            try {
+              key = decodeURIComponent(rawKey);
+            } catch (err) {
+              key = rawKey;
+            }
+            try {
+              value = decodeURIComponent(rawValue);
+            } catch (err) {
+              value = rawValue;
+            }
+            acc[key] = value || '';
+          }
+          return acc;
+        }, {});
+        if (params.orderId) {
+          const parsed = String(params.orderId).trim();
+          if (parsed) {
+            return parsed;
+          }
+        }
+      }
+      return scene.trim();
+    }
+    return '';
   },
 
   async loadOrder(orderId) {
