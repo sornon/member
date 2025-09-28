@@ -31,7 +31,7 @@ const MEMBER_VISIBLE_STATUSES = [
   'pendingPayment'
 ];
 
-const MEMBER_FETCH_STATUSES = [...new Set([...MEMBER_VISIBLE_STATUSES, 'rejected'])];
+const MEMBER_FETCH_STATUSES = [...new Set([...MEMBER_VISIBLE_STATUSES, 'rejected', 'cancelled'])];
 
 const MEMBER_RESERVATION_LIMIT = 10;
 
@@ -695,6 +695,19 @@ function buildMemberReservationNotice(memberReservations, rooms, usageCount) {
   const scheduleLabel = [latest.date, timeRangeLabel || latest.slotLabel || latest.slot]
     .filter(Boolean)
     .join(' ');
+  const approval = latest.approval || {};
+  const decisionReason = typeof approval.reason === 'string' ? approval.reason.trim() : '';
+  const details = [];
+  if (roomName) {
+    details.push(`包房：${roomName}`);
+  }
+  if (scheduleLabel) {
+    details.push(`时间：${scheduleLabel}`);
+  }
+  if (decisionReason) {
+    details.push(`原因：${decisionReason}`);
+  }
+  const detailText = details.join('，');
   if (latest.status === 'approved') {
     return {
       type: 'success',
@@ -712,18 +725,36 @@ function buildMemberReservationNotice(memberReservations, rooms, usageCount) {
     };
   }
   if (latest.status === 'rejected') {
-    const details = [];
-    if (roomName) {
-      details.push(`包房：${roomName}`);
-    }
-    if (scheduleLabel) {
-      details.push(`时间：${scheduleLabel}`);
+    const messageParts = ['预约未通过，请重新选择时间。'];
+    if (detailText) {
+      messageParts.push(detailText);
     }
     return {
       type: 'warning',
-      message: `该包房已被锁定，请重新选择时间。${details.length ? details.join('，') : ''}`.trim(),
+      message: messageParts.join('').trim(),
       closable: true,
-      reservationId: latest._id
+      reservationId: latest._id,
+      code: 'reservationRejected'
+    };
+  }
+  if (latest.status === 'cancelled') {
+    const decidedBy = approval.decidedBy || '';
+    const decisionStatus = approval.status || '';
+    const memberId = latest.memberId || '';
+    const isAdminCancellation = decisionStatus === 'cancelled' && decidedBy && memberId && decidedBy !== memberId;
+    if (!isAdminCancellation) {
+      return null;
+    }
+    const messageParts = ['预约已被管理员取消。'];
+    if (detailText) {
+      messageParts.push(detailText);
+    }
+    return {
+      type: 'warning',
+      message: messageParts.join('').trim(),
+      closable: true,
+      reservationId: latest._id,
+      code: 'reservationCancelled'
     };
   }
   return null;
