@@ -436,11 +436,6 @@ page {
   color: rgba(200, 210, 255, 0.7);
 }
 
-.archive-section__link {
-  font-size: 24rpx;
-  color: #9db6ff;
-  text-decoration: underline;
-}
 
 .archive-field {
   padding: 12rpx 20rpx;
@@ -532,24 +527,13 @@ page {
 .avatar-option--active {
   border-color: rgba(156, 178, 255, 0.85);
   transform: translateY(-4rpx);
-  box-shadow: 0 12rpx 28rpx rgba(46, 61, 160, 0.45);
+  box-shadow: 0 12rpx 28rpx rgba(46, 61, 160, 0.45), 0 0 0 4rpx rgba(156, 178, 255, 0.2);
 }
 
 .avatar-option__image {
   width: 100%;
   height: 160rpx;
   border-radius: 24rpx;
-}
-
-.avatar-option__badge {
-  position: absolute;
-  right: 12rpx;
-  bottom: 12rpx;
-  padding: 6rpx 16rpx;
-  border-radius: 16rpx;
-  background: rgba(19, 30, 86, 0.78);
-  color: #f6f4ff;
-  font-size: 22rpx;
 }
 
 .archive-summary {

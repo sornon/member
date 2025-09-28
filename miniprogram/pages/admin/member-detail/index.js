@@ -1,10 +1,34 @@
 import { AdminService } from '../../../services/api';
+import { listAllAvatars, normalizeAvatarUnlocks } from '../../../utils/avatar-catalog';
 
 const RENAME_SOURCE_LABELS = {
   admin: '管理员调整',
   manual: '会员修改',
   system: '系统同步'
 };
+
+const RAW_AVATAR_OPTIONS = listAllAvatars();
+
+const AVATAR_OPTION_GROUPS = [
+  {
+    gender: 'male',
+    label: '男修',
+    options: RAW_AVATAR_OPTIONS.filter((item) => item.gender === 'male').map((item) => ({
+      id: item.id,
+      label: item.name,
+      disabled: item.rarity === 'c'
+    }))
+  },
+  {
+    gender: 'female',
+    label: '女修',
+    options: RAW_AVATAR_OPTIONS.filter((item) => item.gender === 'female').map((item) => ({
+      id: item.id,
+      label: item.name,
+      disabled: item.rarity === 'c'
+    }))
+  }
+];
 
 function ensureMemberRole(roles) {
   const list = Array.isArray(roles) ? [...new Set(roles)] : [];
@@ -72,6 +96,7 @@ Page({
       { value: 'admin', label: '管理员', checked: false },
       { value: 'developer', label: '开发', checked: false }
     ],
+    avatarOptionGroups: AVATAR_OPTION_GROUPS,
     form: {
       nickName: '',
       mobile: '',
@@ -81,7 +106,8 @@ Page({
       levelId: '',
       roles: [],
       renameCredits: '',
-      roomUsageCount: ''
+      roomUsageCount: '',
+      avatarUnlocks: []
     },
     rechargeVisible: false,
     rechargeAmount: '',
@@ -151,7 +177,8 @@ Page({
           levelId: member.levelId || currentLevel._id || '',
           roles,
           renameCredits: String(member.renameCredits ?? 0),
-          roomUsageCount: String(member.roomUsageCount ?? 0)
+          roomUsageCount: String(member.roomUsageCount ?? 0),
+          avatarUnlocks: normalizeAvatarUnlocks(member.avatarUnlocks)
         },
       roleOptions,
       renameHistory: formatRenameHistory(member.renameHistory)
@@ -187,6 +214,12 @@ Page({
     });
   },
 
+  handleAvatarUnlockChange(event) {
+    const value = Array.isArray(event.detail.value) ? event.detail.value : [];
+    const unlocks = normalizeAvatarUnlocks(value);
+    this.setData({ 'form.avatarUnlocks': unlocks });
+  },
+
   async handleSubmit() {
     if (this.data.saving) return;
     this.setData({ saving: true });
@@ -200,7 +233,8 @@ Page({
         levelId: this.data.form.levelId,
         roles: ensureMemberRole(this.data.form.roles),
         renameCredits: this.parseRenameCredits(this.data.form.renameCredits),
-        roomUsageCount: Number(this.data.form.roomUsageCount || 0)
+        roomUsageCount: Number(this.data.form.roomUsageCount || 0),
+        avatarUnlocks: normalizeAvatarUnlocks(this.data.form.avatarUnlocks)
       };
       const detail = await AdminService.updateMember(this.data.memberId, payload);
       this.applyDetail(detail);
