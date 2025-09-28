@@ -396,15 +396,6 @@ async function ensureArchiveDefaults(member) {
     member.gender = 'unknown';
     updates.gender = 'unknown';
   }
-  const renameCredits = Number.isFinite(member.renameCredits)
-    ? Math.max(0, Math.floor(member.renameCredits))
-    : 0;
-  if (!Object.is(renameCredits, member.renameCredits)) {
-    updates.renameCredits = renameCredits;
-    member.renameCredits = renameCredits;
-  } else {
-    member.renameCredits = renameCredits;
-  }
 
   const renameUsed = Number.isFinite(member.renameUsed) ? Math.max(0, Math.floor(member.renameUsed)) : 0;
   if (!Object.is(renameUsed, member.renameUsed)) {
@@ -412,6 +403,19 @@ async function ensureArchiveDefaults(member) {
     member.renameUsed = renameUsed;
   } else {
     member.renameUsed = renameUsed;
+  }
+
+  const hasRenameCredits = Object.prototype.hasOwnProperty.call(member, 'renameCredits');
+  const rawRenameCredits = hasRenameCredits ? member.renameCredits : Math.max(0, 1 - renameUsed);
+  const numericRenameCredits = Number(rawRenameCredits);
+  const renameCredits = Number.isFinite(numericRenameCredits)
+    ? Math.max(0, Math.floor(numericRenameCredits))
+    : Math.max(0, 1 - renameUsed);
+  if (!Object.is(renameCredits, member.renameCredits)) {
+    updates.renameCredits = renameCredits;
+    member.renameCredits = renameCredits;
+  } else {
+    member.renameCredits = renameCredits;
   }
 
   const renameCards = Number.isFinite(member.renameCards) ? Math.max(0, Math.floor(member.renameCards)) : 0;
