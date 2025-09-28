@@ -655,13 +655,34 @@ function formatDate(value) {
   if (!date || Number.isNaN(date.getTime())) {
     return '';
   }
-  const utcTimestamp = date.getTime() + date.getTimezoneOffset() * 60 * 1000;
-  const beijing = new Date(utcTimestamp + 8 * 60 * 60 * 1000);
-  const y = beijing.getUTCFullYear();
-  const m = `${beijing.getUTCMonth() + 1}`.padStart(2, '0');
-  const d = `${beijing.getUTCDate()}`.padStart(2, '0');
-  const hh = `${beijing.getUTCHours()}`.padStart(2, '0');
-  const mm = `${beijing.getUTCMinutes()}`.padStart(2, '0');
+  const formatter = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+  const parts = formatter.formatToParts(date);
+  const map = {};
+  parts.forEach((part) => {
+    map[part.type] = part.value;
+  });
+  const y = map.year || '';
+  const m = map.month || '';
+  const d = map.day || '';
+  const hh = map.hour || '';
+  const mm = map.minute || '';
+  if (!y || !m || !d || !hh || !mm) {
+    return formatter
+      .format(date)
+      .replace(/\//g, '-')
+      .replace(/[年月]/g, '-')
+      .replace(/[日]/, '')
+      .replace(/[\u4e00-\u9fa5]/g, '')
+      .trim();
+  }
   return `${y}-${m}-${d} ${hh}:${mm}`;
 }
 
