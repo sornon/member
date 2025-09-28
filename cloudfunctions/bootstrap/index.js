@@ -379,8 +379,12 @@ const membershipRights = [
     name: '筑基专属包房券',
     description: '非高峰时段私人包房 1 小时，需提前预约',
     applyReservation: true,
-    applySlots: ['day', 'night', 'late'],
-    validDays: 120
+    applyTimeRanges: [
+      { start: '12:00', end: '24:00' },
+      { start: '00:00', end: '06:00' }
+    ],
+    validDays: 120,
+    meta: { roomUsageCount: 1 }
   },
   {
     _id: 'right_realm_core_gift',
@@ -440,16 +444,18 @@ const membershipRights = [
     name: '日间包房体验券',
     description: '免费预订一次日间非高峰包房',
     applyReservation: true,
-    applySlots: ['day'],
-    validDays: 90
+    applyTimeRanges: [{ start: '12:00', end: '18:00' }],
+    validDays: 90,
+    meta: { roomUsageCount: 1 }
   },
   {
     _id: 'right_full_day_room',
     name: '全天包房体验券',
     description: '免费预订一次全天任意时段包房',
     applyReservation: true,
-    applySlots: ['day', 'night', 'late'],
-    validDays: 120
+    applyTimeRanges: [{ start: '00:00', end: '24:00' }],
+    validDays: 120,
+    meta: { roomUsageCount: 1 }
   },
   {
     _id: 'right_full_house',
@@ -535,42 +541,14 @@ function buildMembershipLevels() {
 
 const rooms = [
   {
-    _id: 'room_a',
-    name: '玉竹雅间',
-    capacity: 6,
-    facilities: ['环绕音响', '智能灯光', '小食吧'],
+    _id: 'room_jyzq10',
+    name: '酒隐之茄10人包',
+    capacity: 10,
+    facilities: ['顶级音响', 'LED大屏', '净烟卫士', '豪华沙发'],
     pricing: {
-      day: 68000,
-      night: 98000,
-      late: 78000
+      fixed: 0
     },
     priority: 1,
-    status: 'online'
-  },
-  {
-    _id: 'room_b',
-    name: '紫霄天境',
-    capacity: 10,
-    facilities: ['豪华沙发', '私人调酒', '舞台灯光'],
-    pricing: {
-      day: 98000,
-      night: 158000,
-      late: 118000
-    },
-    priority: 2,
-    status: 'online'
-  },
-  {
-    _id: 'room_c',
-    name: '云梦仙台',
-    capacity: 20,
-    facilities: ['LED 大屏', '舞台', '专业调音台'],
-    pricing: {
-      day: 158000,
-      night: 238000,
-      late: 188000
-    },
-    priority: 3,
     status: 'online'
   }
 ];

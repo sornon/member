@@ -80,7 +80,8 @@ Page({
       stoneBalance: '',
       levelId: '',
       roles: [],
-      renameCredits: ''
+      renameCredits: '',
+      roomUsageCount: ''
     },
     rechargeVisible: false,
     rechargeAmount: '',
@@ -135,22 +136,23 @@ Page({
       ...option,
       checked: roles.includes(option.value)
     }));
-    this.setData({
-      member,
-      levels,
-      levelIndex,
-      currentLevelName: currentLevel.name || '',
-      loading: false,
-      form: {
-        nickName: member.nickName || '',
-        mobile: member.mobile || '',
-        experience: String(member.experience ?? 0),
-        cashBalance: this.formatYuan(member.cashBalance ?? member.balance ?? 0),
-        stoneBalance: String(member.stoneBalance ?? 0),
-        levelId: member.levelId || currentLevel._id || '',
-        roles,
-        renameCredits: String(member.renameCredits ?? 0)
-      },
+      this.setData({
+        member,
+        levels,
+        levelIndex,
+        currentLevelName: currentLevel.name || '',
+        loading: false,
+        form: {
+          nickName: member.nickName || '',
+          mobile: member.mobile || '',
+          experience: String(member.experience ?? 0),
+          cashBalance: this.formatYuan(member.cashBalance ?? member.balance ?? 0),
+          stoneBalance: String(member.stoneBalance ?? 0),
+          levelId: member.levelId || currentLevel._id || '',
+          roles,
+          renameCredits: String(member.renameCredits ?? 0),
+          roomUsageCount: String(member.roomUsageCount ?? 0)
+        },
       roleOptions,
       renameHistory: formatRenameHistory(member.renameHistory)
     });
@@ -197,7 +199,8 @@ Page({
         stoneBalance: Number(this.data.form.stoneBalance || 0),
         levelId: this.data.form.levelId,
         roles: ensureMemberRole(this.data.form.roles),
-        renameCredits: this.parseRenameCredits(this.data.form.renameCredits)
+        renameCredits: this.parseRenameCredits(this.data.form.renameCredits),
+        roomUsageCount: Number(this.data.form.roomUsageCount || 0)
       };
       const detail = await AdminService.updateMember(this.data.memberId, payload);
       this.applyDetail(detail);

@@ -9,7 +9,10 @@ const COLLECTIONS = {
   MEMBERS: 'members',
   LEVELS: 'membershipLevels',
   CHARGE_ORDERS: 'chargeOrders',
-  WALLET_TRANSACTIONS: 'walletTransactions'
+  WALLET_TRANSACTIONS: 'walletTransactions',
+  RESERVATIONS: 'reservations',
+  ROOMS: 'rooms',
+  MEMBER_RIGHTS: 'memberRights'
 };
 
 const EXPERIENCE_PER_YUAN = 100;
@@ -24,7 +27,10 @@ const ACTIONS = {
   GET_CHARGE_ORDER: 'getChargeOrder',
   LIST_CHARGE_ORDERS: 'listChargeOrders',
   GET_CHARGE_ORDER_QR_CODE: 'getChargeOrderQrCode',
-  RECHARGE_MEMBER: 'rechargeMember'
+  RECHARGE_MEMBER: 'rechargeMember',
+  LIST_RESERVATIONS: 'listReservations',
+  APPROVE_RESERVATION: 'approveReservation',
+  REJECT_RESERVATION: 'rejectReservation'
 };
 
 const ACTION_ALIASES = {
@@ -36,7 +42,10 @@ const ACTION_ALIASES = {
   getchargeorderqrcode: ACTIONS.GET_CHARGE_ORDER_QR_CODE,
   listchargeorders: ACTIONS.LIST_CHARGE_ORDERS,
   listchargeorder: ACTIONS.LIST_CHARGE_ORDERS,
-  rechargemember: ACTIONS.RECHARGE_MEMBER
+  rechargemember: ACTIONS.RECHARGE_MEMBER,
+  listreservations: ACTIONS.LIST_RESERVATIONS,
+  approvereservation: ACTIONS.APPROVE_RESERVATION,
+  rejectreservation: ACTIONS.REJECT_RESERVATION
 };
 
 function normalizeAction(action) {
@@ -65,7 +74,15 @@ const ACTION_HANDLERS = {
       memberId: event.memberId || '',
       keyword: event.keyword || ''
     }),
-  [ACTIONS.RECHARGE_MEMBER]: (openid, event) => rechargeMember(openid, event.memberId, event.amount)
+  [ACTIONS.RECHARGE_MEMBER]: (openid, event) => rechargeMember(openid, event.memberId, event.amount),
+  [ACTIONS.LIST_RESERVATIONS]: (openid, event) =>
+    listReservations(openid, {
+      status: event.status || 'pendingApproval',
+      page: event.page || 1,
+      pageSize: event.pageSize || 20
+    }),
+  [ACTIONS.APPROVE_RESERVATION]: (openid, event) => approveReservation(openid, event.reservationId),
+  [ACTIONS.REJECT_RESERVATION]: (openid, event) => rejectReservation(openid, event.reservationId, event.reason || '')
 };
 
 exports.main = async (event = {}) => {
@@ -376,6 +393,157 @@ async function rechargeMember(openid, memberId, amount) {
   return fetchMemberDetail(memberId);
 }
 
+async function listReservations(openid, { status = 'pendingApproval', page = 1, pageSize = 20 } = {}) {
+  await ensureAdmin(openid);
+  const limit = Math.min(Math.max(pageSize, 1), 50);
+  const skip = Math.max(page - 1, 0) * limit;
+
+  let baseQuery = db.collection(COLLECTIONS.RESERVATIONS);
+  if (status && status !== 'all') {
+    baseQuery = baseQuery.where({ status });
+  }
+
+  const [snapshot, countResult] = await Promise.all([
+    baseQuery
+      .orderBy('createdAt', 'desc')
+      .skip(skip)
+      .limit(limit)
+      .get(),
+    baseQuery.count()
+  ]);
+
+  const reservations = snapshot.data || [];
+  const memberIds = Array.from(
+    new Set(reservations.map((item) => item.memberId).filter((id) => typeof id === 'string' && id))
+  );
+  const roomIds = Array.from(
+    new Set(reservations.map((item) => item.roomId).filter((id) => typeof id === 'string' && id))
+  );
+
+  const [memberMap, roomMap] = await Promise.all([
+    loadMembersMap(memberIds),
+    loadRoomsMap(roomIds)
+  ]);
+
+  return {
+    reservations: reservations.map((item) =>
+      decorateReservationRecord(
+        { _id: item._id, ...item },
+        memberMap[item.memberId],
+        roomMap[item.roomId]
+      )
+    ),
+    total: countResult.total,
+    page,
+    pageSize: limit
+  };
+}
+
+async function approveReservation(openid, reservationId) {
+  await ensureAdmin(openid);
+  if (!reservationId) {
+    throw new Error('缺少预约编号');
+  }
+  const now = new Date();
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction
+      .collection(COLLECTIONS.RESERVATIONS)
+      .doc(reservationId)
+      .get()
+      .catch(() => null);
+    if (!snapshot || !snapshot.data) {
+      throw new Error('预约不存在');
+    }
+    const reservation = snapshot.data;
+    if (reservation.status === 'approved') {
+      return;
+    }
+    if (reservation.status !== 'pendingApproval') {
+      throw new Error('预约已处理，无法重复审核');
+    }
+    await transaction.collection(COLLECTIONS.RESERVATIONS).doc(reservationId).update({
+      data: {
+        status: 'approved',
+        approval: {
+          ...(reservation.approval || {}),
+          status: 'approved',
+          decidedAt: now,
+          decidedBy: openid,
+          reason: ''
+        },
+        updatedAt: now
+      }
+    });
+  });
+  return getReservationRecord(reservationId);
+}
+
+async function rejectReservation(openid, reservationId, reason = '') {
+  await ensureAdmin(openid);
+  if (!reservationId) {
+    throw new Error('缺少预约编号');
+  }
+  const now = new Date();
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction
+      .collection(COLLECTIONS.RESERVATIONS)
+      .doc(reservationId)
+      .get()
+      .catch(() => null);
+    if (!snapshot || !snapshot.data) {
+      throw new Error('预约不存在');
+    }
+    const reservation = { ...snapshot.data, _id: reservationId };
+    if (reservation.status === 'rejected') {
+      return;
+    }
+    if (reservation.status !== 'pendingApproval') {
+      throw new Error('预约已处理，无法拒绝');
+    }
+    await transaction.collection(COLLECTIONS.RESERVATIONS).doc(reservationId).update({
+      data: {
+        status: 'rejected',
+        approval: {
+          ...(reservation.approval || {}),
+          status: 'rejected',
+          decidedAt: now,
+          decidedBy: openid,
+          reason: reason || ''
+        },
+        updatedAt: now
+      }
+    });
+
+    await releaseReservationResources(transaction, reservation, { refundUsage: true, unlockRight: true });
+  });
+
+  return getReservationRecord(reservationId);
+}
+
+async function getReservationRecord(reservationId) {
+  if (!reservationId) {
+    return null;
+  }
+  const snapshot = await db
+    .collection(COLLECTIONS.RESERVATIONS)
+    .doc(reservationId)
+    .get()
+    .catch(() => null);
+  if (!snapshot || !snapshot.data) {
+    return null;
+  }
+  const reservation = { _id: reservationId, ...snapshot.data };
+  const [memberMap, roomMap] = await Promise.all([
+    loadMembersMap(reservation.memberId ? [reservation.memberId] : []),
+    loadRoomsMap(reservation.roomId ? [reservation.roomId] : [])
+  ]);
+  return decorateReservationRecord(
+    reservation,
+    reservation.memberId ? memberMap[reservation.memberId] : null,
+    reservation.roomId ? roomMap[reservation.roomId] : null
+  );
+}
+
 async function fetchMemberDetail(memberId) {
   const [memberDoc, levels] = await Promise.all([
     db
@@ -465,8 +633,112 @@ function decorateMemberRecord(member, levelMap) {
     renameHistory: formatRenameHistory(member.renameHistory),
     createdAt: formatDate(member.createdAt),
     updatedAt: formatDate(member.updatedAt),
-    avatarConfig: member.avatarConfig || {}
+    avatarConfig: member.avatarConfig || {},
+    roomUsageCount: normalizeUsageCount(member.roomUsageCount)
   };
+}
+
+function decorateReservationRecord(reservation, member, room) {
+  const status = reservation.status || 'pendingApproval';
+  return {
+    _id: reservation._id,
+    memberId: reservation.memberId || '',
+    memberName: member ? member.nickName || member.name || '' : '',
+    memberMobile: member ? member.mobile || '' : '',
+    roomId: reservation.roomId || '',
+    roomName: room ? room.name || '' : '',
+    date: reservation.date || '',
+    startTime: reservation.startTime || '',
+    endTime: reservation.endTime || '',
+    status,
+    statusLabel: resolveReservationStatusLabel(status),
+    approval: reservation.approval || null,
+    price: Number(reservation.price || 0),
+    usageCredits: normalizeUsageCount(reservation.usageCredits),
+    createdAt: formatDate(reservation.createdAt),
+    updatedAt: formatDate(reservation.updatedAt)
+  };
+}
+
+function resolveReservationStatusLabel(status) {
+  const map = {
+    pendingApproval: '待审核',
+    approved: '已通过',
+    rejected: '已拒绝',
+    cancelled: '已取消',
+    reserved: '已预约',
+    confirmed: '已确认',
+    pendingPayment: '待支付'
+  };
+  return map[status] || '待处理';
+}
+
+async function loadRoomsMap(roomIds) {
+  if (!Array.isArray(roomIds) || !roomIds.length) {
+    return {};
+  }
+  const snapshot = await db
+    .collection(COLLECTIONS.ROOMS)
+    .where({
+      _id: _.in(roomIds)
+    })
+    .get();
+  const map = {};
+  (snapshot.data || []).forEach((room) => {
+    map[room._id] = room;
+  });
+  return map;
+}
+
+async function releaseReservationResources(transaction, reservation, options = {}) {
+  const { refundUsage = false, unlockRight = true } = options;
+  if (!reservation || !reservation._id) {
+    return;
+  }
+  const updates = {};
+  if (refundUsage && !reservation.usageRefunded) {
+    const credits = normalizeUsageCount(reservation.usageCredits || 1);
+    if (credits > 0) {
+      await transaction
+        .collection(COLLECTIONS.MEMBERS)
+        .doc(reservation.memberId)
+        .update({
+          data: {
+            roomUsageCount: _.inc(credits),
+            updatedAt: new Date()
+          }
+        })
+        .catch(() => {});
+      updates.usageRefunded = true;
+    }
+  }
+  if (unlockRight && reservation.rightId) {
+    await transaction
+      .collection(COLLECTIONS.MEMBER_RIGHTS)
+      .doc(reservation.rightId)
+      .update({
+        data: {
+          status: 'active',
+          reservationId: _.remove(),
+          updatedAt: new Date()
+        }
+      })
+      .catch(() => {});
+  }
+  if (Object.keys(updates).length) {
+    updates.updatedAt = new Date();
+    await transaction.collection(COLLECTIONS.RESERVATIONS).doc(reservation._id).update({
+      data: updates
+    });
+  }
+}
+
+function normalizeUsageCount(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(numeric));
 }
 
 function buildUpdatePayload(updates, existing = {}) {
@@ -525,6 +797,9 @@ function buildUpdatePayload(updates, existing = {}) {
   if (Object.prototype.hasOwnProperty.call(updates, 'renameCredits')) {
     const credits = Number(updates.renameCredits || 0);
     payload.renameCredits = Number.isFinite(credits) ? Math.max(0, Math.floor(credits)) : 0;
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'roomUsageCount')) {
+    payload.roomUsageCount = normalizeUsageCount(updates.roomUsageCount);
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'roles')) {
     const roles = Array.isArray(updates.roles) ? updates.roles : [];

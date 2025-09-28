@@ -67,7 +67,8 @@ async function initMember(openid, profile) {
     renameCredits: 1,
     renameUsed: 0,
     renameCards: 0,
-    renameHistory: []
+    renameHistory: [],
+    roomUsageCount: 0
   };
   await membersCollection.add({ data: doc });
   if (defaultLevel) {
@@ -157,6 +158,8 @@ async function getRights(openid) {
     const expired = item.validUntil && new Date(item.validUntil).getTime() < now;
     const status = expired ? 'expired' : item.status || 'active';
     const statusLabel = statusLabelMap[status] || '待使用';
+    const mergedMeta = { ...(right.meta || {}), ...(item.meta || {}) };
+    const usageCredits = Number(mergedMeta.roomUsageCount || mergedMeta.roomUsageCredits || 0);
     return {
       _id: item._id,
       name: right.name || item.name || '权益',
@@ -165,7 +168,9 @@ async function getRights(openid) {
       statusLabel,
       validUntil: item.validUntil || right.defaultValidUntil || '',
       canReserve: !!right.applyReservation && status === 'active',
-      meta: item.meta || {}
+      canRedeemRoomUsage: usageCredits > 0 && status === 'active',
+      roomUsageCredits: usageCredits,
+      meta: mergedMeta
     };
   });
 }
@@ -432,6 +437,15 @@ async function ensureArchiveDefaults(member) {
   } else if (member.renameHistory.length > 20) {
     member.renameHistory = member.renameHistory.slice(-20);
     updates.renameHistory = member.renameHistory;
+  }
+
+  const usageCountRaw = Number(member.roomUsageCount);
+  const usageCount = Number.isFinite(usageCountRaw) ? Math.max(0, Math.floor(usageCountRaw)) : 0;
+  if (!Object.is(usageCount, member.roomUsageCount)) {
+    updates.roomUsageCount = usageCount;
+    member.roomUsageCount = usageCount;
+  } else {
+    member.roomUsageCount = usageCount;
   }
 
   if (Object.keys(updates).length) {

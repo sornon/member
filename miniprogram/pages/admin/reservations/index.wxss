@@ -1,0 +1,86 @@
+.filter-card {
+  margin-bottom: 20rpx;
+}
+
+.filter-label {
+  font-size: 26rpx;
+  color: rgba(211, 220, 255, 0.8);
+  margin-bottom: 12rpx;
+}
+
+.picker {
+  background: rgba(14, 24, 60, 0.88);
+  padding: 16rpx 24rpx;
+  border-radius: 12rpx;
+  border: 1rpx solid rgba(122, 142, 232, 0.32);
+  color: #e6ecff;
+}
+
+.card.empty {
+  text-align: center;
+  color: rgba(198, 206, 255, 0.6);
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.room {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #f5f8ff;
+}
+
+.status {
+  font-size: 24rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 16rpx;
+  background: rgba(40, 58, 120, 0.6);
+  color: #d6deff;
+  border: 1rpx solid rgba(116, 136, 226, 0.4);
+}
+
+.status.pendingApproval {
+  background: rgba(128, 146, 255, 0.24);
+  color: #dfe4ff;
+}
+
+.status.approved {
+  background: rgba(96, 196, 150, 0.24);
+  color: #c7f3df;
+}
+
+.status.rejected {
+  background: rgba(216, 116, 116, 0.24);
+  color: #ffd2d2;
+}
+
+.status.cancelled {
+  background: rgba(140, 140, 140, 0.24);
+  color: #cccccc;
+}
+
+.item-time,
+.item-member,
+.item-meta {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: rgba(204, 214, 255, 0.75);
+}
+
+.item-actions {
+  margin-top: 20rpx;
+  display: flex;
+  justify-content: flex-end;
+  gap: 16rpx;
+}
+
+.loading,
+.finished {
+  text-align: center;
+  color: rgba(198, 206, 255, 0.6);
+  margin-top: 24rpx;
+  font-size: 24rpx;
+}

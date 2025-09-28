@@ -191,11 +191,12 @@ export const TaskService = {
 };
 
 export const ReservationService = {
-  async listRooms(date, slot) {
+  async listRooms(date, startTime, endTime) {
     return callCloud(CLOUD_FUNCTIONS.RESERVATION, {
       action: 'availableRooms',
       date,
-      slot
+      startTime,
+      endTime
     });
   },
   async create(order) {
@@ -208,6 +209,12 @@ export const ReservationService = {
     return callCloud(CLOUD_FUNCTIONS.RESERVATION, {
       action: 'cancel',
       reservationId
+    });
+  },
+  async redeemUsageCoupon(memberRightId) {
+    return callCloud(CLOUD_FUNCTIONS.RESERVATION, {
+      action: 'redeemUsageCoupon',
+      memberRightId
     });
   }
 };
@@ -346,6 +353,27 @@ export const AdminService = {
       action: 'rechargeMember',
       memberId,
       amount
+    });
+  },
+  async listReservations({ status = 'pendingApproval', page = 1, pageSize = 20 } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'listReservations',
+      status,
+      page,
+      pageSize
+    });
+  },
+  async approveReservation(reservationId) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'approveReservation',
+      reservationId
+    });
+  },
+  async rejectReservation(reservationId, reason = '') {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'rejectReservation',
+      reservationId,
+      reason
     });
   }
 };

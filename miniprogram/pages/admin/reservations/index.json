@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "包房预约审核",
+  "usingComponents": {
+    "custom-nav": "/components/custom-nav/custom-nav"
+  }
+}
