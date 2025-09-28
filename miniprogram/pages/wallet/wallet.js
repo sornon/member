@@ -128,7 +128,7 @@ Page({
       return;
     }
     this.unsubscribeMemberRealtime = subscribeMemberRealtime((event) => {
-      if (!event || event.type !== 'memberChanged') {
+      if (!event || (event.type !== 'memberChanged' && event.type !== 'memberSnapshot')) {
         return;
       }
       this.fetchSummary({ showLoading: false });

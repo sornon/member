@@ -56,12 +56,12 @@ function setGlobalMember(member) {
   }
 }
 
-function notifyMemberSnapshot(member) {
+function notifyMemberSnapshot(member, origin = 'unknown') {
   if (!member) {
     return;
   }
   setGlobalMember(member);
-  notify({ type: 'memberSnapshot', member });
+  notify({ type: 'memberSnapshot', member, origin });
 }
 
 function stopManualRefresh() {
@@ -81,7 +81,7 @@ function refreshMemberSnapshot() {
   manualRefreshPromise = MemberService.getMember()
     .then((member) => {
       if (member) {
-        notifyMemberSnapshot(member);
+        notifyMemberSnapshot(member, 'manualRefresh');
       }
     })
     .catch((error) => {
@@ -194,7 +194,7 @@ export function setActiveMember(member) {
   }
   activeMemberId = memberId;
   restartAttempts = 0;
-  notifyMemberSnapshot(member);
+  notifyMemberSnapshot(member, 'activeMember');
   startWatcher();
 }
 
