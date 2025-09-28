@@ -686,14 +686,38 @@ async function generateChargeOrderUrlScheme(orderId, expireAt) {
 
   const expireTimestamp = resolveExpireTimestamp(expireAt);
   const envOptions = resolveUrlSchemeEnvOptions();
-  let lastError = null;
+  const path = 'pages/wallet/charge-confirm/index';
+  const query = `orderId=${encodeURIComponent(queryValue)}`;
 
+  const schemeResult = await tryGenerateUrlScheme({ path, query }, expireTimestamp, envOptions);
+  if (schemeResult) {
+    return schemeResult;
+  }
+
+  const linkResult = await tryGenerateUrlLink({ path, query }, expireTimestamp, envOptions);
+  if (linkResult) {
+    return linkResult;
+  }
+
+  return { schemeUrl: '', schemeExpireAt: null };
+}
+
+async function tryGenerateUrlScheme({ path, query }, expireTimestamp, envOptions) {
+  const canGenerate =
+    cloud.openapi &&
+    cloud.openapi.urlscheme &&
+    typeof cloud.openapi.urlscheme.generate === 'function';
+  if (!canGenerate) {
+    return null;
+  }
+
+  let lastError = null;
   for (const option of envOptions) {
     try {
       const payload = {
         jumpWxa: {
-          path: 'pages/wallet/charge-confirm/index',
-          query: `orderId=${encodeURIComponent(queryValue)}`
+          path,
+          query
         },
         isExpire: typeof expireTimestamp === 'number'
       };
@@ -707,7 +731,6 @@ async function generateChargeOrderUrlScheme(orderId, expireAt) {
       }
 
       const response = await cloud.openapi.urlscheme.generate(payload);
-
       if (response && response.scheme) {
         return {
           schemeUrl: response.scheme,
@@ -727,7 +750,57 @@ async function generateChargeOrderUrlScheme(orderId, expireAt) {
     console.error('Failed to generate url scheme for charge order after retries', lastError);
   }
 
-  return { schemeUrl: '', schemeExpireAt: null };
+  return null;
+}
+
+async function tryGenerateUrlLink({ path, query }, expireTimestamp, envOptions) {
+  const canGenerate =
+    cloud.openapi &&
+    cloud.openapi.urllink &&
+    typeof cloud.openapi.urllink.generate === 'function';
+  if (!canGenerate) {
+    return null;
+  }
+
+  let lastError = null;
+  for (const option of envOptions) {
+    try {
+      const payload = {
+        path,
+        query,
+        isExpire: typeof expireTimestamp === 'number'
+      };
+
+      if (option.envVersion) {
+        payload.envVersion = option.envVersion;
+      }
+
+      if (typeof expireTimestamp === 'number') {
+        payload.expireType = 1;
+        payload.expireTime = expireTimestamp;
+      }
+
+      const response = await cloud.openapi.urllink.generate(payload);
+      if (response && response.urlLink) {
+        return {
+          schemeUrl: response.urlLink,
+          schemeExpireAt: resolveExpireDate(expireTimestamp)
+        };
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `Failed to generate url link for charge order in env ${option.envVersion || 'release'}`,
+        error
+      );
+    }
+  }
+
+  if (lastError) {
+    console.error('Failed to generate url link for charge order after retries', lastError);
+  }
+
+  return null;
 }
 
 function resolveUrlSchemeEnvOptions() {
