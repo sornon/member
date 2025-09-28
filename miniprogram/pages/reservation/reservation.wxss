@@ -7,6 +7,12 @@
   color: #e7edff;
 }
 
+.time-error {
+  margin-top: 8rpx;
+  color: #ff9d8e;
+  font-size: 24rpx;
+}
+
 .room {
   display: flex;
   justify-content: space-between;
