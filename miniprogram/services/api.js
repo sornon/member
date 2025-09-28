@@ -48,6 +48,18 @@ export const MemberService = {
       payload.phoneNumber = options.phoneNumber;
     }
     return callCloud(CLOUD_FUNCTIONS.MEMBER, payload);
+  },
+  async updateArchive(updates = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, {
+      action: 'updateArchive',
+      updates
+    });
+  },
+  async redeemRenameCard(count = 1) {
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, {
+      action: 'redeemRenameCard',
+      count
+    });
   }
 };
 

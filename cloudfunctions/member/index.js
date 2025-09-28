@@ -12,6 +12,8 @@ const COLLECTIONS = {
   MEMBER_RIGHTS: 'memberRights'
 };
 
+const GENDER_OPTIONS = ['unknown', 'male', 'female'];
+
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext();
   const action = event.action || 'profile';
@@ -27,6 +29,10 @@ exports.main = async (event, context) => {
       return getRights(OPENID);
     case 'completeProfile':
       return completeProfile(OPENID, event);
+    case 'updateArchive':
+      return updateArchive(OPENID, event.updates || {});
+    case 'redeemRenameCard':
+      return redeemRenameCard(OPENID, event.count || 1);
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -47,6 +53,7 @@ async function initMember(openid, profile) {
     nickName: profile.nickName || '',
     avatarUrl: profile.avatarUrl || '',
     mobile: profile.mobile || '',
+    gender: normalizeGender(profile.gender),
     levelId: defaultLevel ? defaultLevel._id : '',
     experience: 0,
     cashBalance: 0,
@@ -56,7 +63,11 @@ async function initMember(openid, profile) {
     roles: ['member'],
     createdAt: now,
     updatedAt: now,
-    avatarConfig: {}
+    avatarConfig: {},
+    renameCredits: 1,
+    renameUsed: 0,
+    renameCards: 0,
+    renameHistory: []
   };
   await membersCollection.add({ data: doc });
   if (defaultLevel) {
@@ -74,8 +85,9 @@ async function getProfile(openid) {
     await initMember(openid, {});
     return getProfile(openid);
   }
-  const member = normalizeAssetFields(memberDoc.data);
-  const synced = await ensureLevelSync(member, levels);
+  const normalized = normalizeAssetFields(memberDoc.data);
+  const withDefaults = await ensureArchiveDefaults(normalized);
+  const synced = await ensureLevelSync(withDefaults, levels);
   return decorateMember(synced, levels);
 }
 
@@ -88,7 +100,9 @@ async function getProgress(openid) {
     await initMember(openid, {});
     return getProgress(openid);
   }
-  const member = await ensureLevelSync(normalizeAssetFields(memberDoc.data), levels);
+  const normalized = normalizeAssetFields(memberDoc.data);
+  const withDefaults = await ensureArchiveDefaults(normalized);
+  const member = await ensureLevelSync(withDefaults, levels);
   const currentLevel = levels.find((lvl) => lvl._id === member.levelId) || levels[0];
   const nextLevel = getNextLevel(levels, currentLevel);
   const percentage = calculatePercentage(member.experience, currentLevel, nextLevel);
@@ -162,6 +176,7 @@ async function completeProfile(openid, payload = {}) {
 
   const nickName = typeof profile.nickName === 'string' ? profile.nickName.trim() : '';
   const avatarUrl = typeof profile.avatarUrl === 'string' ? profile.avatarUrl : '';
+  const genderValue = normalizeGender(profile.gender);
   const mobile = await resolveMobile(payload);
 
   const updates = {};
@@ -174,13 +189,17 @@ async function completeProfile(openid, payload = {}) {
   if (mobile) {
     updates.mobile = mobile;
   }
+  if (typeof profile.gender !== 'undefined' && profile.gender !== null) {
+    updates.gender = genderValue;
+  }
 
   const existing = await membersCollection.doc(openid).get().catch(() => null);
   if (!existing || !existing.data) {
     await initMember(openid, {
       nickName,
       avatarUrl,
-      mobile
+      mobile,
+      gender: genderValue
     });
     return getProfile(openid);
   }
@@ -339,6 +358,187 @@ async function grantLevelRewards(openid, level, levels) {
 async function loadLevels() {
   const snapshot = await db.collection(COLLECTIONS.LEVELS).orderBy('order', 'asc').get();
   return snapshot.data || [];
+}
+
+function createError(code, message) {
+  const error = new Error(message || code);
+  error.code = code;
+  error.errMsg = message || code;
+  return error;
+}
+
+function normalizeGender(value) {
+  if (typeof value === 'string') {
+    const lower = value.trim().toLowerCase();
+    if (lower === 'male' || lower === 'man' || lower === 'm' || lower === '男') {
+      return 'male';
+    }
+    if (lower === 'female' || lower === 'woman' || lower === 'f' || lower === '女') {
+      return 'female';
+    }
+    if (lower === 'unknown' || lower === 'secret' || lower === '保密') {
+      return 'unknown';
+    }
+  }
+  if (typeof value === 'number') {
+    if (value === 1) return 'male';
+    if (value === 2) return 'female';
+  }
+  return 'unknown';
+}
+
+async function ensureArchiveDefaults(member) {
+  if (!member || !member._id) {
+    return member;
+  }
+  const updates = {};
+  if (!GENDER_OPTIONS.includes(member.gender)) {
+    member.gender = 'unknown';
+    updates.gender = 'unknown';
+  }
+  const renameCredits = Number.isFinite(member.renameCredits)
+    ? Math.max(0, Math.floor(member.renameCredits))
+    : 0;
+  if (!Object.is(renameCredits, member.renameCredits)) {
+    updates.renameCredits = renameCredits;
+    member.renameCredits = renameCredits;
+  } else {
+    member.renameCredits = renameCredits;
+  }
+
+  const renameUsed = Number.isFinite(member.renameUsed) ? Math.max(0, Math.floor(member.renameUsed)) : 0;
+  if (!Object.is(renameUsed, member.renameUsed)) {
+    updates.renameUsed = renameUsed;
+    member.renameUsed = renameUsed;
+  } else {
+    member.renameUsed = renameUsed;
+  }
+
+  const renameCards = Number.isFinite(member.renameCards) ? Math.max(0, Math.floor(member.renameCards)) : 0;
+  if (!Object.is(renameCards, member.renameCards)) {
+    updates.renameCards = renameCards;
+    member.renameCards = renameCards;
+  } else {
+    member.renameCards = renameCards;
+  }
+
+  if (!Array.isArray(member.renameHistory)) {
+    member.renameHistory = [];
+    updates.renameHistory = [];
+  } else if (member.renameHistory.length > 20) {
+    member.renameHistory = member.renameHistory.slice(-20);
+    updates.renameHistory = member.renameHistory;
+  }
+
+  if (Object.keys(updates).length) {
+    updates.updatedAt = new Date();
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(member._id)
+      .update({
+        data: updates
+      })
+      .catch(() => {});
+  }
+
+  return member;
+}
+
+async function updateArchive(openid, updates = {}) {
+  const membersCollection = db.collection(COLLECTIONS.MEMBERS);
+  const existing = await membersCollection.doc(openid).get().catch(() => null);
+  if (!existing || !existing.data) {
+    await initMember(openid, {});
+    return updateArchive(openid, updates);
+  }
+
+  const normalized = normalizeAssetFields(existing.data);
+  const member = await ensureArchiveDefaults(normalized);
+  const now = new Date();
+  const patch = {};
+  let renamed = false;
+
+  if (typeof updates.nickName === 'string') {
+    const nickName = updates.nickName.trim();
+    if (nickName && nickName !== member.nickName) {
+      if ((member.renameCredits || 0) <= 0) {
+        throw createError('RENAME_QUOTA_EXCEEDED', '剩余改名次数不足，请使用改名卡增加次数');
+      }
+      patch.nickName = nickName;
+      renamed = true;
+      const history = Array.isArray(member.renameHistory) ? [...member.renameHistory] : [];
+      history.push({
+        previous: member.nickName || '',
+        current: nickName,
+        changedAt: now,
+        source: updates.source || 'manual'
+      });
+      if (history.length > 20) {
+        history.splice(0, history.length - 20);
+      }
+      patch.renameHistory = history;
+    }
+  }
+
+  if (typeof updates.gender !== 'undefined' && updates.gender !== null) {
+    const genderValue = normalizeGender(updates.gender);
+    if (genderValue !== member.gender) {
+      patch.gender = genderValue;
+    }
+  }
+
+  if (typeof updates.avatarUrl === 'string') {
+    const avatarUrl = updates.avatarUrl.trim();
+    if (avatarUrl && avatarUrl !== member.avatarUrl) {
+      patch.avatarUrl = avatarUrl;
+    }
+  }
+
+  if (!Object.keys(patch).length) {
+    return decorateMember(member, await loadLevels());
+  }
+
+  if (renamed) {
+    patch.renameCredits = Math.max((member.renameCredits || 0) - 1, 0);
+    patch.renameUsed = (member.renameUsed || 0) + 1;
+  }
+
+  patch.updatedAt = now;
+  await membersCollection.doc(openid).update({
+    data: patch
+  });
+
+  return getProfile(openid);
+}
+
+async function redeemRenameCard(openid, count = 1) {
+  const quantity = Number(count);
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw createError('INVALID_QUANTITY', '改名卡数量无效');
+  }
+  const membersCollection = db.collection(COLLECTIONS.MEMBERS);
+  const existing = await membersCollection.doc(openid).get().catch(() => null);
+  if (!existing || !existing.data) {
+    await initMember(openid, {});
+    return redeemRenameCard(openid, count);
+  }
+
+  const normalized = normalizeAssetFields(existing.data);
+  const member = await ensureArchiveDefaults(normalized);
+  const available = Math.max(0, Math.floor(member.renameCards || 0));
+  if (available < quantity) {
+    throw createError('RENAME_CARD_INSUFFICIENT', '改名卡数量不足');
+  }
+
+  await membersCollection.doc(openid).update({
+    data: {
+      renameCards: _.inc(-quantity),
+      renameCredits: _.inc(quantity),
+      updatedAt: new Date()
+    }
+  });
+
+  return getProfile(openid);
 }
 
 function decorateMember(member, levels) {
