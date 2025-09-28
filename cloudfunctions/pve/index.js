@@ -230,7 +230,7 @@ const ENEMY_LIBRARY = [
     level: 1,
     description: '由木灵催生的守园傀儡，行动迟缓但防御扎实。',
     stats: { hp: 900, attack: 110, defense: 68, speed: 42, critRate: 0.04, critDamage: 1.5 },
-    rewards: { exp: 140, stones: 18, attributePoints: 0 },
+    rewards: { stones: 18, attributePoints: 0 },
     loot: [
       { type: 'equipment', itemId: 'starsea_mail', chance: 0.08 },
       { type: 'skill', skillId: 'aerial_step', chance: 0.06 }
@@ -242,7 +242,7 @@ const ENEMY_LIBRARY = [
     level: 7,
     description: '灵火凝聚的亡魂，速度极快且攻击灼热。',
     stats: { hp: 1150, attack: 160, defense: 74, speed: 72, critRate: 0.08, critDamage: 1.6 },
-    rewards: { exp: 220, stones: 32, attributePoints: 1 },
+    rewards: { stones: 32, attributePoints: 1 },
     loot: [
       { type: 'equipment', itemId: 'spirit_blade', chance: 0.12 },
       { type: 'skill', skillId: 'phoenix_flare', chance: 0.05 }
@@ -254,7 +254,7 @@ const ENEMY_LIBRARY = [
     level: 15,
     description: '行走于渊狱的巨灵，攻击沉重无比，防御如壁。',
     stats: { hp: 1800, attack: 210, defense: 110, speed: 58, critRate: 0.1, critDamage: 1.7 },
-    rewards: { exp: 340, stones: 48, attributePoints: 2 },
+    rewards: { stones: 48, attributePoints: 2 },
     loot: [
       { type: 'equipment', itemId: 'dragonbone_sabre', chance: 0.08 },
       { type: 'equipment', itemId: 'void_silk', chance: 0.1 },
@@ -267,7 +267,7 @@ const ENEMY_LIBRARY = [
     level: 20,
     description: '掌控时间缝隙的神秘存在，拥有不可思议的闪避能力。',
     stats: { hp: 2000, attack: 230, defense: 120, speed: 90, critRate: 0.12, critDamage: 1.75, dodgeChance: 0.08 },
-    rewards: { exp: 420, stones: 66, attributePoints: 3 },
+    rewards: { stones: 66, attributePoints: 3 },
     loot: [
       { type: 'equipment', itemId: 'phoenix_plume', chance: 0.05 },
       { type: 'skill', skillId: 'time_dilation', chance: 0.05 }
@@ -1256,17 +1256,27 @@ function decorateEnemy(enemy, playerStats) {
   });
   const playerPower = calculateCombatPower(playerStats, { shield: 0, bonusDamage: 0, dodgeChance: 0 });
   const difficulty = resolveDifficultyLabel(playerPower, combatPower);
+  const rewards = normalizeDungeonRewards(enemy.rewards);
   return {
     id: enemy.id,
     name: enemy.name,
     description: enemy.description,
     level: enemy.level,
     stats: enemy.stats,
-    rewards: enemy.rewards,
+    rewards,
+    rewardsText: formatRewardText(rewards),
     loot: decorateEnemyLoot(enemy.loot || []),
     combatPower,
     difficulty,
     recommendedPower: combatPower
+  };
+}
+
+function normalizeDungeonRewards(rewards = {}) {
+  return {
+    exp: 0,
+    stones: Math.max(0, Math.floor(Number(rewards.stones) || 0)),
+    attributePoints: Math.max(0, Math.floor(Number(rewards.attributePoints) || 0))
   };
 }
 
@@ -1538,12 +1548,11 @@ function calculateEnemyDamage({ player, enemy, baseEnemyDamage }) {
 
 function calculateBattleRewards(attributes, enemy, { victory, draw }) {
   const rewardConfig = (enemy && enemy.rewards) || {};
-  const baseExp = rewardConfig.exp || 0;
-  const baseStones = rewardConfig.stones || 0;
+  const baseStones = Math.max(0, Math.floor(Number(rewardConfig.stones) || 0));
 
   if (!victory) {
     return {
-      exp: draw ? Math.round(baseExp * 0.4) : Math.round(baseExp * 0.2),
+      exp: 0,
       stones: draw ? Math.round(baseStones * 0.3) : 0,
       attributePoints: 0,
       loot: []
@@ -1551,11 +1560,10 @@ function calculateBattleRewards(attributes, enemy, { victory, draw }) {
   }
 
   const luckBonus = Math.min(0.3, (attributes.finalStats.luck || 0) * 0.003);
-  const exp = Math.round(baseExp * (1 + luckBonus));
   const stones = Math.round(baseStones * (1 + luckBonus / 2));
   const attributePoints = rewardConfig.attributePoints || 0;
   const loot = resolveBattleLoot(enemy.loot || [], attributes.finalStats.luck || 0);
-  return { exp, stones, attributePoints, loot };
+  return { exp: 0, stones, attributePoints, loot };
 }
 
 function resolveBattleLoot(loot, luck) {
@@ -1580,7 +1588,6 @@ function resolveBattleLoot(loot, luck) {
 
 function applyBattleOutcome(profile, result, enemy, now) {
   const updated = normalizeProfile(profile, now);
-  updated.attributes.experience = (updated.attributes.experience || 0) + (result.rewards.exp || 0);
   updated.attributes.attributePoints =
     (updated.attributes.attributePoints || 0) + (result.rewards.attributePoints || 0);
 
@@ -1672,16 +1679,23 @@ async function recordStoneTransaction(openid, result, enemy, now) {
 }
 
 function formatBattleResult(result) {
+  const rawRewards = result.rewards || {};
+  const rewards = {
+    exp: rawRewards.exp || 0,
+    stones: rawRewards.stones || 0,
+    attributePoints: rawRewards.attributePoints || 0,
+    loot: Array.isArray(rawRewards.loot) ? rawRewards.loot : []
+  };
   return {
     victory: result.victory,
     draw: result.draw,
     rounds: result.rounds,
     log: result.log,
     rewards: {
-      exp: result.rewards.exp || 0,
-      stones: result.rewards.stones || 0,
-      attributePoints: result.rewards.attributePoints || 0,
-      loot: (result.rewards.loot || []).map((item) => {
+      exp: rewards.exp,
+      stones: rewards.stones,
+      attributePoints: rewards.attributePoints,
+      loot: rewards.loot.map((item) => {
         if (item.type === 'equipment') {
           const def = EQUIPMENT_MAP[item.itemId];
           return {
@@ -1705,6 +1719,7 @@ function formatBattleResult(result) {
         return item;
       })
     },
+    rewardsText: formatRewardText(rewards),
     remaining: result.remaining,
     combatPower: result.combatPower
   };
@@ -1802,14 +1817,19 @@ function formatDateTime(date) {
 
 function formatRewardText(rewards = {}) {
   const parts = [];
-  if (rewards.exp) {
-    parts.push(`修为 +${rewards.exp}`);
+  const exp = Math.max(0, Math.floor(Number(rewards.exp) || 0));
+  if (exp > 0) {
+    parts.push(`修为 +${exp}`);
+  } else {
+    parts.push('修为不可提升');
   }
-  if (rewards.stones) {
-    parts.push(`灵石 +${rewards.stones}`);
+  const stones = Math.max(0, Math.floor(Number(rewards.stones) || 0));
+  if (stones > 0) {
+    parts.push(`灵石 +${stones}`);
   }
-  if (rewards.attributePoints) {
-    parts.push(`属性点 +${rewards.attributePoints}`);
+  const attributePoints = Math.max(0, Math.floor(Number(rewards.attributePoints) || 0));
+  if (attributePoints > 0) {
+    parts.push(`属性点 +${attributePoints}`);
   }
   if (Array.isArray(rewards.loot) && rewards.loot.length) {
     parts.push('获得掉落');

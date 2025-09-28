@@ -172,7 +172,7 @@
           </view>
           <view class="enemy-desc">{{item.description}}</view>
           <view class="enemy-meta">等级 {{item.level}} · 推荐战力 {{item.combatPower}}</view>
-          <view class="enemy-reward">修为 +{{item.rewards.exp}} · 灵石 +{{item.rewards.stones}}</view>
+          <view class="enemy-reward">{{item.rewardsText}}</view>
           <button
             class="enemy-action"
             data-id="{{item.id}}"
@@ -189,9 +189,7 @@
         <view class="battle-summary {{battleResult.victory ? 'battle-win' : battleResult.draw ? 'battle-draw' : 'battle-lose'}}">
           {{battleResult.victory ? '胜利' : battleResult.draw ? '势均力敌' : '惜败'}} · 回合 {{battleResult.rounds || 0}}
         </view>
-        <view class="battle-reward">
-          修为 +{{battleResult.rewards.exp || 0}} · 灵石 +{{battleResult.rewards.stones || 0}} · 属性点 +{{battleResult.rewards.attributePoints || 0}}
-        </view>
+        <view class="battle-reward">{{battleResult.rewardsText}}</view>
         <view class="battle-log">
           <text wx:for="{{battleResult.log}}" wx:key="index">{{item}}</text>
         </view>
