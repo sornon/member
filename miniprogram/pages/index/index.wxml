@@ -104,12 +104,18 @@
               class="gender-option {{profileEditor.gender === 'male' ? 'gender-option--active' : ''}}"
               data-value="male"
               bindtap="handleGenderSelect"
-            >道友</view>
+            >
+              <text class="gender-option__icon" aria-hidden="true">♂</text>
+              <text class="gender-option__label">道友</text>
+            </view>
             <view
               class="gender-option {{profileEditor.gender === 'female' ? 'gender-option--active' : ''}}"
               data-value="female"
               bindtap="handleGenderSelect"
-            >仙子</view>
+            >
+              <text class="gender-option__icon" aria-hidden="true">♀</text>
+              <text class="gender-option__label">仙子</text>
+            </view>
           </view>
         </view>
 

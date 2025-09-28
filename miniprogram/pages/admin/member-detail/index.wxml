@@ -22,7 +22,7 @@
       <button class="recharge" size="mini" bindtap="showRechargeDialog">为该会员充值</button>
     </view>
     <view class="form-item">
-      <view class="form-label">昵称</view>
+      <view class="form-label">道号</view>
       <input
         class="form-input"
         value="{{form.nickName}}"
@@ -30,6 +30,17 @@
         data-field="nickName"
         bindinput="handleInputChange"
       />
+    </view>
+    <view class="rename-meta">
+      <text>剩余改名次数：{{member.renameCredits || 0}}</text>
+      <text>已使用：{{member.renameUsed || 0}}</text>
+    </view>
+    <view wx:if="{{renameHistory.length}}" class="rename-history">
+      <view class="rename-history__title">改名记录</view>
+      <view class="rename-history__item" wx:for="{{renameHistory}}" wx:key="id">
+        <view class="rename-history__names">{{item.previous}} → {{item.current}}</view>
+        <view class="rename-history__meta">{{item.time}} · {{item.source}}</view>
+      </view>
     </view>
     <view class="form-item">
       <view class="form-label">手机号</view>

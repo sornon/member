@@ -104,6 +104,7 @@ cd cloudfunctions/member && npm install && cd -
   - 新注册用户默认拥有 1 次改名机会（`renameCredits`）。
   - 使用“改名卡”会将 `renameCards` 库存转换为新的改名次数，并同步累积 `renameUsed` 与 `renameHistory`。
   - 每次改名均会记录原名称、现名称、时间与来源，便于运营稽核。
+  - 管理员后台修改道号会写入 `renameHistory`，来源标记为 `admin`，且不会扣减用户的改名次数。
 - **性别（`gender`）**：支持 `male`、`female`、`unknown` 三种取值，可随时切换。
 - **头像（`avatarUrl`）**：前端默认生成 5 个渐变风格的 SVG 头像供选择，也可一键同步微信头像。
 

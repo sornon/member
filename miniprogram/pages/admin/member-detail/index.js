@@ -1,11 +1,61 @@
 import { AdminService } from '../../../services/api';
 
+const RENAME_SOURCE_LABELS = {
+  admin: '管理员调整',
+  manual: '会员修改',
+  system: '系统同步'
+};
+
 function ensureMemberRole(roles) {
   const list = Array.isArray(roles) ? [...new Set(roles)] : [];
   if (!list.includes('member')) {
     list.push('member');
   }
   return list;
+}
+
+function pad(value) {
+  return value < 10 ? `0${value}` : `${value}`;
+}
+
+function formatHistoryTime(value) {
+  if (!value) {
+    return '—';
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatRenameHistory(history) {
+  if (!Array.isArray(history)) {
+    return [];
+  }
+  return history
+    .slice()
+    .reverse()
+    .map((item, index) => {
+      let timestamp = Date.now();
+      if (item && item.changedAt) {
+        const date = item.changedAt instanceof Date ? item.changedAt : new Date(item.changedAt);
+        if (!Number.isNaN(date.getTime())) {
+          timestamp = date.getTime();
+        }
+      }
+      const key = item && item.id ? item.id : `${timestamp}-${index}`;
+      const source = item && item.source ? item.source : 'manual';
+      const label = RENAME_SOURCE_LABELS[source] || '会员修改';
+      const timeLabel = item && item.changedAtLabel ? item.changedAtLabel : formatHistoryTime(item && item.changedAt);
+      return {
+        id: key,
+        previous: (item && item.previous) || '—',
+        current: (item && item.current) || '—',
+        time: timeLabel || '—',
+        source: label
+      };
+    });
 }
 
 Page({
@@ -32,7 +82,8 @@ Page({
       roles: []
     },
     rechargeVisible: false,
-    rechargeAmount: ''
+    rechargeAmount: '',
+    renameHistory: []
   },
 
   onLoad(options) {
@@ -98,7 +149,8 @@ Page({
         levelId: member.levelId || currentLevel._id || '',
         roles
       },
-      roleOptions
+      roleOptions,
+      renameHistory: formatRenameHistory(member.renameHistory)
     });
   },
 

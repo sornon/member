@@ -156,7 +156,15 @@ async function updateMember(openid, memberId, updates) {
   if (!memberId) {
     throw new Error('缺少会员编号');
   }
-  const payload = buildUpdatePayload(updates);
+  const memberDoc = await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(memberId)
+    .get()
+    .catch(() => null);
+  if (!memberDoc || !memberDoc.data) {
+    throw new Error('会员不存在');
+  }
+  const payload = buildUpdatePayload(updates, memberDoc.data);
   if (!Object.keys(payload).length) {
     return fetchMemberDetail(memberId);
   }
@@ -409,22 +417,54 @@ function decorateMemberRecord(member, levelMap) {
     levelId: member.levelId || '',
     levelName: level ? level.displayName || level.name : '',
     roles,
+    gender: normalizeGenderValue(member.gender),
+    renameCredits: normalizeRenameCredits(member.renameCredits),
+    renameUsed: normalizeRenameUsed(member.renameUsed),
+    renameCards: normalizeRenameCredits(member.renameCards),
+    renameHistory: formatRenameHistory(member.renameHistory),
     createdAt: formatDate(member.createdAt),
     updatedAt: formatDate(member.updatedAt),
     avatarConfig: member.avatarConfig || {}
   };
 }
 
-function buildUpdatePayload(updates) {
+function buildUpdatePayload(updates, existing = {}) {
   const payload = {};
   if (Object.prototype.hasOwnProperty.call(updates, 'nickName')) {
-    payload.nickName = updates.nickName || '';
+    const input = updates.nickName;
+    const currentName = typeof existing.nickName === 'string' ? existing.nickName : '';
+    const target = typeof input === 'string' ? input.trim() : '';
+    if (target !== currentName) {
+      payload.nickName = target;
+      if (target) {
+        const history = Array.isArray(existing.renameHistory) ? existing.renameHistory.slice() : [];
+        const now = new Date();
+        history.push({
+          previous: currentName || '',
+          current: target,
+          changedAt: now,
+          source: 'admin'
+        });
+        if (history.length > 20) {
+          history.splice(0, history.length - 20);
+        }
+        payload.renameHistory = history;
+        const renameUsed = Number(existing.renameUsed || 0);
+        payload.renameUsed = Number.isFinite(renameUsed) ? renameUsed + 1 : 1;
+      }
+    }
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'mobile')) {
     payload.mobile = updates.mobile || '';
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'levelId')) {
     payload.levelId = updates.levelId || '';
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'gender')) {
+    payload.gender = normalizeGenderValue(updates.gender);
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'avatarUrl')) {
+    payload.avatarUrl = typeof updates.avatarUrl === 'string' ? updates.avatarUrl.trim() : '';
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'experience')) {
     const experience = Number(updates.experience || 0);
@@ -463,6 +503,57 @@ function normalizeAmountFen(value) {
     return Number.isFinite(parsed) ? Math.round(parsed) : 0;
   }
   return 0;
+}
+
+function normalizeGenderValue(value) {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (normalized === 'male' || normalized === '1') {
+    return 'male';
+  }
+  if (normalized === 'female' || normalized === '2') {
+    return 'female';
+  }
+  return 'unknown';
+}
+
+function normalizeRenameCredits(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(numeric));
+}
+
+function normalizeRenameUsed(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(numeric));
+}
+
+function formatRenameHistory(history) {
+  if (!Array.isArray(history)) {
+    return [];
+  }
+  return history.slice(-20).map((item, index) => {
+    const changedAt = item && item.changedAt ? item.changedAt : null;
+    let timestamp = Date.now();
+    if (changedAt) {
+      const date = changedAt instanceof Date ? changedAt : new Date(changedAt);
+      if (!Number.isNaN(date.getTime())) {
+        timestamp = date.getTime();
+      }
+    }
+    return {
+      id: item && item.id ? item.id : `${timestamp}-${index}`,
+      previous: (item && item.previous) || '',
+      current: (item && item.current) || '',
+      changedAt,
+      changedAtLabel: formatDate(changedAt),
+      source: (item && item.source) || 'manual'
+    };
+  });
 }
 
 function normalizeChargeItems(items) {
