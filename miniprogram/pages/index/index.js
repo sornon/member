@@ -3,11 +3,11 @@ import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../ser
 import { formatCurrency, formatExperience, formatStones } from '../../utils/format';
 
 const BASE_NAV_ITEMS = [
+  { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
+  { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
   { icon: '💳', label: '等级', url: '/pages/membership/membership' },
   { icon: '🎁', label: '权益', url: '/pages/rights/rights' },
   { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
-  { icon: '🪙', label: '灵石', url: '/pages/stones/stones' },
-  { icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
   { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
   { icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
@@ -146,6 +146,25 @@ function generateAvatarOptions(name = '', seed = Date.now()) {
     options.push({ id: `${paletteIndex}_${baseSeed + i}`, url, symbol });
   }
   return options;
+}
+
+function sanitizeAvatarUrl(url) {
+  if (typeof url !== 'string') {
+    return '';
+  }
+  let sanitized = url.trim();
+  if (!sanitized) {
+    return '';
+  }
+  if (!sanitized.startsWith('data:')) {
+    sanitized = sanitized.replace(/^http:\/\//i, 'https://');
+    if (/qlogo\.cn/.test(sanitized)) {
+      const [base, query] = sanitized.split('?');
+      const normalizedBase = base.replace(/\/(0|46|64|96)$/, '/132');
+      sanitized = query ? `${normalizedBase}?${query}` : normalizedBase;
+    }
+  }
+  return sanitized;
 }
 
 function computeAvatarOptionList(name, currentAvatar, seed) {
@@ -315,7 +334,7 @@ Page({
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
     activityIcons: [
-      { icon: '⚔️', label: '试炼', url: '/pages/tasks/tasks' },
+      { icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
       { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
       { icon: '🔥', label: '比武' }
     ],
@@ -327,15 +346,20 @@ Page({
       nickName: '',
       gender: 'unknown',
       avatarUrl: '',
-      avatarOptions: [],
-      avatarSeed: 0,
       renameCredits: 0,
       renameCards: 0,
       renameUsed: 0,
       renameHistory: []
     },
     profileSaving: false,
-    renameRedeeming: false
+    renameRedeeming: false,
+    showAvatarPicker: false,
+    avatarPickerSaving: false,
+    avatarPicker: {
+      avatarUrl: '',
+      avatarOptions: [],
+      avatarSeed: 0
+    }
   },
 
   onLoad() {
@@ -520,13 +544,23 @@ Page({
     this.openArchiveEditor();
   },
 
+  handleAvatarTap() {
+    this.openAvatarPicker();
+  },
+
+  handleStoneTap() {
+    wx.navigateTo({ url: '/pages/stones/stones' });
+  },
+
+  handleExperienceTap() {
+    wx.navigateTo({ url: '/pages/membership/membership' });
+  },
+
   openArchiveEditor() {
     const member = this.data.member || {};
     const nickName = member.nickName || '';
     const gender = normalizeGenderValue(member.gender);
     const avatarUrl = member.avatarUrl || this.data.defaultAvatar;
-    const seed = Date.now();
-    const options = computeAvatarOptionList(nickName, avatarUrl, seed);
     const renameHistory = formatHistoryList(member.renameHistory);
     this.setData({
       showProfile: true,
@@ -537,8 +571,6 @@ Page({
         nickName,
         gender,
         avatarUrl,
-        avatarOptions: options,
-        avatarSeed: seed,
         renameCredits: member.renameCredits || 0,
         renameCards: member.renameCards || 0,
         renameUsed: member.renameUsed || 0,
@@ -558,34 +590,12 @@ Page({
     });
   },
 
-  rebuildAvatarOptions(options = {}) {
-    const keepSeed = options.keepSeed !== false;
-    const preserveSelection = options.preserveSelection !== false;
-    const seed = keepSeed && this.data.profileEditor.avatarSeed ? this.data.profileEditor.avatarSeed : Date.now();
-    const member = this.data.member || {};
-    const name = this.data.profileEditor.nickName || member.nickName || '';
-    const baseAvatar = member.avatarUrl || this.data.defaultAvatar;
-    const currentAvatar = preserveSelection
-      ? this.data.profileEditor.avatarUrl || baseAvatar
-      : baseAvatar;
-    const avatarOptions = computeAvatarOptionList(name, currentAvatar, seed);
-    this.setData({
-      'profileEditor.avatarSeed': seed,
-      'profileEditor.avatarOptions': avatarOptions
-    });
-  },
-
   handleArchiveNickname(event) {
     const detail = event && event.detail ? event.detail : {};
     const value = typeof detail.value === 'string' ? detail.value : '';
-    this.setData(
-      {
-        'profileEditor.nickName': value
-      },
-      () => {
-        this.rebuildAvatarOptions({ keepSeed: true, preserveSelection: true });
-      }
-    );
+    this.setData({
+      'profileEditor.nickName': value
+    });
   },
 
   handleGenderSelect(event) {
@@ -598,61 +608,117 @@ Page({
     this.setData({ 'profileEditor.gender': gender });
   },
 
-  handleArchiveAvatarSelect(event) {
-    if (this.data.profileSaving) {
+  openAvatarPicker() {
+    if (this.data.avatarPickerSaving) {
       return;
     }
-    const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
-    const url = dataset.url;
-    if (typeof url === 'string' && url) {
-      this.setData({ 'profileEditor.avatarUrl': url });
-    }
+    const member = this.data.member || {};
+    const nickName = this.data.profileEditor.nickName || member.nickName || '';
+    const baseAvatar = sanitizeAvatarUrl(member.avatarUrl) || this.data.defaultAvatar;
+    const seed = Date.now();
+    const options = computeAvatarOptionList(nickName, baseAvatar, seed);
+    this.setData({
+      showAvatarPicker: true,
+      avatarPickerSaving: false,
+      avatarPicker: {
+        avatarUrl: baseAvatar,
+        avatarSeed: seed,
+        avatarOptions: options
+      }
+    });
   },
 
-  handleRegenerateAvatars() {
-    if (this.data.profileSaving) {
+  handleCloseAvatarPicker() {
+    if (this.data.avatarPickerSaving) {
       return;
     }
-    this.rebuildAvatarOptions({ keepSeed: false, preserveSelection: true });
+    this.setData({
+      showAvatarPicker: false,
+      avatarPickerSaving: false
+    });
   },
 
-  mergeAvatarOptions(preferredUrl) {
-    const options = Array.isArray(this.data.profileEditor.avatarOptions)
-      ? [...this.data.profileEditor.avatarOptions]
+  rebuildAvatarPickerOptions(options = {}) {
+    const keepSeed = options.keepSeed !== false;
+    const preserveSelection = options.preserveSelection !== false;
+    const seed = keepSeed && this.data.avatarPicker.avatarSeed ? this.data.avatarPicker.avatarSeed : Date.now();
+    const member = this.data.member || {};
+    const name = this.data.profileEditor.nickName || member.nickName || '';
+    const baseAvatar = sanitizeAvatarUrl(member.avatarUrl) || this.data.defaultAvatar;
+    const currentAvatar = preserveSelection
+      ? sanitizeAvatarUrl(this.data.avatarPicker.avatarUrl) || baseAvatar
+      : baseAvatar;
+    const avatarOptions = computeAvatarOptionList(name, currentAvatar, seed);
+    this.setData({
+      'avatarPicker.avatarSeed': seed,
+      'avatarPicker.avatarOptions': avatarOptions
+    });
+  },
+
+  mergeAvatarPickerOptions(preferredUrl) {
+    const options = Array.isArray(this.data.avatarPicker.avatarOptions)
+      ? [...this.data.avatarPicker.avatarOptions]
       : [];
     const result = [];
     const seen = new Set();
-    if (typeof preferredUrl === 'string' && preferredUrl) {
-      result.push({ id: `preferred_${Date.now()}`, url: preferredUrl });
-      seen.add(preferredUrl);
+    const normalizedPreferred = sanitizeAvatarUrl(preferredUrl) || preferredUrl;
+    if (typeof normalizedPreferred === 'string' && normalizedPreferred) {
+      result.push({ id: `preferred_${Date.now()}`, url: normalizedPreferred });
+      seen.add(normalizedPreferred);
     }
     options.forEach((item) => {
-      if (!item || !item.url || seen.has(item.url)) {
+      if (!item || !item.url) {
         return;
       }
-      result.push(item);
-      seen.add(item.url);
+      const normalized = sanitizeAvatarUrl(item.url) || item.url;
+      if (!normalized || seen.has(normalized)) {
+        return;
+      }
+      result.push({ ...item, url: normalized });
+      seen.add(normalized);
     });
     return result;
   },
 
-  handleSyncWechatAvatar() {
-    if (this.data.profileSaving) {
+  handleAvatarPickerSelect(event) {
+    if (this.data.avatarPickerSaving) {
+      return;
+    }
+    const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
+    const url = sanitizeAvatarUrl(dataset.url) || dataset.url;
+    if (typeof url === 'string' && url) {
+      this.setData({
+        'avatarPicker.avatarUrl': url,
+        'profileEditor.avatarUrl': url
+      });
+    }
+  },
+
+  handleAvatarPickerRegenerate() {
+    if (this.data.avatarPickerSaving) {
+      return;
+    }
+    this.rebuildAvatarPickerOptions({ keepSeed: false, preserveSelection: true });
+  },
+
+  handleAvatarPickerSyncWechat() {
+    if (this.data.avatarPickerSaving) {
       return;
     }
     wx.getUserProfile({
       desc: '用于同步微信头像',
       success: (res) => {
         const info = res && res.userInfo ? res.userInfo : {};
-        const avatarUrl = info.avatarUrl || '';
+        const avatarUrl = sanitizeAvatarUrl(info.avatarUrl || '');
         if (!avatarUrl) {
           wx.showToast({ title: '未获取到头像', icon: 'none' });
           return;
         }
-        const merged = this.mergeAvatarOptions(avatarUrl);
+        const merged = this.mergeAvatarPickerOptions(avatarUrl);
         this.setData({
-          'profileEditor.avatarUrl': avatarUrl,
-          'profileEditor.avatarOptions': merged
+          'avatarPicker.avatarUrl': avatarUrl,
+          'avatarPicker.avatarOptions': merged,
+          'profileEditor.avatarUrl': avatarUrl
         });
         wx.showToast({ title: '已同步微信头像', icon: 'success' });
       },
@@ -660,6 +726,29 @@ Page({
         wx.showToast({ title: '未获取到头像', icon: 'none' });
       }
     });
+  },
+
+  async handleAvatarPickerConfirm() {
+    if (this.data.avatarPickerSaving) {
+      return;
+    }
+    const avatarUrl = sanitizeAvatarUrl(this.data.avatarPicker.avatarUrl) || this.data.defaultAvatar;
+    this.setData({ avatarPickerSaving: true });
+    try {
+      const member = await MemberService.updateArchive({
+        avatarUrl
+      });
+      this.applyMemberUpdate(member);
+      this.setData({
+        showAvatarPicker: false,
+        'profileEditor.avatarUrl': avatarUrl
+      });
+      wx.showToast({ title: '头像已更新', icon: 'success' });
+    } catch (error) {
+      // callCloud 已提示
+    } finally {
+      this.setData({ avatarPickerSaving: false });
+    }
   },
 
   async handleArchiveSubmit() {
@@ -701,7 +790,6 @@ Page({
     try {
       const member = await MemberService.redeemRenameCard(1);
       this.applyMemberUpdate(member);
-      this.rebuildAvatarOptions({ keepSeed: true, preserveSelection: true });
       wx.showToast({ title: '改名次数 +1', icon: 'success' });
     } catch (error) {
       // callCloud 已提示
@@ -715,13 +803,15 @@ Page({
       return;
     }
     const renameHistory = formatHistoryList(member.renameHistory);
+    const sanitizedAvatar = sanitizeAvatarUrl(member.avatarUrl);
     this.setData({
       member,
       memberStats: deriveMemberStats(member),
       navItems: resolveNavItems(member),
       'profileEditor.nickName': member.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(member.gender),
-      'profileEditor.avatarUrl': member.avatarUrl || this.data.profileEditor.avatarUrl,
+      'profileEditor.avatarUrl': sanitizedAvatar || this.data.profileEditor.avatarUrl,
+      'avatarPicker.avatarUrl': sanitizedAvatar || this.data.avatarPicker.avatarUrl,
       'profileEditor.renameCredits': member.renameCredits || 0,
       'profileEditor.renameCards': member.renameCards || 0,
       'profileEditor.renameUsed': member.renameUsed || 0,
@@ -747,11 +837,12 @@ Page({
       desc: '用于完善会员昵称与头像',
       success: (res) => {
         const info = res && res.userInfo ? res.userInfo : {};
+        const avatarUrl = sanitizeAvatarUrl(info.avatarUrl || '');
         this.setData({
           onboarding: {
             ...this.data.onboarding,
             nickName: info.nickName || this.data.onboarding.nickName,
-            avatarUrl: info.avatarUrl || this.data.onboarding.avatarUrl
+            avatarUrl: avatarUrl || this.data.onboarding.avatarUrl
           },
           'authorizationStatus.profileAuthorized': true
         });

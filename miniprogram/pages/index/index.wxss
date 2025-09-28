@@ -120,7 +120,7 @@ page {
   color: rgba(220, 230, 255, 0.8);
 }
 
-.profile-meta text {
+.profile-meta__text {
   display: block;
   white-space: nowrap;
 }
@@ -336,6 +336,14 @@ page {
 .modal-content--editor {
   width: 620rpx;
   max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  padding: 32rpx 36rpx 28rpx;
+}
+
+.modal-content--avatar {
+  width: 620rpx;
+  max-height: 70vh;
   display: flex;
   flex-direction: column;
   padding: 32rpx 36rpx 28rpx;

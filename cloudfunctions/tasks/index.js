@@ -57,16 +57,27 @@ async function listTasks(openid) {
     const inDateRange = validateTaskDate(task, now);
     const claimLimit = task.claimLimit || 1;
     const canClaim = inDateRange && completed && claimedTimes < claimLimit;
+    const reward = task.reward || {};
+    const rewardSummary = task.rewardSummary || buildRewardSummary(reward);
+    const cultivationLocked = reward.type === 'experience';
+    const finalCanClaim = canClaim && !cultivationLocked;
+    const actionLabel = cultivationLocked
+      ? '前往充值'
+      : canClaim
+      ? '立即领取'
+      : completed
+      ? '已领取'
+      : '去完成';
     return {
       _id: task._id,
       title: task.title,
       description: task.description,
       type: task.type,
       typeLabel: typeLabelMap[task.type] || '任务',
-      rewardSummary: task.rewardSummary || buildRewardSummary(task.reward),
+      rewardSummary,
       progressText: `${Math.min(current, target)}/${target}`,
-      canClaim,
-      actionLabel: canClaim ? '立即领取' : completed ? '已领取' : '去完成'
+      canClaim: finalCanClaim,
+      actionLabel
     };
   });
 }
@@ -88,6 +99,9 @@ async function claimTask(openid, taskId) {
   const now = Date.now();
   if (!validateTaskDate(task, now)) {
     throw new Error('任务不在有效期');
+  }
+  if (task.reward && task.reward.type === 'experience') {
+    throw new Error('修为需通过充值获取，请前往充值中心');
   }
   const progress = record ? record.progress || 0 : 0;
   const target = task.target || 1;
@@ -141,7 +155,7 @@ function buildRewardSummary(reward) {
     return reward.description || '优惠券奖励';
   }
   if (reward.type === 'experience') {
-    return `经验 +${reward.amount || 0}`;
+    return '修为奖励（需充值获得）';
   }
   if (reward.type === 'balance') {
     return `现金余额 +¥${((reward.amount || 0) / 100).toFixed(2)}`;
@@ -165,7 +179,7 @@ async function issueReward(openid, reward) {
   if (reward.type === 'coupon') {
     await issueCouponReward(openid, reward);
   } else if (reward.type === 'experience') {
-    await applyExperience(openid, reward.amount || 0);
+    throw new Error('修为需通过充值获取，请调整任务奖励配置');
   } else if (reward.type === 'balance') {
     await applyCashBalance(openid, reward.amount || 0, reward);
   } else if (reward.type === 'stones') {
@@ -248,93 +262,4 @@ async function applyStones(openid, amount, reward = {}) {
       createdAt: new Date()
     }
   });
-}
-
-async function applyExperience(openid, amount) {
-  if (!amount) return;
-  await db
-    .collection(COLLECTIONS.MEMBERS)
-    .doc(openid)
-    .update({
-      data: {
-        experience: _.inc(amount),
-        updatedAt: new Date()
-      }
-    });
-  await syncMemberLevel(openid);
-}
-
-async function syncMemberLevel(openid) {
-  const [memberDoc, levelsSnapshot] = await Promise.all([
-    db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null),
-    db.collection(COLLECTIONS.MEMBERSHIP_LEVELS).orderBy('order', 'asc').get()
-  ]);
-  if (!memberDoc || !memberDoc.data) return;
-  const member = memberDoc.data;
-  const levels = levelsSnapshot.data || [];
-  if (!levels.length) return;
-  const targetLevel = resolveLevelByExperience(member.experience || 0, levels);
-  if (!targetLevel || targetLevel._id === member.levelId) {
-    return;
-  }
-  await db
-    .collection(COLLECTIONS.MEMBERS)
-    .doc(openid)
-    .update({
-      data: {
-        levelId: targetLevel._id,
-        updatedAt: new Date()
-      }
-    });
-  await grantLevelRewards(openid, targetLevel);
-}
-
-function resolveLevelByExperience(exp, levels) {
-  let target = levels[0];
-  levels.forEach((lvl) => {
-    if (exp >= lvl.threshold) {
-      target = lvl;
-    }
-  });
-  return target;
-}
-
-async function grantLevelRewards(openid, level) {
-  const rewards = level.rewards || [];
-  if (!rewards.length) return;
-  const masterSnapshot = await db.collection(COLLECTIONS.MEMBERSHIP_RIGHTS).get();
-  const masterMap = {};
-  masterSnapshot.data.forEach((item) => {
-    masterMap[item._id] = item;
-  });
-  const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
-  const now = new Date();
-  for (const reward of rewards) {
-    const right = masterMap[reward.rightId];
-    if (!right) continue;
-    const existing = await rightsCollection
-      .where({ memberId: openid, rightId: reward.rightId, levelId: level._id })
-      .count();
-    const quantity = reward.quantity || 1;
-    if (existing.total >= quantity) continue;
-    const validUntil = right.validDays
-      ? new Date(now.getTime() + right.validDays * 24 * 60 * 60 * 1000)
-      : null;
-    for (let i = existing.total; i < quantity; i += 1) {
-      await rightsCollection.add({
-        data: {
-          memberId: openid,
-          rightId: reward.rightId,
-          levelId: level._id,
-          status: 'active',
-          issuedAt: now,
-          validUntil,
-          meta: {
-            fromLevel: level._id,
-            rewardName: reward.description || right.name
-          }
-        }
-      });
-    }
-  }
 }
