@@ -1537,21 +1537,23 @@ function calculateEnemyDamage({ player, enemy, baseEnemyDamage }) {
 }
 
 function calculateBattleRewards(attributes, enemy, { victory, draw }) {
+  const rewardConfig = (enemy && enemy.rewards) || {};
+  const baseExp = rewardConfig.exp || 0;
+  const baseStones = rewardConfig.stones || 0;
+
   if (!victory) {
     return {
-      exp: draw ? Math.round(enemy.rewards.exp * 0.4) : Math.round(enemy.rewards.exp * 0.2),
-      stones: draw ? Math.round(enemy.rewards.stones * 0.3) : 0,
-      attributePoints: draw ? 0 : 0,
+      exp: draw ? Math.round(baseExp * 0.4) : Math.round(baseExp * 0.2),
+      stones: draw ? Math.round(baseStones * 0.3) : 0,
+      attributePoints: 0,
       loot: []
     };
   }
 
-  const baseExp = enemy.rewards.exp || 0;
-  const baseStones = enemy.rewards.stones || 0;
   const luckBonus = Math.min(0.3, (attributes.finalStats.luck || 0) * 0.003);
   const exp = Math.round(baseExp * (1 + luckBonus));
   const stones = Math.round(baseStones * (1 + luckBonus / 2));
-  const attributePoints = enemy.rewards.attributePoints || 0;
+  const attributePoints = rewardConfig.attributePoints || 0;
   const loot = resolveBattleLoot(enemy.loot || [], attributes.finalStats.luck || 0);
   return { exp, stones, attributePoints, loot };
 }
