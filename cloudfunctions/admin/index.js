@@ -30,7 +30,9 @@ const ACTIONS = {
   RECHARGE_MEMBER: 'rechargeMember',
   LIST_RESERVATIONS: 'listReservations',
   APPROVE_RESERVATION: 'approveReservation',
-  REJECT_RESERVATION: 'rejectReservation'
+  REJECT_RESERVATION: 'rejectReservation',
+  CANCEL_RESERVATION: 'cancelReservation',
+  MARK_RESERVATION_READ: 'markReservationRead'
 };
 
 const ACTION_ALIASES = {
@@ -45,7 +47,9 @@ const ACTION_ALIASES = {
   rechargemember: ACTIONS.RECHARGE_MEMBER,
   listreservations: ACTIONS.LIST_RESERVATIONS,
   approvereservation: ACTIONS.APPROVE_RESERVATION,
-  rejectreservation: ACTIONS.REJECT_RESERVATION
+  rejectreservation: ACTIONS.REJECT_RESERVATION,
+  cancelreservation: ACTIONS.CANCEL_RESERVATION,
+  markreservationread: ACTIONS.MARK_RESERVATION_READ
 };
 
 function normalizeAction(action) {
@@ -82,7 +86,9 @@ const ACTION_HANDLERS = {
       pageSize: event.pageSize || 20
     }),
   [ACTIONS.APPROVE_RESERVATION]: (openid, event) => approveReservation(openid, event.reservationId),
-  [ACTIONS.REJECT_RESERVATION]: (openid, event) => rejectReservation(openid, event.reservationId, event.reason || '')
+  [ACTIONS.REJECT_RESERVATION]: (openid, event) => rejectReservation(openid, event.reservationId, event.reason || ''),
+  [ACTIONS.CANCEL_RESERVATION]: (openid, event) => cancelReservation(openid, event.reservationId, event.reason || ''),
+  [ACTIONS.MARK_RESERVATION_READ]: (openid) => markReservationRead(openid)
 };
 
 exports.main = async (event = {}) => {
@@ -474,7 +480,10 @@ async function approveReservation(openid, reservationId) {
         updatedAt: now
       }
     });
+
+    await incrementMemberReservationBadge(transaction, reservation.memberId);
   });
+  await updateAdminReservationBadges({ incrementVersion: false });
   return getReservationRecord(reservationId);
 }
 
@@ -515,9 +524,83 @@ async function rejectReservation(openid, reservationId, reason = '') {
     });
 
     await releaseReservationResources(transaction, reservation, { refundUsage: true, unlockRight: true });
+
+    await incrementMemberReservationBadge(transaction, reservation.memberId);
   });
 
+  await updateAdminReservationBadges({ incrementVersion: false });
   return getReservationRecord(reservationId);
+}
+
+async function cancelReservation(openid, reservationId, reason = '') {
+  await ensureAdmin(openid);
+  if (!reservationId) {
+    throw new Error('缺少预约编号');
+  }
+  const now = new Date();
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction
+      .collection(COLLECTIONS.RESERVATIONS)
+      .doc(reservationId)
+      .get()
+      .catch(() => null);
+    if (!snapshot || !snapshot.data) {
+      throw new Error('预约不存在');
+    }
+    const reservation = { ...snapshot.data, _id: reservationId };
+    if (reservation.status === 'cancelled') {
+      return;
+    }
+    const cancellableStatuses = [
+      'pendingApproval',
+      'approved',
+      'reserved',
+      'confirmed',
+      'pendingPayment'
+    ];
+    if (!cancellableStatuses.includes(reservation.status)) {
+      throw new Error('当前状态不可取消');
+    }
+    await transaction.collection(COLLECTIONS.RESERVATIONS).doc(reservationId).update({
+      data: {
+        status: 'cancelled',
+        approval: {
+          ...(reservation.approval || {}),
+          status: 'cancelled',
+          decidedAt: now,
+          decidedBy: openid,
+          reason: reason || '管理员取消预约'
+        },
+        updatedAt: now
+      }
+    });
+
+    await releaseReservationResources(transaction, reservation, { refundUsage: true, unlockRight: true });
+    await incrementMemberReservationBadge(transaction, reservation.memberId);
+  });
+
+  await updateAdminReservationBadges({ incrementVersion: false });
+  return getReservationRecord(reservationId);
+}
+
+async function markReservationRead(openid) {
+  const member = await ensureAdmin(openid);
+  const badges = normalizeReservationBadges(member.reservationBadges);
+  if (badges.adminSeenVersion >= badges.adminVersion) {
+    return { success: true, reservationBadges: badges };
+  }
+  await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(member._id)
+    .update({
+      data: {
+        'reservationBadges.adminSeenVersion': badges.adminVersion,
+        updatedAt: new Date()
+      }
+    })
+    .catch(() => {});
+  const updatedBadges = { ...badges, adminSeenVersion: badges.adminVersion };
+  return { success: true, reservationBadges: updatedBadges };
 }
 
 async function getReservationRecord(reservationId) {
@@ -733,12 +816,97 @@ async function releaseReservationResources(transaction, reservation, options = {
   }
 }
 
+function incrementMemberReservationBadge(transaction, memberId) {
+  if (!memberId) {
+    return Promise.resolve();
+  }
+  return transaction
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(memberId)
+    .update({
+      data: {
+        'reservationBadges.memberVersion': _.inc(1)
+      }
+    })
+    .catch(() => {});
+}
+
+async function updateAdminReservationBadges({ incrementVersion = false } = {}) {
+  try {
+    const [pendingResult, adminSnapshot] = await Promise.all([
+      db
+        .collection(COLLECTIONS.RESERVATIONS)
+        .where({ status: 'pendingApproval' })
+        .count()
+        .catch(() => ({ total: 0 })),
+      db
+        .collection(COLLECTIONS.MEMBERS)
+        .where({ roles: _.in(ADMIN_ROLES) })
+        .get()
+        .catch(() => ({ data: [] }))
+    ]);
+
+    const pendingCount = pendingResult && Number.isFinite(pendingResult.total) ? pendingResult.total : 0;
+    const admins = Array.isArray(adminSnapshot.data) ? adminSnapshot.data : [];
+
+    await Promise.all(
+      admins.map((admin) =>
+        db
+          .collection(COLLECTIONS.MEMBERS)
+          .doc(admin._id)
+          .update({
+            data: {
+              'reservationBadges.pendingApprovalCount': pendingCount,
+              ...(incrementVersion ? { 'reservationBadges.adminVersion': _.inc(1) } : {}),
+              updatedAt: new Date()
+            }
+          })
+          .catch(() => {})
+      )
+    );
+
+    return pendingCount;
+  } catch (error) {
+    console.error('[admin] update admin reservation badges failed', error);
+    return 0;
+  }
+}
+
 function normalizeUsageCount(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
     return 0;
   }
   return Math.max(0, Math.floor(numeric));
+}
+
+function normalizeReservationBadges(badges) {
+  const defaults = {
+    memberVersion: 0,
+    memberSeenVersion: 0,
+    adminVersion: 0,
+    adminSeenVersion: 0,
+    pendingApprovalCount: 0
+  };
+  const normalized = { ...defaults };
+  if (badges && typeof badges === 'object') {
+    Object.keys(defaults).forEach((key) => {
+      const value = badges[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        normalized[key] = key.endsWith('Count')
+          ? Math.max(0, Math.floor(value))
+          : Math.max(0, Math.floor(value));
+      } else if (typeof value === 'string' && value) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          normalized[key] = key.endsWith('Count')
+            ? Math.max(0, Math.floor(numeric))
+            : Math.max(0, Math.floor(numeric));
+        }
+      }
+    });
+  }
+  return normalized;
 }
 
 function buildUpdatePayload(updates, existing = {}) {

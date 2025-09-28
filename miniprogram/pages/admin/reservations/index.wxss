@@ -52,6 +52,17 @@
   color: #c7f3df;
 }
 
+.status.reserved,
+.status.confirmed {
+  background: rgba(96, 196, 150, 0.24);
+  color: #c7f3df;
+}
+
+.status.pendingPayment {
+  background: rgba(255, 214, 153, 0.22);
+  color: #ffe3b6;
+}
+
 .status.rejected {
   background: rgba(216, 116, 116, 0.24);
   color: #ffd2d2;

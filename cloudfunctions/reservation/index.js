@@ -13,6 +13,8 @@ const COLLECTIONS = {
   MEMBERS: 'members'
 };
 
+const ADMIN_ROLES = ['admin', 'developer'];
+
 const RESERVATION_ACTIVE_STATUSES = [
   'pendingApproval',
   'approved',
@@ -20,6 +22,18 @@ const RESERVATION_ACTIVE_STATUSES = [
   'confirmed',
   'pendingPayment'
 ];
+
+const MEMBER_VISIBLE_STATUSES = [
+  'pendingApproval',
+  'approved',
+  'reserved',
+  'confirmed',
+  'pendingPayment'
+];
+
+const MEMBER_FETCH_STATUSES = [...new Set([...MEMBER_VISIBLE_STATUSES, 'rejected'])];
+
+const MEMBER_RESERVATION_LIMIT = 10;
 
 exports.main = async (event = {}) => {
   const { OPENID } = cloud.getWXContext();
@@ -77,11 +91,11 @@ async function listAvailableRooms(openid, date, startTime, endTime) {
       .collection(COLLECTIONS.RESERVATIONS)
       .where({
         memberId: openid,
-        status: _.in(['pendingApproval', 'approved', 'rejected'])
+        status: _.in(MEMBER_FETCH_STATUSES)
       })
       .orderBy('date', 'desc')
       .orderBy('startTime', 'desc')
-      .limit(1)
+      .limit(MEMBER_RESERVATION_LIMIT)
       .get(),
     db
       .collection(COLLECTIONS.MEMBERS)
@@ -107,6 +121,11 @@ async function listAvailableRooms(openid, date, startTime, endTime) {
     return new Date(right.validUntil).getTime() >= now;
   });
 
+  const roomMap = new Map();
+  roomsSnapshot.data.forEach((room) => {
+    roomMap.set(room._id, room);
+  });
+
   const rooms = roomsSnapshot.data
     .map((room) => {
       const right = validRights.find((r) => canRightApply(masterMap[r.rightId], requestRange));
@@ -124,16 +143,39 @@ async function listAvailableRooms(openid, date, startTime, endTime) {
 
   const memberRecord = (memberDoc && memberDoc.data) || null;
   const usageCount = normalizeUsageCount(memberRecord && memberRecord.roomUsageCount);
+  const badges = normalizeReservationBadges(memberRecord && memberRecord.reservationBadges);
+
+  if (badges.memberSeenVersion < badges.memberVersion) {
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(openid)
+      .update({
+        data: {
+          'reservationBadges.memberSeenVersion': badges.memberVersion,
+          updatedAt: new Date()
+        }
+      })
+      .catch(() => {});
+    badges.memberSeenVersion = badges.memberVersion;
+  }
+
   const notice = buildMemberReservationNotice(
     memberReservationSnapshot.data,
     roomsSnapshot.data,
     usageCount
   );
 
+  const memberReservations = buildMemberReservationList(
+    memberReservationSnapshot.data,
+    roomMap
+  );
+
   return {
     rooms,
     notice,
-    memberUsageCount: usageCount
+    memberUsageCount: usageCount,
+    memberReservations,
+    reservationBadges: badges
   };
 }
 
@@ -232,7 +274,8 @@ async function createReservation(openid, order) {
     await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).update({
       data: {
         roomUsageCount: Math.max(0, usageCount - 1),
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        'reservationBadges.memberVersion': _.inc(1)
       }
     });
 
@@ -248,6 +291,8 @@ async function createReservation(openid, order) {
 
     return { id: res._id, reservation };
   });
+
+  await updateAdminReservationBadges({ incrementVersion: true });
 
   return {
     success: true,
@@ -287,7 +332,19 @@ async function cancelReservation(openid, reservationId) {
     });
 
     await releaseReservationResources(transaction, reservation, { refundUsage: true, unlockRight: true });
+
+    await transaction
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(openid)
+      .update({
+        data: {
+          'reservationBadges.memberVersion': _.inc(1)
+        }
+      })
+      .catch(() => {});
   });
+
+  await updateAdminReservationBadges({ incrementVersion: false });
 
   return { success: true, message: '预约已取消' };
 }
@@ -356,6 +413,161 @@ async function redeemRoomUsageCoupon(openid, memberRightId) {
     usageCount,
     message: '已成功增加包房使用次数'
   };
+}
+
+function buildMemberReservationList(reservations, roomMap) {
+  if (!Array.isArray(reservations) || !reservations.length) {
+    return [];
+  }
+  const result = reservations
+    .filter((reservation) => reservation && MEMBER_VISIBLE_STATUSES.includes(reservation.status))
+    .map((reservation) => {
+      const room = reservation.roomId ? roomMap.get(reservation.roomId) : null;
+      const roomName = resolveRoomName(room, reservation.roomName);
+      return {
+        _id: reservation._id,
+        roomId: reservation.roomId || '',
+        roomName,
+        date: reservation.date || '',
+        startTime: reservation.startTime || '',
+        endTime: reservation.endTime || '',
+        status: reservation.status || 'pendingApproval',
+        statusLabel: resolveReservationStatusLabel(reservation.status),
+        price: Number(reservation.price || 0),
+        canCancel: canMemberCancelReservation(reservation.status),
+        updatedAt: reservation.updatedAt || reservation.createdAt || null
+      };
+    });
+
+  result.sort((a, b) => {
+    const dateDiff = compareDateTime(a, b);
+    if (dateDiff !== 0) {
+      return dateDiff;
+    }
+    if (a.updatedAt && b.updatedAt) {
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    }
+    return 0;
+  });
+
+  return result;
+}
+
+function compareDateTime(a, b) {
+  const dateA = new Date(`${a.date || ''}T${a.startTime || '00:00'}:00`).getTime();
+  const dateB = new Date(`${b.date || ''}T${b.startTime || '00:00'}:00`).getTime();
+  if (Number.isFinite(dateA) && Number.isFinite(dateB)) {
+    return dateA - dateB;
+  }
+  if (Number.isFinite(dateA)) {
+    return -1;
+  }
+  if (Number.isFinite(dateB)) {
+    return 1;
+  }
+  return 0;
+}
+
+function canMemberCancelReservation(status) {
+  return ['pendingApproval', 'approved', 'reserved', 'confirmed', 'pendingPayment'].includes(status);
+}
+
+function resolveRoomName(room, fallback) {
+  if (room && typeof room === 'object') {
+    if (typeof room.name === 'string' && room.name) {
+      return room.name;
+    }
+    if (typeof room.title === 'string' && room.title) {
+      return room.title;
+    }
+  }
+  if (typeof fallback === 'string' && fallback) {
+    return fallback;
+  }
+  return '包房';
+}
+
+function resolveReservationStatusLabel(status) {
+  const map = {
+    pendingApproval: '待审核',
+    approved: '已通过',
+    rejected: '已拒绝',
+    cancelled: '已取消',
+    reserved: '已预约',
+    confirmed: '已确认',
+    pendingPayment: '待支付'
+  };
+  return map[status] || '待处理';
+}
+
+function normalizeReservationBadges(badges) {
+  const defaults = {
+    memberVersion: 0,
+    memberSeenVersion: 0,
+    adminVersion: 0,
+    adminSeenVersion: 0,
+    pendingApprovalCount: 0
+  };
+  const normalized = { ...defaults };
+  if (badges && typeof badges === 'object') {
+    Object.keys(defaults).forEach((key) => {
+      const value = badges[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        normalized[key] = key.endsWith('Count')
+          ? Math.max(0, Math.floor(value))
+          : Math.max(0, Math.floor(value));
+      } else if (typeof value === 'string' && value) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          normalized[key] = key.endsWith('Count')
+            ? Math.max(0, Math.floor(numeric))
+            : Math.max(0, Math.floor(numeric));
+        }
+      }
+    });
+  }
+  return normalized;
+}
+
+async function updateAdminReservationBadges({ incrementVersion = false } = {}) {
+  try {
+    const [pendingResult, adminSnapshot] = await Promise.all([
+      db
+        .collection(COLLECTIONS.RESERVATIONS)
+        .where({ status: 'pendingApproval' })
+        .count()
+        .catch(() => ({ total: 0 })),
+      db
+        .collection(COLLECTIONS.MEMBERS)
+        .where({ roles: _.in(ADMIN_ROLES) })
+        .get()
+        .catch(() => ({ data: [] }))
+    ]);
+
+    const pendingCount = pendingResult && Number.isFinite(pendingResult.total) ? pendingResult.total : 0;
+    const admins = Array.isArray(adminSnapshot.data) ? adminSnapshot.data : [];
+
+    await Promise.all(
+      admins.map((admin) =>
+        db
+          .collection(COLLECTIONS.MEMBERS)
+          .doc(admin._id)
+          .update({
+            data: {
+              'reservationBadges.pendingApprovalCount': pendingCount,
+              ...(incrementVersion ? { 'reservationBadges.adminVersion': _.inc(1) } : {}),
+              updatedAt: new Date()
+            }
+          })
+          .catch(() => {})
+      )
+    );
+
+    return pendingCount;
+  } catch (error) {
+    console.error('[reservation] update admin badges failed', error);
+    return 0;
+  }
 }
 
 function resolvePrice(room, range) {

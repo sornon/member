@@ -41,6 +41,75 @@
   border: 1rpx solid rgba(138, 160, 255, 0.5);
 }
 
+.reservations-card {
+  margin-bottom: 20rpx;
+}
+
+.reservations-card .reservation-item {
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid rgba(108, 128, 210, 0.18);
+}
+
+.reservations-card .reservation-item:last-child {
+  border-bottom: none;
+}
+
+.reservation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.reservation-room {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #f6f8ff;
+}
+
+.reservation-status {
+  font-size: 24rpx;
+  padding: 6rpx 16rpx;
+  border-radius: 16rpx;
+  background: rgba(40, 58, 120, 0.4);
+  color: #d6deff;
+  border: 1rpx solid rgba(116, 136, 226, 0.36);
+}
+
+.reservation-status.pendingApproval {
+  background: rgba(128, 146, 255, 0.24);
+  color: #dfe4ff;
+}
+
+.reservation-status.approved,
+.reservation-status.reserved,
+.reservation-status.confirmed {
+  background: rgba(96, 196, 150, 0.24);
+  color: #c7f3df;
+}
+
+.reservation-status.pendingPayment {
+  background: rgba(255, 214, 153, 0.22);
+  color: #ffe3b6;
+}
+
+.reservation-time,
+.reservation-meta {
+  font-size: 24rpx;
+  color: rgba(204, 214, 255, 0.78);
+  margin-bottom: 10rpx;
+}
+
+.reservations-card button {
+  margin-top: 12rpx;
+}
+
+.reservations-card--empty {
+  color: rgba(198, 206, 255, 0.7);
+  text-align: center;
+  padding: 28rpx 0;
+}
+
 .usage {
   margin-bottom: 12rpx;
   font-size: 24rpx;

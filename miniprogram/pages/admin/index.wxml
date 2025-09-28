@@ -13,6 +13,7 @@
       data-url="{{item.url}}"
       bindtap="handleActionTap"
     >
+      <view wx:if="{{item.showDot}}" class="action-dot">{{item.badgeText}}</view>
       <view class="action-icon">{{item.icon}}</view>
       <view class="action-info">
         <view class="action-label">{{item.label}}</view>

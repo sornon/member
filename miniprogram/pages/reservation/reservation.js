@@ -29,7 +29,10 @@ Page({
     timeError: '',
     notice: null,
     noticeDismissed: false,
-    memberUsageCount: 0
+    memberUsageCount: 0,
+    memberReservations: [],
+    reservationBadges: null,
+    cancellingId: ''
   },
 
   onLoad(options) {
@@ -56,8 +59,11 @@ Page({
         loading: false,
         notice: result.notice || null,
         noticeDismissed: false,
-        memberUsageCount: Math.max(0, Number(result.memberUsageCount || 0))
+        memberUsageCount: Math.max(0, Number(result.memberUsageCount || 0)),
+        memberReservations: Array.isArray(result.memberReservations) ? result.memberReservations : [],
+        reservationBadges: result.reservationBadges || null
       });
+      this.updateGlobalReservationBadges(result.reservationBadges);
     } catch (error) {
       this.setData({ loading: false });
     }
@@ -130,6 +136,51 @@ Page({
 
   dismissNotice() {
     this.setData({ noticeDismissed: true });
+  },
+
+  async handleCancelReservation(event) {
+    const { id } = event.currentTarget.dataset;
+    if (!id || this.data.cancellingId) {
+      return;
+    }
+    wx.showModal({
+      title: '取消预约',
+      content: '确定取消该包房预约吗？',
+      confirmText: '取消预约',
+      cancelText: '暂不取消',
+      success: async (res) => {
+        if (!res.confirm) {
+          return;
+        }
+        this.setData({ cancellingId: id });
+        try {
+          await ReservationService.cancel(id);
+          wx.showToast({ title: '已取消预约', icon: 'success' });
+          this.fetchRooms();
+        } catch (error) {
+          wx.showToast({ title: error.errMsg || error.message || '取消失败', icon: 'none' });
+        } finally {
+          this.setData({ cancellingId: '' });
+        }
+      }
+    });
+  },
+
+  updateGlobalReservationBadges(badges) {
+    if (!badges || typeof getApp !== 'function') {
+      return;
+    }
+    try {
+      const app = getApp();
+      if (app && app.globalData) {
+        app.globalData.memberInfo = {
+          ...(app.globalData.memberInfo || {}),
+          reservationBadges: { ...(badges || {}) }
+        };
+      }
+    } catch (error) {
+      console.error('[reservation] update global badges failed', error);
+    }
   },
 
   formatCurrency

@@ -54,7 +54,10 @@
 
     <view class="bottom-nav">
       <view class="nav-item" wx:for="{{navItems}}" wx:key="label" data-url="{{item.url}}" bindtap="handleNavTap">
-        <view class="nav-icon">{{item.icon}}</view>
+        <view class="nav-icon-wrapper">
+          <text class="nav-icon">{{item.icon}}</text>
+          <view wx:if="{{item.showDot}}" class="nav-item__dot"></view>
+        </view>
         <view class="nav-label">{{item.label}}</view>
       </view>
     </view>
