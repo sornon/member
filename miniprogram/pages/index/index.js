@@ -328,15 +328,20 @@ Page({
       nickName: '',
       gender: 'unknown',
       avatarUrl: '',
-      avatarOptions: [],
-      avatarSeed: 0,
       renameCredits: 0,
       renameCards: 0,
       renameUsed: 0,
       renameHistory: []
     },
     profileSaving: false,
-    renameRedeeming: false
+    renameRedeeming: false,
+    showAvatarPicker: false,
+    avatarPickerSaving: false,
+    avatarPicker: {
+      avatarUrl: '',
+      avatarOptions: [],
+      avatarSeed: 0
+    }
   },
 
   onLoad() {
@@ -521,6 +526,10 @@ Page({
     this.openArchiveEditor();
   },
 
+  handleAvatarTap() {
+    this.openAvatarPicker();
+  },
+
   handleStoneTap() {
     wx.navigateTo({ url: '/pages/stones/stones' });
   },
@@ -534,8 +543,6 @@ Page({
     const nickName = member.nickName || '';
     const gender = normalizeGenderValue(member.gender);
     const avatarUrl = member.avatarUrl || this.data.defaultAvatar;
-    const seed = Date.now();
-    const options = computeAvatarOptionList(nickName, avatarUrl, seed);
     const renameHistory = formatHistoryList(member.renameHistory);
     this.setData({
       showProfile: true,
@@ -546,8 +553,6 @@ Page({
         nickName,
         gender,
         avatarUrl,
-        avatarOptions: options,
-        avatarSeed: seed,
         renameCredits: member.renameCredits || 0,
         renameCards: member.renameCards || 0,
         renameUsed: member.renameUsed || 0,
@@ -567,34 +572,12 @@ Page({
     });
   },
 
-  rebuildAvatarOptions(options = {}) {
-    const keepSeed = options.keepSeed !== false;
-    const preserveSelection = options.preserveSelection !== false;
-    const seed = keepSeed && this.data.profileEditor.avatarSeed ? this.data.profileEditor.avatarSeed : Date.now();
-    const member = this.data.member || {};
-    const name = this.data.profileEditor.nickName || member.nickName || '';
-    const baseAvatar = member.avatarUrl || this.data.defaultAvatar;
-    const currentAvatar = preserveSelection
-      ? this.data.profileEditor.avatarUrl || baseAvatar
-      : baseAvatar;
-    const avatarOptions = computeAvatarOptionList(name, currentAvatar, seed);
-    this.setData({
-      'profileEditor.avatarSeed': seed,
-      'profileEditor.avatarOptions': avatarOptions
-    });
-  },
-
   handleArchiveNickname(event) {
     const detail = event && event.detail ? event.detail : {};
     const value = typeof detail.value === 'string' ? detail.value : '';
-    this.setData(
-      {
-        'profileEditor.nickName': value
-      },
-      () => {
-        this.rebuildAvatarOptions({ keepSeed: true, preserveSelection: true });
-      }
-    );
+    this.setData({
+      'profileEditor.nickName': value
+    });
   },
 
   handleGenderSelect(event) {
@@ -607,27 +590,56 @@ Page({
     this.setData({ 'profileEditor.gender': gender });
   },
 
-  handleArchiveAvatarSelect(event) {
-    if (this.data.profileSaving) {
+  openAvatarPicker() {
+    if (this.data.avatarPickerSaving) {
       return;
     }
-    const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
-    const url = dataset.url;
-    if (typeof url === 'string' && url) {
-      this.setData({ 'profileEditor.avatarUrl': url });
-    }
+    const member = this.data.member || {};
+    const nickName = this.data.profileEditor.nickName || member.nickName || '';
+    const baseAvatar = member.avatarUrl || this.data.defaultAvatar;
+    const seed = Date.now();
+    const options = computeAvatarOptionList(nickName, baseAvatar, seed);
+    this.setData({
+      showAvatarPicker: true,
+      avatarPickerSaving: false,
+      avatarPicker: {
+        avatarUrl: baseAvatar,
+        avatarSeed: seed,
+        avatarOptions: options
+      }
+    });
   },
 
-  handleRegenerateAvatars() {
-    if (this.data.profileSaving) {
+  handleCloseAvatarPicker() {
+    if (this.data.avatarPickerSaving) {
       return;
     }
-    this.rebuildAvatarOptions({ keepSeed: false, preserveSelection: true });
+    this.setData({
+      showAvatarPicker: false,
+      avatarPickerSaving: false
+    });
   },
 
-  mergeAvatarOptions(preferredUrl) {
-    const options = Array.isArray(this.data.profileEditor.avatarOptions)
-      ? [...this.data.profileEditor.avatarOptions]
+  rebuildAvatarPickerOptions(options = {}) {
+    const keepSeed = options.keepSeed !== false;
+    const preserveSelection = options.preserveSelection !== false;
+    const seed = keepSeed && this.data.avatarPicker.avatarSeed ? this.data.avatarPicker.avatarSeed : Date.now();
+    const member = this.data.member || {};
+    const name = this.data.profileEditor.nickName || member.nickName || '';
+    const baseAvatar = member.avatarUrl || this.data.defaultAvatar;
+    const currentAvatar = preserveSelection
+      ? this.data.avatarPicker.avatarUrl || baseAvatar
+      : baseAvatar;
+    const avatarOptions = computeAvatarOptionList(name, currentAvatar, seed);
+    this.setData({
+      'avatarPicker.avatarSeed': seed,
+      'avatarPicker.avatarOptions': avatarOptions
+    });
+  },
+
+  mergeAvatarPickerOptions(preferredUrl) {
+    const options = Array.isArray(this.data.avatarPicker.avatarOptions)
+      ? [...this.data.avatarPicker.avatarOptions]
       : [];
     const result = [];
     const seen = new Set();
@@ -645,8 +657,26 @@ Page({
     return result;
   },
 
-  handleSyncWechatAvatar() {
-    if (this.data.profileSaving) {
+  handleAvatarPickerSelect(event) {
+    if (this.data.avatarPickerSaving) {
+      return;
+    }
+    const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
+    const url = dataset.url;
+    if (typeof url === 'string' && url) {
+      this.setData({ 'avatarPicker.avatarUrl': url });
+    }
+  },
+
+  handleAvatarPickerRegenerate() {
+    if (this.data.avatarPickerSaving) {
+      return;
+    }
+    this.rebuildAvatarPickerOptions({ keepSeed: false, preserveSelection: true });
+  },
+
+  handleAvatarPickerSyncWechat() {
+    if (this.data.avatarPickerSaving) {
       return;
     }
     wx.getUserProfile({
@@ -658,10 +688,10 @@ Page({
           wx.showToast({ title: '未获取到头像', icon: 'none' });
           return;
         }
-        const merged = this.mergeAvatarOptions(avatarUrl);
+        const merged = this.mergeAvatarPickerOptions(avatarUrl);
         this.setData({
-          'profileEditor.avatarUrl': avatarUrl,
-          'profileEditor.avatarOptions': merged
+          'avatarPicker.avatarUrl': avatarUrl,
+          'avatarPicker.avatarOptions': merged
         });
         wx.showToast({ title: '已同步微信头像', icon: 'success' });
       },
@@ -669,6 +699,26 @@ Page({
         wx.showToast({ title: '未获取到头像', icon: 'none' });
       }
     });
+  },
+
+  async handleAvatarPickerConfirm() {
+    if (this.data.avatarPickerSaving) {
+      return;
+    }
+    const avatarUrl = this.data.avatarPicker.avatarUrl || this.data.defaultAvatar;
+    this.setData({ avatarPickerSaving: true });
+    try {
+      const member = await MemberService.updateArchive({
+        avatarUrl
+      });
+      this.applyMemberUpdate(member);
+      this.setData({ showAvatarPicker: false });
+      wx.showToast({ title: '头像已更新', icon: 'success' });
+    } catch (error) {
+      // callCloud 已提示
+    } finally {
+      this.setData({ avatarPickerSaving: false });
+    }
   },
 
   async handleArchiveSubmit() {
@@ -710,7 +760,6 @@ Page({
     try {
       const member = await MemberService.redeemRenameCard(1);
       this.applyMemberUpdate(member);
-      this.rebuildAvatarOptions({ keepSeed: true, preserveSelection: true });
       wx.showToast({ title: '改名次数 +1', icon: 'success' });
     } catch (error) {
       // callCloud 已提示
@@ -731,6 +780,7 @@ Page({
       'profileEditor.nickName': member.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(member.gender),
       'profileEditor.avatarUrl': member.avatarUrl || this.data.profileEditor.avatarUrl,
+      'avatarPicker.avatarUrl': member.avatarUrl || this.data.avatarPicker.avatarUrl,
       'profileEditor.renameCredits': member.renameCredits || 0,
       'profileEditor.renameCards': member.renameCards || 0,
       'profileEditor.renameUsed': member.renameUsed || 0,

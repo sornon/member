@@ -115,32 +115,13 @@ page {
   margin-top: 12rpx;
   display: flex;
   flex-direction: column;
-  gap: 10rpx;
+  gap: 8rpx;
+  font-size: 24rpx;
+  color: rgba(220, 230, 255, 0.8);
 }
 
-.profile-meta__item {
-  display: inline-flex;
-  align-items: center;
-  gap: 12rpx;
-  padding: 10rpx 16rpx;
-  border-radius: 999rpx;
-  background: rgba(18, 26, 53, 0.36);
-  color: rgba(220, 230, 255, 0.88);
-  transition: background 0.2s ease;
-}
-
-.profile-meta__item--hover {
-  background: rgba(51, 77, 135, 0.56);
-}
-
-.profile-meta__label {
-  font-size: 22rpx;
-  letter-spacing: 2rpx;
-}
-
-.profile-meta__value {
-  font-size: 26rpx;
-  font-weight: 600;
+.profile-meta__text {
+  display: block;
   white-space: nowrap;
 }
 
@@ -355,6 +336,14 @@ page {
 .modal-content--editor {
   width: 620rpx;
   max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  padding: 32rpx 36rpx 28rpx;
+}
+
+.modal-content--avatar {
+  width: 620rpx;
+  max-height: 70vh;
   display: flex;
   flex-direction: column;
   padding: 32rpx 36rpx 28rpx;
