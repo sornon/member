@@ -1,4 +1,4 @@
-<custom-nav title="灵石账户"></custom-nav>
+<custom-nav title="灵石账户" theme="dark"></custom-nav>
 <view class="container">
   <view class="card">
     <view class="section-title">灵石余额</view>

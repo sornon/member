@@ -1,4 +1,4 @@
-<custom-nav title="预约包房"></custom-nav>
+<custom-nav title="预约包房" theme="dark"></custom-nav>
 <view class="container">
   <view class="card filter-card">
     <view class="section-title">选择日期与时段</view>

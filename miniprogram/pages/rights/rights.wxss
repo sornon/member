@@ -1,6 +1,6 @@
 .right-item {
   padding: 24rpx 0;
-  border-bottom: 1rpx solid #eceff9;
+  border-bottom: 1rpx solid rgba(108, 128, 210, 0.28);
 }
 
 .right-item:last-child {
@@ -16,36 +16,41 @@
 .right-name {
   font-size: 30rpx;
   font-weight: 600;
-  color: #0f244a;
+  color: #f6f8ff;
 }
 
 .status {
   font-size: 24rpx;
   padding: 8rpx 16rpx;
   border-radius: 16rpx;
-  background: #f1f5f9;
-  color: #334155;
+  background: rgba(20, 32, 86, 0.85);
+  color: #d7deff;
+  border: 1rpx solid rgba(128, 148, 236, 0.45);
 }
 
 .status.active {
-  background: rgba(91, 140, 255, 0.16);
-  color: #5b5cf1;
+  background: rgba(86, 108, 255, 0.28);
+  color: #cfd6ff;
+  border-color: rgba(151, 170, 255, 0.5);
 }
 
 .status.used {
-  background: #fef3c7;
-  color: #d97706;
+  background: rgba(255, 199, 111, 0.18);
+  color: #ffdca1;
+  border-color: rgba(255, 205, 128, 0.35);
 }
 
 .status.expired {
-  background: #fee2e2;
-  color: #b91c1c;
+  background: rgba(217, 82, 90, 0.18);
+  color: #ffb0ba;
+  border-color: rgba(235, 110, 120, 0.4);
 }
 
 .right-desc {
   margin-top: 12rpx;
   font-size: 24rpx;
-  color: #6d758c;
+  color: rgba(205, 215, 255, 0.75);
+  line-height: 1.6;
 }
 
 .right-footer {
@@ -54,5 +59,5 @@
   justify-content: space-between;
   align-items: center;
   font-size: 24rpx;
-  color: #6d758c;
+  color: rgba(191, 203, 255, 0.7);
 }

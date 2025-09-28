@@ -1,5 +1,5 @@
 page {
-  background: #f5f7fb;
+  background: #050921;
   min-height: 100%;
 }
 
@@ -8,47 +8,51 @@ page {
   display: flex;
   flex-direction: column;
   gap: 32rpx;
+  color: #e7ecff;
 }
 
 .card {
-  background: #ffffff;
+  background: rgba(14, 22, 54, 0.92);
   border-radius: 24rpx;
   padding: 32rpx;
-  box-shadow: 0 12rpx 32rpx rgba(5, 14, 40, 0.08);
+  box-shadow: 0 18rpx 36rpx rgba(4, 8, 28, 0.55);
+  border: 1rpx solid rgba(119, 138, 230, 0.24);
+  color: #f1f4ff;
 }
 
 .section-title {
   font-size: 30rpx;
   font-weight: 600;
-  color: #1b1f36;
+  color: #f6f8ff;
   margin-bottom: 16rpx;
 }
 
 .balance {
   font-size: 56rpx;
   font-weight: 700;
-  color: #5b35d5;
+  color: #c7d3ff;
   margin-bottom: 12rpx;
 }
 
 .meta {
   font-size: 24rpx;
-  color: #697089;
+  color: rgba(200, 210, 255, 0.78);
 }
 
 .tip {
   margin-top: 16rpx;
   padding: 16rpx;
-  background: rgba(91, 53, 213, 0.08);
+  background: rgba(86, 104, 255, 0.2);
   border-radius: 16rpx;
-  color: #5b35d5;
+  color: #dde4ff;
   font-size: 22rpx;
+  border: 1rpx solid rgba(144, 165, 255, 0.35);
 }
 
 .empty-state {
   padding: 32rpx 0;
   text-align: center;
-  color: #8a91a6;
+  color: rgba(195, 206, 255, 0.7);
 }
 
 .transaction {
@@ -56,7 +60,7 @@ page {
   justify-content: space-between;
   align-items: flex-start;
   padding: 20rpx 0;
-  border-bottom: 1px solid #eef1f7;
+  border-bottom: 1px solid rgba(108, 128, 210, 0.24);
 }
 
 .transaction:last-child {
@@ -65,20 +69,20 @@ page {
 
 .txn-title {
   font-size: 28rpx;
-  color: #1b1f36;
+  color: #f7f9ff;
   font-weight: 600;
 }
 
 .txn-meta {
   margin-top: 8rpx;
   font-size: 22rpx;
-  color: #8a91a6;
+  color: rgba(190, 201, 255, 0.68);
 }
 
 .txn-desc {
   margin-top: 8rpx;
   font-size: 24rpx;
-  color: #4a5070;
+  color: rgba(212, 219, 255, 0.72);
 }
 
 .txn-amount {
@@ -86,12 +90,13 @@ page {
   font-weight: 700;
   min-width: 150rpx;
   text-align: right;
+  color: #f7f9ff;
 }
 
 .txn-amount.income {
-  color: #18a058;
+  color: #68f5a4;
 }
 
 .txn-amount.expense {
-  color: #d9304f;
+  color: #ff7a8a;
 }

@@ -1,21 +1,21 @@
 .balance {
   font-size: 44rpx;
   font-weight: 700;
-  color: #0f244a;
+  color: #f7f9ff;
 }
 
 .meta {
   margin-top: 12rpx;
   font-size: 24rpx;
-  color: #6d758c;
+  color: rgba(198, 208, 255, 0.78);
 }
 
 .scan {
   margin-top: 20rpx;
-  background: rgba(79, 70, 229, 0.15);
-  color: #4f46e5;
+  background: rgba(86, 108, 255, 0.24);
+  color: #dbe2ff;
   border-radius: 32rpx;
-  border: none;
+  border: 1rpx solid rgba(146, 164, 255, 0.4);
   padding: 12rpx 32rpx;
   font-size: 24rpx;
 }
@@ -30,27 +30,30 @@
 .preset {
   padding: 16rpx 32rpx;
   border-radius: 999rpx;
-  background: #f1f5f9;
-  color: #334155;
+  background: rgba(20, 32, 86, 0.82);
+  color: #d8e0ff;
   font-size: 26rpx;
+  border: 1rpx solid rgba(119, 138, 230, 0.32);
 }
 
 .preset.active {
-  background: linear-gradient(135deg, #5b8cff, #8645ff);
+  background: linear-gradient(135deg, #566aff, #8a4bff);
   color: #ffffff;
+  box-shadow: 0 12rpx 24rpx rgba(30, 24, 84, 0.45);
 }
 
 .input-box {
   margin-bottom: 24rpx;
-  background: #f8fafc;
+  background: rgba(14, 22, 54, 0.88);
   border-radius: 16rpx;
   padding: 16rpx 24rpx;
+  border: 1rpx solid rgba(108, 128, 210, 0.32);
 }
 
 .input-box input {
   width: 100%;
   font-size: 32rpx;
-  color: #0f244a;
+  color: #f1f5ff;
 }
 
 .transaction {
@@ -58,7 +61,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 24rpx 0;
-  border-bottom: 1rpx solid #eceff9;
+  border-bottom: 1rpx solid rgba(108, 128, 210, 0.24);
 }
 
 .transaction:last-child {
@@ -67,30 +70,31 @@
 
 .txn-title {
   font-size: 28rpx;
-  color: #0f244a;
+  color: #f6f7ff;
 }
 
 .txn-date {
   font-size: 24rpx;
-  color: #94a3b8;
+  color: rgba(186, 196, 255, 0.68);
   margin-top: 6rpx;
 }
 
 .txn-remark {
   font-size: 24rpx;
-  color: #64748b;
+  color: rgba(208, 215, 255, 0.72);
   margin-top: 6rpx;
 }
 
 .txn-amount {
   font-size: 28rpx;
   font-weight: 600;
+  color: #f6f9ff;
 }
 
 .txn-amount.income {
-  color: #16a34a;
+  color: #6ef7a1;
 }
 
 .txn-amount.expense {
-  color: #dc2626;
+  color: #ff8484;
 }

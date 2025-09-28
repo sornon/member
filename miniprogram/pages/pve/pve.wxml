@@ -1,4 +1,4 @@
-<custom-nav title="秘境挑战"></custom-nav>
+<custom-nav title="秘境挑战" theme="dark"></custom-nav>
 <view class="page">
   <view wx:if="{{loading}}" class="loading">灵气汇聚中...</view>
   <scroll-view wx:elif="{{profile}}" scroll-y="true" class="scroll-container">

@@ -1,5 +1,5 @@
 page {
-  background: #f4f6fb;
+  background: #050921;
   min-height: 100%;
 }
 
@@ -8,6 +8,7 @@ page {
   min-height: 100%;
   display: flex;
   flex-direction: column;
+  color: #e7ecff;
 }
 
 .tab-bar {
@@ -24,7 +25,7 @@ page {
   flex: 1;
   text-align: center;
   font-size: 28rpx;
-  color: #7a81a0;
+  color: rgba(188, 198, 255, 0.68);
   position: relative;
   padding: 20rpx 0;
   transition: color 0.2s ease;
@@ -44,22 +45,22 @@ page {
 }
 
 .tab-item--active {
-  color: #3942d5;
+  color: #f7f9ff;
   font-weight: 600;
 }
 
 .tab-item--active::after {
-  background: linear-gradient(90deg, #6a5dff, #9f7bff);
+  background: linear-gradient(90deg, #566aff, #8a4bff);
 }
 
 .tab-item--hover {
-  color: #505a85;
+  color: rgba(214, 222, 255, 0.86);
 }
 
 .loading {
   padding: 200rpx 0;
   text-align: center;
-  color: #6d748d;
+  color: rgba(189, 201, 255, 0.75);
   font-size: 28rpx;
 }
 
@@ -70,11 +71,12 @@ page {
 }
 
 .section-card {
-  background: #ffffff;
+  background: rgba(14, 22, 54, 0.92);
   border-radius: 28rpx;
   padding: 32rpx;
   margin-bottom: 32rpx;
-  box-shadow: 0 18rpx 36rpx rgba(43, 55, 95, 0.08);
+  box-shadow: 0 18rpx 36rpx rgba(4, 8, 28, 0.55);
+  border: 1rpx solid rgba(119, 138, 230, 0.28);
 }
 
 .section-header {
@@ -87,7 +89,7 @@ page {
 .section-title {
   font-size: 32rpx;
   font-weight: 700;
-  color: #1b1f36;
+  color: #f7f8ff;
 }
 
 .section-actions {
@@ -103,7 +105,7 @@ page {
 .level-line {
   display: flex;
   justify-content: space-between;
-  color: #59617c;
+  color: rgba(198, 208, 255, 0.7);
   font-size: 24rpx;
   margin-bottom: 12rpx;
   align-items: flex-start;
@@ -119,7 +121,7 @@ page {
 .level-name {
   font-size: 30rpx;
   font-weight: 600;
-  color: #303654;
+  color: #f6f9ff;
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
@@ -128,22 +130,22 @@ page {
 
 .level-count {
   font-size: 22rpx;
-  color: #7a81a0;
+  color: rgba(184, 196, 255, 0.7);
 }
 
 .level-realm {
   font-size: 24rpx;
-  color: #59617c;
+  color: rgba(198, 208, 255, 0.72);
 }
 
 .level-next {
   font-size: 22rpx;
-  color: #8c94b0;
+  color: rgba(210, 220, 255, 0.72);
 }
 
 .progress-text {
   font-size: 24rpx;
-  color: #59617c;
+  color: rgba(200, 210, 255, 0.72);
   text-align: right;
   line-height: 1.6;
 }
@@ -154,7 +156,7 @@ page {
 
 .progress-bar {
   position: relative;
-  background: #e8ecf6;
+  background: rgba(45, 58, 112, 0.8);
   border-radius: 999rpx;
   height: 16rpx;
   overflow: hidden;
@@ -166,7 +168,7 @@ page {
   top: 0;
   left: 0;
   bottom: 0;
-  background: linear-gradient(90deg, #6a5dff, #9f7bff);
+  background: linear-gradient(90deg, #566aff, #8a4bff);
   border-radius: 999rpx;
 }
 
@@ -177,26 +179,28 @@ page {
 }
 
 .attr-item {
-  background: #f7f8ff;
+  background: rgba(20, 32, 86, 0.82);
   border-radius: 20rpx;
   padding: 24rpx;
+  border: 1rpx solid rgba(119, 138, 230, 0.28);
+  color: #f2f4ff;
 }
 
 .attr-label {
   font-size: 26rpx;
-  color: #6b7391;
+  color: rgba(200, 208, 255, 0.75);
 }
 
 .attr-value {
   font-size: 40rpx;
   font-weight: 700;
-  color: #3942d5;
+  color: #cdd6ff;
   margin: 12rpx 0;
 }
 
 .attr-detail {
   font-size: 22rpx;
-  color: #8c94b0;
+  color: rgba(204, 214, 255, 0.72);
 }
 
 .attr-extra {

@@ -18,10 +18,10 @@
     "pages/wallet/charge-confirm/index"
   ],
   "window": {
-    "backgroundTextStyle": "light",
-    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#050921",
     "navigationBarTitleText": "会员中心",
-    "navigationBarTextStyle": "black",
+    "navigationBarTextStyle": "white",
     "navigationStyle": "custom"
   },
   "style": "v2",

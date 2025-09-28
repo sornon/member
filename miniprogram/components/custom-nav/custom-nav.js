@@ -16,7 +16,7 @@ Component({
     },
     theme: {
       type: String,
-      value: 'light'
+      value: 'dark'
     }
   },
 

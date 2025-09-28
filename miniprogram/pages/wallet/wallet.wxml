@@ -1,4 +1,4 @@
-<custom-nav title="现金钱包"></custom-nav>
+<custom-nav title="现金钱包" theme="dark"></custom-nav>
 <view class="container">
   <view class="card">
     <view class="section-title">现金余额</view>
