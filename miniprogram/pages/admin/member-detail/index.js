@@ -79,7 +79,8 @@ Page({
       cashBalance: '',
       stoneBalance: '',
       levelId: '',
-      roles: []
+      roles: [],
+      renameCredits: ''
     },
     rechargeVisible: false,
     rechargeAmount: '',
@@ -147,7 +148,8 @@ Page({
         cashBalance: this.formatYuan(member.cashBalance ?? member.balance ?? 0),
         stoneBalance: String(member.stoneBalance ?? 0),
         levelId: member.levelId || currentLevel._id || '',
-        roles
+        roles,
+        renameCredits: String(member.renameCredits ?? 0)
       },
       roleOptions,
       renameHistory: formatRenameHistory(member.renameHistory)
@@ -194,7 +196,8 @@ Page({
         cashBalance: this.parseYuanToFen(this.data.form.cashBalance),
         stoneBalance: Number(this.data.form.stoneBalance || 0),
         levelId: this.data.form.levelId,
-        roles: ensureMemberRole(this.data.form.roles)
+        roles: ensureMemberRole(this.data.form.roles),
+        renameCredits: this.parseRenameCredits(this.data.form.renameCredits)
       };
       const detail = await AdminService.updateMember(this.data.memberId, payload);
       this.applyDetail(detail);
@@ -261,6 +264,24 @@ Page({
       const sanitized = input.trim().replace(/[^0-9.-]/g, '');
       const parsed = Number(sanitized);
       return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+    }
+    return 0;
+  },
+
+  parseRenameCredits(input) {
+    if (input == null || input === '') {
+      return 0;
+    }
+    if (typeof input === 'number' && Number.isFinite(input)) {
+      return Math.max(0, Math.floor(input));
+    }
+    if (typeof input === 'string') {
+      const sanitized = input.trim().replace(/[^0-9]/g, '');
+      if (!sanitized) {
+        return 0;
+      }
+      const parsed = Number(sanitized);
+      return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
     }
     return 0;
   }

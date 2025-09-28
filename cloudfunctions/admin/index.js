@@ -481,6 +481,10 @@ function buildUpdatePayload(updates, existing = {}) {
     const stones = Number(updates.stoneBalance || 0);
     payload.stoneBalance = Number.isFinite(stones) ? Math.max(0, Math.floor(stones)) : 0;
   }
+  if (Object.prototype.hasOwnProperty.call(updates, 'renameCredits')) {
+    const credits = Number(updates.renameCredits || 0);
+    payload.renameCredits = Number.isFinite(credits) ? Math.max(0, Math.floor(credits)) : 0;
+  }
   if (Object.prototype.hasOwnProperty.call(updates, 'roles')) {
     const roles = Array.isArray(updates.roles) ? updates.roles : [];
     const filtered = roles.filter((role) => ['member', 'admin', 'developer'].includes(role));

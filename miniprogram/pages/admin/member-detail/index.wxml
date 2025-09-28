@@ -31,9 +31,19 @@
         bindinput="handleInputChange"
       />
     </view>
+    <view class="form-item">
+      <view class="form-label">剩余改名次数</view>
+      <input
+        class="form-input"
+        type="number"
+        value="{{form.renameCredits}}"
+        placeholder="请输入剩余改名次数"
+        data-field="renameCredits"
+        bindinput="handleInputChange"
+      />
+    </view>
     <view class="rename-meta">
-      <text>剩余改名次数：{{member.renameCredits || 0}}</text>
-      <text>已使用：{{member.renameUsed || 0}}</text>
+      <text>已使用改名次数：{{member.renameUsed || 0}}</text>
     </view>
     <view wx:if="{{renameHistory.length}}" class="rename-history">
       <view class="rename-history__title">改名记录</view>
