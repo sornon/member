@@ -249,6 +249,31 @@ export const WalletService = {
   }
 };
 
+export const PveService = {
+  async profile() {
+    return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'profile' });
+  },
+  async battle(enemyId) {
+    return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'battle', enemyId });
+  },
+  async drawSkill() {
+    return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'drawSkill' });
+  },
+  async equipSkill({ skillId, slot } = {}) {
+    const payload = { action: 'equipSkill', skillId: skillId || '' };
+    if (typeof slot === 'number') {
+      payload.slot = slot;
+    }
+    return callCloud(CLOUD_FUNCTIONS.PVE, payload);
+  },
+  async equipItem(itemId) {
+    return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'equipItem', itemId });
+  },
+  async allocatePoints(allocations = {}) {
+    return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'allocatePoints', allocations });
+  }
+};
+
 export const StoneService = {
   async summary() {
     return callCloud(CLOUD_FUNCTIONS.STONES, { action: 'summary' });

@@ -7,6 +7,7 @@ const BASE_NAV_ITEMS = [
   { icon: '🎁', label: '权益', url: '/pages/rights/rights' },
   { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
   { icon: '🪙', label: '灵石', url: '/pages/stones/stones' },
+  { icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
   { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
   { icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
