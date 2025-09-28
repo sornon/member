@@ -454,22 +454,89 @@ page {
   color: rgba(218, 225, 255, 0.75);
 }
 
-.onboarding-section {
+.authorization-steps {
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
-  margin-bottom: 32rpx;
+  gap: 28rpx;
 }
 
-.onboarding-label {
+.authorization-step {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+  padding: 28rpx 26rpx 32rpx;
+  border-radius: 28rpx;
+  background: rgba(22, 32, 84, 0.85);
+  border: 1rpx solid rgba(120, 148, 255, 0.38);
+}
+
+.authorization-step--done {
+  border-color: rgba(132, 162, 255, 0.92);
+  background: rgba(29, 43, 96, 0.92);
+  box-shadow: 0 16rpx 32rpx rgba(16, 24, 72, 0.45);
+}
+
+.authorization-step__header {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.authorization-step__index {
+  width: 52rpx;
+  height: 52rpx;
+  border-radius: 50%;
+  background: linear-gradient(140deg, rgba(123, 91, 255, 0.92), rgba(186, 138, 255, 0.92));
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 26rpx;
-  color: rgba(214, 223, 255, 0.82);
+  color: #ffffff;
+  font-weight: 600;
 }
 
-.onboarding-input {
+.authorization-step__texts {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.authorization-step__title {
+  font-size: 28rpx;
+  font-weight: 600;
+  letter-spacing: 2rpx;
+}
+
+.authorization-step__desc {
+  font-size: 24rpx;
+  color: rgba(206, 214, 255, 0.72);
+  line-height: 32rpx;
+}
+
+.authorization-step__content {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.authorization-preview {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.authorization-avatar {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 24rpx;
+  border: 1rpx solid rgba(147, 168, 255, 0.55);
+}
+
+.authorization-input {
+  flex: 1;
   height: 88rpx;
   padding: 0 24rpx;
-  border-radius: 24rpx;
+  border-radius: 20rpx;
   background: rgba(28, 40, 98, 0.9);
   border: 1rpx solid rgba(137, 155, 255, 0.45);
   color: #ffffff;
@@ -477,20 +544,53 @@ page {
   box-sizing: border-box;
 }
 
-.onboarding-input::placeholder {
-  color: rgba(200, 210, 255, 0.5);
+.authorization-input::placeholder {
+  color: rgba(200, 210, 255, 0.55);
 }
 
-.onboarding-action {
-  height: 80rpx;
-  margin-top: 4rpx;
+.authorization-input[disabled] {
+  opacity: 0.55;
+}
+
+.authorization-action {
+  height: 84rpx;
   border-radius: 999rpx;
-  background: linear-gradient(90deg, rgba(102, 131, 255, 0.92), rgba(173, 132, 255, 0.92));
+  background: linear-gradient(90deg, #7b5bff, #b07bff);
   color: #ffffff;
   font-size: 26rpx;
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+  border: none;
+}
+
+.authorization-action::after {
+  border: none;
+}
+
+.authorization-step--done .authorization-action {
+  background: rgba(118, 140, 255, 0.3);
+  color: rgba(222, 230, 255, 0.92);
+}
+
+.authorization-phone {
+  height: 88rpx;
+  border-radius: 20rpx;
+  padding: 0 24rpx;
+  background: rgba(28, 40, 98, 0.9);
+  border: 1rpx solid rgba(137, 155, 255, 0.45);
+  display: flex;
+  align-items: center;
+}
+
+.authorization-phone__value {
+  font-size: 28rpx;
+  color: #ffffff;
+  letter-spacing: 2rpx;
+}
+
+.authorization-phone__value--placeholder {
+  color: rgba(200, 210, 255, 0.55);
 }
 
 .onboarding-submit {
