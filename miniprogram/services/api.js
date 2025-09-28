@@ -1,5 +1,119 @@
 import { CLOUD_FUNCTIONS } from './config';
 
+const ERROR_LOG_COLLECTION = 'errorlogs';
+
+function resolveDatabase() {
+  const canUseDatabase = wx.cloud && typeof wx.cloud.database === 'function';
+  if (!canUseDatabase) {
+    return null;
+  }
+  try {
+    if (typeof getApp === 'function') {
+      const app = getApp();
+      if (app && app.globalData && app.globalData.env) {
+        return wx.cloud.database({ env: app.globalData.env });
+      }
+    }
+  } catch (error) {
+    console.error('[api] resolve database failed', error);
+  }
+  return wx.cloud.database();
+}
+
+function getCurrentMemberId() {
+  try {
+    if (typeof getApp === 'function') {
+      const app = getApp();
+      if (app && app.globalData && app.globalData.memberInfo) {
+        return app.globalData.memberInfo._id || '';
+      }
+    }
+  } catch (error) {
+    console.error('[api] resolve member id failed', error);
+  }
+  return '';
+}
+
+function sanitizeValue(value) {
+  if (value === null || typeof value === 'undefined') {
+    return value;
+  }
+  if (typeof value === 'function') {
+    return undefined;
+  }
+  if (typeof value === 'object') {
+    try {
+      return JSON.parse(JSON.stringify(value));
+    } catch (error) {
+      return String(value);
+    }
+  }
+  return value;
+}
+
+function serializeError(error) {
+  if (!error) {
+    return null;
+  }
+  if (typeof error === 'string') {
+    return { message: error };
+  }
+  const payload = {};
+  const baseKeys = ['message', 'name', 'stack', 'errCode', 'errMsg', 'code'];
+  baseKeys.forEach((key) => {
+    if (error[key]) {
+      payload[key] = sanitizeValue(error[key]);
+    }
+  });
+  if (!payload.message) {
+    try {
+      payload.message = error.toString();
+    } catch (toStringError) {
+      payload.message = 'Unknown error';
+    }
+  }
+  if (typeof error === 'object') {
+    try {
+      const extra = {};
+      Object.keys(error).forEach((key) => {
+        if (baseKeys.includes(key)) {
+          return;
+        }
+        const sanitized = sanitizeValue(error[key]);
+        if (typeof sanitized !== 'undefined') {
+          extra[key] = sanitized;
+        }
+      });
+      if (Object.keys(extra).length > 0) {
+        payload.extra = extra;
+      }
+    } catch (extraError) {
+      payload.extra = { message: 'Failed to serialize extra fields', error: extraError.message };
+    }
+  }
+  return payload;
+}
+
+function recordNetworkError(name, data, error) {
+  const db = resolveDatabase();
+  if (!db || typeof db.collection !== 'function') {
+    return Promise.resolve();
+  }
+  const collection = db.collection(ERROR_LOG_COLLECTION);
+  const record = {
+    interface: name,
+    memberId: getCurrentMemberId(),
+    createdAt: typeof db.serverDate === 'function' ? db.serverDate() : new Date(),
+    error: serializeError(error)
+  };
+  if (data && typeof data.action === 'string') {
+    record.action = data.action;
+  }
+  return collection.add({ data: record }).catch((logError) => {
+    console.error('[api] record network error failed', logError);
+  });
+}
+
 const callCloud = async (name, data = {}) => {
   try {
     const res = await wx.cloud.callFunction({
@@ -9,6 +123,7 @@ const callCloud = async (name, data = {}) => {
     return res.result;
   } catch (error) {
     console.error(`[cloud:${name}]`, error);
+    recordNetworkError(name, data, error);
     wx.showToast({
       title: error.errMsg || '网络异常',
       icon: 'none'

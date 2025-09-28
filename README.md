@@ -47,6 +47,7 @@
    - `walletTransactions`
    - `stoneTransactions`
    - `avatars`
+   - `errorlogs`
 3. 在“云函数”面板中右键部署以下函数（需先安装依赖）：
    - `bootstrap`
    - `member`
@@ -74,6 +75,11 @@ cd cloudfunctions/member && npm install && cd -
 1. 在 `miniprogram/app.js` 中的 `env` 替换为你的云开发 `envId`。
 2. 若有专属 CDN 或自建 API，可在 `miniprogram/services/config.js` 中调整服务端地址或云函数名称。
 3. 使用开发者工具的“预览”或“真机调试”功能即可运行体验。
+
+## 监控与错误日志
+
+- 小程序在调用云函数出现异常时会自动写入 `errorlogs` 集合，记录接口名称、会员 ID、时间以及完整的错误信息，便于排查线上问题。
+- 首次部署或升级到包含该功能的版本时，请确保已经创建 `errorlogs` 集合，可通过重新执行 `bootstrap` 云函数自动创建。
 
 ## 数据结构说明
 
