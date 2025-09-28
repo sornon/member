@@ -1,0 +1,176 @@
+<custom-nav title="角色与装备"></custom-nav>
+<view class="page">
+  <view class="tab-bar">
+    <view
+      class="tab-item {{activeTab === 'character' ? 'tab-item--active' : ''}}"
+      data-tab="character"
+      hover-class="tab-item--hover"
+      bindtap="handleTabChange"
+    >角色</view>
+    <view
+      class="tab-item {{activeTab === 'equipment' ? 'tab-item--active' : ''}}"
+      data-tab="equipment"
+      hover-class="tab-item--hover"
+      bindtap="handleTabChange"
+    >装备</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading">灵气汇聚中...</view>
+  <scroll-view wx:elif="{{profile}}" scroll-y="true" class="scroll-container">
+    <block wx:if="{{activeTab === 'character'}}">
+      <view class="section-card">
+        <view class="section-header">
+          <view class="section-title">角色属性</view>
+          <view
+            class="section-actions"
+            wx:if="{{profile.attributes && profile.attributes.attributePoints > 0}}"
+          >
+            <button class="action-btn" size="mini" data-mode="single" bindtap="handleAllocate">分配属性点</button>
+            <button class="action-btn" size="mini" type="primary" data-mode="auto" bindtap="handleAllocate">均衡分配</button>
+          </view>
+        </view>
+        <view class="level-line">
+          <view>
+            等级 {{profile.attributes ? profile.attributes.level : '--'}} / {{profile.metadata ? profile.metadata.maxLevel : '--'}}
+          </view>
+          <view class="progress-text">
+            {{profile.attributes ? profile.attributes.experience : '--'}} / {{profile.attributes ? profile.attributes.nextLevelExp : '--'}}
+          </view>
+        </view>
+        <view class="progress-bar">
+          <view
+            class="progress-fill"
+            style="width: {{profile.attributes ? profile.attributes.experienceProgress : 0}}%;"
+          ></view>
+        </view>
+        <view class="attr-grid">
+          <view class="attr-item" wx:for="{{(profile.attributes && profile.attributes.attributeList) || []}}" wx:key="key">
+            <view class="attr-label">{{item.label}}</view>
+            <view class="attr-value">{{item.formattedValue}}</view>
+            <view class="attr-detail">
+              基础 {{item.formattedBase}} · 装备 {{item.formattedEquipment}}
+              <text wx:if="{{item.formattedSkill}}"> · 技能 {{item.formattedSkill}}</text>
+            </view>
+          </view>
+        </view>
+        <view class="attr-extra">
+          <text>战力 {{profile.attributes ? profile.attributes.combatPower : '--'}}</text>
+          <text>剩余属性点 {{profile.attributes ? profile.attributes.attributePoints : 0}}</text>
+        </view>
+      </view>
+    </block>
+
+    <block wx:else>
+      <view class="section-card">
+        <view class="section-header">
+          <view class="section-title">装备总览</view>
+        </view>
+        <view class="slot-list">
+          <view class="slot" wx:for="{{(profile.equipment && profile.equipment.slots) || []}}" wx:key="slot">
+            <view class="slot-label">{{item.slotLabel}}</view>
+            <view wx:if="{{item.item}}" class="slot-content">
+              <view class="slot-name" style="border-color: {{item.item.rarityColor}};">{{item.item.name}}</view>
+              <view class="slot-meta">{{item.item.rarityLabel}} · 精炼 {{item.item.refine}}</view>
+              <view class="slot-stats">
+                <text wx:for="{{item.item.statsText || []}}" wx:key="index">{{stat}}</text>
+              </view>
+            </view>
+            <view wx:else class="slot-empty">未装备</view>
+          </view>
+        </view>
+        <view class="inventory-title">背包装备</view>
+        <view
+          wx:if="{{!(profile.equipment && profile.equipment.inventory && profile.equipment.inventory.length)}}"
+          class="empty-tip inventory-empty"
+        >暂未获得额外装备</view>
+        <view
+          class="equipment-item"
+          wx:for="{{(profile.equipment && profile.equipment.inventory) || []}}"
+          wx:key="itemId"
+        >
+          <view class="equipment-head">
+            <view class="equipment-name" style="color: {{item.rarityColor}};">{{item.name}}</view>
+            <view class="equipment-meta">{{item.slotLabel}} · {{item.rarityLabel}}</view>
+          </view>
+          <view class="equipment-desc">{{item.description}}</view>
+          <view class="equipment-stats">
+            <text wx:for="{{item.statsText || []}}" wx:key="index">{{stat}}</text>
+          </view>
+          <view class="equipment-actions">
+            <button size="mini" data-item-id="{{item.itemId}}" bindtap="handleEquipItem" disabled="{{item.equipped}}">
+              {{item.equipped ? '使用中' : '装备'}}
+            </button>
+            <view class="equipment-refine">{{item.refineLabel}}</view>
+          </view>
+        </view>
+        <view class="inventory-footer" bindtap="handleOpenStones" hover-class="inventory-footer--hover">
+          <view class="inventory-footer__info">
+            <text class="inventory-footer__icon">🪙</text>
+            <text class="inventory-footer__amount">{{formattedStoneBalance}}</text>
+          </view>
+          <view class="inventory-footer__label">灵石仓库</view>
+        </view>
+      </view>
+
+      <view class="section-card">
+        <view class="section-header">
+          <view class="section-title">技能与抽卡</view>
+          <view class="section-actions">
+            <button class="action-btn" type="primary" size="mini" loading="{{drawing}}" bindtap="handleDrawSkill">抽取灵技</button>
+          </view>
+        </view>
+        <view class="skill-slots">
+          <view class="skill-slot" wx:for="{{(profile.skills && profile.skills.equipped) || []}}" wx:key="slot">
+            <view class="slot-index">槽位 {{item.slot + 1}}</view>
+            <view wx:if="{{item.detail}}" class="skill-detail">
+              <view class="skill-name" style="color: {{item.detail.rarityColor}};">{{item.detail.name}} Lv.{{item.detail.level}}</view>
+              <view class="skill-effects">
+                <text wx:for="{{item.detail.effectsSummary || []}}" wx:key="index">{{effect}}</text>
+              </view>
+              <button size="mini" data-slot="{{item.slot}}" bindtap="handleUnequipSkill">卸下</button>
+            </view>
+            <view wx:else class="slot-empty">未装备技能</view>
+          </view>
+        </view>
+        <view class="inventory-title">技能背包</view>
+        <view
+          wx:if="{{!(profile.skills && profile.skills.inventory && profile.skills.inventory.length)}}"
+          class="empty-tip inventory-empty"
+        >暂无技能</view>
+        <view class="skill-item" wx:for="{{(profile.skills && profile.skills.inventory) || []}}" wx:key="skillId">
+          <view class="skill-header">
+            <view class="skill-name" style="color: {{item.rarityColor}};">{{item.name}} Lv.{{item.level}}</view>
+            <view class="skill-meta">{{item.rarityLabel}}</view>
+          </view>
+          <view class="skill-desc">{{item.description}}</view>
+          <view class="skill-effects">
+            <text wx:for="{{item.effectsSummary || []}}" wx:key="index">{{effect}}</text>
+          </view>
+          <view class="skill-actions">
+            <button size="mini" data-skill-id="{{item.skillId}}" bindtap="handleEquipSkill" disabled="{{item.equipped}}">
+              {{item.equipped ? '使用中' : '装备'}}
+            </button>
+            <view class="skill-time">获得于 {{item.obtainedAtText}}</view>
+          </view>
+        </view>
+      </view>
+
+      <view class="section-card" wx:if="{{profile.skillHistory && profile.skillHistory.length}}">
+        <view class="section-header">
+          <view class="section-title">技能动态</view>
+        </view>
+        <view class="history-item" wx:for="{{profile.skillHistory || []}}" wx:key="index">
+          <view class="history-title">{{item.createdAtText}}</view>
+          <view class="history-desc">{{item.summary}}</view>
+        </view>
+      </view>
+      <view class="empty-card" wx:if="{{!(profile.skillHistory && profile.skillHistory.length)}}">
+        <text class="empty-tip">暂无技能动态</text>
+      </view>
+    </block>
+  </scroll-view>
+
+  <view wx:else class="empty-card">
+    <text class="empty-tip">暂未获取到角色信息</text>
+  </view>
+</view>

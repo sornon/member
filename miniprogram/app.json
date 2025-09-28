@@ -7,6 +7,7 @@
     "pages/reservation/reservation",
     "pages/stones/stones",
     "pages/pve/pve",
+    "pages/role/index",
     "pages/wallet/wallet",
     "pages/avatar/avatar",
     "pages/admin/index",

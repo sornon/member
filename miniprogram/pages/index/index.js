@@ -3,9 +3,8 @@ import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../ser
 import { formatCurrency, formatExperience, formatStones } from '../../utils/format';
 
 const BASE_NAV_ITEMS = [
-  { icon: '🧝', label: '角色', url: '/pages/pve/pve?tab=character' },
-  { icon: '🛡️', label: '装备', url: '/pages/pve/pve?tab=equipment' },
-  { icon: '⚔️', label: '秘境', url: '/pages/pve/pve?tab=dungeon' },
+  { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
+  { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
   { icon: '💳', label: '等级', url: '/pages/membership/membership' },
   { icon: '🎁', label: '权益', url: '/pages/rights/rights' },
   { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
@@ -335,7 +334,7 @@ Page({
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
     activityIcons: [
-      { icon: '🗝️', label: '秘境', url: '/pages/pve/pve?tab=dungeon' },
+      { icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
       { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
       { icon: '🔥', label: '比武' }
     ],
