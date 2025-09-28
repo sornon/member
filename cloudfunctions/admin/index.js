@@ -247,18 +247,23 @@ async function getChargeOrderQrCode(openid, orderId) {
     throw new Error('扣费单不存在');
   }
 
-  const scene = buildChargeOrderScene(orderId);
-  if (!scene) {
+  const orderIdValue = typeof orderId === 'string' ? orderId.trim() : String(orderId || '');
+  if (!orderIdValue) {
     throw new Error('扣费单编号无效');
   }
 
-  const schemeResult = await generateChargeOrderUrlScheme(orderId, doc.data.expireAt);
+  const scene = buildChargeOrderScene(orderIdValue);
+  if (!scene) {
+    console.warn('Charge order scene fallback to raw id because scene is empty', orderIdValue);
+  }
+
+  const schemeResult = await generateChargeOrderUrlScheme(orderIdValue, doc.data.expireAt);
 
   return {
     scene,
     page: 'pages/wallet/charge-confirm/index',
-    path: buildChargeOrderPagePath(orderId),
-    payload: buildChargeOrderPayload(orderId),
+    path: buildChargeOrderPagePath(orderIdValue),
+    payload: buildChargeOrderPayload(orderIdValue),
     schemeUrl: schemeResult.schemeUrl,
     schemeExpireAt: schemeResult.schemeExpireAt
   };
@@ -674,42 +679,63 @@ function buildChargeOrderPagePath(orderId) {
 }
 
 async function generateChargeOrderUrlScheme(orderId, expireAt) {
-  const scene = buildChargeOrderScene(orderId);
-  if (!scene) {
+  const queryValue = typeof orderId === 'string' ? orderId.trim() : String(orderId || '');
+  if (!queryValue) {
     return { schemeUrl: '', schemeExpireAt: null };
   }
 
   const expireTimestamp = resolveExpireTimestamp(expireAt);
-  const envVersion = getConfiguredEnvVersion() || 'release';
+  const envOptions = resolveUrlSchemeEnvOptions();
+  let lastError = null;
 
-  try {
-    const payload = {
-      jumpWxa: {
-        path: 'pages/wallet/charge-confirm/index',
-        query: `orderId=${encodeURIComponent(scene)}`,
-        envVersion
-      },
-      isExpire: typeof expireTimestamp === 'number'
-    };
-
-    if (typeof expireTimestamp === 'number') {
-      payload.expireTime = expireTimestamp;
-    }
-
-    const response = await cloud.openapi.urlscheme.generate(payload);
-
-    if (response && response.scheme) {
-      return {
-        schemeUrl: response.scheme,
-        schemeExpireAt: resolveExpireDate(expireTimestamp)
+  for (const option of envOptions) {
+    try {
+      const payload = {
+        jumpWxa: {
+          path: 'pages/wallet/charge-confirm/index',
+          query: `orderId=${encodeURIComponent(queryValue)}`
+        },
+        isExpire: typeof expireTimestamp === 'number'
       };
-    }
 
-    return { schemeUrl: '', schemeExpireAt: null };
-  } catch (error) {
-    console.warn('Failed to generate url scheme for charge order', error);
-    return { schemeUrl: '', schemeExpireAt: null };
+      if (option.envVersion) {
+        payload.jumpWxa.envVersion = option.envVersion;
+      }
+
+      if (typeof expireTimestamp === 'number') {
+        payload.expireTime = expireTimestamp;
+      }
+
+      const response = await cloud.openapi.urlscheme.generate(payload);
+
+      if (response && response.scheme) {
+        return {
+          schemeUrl: response.scheme,
+          schemeExpireAt: resolveExpireDate(expireTimestamp)
+        };
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `Failed to generate url scheme for charge order in env ${option.envVersion || 'release'}`,
+        error
+      );
+    }
   }
+
+  if (lastError) {
+    console.error('Failed to generate url scheme for charge order after retries', lastError);
+  }
+
+  return { schemeUrl: '', schemeExpireAt: null };
+}
+
+function resolveUrlSchemeEnvOptions() {
+  const configured = getConfiguredEnvVersion();
+  if (configured) {
+    return [{ envVersion: configured }];
+  }
+  return [{ envVersion: 'release' }, { envVersion: 'trial' }, { envVersion: 'develop' }];
 }
 
 function resolveExpireTimestamp(expireAt) {
