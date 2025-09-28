@@ -5,10 +5,9 @@
   right: 0;
   z-index: 999;
   box-sizing: border-box;
-  background: rgba(5, 9, 33, 0.92);
+  background: rgba(5, 9, 33, 0.64);
   color: #eff2ff;
   backdrop-filter: blur(18rpx);
-  border-bottom: 1rpx solid rgba(119, 138, 230, 0.25);
 }
 
 .custom-nav .nav-content {
@@ -24,7 +23,6 @@
   font-size: 32rpx;
   font-weight: 600;
   color: inherit;
-  text-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.35);
   letter-spacing: 4rpx;
 }
 
@@ -61,7 +59,7 @@
 
 .custom-nav.light,
 .custom-nav.dark {
-  background: rgba(5, 9, 33, 0.92);
+  background: rgba(5, 9, 33, 0.64);
   color: #eff2ff;
 }
 
