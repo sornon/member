@@ -415,3 +415,93 @@ page {
   text-align: center;
   padding: 24rpx 0;
 }
+
+.onboarding-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.onboarding-content {
+  position: relative;
+  width: 600rpx;
+  border-radius: 36rpx;
+  background: rgba(18, 26, 68, 0.95);
+  border: 1rpx solid rgba(147, 168, 255, 0.45);
+  padding: 48rpx 42rpx 40rpx;
+  box-sizing: border-box;
+  color: #f5f5ff;
+  box-shadow: 0 32rpx 64rpx rgba(8, 12, 44, 0.65);
+}
+
+.onboarding-header {
+  text-align: center;
+  margin-bottom: 32rpx;
+}
+
+.onboarding-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  letter-spacing: 4rpx;
+}
+
+.onboarding-subtitle {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: rgba(218, 225, 255, 0.75);
+}
+
+.onboarding-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-bottom: 32rpx;
+}
+
+.onboarding-label {
+  font-size: 26rpx;
+  color: rgba(214, 223, 255, 0.82);
+}
+
+.onboarding-input {
+  height: 88rpx;
+  padding: 0 24rpx;
+  border-radius: 24rpx;
+  background: rgba(28, 40, 98, 0.9);
+  border: 1rpx solid rgba(137, 155, 255, 0.45);
+  color: #ffffff;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+.onboarding-input::placeholder {
+  color: rgba(200, 210, 255, 0.5);
+}
+
+.onboarding-action {
+  height: 80rpx;
+  margin-top: 4rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, rgba(102, 131, 255, 0.92), rgba(173, 132, 255, 0.92));
+  color: #ffffff;
+  font-size: 26rpx;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.onboarding-submit {
+  margin-top: 8rpx;
+  height: 88rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, #7b5bff, #b07bff);
+  color: #ffffff;
+  font-size: 28rpx;
+}
+
+.onboarding-submit[disabled] {
+  background: rgba(123, 91, 255, 0.5);
+}

@@ -32,6 +32,22 @@ export const MemberService = {
   },
   async getRights() {
     return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'rights' });
+  },
+  async completeProfile(profile = {}, options = {}) {
+    const payload = {
+      action: 'completeProfile',
+      profile
+    };
+    if (options.phoneCloudId) {
+      payload.phone = wx.cloud.CloudID(options.phoneCloudId);
+    }
+    if (options.phoneCode) {
+      payload.phoneCode = options.phoneCode;
+    }
+    if (options.phoneNumber) {
+      payload.phoneNumber = options.phoneNumber;
+    }
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, payload);
   }
 };
 

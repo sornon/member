@@ -655,11 +655,13 @@ function formatDate(value) {
   if (!date || Number.isNaN(date.getTime())) {
     return '';
   }
-  const y = date.getFullYear();
-  const m = `${date.getMonth() + 1}`.padStart(2, '0');
-  const d = `${date.getDate()}`.padStart(2, '0');
-  const hh = `${date.getHours()}`.padStart(2, '0');
-  const mm = `${date.getMinutes()}`.padStart(2, '0');
+  const utcTimestamp = date.getTime() + date.getTimezoneOffset() * 60 * 1000;
+  const beijing = new Date(utcTimestamp + 8 * 60 * 60 * 1000);
+  const y = beijing.getUTCFullYear();
+  const m = `${beijing.getUTCMonth() + 1}`.padStart(2, '0');
+  const d = `${beijing.getUTCDate()}`.padStart(2, '0');
+  const hh = `${beijing.getUTCHours()}`.padStart(2, '0');
+  const mm = `${beijing.getUTCMinutes()}`.padStart(2, '0');
   return `${y}-${m}-${d} ${hh}:${mm}`;
 }
 

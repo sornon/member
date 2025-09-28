@@ -115,6 +115,15 @@ Page({
     loading: true,
     today: '',
     showProfile: false,
+    showOnboarding: false,
+    onboardingSubmitting: false,
+    onboarding: {
+      nickName: '',
+      avatarUrl: '',
+      mobile: '',
+      phoneCloudId: '',
+      phoneCode: ''
+    },
     backgroundImage: BACKGROUND_IMAGE,
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
@@ -228,6 +237,7 @@ Page({
         TaskService.list()
       ]);
       const width = normalizePercentage(progress);
+      const needsProfile = !member || !member.nickName || !member.mobile;
       this.setData({
         member,
         progress,
@@ -236,7 +246,18 @@ Page({
         navItems: resolveNavItems(member),
         memberStats: deriveMemberStats(member),
         progressWidth: width,
-        progressStyle: buildWidthStyle(width)
+        progressStyle: buildWidthStyle(width),
+        showOnboarding: needsProfile,
+        onboarding: needsProfile
+          ? {
+              ...this.data.onboarding,
+              nickName: member && member.nickName ? member.nickName : '',
+              avatarUrl: member && member.avatarUrl ? member.avatarUrl : '',
+              mobile: member && member.mobile ? member.mobile : '',
+              phoneCloudId: '',
+              phoneCode: ''
+            }
+          : this.data.onboarding
       });
       setActiveMember(member);
     } catch (err) {
@@ -271,6 +292,119 @@ Page({
 
   handleProfileTap() {
     this.setData({ showProfile: true });
+  },
+
+  handleNicknameInput(event) {
+    const value = event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
+    this.setData({
+      onboarding: {
+        ...this.data.onboarding,
+        nickName: value
+      }
+    });
+  },
+
+  handlePhoneInput(event) {
+    const value = event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
+    this.setData({
+      onboarding: {
+        ...this.data.onboarding,
+        mobile: value
+      }
+    });
+  },
+
+  handleRequestUserProfile() {
+    wx.getUserProfile({
+      desc: '用于完善会员昵称与头像',
+      success: (res) => {
+        const info = res && res.userInfo ? res.userInfo : {};
+        this.setData({
+          onboarding: {
+            ...this.data.onboarding,
+            nickName: info.nickName || this.data.onboarding.nickName,
+            avatarUrl: info.avatarUrl || this.data.onboarding.avatarUrl
+          }
+        });
+      },
+      fail: () => {
+        wx.showToast({
+          title: '未获取到昵称信息',
+          icon: 'none'
+        });
+      }
+    });
+  },
+
+  handleGetPhoneNumber(event) {
+    const detail = event && event.detail ? event.detail : {};
+    if (detail.errMsg !== 'getPhoneNumber:ok') {
+      wx.showToast({
+        title: '需要手机号授权',
+        icon: 'none'
+      });
+      return;
+    }
+    this.setData({
+      onboarding: {
+        ...this.data.onboarding,
+        mobile: detail.phoneNumber || this.data.onboarding.mobile,
+        phoneCloudId: detail.cloudID || '',
+        phoneCode: detail.code || ''
+      }
+    });
+  },
+
+  async handleOnboardingConfirm() {
+    if (this.data.onboardingSubmitting) {
+      return;
+    }
+    const nickName = (this.data.onboarding.nickName || '').trim();
+    const mobile = (this.data.onboarding.mobile || '').trim();
+    if (!nickName) {
+      wx.showToast({
+        title: '请填写昵称',
+        icon: 'none'
+      });
+      return;
+    }
+    if (!mobile) {
+      wx.showToast({
+        title: '请填写手机号',
+        icon: 'none'
+      });
+      return;
+    }
+    this.setData({ onboardingSubmitting: true });
+    try {
+      await MemberService.completeProfile(
+        {
+          nickName,
+          avatarUrl: this.data.onboarding.avatarUrl
+        },
+        {
+          phoneCloudId: this.data.onboarding.phoneCloudId,
+          phoneCode: this.data.onboarding.phoneCode,
+          phoneNumber: mobile
+        }
+      );
+      this.setData({
+        showOnboarding: false,
+        onboarding: {
+          ...this.data.onboarding,
+          phoneCloudId: '',
+          phoneCode: ''
+        }
+      });
+      await this.bootstrap({ showLoading: false });
+    } catch (error) {
+      wx.showToast({
+        title: '保存失败，请重试',
+        icon: 'none'
+      });
+    } finally {
+      this.setData({ onboardingSubmitting: false });
+    }
   },
 
   handleCloseProfile() {
