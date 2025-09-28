@@ -20,6 +20,17 @@ App({
     this.globalData.ready = true;
   },
 
+  onShow() {
+    wx.setNavigationBarColor({
+      frontColor: '#ffffff',
+      backgroundColor: '#050921',
+      animation: {
+        duration: 0,
+        timingFunc: 'linear'
+      }
+    });
+  },
+
   setupSystemMetrics() {
     try {
       const systemInfo = wx.getSystemInfoSync();

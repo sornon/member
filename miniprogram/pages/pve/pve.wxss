@@ -1,34 +1,41 @@
 page {
-  background: #f4f6fb;
+  background: #050921;
   min-height: 100%;
 }
 
 .page {
-  padding-top: 120rpx;
+  padding: 32rpx;
+  padding-bottom: calc(48rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(48rpx + env(safe-area-inset-bottom));
   min-height: 100%;
   display: flex;
   flex-direction: column;
+  box-sizing: border-box;
+  color: #e7ecff;
 }
 
 .loading {
   padding: 200rpx 0;
   text-align: center;
-  color: #6d748d;
+  color: rgba(189, 201, 255, 0.75);
   font-size: 28rpx;
 }
 
 .scroll-container {
-  height: calc(100vh - 200rpx);
-  padding: 0 32rpx 48rpx;
+  flex: 1;
+  padding-bottom: calc(32rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 
 .section-card {
-  background: #ffffff;
+  background: rgba(14, 22, 54, 0.92);
   border-radius: 28rpx;
   padding: 32rpx;
   margin-bottom: 32rpx;
-  box-shadow: 0 18rpx 36rpx rgba(43, 55, 95, 0.08);
+  box-shadow: 0 18rpx 36rpx rgba(4, 8, 28, 0.55);
+  border: 1rpx solid rgba(119, 138, 230, 0.28);
+  color: #f1f4ff;
 }
 
 .section-header {
@@ -41,15 +48,16 @@ page {
 .section-title {
   font-size: 32rpx;
   font-weight: 700;
-  color: #1b1f36;
+  color: #f7f8ff;
 }
 
 .enemy-card {
-  border: 1rpx solid #e3e6f4;
+  border: 1rpx solid rgba(119, 138, 230, 0.28);
   border-radius: 24rpx;
   padding: 24rpx;
   margin-bottom: 20rpx;
-  background: linear-gradient(135deg, rgba(111, 125, 255, 0.08), rgba(152, 199, 255, 0.08));
+  background: linear-gradient(135deg, rgba(86, 104, 255, 0.2), rgba(126, 192, 255, 0.14));
+  color: #f1f4ff;
 }
 
 .enemy-header {
@@ -62,24 +70,25 @@ page {
 .enemy-name {
   font-size: 30rpx;
   font-weight: 700;
-  color: #232a5c;
+  color: #f8faff;
 }
 
 .enemy-difficulty {
   font-size: 24rpx;
-  color: #6b73a5;
+  color: rgba(195, 207, 255, 0.82);
 }
 
 .enemy-desc {
   font-size: 24rpx;
-  color: #5d6488;
+  color: rgba(207, 217, 255, 0.78);
   margin: 8rpx 0 12rpx;
+  line-height: 1.6;
 }
 
 .enemy-meta,
 .enemy-reward {
   font-size: 22rpx;
-  color: #6b7396;
+  color: rgba(198, 208, 255, 0.72);
   margin-bottom: 8rpx;
 }
 
@@ -96,36 +105,36 @@ page {
 }
 
 .battle-win {
-  background: rgba(76, 175, 80, 0.12);
-  color: #2d7a37;
+  background: rgba(52, 199, 89, 0.24);
+  color: #c6ffd9;
 }
 
 .battle-draw {
-  background: rgba(255, 193, 7, 0.12);
-  color: #b27b00;
+  background: rgba(255, 193, 7, 0.22);
+  color: #ffe9ae;
 }
 
 .battle-lose {
-  background: rgba(244, 67, 54, 0.12);
-  color: #a12020;
+  background: rgba(244, 67, 54, 0.22);
+  color: #ffc0c0;
 }
 
 .battle-reward {
   font-size: 24rpx;
-  color: #5a6285;
+  color: rgba(210, 220, 255, 0.75);
   margin-bottom: 12rpx;
 }
 
 .battle-log text {
   display: block;
   font-size: 22rpx;
-  color: #6b7398;
+  color: rgba(194, 205, 255, 0.72);
   margin-bottom: 6rpx;
 }
 
 .history-item {
   padding: 16rpx 0;
-  border-bottom: 1rpx dashed #e4e7f3;
+  border-bottom: 1rpx dashed rgba(119, 138, 230, 0.28);
 }
 
 .history-item:last-child {
@@ -135,12 +144,12 @@ page {
 .history-title {
   font-size: 24rpx;
   font-weight: 600;
-  color: #3b4265;
+  color: #f4f6ff;
 }
 
 .history-desc {
   font-size: 22rpx;
-  color: #70779a;
+  color: rgba(198, 208, 255, 0.68);
   margin-top: 6rpx;
 }
 
@@ -148,11 +157,12 @@ page {
   background: transparent;
   text-align: center;
   margin: 16rpx 0 32rpx;
+  color: rgba(203, 213, 255, 0.72);
 }
 
 .empty-tip {
   text-align: center;
-  color: #8c94b0;
+  color: rgba(203, 213, 255, 0.68);
   font-size: 24rpx;
   padding: 12rpx 0;
 }

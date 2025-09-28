@@ -3,9 +3,9 @@
   <view class="mist-layer mist-layer--one"></view>
   <view class="mist-layer mist-layer--two"></view>
 
-  <custom-nav title="会员中心" enable-back="{{false}}" theme="dark"></custom-nav>
+  <custom-nav title="会员中心" enable-back="{{false}}" theme="transparent"></custom-nav>
 
-  <view class="content" wx:if="{{!loading}}">
+  <view class="content" wx:if="{{!loading}}" style="min-height: calc(100vh - {{navHeight}}px);">
     <view class="top-bar">
       <view class="profile-card">
         <image

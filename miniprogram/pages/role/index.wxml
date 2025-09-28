@@ -1,4 +1,4 @@
-<custom-nav title="角色与装备"></custom-nav>
+<custom-nav title="角色与装备" theme="dark"></custom-nav>
 <view class="page">
   <view class="tab-bar">
     <view

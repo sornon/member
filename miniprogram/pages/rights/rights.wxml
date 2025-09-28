@@ -1,4 +1,4 @@
-<custom-nav title="会员权益"></custom-nav>
+<custom-nav title="会员权益" theme="dark"></custom-nav>
 <view class="container">
   <view wx:if="{{loading}}" class="card">
     <text>权益加载中...</text>

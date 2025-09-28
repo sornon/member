@@ -2,6 +2,8 @@ import { MemberService, TaskService } from '../../services/api';
 import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../services/member-realtime';
 import { formatCurrency, formatExperience, formatStones } from '../../utils/format';
 
+const app = getApp();
+
 const BASE_NAV_ITEMS = [
   { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
   { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
@@ -315,6 +317,7 @@ Page({
     progress: null,
     tasks: [],
     loading: true,
+    navHeight: 88,
     today: '',
     showProfile: false,
     showOnboarding: false,
@@ -364,42 +367,31 @@ Page({
 
   onLoad() {
     this.hasBootstrapped = false;
+    this.ensureNavMetrics();
     this.updateToday();
   },
 
   onShow() {
-    wx.setNavigationBarColor({
-      frontColor: '#ffffff',
-      backgroundColor: '#050921',
-      animation: {
-        duration: 200,
-        timingFunc: 'easeIn'
-      }
-    });
+    this.ensureNavMetrics();
     this.updateToday();
     this.attachMemberRealtime();
     this.bootstrap();
   },
 
   onHide() {
-    this.restoreNavigationBar();
     this.detachMemberRealtime();
   },
 
   onUnload() {
-    this.restoreNavigationBar();
     this.detachMemberRealtime();
   },
 
-  restoreNavigationBar() {
-    wx.setNavigationBarColor({
-      frontColor: '#000000',
-      backgroundColor: '#ffffff',
-      animation: {
-        duration: 200,
-        timingFunc: 'easeOut'
-      }
-    });
+  ensureNavMetrics() {
+    const { customNav = {} } = app.globalData || {};
+    const navHeight = customNav.navHeight || 88;
+    if (navHeight !== this.data.navHeight) {
+      this.setData({ navHeight });
+    }
   },
 
   attachMemberRealtime() {
