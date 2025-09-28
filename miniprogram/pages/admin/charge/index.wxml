@@ -69,15 +69,22 @@
     <view class="qr-wrapper">
       <view class="qr-block">
         <view class="qr-title">微信扫一扫</view>
-        <view class="qr-image" wx:if="{{miniProgramQr}}">
-          <image mode="aspectFit" src="{{miniProgramQr}}"></image>
+        <view class="qr-image" wx:if="{{wechatSchemeUrl}}">
+          <canvas
+            type="2d"
+            id="charge-wechat-qr"
+            canvas-id="charge-wechat-qr"
+            style="width:240px;height:240px;"
+          ></canvas>
         </view>
-        <view class="qr-placeholder" wx:elif="{{miniProgramQrLoading}}">小程序码生成中…</view>
-        <view class="qr-placeholder error" wx:elif="{{miniProgramQrError}}">
-          <text>{{miniProgramQrError}}</text>
-          <button class="retry" size="mini" bindtap="handleReloadMiniProgramQr">重新生成</button>
+        <view class="qr-placeholder" wx:elif="{{wechatSchemeLoading}}">链接生成中…</view>
+        <view class="qr-placeholder error" wx:elif="{{wechatSchemeError}}">
+          <text>{{wechatSchemeError}}</text>
+          <button class="retry" size="mini" bindtap="handleReloadWechatScheme">重新生成</button>
         </view>
+        <view class="qr-placeholder" wx:else>二维码生成中，请稍候…</view>
         <view class="qr-tip">管理员可直接使用微信扫一扫完成扣费</view>
+        <view class="qr-extra" wx:if="{{wechatSchemeExpireAt}}">有效期至：{{wechatSchemeExpireAt}}</view>
       </view>
       <view class="qr-block">
         <view class="qr-title">会员钱包扫码</view>

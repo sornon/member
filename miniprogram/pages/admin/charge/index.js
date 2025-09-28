@@ -78,9 +78,10 @@ Page({
     currentOrder: null,
     loadingOrder: false,
     viewingOrderId: '',
-    miniProgramQr: '',
-    miniProgramQrLoading: false,
-    miniProgramQrError: '',
+    wechatSchemeUrl: '',
+    wechatSchemeLoading: false,
+    wechatSchemeError: '',
+    wechatSchemeExpireAt: '',
     miniProgramScene: ''
   },
 
@@ -170,11 +171,14 @@ Page({
       this.setData({
         currentOrder: this.decorateOrder(order),
         generating: false,
-        miniProgramQr: '',
+        wechatSchemeUrl: '',
+        wechatSchemeExpireAt: '',
+        wechatSchemeError: '',
+        wechatSchemeLoading: false,
         miniProgramScene: order && order.miniProgramScene ? order.miniProgramScene : ''
       });
-      this.renderQr();
-      this.ensureMiniProgramQr();
+      this.renderWalletQr();
+      this.ensureWechatScheme(true);
     } catch (error) {
       this.setData({ generating: false });
     }
@@ -194,11 +198,14 @@ Page({
       this.setData({
         currentOrder: decoratedOrder,
         loadingOrder: false,
-        miniProgramQr: shouldResetQr ? '' : this.data.miniProgramQr,
+        wechatSchemeUrl: shouldResetQr ? '' : this.data.wechatSchemeUrl,
+        wechatSchemeError: shouldResetQr ? '' : this.data.wechatSchemeError,
+        wechatSchemeLoading: shouldResetQr ? false : this.data.wechatSchemeLoading,
+        wechatSchemeExpireAt: shouldResetQr ? '' : this.data.wechatSchemeExpireAt,
         miniProgramScene: decoratedOrder.miniProgramScene || ''
       });
-      this.renderQr();
-      this.ensureMiniProgramQr(shouldResetQr);
+      this.renderWalletQr();
+      this.ensureWechatScheme(shouldResetQr);
     } catch (error) {
       this.setData({ loadingOrder: false });
     }
@@ -220,11 +227,14 @@ Page({
         currentOrder: decorated,
         loadingOrder: false,
         totalAmount: decorated.totalAmount || 0,
-        miniProgramQr: shouldResetQr ? '' : this.data.miniProgramQr,
+        wechatSchemeUrl: shouldResetQr ? '' : this.data.wechatSchemeUrl,
+        wechatSchemeError: shouldResetQr ? '' : this.data.wechatSchemeError,
+        wechatSchemeLoading: shouldResetQr ? false : this.data.wechatSchemeLoading,
+        wechatSchemeExpireAt: shouldResetQr ? '' : this.data.wechatSchemeExpireAt,
         miniProgramScene: decorated.miniProgramScene || ''
       });
-      this.renderQr();
-      this.ensureMiniProgramQr(shouldResetQr);
+      this.renderWalletQr();
+      this.ensureWechatScheme(shouldResetQr);
     } catch (error) {
       this.setData({ loadingOrder: false });
       wx.showToast({ title: '加载订单失败', icon: 'none' });
@@ -257,52 +267,92 @@ Page({
     return `${y}-${m}-${d} ${h}:${mm}`;
   },
 
-  renderQr() {
+  renderWalletQr() {
     if (!this.data.currentOrder || !this.data.currentOrder.qrPayload) return;
-    drawQrCode({
-      canvasId: 'charge-qr',
-      text: this.data.currentOrder.qrPayload,
-      size: 240
-    }, this);
+    drawQrCode(
+      {
+        canvasId: 'charge-qr',
+        text: this.data.currentOrder.qrPayload,
+        size: 240
+      },
+      this
+    );
   },
 
-  ensureMiniProgramQr(force = false) {
+  renderWechatSchemeQr() {
+    const text = this.data.wechatSchemeUrl;
+    if (!text) {
+      return;
+    }
+    drawQrCode(
+      {
+        canvasId: 'charge-wechat-qr',
+        text,
+        size: 240
+      },
+      this
+    );
+  },
+
+  ensureWechatScheme(force = false) {
     if (!this.data.currentOrder || !this.data.currentOrder._id) {
       return;
     }
-    if (this.data.miniProgramQr && !force) {
+    if (this.data.wechatSchemeUrl && !force) {
+      this.renderWechatSchemeQr();
       return;
     }
-    this.loadMiniProgramQr(this.data.currentOrder._id, force);
+    if (this.data.wechatSchemeLoading && !force) {
+      return;
+    }
+    this.loadWechatScheme(this.data.currentOrder._id, force);
   },
 
-  async loadMiniProgramQr(orderId, force = false) {
+  async loadWechatScheme(orderId, force = false) {
     if (!orderId) return;
-    if (this.data.miniProgramQrLoading && !force) return;
-    if (this.data.miniProgramQr && !force) return;
-    this.setData({ miniProgramQrLoading: true, miniProgramQrError: '' });
+    if (this.data.wechatSchemeLoading && !force) return;
+    this.setData({ wechatSchemeLoading: true, wechatSchemeError: '' });
     try {
       const result = await AdminService.getChargeOrderQrCode(orderId);
-      const base64 = result && result.imageBase64 ? result.imageBase64 : '';
-      const scene = result && result.scene ? result.scene : '';
-      const imageSrc = base64 ? `data:image/png;base64,${base64}` : '';
-      this.setData({
-        miniProgramQr: imageSrc,
-        miniProgramQrLoading: false,
-        miniProgramScene: scene
-      });
+      const schemeUrl = result && result.schemeUrl ? result.schemeUrl : '';
+      const expireAt = result && result.schemeExpireAt ? this.formatDateTime(result.schemeExpireAt) : '';
+      if (!schemeUrl) {
+        this.setData({
+          wechatSchemeUrl: '',
+          wechatSchemeLoading: false,
+          wechatSchemeError: '微信跳转链接生成失败，请稍后重试',
+          wechatSchemeExpireAt: '',
+          miniProgramScene: result && result.scene ? result.scene : this.data.miniProgramScene
+        });
+        return;
+      }
+      this.setData(
+        {
+          wechatSchemeUrl: schemeUrl,
+          wechatSchemeLoading: false,
+          wechatSchemeError: '',
+          wechatSchemeExpireAt: expireAt,
+          miniProgramScene: result && result.scene ? result.scene : this.data.miniProgramScene
+        },
+        () => {
+          if (schemeUrl) {
+            this.renderWechatSchemeQr();
+          }
+        }
+      );
     } catch (error) {
       this.setData({
-        miniProgramQrLoading: false,
-        miniProgramQrError: error && (error.errMsg || error.message) ? error.errMsg || error.message : '二维码生成失败'
+        wechatSchemeLoading: false,
+        wechatSchemeError:
+          error && (error.errMsg || error.message) ? error.errMsg || error.message : '二维码生成失败'
       });
     }
   },
 
-  handleReloadMiniProgramQr() {
+  handleReloadWechatScheme() {
     if (!this.data.currentOrder || !this.data.currentOrder._id) return;
-    this.setData({ miniProgramQr: '' });
-    this.loadMiniProgramQr(this.data.currentOrder._id, true);
+    this.setData({ wechatSchemeUrl: '', wechatSchemeError: '', wechatSchemeExpireAt: '' });
+    this.ensureWechatScheme(true);
   },
 
   formatCurrency(value) {

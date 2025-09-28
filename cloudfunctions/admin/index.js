@@ -252,60 +252,15 @@ async function getChargeOrderQrCode(openid, orderId) {
     throw new Error('扣费单编号无效');
   }
 
-  let qrBuffer = null;
-  const envOptions = resolveMiniProgramCodeEnvOptions();
-  let lastError = null;
-
-  for (const option of envOptions) {
-    try {
-      const response = await cloud.openapi.wxacode.getUnlimited({
-        scene,
-        page: 'pages/wallet/charge-confirm/index',
-        check_path: option.checkPath,
-        env_version: option.envVersion
-      });
-      const errCode = resolveWeChatErrorCode(response);
-      if (errCode !== 0) {
-        lastError = response;
-        console.warn(
-          `Failed to generate mini program code for charge order in env ${option.envVersion} (errCode: ${errCode})`,
-          response
-        );
-        continue;
-      }
-      qrBuffer = response && response.buffer ? response.buffer : null;
-      if (qrBuffer && qrBuffer.length) {
-        break;
-      }
-    } catch (error) {
-      lastError = error;
-      console.warn(
-        `Failed to generate mini program code for charge order in env ${option.envVersion}`,
-        error
-      );
-    }
-  }
-
-  if (!qrBuffer || !qrBuffer.length) {
-    try {
-      qrBuffer = await generateFallbackMiniProgramQrCode(orderId);
-    } catch (error) {
-      lastError = error;
-    }
-  }
-
-  if (!qrBuffer || !qrBuffer.length) {
-    if (lastError) {
-      console.error('Failed to generate mini program code for charge order', lastError);
-    }
-    throw new Error('生成微信扫码二维码失败，请稍后重试');
-  }
+  const schemeResult = await generateChargeOrderUrlScheme(orderId, doc.data.expireAt);
 
   return {
     scene,
-    imageBase64: qrBuffer.toString('base64'),
     page: 'pages/wallet/charge-confirm/index',
-    path: buildChargeOrderPagePath(orderId)
+    path: buildChargeOrderPagePath(orderId),
+    payload: buildChargeOrderPayload(orderId),
+    schemeUrl: schemeResult.schemeUrl,
+    schemeExpireAt: schemeResult.schemeExpireAt
   };
 }
 
@@ -718,82 +673,73 @@ function buildChargeOrderPagePath(orderId) {
   return `${basePath}?orderId=${encoded}`;
 }
 
-async function generateFallbackMiniProgramQrCode(orderId) {
-  const path = buildChargeOrderPagePath(orderId);
-  const attempts = [
-    async () => ({
-      label: 'createQRCode',
-      response: await cloud.openapi.wxacode.createQRCode({
-        path,
-        width: 430
-      })
-    }),
-    async () => ({
-      label: 'get',
-      response: await cloud.openapi.wxacode.get({
-        path,
-        width: 430
-      })
-    })
-  ];
+async function generateChargeOrderUrlScheme(orderId, expireAt) {
+  const scene = buildChargeOrderScene(orderId);
+  if (!scene) {
+    return { schemeUrl: '', schemeExpireAt: null };
+  }
 
-  let lastError = null;
-  for (const attempt of attempts) {
-    try {
-      const { label, response } = await attempt();
-      const errCode = resolveWeChatErrorCode(response);
-      if (errCode !== 0) {
-        lastError = response;
-        console.warn(`Fallback mini program QR code generation failed via ${label}`, response);
-        continue;
-      }
-      if (response && response.buffer && response.buffer.length) {
-        return response.buffer;
-      }
-    } catch (error) {
-      lastError = error;
-      console.warn('Fallback mini program QR code generation threw error', error);
+  const expireTimestamp = resolveExpireTimestamp(expireAt);
+  const envVersion = getConfiguredEnvVersion() || 'release';
+
+  try {
+    const payload = {
+      jumpWxa: {
+        path: 'pages/wallet/charge-confirm/index',
+        query: `orderId=${encodeURIComponent(scene)}`,
+        envVersion
+      },
+      isExpire: typeof expireTimestamp === 'number'
+    };
+
+    if (typeof expireTimestamp === 'number') {
+      payload.expireTime = expireTimestamp;
     }
-  }
 
-  if (lastError) {
-    throw lastError;
-  }
+    const response = await cloud.openapi.urlscheme.generate(payload);
 
-  return null;
+    if (response && response.scheme) {
+      return {
+        schemeUrl: response.scheme,
+        schemeExpireAt: resolveExpireDate(expireTimestamp)
+      };
+    }
+
+    return { schemeUrl: '', schemeExpireAt: null };
+  } catch (error) {
+    console.warn('Failed to generate url scheme for charge order', error);
+    return { schemeUrl: '', schemeExpireAt: null };
+  }
 }
 
-function resolveWeChatErrorCode(response) {
-  if (!response || typeof response !== 'object') {
-    return 0;
+function resolveExpireTimestamp(expireAt) {
+  if (!expireAt) {
+    return undefined;
   }
-  if (typeof response.errCode === 'number') {
-    return response.errCode;
+
+  const date = expireAt instanceof Date ? expireAt : new Date(expireAt);
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
   }
-  if (typeof response.errcode === 'number') {
-    return response.errcode;
+
+  const timestamp = Math.floor(date.getTime() / 1000);
+  if (timestamp <= 0) {
+    return undefined;
   }
-  return 0;
+
+  const now = Math.floor(Date.now() / 1000);
+  if (timestamp <= now) {
+    return now + 60;
+  }
+
+  return timestamp;
 }
 
-function resolveMiniProgramCodeEnvOptions() {
-  const configuredEnvVersion = getConfiguredEnvVersion();
-  const configuredCheckPath = getConfiguredCheckPath();
-
-  if (configuredEnvVersion) {
-    return [
-      {
-        envVersion: configuredEnvVersion,
-        checkPath: configuredCheckPath
-      }
-    ];
+function resolveExpireDate(expireTimestamp) {
+  if (!expireTimestamp || typeof expireTimestamp !== 'number') {
+    return null;
   }
-
-  return [
-    { envVersion: 'release', checkPath: true },
-    { envVersion: 'trial', checkPath: false },
-    { envVersion: 'develop', checkPath: false }
-  ];
+  return new Date(expireTimestamp * 1000).toISOString();
 }
 
 function getConfiguredEnvVersion() {
@@ -813,32 +759,6 @@ function getConfiguredEnvVersion() {
   }
 
   return '';
-}
-
-function getConfiguredCheckPath() {
-  const value =
-    process.env.MINI_PROGRAM_QR_CHECK_PATH ||
-    process.env.MINIPROGRAM_QR_CHECK_PATH ||
-    process.env.WXACODE_CHECK_PATH;
-
-  if (value === undefined || value === null) {
-    return true;
-  }
-
-  const normalized = String(value).trim().toLowerCase();
-  if (!normalized) {
-    return true;
-  }
-
-  if (['0', 'false', 'no', 'off'].includes(normalized)) {
-    return false;
-  }
-
-  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
-    return true;
-  }
-
-  return true;
 }
 
 function decorateChargeOrderRecord(order, member) {
