@@ -11,7 +11,7 @@ page {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  color: #e7ecff;
+  color: #e5ecff;
 }
 
 .tab-bar {
@@ -28,7 +28,7 @@ page {
   flex: 1;
   text-align: center;
   font-size: 28rpx;
-  color: rgba(188, 198, 255, 0.68);
+  color: rgba(167, 186, 255, 0.72);
   position: relative;
   padding: 20rpx 0;
   transition: color 0.2s ease;
@@ -48,7 +48,7 @@ page {
 }
 
 .tab-item--active {
-  color: #f7f9ff;
+  color: #f5f7ff;
   font-weight: 600;
 }
 
@@ -57,7 +57,7 @@ page {
 }
 
 .tab-item--hover {
-  color: rgba(214, 222, 255, 0.86);
+  color: rgba(212, 222, 255, 0.9);
 }
 
 .loading {
@@ -75,12 +75,12 @@ page {
 }
 
 .section-card {
-  background: rgba(14, 22, 54, 0.92);
+  background: rgba(15, 25, 60, 0.92);
   border-radius: 28rpx;
   padding: 32rpx;
   margin-bottom: 32rpx;
   box-shadow: 0 18rpx 36rpx rgba(4, 8, 28, 0.55);
-  border: 1rpx solid rgba(119, 138, 230, 0.28);
+  border: 1rpx solid rgba(90, 118, 255, 0.24);
 }
 
 .section-header {
@@ -93,7 +93,7 @@ page {
 .section-title {
   font-size: 32rpx;
   font-weight: 700;
-  color: #f7f8ff;
+  color: #f3f6ff;
 }
 
 .section-actions {
@@ -109,7 +109,7 @@ page {
 .level-line {
   display: flex;
   justify-content: space-between;
-  color: rgba(198, 208, 255, 0.7);
+  color: rgba(194, 206, 255, 0.75);
   font-size: 24rpx;
   margin-bottom: 12rpx;
   align-items: flex-start;
@@ -125,7 +125,7 @@ page {
 .level-name {
   font-size: 30rpx;
   font-weight: 600;
-  color: #f6f9ff;
+  color: #f5f7ff;
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
@@ -134,22 +134,22 @@ page {
 
 .level-count {
   font-size: 22rpx;
-  color: rgba(184, 196, 255, 0.7);
+  color: rgba(174, 190, 255, 0.72);
 }
 
 .level-realm {
   font-size: 24rpx;
-  color: rgba(198, 208, 255, 0.72);
+  color: rgba(196, 206, 255, 0.8);
 }
 
 .level-next {
   font-size: 22rpx;
-  color: rgba(210, 220, 255, 0.72);
+  color: rgba(207, 218, 255, 0.78);
 }
 
 .progress-text {
   font-size: 24rpx;
-  color: rgba(200, 210, 255, 0.72);
+  color: rgba(200, 210, 255, 0.78);
   text-align: right;
   line-height: 1.6;
 }
@@ -160,7 +160,7 @@ page {
 
 .progress-bar {
   position: relative;
-  background: rgba(45, 58, 112, 0.8);
+  background: rgba(40, 56, 118, 0.75);
   border-radius: 999rpx;
   height: 16rpx;
   overflow: hidden;
@@ -172,7 +172,7 @@ page {
   top: 0;
   left: 0;
   bottom: 0;
-  background: linear-gradient(90deg, #566aff, #8a4bff);
+  background: linear-gradient(90deg, #4f78ff, #8a6cff);
   border-radius: 999rpx;
 }
 
@@ -183,35 +183,35 @@ page {
 }
 
 .attr-item {
-  background: rgba(20, 32, 86, 0.82);
+  background: rgba(21, 33, 80, 0.86);
   border-radius: 20rpx;
   padding: 24rpx;
-  border: 1rpx solid rgba(119, 138, 230, 0.28);
-  color: #f2f4ff;
+  border: 1rpx solid rgba(93, 119, 214, 0.32);
+  color: #f1f4ff;
 }
 
 .attr-label {
   font-size: 26rpx;
-  color: rgba(200, 208, 255, 0.75);
+  color: rgba(195, 206, 255, 0.78);
 }
 
 .attr-value {
   font-size: 40rpx;
   font-weight: 700;
-  color: #cdd6ff;
+  color: #d6deff;
   margin: 12rpx 0;
 }
 
 .attr-detail {
   font-size: 22rpx;
-  color: rgba(204, 214, 255, 0.72);
+  color: rgba(204, 214, 255, 0.78);
 }
 
 .attr-extra {
   margin-top: 28rpx;
   display: flex;
   justify-content: space-between;
-  color: #5a6285;
+  color: rgba(168, 184, 241, 0.82);
   font-size: 24rpx;
 }
 
@@ -224,15 +224,16 @@ page {
 .slot {
   flex: 1 1 220rpx;
   min-width: 220rpx;
-  background: #c5d0ff;
+  background: rgba(22, 36, 86, 0.86);
   border-radius: 24rpx;
   padding: 24rpx;
+  border: 1rpx solid rgba(93, 119, 214, 0.3);
 }
 
 .slot-label {
   font-size: 26rpx;
   font-weight: 600;
-  color: #38405f;
+  color: rgba(196, 208, 255, 0.88);
   margin-bottom: 16rpx;
 }
 
@@ -245,31 +246,31 @@ page {
 .slot-name {
   font-size: 28rpx;
   font-weight: 600;
-  color: #1f2653;
+  color: #f1f5ff;
   padding-bottom: 8rpx;
-  border-bottom: 4rpx solid #7c89ff;
+  border-bottom: 4rpx solid rgba(103, 133, 255, 0.6);
 }
 
 .slot-meta {
   font-size: 22rpx;
-  color: #7880a4;
+  color: rgba(176, 192, 247, 0.72);
 }
 
 .slot-stats text {
   display: block;
   font-size: 22rpx;
-  color: #656d90;
+  color: rgba(168, 186, 246, 0.72);
 }
 
 .slot-empty {
   font-size: 24rpx;
-  color: #a0a6bf;
+  color: rgba(149, 167, 228, 0.68);
 }
 
 .inventory-title {
   margin: 32rpx 0 16rpx;
   font-size: 26rpx;
-  color: #5a6285;
+  color: rgba(186, 200, 255, 0.8);
   font-weight: 600;
 }
 
@@ -284,14 +285,15 @@ page {
   align-items: center;
   padding: 18rpx 24rpx;
   border-radius: 20rpx;
-  background: linear-gradient(135deg, rgba(93, 108, 255, 0.12), rgba(152, 199, 255, 0.12));
-  color: #2f3760;
+  background: linear-gradient(135deg, rgba(79, 120, 255, 0.18), rgba(133, 94, 255, 0.18));
+  color: #f1f4ff;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1rpx solid rgba(90, 118, 255, 0.24);
 }
 
 .inventory-footer--hover {
   transform: translateY(-2rpx);
-  box-shadow: 0 12rpx 28rpx rgba(76, 96, 190, 0.18);
+  box-shadow: 0 12rpx 28rpx rgba(76, 96, 190, 0.24);
 }
 
 .inventory-footer__info {
@@ -311,14 +313,15 @@ page {
 
 .inventory-footer__label {
   font-size: 24rpx;
-  color: #43508a;
+  color: rgba(197, 208, 255, 0.8);
 }
 
 .equipment-item {
-  border: 1rpx solid #e3e7f4;
+  border: 1rpx solid rgba(93, 119, 214, 0.3);
   border-radius: 24rpx;
   padding: 24rpx;
   margin-bottom: 16rpx;
+  background: rgba(18, 30, 72, 0.88);
 }
 
 .equipment-head {
@@ -326,11 +329,12 @@ page {
   justify-content: space-between;
   font-size: 28rpx;
   font-weight: 600;
+  color: #f1f4ff;
 }
 
 .equipment-desc {
   margin: 12rpx 0;
-  color: #606887;
+  color: rgba(188, 198, 246, 0.78);
   font-size: 24rpx;
 }
 
@@ -339,7 +343,7 @@ page {
   margin-right: 12rpx;
   margin-bottom: 4rpx;
   font-size: 22rpx;
-  color: #4f5782;
+  color: rgba(176, 192, 247, 0.76);
 }
 
 .equipment-actions {
@@ -351,7 +355,7 @@ page {
 
 .equipment-refine {
   font-size: 22rpx;
-  color: #7a81a0;
+  color: rgba(184, 197, 247, 0.74);
 }
 
 .skill-slots {
@@ -362,14 +366,15 @@ page {
 
 .skill-slot {
   flex: 1 1 240rpx;
-  background: #f6f7fe;
+  background: rgba(23, 37, 90, 0.85);
   border-radius: 24rpx;
   padding: 24rpx;
+  border: 1rpx solid rgba(93, 119, 214, 0.32);
 }
 
 .slot-index {
   font-size: 24rpx;
-  color: #70789a;
+  color: rgba(180, 195, 250, 0.74);
   margin-bottom: 12rpx;
 }
 
@@ -382,19 +387,22 @@ page {
 .skill-name {
   font-size: 28rpx;
   font-weight: 700;
+  color: #f1f4ff;
 }
 
 .skill-effects text {
   display: block;
   font-size: 22rpx;
-  color: #616992;
+  color: rgba(177, 193, 247, 0.76);
 }
 
 .skill-item {
-  border: 1rpx solid #e0e5f5;
+  border: 1rpx solid rgba(93, 119, 214, 0.3);
   border-radius: 24rpx;
   padding: 24rpx;
   margin-bottom: 16rpx;
+  background: rgba(18, 30, 72, 0.88);
+  color: #f1f4ff;
 }
 
 .skill-header {
@@ -405,7 +413,7 @@ page {
 }
 
 .skill-desc {
-  color: #5f678a;
+  color: rgba(188, 198, 246, 0.78);
   font-size: 24rpx;
   margin-bottom: 12rpx;
 }
@@ -415,7 +423,7 @@ page {
   justify-content: space-between;
   align-items: center;
   font-size: 22rpx;
-  color: #7a81a0;
+  color: rgba(184, 197, 247, 0.74);
 }
 
 .skill-time {
@@ -424,7 +432,7 @@ page {
 
 .history-item {
   padding: 16rpx 0;
-  border-bottom: 1rpx dashed #e4e7f3;
+  border-bottom: 1rpx dashed rgba(93, 119, 214, 0.26);
 }
 
 .history-item:last-child {
@@ -434,12 +442,12 @@ page {
 .history-title {
   font-size: 24rpx;
   font-weight: 600;
-  color: #3b4265;
+  color: rgba(203, 214, 255, 0.88);
 }
 
 .history-desc {
   font-size: 22rpx;
-  color: #70779a;
+  color: rgba(177, 193, 247, 0.76);
   margin-top: 6rpx;
 }
 
@@ -451,7 +459,7 @@ page {
 
 .empty-tip {
   text-align: center;
-  color: #8c94b0;
+  color: rgba(165, 182, 238, 0.75);
   font-size: 24rpx;
   padding: 12rpx 0;
 }
