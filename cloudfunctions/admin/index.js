@@ -2,6 +2,8 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
+const { listAvatarIds } = require('../../miniprogram/shared/avatar-catalog.js');
+
 const db = cloud.database();
 const _ = db.command;
 
@@ -18,6 +20,8 @@ const COLLECTIONS = {
 const EXPERIENCE_PER_YUAN = 100;
 
 const ADMIN_ROLES = ['admin', 'developer'];
+const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
+const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
 
 const ACTIONS = {
   LIST_MEMBERS: 'listMembers',
@@ -717,7 +721,8 @@ function decorateMemberRecord(member, levelMap) {
     createdAt: formatDate(member.createdAt),
     updatedAt: formatDate(member.updatedAt),
     avatarConfig: member.avatarConfig || {},
-    roomUsageCount: normalizeUsageCount(member.roomUsageCount)
+    roomUsageCount: normalizeUsageCount(member.roomUsageCount),
+    avatarUnlocks: normalizeAvatarUnlocksList(member.avatarUnlocks)
   };
 }
 
@@ -880,6 +885,31 @@ function normalizeUsageCount(value) {
   return Math.max(0, Math.floor(numeric));
 }
 
+function normalizeAvatarUnlocksList(unlocks) {
+  if (!Array.isArray(unlocks)) {
+    return [];
+  }
+  const seen = new Set();
+  const result = [];
+  unlocks.forEach((value) => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const trimmed = value.trim().toLowerCase();
+    if (
+      !trimmed ||
+      seen.has(trimmed) ||
+      !AVATAR_ID_PATTERN.test(trimmed) ||
+      !ALLOWED_AVATAR_IDS.has(trimmed)
+    ) {
+      return;
+    }
+    seen.add(trimmed);
+    result.push(trimmed);
+  });
+  return result;
+}
+
 function normalizeReservationBadges(badges) {
   const defaults = {
     memberVersion: 0,
@@ -973,6 +1003,9 @@ function buildUpdatePayload(updates, existing = {}) {
     const roles = Array.isArray(updates.roles) ? updates.roles : [];
     const filtered = roles.filter((role) => ['member', 'admin', 'developer'].includes(role));
     payload.roles = filtered.length ? filtered : ['member'];
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'avatarUnlocks')) {
+    payload.avatarUnlocks = normalizeAvatarUnlocksList(updates.avatarUnlocks);
   }
   return payload;
 }

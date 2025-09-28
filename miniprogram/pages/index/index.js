@@ -1,6 +1,13 @@
 import { MemberService, TaskService } from '../../services/api';
 import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../services/member-realtime';
 import { formatCurrency, formatExperience, formatStones } from '../../utils/format';
+import {
+  buildAvatarUrlById,
+  getAvailableAvatars,
+  getDefaultAvatarId,
+  normalizeAvatarUnlocks,
+  resolveAvatarById
+} from '../../utils/avatar-catalog';
 
 const app = getApp();
 
@@ -102,89 +109,86 @@ function extractDocId(doc) {
   return '';
 }
 
-const AVATAR_PALETTES = [
-  { background: '#394bff', accent: '#8c9cff', overlay: '#ffffff', text: '#fefeff' },
-  { background: '#2f8aff', accent: '#7ed5ff', overlay: '#ffffff', text: '#ffffff' },
-  { background: '#5a3dff', accent: '#d07bff', overlay: '#ffe5ff', text: '#ffffff' },
-  { background: '#1f8f7a', accent: '#5fdbc2', overlay: '#ffffff', text: '#f5fffa' },
-  { background: '#c2417c', accent: '#ff9bd6', overlay: '#ffffff', text: '#ffffff' },
-  { background: '#32455b', accent: '#6fa9ff', overlay: '#ffffff', text: '#f3f8ff' },
-  { background: '#8c3ae3', accent: '#ffc18d', overlay: '#fff3d6', text: '#ffffff' },
-  { background: '#2750d4', accent: '#69b0ff', overlay: '#ffffff', text: '#ffffff' }
-];
-
-const AVATAR_SYMBOLS = ['仙', '灵', '道', '缘', '修', '真', '月', '星', '辰', '云'];
-
-function hashString(value) {
-  const str = `${value || ''}`;
-  let hash = 0;
-  for (let i = 0; i < str.length; i += 1) {
-    hash = (hash << 5) - hash + str.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
-
 function padNumber(value) {
   return value < 10 ? `0${value}` : `${value}`;
 }
 
-function encodeSvg(svg) {
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
-}
-
-function pickAvatarSymbol(name, index) {
-  const trimmed = typeof name === 'string' ? name.replace(/\s+/g, '') : '';
-  if (trimmed) {
-    return trimmed.charAt(index % trimmed.length);
+function resolveDefaultAvatarUrl(gender) {
+  const defaultId = getDefaultAvatarId(gender);
+  if (!defaultId) {
+    return '';
   }
-  return AVATAR_SYMBOLS[index % AVATAR_SYMBOLS.length];
+  return buildAvatarUrlById(defaultId);
 }
 
-function buildAvatarSvg(initial, palette, seed) {
-  const gradientId = `grad${seed % 100000}`;
-  const highlightId = `highlight${seed % 100000}`;
-  const waveY = 110 + (seed % 8);
-  const circleOneX = 30 + (seed % 32);
-  const circleOneY = 34 + (seed % 26);
-  const circleTwoX = 112 - (seed % 28);
-  const circleTwoY = 118 - (seed % 18);
-  const svg = `<svg width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="${gradientId}" x1="0%" y1="0%" x2="100%" y2="${(seed % 2) * 100}%">
-        <stop offset="0%" stop-color="${palette.background}" />
-        <stop offset="100%" stop-color="${palette.accent}" />
-      </linearGradient>
-      <radialGradient id="${highlightId}" cx="50%" cy="40%" r="70%">
-        <stop offset="0%" stop-color="${palette.overlay}" stop-opacity="0.35" />
-        <stop offset="100%" stop-color="${palette.overlay}" stop-opacity="0" />
-      </radialGradient>
-    </defs>
-    <rect width="160" height="160" rx="32" fill="url(#${gradientId})" />
-    <circle cx="${circleOneX}" cy="${circleOneY}" r="${26 + (seed % 6)}" fill="url(#${highlightId})" opacity="0.45" />
-    <circle cx="${circleTwoX}" cy="${circleTwoY}" r="${18 + (seed % 5)}" fill="${palette.overlay}" opacity="0.12" />
-    <path d="M20 ${waveY} C 60 ${waveY + 12}, 100 ${waveY - 8}, 140 ${waveY + 6}" stroke="${palette.overlay}" stroke-width="8" stroke-linecap="round" opacity="0.28" />
-    <text x="50%" y="58%" text-anchor="middle" fill="${palette.text}" font-size="64" font-weight="600" font-family="PingFang SC, Helvetica, Arial" dominant-baseline="middle">${initial}</text>
-  </svg>`;
-  return encodeSvg(svg);
+function extractAvatarIdFromUrl(url) {
+  if (typeof url !== 'string') {
+    return '';
+  }
+  const match = url.trim().toLowerCase().match(/\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png$/);
+  return match ? match[1] : '';
 }
 
-function generateAvatarOptions(name = '', seed = Date.now()) {
-  const baseSeed = hashString(`${name || 'member'}_${seed}`);
-  const used = new Set();
-  const options = [];
-  for (let i = 0; options.length < 5 && i < AVATAR_PALETTES.length * 2; i += 1) {
-    const paletteIndex = (baseSeed + i) % AVATAR_PALETTES.length;
-    if (used.has(paletteIndex)) {
-      continue;
+function computeAvatarOptionList(member, currentAvatar, gender) {
+  const unlocks = normalizeAvatarUnlocks((member && member.avatarUnlocks) || []);
+  const available = getAvailableAvatars({ gender, unlocks });
+  const result = [];
+  const seen = new Set();
+
+  if (typeof currentAvatar === 'string' && currentAvatar) {
+    const currentId = extractAvatarIdFromUrl(currentAvatar);
+    const meta = currentId ? resolveAvatarById(currentId) : null;
+    const currentName = meta ? meta.name : '当前头像';
+    result.push({ id: meta ? meta.id : 'current', url: currentAvatar, name: currentName, rarity: meta ? meta.rarity : undefined });
+    seen.add(currentAvatar);
+  }
+
+  available.forEach((avatar) => {
+    if (!avatar || !avatar.url || seen.has(avatar.url)) {
+      return;
     }
-    used.add(paletteIndex);
-    const palette = AVATAR_PALETTES[paletteIndex];
-    const symbol = pickAvatarSymbol(name, options.length);
-    const url = buildAvatarSvg(symbol, palette, baseSeed + i * 41);
-    options.push({ id: `${paletteIndex}_${baseSeed + i}`, url, symbol });
+    result.push({ id: avatar.id, url: avatar.url, name: avatar.name, rarity: avatar.rarity });
+    seen.add(avatar.url);
+  });
+
+  if (!result.length) {
+    const fallback = resolveDefaultAvatarUrl(gender);
+    if (fallback) {
+      const fallbackId = extractAvatarIdFromUrl(fallback);
+      const meta = fallbackId ? resolveAvatarById(fallbackId) : null;
+      result.push({
+        id: meta ? meta.id : 'default',
+        url: fallback,
+        name: meta ? meta.name : '默认头像',
+        rarity: meta ? meta.rarity : undefined
+      });
+    }
   }
-  return options;
+
+  return result;
+}
+
+
+function resolveAvatarSelection(options, currentAvatar, gender) {
+  const desired = typeof currentAvatar === 'string' ? currentAvatar : '';
+  if (
+    desired &&
+    Array.isArray(options) &&
+    options.some((option) => option && option.url === desired)
+  ) {
+    return desired;
+  }
+  if (Array.isArray(options)) {
+    const firstValid = options.find((option) => option && option.url);
+    if (firstValid && firstValid.url) {
+      return firstValid.url;
+    }
+  }
+  const fallback = resolveDefaultAvatarUrl(gender);
+  if (fallback) {
+    return fallback;
+  }
+  return desired;
 }
 
 function sanitizeAvatarUrl(url) {
@@ -204,24 +208,6 @@ function sanitizeAvatarUrl(url) {
     }
   }
   return sanitized;
-}
-
-function computeAvatarOptionList(name, currentAvatar, seed) {
-  const generated = generateAvatarOptions(name, seed);
-  const seen = new Set();
-  const result = [];
-  if (typeof currentAvatar === 'string' && currentAvatar) {
-    result.push({ id: 'current', url: currentAvatar });
-    seen.add(currentAvatar);
-  }
-  generated.forEach((item) => {
-    if (!item || !item.url || seen.has(item.url)) {
-      return;
-    }
-    result.push(item);
-    seen.add(item.url);
-  });
-  return result;
 }
 
 function normalizeGenderValue(value) {
@@ -408,8 +394,7 @@ Page({
     avatarPickerSaving: false,
     avatarPicker: {
       avatarUrl: '',
-      avatarOptions: [],
-      avatarSeed: 0
+      avatarOptions: []
     }
   },
 
@@ -646,6 +631,9 @@ Page({
     const value = dataset.value;
     const gender = normalizeGenderValue(value);
     this.setData({ 'profileEditor.gender': gender });
+    if (this.data.showAvatarPicker) {
+      this.refreshAvatarPickerOptions();
+    }
   },
 
   openAvatarPicker() {
@@ -653,19 +641,22 @@ Page({
       return;
     }
     const member = this.data.member || {};
-    const nickName = this.data.profileEditor.nickName || member.nickName || '';
-    const baseAvatar = sanitizeAvatarUrl(member.avatarUrl) || this.data.defaultAvatar;
-    const seed = Date.now();
-    const options = computeAvatarOptionList(nickName, baseAvatar, seed);
-    this.setData({
+    const gender = normalizeGenderValue(this.data.profileEditor.gender || member.gender);
+    const baseAvatar = sanitizeAvatarUrl(member.avatarUrl);
+    const options = computeAvatarOptionList(member, baseAvatar, gender);
+    const avatarUrl = resolveAvatarSelection(options, baseAvatar, gender) || this.data.defaultAvatar;
+    const updates = {
       showAvatarPicker: true,
       avatarPickerSaving: false,
       avatarPicker: {
-        avatarUrl: baseAvatar,
-        avatarSeed: seed,
+        avatarUrl,
         avatarOptions: options
       }
-    });
+    };
+    if (avatarUrl && this.data.profileEditor.avatarUrl !== avatarUrl) {
+      updates['profileEditor.avatarUrl'] = avatarUrl;
+    }
+    this.setData(updates);
   },
 
   handleCloseAvatarPicker() {
@@ -678,46 +669,20 @@ Page({
     });
   },
 
-  rebuildAvatarPickerOptions(options = {}) {
-    const keepSeed = options.keepSeed !== false;
-    const preserveSelection = options.preserveSelection !== false;
-    const seed = keepSeed && this.data.avatarPicker.avatarSeed ? this.data.avatarPicker.avatarSeed : Date.now();
+  refreshAvatarPickerOptions() {
     const member = this.data.member || {};
-    const name = this.data.profileEditor.nickName || member.nickName || '';
-    const baseAvatar = sanitizeAvatarUrl(member.avatarUrl) || this.data.defaultAvatar;
-    const currentAvatar = preserveSelection
-      ? sanitizeAvatarUrl(this.data.avatarPicker.avatarUrl) || baseAvatar
-      : baseAvatar;
-    const avatarOptions = computeAvatarOptionList(name, currentAvatar, seed);
-    this.setData({
-      'avatarPicker.avatarSeed': seed,
-      'avatarPicker.avatarOptions': avatarOptions
-    });
-  },
-
-  mergeAvatarPickerOptions(preferredUrl) {
-    const options = Array.isArray(this.data.avatarPicker.avatarOptions)
-      ? [...this.data.avatarPicker.avatarOptions]
-      : [];
-    const result = [];
-    const seen = new Set();
-    const normalizedPreferred = sanitizeAvatarUrl(preferredUrl) || preferredUrl;
-    if (typeof normalizedPreferred === 'string' && normalizedPreferred) {
-      result.push({ id: `preferred_${Date.now()}`, url: normalizedPreferred });
-      seen.add(normalizedPreferred);
+    const gender = normalizeGenderValue(this.data.profileEditor.gender || member.gender);
+    const preferredAvatar = sanitizeAvatarUrl(this.data.avatarPicker.avatarUrl) || sanitizeAvatarUrl(member.avatarUrl);
+    const avatarOptions = computeAvatarOptionList(member, preferredAvatar, gender);
+    const avatarUrl = resolveAvatarSelection(avatarOptions, preferredAvatar, gender) || this.data.defaultAvatar;
+    const updates = {
+      'avatarPicker.avatarOptions': avatarOptions,
+      'avatarPicker.avatarUrl': avatarUrl
+    };
+    if (avatarUrl && this.data.profileEditor.avatarUrl !== avatarUrl) {
+      updates['profileEditor.avatarUrl'] = avatarUrl;
     }
-    options.forEach((item) => {
-      if (!item || !item.url) {
-        return;
-      }
-      const normalized = sanitizeAvatarUrl(item.url) || item.url;
-      if (!normalized || seen.has(normalized)) {
-        return;
-      }
-      result.push({ ...item, url: normalized });
-      seen.add(normalized);
-    });
-    return result;
+    this.setData(updates);
   },
 
   handleAvatarPickerSelect(event) {
@@ -734,13 +699,6 @@ Page({
     }
   },
 
-  handleAvatarPickerRegenerate() {
-    if (this.data.avatarPickerSaving) {
-      return;
-    }
-    this.rebuildAvatarPickerOptions({ keepSeed: false, preserveSelection: true });
-  },
-
   handleAvatarPickerSyncWechat() {
     if (this.data.avatarPickerSaving) {
       return;
@@ -754,12 +712,11 @@ Page({
           wx.showToast({ title: '未获取到头像', icon: 'none' });
           return;
         }
-        const merged = this.mergeAvatarPickerOptions(avatarUrl);
         this.setData({
           'avatarPicker.avatarUrl': avatarUrl,
-          'avatarPicker.avatarOptions': merged,
           'profileEditor.avatarUrl': avatarUrl
         });
+        this.refreshAvatarPickerOptions();
         wx.showToast({ title: '已同步微信头像', icon: 'success' });
       },
       fail: () => {
@@ -857,6 +814,9 @@ Page({
       'profileEditor.renameUsed': member.renameUsed || 0,
       'profileEditor.renameHistory': renameHistory
     });
+    if (this.data.showAvatarPicker) {
+      this.refreshAvatarPickerOptions();
+    }
     if (options.propagate !== false) {
       setActiveMember(member);
     }

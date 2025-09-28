@@ -2,6 +2,8 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
+const { listAvatarIds } = require('../../miniprogram/shared/avatar-catalog.js');
+
 const db = cloud.database();
 const _ = db.command;
 
@@ -13,6 +15,8 @@ const COLLECTIONS = {
 };
 
 const GENDER_OPTIONS = ['unknown', 'male', 'female'];
+const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
+const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
 
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext();
@@ -61,6 +65,7 @@ async function initMember(openid, profile) {
     totalSpend: 0,
     stoneBalance: 0,
     roles: ['member'],
+    avatarUnlocks: [],
     createdAt: now,
     updatedAt: now,
     avatarConfig: {},
@@ -446,6 +451,16 @@ async function ensureArchiveDefaults(member) {
     updates.renameHistory = member.renameHistory;
   }
 
+  const avatarUnlocks = normalizeAvatarUnlocksList(member.avatarUnlocks);
+  const originalUnlocks = Array.isArray(member.avatarUnlocks) ? member.avatarUnlocks : [];
+  const unlocksChanged =
+    avatarUnlocks.length !== originalUnlocks.length ||
+    avatarUnlocks.some((value, index) => value !== originalUnlocks[index]);
+  if (unlocksChanged) {
+    updates.avatarUnlocks = avatarUnlocks;
+  }
+  member.avatarUnlocks = avatarUnlocks;
+
   const usageCountRaw = Number(member.roomUsageCount);
   const usageCount = Number.isFinite(usageCountRaw) ? Math.max(0, Math.floor(usageCountRaw)) : 0;
   if (!Object.is(usageCount, member.roomUsageCount)) {
@@ -523,6 +538,9 @@ async function updateArchive(openid, updates = {}) {
   if (typeof updates.avatarUrl === 'string') {
     const avatarUrl = updates.avatarUrl.trim();
     if (avatarUrl && avatarUrl !== member.avatarUrl) {
+      if (!isAvatarAllowedForMember(avatarUrl, member)) {
+        throw createError('AVATAR_NOT_ALLOWED', '该头像尚未解锁');
+      }
       patch.avatarUrl = avatarUrl;
     }
   }
@@ -624,6 +642,67 @@ function normalizeReservationBadges(badges) {
     });
   }
   return normalized;
+}
+
+function normalizeAvatarUnlocksList(unlocks) {
+  if (!Array.isArray(unlocks)) {
+    return [];
+  }
+  const seen = new Set();
+  const result = [];
+  unlocks.forEach((value) => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const trimmed = value.trim().toLowerCase();
+    if (
+      !trimmed ||
+      seen.has(trimmed) ||
+      !AVATAR_ID_PATTERN.test(trimmed) ||
+      !ALLOWED_AVATAR_IDS.has(trimmed)
+    ) {
+      return;
+    }
+    seen.add(trimmed);
+    result.push(trimmed);
+  });
+  return result;
+}
+
+function extractAvatarIdFromUrl(url) {
+  if (typeof url !== 'string') {
+    return '';
+  }
+  const match = url.trim().toLowerCase().match(/\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png$/);
+  if (!match) {
+    return '';
+  }
+  const id = match[1];
+  return ALLOWED_AVATAR_IDS.has(id) ? id : '';
+}
+
+function isAvatarAllowedForMember(url, member) {
+  const avatarId = extractAvatarIdFromUrl(url);
+  if (!avatarId) {
+    return true;
+  }
+  if (!ALLOWED_AVATAR_IDS.has(avatarId)) {
+    return false;
+  }
+  const parts = avatarId.split('-');
+  if (parts.length < 3) {
+    return false;
+  }
+  const [avatarGender, rarity] = parts;
+  const memberGender = normalizeGender(member && member.gender);
+  if (rarity === 'c') {
+    if (memberGender === 'unknown') {
+      return true;
+    }
+    return memberGender === avatarGender;
+  }
+  const unlocks = normalizeAvatarUnlocksList(member && member.avatarUnlocks);
+  return unlocks.includes(avatarId);
 }
 
 function normalizeAssetFields(member) {

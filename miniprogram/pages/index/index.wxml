@@ -177,8 +177,7 @@
       <scroll-view scroll-y="true" class="modal-body modal-body--scroll">
         <view class="archive-section">
           <view class="archive-section__header">
-            <view class="archive-section__title">推荐头像</view>
-            <view class="archive-section__link" bindtap="handleAvatarPickerRegenerate">换一批</view>
+          <view class="archive-section__title">可选头像</view>
           </view>
           <view class="avatar-grid">
             <view
@@ -189,6 +188,7 @@
               bindtap="handleAvatarPickerSelect"
             >
               <image class="avatar-option__image" src="{{item.url}}" mode="aspectFill"></image>
+              <view wx:if="{{item.name}}" class="avatar-option__name">{{item.name}}</view>
               <view wx:if="{{avatarPicker.avatarUrl === item.url}}" class="avatar-option__badge">使用中</view>
             </view>
           </view>

@@ -127,6 +127,33 @@
         </label>
       </checkbox-group>
     </view>
+    <view class="form-item">
+      <view class="form-label">头像权限</view>
+      <view class="avatar-permission-note">C 级头像默认开放</view>
+      <checkbox-group class="avatar-permission-grid" bindchange="handleAvatarUnlockChange">
+        <block wx:for="{{avatarOptionGroups}}" wx:key="gender">
+          <view class="avatar-permission-group">
+            <view class="avatar-permission-group__title">{{item.label}}</view>
+            <view class="avatar-permission-group__list">
+              <label
+                wx:for="{{item.options}}"
+                wx:for-item="option"
+                wx:key="id"
+                class="avatar-permission-item {{option.disabled ? 'avatar-permission-item--disabled' : ''}}"
+              >
+                <checkbox
+                  value="{{option.id}}"
+                  checked="{{option.disabled || form.avatarUnlocks.indexOf(option.id) !== -1}}"
+                  disabled="{{option.disabled}}"
+                />
+                <text class="avatar-permission-name {{option.disabled ? 'avatar-permission-name--disabled' : ''}}">{{option.label}}</text>
+                <text wx:if="{{option.disabled}}" class="avatar-permission-tag">默认</text>
+              </label>
+            </view>
+          </view>
+        </block>
+      </checkbox-group>
+    </view>
   </view>
 
   <button class="submit" type="primary" loading="{{saving}}" bindtap="handleSubmit">保存修改</button>
