@@ -373,26 +373,16 @@ Page({
 
   onShow() {
     this.ensureNavMetrics();
-    wx.setNavigationBarColor({
-      frontColor: '#ffffff',
-      backgroundColor: '#050921',
-      animation: {
-        duration: 200,
-        timingFunc: 'easeIn'
-      }
-    });
     this.updateToday();
     this.attachMemberRealtime();
     this.bootstrap();
   },
 
   onHide() {
-    this.restoreNavigationBar();
     this.detachMemberRealtime();
   },
 
   onUnload() {
-    this.restoreNavigationBar();
     this.detachMemberRealtime();
   },
 
@@ -402,17 +392,6 @@ Page({
     if (navHeight !== this.data.navHeight) {
       this.setData({ navHeight });
     }
-  },
-
-  restoreNavigationBar() {
-    wx.setNavigationBarColor({
-      frontColor: '#000000',
-      backgroundColor: '#ffffff',
-      animation: {
-        duration: 200,
-        timingFunc: 'easeOut'
-      }
-    });
   },
 
   attachMemberRealtime() {

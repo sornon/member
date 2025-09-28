@@ -63,6 +63,21 @@
   color: #eff2ff;
 }
 
+.custom-nav.transparent {
+  background: transparent;
+  color: #f6f8ff;
+  backdrop-filter: none;
+}
+
+.custom-nav.transparent .back-button {
+  background: rgba(239, 242, 255, 0.12);
+  border: 1rpx solid rgba(157, 175, 255, 0.25);
+}
+
+.custom-nav.transparent .back-icon {
+  color: inherit;
+}
+
 .custom-nav.light .back-button,
 .custom-nav.dark .back-button {
   background: rgba(239, 242, 255, 0.12);
