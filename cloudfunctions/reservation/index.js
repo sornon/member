@@ -699,10 +699,15 @@ function buildMemberReservationNotice(memberReservations, rooms, usageCount) {
   });
   const room = roomMap.get(latest.roomId);
   const roomName = room ? room.name : '包房';
+  const normalizedRange = normalizeReservationRange(latest);
+  const timeRangeLabel = normalizedRange ? `${normalizedRange.startLabel} - ${normalizedRange.endLabel}` : '';
+  const scheduleLabel = [latest.date, timeRangeLabel || latest.slotLabel || latest.slot]
+    .filter(Boolean)
+    .join(' ');
   if (latest.status === 'approved') {
     return {
       type: 'success',
-      message: `已预约成功：${roomName}，请于 ${latest.date} ${latest.startTime} 入场。`,
+      message: `已预约成功：${roomName}${scheduleLabel ? `，请于 ${scheduleLabel} 入场。` : '。'}`,
       closable: false,
       reservationId: latest._id
     };
@@ -716,9 +721,16 @@ function buildMemberReservationNotice(memberReservations, rooms, usageCount) {
     };
   }
   if (latest.status === 'rejected') {
+    const details = [];
+    if (roomName) {
+      details.push(`包房：${roomName}`);
+    }
+    if (scheduleLabel) {
+      details.push(`时间：${scheduleLabel}`);
+    }
     return {
       type: 'warning',
-      message: '该房间已被其他会员锁定，请重新选择时间。',
+      message: `该包房已被锁定，请重新选择时间。${details.length ? details.join('，') : ''}`.trim(),
       closable: true,
       reservationId: latest._id
     };

@@ -3,6 +3,7 @@ import { formatDate, formatCurrency } from '../../utils/format';
 
 const DEFAULT_START_TIME = '12:00';
 const DEFAULT_END_TIME = '14:00';
+const DISMISSED_NOTICE_STORAGE_KEY = 'reservation_notice_dismissed';
 
 function timeToMinutes(time) {
   if (!time || typeof time !== 'string') return NaN;
@@ -54,11 +55,12 @@ Page({
     this.setData({ loading: true, timeError: '' });
     try {
       const result = await ReservationService.listRooms(date, startTime, endTime);
+      const notice = result.notice || null;
       this.setData({
         rooms: result.rooms || [],
         loading: false,
-        notice: result.notice || null,
-        noticeDismissed: false,
+        notice,
+        noticeDismissed: this.isNoticeDismissed(notice),
         memberUsageCount: Math.max(0, Number(result.memberUsageCount || 0)),
         memberReservations: Array.isArray(result.memberReservations) ? result.memberReservations : [],
         reservationBadges: result.reservationBadges || null
@@ -135,6 +137,10 @@ Page({
   },
 
   dismissNotice() {
+    const { notice } = this.data;
+    if (notice && notice.closable) {
+      this.rememberNoticeDismissed(notice);
+    }
     this.setData({ noticeDismissed: true });
   },
 
@@ -181,6 +187,55 @@ Page({
     } catch (error) {
       console.error('[reservation] update global badges failed', error);
     }
+  },
+
+  isNoticeDismissed(notice) {
+    if (!notice || !notice.closable) {
+      return false;
+    }
+    if (typeof wx === 'undefined' || !wx || typeof wx.getStorageSync !== 'function') {
+      return false;
+    }
+    const key = this.getNoticeStorageKey(notice);
+    if (!key) {
+      return false;
+    }
+    try {
+      const stored = wx.getStorageSync(DISMISSED_NOTICE_STORAGE_KEY);
+      if (!stored || typeof stored !== 'object') {
+        return false;
+      }
+      return !!stored[key];
+    } catch (error) {
+      console.error('[reservation] read notice dismissed flag failed', error);
+      return false;
+    }
+  },
+
+  rememberNoticeDismissed(notice) {
+    const key = this.getNoticeStorageKey(notice);
+    if (!key) {
+      return;
+    }
+    if (typeof wx === 'undefined' || !wx || typeof wx.setStorageSync !== 'function') {
+      return;
+    }
+    try {
+      const stored = wx.getStorageSync(DISMISSED_NOTICE_STORAGE_KEY);
+      const map = stored && typeof stored === 'object' ? stored : {};
+      map[key] = true;
+      wx.setStorageSync(DISMISSED_NOTICE_STORAGE_KEY, map);
+    } catch (error) {
+      console.error('[reservation] persist notice dismissed flag failed', error);
+    }
+  },
+
+  getNoticeStorageKey(notice) {
+    if (!notice) {
+      return '';
+    }
+    const parts = [notice.reservationId || '', notice.type || '', notice.code || '', notice.message || ''];
+    return parts.filter(Boolean).join('|');
   },
 
   formatCurrency
