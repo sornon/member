@@ -155,6 +155,63 @@ page {
   font-size: 26rpx;
 }
 
+.avatar-permission-note {
+  font-size: 22rpx;
+  color: #94a3b8;
+  margin-bottom: 12rpx;
+}
+
+.avatar-permission-grid {
+  display: block;
+}
+
+.avatar-permission-group {
+  margin-bottom: 12rpx;
+}
+
+.avatar-permission-group__title {
+  font-size: 24rpx;
+  color: #64748b;
+  margin-bottom: 8rpx;
+}
+
+.avatar-permission-group__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+}
+
+.avatar-permission-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 6rpx 12rpx;
+  border-radius: 16rpx;
+  border: 1rpx solid rgba(148, 163, 184, 0.4);
+  background: rgba(15, 23, 42, 0.6);
+  color: #e2e8f0;
+  font-size: 22rpx;
+}
+
+.avatar-permission-item checkbox {
+  transform: scale(0.84);
+  margin-right: 6rpx;
+}
+
+.avatar-permission-item--disabled {
+  border-style: dashed;
+  background: rgba(15, 23, 42, 0.3);
+}
+
+.avatar-permission-name--disabled {
+  color: #9ca3af;
+}
+
+.avatar-permission-tag {
+  margin-left: 6rpx;
+  font-size: 20rpx;
+  color: #cbd5f5;
+}
+
 .submit {
   margin-top: 12rpx;
   background: linear-gradient(135deg, #3b82f6, #8b5cf6);
