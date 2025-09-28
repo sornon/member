@@ -375,5 +375,17 @@ export const AdminService = {
       reservationId,
       reason
     });
+  },
+  async cancelReservation(reservationId, reason = '') {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'cancelReservation',
+      reservationId,
+      reason
+    });
+  },
+  async markReservationRead() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'markReservationRead'
+    });
   }
 };

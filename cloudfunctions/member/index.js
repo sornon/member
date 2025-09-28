@@ -68,7 +68,14 @@ async function initMember(openid, profile) {
     renameUsed: 0,
     renameCards: 0,
     renameHistory: [],
-    roomUsageCount: 0
+    roomUsageCount: 0,
+    reservationBadges: {
+      memberVersion: 0,
+      memberSeenVersion: 0,
+      adminVersion: 0,
+      adminSeenVersion: 0,
+      pendingApprovalCount: 0
+    }
   };
   await membersCollection.add({ data: doc });
   if (defaultLevel) {
@@ -448,6 +455,14 @@ async function ensureArchiveDefaults(member) {
     member.roomUsageCount = usageCount;
   }
 
+  const badges = normalizeReservationBadges(member.reservationBadges);
+  const originalBadges = member.reservationBadges || {};
+  const badgeChanged = Object.keys(badges).some((key) => !Object.is(badges[key], originalBadges[key]));
+  if (badgeChanged) {
+    updates.reservationBadges = badges;
+  }
+  member.reservationBadges = badges;
+
   if (Object.keys(updates).length) {
     updates.updatedAt = new Date();
     await db
@@ -573,11 +588,42 @@ function decorateMember(member, levels) {
       })
       .catch(() => {});
   }
+  const reservationBadges = normalizeReservationBadges(member.reservationBadges);
   return {
     ...member,
     roles,
-    level
+    level,
+    reservationBadges
   };
+}
+
+function normalizeReservationBadges(badges) {
+  const defaults = {
+    memberVersion: 0,
+    memberSeenVersion: 0,
+    adminVersion: 0,
+    adminSeenVersion: 0,
+    pendingApprovalCount: 0
+  };
+  const normalized = { ...defaults };
+  if (badges && typeof badges === 'object') {
+    Object.keys(defaults).forEach((key) => {
+      const value = badges[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        normalized[key] = key.endsWith('Count')
+          ? Math.max(0, Math.floor(value))
+          : Math.max(0, Math.floor(value));
+      } else if (typeof value === 'string' && value) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          normalized[key] = key.endsWith('Count')
+            ? Math.max(0, Math.floor(numeric))
+            : Math.max(0, Math.floor(numeric));
+        }
+      }
+    });
+  }
+  return normalized;
 }
 
 function normalizeAssetFields(member) {

@@ -3,6 +3,7 @@ import { formatDate, formatCurrency } from '../../utils/format';
 
 const DEFAULT_START_TIME = '12:00';
 const DEFAULT_END_TIME = '14:00';
+const DISMISSED_NOTICE_STORAGE_KEY = 'reservation_notice_dismissed';
 
 function timeToMinutes(time) {
   if (!time || typeof time !== 'string') return NaN;
@@ -29,7 +30,10 @@ Page({
     timeError: '',
     notice: null,
     noticeDismissed: false,
-    memberUsageCount: 0
+    memberUsageCount: 0,
+    memberReservations: [],
+    reservationBadges: null,
+    cancellingId: ''
   },
 
   onLoad(options) {
@@ -51,13 +55,17 @@ Page({
     this.setData({ loading: true, timeError: '' });
     try {
       const result = await ReservationService.listRooms(date, startTime, endTime);
+      const notice = result.notice || null;
       this.setData({
         rooms: result.rooms || [],
         loading: false,
-        notice: result.notice || null,
-        noticeDismissed: false,
-        memberUsageCount: Math.max(0, Number(result.memberUsageCount || 0))
+        notice,
+        noticeDismissed: this.isNoticeDismissed(notice),
+        memberUsageCount: Math.max(0, Number(result.memberUsageCount || 0)),
+        memberReservations: Array.isArray(result.memberReservations) ? result.memberReservations : [],
+        reservationBadges: result.reservationBadges || null
       });
+      this.updateGlobalReservationBadges(result.reservationBadges);
     } catch (error) {
       this.setData({ loading: false });
     }
@@ -129,7 +137,105 @@ Page({
   },
 
   dismissNotice() {
+    const { notice } = this.data;
+    if (notice && notice.closable) {
+      this.rememberNoticeDismissed(notice);
+    }
     this.setData({ noticeDismissed: true });
+  },
+
+  async handleCancelReservation(event) {
+    const { id } = event.currentTarget.dataset;
+    if (!id || this.data.cancellingId) {
+      return;
+    }
+    wx.showModal({
+      title: '取消预约',
+      content: '确定取消该包房预约吗？',
+      confirmText: '取消预约',
+      cancelText: '暂不取消',
+      success: async (res) => {
+        if (!res.confirm) {
+          return;
+        }
+        this.setData({ cancellingId: id });
+        try {
+          await ReservationService.cancel(id);
+          wx.showToast({ title: '已取消预约', icon: 'success' });
+          this.fetchRooms();
+        } catch (error) {
+          wx.showToast({ title: error.errMsg || error.message || '取消失败', icon: 'none' });
+        } finally {
+          this.setData({ cancellingId: '' });
+        }
+      }
+    });
+  },
+
+  updateGlobalReservationBadges(badges) {
+    if (!badges || typeof getApp !== 'function') {
+      return;
+    }
+    try {
+      const app = getApp();
+      if (app && app.globalData) {
+        app.globalData.memberInfo = {
+          ...(app.globalData.memberInfo || {}),
+          reservationBadges: { ...(badges || {}) }
+        };
+      }
+    } catch (error) {
+      console.error('[reservation] update global badges failed', error);
+    }
+  },
+
+  isNoticeDismissed(notice) {
+    if (!notice || !notice.closable) {
+      return false;
+    }
+    if (typeof wx === 'undefined' || !wx || typeof wx.getStorageSync !== 'function') {
+      return false;
+    }
+    const key = this.getNoticeStorageKey(notice);
+    if (!key) {
+      return false;
+    }
+    try {
+      const stored = wx.getStorageSync(DISMISSED_NOTICE_STORAGE_KEY);
+      if (!stored || typeof stored !== 'object') {
+        return false;
+      }
+      return !!stored[key];
+    } catch (error) {
+      console.error('[reservation] read notice dismissed flag failed', error);
+      return false;
+    }
+  },
+
+  rememberNoticeDismissed(notice) {
+    const key = this.getNoticeStorageKey(notice);
+    if (!key) {
+      return;
+    }
+    if (typeof wx === 'undefined' || !wx || typeof wx.setStorageSync !== 'function') {
+      return;
+    }
+    try {
+      const stored = wx.getStorageSync(DISMISSED_NOTICE_STORAGE_KEY);
+      const map = stored && typeof stored === 'object' ? stored : {};
+      map[key] = true;
+      wx.setStorageSync(DISMISSED_NOTICE_STORAGE_KEY, map);
+    } catch (error) {
+      console.error('[reservation] persist notice dismissed flag failed', error);
+    }
+  },
+
+  getNoticeStorageKey(notice) {
+    if (!notice) {
+      return '';
+    }
+    const parts = [notice.reservationId || '', notice.type || '', notice.code || '', notice.message || ''];
+    return parts.filter(Boolean).join('|');
   },
 
   formatCurrency

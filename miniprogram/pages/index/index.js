@@ -38,6 +38,43 @@ function buildWidthStyle(width) {
   return `width: ${safeWidth}%;`;
 }
 
+function normalizeReservationBadges(badges) {
+  const defaults = {
+    memberVersion: 0,
+    memberSeenVersion: 0,
+    adminVersion: 0,
+    adminSeenVersion: 0,
+    pendingApprovalCount: 0
+  };
+  const normalized = { ...defaults };
+  if (badges && typeof badges === 'object') {
+    Object.keys(defaults).forEach((key) => {
+      const value = badges[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        normalized[key] = key.endsWith('Count')
+          ? Math.max(0, Math.floor(value))
+          : Math.max(0, Math.floor(value));
+      } else if (typeof value === 'string' && value) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          normalized[key] = key.endsWith('Count')
+            ? Math.max(0, Math.floor(numeric))
+            : Math.max(0, Math.floor(numeric));
+        }
+      }
+    });
+  }
+  return normalized;
+}
+
+function shouldShowReservationDot(badges) {
+  return badges.memberVersion > badges.memberSeenVersion;
+}
+
+function shouldShowAdminDot(badges) {
+  return badges.adminVersion > badges.adminSeenVersion;
+}
+
 function extractDocIdFromChange(change) {
   if (!change) {
     return '';
@@ -304,9 +341,20 @@ function deriveMemberStats(member) {
 
 function resolveNavItems(member) {
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
-  const navItems = [...BASE_NAV_ITEMS];
+  const badges = normalizeReservationBadges(member && member.reservationBadges);
+  const navItems = BASE_NAV_ITEMS.map((item) => {
+    if (item.label === '预订') {
+      return { ...item, showDot: shouldShowReservationDot(badges) };
+    }
+    return { ...item };
+  });
   if (roles.some((role) => ADMIN_ALLOWED_ROLES.includes(role))) {
-    navItems.push({ icon: '🛡️', label: '管理员', url: '/pages/admin/index' });
+    navItems.push({
+      icon: '🛡️',
+      label: '管理员',
+      url: '/pages/admin/index',
+      showDot: shouldShowAdminDot(badges)
+    });
   }
   return navItems;
 }

@@ -8,6 +8,8 @@ const STATUS_OPTIONS = [
   { value: 'all', label: '全部' }
 ];
 
+const CANCELABLE_STATUSES = ['approved', 'reserved', 'confirmed', 'pendingPayment'];
+
 Page({
   data: {
     loading: true,
@@ -25,6 +27,7 @@ Page({
   },
 
   onShow() {
+    this.markReservationUpdatesAsRead();
     this.fetchReservations(true);
   },
 
@@ -67,7 +70,7 @@ Page({
         page: nextPage,
         pageSize: this.data.pageSize
       });
-      const items = response.reservations || [];
+      const items = (response.reservations || []).map((item) => this.decorateReservation(item));
       const merged = reset ? items : [...this.data.reservations, ...items];
       const total = response.total || merged.length;
       const finished = merged.length >= total || items.length < this.data.pageSize;
@@ -86,6 +89,16 @@ Page({
       });
       wx.showToast({ title: '加载失败，请稍后重试', icon: 'none' });
     }
+  },
+
+  decorateReservation(item) {
+    if (!item || typeof item !== 'object') {
+      return item;
+    }
+    return {
+      ...item,
+      canCancel: CANCELABLE_STATUSES.includes(item.status)
+    };
   },
 
   async handleApprove(event) {
@@ -136,6 +149,68 @@ Page({
       wx.showToast({ title: error.errMsg || error.message || '操作失败', icon: 'none' });
     } finally {
       this.setData({ processingId: '', processingType: '' });
+    }
+  },
+
+  handleCancel(event) {
+    const { id } = event.currentTarget.dataset;
+    if (!id || this.data.processingId) {
+      return;
+    }
+    wx.showModal({
+      title: '取消预约',
+      content: '确认取消该预约并返还使用次数？',
+      confirmText: '取消预约',
+      cancelText: '暂不取消',
+      success: (res) => {
+        if (!res.confirm) {
+          return;
+        }
+        this.submitCancellation(id);
+      }
+    });
+  },
+
+  async submitCancellation(reservationId) {
+    this.setData({ processingId: reservationId, processingType: 'cancel' });
+    try {
+      await AdminService.cancelReservation(reservationId, '管理员取消预约');
+      wx.showToast({ title: '已取消', icon: 'success' });
+      this.fetchReservations(true);
+    } catch (error) {
+      console.error('[admin:reservations] cancel failed', error);
+      wx.showToast({ title: error.errMsg || error.message || '操作失败', icon: 'none' });
+    } finally {
+      this.setData({ processingId: '', processingType: '' });
+    }
+  },
+
+  async markReservationUpdatesAsRead() {
+    try {
+      const result = await AdminService.markReservationRead();
+      if (result && result.reservationBadges) {
+        this.updateGlobalReservationBadges(result.reservationBadges);
+      }
+    } catch (error) {
+      // ignore silently
+      console.error('[admin:reservations] mark read failed', error);
+    }
+  },
+
+  updateGlobalReservationBadges(badges) {
+    if (!badges || typeof getApp !== 'function') {
+      return;
+    }
+    try {
+      const app = getApp();
+      if (app && app.globalData) {
+        app.globalData.memberInfo = {
+          ...(app.globalData.memberInfo || {}),
+          reservationBadges: { ...(badges || {}) }
+        };
+      }
+    } catch (error) {
+      console.error('[admin:reservations] update global badges failed', error);
     }
   }
 });

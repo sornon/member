@@ -12,6 +12,30 @@
       bindtap="dismissNotice"
     >知道了</button>
   </view>
+  <view wx:if="{{memberReservations.length}}" class="card reservations-card">
+    <view class="section-title">我的预约</view>
+    <view class="reservation-item" wx:for="{{memberReservations}}" wx:key="_id">
+      <view class="reservation-header">
+        <view class="reservation-room">{{item.roomName || '包房'}}</view>
+        <view class="reservation-status {{item.status}}">{{item.statusLabel}}</view>
+      </view>
+      <view class="reservation-time">{{item.date}} {{item.startTime}} - {{item.endTime}}</view>
+      <view class="reservation-meta" wx:if="{{item.price}}">费用：{{formatCurrency(item.price)}}</view>
+      <view class="reservation-meta" wx:if="{{item.status === 'pendingApproval'}}">等待管理员审核</view>
+      <view class="reservation-meta" wx:if="{{item.status === 'approved'}}">请按预约时间到店使用</view>
+      <button
+        wx:if="{{item.canCancel}}"
+        size="mini"
+        type="warn"
+        plain
+        data-id="{{item._id}}"
+        loading="{{cancellingId === item._id}}"
+        disabled="{{!!cancellingId && cancellingId !== item._id}}"
+        bindtap="handleCancelReservation"
+      >取消预约</button>
+    </view>
+  </view>
+  <view wx:elif="{{!loading}}" class="card reservations-card reservations-card--empty">当前暂无预约记录</view>
   <view class="card filter-card">
     <view class="section-title">选择日期与时间</view>
     <view class="usage">剩余包房使用次数：{{memberUsageCount}}</view>
