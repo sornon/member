@@ -16,8 +16,8 @@
         ></image>
         <view class="profile-info">
           <view class="profile-name" bindtap="handleProfileTap">{{member ? (member.nickName || '无名仙友') : '无名仙友'}}</view>
-          <view class="profile-level">境界：{{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</view>
           <view class="profile-meta">
+            <text class="profile-meta__text" bindtap="handleLevelTap">境界 {{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</text>
             <text class="profile-meta__text" bindtap="handleStoneTap">灵石 {{memberStats.stoneBalance}}</text>
             <text class="profile-meta__text" bindtap="handleExperienceTap">修为 {{memberStats.experience}}</text>
           </view>

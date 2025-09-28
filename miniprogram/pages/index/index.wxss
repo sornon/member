@@ -102,15 +102,6 @@ page {
   text-overflow: ellipsis;
 }
 
-.profile-level {
-  margin-top: 8rpx;
-  font-size: 26rpx;
-  color: rgba(217, 225, 255, 0.9);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .profile-meta {
   margin-top: 12rpx;
   display: flex;

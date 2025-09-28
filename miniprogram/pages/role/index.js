@@ -62,6 +62,9 @@ Page({
     if (value === 'equipment' || value === 'equip' || value === 'bag') {
       return 'equipment';
     }
+    if (value === 'skill' || value === 'skills') {
+      return 'skill';
+    }
     return '';
   },
 
