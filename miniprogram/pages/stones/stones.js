@@ -81,10 +81,52 @@ function normalizeSummary(summary) {
   };
 }
 
+function formatSourceLabel(source) {
+  if (!source) return '';
+  if (source === 'task') return '任务奖励';
+  if (source === 'adjust') return '后台调整';
+  if (source === 'spend') return '商城消费';
+  if (source === 'manual') return '运营发放';
+  return source;
+}
+
+function buildSummaryDisplay(summary) {
+  if (!summary || typeof summary !== 'object') {
+    return {
+      balanceText: formatStones(0),
+      earnedText: formatStones(0),
+      spentText: formatStones(0),
+      transactions: []
+    };
+  }
+
+  const { stoneBalance = 0, balance = 0, totalEarned = 0, totalSpent = 0 } = summary;
+  const transactions = Array.isArray(summary.transactions) ? summary.transactions : [];
+
+  return {
+    balanceText: formatStones(stoneBalance || balance || 0),
+    earnedText: formatStones(totalEarned || 0),
+    spentText: formatStones(totalSpent || 0),
+    transactions: transactions.map((txn) => {
+      const change = toNumeric(txn.change ?? txn.amount ?? 0, 0);
+      const amountClass = change > 0 ? 'income' : change < 0 ? 'expense' : '';
+
+      return {
+        ...txn,
+        sourceLabel: formatSourceLabel(txn.source),
+        dateText: txn.createdAt ? formatDate(txn.createdAt) : '',
+        changeText: formatStoneChange(change),
+        amountClass
+      };
+    })
+  };
+}
+
 Page({
   data: {
     loading: true,
-    summary: null
+    summary: null,
+    summaryDisplay: null
   },
 
   onShow() {
@@ -135,7 +177,8 @@ Page({
     try {
       const summary = await StoneService.summary();
       const normalizedSummary = normalizeSummary(summary);
-      this.setData({ summary: normalizedSummary, loading: false });
+      const summaryDisplay = buildSummaryDisplay(normalizedSummary);
+      this.setData({ summary: normalizedSummary, summaryDisplay, loading: false });
     } catch (error) {
       console.error('[stones:summary]', error);
       this.setData({ loading: false });
@@ -146,18 +189,5 @@ Page({
       this.pendingFetchSummary = false;
       this.fetchSummary({ showLoading: false });
     }
-  },
-
-  formatDate,
-  formatStones,
-  formatStoneChange,
-
-  formatSource(source) {
-    if (!source) return '';
-    if (source === 'task') return '任务奖励';
-    if (source === 'adjust') return '后台调整';
-    if (source === 'spend') return '商城消费';
-    if (source === 'manual') return '运营发放';
-    return source;
   }
 });

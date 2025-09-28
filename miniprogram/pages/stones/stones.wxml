@@ -3,9 +3,9 @@
   <view class="card">
     <view class="section-title">灵石余额</view>
     <view wx:if="{{loading}}">加载中...</view>
-    <view wx:elif="{{summary}}">
-      <view class="balance">{{formatStones(summary.stoneBalance || summary.balance || 0)}}</view>
-      <view class="meta">累计获得：{{formatStones(summary.totalEarned || 0)}} · 累计消耗：{{formatStones(summary.totalSpent || 0)}}</view>
+    <view wx:elif="{{summaryDisplay}}">
+      <view class="balance">{{summaryDisplay.balanceText}}</view>
+      <view class="meta">累计获得：{{summaryDisplay.earnedText}} · 累计消耗：{{summaryDisplay.spentText}}</view>
       <view class="tip">灵石仅用于虚拟道具，不可折现或兑换现金。</view>
     </view>
   </view>
@@ -13,18 +13,18 @@
   <view class="card">
     <view class="section-title">灵石流水</view>
     <view wx:if="{{loading}}">加载中...</view>
-    <view wx:elif="{{!summary || !summary.transactions.length}}" class="empty-state">暂无灵石变动记录</view>
+    <view wx:elif="{{!summaryDisplay || !summaryDisplay.transactions.length}}" class="empty-state">暂无灵石变动记录</view>
     <view wx:else>
-      <view class="transaction" wx:for="{{summary.transactions}}" wx:key="_id">
+      <view class="transaction" wx:for="{{summaryDisplay.transactions}}" wx:key="_id">
         <view>
           <view class="txn-title">{{item.typeLabel}}</view>
           <view class="txn-meta">
-            <text wx:if="{{formatSource(item.source)}}">{{formatSource(item.source)}} · </text>
-            <text>{{formatDate(item.createdAt)}}</text>
+            <text wx:if="{{item.sourceLabel}}">{{item.sourceLabel}} · </text>
+            <text>{{item.dateText}}</text>
           </view>
           <view class="txn-desc" wx:if="{{item.description}}">{{item.description}}</view>
         </view>
-        <view class="txn-amount {{item.amount > 0 ? 'income' : item.amount < 0 ? 'expense' : ''}}">{{formatStoneChange(item.change || item.amount)}}</view>
+        <view class="txn-amount {{item.amountClass}}">{{item.changeText}}</view>
       </view>
     </view>
   </view>
