@@ -35,6 +35,33 @@ function buildWidthStyle(width) {
   return `width: ${safeWidth}%;`;
 }
 
+function extractDocIdFromChange(change) {
+  if (!change) {
+    return '';
+  }
+  if (change.docId && typeof change.docId === 'string') {
+    return change.docId;
+  }
+  const doc = change.doc || change.data;
+  if (doc && typeof doc === 'object') {
+    return doc._id || doc.id || doc.docId || '';
+  }
+  return '';
+}
+
+function extractDocId(doc) {
+  if (!doc) {
+    return '';
+  }
+  if (typeof doc === 'string') {
+    return doc;
+  }
+  if (typeof doc === 'object') {
+    return doc._id || doc.id || doc.docId || '';
+  }
+  return '';
+}
+
 const AVATAR_PALETTES = [
   { background: '#394bff', accent: '#8c9cff', overlay: '#ffffff', text: '#fefeff' },
   { background: '#2f8aff', accent: '#7ed5ff', overlay: '#ffffff', text: '#ffffff' },
@@ -367,16 +394,12 @@ Page({
         return;
       }
       const docChanges = Array.isArray(snapshot.docChanges) ? snapshot.docChanges : [];
-      let affectedIds = docChanges
-        .map((change) => {
-          const doc = change && change.doc ? change.doc : null;
-          return doc ? doc._id || doc.id : '';
-        })
-        .filter(Boolean);
+      let affectedIds = docChanges.map((change) => extractDocIdFromChange(change)).filter(Boolean);
       if (!affectedIds.length && Array.isArray(snapshot.docs)) {
-        affectedIds = snapshot.docs
-          .map((doc) => (doc ? doc._id || doc.id : ''))
-          .filter(Boolean);
+        affectedIds = snapshot.docs.map((doc) => extractDocId(doc)).filter(Boolean);
+      }
+      if (!affectedIds.length && snapshot.docId) {
+        affectedIds = [snapshot.docId];
       }
       if (!affectedIds.includes(memberId)) {
         return;
