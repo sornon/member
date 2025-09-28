@@ -8,6 +8,7 @@ import {
   normalizeAvatarUnlocks,
   resolveAvatarById
 } from '../../utils/avatar-catalog';
+const { listAvatarFrameUrls, normalizeAvatarFrameValue } = require('../../shared/avatar-frames.js');
 
 const app = getApp();
 
@@ -22,6 +23,8 @@ const BASE_NAV_ITEMS = [
 ];
 
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
+
+const AVATAR_FRAME_OPTIONS = buildAvatarFrameOptionList();
 
 function normalizePercentage(progress) {
   if (!progress || typeof progress.percentage !== 'number') {
@@ -168,6 +171,25 @@ function computeAvatarOptionList(member, currentAvatar, gender) {
   return result;
 }
 
+function buildAvatarFrameOptionList() {
+  const urls = listAvatarFrameUrls();
+  const base = [{ id: 'none', url: '', name: '无相框' }];
+  return base.concat(
+    urls.map((url, index) => ({
+      id: `frame_${index + 1}`,
+      url,
+      name: `相框 ${index + 1}`
+    }))
+  );
+}
+
+function cloneAvatarFrameOptions() {
+  return AVATAR_FRAME_OPTIONS.map((item) => ({ ...item }));
+}
+
+function sanitizeAvatarFrame(value) {
+  return normalizeAvatarFrameValue(typeof value === 'string' ? value : '');
+}
 
 function resolveAvatarSelection(options, currentAvatar, gender) {
   const desired = typeof currentAvatar === 'string' ? currentAvatar : '';
@@ -383,6 +405,7 @@ Page({
       nickName: '',
       gender: 'unknown',
       avatarUrl: '',
+      avatarFrame: '',
       renameCredits: 0,
       renameCards: 0,
       renameUsed: 0,
@@ -394,7 +417,9 @@ Page({
     avatarPickerSaving: false,
     avatarPicker: {
       avatarUrl: '',
-      avatarOptions: []
+      avatarOptions: [],
+      avatarFrame: '',
+      frameOptions: cloneAvatarFrameOptions()
     }
   },
 
@@ -649,16 +674,25 @@ Page({
     const baseAvatar = sanitizeAvatarUrl(member.avatarUrl);
     const options = computeAvatarOptionList(member, baseAvatar, gender);
     const avatarUrl = resolveAvatarSelection(options, baseAvatar, gender) || this.data.defaultAvatar;
+    const frameOptions = cloneAvatarFrameOptions();
+    const currentFrame = sanitizeAvatarFrame(
+      this.data.profileEditor.avatarFrame || member.avatarFrame || ''
+    );
     const updates = {
       showAvatarPicker: true,
       avatarPickerSaving: false,
       avatarPicker: {
         avatarUrl,
-        avatarOptions: options
+        avatarOptions: options,
+        avatarFrame: currentFrame,
+        frameOptions
       }
     };
     if (avatarUrl && this.data.profileEditor.avatarUrl !== avatarUrl) {
       updates['profileEditor.avatarUrl'] = avatarUrl;
+    }
+    if (this.data.profileEditor.avatarFrame !== currentFrame) {
+      updates['profileEditor.avatarFrame'] = currentFrame;
     }
     this.setData(updates);
   },
@@ -703,6 +737,18 @@ Page({
     }
   },
 
+  handleAvatarFrameSelect(event) {
+    if (this.data.avatarPickerSaving) {
+      return;
+    }
+    const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
+    const frame = sanitizeAvatarFrame(dataset.url || '');
+    this.setData({
+      'avatarPicker.avatarFrame': frame,
+      'profileEditor.avatarFrame': frame
+    });
+  },
+
   handleAvatarPickerSyncWechat() {
     if (this.data.avatarPickerSaving) {
       return;
@@ -734,15 +780,18 @@ Page({
       return;
     }
     const avatarUrl = sanitizeAvatarUrl(this.data.avatarPicker.avatarUrl) || this.data.defaultAvatar;
+    const avatarFrame = sanitizeAvatarFrame(this.data.avatarPicker.avatarFrame);
     this.setData({ avatarPickerSaving: true });
     try {
       const member = await MemberService.updateArchive({
-        avatarUrl
+        avatarUrl,
+        avatarFrame
       });
       this.applyMemberUpdate(member);
       this.setData({
         showAvatarPicker: false,
-        'profileEditor.avatarUrl': avatarUrl
+        'profileEditor.avatarUrl': avatarUrl,
+        'profileEditor.avatarFrame': avatarFrame
       });
       wx.showToast({ title: '头像已更新', icon: 'success' });
     } catch (error) {
@@ -764,7 +813,8 @@ Page({
     const payload = {
       nickName,
       gender: this.data.profileEditor.gender,
-      avatarUrl: this.data.profileEditor.avatarUrl || this.data.defaultAvatar
+      avatarUrl: this.data.profileEditor.avatarUrl || this.data.defaultAvatar,
+      avatarFrame: sanitizeAvatarFrame(this.data.profileEditor.avatarFrame)
     };
     this.setData({ profileSaving: true });
     try {
@@ -805,6 +855,7 @@ Page({
     }
     const renameHistory = formatHistoryList(member.renameHistory);
     const sanitizedAvatar = sanitizeAvatarUrl(member.avatarUrl);
+    const sanitizedFrame = sanitizeAvatarFrame(member.avatarFrame || '');
     this.setData({
       member,
       memberStats: deriveMemberStats(member),
@@ -812,7 +863,12 @@ Page({
       'profileEditor.nickName': member.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(member.gender),
       'profileEditor.avatarUrl': sanitizedAvatar || this.data.profileEditor.avatarUrl,
+      'profileEditor.avatarFrame': sanitizedFrame,
       'avatarPicker.avatarUrl': sanitizedAvatar || this.data.avatarPicker.avatarUrl,
+      'avatarPicker.avatarFrame': sanitizedFrame,
+      'avatarPicker.frameOptions': this.data.avatarPicker.frameOptions && this.data.avatarPicker.frameOptions.length
+        ? this.data.avatarPicker.frameOptions
+        : cloneAvatarFrameOptions(),
       'profileEditor.renameCredits': member.renameCredits || 0,
       'profileEditor.renameCards': member.renameCards || 0,
       'profileEditor.renameUsed': member.renameUsed || 0,

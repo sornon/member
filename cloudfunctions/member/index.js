@@ -3,6 +3,7 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { listAvatarIds } = require('../../miniprogram/shared/avatar-catalog.js');
+const { normalizeAvatarFrameValue } = require('../../miniprogram/shared/avatar-frames.js');
 
 const db = cloud.database();
 const _ = db.command;
@@ -56,6 +57,7 @@ async function initMember(openid, profile) {
     _id: openid,
     nickName: profile.nickName || '',
     avatarUrl: profile.avatarUrl || '',
+    avatarFrame: normalizeAvatarFrameValue(profile.avatarFrame || ''),
     mobile: profile.mobile || '',
     gender: normalizeGender(profile.gender),
     levelId: defaultLevel ? defaultLevel._id : '',
@@ -193,6 +195,7 @@ async function completeProfile(openid, payload = {}) {
 
   const nickName = typeof profile.nickName === 'string' ? profile.nickName.trim() : '';
   const avatarUrl = typeof profile.avatarUrl === 'string' ? profile.avatarUrl : '';
+  const avatarFrame = normalizeAvatarFrameValue(profile.avatarFrame || '');
   const genderValue = normalizeGender(profile.gender);
   const mobile = await resolveMobile(payload);
 
@@ -209,12 +212,16 @@ async function completeProfile(openid, payload = {}) {
   if (typeof profile.gender !== 'undefined' && profile.gender !== null) {
     updates.gender = genderValue;
   }
+  if (avatarFrame) {
+    updates.avatarFrame = avatarFrame;
+  }
 
   const existing = await membersCollection.doc(openid).get().catch(() => null);
   if (!existing || !existing.data) {
     await initMember(openid, {
       nickName,
       avatarUrl,
+      avatarFrame,
       mobile,
       gender: genderValue
     });
@@ -461,6 +468,14 @@ async function ensureArchiveDefaults(member) {
   }
   member.avatarUnlocks = avatarUnlocks;
 
+  const avatarFrame = normalizeAvatarFrameValue(member.avatarFrame || '');
+  if (!Object.is(avatarFrame, member.avatarFrame || '')) {
+    updates.avatarFrame = avatarFrame;
+    member.avatarFrame = avatarFrame;
+  } else {
+    member.avatarFrame = avatarFrame;
+  }
+
   const usageCountRaw = Number(member.roomUsageCount);
   const usageCount = Number.isFinite(usageCountRaw) ? Math.max(0, Math.floor(usageCountRaw)) : 0;
   if (!Object.is(usageCount, member.roomUsageCount)) {
@@ -542,6 +557,13 @@ async function updateArchive(openid, updates = {}) {
         throw createError('AVATAR_NOT_ALLOWED', '该头像尚未解锁');
       }
       patch.avatarUrl = avatarUrl;
+    }
+  }
+
+  if (typeof updates.avatarFrame === 'string') {
+    const avatarFrame = normalizeAvatarFrameValue(updates.avatarFrame || '');
+    if (avatarFrame !== (member.avatarFrame || '')) {
+      patch.avatarFrame = avatarFrame;
     }
   }
 
