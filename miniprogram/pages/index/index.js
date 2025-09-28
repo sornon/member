@@ -382,7 +382,26 @@ Page({
       return;
     }
     this.unsubscribeMemberRealtime = subscribeMemberRealtime((event) => {
-      if (!event || event.type !== 'memberChanged') {
+      if (!event) {
+        return;
+      }
+      if (event.type === 'memberSnapshot') {
+        const incomingMember = event.member;
+        if (!incomingMember) {
+          return;
+        }
+        const currentMemberId = this.data.member && this.data.member._id;
+        const incomingMemberId = incomingMember._id || incomingMember.id;
+        if (currentMemberId && incomingMemberId && currentMemberId !== incomingMemberId) {
+          return;
+        }
+        this.applyMemberUpdate(incomingMember, { propagate: false });
+        if (event.origin === 'manualRefresh') {
+          this.bootstrap({ showLoading: false });
+        }
+        return;
+      }
+      if (event.type !== 'memberChanged') {
         return;
       }
       const { snapshot } = event;
@@ -690,7 +709,7 @@ Page({
     }
   },
 
-  applyMemberUpdate(member) {
+  applyMemberUpdate(member, options = {}) {
     if (!member) {
       return;
     }
@@ -707,7 +726,9 @@ Page({
       'profileEditor.renameUsed': member.renameUsed || 0,
       'profileEditor.renameHistory': renameHistory
     });
-    setActiveMember(member);
+    if (options.propagate !== false) {
+      setActiveMember(member);
+    }
   },
 
   handleNicknameInput(event) {
