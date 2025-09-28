@@ -247,47 +247,25 @@ async function getChargeOrderQrCode(openid, orderId) {
     throw new Error('扣费单不存在');
   }
 
-  const scene = buildChargeOrderScene(orderId);
-  if (!scene) {
+  const orderIdValue = typeof orderId === 'string' ? orderId.trim() : String(orderId || '');
+  if (!orderIdValue) {
     throw new Error('扣费单编号无效');
   }
 
-  let qrBuffer = null;
-  const envOptions = resolveMiniProgramCodeEnvOptions();
-  let lastError = null;
-
-  for (const option of envOptions) {
-    try {
-      const response = await cloud.openapi.wxacode.getUnlimited({
-        scene,
-        page: 'pages/wallet/charge-confirm/index',
-        check_path: option.checkPath,
-        env_version: option.envVersion
-      });
-      qrBuffer = response && response.buffer ? response.buffer : null;
-      if (qrBuffer && qrBuffer.length) {
-        break;
-      }
-    } catch (error) {
-      lastError = error;
-      console.warn(
-        `Failed to generate mini program code for charge order in env ${option.envVersion}`,
-        error
-      );
-    }
+  const scene = buildChargeOrderScene(orderIdValue);
+  if (!scene) {
+    console.warn('Charge order scene fallback to raw id because scene is empty', orderIdValue);
   }
 
-  if (!qrBuffer || !qrBuffer.length) {
-    if (lastError) {
-      console.error('Failed to generate mini program code for charge order', lastError);
-    }
-    throw new Error('生成微信扫码二维码失败，请稍后重试');
-  }
+  const schemeResult = await generateChargeOrderUrlScheme(orderIdValue, doc.data.expireAt);
 
   return {
     scene,
-    imageBase64: qrBuffer.toString('base64'),
-    page: 'pages/wallet/charge-confirm/index'
+    page: 'pages/wallet/charge-confirm/index',
+    path: buildChargeOrderPagePath(orderIdValue),
+    payload: buildChargeOrderPayload(orderIdValue),
+    schemeUrl: schemeResult.schemeUrl,
+    schemeExpireAt: schemeResult.schemeExpireAt
   };
 }
 
@@ -687,24 +665,180 @@ function buildChargeOrderScene(orderId) {
   return value.length > 32 ? '' : value;
 }
 
-function resolveMiniProgramCodeEnvOptions() {
-  const configuredEnvVersion = getConfiguredEnvVersion();
-  const configuredCheckPath = getConfiguredCheckPath();
+function buildChargeOrderPagePath(orderId) {
+  const basePath = 'pages/wallet/charge-confirm/index';
+  if (!orderId) {
+    return basePath;
+  }
+  const trimmed = typeof orderId === 'string' ? orderId.trim() : String(orderId || '');
+  if (!trimmed) {
+    return basePath;
+  }
+  const encoded = encodeURIComponent(trimmed);
+  return `${basePath}?orderId=${encoded}`;
+}
 
-  if (configuredEnvVersion) {
-    return [
-      {
-        envVersion: configuredEnvVersion,
-        checkPath: configuredCheckPath
-      }
-    ];
+async function generateChargeOrderUrlScheme(orderId, expireAt) {
+  const queryValue = typeof orderId === 'string' ? orderId.trim() : String(orderId || '');
+  if (!queryValue) {
+    return { schemeUrl: '', schemeExpireAt: null };
   }
 
-  return [
-    { envVersion: 'release', checkPath: true },
-    { envVersion: 'trial', checkPath: false },
-    { envVersion: 'develop', checkPath: false }
-  ];
+  const expireTimestamp = resolveExpireTimestamp(expireAt);
+  const envOptions = resolveUrlSchemeEnvOptions();
+  const path = 'pages/wallet/charge-confirm/index';
+  const query = `orderId=${encodeURIComponent(queryValue)}`;
+
+  const schemeResult = await tryGenerateUrlScheme({ path, query }, expireTimestamp, envOptions);
+  if (schemeResult) {
+    return schemeResult;
+  }
+
+  const linkResult = await tryGenerateUrlLink({ path, query }, expireTimestamp, envOptions);
+  if (linkResult) {
+    return linkResult;
+  }
+
+  return { schemeUrl: '', schemeExpireAt: null };
+}
+
+async function tryGenerateUrlScheme({ path, query }, expireTimestamp, envOptions) {
+  const canGenerate =
+    cloud.openapi &&
+    cloud.openapi.urlscheme &&
+    typeof cloud.openapi.urlscheme.generate === 'function';
+  if (!canGenerate) {
+    return null;
+  }
+
+  let lastError = null;
+  for (const option of envOptions) {
+    try {
+      const payload = {
+        jumpWxa: {
+          path,
+          query
+        },
+        isExpire: typeof expireTimestamp === 'number'
+      };
+
+      if (option.envVersion) {
+        payload.jumpWxa.envVersion = option.envVersion;
+      }
+
+      if (typeof expireTimestamp === 'number') {
+        payload.expireTime = expireTimestamp;
+      }
+
+      const response = await cloud.openapi.urlscheme.generate(payload);
+      if (response && response.scheme) {
+        return {
+          schemeUrl: response.scheme,
+          schemeExpireAt: resolveExpireDate(expireTimestamp)
+        };
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `Failed to generate url scheme for charge order in env ${option.envVersion || 'release'}`,
+        error
+      );
+    }
+  }
+
+  if (lastError) {
+    console.error('Failed to generate url scheme for charge order after retries', lastError);
+  }
+
+  return null;
+}
+
+async function tryGenerateUrlLink({ path, query }, expireTimestamp, envOptions) {
+  const canGenerate =
+    cloud.openapi &&
+    cloud.openapi.urllink &&
+    typeof cloud.openapi.urllink.generate === 'function';
+  if (!canGenerate) {
+    return null;
+  }
+
+  let lastError = null;
+  for (const option of envOptions) {
+    try {
+      const payload = {
+        path,
+        query,
+        isExpire: typeof expireTimestamp === 'number'
+      };
+
+      if (option.envVersion) {
+        payload.envVersion = option.envVersion;
+      }
+
+      if (typeof expireTimestamp === 'number') {
+        payload.expireType = 1;
+        payload.expireTime = expireTimestamp;
+      }
+
+      const response = await cloud.openapi.urllink.generate(payload);
+      if (response && response.urlLink) {
+        return {
+          schemeUrl: response.urlLink,
+          schemeExpireAt: resolveExpireDate(expireTimestamp)
+        };
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn(
+        `Failed to generate url link for charge order in env ${option.envVersion || 'release'}`,
+        error
+      );
+    }
+  }
+
+  if (lastError) {
+    console.error('Failed to generate url link for charge order after retries', lastError);
+  }
+
+  return null;
+}
+
+function resolveUrlSchemeEnvOptions() {
+  const configured = getConfiguredEnvVersion();
+  if (configured) {
+    return [{ envVersion: configured }];
+  }
+  return [{ envVersion: 'release' }, { envVersion: 'trial' }, { envVersion: 'develop' }];
+}
+
+function resolveExpireTimestamp(expireAt) {
+  if (!expireAt) {
+    return undefined;
+  }
+
+  const date = expireAt instanceof Date ? expireAt : new Date(expireAt);
+  if (Number.isNaN(date.getTime())) {
+    return undefined;
+  }
+
+  const timestamp = Math.floor(date.getTime() / 1000);
+  if (timestamp <= 0) {
+    return undefined;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (timestamp <= now) {
+    return now + 60;
+  }
+
+  return timestamp;
+}
+
+function resolveExpireDate(expireTimestamp) {
+  if (!expireTimestamp || typeof expireTimestamp !== 'number') {
+    return null;
+  }
+  return new Date(expireTimestamp * 1000).toISOString();
 }
 
 function getConfiguredEnvVersion() {
@@ -724,32 +858,6 @@ function getConfiguredEnvVersion() {
   }
 
   return '';
-}
-
-function getConfiguredCheckPath() {
-  const value =
-    process.env.MINI_PROGRAM_QR_CHECK_PATH ||
-    process.env.MINIPROGRAM_QR_CHECK_PATH ||
-    process.env.WXACODE_CHECK_PATH;
-
-  if (value === undefined || value === null) {
-    return true;
-  }
-
-  const normalized = String(value).trim().toLowerCase();
-  if (!normalized) {
-    return true;
-  }
-
-  if (['0', 'false', 'no', 'off'].includes(normalized)) {
-    return false;
-  }
-
-  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
-    return true;
-  }
-
-  return true;
 }
 
 function decorateChargeOrderRecord(order, member) {
