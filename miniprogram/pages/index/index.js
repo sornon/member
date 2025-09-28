@@ -124,6 +124,10 @@ Page({
       phoneCloudId: '',
       phoneCode: ''
     },
+    authorizationStatus: {
+      profileAuthorized: false,
+      phoneAuthorized: false
+    },
     backgroundImage: BACKGROUND_IMAGE,
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
@@ -238,6 +242,8 @@ Page({
       ]);
       const width = normalizePercentage(progress);
       const needsProfile = !member || !member.nickName || !member.mobile;
+      const profileAuthorized = !!(member && member.nickName);
+      const phoneAuthorized = !!(member && member.mobile);
       this.setData({
         member,
         progress,
@@ -257,7 +263,16 @@ Page({
               phoneCloudId: '',
               phoneCode: ''
             }
-          : this.data.onboarding
+          : this.data.onboarding,
+        authorizationStatus: needsProfile
+          ? {
+              profileAuthorized,
+              phoneAuthorized
+            }
+          : {
+              profileAuthorized: false,
+              phoneAuthorized: false
+            }
       });
       setActiveMember(member);
     } catch (err) {
@@ -304,16 +319,6 @@ Page({
     });
   },
 
-  handlePhoneInput(event) {
-    const value = event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
-    this.setData({
-      onboarding: {
-        ...this.data.onboarding,
-        mobile: value
-      }
-    });
-  },
-
   handleRequestUserProfile() {
     wx.getUserProfile({
       desc: '用于完善会员昵称与头像',
@@ -324,7 +329,12 @@ Page({
             ...this.data.onboarding,
             nickName: info.nickName || this.data.onboarding.nickName,
             avatarUrl: info.avatarUrl || this.data.onboarding.avatarUrl
-          }
+          },
+          'authorizationStatus.profileAuthorized': true
+        });
+        wx.showToast({
+          title: '已获取微信昵称',
+          icon: 'success'
         });
       },
       fail: () => {
@@ -351,7 +361,12 @@ Page({
         mobile: detail.phoneNumber || this.data.onboarding.mobile,
         phoneCloudId: detail.cloudID || '',
         phoneCode: detail.code || ''
-      }
+      },
+      'authorizationStatus.phoneAuthorized': true
+    });
+    wx.showToast({
+      title: '已授权手机号',
+      icon: 'success'
     });
   },
 
@@ -361,6 +376,23 @@ Page({
     }
     const nickName = (this.data.onboarding.nickName || '').trim();
     const mobile = (this.data.onboarding.mobile || '').trim();
+    const phoneCloudId = this.data.onboarding.phoneCloudId || '';
+    const phoneCode = this.data.onboarding.phoneCode || '';
+    const { profileAuthorized, phoneAuthorized } = this.data.authorizationStatus;
+    if (!profileAuthorized) {
+      wx.showToast({
+        title: '请先授权微信昵称',
+        icon: 'none'
+      });
+      return;
+    }
+    if (!phoneAuthorized) {
+      wx.showToast({
+        title: '请先授权手机号',
+        icon: 'none'
+      });
+      return;
+    }
     if (!nickName) {
       wx.showToast({
         title: '请填写昵称',
@@ -368,9 +400,9 @@ Page({
       });
       return;
     }
-    if (!mobile) {
+    if (!mobile && !phoneCloudId && !phoneCode) {
       wx.showToast({
-        title: '请填写手机号',
+        title: '请授权手机号',
         icon: 'none'
       });
       return;
@@ -394,6 +426,10 @@ Page({
           ...this.data.onboarding,
           phoneCloudId: '',
           phoneCode: ''
+        },
+        authorizationStatus: {
+          profileAuthorized: false,
+          phoneAuthorized: false
         }
       });
       await this.bootstrap({ showLoading: false });
