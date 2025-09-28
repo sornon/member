@@ -10,10 +10,22 @@ const COLLECTIONS = {
   STONE_TRANSACTIONS: 'stoneTransactions'
 };
 
-const MAX_LEVEL = 60;
+const MAX_LEVEL = 100;
 const MAX_SKILL_SLOTS = 3;
 const MAX_BATTLE_HISTORY = 15;
 const MAX_SKILL_HISTORY = 30;
+
+const BASE_ATTRIBUTE_GROWTH = {
+  hp: { base: 1200, perLevel: 180 },
+  attack: { base: 120, perLevel: 12 },
+  defense: { base: 80, perLevel: 9 },
+  speed: { base: 60, perLevel: 3 },
+  luck: { base: 10, perLevel: 1 },
+  critRate: { base: 0.05, perLevel: 0.002 },
+  critDamage: { base: 1.5, perLevel: 0.015 }
+};
+
+let membershipLevelsCache = null;
 
 const ATTRIBUTE_CONFIG = [
   { key: 'hp', label: '气血', type: 'number', step: 45 },
@@ -279,6 +291,190 @@ const EQUIPMENT_MAP = buildMap(EQUIPMENT_LIBRARY);
 const SKILL_MAP = buildMap(SKILL_LIBRARY);
 const ENEMY_MAP = buildMap(ENEMY_LIBRARY);
 
+async function loadMembershipLevels() {
+  if (membershipLevelsCache && membershipLevelsCache.length) {
+    return membershipLevelsCache;
+  }
+  const snapshot = await db
+    .collection('membershipLevels')
+    .orderBy('order', 'asc')
+    .limit(200)
+    .get();
+  membershipLevelsCache = Array.isArray(snapshot.data) ? snapshot.data : [];
+  return membershipLevelsCache;
+}
+
+function sortLevels(levels = []) {
+  return [...levels].sort((a, b) => (a.order || 0) - (b.order || 0));
+}
+
+function resolveMemberLevelInfo(levels = [], member = {}) {
+  const sorted = sortLevels(levels);
+  if (!sorted.length) {
+    return { sorted, current: null, next: null };
+  }
+  const levelId = member.levelId || member.level || '';
+  let current = sorted.find((level) => level._id === levelId);
+  if (!current) {
+    current = sorted[0];
+  }
+  const index = sorted.findIndex((level) => level._id === current._id);
+  const next = index >= 0 && index < sorted.length - 1 ? sorted[index + 1] : null;
+  return { sorted, current, next, index };
+}
+
+function calculateBaseAttributesForLevel(level = 1) {
+  const value = Math.max(1, Math.min(MAX_LEVEL, Math.floor(level)));
+  return {
+    hp: Math.round(BASE_ATTRIBUTE_GROWTH.hp.base + (value - 1) * BASE_ATTRIBUTE_GROWTH.hp.perLevel),
+    attack: Math.round(BASE_ATTRIBUTE_GROWTH.attack.base + (value - 1) * BASE_ATTRIBUTE_GROWTH.attack.perLevel),
+    defense: Math.round(BASE_ATTRIBUTE_GROWTH.defense.base + (value - 1) * BASE_ATTRIBUTE_GROWTH.defense.perLevel),
+    speed: Math.round(BASE_ATTRIBUTE_GROWTH.speed.base + (value - 1) * BASE_ATTRIBUTE_GROWTH.speed.perLevel),
+    luck: Math.round(BASE_ATTRIBUTE_GROWTH.luck.base + (value - 1) * BASE_ATTRIBUTE_GROWTH.luck.perLevel),
+    critRate: Number(
+      (
+        BASE_ATTRIBUTE_GROWTH.critRate.base +
+        (value - 1) * BASE_ATTRIBUTE_GROWTH.critRate.perLevel
+      ).toFixed(4)
+    ),
+    critDamage: Number(
+      (
+        BASE_ATTRIBUTE_GROWTH.critDamage.base +
+        (value - 1) * BASE_ATTRIBUTE_GROWTH.critDamage.perLevel
+      ).toFixed(2)
+    )
+  };
+}
+
+function areStatsEqual(a = {}, b = {}) {
+  const keys = new Set([...Object.keys(a || {}), ...Object.keys(b || {})]);
+  for (const key of keys) {
+    const aValue = Number(a[key]) || 0;
+    const bValue = Number(b[key]) || 0;
+    if (Math.abs(aValue - bValue) > 0.0001) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function getAttributePointRewardForLevel(level) {
+  const value = Math.max(1, Math.floor(level));
+  return 3 + Math.floor(value / 3);
+}
+
+function syncAttributesWithMemberLevel(attributes, member, levels) {
+  if (!attributes) {
+    return false;
+  }
+  const { sorted, current, next } = resolveMemberLevelInfo(levels, member);
+  const levelOrder = current ? current.order || sorted.indexOf(current) + 1 : 1;
+  const experience = Math.max(0, Math.floor(Number(member.experience) || 0));
+  const baseStats = calculateBaseAttributesForLevel(levelOrder);
+  let changed = false;
+
+  const maxLevel = Math.min(MAX_LEVEL, sorted.length || MAX_LEVEL);
+  if (attributes.maxLevel !== maxLevel) {
+    attributes.maxLevel = maxLevel;
+    changed = true;
+  }
+
+  if (attributes.level !== levelOrder) {
+    attributes.level = levelOrder;
+    changed = true;
+  }
+
+  if (attributes.experience !== experience) {
+    attributes.experience = experience;
+    changed = true;
+  }
+
+  if (!areStatsEqual(attributes.base, baseStats)) {
+    attributes.base = baseStats;
+    changed = true;
+  } else {
+    attributes.base = baseStats;
+  }
+
+  const lastSyncedLevel = Math.max(1, Math.floor(Number(attributes.lastSyncedLevel || attributes.level || 1)));
+  if (levelOrder > lastSyncedLevel) {
+    let bonusPoints = 0;
+    for (let lvl = lastSyncedLevel + 1; lvl <= levelOrder; lvl += 1) {
+      bonusPoints += getAttributePointRewardForLevel(lvl);
+    }
+    if (bonusPoints > 0) {
+      attributes.attributePoints = (attributes.attributePoints || 0) + bonusPoints;
+      changed = true;
+    }
+  }
+  if (attributes.lastSyncedLevel !== levelOrder) {
+    attributes.lastSyncedLevel = levelOrder;
+    changed = true;
+  }
+
+  const levelId = current ? current._id || '' : '';
+  if (attributes.levelId !== levelId) {
+    attributes.levelId = levelId;
+    changed = true;
+  }
+  const levelLabel = current ? current.displayName || current.name || `第${levelOrder}级` : `第${levelOrder}级`;
+  if (attributes.levelLabel !== levelLabel) {
+    attributes.levelLabel = levelLabel;
+    changed = true;
+  }
+  if (attributes.levelName !== levelLabel) {
+    attributes.levelName = levelLabel;
+    changed = true;
+  }
+  const levelShort = current ? current.name || levelLabel : levelLabel;
+  if (attributes.levelShort !== levelShort) {
+    attributes.levelShort = levelShort;
+    changed = true;
+  }
+  const realmName = current ? current.realm || '' : '';
+  if (attributes.realmName !== realmName) {
+    attributes.realmName = realmName;
+    changed = true;
+  }
+  const realmShort = current ? current.realmShort || '' : '';
+  if (attributes.realmShort !== realmShort) {
+    attributes.realmShort = realmShort;
+    changed = true;
+  }
+  const realmId = current ? current.realmId || '' : '';
+  if (attributes.realmId !== realmId) {
+    attributes.realmId = realmId;
+    changed = true;
+  }
+
+  const nextLevelId = next ? next._id || '' : '';
+  if (attributes.nextLevelId !== nextLevelId) {
+    attributes.nextLevelId = nextLevelId;
+    changed = true;
+  }
+  const nextLevelLabel = next ? next.displayName || next.name || '' : '';
+  if (attributes.nextLevelLabel !== nextLevelLabel) {
+    attributes.nextLevelLabel = nextLevelLabel;
+    changed = true;
+  }
+
+  const experienceThreshold = current ? Math.max(0, Math.floor(Number(current.threshold) || 0)) : 0;
+  if (attributes.experienceThreshold !== experienceThreshold) {
+    attributes.experienceThreshold = experienceThreshold;
+    changed = true;
+  }
+  const nextThreshold = next ? Math.max(0, Math.floor(Number(next.threshold) || 0)) : null;
+  if (
+    (typeof attributes.nextExperienceThreshold === 'number' ? attributes.nextExperienceThreshold : null) !==
+    (nextThreshold === null ? null : nextThreshold)
+  ) {
+    attributes.nextExperienceThreshold = nextThreshold === null ? null : nextThreshold;
+    changed = true;
+  }
+
+  return changed;
+}
+
 exports.main = async (event) => {
   const { OPENID } = cloud.getWXContext();
   const action = event.action || 'profile';
@@ -303,13 +499,15 @@ exports.main = async (event) => {
 
 async function getProfile(openid) {
   const member = await ensureMember(openid);
-  const profile = await ensurePveProfile(openid, member);
+  const levels = await loadMembershipLevels();
+  const profile = await ensurePveProfile(openid, member, levels);
   return decorateProfile(member, profile);
 }
 
 async function simulateBattle(openid, enemyId) {
   const member = await ensureMember(openid);
-  const profile = await ensurePveProfile(openid, member);
+  const levels = await loadMembershipLevels();
+  const profile = await ensurePveProfile(openid, member, levels);
   const enemy = ENEMY_MAP[enemyId];
   if (!enemy) {
     throw createError('ENEMY_NOT_FOUND', '未找到指定的副本目标');
@@ -319,7 +517,7 @@ async function simulateBattle(openid, enemyId) {
   const result = runBattleSimulation(battleSetup);
 
   const now = new Date();
-  const updatedProfile = applyBattleOutcome(profile, result, enemy, now);
+  const updatedProfile = applyBattleOutcome(profile, result, enemy, now, member, levels);
   const updates = { pveProfile: updatedProfile, updatedAt: now };
   if (result.rewards && result.rewards.stones > 0) {
     updates.stoneBalance = _.inc(result.rewards.stones);
@@ -558,7 +756,7 @@ async function ensureMember(openid) {
   return snapshot.data;
 }
 
-async function ensurePveProfile(openid, member) {
+async function ensurePveProfile(openid, member, levelCache) {
   const now = new Date();
   let profile = member.pveProfile;
   let changed = false;
@@ -575,7 +773,8 @@ async function ensurePveProfile(openid, member) {
     }
   }
 
-  if (applyLevelUp(profile.attributes)) {
+  const levels = Array.isArray(levelCache) ? levelCache : await loadMembershipLevels();
+  if (syncAttributesWithMemberLevel(profile.attributes, member, levels)) {
     changed = true;
   }
 
@@ -601,19 +800,25 @@ function buildDefaultProfile(now = new Date()) {
 }
 
 function buildDefaultAttributes() {
+  const base = calculateBaseAttributesForLevel(1);
   return {
     level: 1,
     experience: 0,
     attributePoints: 0,
-    base: {
-      hp: 1200,
-      attack: 120,
-      defense: 80,
-      speed: 60,
-      luck: 10,
-      critRate: 0.05,
-      critDamage: 1.5
-    },
+    lastSyncedLevel: 1,
+    levelId: '',
+    levelLabel: '',
+    levelName: '',
+    levelShort: '',
+    realmId: '',
+    realmName: '',
+    realmShort: '',
+    nextLevelId: '',
+    nextLevelLabel: '',
+    experienceThreshold: 0,
+    nextExperienceThreshold: null,
+    maxLevel: MAX_LEVEL,
+    base,
     trained: {
       hp: 0,
       attack: 0,
@@ -663,9 +868,34 @@ function normalizeAttributes(attributes) {
   const defaults = buildDefaultAttributes();
   const payload = typeof attributes === 'object' && attributes ? attributes : {};
   return {
-    level: Math.max(1, Math.min(MAX_LEVEL, Math.floor(Number(payload.level) || 1))),
+    level: Math.max(1, Math.min(MAX_LEVEL, Math.floor(Number(payload.level) || defaults.level || 1))),
     experience: Math.max(0, Math.floor(Number(payload.experience) || 0)),
     attributePoints: Math.max(0, Math.floor(Number(payload.attributePoints) || 0)),
+    lastSyncedLevel: Math.max(
+      1,
+      Math.min(
+        MAX_LEVEL,
+        Math.floor(Number(payload.lastSyncedLevel || payload.level || defaults.lastSyncedLevel || 1))
+      )
+    ),
+    levelId: typeof payload.levelId === 'string' ? payload.levelId : defaults.levelId,
+    levelLabel: typeof payload.levelLabel === 'string' ? payload.levelLabel : defaults.levelLabel,
+    levelName: typeof payload.levelName === 'string' ? payload.levelName : defaults.levelName,
+    levelShort: typeof payload.levelShort === 'string' ? payload.levelShort : defaults.levelShort,
+    realmId: typeof payload.realmId === 'string' ? payload.realmId : defaults.realmId,
+    realmName: typeof payload.realmName === 'string' ? payload.realmName : defaults.realmName,
+    realmShort: typeof payload.realmShort === 'string' ? payload.realmShort : defaults.realmShort,
+    nextLevelId: typeof payload.nextLevelId === 'string' ? payload.nextLevelId : defaults.nextLevelId,
+    nextLevelLabel: typeof payload.nextLevelLabel === 'string' ? payload.nextLevelLabel : defaults.nextLevelLabel,
+    experienceThreshold: Math.max(0, Math.floor(Number(payload.experienceThreshold) || 0)),
+    nextExperienceThreshold:
+      typeof payload.nextExperienceThreshold === 'number' && !Number.isNaN(payload.nextExperienceThreshold)
+        ? Math.max(0, Math.floor(payload.nextExperienceThreshold))
+        : null,
+    maxLevel: Math.max(
+      1,
+      Math.min(MAX_LEVEL, Math.floor(Number(payload.maxLevel || defaults.maxLevel || MAX_LEVEL)))
+    ),
     base: mergeStats(payload.base, defaults.base),
     trained: mergeStats(payload.trained, defaults.trained)
   };
@@ -873,7 +1103,7 @@ function decorateProfile(member, profile) {
     rarityConfig: decorateRarityConfig(),
     metadata: {
       maxSkillSlots: MAX_SKILL_SLOTS,
-      maxLevel: MAX_LEVEL
+      maxLevel: attributeSummary.maxLevel || MAX_LEVEL
     }
   };
 }
@@ -905,20 +1135,51 @@ function calculateAttributes(attributes, equipment, skills) {
 
   const experience = Math.max(0, Math.floor(Number(attributes.experience) || 0));
   const level = Math.max(1, Math.floor(Number(attributes.level) || 1));
-  const currentThreshold = getExperienceForLevel(level);
-  const nextThreshold = getExperienceForLevel(level + 1);
-  const expForLevel = nextThreshold - currentThreshold;
-  const expProgress = expForLevel > 0 ? Math.min(1, Math.max(0, (experience - currentThreshold) / expForLevel)) : 1;
+  const maxLevel = Math.max(
+    level,
+    Math.min(MAX_LEVEL, Math.floor(Number(attributes.maxLevel || MAX_LEVEL)))
+  );
+  const experienceThreshold = Math.max(0, Math.floor(Number(attributes.experienceThreshold) || 0));
+  const hasNext =
+    typeof attributes.nextExperienceThreshold === 'number' &&
+    !Number.isNaN(attributes.nextExperienceThreshold);
+  const nextThreshold = hasNext
+    ? Math.max(0, Math.floor(Number(attributes.nextExperienceThreshold)))
+    : null;
+  const expForLevel =
+    nextThreshold !== null ? Math.max(nextThreshold - experienceThreshold, 0) : 0;
+  const expProgress =
+    nextThreshold !== null && expForLevel > 0
+      ? Math.min(1, Math.max(0, (experience - experienceThreshold) / expForLevel))
+      : 1;
+  const experienceNeeded =
+    nextThreshold !== null ? Math.max(nextThreshold - experience, 0) : 0;
+  const nextLevel = nextThreshold !== null ? Math.min(maxLevel, level + 1) : level;
+  const levelLabel = attributes.levelLabel || attributes.levelName || `第${level}级`;
+  const levelShort = attributes.levelShort || levelLabel;
+  const realmName = attributes.realmName || '';
+  const realmShort = attributes.realmShort || '';
+  const nextLevelLabel = attributes.nextLevelLabel || '';
 
   return {
     level,
+    levelLabel,
+    levelName: levelLabel,
+    levelShort,
+    levelId: attributes.levelId || '',
+    realmId: attributes.realmId || '',
+    realmName,
+    realmShort,
     experience,
     attributePoints: Math.max(0, Math.floor(Number(attributes.attributePoints) || 0)),
-    nextLevel: Math.min(MAX_LEVEL, level + 1),
+    nextLevel,
+    nextLevelId: attributes.nextLevelId || '',
+    nextLevelLabel,
     nextLevelExp: nextThreshold,
-    currentLevelExp: currentThreshold,
-    experienceNeeded: Math.max(0, nextThreshold - experience),
+    currentLevelExp: experienceThreshold,
+    experienceNeeded,
     experienceProgress: Math.round(expProgress * 100),
+    maxLevel,
     combatPower,
     baseTotals: combinedBase,
     equipmentBonus,
@@ -1586,7 +1847,7 @@ function resolveBattleLoot(loot, luck) {
   return results;
 }
 
-function applyBattleOutcome(profile, result, enemy, now) {
+function applyBattleOutcome(profile, result, enemy, now, member, levels = []) {
   const updated = normalizeProfile(profile, now);
   updated.attributes.attributePoints =
     (updated.attributes.attributePoints || 0) + (result.rewards.attributePoints || 0);
@@ -1602,7 +1863,7 @@ function applyBattleOutcome(profile, result, enemy, now) {
     });
   }
 
-  applyLevelUp(updated.attributes);
+  syncAttributesWithMemberLevel(updated.attributes, member || {}, levels);
 
   updated.battleHistory = appendHistory(
     updated.battleHistory,
@@ -1865,40 +2126,6 @@ function resolveRarityColor(rarity) {
 
 function resolveRarityLabel(rarity) {
   return (RARITY_CONFIG[rarity] && RARITY_CONFIG[rarity].label) || '常见';
-}
-
-function getExperienceForLevel(level) {
-  if (level <= 1) {
-    return 0;
-  }
-  let total = 0;
-  for (let i = 1; i < level; i += 1) {
-    total += getLevelRequirement(i);
-  }
-  return total;
-}
-
-function getLevelRequirement(level) {
-  return 120 + (level - 1) * 80;
-}
-
-function applyLevelUp(attributes) {
-  if (!attributes) {
-    return false;
-  }
-  let leveled = false;
-  attributes.level = Math.max(1, Math.floor(Number(attributes.level) || 1));
-  attributes.experience = Math.max(0, Math.floor(Number(attributes.experience) || 0));
-  attributes.attributePoints = Math.max(0, Math.floor(Number(attributes.attributePoints) || 0));
-  while (
-    attributes.level < MAX_LEVEL &&
-    attributes.experience >= getExperienceForLevel(attributes.level + 1)
-  ) {
-    attributes.level += 1;
-    attributes.attributePoints += 3 + Math.floor(attributes.level / 3);
-    leveled = true;
-  }
-  return leveled;
 }
 
 function resolveSkillMaxLevel(skillId) {

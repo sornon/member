@@ -106,6 +106,50 @@ page {
   color: #59617c;
   font-size: 24rpx;
   margin-bottom: 12rpx;
+  align-items: flex-start;
+  gap: 24rpx;
+}
+
+.level-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.level-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #303654;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6rpx;
+}
+
+.level-count {
+  font-size: 22rpx;
+  color: #7a81a0;
+}
+
+.level-realm {
+  font-size: 24rpx;
+  color: #59617c;
+}
+
+.level-next {
+  font-size: 22rpx;
+  color: #8c94b0;
+}
+
+.progress-text {
+  font-size: 24rpx;
+  color: #59617c;
+  text-align: right;
+  line-height: 1.6;
+}
+
+.progress-text text {
+  display: inline;
 }
 
 .progress-bar {

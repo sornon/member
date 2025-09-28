@@ -30,11 +30,33 @@
           </view>
         </view>
         <view class="level-line">
-          <view>
-            等级 {{profile.attributes ? profile.attributes.level : '--'}} / {{profile.metadata ? profile.metadata.maxLevel : '--'}}
+          <view class="level-stack">
+            <view class="level-name">
+              {{profile.attributes ? profile.attributes.levelLabel : '--'}}
+              <text
+                class="level-count"
+                wx:if="{{profile.attributes && profile.metadata}}"
+              >（{{profile.attributes.level}} / {{profile.metadata.maxLevel}}）</text>
+            </view>
+            <view
+              class="level-realm"
+              wx:if="{{profile.attributes && profile.attributes.realmName}}"
+            >
+              所属境界：{{profile.attributes.realmName}}
+            </view>
+            <view
+              class="level-next"
+              wx:if="{{profile.attributes && profile.attributes.nextLevelLabel}}"
+            >
+              下一阶段：{{profile.attributes.nextLevelLabel}}
+            </view>
           </view>
           <view class="progress-text">
-            {{profile.attributes ? profile.attributes.experience : '--'}} / {{profile.attributes ? profile.attributes.nextLevelExp : '--'}}
+            修为 {{profile.attributes ? profile.attributes.experience : '--'}}
+            <text wx:if="{{profile.attributes && profile.attributes.nextLevelExp != null}}">
+              / {{profile.attributes.nextLevelExp}}
+            </text>
+            <text wx:else> · 已满阶</text>
           </view>
         </view>
         <view class="progress-bar">
