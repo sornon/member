@@ -1,0 +1,53 @@
+<custom-nav title="包房预约审核" theme="dark"></custom-nav>
+<view class="container">
+  <view class="card filter-card">
+    <view class="filter-label">筛选状态</view>
+    <picker
+      mode="selector"
+      range="{{statusOptions}}"
+      range-key="label"
+      value="{{statusIndex}}"
+      bindchange="handleStatusChange"
+    >
+      <view class="picker">当前：{{currentStatusLabel}}</view>
+    </picker>
+  </view>
+
+  <view wx:if="{{loading && !reservations.length}}" class="card">正在加载预约...</view>
+  <view wx:if="{{!loading && !reservations.length}}" class="card empty">暂无预约申请</view>
+
+  <view class="card" wx:for="{{reservations}}" wx:key="_id">
+    <view class="item-header">
+      <view class="room">{{item.roomName || '包房'}}</view>
+      <view class="status {{item.status}}">{{item.statusLabel}}</view>
+    </view>
+    <view class="item-time">{{item.date}} {{item.startTime}} - {{item.endTime}}</view>
+    <view class="item-member">
+      申请人：{{item.memberName || item.memberId}}
+      <text wx:if="{{item.memberMobile}}"> · {{item.memberMobile}}</text>
+    </view>
+    <view class="item-meta" wx:if="{{item.usageCredits}}">占用使用次数：{{item.usageCredits}}</view>
+    <view class="item-meta" wx:if="{{item.approval && item.approval.reason}}">审核备注：{{item.approval.reason}}</view>
+    <view class="item-actions" wx:if="{{item.status === 'pendingApproval'}}">
+      <button
+        size="mini"
+        type="warn"
+        loading="{{processingId === item._id && processingType === 'reject'}}"
+        disabled="{{!!processingId && processingId !== item._id}}"
+        data-id="{{item._id}}"
+        bindtap="handleReject"
+      >拒绝</button>
+      <button
+        size="mini"
+        type="primary"
+        loading="{{processingId === item._id && processingType === 'approve'}}"
+        disabled="{{!!processingId && processingId !== item._id}}"
+        data-id="{{item._id}}"
+        bindtap="handleApprove"
+      >通过</button>
+    </view>
+  </view>
+
+  <view wx:if="{{loading && reservations.length}}" class="loading">加载中...</view>
+  <view wx:if="{{finished && reservations.length}}" class="finished">没有更多记录了</view>
+</view>

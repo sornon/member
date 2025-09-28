@@ -1,3 +1,52 @@
+.notice {
+  margin-bottom: 20rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 16rpx;
+  border: 1rpx solid rgba(114, 136, 220, 0.4);
+  background: rgba(14, 24, 60, 0.9);
+  color: #dce4ff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notice.success {
+  border-color: rgba(102, 214, 158, 0.45);
+  background: rgba(20, 64, 54, 0.8);
+  color: #b5f7d3;
+}
+
+.notice.warning {
+  border-color: rgba(255, 196, 122, 0.45);
+  background: rgba(70, 50, 12, 0.8);
+  color: #ffe0b2;
+}
+
+.notice.info {
+  border-color: rgba(138, 160, 255, 0.45);
+  background: rgba(28, 38, 82, 0.85);
+  color: #dfe6ff;
+}
+
+.notice-text {
+  flex: 1;
+  font-size: 24rpx;
+  line-height: 1.5;
+  padding-right: 16rpx;
+}
+
+.notice-close {
+  background: rgba(118, 142, 255, 0.15);
+  color: #cfd8ff;
+  border: 1rpx solid rgba(138, 160, 255, 0.5);
+}
+
+.usage {
+  margin-bottom: 12rpx;
+  font-size: 24rpx;
+  color: rgba(198, 208, 255, 0.85);
+}
+
 .filter-card .picker {
   background: rgba(14, 24, 60, 0.88);
   padding: 20rpx 24rpx;

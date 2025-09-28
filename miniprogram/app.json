@@ -11,6 +11,7 @@
     "pages/wallet/wallet",
     "pages/avatar/avatar",
     "pages/admin/index",
+    "pages/admin/reservations/index",
     "pages/admin/members/index",
     "pages/admin/member-detail/index",
     "pages/admin/charge/index",

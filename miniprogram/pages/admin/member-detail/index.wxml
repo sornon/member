@@ -45,6 +45,17 @@
     <view class="rename-meta">
       <text>已使用改名次数：{{member.renameUsed || 0}}</text>
     </view>
+    <view class="form-item">
+      <view class="form-label">包房使用次数</view>
+      <input
+        class="form-input"
+        type="number"
+        value="{{form.roomUsageCount}}"
+        placeholder="请输入剩余包房使用次数"
+        data-field="roomUsageCount"
+        bindinput="handleInputChange"
+      />
+    </view>
     <view wx:if="{{renameHistory.length}}" class="rename-history">
       <view class="rename-history__title">改名记录</view>
       <view class="rename-history__item" wx:for="{{renameHistory}}" wx:key="id">

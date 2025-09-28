@@ -1,7 +1,20 @@
 <custom-nav title="预约包房" theme="dark"></custom-nav>
 <view class="container">
+  <view
+    wx:if="{{notice && (!notice.closable || !noticeDismissed)}}"
+    class="notice {{notice.type || 'info'}}"
+  >
+    <text class="notice-text">{{notice.message}}</text>
+    <button
+      wx:if="{{notice.closable}}"
+      size="mini"
+      class="notice-close"
+      bindtap="dismissNotice"
+    >知道了</button>
+  </view>
   <view class="card filter-card">
     <view class="section-title">选择日期与时间</view>
+    <view class="usage">剩余包房使用次数：{{memberUsageCount}}</view>
     <picker mode="date" value="{{date}}" bindchange="handleDateChange">
       <view class="picker">预约日期：{{date}}</view>
     </picker>

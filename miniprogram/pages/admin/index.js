@@ -18,6 +18,12 @@ Page({
         label: '订单查询',
         description: '按会员查看扣费订单记录',
         url: '/pages/admin/orders/index'
+      },
+      {
+        icon: '🏠',
+        label: '预约审核',
+        description: '查看并审核包房预约申请',
+        url: '/pages/admin/reservations/index'
       }
     ]
   },

@@ -14,9 +14,29 @@
             <view class="status {{item.status}}">{{item.statusLabel}}</view>
           </view>
           <view class="right-desc">{{item.description}}</view>
+          <view wx:if="{{item.canRedeemRoomUsage}}" class="right-meta">
+            兑换后可增加 {{item.roomUsageCredits}} 次使用次数
+          </view>
           <view class="right-footer">
             <text>有效期：{{formatDate(item.validUntil) || '长期有效'}}</text>
-            <button wx:if="{{item.canReserve}}" size="mini" type="primary" data-right-id="{{item._id}}" bindtap="handleReserve">预约</button>
+            <view class="right-actions">
+              <button
+                wx:if="{{item.canRedeemRoomUsage}}"
+                size="mini"
+                class="secondary"
+                loading="{{redeemingRightId === item._id}}"
+                disabled="{{redeemingRightId && redeemingRightId !== item._id}}"
+                data-right-id="{{item._id}}"
+                bindtap="handleRedeemUsage"
+              >兑换次数</button>
+              <button
+                wx:if="{{item.canReserve}}"
+                size="mini"
+                type="primary"
+                data-right-id="{{item._id}}"
+                bindtap="handleReserve"
+              >预约</button>
+            </view>
           </view>
         </view>
       </view>

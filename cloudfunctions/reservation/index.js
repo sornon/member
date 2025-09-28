@@ -9,10 +9,19 @@ const COLLECTIONS = {
   ROOMS: 'rooms',
   RESERVATIONS: 'reservations',
   MEMBER_RIGHTS: 'memberRights',
-  MEMBERSHIP_RIGHTS: 'membershipRights'
+  MEMBERSHIP_RIGHTS: 'membershipRights',
+  MEMBERS: 'members'
 };
 
-exports.main = async (event, context) => {
+const RESERVATION_ACTIVE_STATUSES = [
+  'pendingApproval',
+  'approved',
+  'reserved',
+  'confirmed',
+  'pendingPayment'
+];
+
+exports.main = async (event = {}) => {
   const { OPENID } = cloud.getWXContext();
   const action = event.action || 'availableRooms';
 
@@ -23,6 +32,8 @@ exports.main = async (event, context) => {
       return createReservation(OPENID, event.order || {});
     case 'cancel':
       return cancelReservation(OPENID, event.reservationId);
+    case 'redeemUsageCoupon':
+      return redeemRoomUsageCoupon(OPENID, event.memberRightId);
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -37,21 +48,46 @@ async function listAvailableRooms(openid, date, startTime, endTime) {
     throw new Error('预约时间不正确');
   }
 
-  const [roomsSnapshot, reservationsSnapshot, rightsSnapshot, rightsMaster] = await Promise.all([
-    db.collection(COLLECTIONS.ROOMS)
+  const [
+    roomsSnapshot,
+    reservationsSnapshot,
+    rightsSnapshot,
+    rightsMasterSnapshot,
+    memberReservationSnapshot,
+    memberDoc
+  ] = await Promise.all([
+    db
+      .collection(COLLECTIONS.ROOMS)
       .where({ status: 'online' })
       .orderBy('priority', 'asc')
       .get(),
-    db.collection(COLLECTIONS.RESERVATIONS)
+    db
+      .collection(COLLECTIONS.RESERVATIONS)
       .where({
         date,
-        status: _.in(['pendingPayment', 'reserved', 'confirmed'])
+        status: _.in(RESERVATION_ACTIVE_STATUSES)
       })
       .get(),
-    db.collection(COLLECTIONS.MEMBER_RIGHTS)
+    db
+      .collection(COLLECTIONS.MEMBER_RIGHTS)
       .where({ memberId: openid, status: 'active' })
       .get(),
-    db.collection(COLLECTIONS.MEMBERSHIP_RIGHTS).get()
+    db.collection(COLLECTIONS.MEMBERSHIP_RIGHTS).get(),
+    db
+      .collection(COLLECTIONS.RESERVATIONS)
+      .where({
+        memberId: openid,
+        status: _.in(['pendingApproval', 'approved', 'rejected'])
+      })
+      .orderBy('date', 'desc')
+      .orderBy('startTime', 'desc')
+      .limit(1)
+      .get(),
+    db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(openid)
+      .get()
+      .catch(() => null)
   ]);
 
   const reservedRoomIds = new Set(
@@ -60,9 +96,10 @@ async function listAvailableRooms(openid, date, startTime, endTime) {
       .filter(({ range }) => range && isTimeRangeOverlap(range, requestRange))
       .map(({ reservation }) => reservation.roomId)
   );
+
   const now = Date.now();
   const masterMap = {};
-  rightsMaster.data.forEach((item) => {
+  rightsMasterSnapshot.data.forEach((item) => {
     masterMap[item._id] = item;
   });
   const validRights = rightsSnapshot.data.filter((right) => {
@@ -70,8 +107,8 @@ async function listAvailableRooms(openid, date, startTime, endTime) {
     return new Date(right.validUntil).getTime() >= now;
   });
 
-  return {
-    rooms: roomsSnapshot.data.map((room) => {
+  const rooms = roomsSnapshot.data
+    .map((room) => {
       const right = validRights.find((r) => canRightApply(masterMap[r.rightId], requestRange));
       return {
         _id: room._id,
@@ -82,7 +119,21 @@ async function listAvailableRooms(openid, date, startTime, endTime) {
         isFree: Boolean(right),
         images: room.images || []
       };
-    }).filter((room) => !reservedRoomIds.has(room._id))
+    })
+    .filter((room) => !reservedRoomIds.has(room._id));
+
+  const memberRecord = (memberDoc && memberDoc.data) || null;
+  const usageCount = normalizeUsageCount(memberRecord && memberRecord.roomUsageCount);
+  const notice = buildMemberReservationNotice(
+    memberReservationSnapshot.data,
+    roomsSnapshot.data,
+    usageCount
+  );
+
+  return {
+    rooms,
+    notice,
+    memberUsageCount: usageCount
   };
 }
 
@@ -101,12 +152,25 @@ async function createReservation(openid, order) {
   }
 
   const reservationResult = await db.runTransaction(async (transaction) => {
+    const memberSnapshot = await transaction
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(openid)
+      .get()
+      .catch(() => null);
+    if (!memberSnapshot || !memberSnapshot.data) {
+      throw new Error('会员信息不存在');
+    }
+    const usageCount = normalizeUsageCount(memberSnapshot.data.roomUsageCount);
+    if (usageCount <= 0) {
+      throw new Error('剩余包房使用次数不足，请联系管理员或使用包房券');
+    }
+
     const existingReservations = await transaction
       .collection(COLLECTIONS.RESERVATIONS)
       .where({
         roomId,
         date,
-        status: _.in(['pendingPayment', 'reserved', 'confirmed'])
+        status: _.in(RESERVATION_ACTIVE_STATUSES)
       })
       .get();
 
@@ -154,11 +218,23 @@ async function createReservation(openid, order) {
       endTime: requestRange.endLabel,
       price,
       rightId: appliedRight ? appliedRight.data._id : null,
-      status: price === 0 ? 'reserved' : 'pendingPayment',
+      status: 'pendingApproval',
+      approval: {
+        status: 'pending'
+      },
+      usageCredits: 1,
+      usageRefunded: false,
       createdAt: new Date(),
       updatedAt: new Date()
     };
     const res = await transaction.collection(COLLECTIONS.RESERVATIONS).add({ data: reservation });
+
+    await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).update({
+      data: {
+        roomUsageCount: Math.max(0, usageCount - 1),
+        updatedAt: new Date()
+      }
+    });
 
     if (appliedRight) {
       await transaction.collection(COLLECTIONS.MEMBER_RIGHTS).doc(appliedRight.data._id).update({
@@ -175,7 +251,7 @@ async function createReservation(openid, order) {
 
   return {
     success: true,
-    message: reservationResult.reservation.price === 0 ? '已使用权益锁定包房' : '预约创建成功，请尽快支付定金',
+    message: '预约申请已提交，请等待管理员审核',
     reservationId: reservationResult.id,
     reservation: reservationResult.reservation
   };
@@ -185,34 +261,101 @@ async function cancelReservation(openid, reservationId) {
   if (!reservationId) {
     throw new Error('预约不存在');
   }
-  const reservationDoc = await db.collection(COLLECTIONS.RESERVATIONS).doc(reservationId).get().catch(() => null);
-  if (!reservationDoc || !reservationDoc.data) {
-    throw new Error('预约不存在');
-  }
-  if (reservationDoc.data.memberId !== openid) {
-    throw new Error('无权操作该预约');
-  }
-  if (reservationDoc.data.status === 'cancelled') {
-    return { success: true, message: '预约已取消' };
-  }
 
-  await db.collection(COLLECTIONS.RESERVATIONS).doc(reservationId).update({
-    data: {
-      status: 'cancelled',
-      updatedAt: new Date()
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction
+      .collection(COLLECTIONS.RESERVATIONS)
+      .doc(reservationId)
+      .get()
+      .catch(() => null);
+    if (!snapshot || !snapshot.data) {
+      throw new Error('预约不存在');
     }
-  });
+    const reservation = { ...snapshot.data, _id: reservationId };
+    if (reservation.memberId !== openid) {
+      throw new Error('无权操作该预约');
+    }
+    if (reservation.status === 'cancelled') {
+      return;
+    }
 
-  if (reservationDoc.data.rightId) {
-    await db.collection(COLLECTIONS.MEMBER_RIGHTS).doc(reservationDoc.data.rightId).update({
+    await transaction.collection(COLLECTIONS.RESERVATIONS).doc(reservationId).update({
       data: {
-        status: 'active',
-        reservationId: _.remove()
+        status: 'cancelled',
+        updatedAt: new Date()
       }
     });
-  }
+
+    await releaseReservationResources(transaction, reservation, { refundUsage: true, unlockRight: true });
+  });
 
   return { success: true, message: '预约已取消' };
+}
+
+async function redeemRoomUsageCoupon(openid, memberRightId) {
+  if (!memberRightId) {
+    throw new Error('缺少权益编号');
+  }
+
+  const usageCount = await db.runTransaction(async (transaction) => {
+    const rightSnapshot = await transaction
+      .collection(COLLECTIONS.MEMBER_RIGHTS)
+      .doc(memberRightId)
+      .get()
+      .catch(() => null);
+    if (!rightSnapshot || !rightSnapshot.data) {
+      throw new Error('权益不存在');
+    }
+    const right = rightSnapshot.data;
+    if (right.memberId !== openid) {
+      throw new Error('无权操作该权益');
+    }
+    if (right.status !== 'active') {
+      throw new Error('权益状态不可用');
+    }
+    if (right.validUntil && new Date(right.validUntil).getTime() < Date.now()) {
+      throw new Error('权益已过期');
+    }
+
+    const masterSnapshot = await transaction
+      .collection(COLLECTIONS.MEMBERSHIP_RIGHTS)
+      .doc(right.rightId)
+      .get()
+      .catch(() => null);
+    const master = masterSnapshot && masterSnapshot.data;
+    const increment = resolveCouponUsageCount(master, right);
+    if (increment <= 0) {
+      throw new Error('该权益不支持兑换包房使用次数');
+    }
+
+    await transaction.collection(COLLECTIONS.MEMBER_RIGHTS).doc(memberRightId).update({
+      data: {
+        status: 'used',
+        usedAt: new Date(),
+        updatedAt: new Date(),
+        meta: {
+          ...(right.meta || {}),
+          redeemedFor: 'roomUsage',
+          redeemedUsageCount: increment
+        }
+      }
+    });
+
+    await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).update({
+      data: {
+        roomUsageCount: _.inc(increment),
+        updatedAt: new Date()
+      }
+    });
+
+    return increment;
+  });
+
+  return {
+    success: true,
+    usageCount,
+    message: '已成功增加包房使用次数'
+  };
 }
 
 function resolvePrice(room, range) {
@@ -323,4 +466,107 @@ function formatTimeLabel(totalMinutes) {
   const hoursPart = Math.floor(minutes / 60);
   const minutesPart = minutes % 60;
   return `${String(hoursPart).padStart(2, '0')}:${String(minutesPart).padStart(2, '0')}`;
+}
+
+function normalizeUsageCount(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(numeric));
+}
+
+function buildMemberReservationNotice(memberReservations, rooms, usageCount) {
+  if (!Array.isArray(memberReservations) || !memberReservations.length) {
+    return null;
+  }
+  const latest = memberReservations[0];
+  const roomMap = new Map();
+  (rooms || []).forEach((room) => {
+    roomMap.set(room._id, room);
+  });
+  const room = roomMap.get(latest.roomId);
+  const roomName = room ? room.name : '包房';
+  if (latest.status === 'approved') {
+    return {
+      type: 'success',
+      message: `已预约成功：${roomName}，请于 ${latest.date} ${latest.startTime} 入场。`,
+      closable: false,
+      reservationId: latest._id
+    };
+  }
+  if (latest.status === 'pendingApproval') {
+    return {
+      type: 'info',
+      message: `${roomName} 的预约申请正在审核中，请耐心等待管理员处理。`,
+      closable: false,
+      reservationId: latest._id
+    };
+  }
+  if (latest.status === 'rejected') {
+    return {
+      type: 'warning',
+      message: '该房间已被其他会员锁定，请重新选择时间。',
+      closable: true,
+      reservationId: latest._id
+    };
+  }
+  return null;
+}
+
+async function releaseReservationResources(transaction, reservation, options = {}) {
+  const { refundUsage = false, unlockRight = true } = options;
+  if (!reservation || !reservation._id) {
+    return;
+  }
+  const updates = {};
+  if (refundUsage && !reservation.usageRefunded) {
+    const credits = normalizeUsageCount(reservation.usageCredits || 1);
+    if (credits > 0) {
+      await transaction
+        .collection(COLLECTIONS.MEMBERS)
+        .doc(reservation.memberId)
+        .update({
+          data: {
+            roomUsageCount: _.inc(credits),
+            updatedAt: new Date()
+          }
+        })
+        .catch(() => {});
+      updates.usageRefunded = true;
+    }
+  }
+
+  if (unlockRight && reservation.rightId) {
+    await transaction
+      .collection(COLLECTIONS.MEMBER_RIGHTS)
+      .doc(reservation.rightId)
+      .update({
+        data: {
+          status: 'active',
+          reservationId: _.remove(),
+          updatedAt: new Date()
+        }
+      })
+      .catch(() => {});
+  }
+
+  if (Object.keys(updates).length) {
+    updates.updatedAt = new Date();
+    await transaction.collection(COLLECTIONS.RESERVATIONS).doc(reservation._id).update({
+      data: updates
+    });
+  }
+}
+
+function resolveCouponUsageCount(master, memberRight) {
+  const meta = {
+    ...(master && master.meta ? master.meta : {}),
+    ...(memberRight && memberRight.meta ? memberRight.meta : {})
+  };
+  const numeric = Number(meta.roomUsageCount || meta.roomUsageCredits || 0);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(numeric));
 }

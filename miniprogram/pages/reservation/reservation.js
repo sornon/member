@@ -26,7 +26,10 @@ Page({
     endTime: DEFAULT_END_TIME,
     rooms: [],
     rightId: null,
-    timeError: ''
+    timeError: '',
+    notice: null,
+    noticeDismissed: false,
+    memberUsageCount: 0
   },
 
   onLoad(options) {
@@ -48,7 +51,13 @@ Page({
     this.setData({ loading: true, timeError: '' });
     try {
       const result = await ReservationService.listRooms(date, startTime, endTime);
-      this.setData({ rooms: result.rooms || [], loading: false });
+      this.setData({
+        rooms: result.rooms || [],
+        loading: false,
+        notice: result.notice || null,
+        noticeDismissed: false,
+        memberUsageCount: Math.max(0, Number(result.memberUsageCount || 0))
+      });
     } catch (error) {
       this.setData({ loading: false });
     }
@@ -94,6 +103,10 @@ Page({
       wx.showToast({ title: this.data.timeError || '预约时间不正确', icon: 'none' });
       return;
     }
+    if (this.data.memberUsageCount <= 0) {
+      wx.showToast({ title: '包房使用次数不足', icon: 'none' });
+      return;
+    }
     this.setData({ submitting: true });
     try {
       const payload = {
@@ -113,6 +126,10 @@ Page({
     } finally {
       this.setData({ submitting: false });
     }
+  },
+
+  dismissNotice() {
+    this.setData({ noticeDismissed: true });
   },
 
   formatCurrency

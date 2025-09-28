@@ -383,7 +383,8 @@ const membershipRights = [
       { start: '12:00', end: '24:00' },
       { start: '00:00', end: '06:00' }
     ],
-    validDays: 120
+    validDays: 120,
+    meta: { roomUsageCount: 1 }
   },
   {
     _id: 'right_realm_core_gift',
@@ -444,7 +445,8 @@ const membershipRights = [
     description: '免费预订一次日间非高峰包房',
     applyReservation: true,
     applyTimeRanges: [{ start: '12:00', end: '18:00' }],
-    validDays: 90
+    validDays: 90,
+    meta: { roomUsageCount: 1 }
   },
   {
     _id: 'right_full_day_room',
@@ -452,7 +454,8 @@ const membershipRights = [
     description: '免费预订一次全天任意时段包房',
     applyReservation: true,
     applyTimeRanges: [{ start: '00:00', end: '24:00' }],
-    validDays: 120
+    validDays: 120,
+    meta: { roomUsageCount: 1 }
   },
   {
     _id: 'right_full_house',

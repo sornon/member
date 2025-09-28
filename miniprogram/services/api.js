@@ -210,6 +210,12 @@ export const ReservationService = {
       action: 'cancel',
       reservationId
     });
+  },
+  async redeemUsageCoupon(memberRightId) {
+    return callCloud(CLOUD_FUNCTIONS.RESERVATION, {
+      action: 'redeemUsageCoupon',
+      memberRightId
+    });
   }
 };
 
@@ -347,6 +353,27 @@ export const AdminService = {
       action: 'rechargeMember',
       memberId,
       amount
+    });
+  },
+  async listReservations({ status = 'pendingApproval', page = 1, pageSize = 20 } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'listReservations',
+      status,
+      page,
+      pageSize
+    });
+  },
+  async approveReservation(reservationId) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'approveReservation',
+      reservationId
+    });
+  },
+  async rejectReservation(reservationId, reason = '') {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'rejectReservation',
+      reservationId,
+      reason
     });
   }
 };
