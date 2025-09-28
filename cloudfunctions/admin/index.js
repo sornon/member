@@ -264,6 +264,15 @@ async function getChargeOrderQrCode(openid, orderId) {
         check_path: option.checkPath,
         env_version: option.envVersion
       });
+      const errCode = resolveWeChatErrorCode(response);
+      if (errCode !== 0) {
+        lastError = response;
+        console.warn(
+          `Failed to generate mini program code for charge order in env ${option.envVersion} (errCode: ${errCode})`,
+          response
+        );
+        continue;
+      }
       qrBuffer = response && response.buffer ? response.buffer : null;
       if (qrBuffer && qrBuffer.length) {
         break;
@@ -278,6 +287,14 @@ async function getChargeOrderQrCode(openid, orderId) {
   }
 
   if (!qrBuffer || !qrBuffer.length) {
+    try {
+      qrBuffer = await generateFallbackMiniProgramQrCode(orderId);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (!qrBuffer || !qrBuffer.length) {
     if (lastError) {
       console.error('Failed to generate mini program code for charge order', lastError);
     }
@@ -287,7 +304,8 @@ async function getChargeOrderQrCode(openid, orderId) {
   return {
     scene,
     imageBase64: qrBuffer.toString('base64'),
-    page: 'pages/wallet/charge-confirm/index'
+    page: 'pages/wallet/charge-confirm/index',
+    path: buildChargeOrderPagePath(orderId)
   };
 }
 
@@ -685,6 +703,77 @@ function buildChargeOrderScene(orderId) {
     return '';
   }
   return value.length > 32 ? '' : value;
+}
+
+function buildChargeOrderPagePath(orderId) {
+  const basePath = 'pages/wallet/charge-confirm/index';
+  if (!orderId) {
+    return basePath;
+  }
+  const trimmed = typeof orderId === 'string' ? orderId.trim() : String(orderId || '');
+  if (!trimmed) {
+    return basePath;
+  }
+  const encoded = encodeURIComponent(trimmed);
+  return `${basePath}?orderId=${encoded}`;
+}
+
+async function generateFallbackMiniProgramQrCode(orderId) {
+  const path = buildChargeOrderPagePath(orderId);
+  const attempts = [
+    async () => ({
+      label: 'createQRCode',
+      response: await cloud.openapi.wxacode.createQRCode({
+        path,
+        width: 430
+      })
+    }),
+    async () => ({
+      label: 'get',
+      response: await cloud.openapi.wxacode.get({
+        path,
+        width: 430
+      })
+    })
+  ];
+
+  let lastError = null;
+  for (const attempt of attempts) {
+    try {
+      const { label, response } = await attempt();
+      const errCode = resolveWeChatErrorCode(response);
+      if (errCode !== 0) {
+        lastError = response;
+        console.warn(`Fallback mini program QR code generation failed via ${label}`, response);
+        continue;
+      }
+      if (response && response.buffer && response.buffer.length) {
+        return response.buffer;
+      }
+    } catch (error) {
+      lastError = error;
+      console.warn('Fallback mini program QR code generation threw error', error);
+    }
+  }
+
+  if (lastError) {
+    throw lastError;
+  }
+
+  return null;
+}
+
+function resolveWeChatErrorCode(response) {
+  if (!response || typeof response !== 'object') {
+    return 0;
+  }
+  if (typeof response.errCode === 'number') {
+    return response.errCode;
+  }
+  if (typeof response.errcode === 'number') {
+    return response.errcode;
+  }
+  return 0;
 }
 
 function resolveMiniProgramCodeEnvOptions() {
