@@ -149,6 +149,25 @@ function generateAvatarOptions(name = '', seed = Date.now()) {
   return options;
 }
 
+function sanitizeAvatarUrl(url) {
+  if (typeof url !== 'string') {
+    return '';
+  }
+  let sanitized = url.trim();
+  if (!sanitized) {
+    return '';
+  }
+  if (!sanitized.startsWith('data:')) {
+    sanitized = sanitized.replace(/^http:\/\//i, 'https://');
+    if (/qlogo\.cn/.test(sanitized)) {
+      const [base, query] = sanitized.split('?');
+      const normalizedBase = base.replace(/\/(0|46|64|96)$/, '/132');
+      sanitized = query ? `${normalizedBase}?${query}` : normalizedBase;
+    }
+  }
+  return sanitized;
+}
+
 function computeAvatarOptionList(name, currentAvatar, seed) {
   const generated = generateAvatarOptions(name, seed);
   const seen = new Set();
@@ -596,7 +615,7 @@ Page({
     }
     const member = this.data.member || {};
     const nickName = this.data.profileEditor.nickName || member.nickName || '';
-    const baseAvatar = member.avatarUrl || this.data.defaultAvatar;
+    const baseAvatar = sanitizeAvatarUrl(member.avatarUrl) || this.data.defaultAvatar;
     const seed = Date.now();
     const options = computeAvatarOptionList(nickName, baseAvatar, seed);
     this.setData({
@@ -626,9 +645,9 @@ Page({
     const seed = keepSeed && this.data.avatarPicker.avatarSeed ? this.data.avatarPicker.avatarSeed : Date.now();
     const member = this.data.member || {};
     const name = this.data.profileEditor.nickName || member.nickName || '';
-    const baseAvatar = member.avatarUrl || this.data.defaultAvatar;
+    const baseAvatar = sanitizeAvatarUrl(member.avatarUrl) || this.data.defaultAvatar;
     const currentAvatar = preserveSelection
-      ? this.data.avatarPicker.avatarUrl || baseAvatar
+      ? sanitizeAvatarUrl(this.data.avatarPicker.avatarUrl) || baseAvatar
       : baseAvatar;
     const avatarOptions = computeAvatarOptionList(name, currentAvatar, seed);
     this.setData({
@@ -643,16 +662,21 @@ Page({
       : [];
     const result = [];
     const seen = new Set();
-    if (typeof preferredUrl === 'string' && preferredUrl) {
-      result.push({ id: `preferred_${Date.now()}`, url: preferredUrl });
-      seen.add(preferredUrl);
+    const normalizedPreferred = sanitizeAvatarUrl(preferredUrl) || preferredUrl;
+    if (typeof normalizedPreferred === 'string' && normalizedPreferred) {
+      result.push({ id: `preferred_${Date.now()}`, url: normalizedPreferred });
+      seen.add(normalizedPreferred);
     }
     options.forEach((item) => {
-      if (!item || !item.url || seen.has(item.url)) {
+      if (!item || !item.url) {
         return;
       }
-      result.push(item);
-      seen.add(item.url);
+      const normalized = sanitizeAvatarUrl(item.url) || item.url;
+      if (!normalized || seen.has(normalized)) {
+        return;
+      }
+      result.push({ ...item, url: normalized });
+      seen.add(normalized);
     });
     return result;
   },
@@ -662,9 +686,12 @@ Page({
       return;
     }
     const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
-    const url = dataset.url;
+    const url = sanitizeAvatarUrl(dataset.url) || dataset.url;
     if (typeof url === 'string' && url) {
-      this.setData({ 'avatarPicker.avatarUrl': url });
+      this.setData({
+        'avatarPicker.avatarUrl': url,
+        'profileEditor.avatarUrl': url
+      });
     }
   },
 
@@ -683,7 +710,7 @@ Page({
       desc: '用于同步微信头像',
       success: (res) => {
         const info = res && res.userInfo ? res.userInfo : {};
-        const avatarUrl = info.avatarUrl || '';
+        const avatarUrl = sanitizeAvatarUrl(info.avatarUrl || '');
         if (!avatarUrl) {
           wx.showToast({ title: '未获取到头像', icon: 'none' });
           return;
@@ -691,7 +718,8 @@ Page({
         const merged = this.mergeAvatarPickerOptions(avatarUrl);
         this.setData({
           'avatarPicker.avatarUrl': avatarUrl,
-          'avatarPicker.avatarOptions': merged
+          'avatarPicker.avatarOptions': merged,
+          'profileEditor.avatarUrl': avatarUrl
         });
         wx.showToast({ title: '已同步微信头像', icon: 'success' });
       },
@@ -705,14 +733,17 @@ Page({
     if (this.data.avatarPickerSaving) {
       return;
     }
-    const avatarUrl = this.data.avatarPicker.avatarUrl || this.data.defaultAvatar;
+    const avatarUrl = sanitizeAvatarUrl(this.data.avatarPicker.avatarUrl) || this.data.defaultAvatar;
     this.setData({ avatarPickerSaving: true });
     try {
       const member = await MemberService.updateArchive({
         avatarUrl
       });
       this.applyMemberUpdate(member);
-      this.setData({ showAvatarPicker: false });
+      this.setData({
+        showAvatarPicker: false,
+        'profileEditor.avatarUrl': avatarUrl
+      });
       wx.showToast({ title: '头像已更新', icon: 'success' });
     } catch (error) {
       // callCloud 已提示
@@ -773,14 +804,15 @@ Page({
       return;
     }
     const renameHistory = formatHistoryList(member.renameHistory);
+    const sanitizedAvatar = sanitizeAvatarUrl(member.avatarUrl);
     this.setData({
       member,
       memberStats: deriveMemberStats(member),
       navItems: resolveNavItems(member),
       'profileEditor.nickName': member.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(member.gender),
-      'profileEditor.avatarUrl': member.avatarUrl || this.data.profileEditor.avatarUrl,
-      'avatarPicker.avatarUrl': member.avatarUrl || this.data.avatarPicker.avatarUrl,
+      'profileEditor.avatarUrl': sanitizedAvatar || this.data.profileEditor.avatarUrl,
+      'avatarPicker.avatarUrl': sanitizedAvatar || this.data.avatarPicker.avatarUrl,
       'profileEditor.renameCredits': member.renameCredits || 0,
       'profileEditor.renameCards': member.renameCards || 0,
       'profileEditor.renameUsed': member.renameUsed || 0,
@@ -806,11 +838,12 @@ Page({
       desc: '用于完善会员昵称与头像',
       success: (res) => {
         const info = res && res.userInfo ? res.userInfo : {};
+        const avatarUrl = sanitizeAvatarUrl(info.avatarUrl || '');
         this.setData({
           onboarding: {
             ...this.data.onboarding,
             nickName: info.nickName || this.data.onboarding.nickName,
-            avatarUrl: info.avatarUrl || this.data.onboarding.avatarUrl
+            avatarUrl: avatarUrl || this.data.onboarding.avatarUrl
           },
           'authorizationStatus.profileAuthorized': true
         });
