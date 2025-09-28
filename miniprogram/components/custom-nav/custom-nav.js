@@ -57,7 +57,15 @@ Component({
       if (canNavigateBack) {
         wx.navigateBack({ delta: 1 });
       } else {
-        wx.reLaunch({ url: '/pages/index/index' });
+        const indexPageIndex = pages.findIndex((page) => page.route === 'pages/index/index');
+        if (indexPageIndex >= 0) {
+          const delta = pages.length - 1 - indexPageIndex;
+          if (delta > 0) {
+            wx.navigateBack({ delta });
+            return;
+          }
+        }
+        wx.redirectTo({ url: '/pages/index/index' });
       }
     }
   }
