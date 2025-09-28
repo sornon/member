@@ -61,41 +61,120 @@
 
   <view wx:if="{{showProfile}}" class="profile-modal">
     <view class="modal-mask" bindtap="handleCloseProfile"></view>
-    <view class="modal-content">
+    <view class="modal-content modal-content--editor">
       <view class="modal-header">
         <view class="modal-title">仙缘档案</view>
         <view class="modal-close" bindtap="handleCloseProfile">×</view>
       </view>
-      <view class="modal-body">
-        <view class="modal-row">
-          <text class="modal-label">道号</text>
-          <text class="modal-value">{{member ? (member.nickName || '神秘仙友') : '神秘仙友'}}</text>
+      <scroll-view scroll-y="true" class="modal-body modal-body--scroll">
+        <view class="archive-section">
+          <view class="archive-section__header">
+            <view class="archive-section__title">道号</view>
+            <view class="archive-section__meta">剩余次数：{{profileEditor.renameCredits}}</view>
+          </view>
+          <view class="archive-field">
+            <input
+              class="archive-input"
+              value="{{profileEditor.nickName}}"
+              placeholder="请输入你的道号"
+              maxlength="12"
+              bindinput="handleArchiveNickname"
+            />
+          </view>
+          <view class="archive-helper">首次改名免费，后续需消耗改名次数，可使用改名卡补充。</view>
+          <button
+            wx:if="{{profileEditor.renameCards > 0}}"
+            class="archive-action"
+            size="mini"
+            loading="{{renameRedeeming}}"
+            disabled="{{renameRedeeming}}"
+            bindtap="handleUseRenameCard"
+          >使用改名卡（+1 次）</button>
         </view>
-        <view class="modal-row">
-          <text class="modal-label">当前境界</text>
-          <text class="modal-value">{{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</text>
-        </view>
-        <view class="modal-row">
-          <text class="modal-label">修为值</text>
-          <text class="modal-value">{{memberStats.experience}}</text>
-        </view>
-        <view class="modal-row">
-          <text class="modal-label">灵石余额</text>
-          <text class="modal-value">{{memberStats.stoneBalance}}</text>
-        </view>
-        <view class="modal-row">
-          <text class="modal-label">现金余额</text>
-          <text class="modal-value">{{memberStats.cashBalance}}</text>
-        </view>
-        <view class="modal-divider"></view>
-        <view class="modal-section-title">今日任务</view>
-        <view wx:if="{{tasks.length}}" class="modal-task-list">
-          <view class="modal-task" wx:for="{{tasks}}" wx:key="_id">
-            <view class="task-name">{{item.title}}</view>
-            <view class="task-reward">{{item.rewardSummary}}</view>
+
+        <view class="archive-section">
+          <view class="archive-section__title">性别</view>
+          <view class="gender-options">
+            <view
+              class="gender-option {{profileEditor.gender === 'unknown' ? 'gender-option--active' : ''}}"
+              data-value="unknown"
+              bindtap="handleGenderSelect"
+            >保密</view>
+            <view
+              class="gender-option {{profileEditor.gender === 'male' ? 'gender-option--active' : ''}}"
+              data-value="male"
+              bindtap="handleGenderSelect"
+            >
+              <text class="gender-option__icon" aria-hidden="true">♂</text>
+              <text class="gender-option__label">道友</text>
+            </view>
+            <view
+              class="gender-option {{profileEditor.gender === 'female' ? 'gender-option--active' : ''}}"
+              data-value="female"
+              bindtap="handleGenderSelect"
+            >
+              <text class="gender-option__icon" aria-hidden="true">♀</text>
+              <text class="gender-option__label">仙子</text>
+            </view>
           </view>
         </view>
-        <view wx:else class="modal-empty">今日暂无任务，稍后再来查看~</view>
+
+        <view class="archive-section">
+          <view class="archive-section__header">
+            <view class="archive-section__title">头像</view>
+            <view class="archive-section__link" bindtap="handleRegenerateAvatars">换一批</view>
+          </view>
+          <view class="avatar-grid">
+            <view
+              class="avatar-option {{profileEditor.avatarUrl === item.url ? 'avatar-option--active' : ''}}"
+              wx:for="{{profileEditor.avatarOptions}}"
+              wx:key="id"
+              data-url="{{item.url}}"
+              bindtap="handleArchiveAvatarSelect"
+            >
+              <image class="avatar-option__image" src="{{item.url}}" mode="aspectFill"></image>
+              <view wx:if="{{profileEditor.avatarUrl === item.url}}" class="avatar-option__badge">使用中</view>
+            </view>
+          </view>
+          <button class="archive-action" size="mini" bindtap="handleSyncWechatAvatar">同步微信头像</button>
+        </view>
+
+        <view class="archive-section archive-section--summary">
+          <view class="archive-summary">
+            <view class="archive-summary__item">
+              <view class="archive-summary__label">当前境界</view>
+              <view class="archive-summary__value">{{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</view>
+            </view>
+            <view class="archive-summary__item">
+              <view class="archive-summary__label">修为值</view>
+              <view class="archive-summary__value">{{memberStats.experience}}</view>
+            </view>
+            <view class="archive-summary__item">
+              <view class="archive-summary__label">灵石</view>
+              <view class="archive-summary__value">{{memberStats.stoneBalance}}</view>
+            </view>
+          </view>
+        </view>
+
+        <view class="archive-section" wx:if="{{profileEditor.renameHistory.length}}">
+          <view class="archive-section__title">改名记录</view>
+          <view class="rename-history">
+            <view class="rename-history__item" wx:for="{{profileEditor.renameHistory}}" wx:key="id">
+              <view class="rename-history__names">{{item.previous || '—'}} → {{item.current || '—'}}</view>
+              <view class="rename-history__time">{{item.displayTime}}</view>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+      <view class="modal-footer">
+        <button class="modal-footer__btn modal-footer__btn--ghost" bindtap="handleCloseProfile" disabled="{{profileSaving}}">取消</button>
+        <button
+          class="modal-footer__btn"
+          type="primary"
+          loading="{{profileSaving}}"
+          disabled="{{profileSaving}}"
+          bindtap="handleArchiveSubmit"
+        >保存档案</button>
       </view>
     </view>
   </view>

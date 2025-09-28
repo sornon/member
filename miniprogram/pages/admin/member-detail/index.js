@@ -1,11 +1,61 @@
 import { AdminService } from '../../../services/api';
 
+const RENAME_SOURCE_LABELS = {
+  admin: '管理员调整',
+  manual: '会员修改',
+  system: '系统同步'
+};
+
 function ensureMemberRole(roles) {
   const list = Array.isArray(roles) ? [...new Set(roles)] : [];
   if (!list.includes('member')) {
     list.push('member');
   }
   return list;
+}
+
+function pad(value) {
+  return value < 10 ? `0${value}` : `${value}`;
+}
+
+function formatHistoryTime(value) {
+  if (!value) {
+    return '—';
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '—';
+  }
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatRenameHistory(history) {
+  if (!Array.isArray(history)) {
+    return [];
+  }
+  return history
+    .slice()
+    .reverse()
+    .map((item, index) => {
+      let timestamp = Date.now();
+      if (item && item.changedAt) {
+        const date = item.changedAt instanceof Date ? item.changedAt : new Date(item.changedAt);
+        if (!Number.isNaN(date.getTime())) {
+          timestamp = date.getTime();
+        }
+      }
+      const key = item && item.id ? item.id : `${timestamp}-${index}`;
+      const source = item && item.source ? item.source : 'manual';
+      const label = RENAME_SOURCE_LABELS[source] || '会员修改';
+      const timeLabel = item && item.changedAtLabel ? item.changedAtLabel : formatHistoryTime(item && item.changedAt);
+      return {
+        id: key,
+        previous: (item && item.previous) || '—',
+        current: (item && item.current) || '—',
+        time: timeLabel || '—',
+        source: label
+      };
+    });
 }
 
 Page({
@@ -29,10 +79,12 @@ Page({
       cashBalance: '',
       stoneBalance: '',
       levelId: '',
-      roles: []
+      roles: [],
+      renameCredits: ''
     },
     rechargeVisible: false,
-    rechargeAmount: ''
+    rechargeAmount: '',
+    renameHistory: []
   },
 
   onLoad(options) {
@@ -96,9 +148,11 @@ Page({
         cashBalance: this.formatYuan(member.cashBalance ?? member.balance ?? 0),
         stoneBalance: String(member.stoneBalance ?? 0),
         levelId: member.levelId || currentLevel._id || '',
-        roles
+        roles,
+        renameCredits: String(member.renameCredits ?? 0)
       },
-      roleOptions
+      roleOptions,
+      renameHistory: formatRenameHistory(member.renameHistory)
     });
   },
 
@@ -142,7 +196,8 @@ Page({
         cashBalance: this.parseYuanToFen(this.data.form.cashBalance),
         stoneBalance: Number(this.data.form.stoneBalance || 0),
         levelId: this.data.form.levelId,
-        roles: ensureMemberRole(this.data.form.roles)
+        roles: ensureMemberRole(this.data.form.roles),
+        renameCredits: this.parseRenameCredits(this.data.form.renameCredits)
       };
       const detail = await AdminService.updateMember(this.data.memberId, payload);
       this.applyDetail(detail);
@@ -209,6 +264,24 @@ Page({
       const sanitized = input.trim().replace(/[^0-9.-]/g, '');
       const parsed = Number(sanitized);
       return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
+    }
+    return 0;
+  },
+
+  parseRenameCredits(input) {
+    if (input == null || input === '') {
+      return 0;
+    }
+    if (typeof input === 'number' && Number.isFinite(input)) {
+      return Math.max(0, Math.floor(input));
+    }
+    if (typeof input === 'string') {
+      const sanitized = input.trim().replace(/[^0-9]/g, '');
+      if (!sanitized) {
+        return 0;
+      }
+      const parsed = Number(sanitized);
+      return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
     }
     return 0;
   }

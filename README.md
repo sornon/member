@@ -11,6 +11,7 @@
 - **在线预订与下单**：可视化包房/卡座预约，支持定金/全额支付与权益券抵扣。
 - **资产体系**：现金钱包支持充值消费流水，灵石作为虚拟货币独立结算；提供明细查询。
 - **虚拟形象（Avatar）**：QQ 秀风格的装扮系统，等级与任务可解锁服饰并分享展示。
+- **仙缘档案编辑**：会员可自助修改道号、性别与头像，支持改名次数管控及改名卡补充次数。
 
 ## 技术栈
 
@@ -66,6 +67,8 @@ cd cloudfunctions/member && npm install && cd -
 
 部署完成后，先执行一次 `bootstrap` 云函数，它会向数据库写入示例数据（等级、房间、任务等），便于演示及二次开发。
 
+> 提醒：若对会员档案逻辑做了改动（例如改名次数、头像选择等），请重新部署 `member` 云函数并上传最新小程序前端代码。
+
 ### 3. 配置小程序前端
 
 1. 在 `miniprogram/app.js` 中的 `env` 替换为你的云开发 `envId`。
@@ -81,6 +84,11 @@ cd cloudfunctions/member && npm install && cd -
 | `_id` | string | openid，云开发自动填充 |
 | `nickName` | string | 用户昵称 |
 | `mobile` | string | 绑定手机号 |
+| `gender` | string | 性别，取值 `male` / `female` / `unknown` |
+| `renameCredits` | number | 剩余改名次数，初始值为 1，可用改名卡增加 |
+| `renameCards` | number | 改名卡库存数量 |
+| `renameUsed` | number | 已经消耗的改名次数，便于审计 |
+| `renameHistory` | array | 改名记录（`previous`、`current`、`changedAt`、`source`） |
 | `levelId` | string | 当前等级 ID |
 | `experience` | number | 累积经验值（可映射到充值额） |
 | `cashBalance` | number | 现金钱包余额（单位：分，用于店内实体消费） |
@@ -89,6 +97,18 @@ cd cloudfunctions/member && npm install && cd -
 | `avatarConfig` | object | 虚拟形象配置 |
 
 > 现金钱包与灵石为两套完全独立的账户体系，当前版本不支持兑换或折现，灵石数值仅以整数形式发放与消耗。
+
+## 仙缘档案编辑
+
+- **道号（`nickName`）**：
+  - 新注册用户默认拥有 1 次改名机会（`renameCredits`）。
+  - 使用“改名卡”会将 `renameCards` 库存转换为新的改名次数，并同步累积 `renameUsed` 与 `renameHistory`。
+  - 每次改名均会记录原名称、现名称、时间与来源，便于运营稽核。
+  - 管理员后台修改道号会写入 `renameHistory`，来源标记为 `admin`，且不会扣减用户的改名次数。
+- **性别（`gender`）**：支持 `male`、`female`、`unknown` 三种取值，可随时切换。
+- **头像（`avatarUrl`）**：前端默认生成 5 个渐变风格的 SVG 头像供选择，也可一键同步微信头像。
+
+> 如需在运营后台发放改名卡，可直接增加 `renameCards` 字段值，或结合任务/权益体系发卡；前端会在用户使用改名卡时自动调用 `redeemRenameCard` 动作同步次数。
 
 ### membershipLevels
 

@@ -35,6 +35,161 @@ function buildWidthStyle(width) {
   return `width: ${safeWidth}%;`;
 }
 
+const AVATAR_PALETTES = [
+  { background: '#394bff', accent: '#8c9cff', overlay: '#ffffff', text: '#fefeff' },
+  { background: '#2f8aff', accent: '#7ed5ff', overlay: '#ffffff', text: '#ffffff' },
+  { background: '#5a3dff', accent: '#d07bff', overlay: '#ffe5ff', text: '#ffffff' },
+  { background: '#1f8f7a', accent: '#5fdbc2', overlay: '#ffffff', text: '#f5fffa' },
+  { background: '#c2417c', accent: '#ff9bd6', overlay: '#ffffff', text: '#ffffff' },
+  { background: '#32455b', accent: '#6fa9ff', overlay: '#ffffff', text: '#f3f8ff' },
+  { background: '#8c3ae3', accent: '#ffc18d', overlay: '#fff3d6', text: '#ffffff' },
+  { background: '#2750d4', accent: '#69b0ff', overlay: '#ffffff', text: '#ffffff' }
+];
+
+const AVATAR_SYMBOLS = ['仙', '灵', '道', '缘', '修', '真', '月', '星', '辰', '云'];
+
+function hashString(value) {
+  const str = `${value || ''}`;
+  let hash = 0;
+  for (let i = 0; i < str.length; i += 1) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+function padNumber(value) {
+  return value < 10 ? `0${value}` : `${value}`;
+}
+
+function encodeSvg(svg) {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+function pickAvatarSymbol(name, index) {
+  const trimmed = typeof name === 'string' ? name.replace(/\s+/g, '') : '';
+  if (trimmed) {
+    return trimmed.charAt(index % trimmed.length);
+  }
+  return AVATAR_SYMBOLS[index % AVATAR_SYMBOLS.length];
+}
+
+function buildAvatarSvg(initial, palette, seed) {
+  const gradientId = `grad${seed % 100000}`;
+  const highlightId = `highlight${seed % 100000}`;
+  const waveY = 110 + (seed % 8);
+  const circleOneX = 30 + (seed % 32);
+  const circleOneY = 34 + (seed % 26);
+  const circleTwoX = 112 - (seed % 28);
+  const circleTwoY = 118 - (seed % 18);
+  const svg = `<svg width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="${gradientId}" x1="0%" y1="0%" x2="100%" y2="${(seed % 2) * 100}%">
+        <stop offset="0%" stop-color="${palette.background}" />
+        <stop offset="100%" stop-color="${palette.accent}" />
+      </linearGradient>
+      <radialGradient id="${highlightId}" cx="50%" cy="40%" r="70%">
+        <stop offset="0%" stop-color="${palette.overlay}" stop-opacity="0.35" />
+        <stop offset="100%" stop-color="${palette.overlay}" stop-opacity="0" />
+      </radialGradient>
+    </defs>
+    <rect width="160" height="160" rx="32" fill="url(#${gradientId})" />
+    <circle cx="${circleOneX}" cy="${circleOneY}" r="${26 + (seed % 6)}" fill="url(#${highlightId})" opacity="0.45" />
+    <circle cx="${circleTwoX}" cy="${circleTwoY}" r="${18 + (seed % 5)}" fill="${palette.overlay}" opacity="0.12" />
+    <path d="M20 ${waveY} C 60 ${waveY + 12}, 100 ${waveY - 8}, 140 ${waveY + 6}" stroke="${palette.overlay}" stroke-width="8" stroke-linecap="round" opacity="0.28" />
+    <text x="50%" y="58%" text-anchor="middle" fill="${palette.text}" font-size="64" font-weight="600" font-family="PingFang SC, Helvetica, Arial" dominant-baseline="middle">${initial}</text>
+  </svg>`;
+  return encodeSvg(svg);
+}
+
+function generateAvatarOptions(name = '', seed = Date.now()) {
+  const baseSeed = hashString(`${name || 'member'}_${seed}`);
+  const used = new Set();
+  const options = [];
+  for (let i = 0; options.length < 5 && i < AVATAR_PALETTES.length * 2; i += 1) {
+    const paletteIndex = (baseSeed + i) % AVATAR_PALETTES.length;
+    if (used.has(paletteIndex)) {
+      continue;
+    }
+    used.add(paletteIndex);
+    const palette = AVATAR_PALETTES[paletteIndex];
+    const symbol = pickAvatarSymbol(name, options.length);
+    const url = buildAvatarSvg(symbol, palette, baseSeed + i * 41);
+    options.push({ id: `${paletteIndex}_${baseSeed + i}`, url, symbol });
+  }
+  return options;
+}
+
+function computeAvatarOptionList(name, currentAvatar, seed) {
+  const generated = generateAvatarOptions(name, seed);
+  const seen = new Set();
+  const result = [];
+  if (typeof currentAvatar === 'string' && currentAvatar) {
+    result.push({ id: 'current', url: currentAvatar });
+    seen.add(currentAvatar);
+  }
+  generated.forEach((item) => {
+    if (!item || !item.url || seen.has(item.url)) {
+      return;
+    }
+    result.push(item);
+    seen.add(item.url);
+  });
+  return result;
+}
+
+function normalizeGenderValue(value) {
+  if (typeof value === 'string') {
+    const lower = value.trim().toLowerCase();
+    if (lower === 'male' || lower === 'man' || lower === 'm' || lower === '男') {
+      return 'male';
+    }
+    if (lower === 'female' || lower === 'woman' || lower === 'f' || lower === '女') {
+      return 'female';
+    }
+    if (lower === 'unknown' || lower === 'secret' || lower === '保密') {
+      return 'unknown';
+    }
+  }
+  if (typeof value === 'number') {
+    if (value === 1) return 'male';
+    if (value === 2) return 'female';
+  }
+  return 'unknown';
+}
+
+function formatHistoryList(history) {
+  if (!Array.isArray(history) || !history.length) {
+    return [];
+  }
+  const sorted = [...history].sort((a, b) => {
+    const aTime = new Date(a && a.changedAt ? a.changedAt : 0).getTime();
+    const bTime = new Date(b && b.changedAt ? b.changedAt : 0).getTime();
+    return bTime - aTime;
+  });
+  return sorted
+    .map((item, index) => {
+      if (!item) {
+        return null;
+      }
+      const date = new Date(item.changedAt || 0);
+      const valid = Number.isFinite(date.getTime());
+      const displayTime = valid
+        ? `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(date.getDate())} ${padNumber(
+            date.getHours()
+          )}:${padNumber(date.getMinutes())}`
+        : '';
+      return {
+        id: `${valid ? date.getTime() : Date.now()}_${index}`,
+        previous: item.previous || '',
+        current: item.current || '',
+        displayTime,
+        source: item.source || ''
+      };
+    })
+    .filter(Boolean);
+}
+
 const BACKGROUND_IMAGE =
   'data:image/svg+xml;base64,' +
   'PHN2ZyB3aWR0aD0iNzIwIiBoZWlnaHQ9IjEyODAiIHZpZXdCb3g9IjAgMCA3MjAgMTI4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVm' +
@@ -139,7 +294,20 @@ Page({
     navItems: [...BASE_NAV_ITEMS],
     memberStats: { ...EMPTY_MEMBER_STATS },
     progressWidth: 0,
-    progressStyle: buildWidthStyle(0)
+    progressStyle: buildWidthStyle(0),
+    profileEditor: {
+      nickName: '',
+      gender: 'unknown',
+      avatarUrl: '',
+      avatarOptions: [],
+      avatarSeed: 0,
+      renameCredits: 0,
+      renameCards: 0,
+      renameUsed: 0,
+      renameHistory: []
+    },
+    profileSaving: false,
+    renameRedeeming: false
   },
 
   onLoad() {
@@ -306,7 +474,217 @@ Page({
   formatExperience,
 
   handleProfileTap() {
-    this.setData({ showProfile: true });
+    this.openArchiveEditor();
+  },
+
+  openArchiveEditor() {
+    const member = this.data.member || {};
+    const nickName = member.nickName || '';
+    const gender = normalizeGenderValue(member.gender);
+    const avatarUrl = member.avatarUrl || this.data.defaultAvatar;
+    const seed = Date.now();
+    const options = computeAvatarOptionList(nickName, avatarUrl, seed);
+    const renameHistory = formatHistoryList(member.renameHistory);
+    this.setData({
+      showProfile: true,
+      profileSaving: false,
+      renameRedeeming: false,
+      profileEditor: {
+        ...this.data.profileEditor,
+        nickName,
+        gender,
+        avatarUrl,
+        avatarOptions: options,
+        avatarSeed: seed,
+        renameCredits: member.renameCredits || 0,
+        renameCards: member.renameCards || 0,
+        renameUsed: member.renameUsed || 0,
+        renameHistory
+      }
+    });
+  },
+
+  handleCloseProfile() {
+    if (this.data.profileSaving) {
+      return;
+    }
+    this.setData({
+      showProfile: false,
+      profileSaving: false,
+      renameRedeeming: false
+    });
+  },
+
+  rebuildAvatarOptions(options = {}) {
+    const keepSeed = options.keepSeed !== false;
+    const preserveSelection = options.preserveSelection !== false;
+    const seed = keepSeed && this.data.profileEditor.avatarSeed ? this.data.profileEditor.avatarSeed : Date.now();
+    const member = this.data.member || {};
+    const name = this.data.profileEditor.nickName || member.nickName || '';
+    const baseAvatar = member.avatarUrl || this.data.defaultAvatar;
+    const currentAvatar = preserveSelection
+      ? this.data.profileEditor.avatarUrl || baseAvatar
+      : baseAvatar;
+    const avatarOptions = computeAvatarOptionList(name, currentAvatar, seed);
+    this.setData({
+      'profileEditor.avatarSeed': seed,
+      'profileEditor.avatarOptions': avatarOptions
+    });
+  },
+
+  handleArchiveNickname(event) {
+    const detail = event && event.detail ? event.detail : {};
+    const value = typeof detail.value === 'string' ? detail.value : '';
+    this.setData(
+      {
+        'profileEditor.nickName': value
+      },
+      () => {
+        this.rebuildAvatarOptions({ keepSeed: true, preserveSelection: true });
+      }
+    );
+  },
+
+  handleGenderSelect(event) {
+    if (this.data.profileSaving) {
+      return;
+    }
+    const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
+    const value = dataset.value;
+    const gender = normalizeGenderValue(value);
+    this.setData({ 'profileEditor.gender': gender });
+  },
+
+  handleArchiveAvatarSelect(event) {
+    if (this.data.profileSaving) {
+      return;
+    }
+    const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
+    const url = dataset.url;
+    if (typeof url === 'string' && url) {
+      this.setData({ 'profileEditor.avatarUrl': url });
+    }
+  },
+
+  handleRegenerateAvatars() {
+    if (this.data.profileSaving) {
+      return;
+    }
+    this.rebuildAvatarOptions({ keepSeed: false, preserveSelection: true });
+  },
+
+  mergeAvatarOptions(preferredUrl) {
+    const options = Array.isArray(this.data.profileEditor.avatarOptions)
+      ? [...this.data.profileEditor.avatarOptions]
+      : [];
+    const result = [];
+    const seen = new Set();
+    if (typeof preferredUrl === 'string' && preferredUrl) {
+      result.push({ id: `preferred_${Date.now()}`, url: preferredUrl });
+      seen.add(preferredUrl);
+    }
+    options.forEach((item) => {
+      if (!item || !item.url || seen.has(item.url)) {
+        return;
+      }
+      result.push(item);
+      seen.add(item.url);
+    });
+    return result;
+  },
+
+  handleSyncWechatAvatar() {
+    if (this.data.profileSaving) {
+      return;
+    }
+    wx.getUserProfile({
+      desc: '用于同步微信头像',
+      success: (res) => {
+        const info = res && res.userInfo ? res.userInfo : {};
+        const avatarUrl = info.avatarUrl || '';
+        if (!avatarUrl) {
+          wx.showToast({ title: '未获取到头像', icon: 'none' });
+          return;
+        }
+        const merged = this.mergeAvatarOptions(avatarUrl);
+        this.setData({
+          'profileEditor.avatarUrl': avatarUrl,
+          'profileEditor.avatarOptions': merged
+        });
+        wx.showToast({ title: '已同步微信头像', icon: 'success' });
+      },
+      fail: () => {
+        wx.showToast({ title: '未获取到头像', icon: 'none' });
+      }
+    });
+  },
+
+  async handleArchiveSubmit() {
+    if (this.data.profileSaving) {
+      return;
+    }
+    const nickName = (this.data.profileEditor.nickName || '').trim();
+    if (!nickName) {
+      wx.showToast({ title: '请输入道号', icon: 'none' });
+      return;
+    }
+    const payload = {
+      nickName,
+      gender: this.data.profileEditor.gender,
+      avatarUrl: this.data.profileEditor.avatarUrl || this.data.defaultAvatar
+    };
+    this.setData({ profileSaving: true });
+    try {
+      const member = await MemberService.updateArchive(payload);
+      this.applyMemberUpdate(member);
+      this.setData({ showProfile: false });
+      wx.showToast({ title: '已保存', icon: 'success' });
+    } catch (error) {
+      // callCloud 已提示
+    } finally {
+      this.setData({ profileSaving: false });
+    }
+  },
+
+  async handleUseRenameCard() {
+    if (this.data.renameRedeeming || this.data.profileSaving) {
+      return;
+    }
+    if (!this.data.profileEditor.renameCards) {
+      wx.showToast({ title: '暂无改名卡', icon: 'none' });
+      return;
+    }
+    this.setData({ renameRedeeming: true });
+    try {
+      const member = await MemberService.redeemRenameCard(1);
+      this.applyMemberUpdate(member);
+      this.rebuildAvatarOptions({ keepSeed: true, preserveSelection: true });
+      wx.showToast({ title: '改名次数 +1', icon: 'success' });
+    } catch (error) {
+      // callCloud 已提示
+    } finally {
+      this.setData({ renameRedeeming: false });
+    }
+  },
+
+  applyMemberUpdate(member) {
+    if (!member) {
+      return;
+    }
+    const renameHistory = formatHistoryList(member.renameHistory);
+    this.setData({
+      member,
+      memberStats: deriveMemberStats(member),
+      navItems: resolveNavItems(member),
+      'profileEditor.nickName': member.nickName || this.data.profileEditor.nickName,
+      'profileEditor.gender': normalizeGenderValue(member.gender),
+      'profileEditor.avatarUrl': member.avatarUrl || this.data.profileEditor.avatarUrl,
+      'profileEditor.renameCredits': member.renameCredits || 0,
+      'profileEditor.renameCards': member.renameCards || 0,
+      'profileEditor.renameUsed': member.renameUsed || 0,
+      'profileEditor.renameHistory': renameHistory
+    });
+    setActiveMember(member);
   },
 
   handleNicknameInput(event) {
@@ -441,10 +819,6 @@ Page({
     } finally {
       this.setData({ onboardingSubmitting: false });
     }
-  },
-
-  handleCloseProfile() {
-    this.setData({ showProfile: false });
   },
 
   handleActivityTap(event) {

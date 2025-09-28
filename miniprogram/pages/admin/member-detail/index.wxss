@@ -65,6 +65,46 @@ page {
   margin-bottom: 12rpx;
 }
 
+.rename-meta {
+  display: flex;
+  gap: 24rpx;
+  margin-bottom: 20rpx;
+  font-size: 24rpx;
+  color: #cbd5f5;
+}
+
+.rename-history {
+  margin-bottom: 28rpx;
+  padding: 20rpx;
+  border-radius: 16rpx;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.rename-history__title {
+  font-size: 26rpx;
+  font-weight: 600;
+  margin-bottom: 12rpx;
+  color: #f8fafc;
+}
+
+.rename-history__item + .rename-history__item {
+  margin-top: 16rpx;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+  padding-top: 16rpx;
+}
+
+.rename-history__names {
+  font-size: 26rpx;
+  color: #e2e8f0;
+}
+
+.rename-history__meta {
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: rgba(148, 163, 184, 0.9);
+}
+
 .form-input {
   width: 100%;
   padding: 20rpx;
