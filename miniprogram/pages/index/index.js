@@ -14,7 +14,7 @@ const app = getApp();
 const BASE_NAV_ITEMS = [
   { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
   { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
-  { icon: '💳', label: '等级', url: '/pages/membership/membership' },
+  { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' },
   { icon: '🎁', label: '权益', url: '/pages/rights/rights' },
   { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
   { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
@@ -575,6 +575,10 @@ Page({
 
   handleStoneTap() {
     wx.navigateTo({ url: '/pages/stones/stones' });
+  },
+
+  handleLevelTap() {
+    wx.navigateTo({ url: '/pages/membership/membership' });
   },
 
   handleExperienceTap() {
