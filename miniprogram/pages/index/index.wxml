@@ -6,10 +6,10 @@
       mode="aspectFill"
     ></image>
   </view>
-  <view class="background background--video">
+  <view wx:if="{{showBackgroundVideo}}" class="background background--video">
     <video
       class="background-video"
-      src="cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/background/1.mp4"
+      src="{{backgroundVideo}}"
       autoplay
       loop
       muted
@@ -20,6 +20,8 @@
       show-screen-lock-button="{{false}}"
       enable-progress-gesture="{{false}}"
       objectFit="cover"
+      poster="{{backgroundImage}}"
+      binderror="handleBackgroundVideoError"
     ></video>
   </view>
   <view class="background background--overlay"></view>
@@ -266,6 +268,17 @@
             </view>
           </view>
           <view wx:else class="archive-section appearance-section appearance-section--background">
+            <view class="appearance-background-toggle">
+              <view class="appearance-background-toggle__info">
+                <view class="appearance-background-toggle__title">动态背景</view>
+                <view class="appearance-background-toggle__desc">开启后优先显示同名视频，没有视频时显示静态背景。</view>
+              </view>
+              <switch
+                class="appearance-background-toggle__switch"
+                checked="{{avatarPicker.dynamicBackground}}"
+                bindchange="handleDynamicBackgroundToggle"
+              ></switch>
+            </view>
             <view class="appearance-background-grid">
               <view
                 class="appearance-background-option {{avatarPicker.backgroundId === item.id ? 'appearance-background-option--active' : ''}} {{!item.unlocked ? 'appearance-background-option--locked' : ''}}"

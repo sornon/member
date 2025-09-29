@@ -30,6 +30,7 @@ function sanitizeMemberSnapshot(member) {
   const sanitized = { ...member };
   sanitized.avatarFrame = sanitizeAvatarFrame(sanitized.avatarFrame);
   sanitized.appearanceBackground = normalizeBackgroundId(sanitized.appearanceBackground || '');
+  sanitized.appearanceBackgroundAnimated = !!sanitized.appearanceBackgroundAnimated;
   return sanitized;
 }
 

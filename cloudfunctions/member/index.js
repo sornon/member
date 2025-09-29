@@ -247,6 +247,7 @@ async function initMember(openid, profile) {
     avatarUrl: profile.avatarUrl || '',
     avatarFrame: normalizeAvatarFrameValue(profile.avatarFrame || ''),
     appearanceBackground: normalizeBackgroundId(profile.appearanceBackground || '') || getDefaultBackgroundId(),
+    appearanceBackgroundAnimated: normalizeBooleanFlag(profile.appearanceBackgroundAnimated, false),
     mobile: profile.mobile || '',
     gender: normalizeGender(profile.gender),
     levelId: defaultLevel ? defaultLevel._id : '',
@@ -632,6 +633,35 @@ function normalizeGender(value) {
   return 'unknown';
 }
 
+function normalizeBooleanFlag(value, defaultValue = false) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const lower = value.trim().toLowerCase();
+    if (!lower) {
+      return false;
+    }
+    if (['true', '1', 'yes', 'y', 'on'].includes(lower)) {
+      return true;
+    }
+    if (['false', '0', 'no', 'n', 'off'].includes(lower)) {
+      return false;
+    }
+    return defaultValue;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return defaultValue;
+    }
+    return value !== 0;
+  }
+  if (typeof value === 'undefined' || value === null) {
+    return defaultValue;
+  }
+  return !!value;
+}
+
 function resolveRealmOrderFromLevel(level) {
   if (!level) {
     return 1;
@@ -742,6 +772,12 @@ async function ensureArchiveDefaults(member) {
     updates.appearanceBackground = safeBackgroundId;
   }
   member.appearanceBackground = safeBackgroundId;
+
+  const backgroundAnimated = normalizeBooleanFlag(member.appearanceBackgroundAnimated, false);
+  if (!Object.is(backgroundAnimated, member.appearanceBackgroundAnimated)) {
+    updates.appearanceBackgroundAnimated = backgroundAnimated;
+  }
+  member.appearanceBackgroundAnimated = backgroundAnimated;
 
   const usageCountRaw = Number(member.roomUsageCount);
   const usageCount = Number.isFinite(usageCountRaw) ? Math.max(0, Math.floor(usageCountRaw)) : 0;
@@ -880,6 +916,14 @@ async function updateArchive(openid, updates = {}) {
       if (fallbackId && fallbackId !== (member.appearanceBackground || '')) {
         patch.appearanceBackground = fallbackId;
       }
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'appearanceBackgroundAnimated')) {
+    const desiredAnimated = normalizeBooleanFlag(updates.appearanceBackgroundAnimated, false);
+    const currentAnimated = normalizeBooleanFlag(member.appearanceBackgroundAnimated, false);
+    if (!Object.is(desiredAnimated, currentAnimated)) {
+      patch.appearanceBackgroundAnimated = desiredAnimated;
     }
   }
 

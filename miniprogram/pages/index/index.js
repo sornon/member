@@ -104,13 +104,35 @@ function resolvePreferredBackground(member) {
   return resolveBackgroundById(getDefaultBackgroundId());
 }
 
-function resolveBackgroundImage(member) {
+function resolveBackgroundMediaSources(member) {
   const background = resolvePreferredBackground(member);
-  if (background && background.image) {
-    return background.image;
-  }
   const fallback = resolveBackgroundById(getDefaultBackgroundId());
-  return fallback && fallback.image ? fallback.image : '';
+  const imageSource = background && background.image ? background.image : fallback && fallback.image ? fallback.image : '';
+  const videoSource = background && background.video ? background.video : '';
+  return {
+    image: imageSource,
+    video: videoSource,
+    background
+  };
+}
+
+function resolveBackgroundImage(member) {
+  const { image } = resolveBackgroundMediaSources(member);
+  return image;
+}
+
+function resolveBackgroundVideo(member) {
+  const { video } = resolveBackgroundMediaSources(member);
+  return video;
+}
+
+function resolveBackgroundDisplay(member) {
+  const { image, video } = resolveBackgroundMediaSources(member);
+  return {
+    image,
+    video,
+    dynamicEnabled: !!(member && member.appearanceBackgroundAnimated)
+  };
 }
 
 function buildBackgroundOptionList(member) {
@@ -335,7 +357,8 @@ function buildSanitizedMember(member) {
     ...member,
     avatarUrl: sanitizedAvatar || '',
     avatarFrame: sanitizedFrame,
-    appearanceBackground: sanitizedBackground
+    appearanceBackground: sanitizedBackground,
+    appearanceBackgroundAnimated: !!member.appearanceBackgroundAnimated
   };
 }
 
@@ -505,6 +528,10 @@ Page({
     tasks: [],
     loading: true,
     backgroundImage: resolveBackgroundImage(null),
+    backgroundVideo: resolveBackgroundVideo(null),
+    showBackgroundVideo: false,
+    backgroundVideoError: false,
+    dynamicBackgroundEnabled: false,
     navHeight: 88,
     today: '',
     showProfile: false,
@@ -538,6 +565,7 @@ Page({
       avatarUrl: '',
       avatarFrame: '',
       appearanceBackground: getDefaultBackgroundId(),
+      appearanceBackgroundAnimated: false,
       renameCredits: 0,
       renameCards: 0,
       renameUsed: 0,
@@ -554,7 +582,8 @@ Page({
       avatarFrame: '',
       frameOptions: cloneAvatarFrameOptions(),
       backgroundId: getDefaultBackgroundId(),
-      backgroundOptions: buildBackgroundOptionList(null)
+      backgroundOptions: buildBackgroundOptionList(null),
+      dynamicBackground: false
     },
   },
 
@@ -587,6 +616,29 @@ Page({
     if (navHeight !== this.data.navHeight) {
       this.setData({ navHeight });
     }
+  },
+
+  updateBackgroundDisplay(member, options = {}) {
+    const { image, video, dynamicEnabled } = resolveBackgroundDisplay(member);
+    const shouldShowVideo = dynamicEnabled && !!video;
+    const hasError = shouldShowVideo ? (options.resetError ? false : !!this.data.backgroundVideoError) : false;
+    this.setData({
+      backgroundImage: image,
+      backgroundVideo: video,
+      dynamicBackgroundEnabled: dynamicEnabled,
+      showBackgroundVideo: hasError ? false : shouldShowVideo,
+      backgroundVideoError: hasError
+    });
+  },
+
+  handleBackgroundVideoError() {
+    if (!this.data.backgroundVideoError) {
+      wx.showToast({ title: '未找到动态背景，已使用静态背景', icon: 'none' });
+    }
+    this.setData({
+      backgroundVideoError: true,
+      showBackgroundVideo: false
+    });
   },
 
   attachMemberRealtime() {
@@ -672,7 +724,6 @@ Page({
         progress,
         tasks: tasks.slice(0, 3),
         loading: false,
-        backgroundImage: resolveBackgroundImage(sanitizedMember),
         heroImage: resolveCharacterImage(sanitizedMember),
         navItems: resolveNavItems(sanitizedMember),
         memberStats: deriveMemberStats(sanitizedMember),
@@ -698,8 +749,20 @@ Page({
           : {
               profileAuthorized: false,
               phoneAuthorized: false
-            }
+            },
+        'profileEditor.appearanceBackground': resolveSafeBackgroundId(
+          sanitizedMember,
+          sanitizedMember && sanitizedMember.appearanceBackground
+        ),
+        'profileEditor.appearanceBackgroundAnimated': !!sanitizedMember.appearanceBackgroundAnimated,
+        'avatarPicker.backgroundOptions': buildBackgroundOptionList(sanitizedMember),
+        'avatarPicker.backgroundId': resolveSafeBackgroundId(
+          sanitizedMember,
+          sanitizedMember && sanitizedMember.appearanceBackground
+        ),
+        'avatarPicker.dynamicBackground': !!sanitizedMember.appearanceBackgroundAnimated
       });
+      this.updateBackgroundDisplay(sanitizedMember, { resetError: true });
       setActiveMember(sanitizedMember);
     } catch (err) {
       const width = normalizePercentage(this.data.progress);
@@ -708,9 +771,9 @@ Page({
         memberStats: deriveMemberStats(this.data.member),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
-        backgroundImage: resolveBackgroundImage(this.data.member),
         heroImage: resolveCharacterImage(this.data.member)
       });
+      this.updateBackgroundDisplay(this.data.member, {});
     }
     this.bootstrapRunning = false;
     if (!this.hasBootstrapped) {
@@ -770,6 +833,7 @@ Page({
         gender,
         avatarUrl,
         appearanceBackground,
+        appearanceBackgroundAnimated: !!member.appearanceBackgroundAnimated,
         renameCredits: member.renameCredits || 0,
         renameCards: member.renameCards || 0,
         renameUsed: member.renameUsed || 0,
@@ -841,6 +905,10 @@ Page({
     );
     const backgroundId = resolveSafeBackgroundId(member, this.data.profileEditor.appearanceBackground || member.appearanceBackground);
     const backgroundOptions = buildBackgroundOptionList(member);
+    const dynamicBackground =
+      typeof this.data.profileEditor.appearanceBackgroundAnimated === 'boolean'
+        ? this.data.profileEditor.appearanceBackgroundAnimated
+        : !!member.appearanceBackgroundAnimated;
     const updates = {
       showAvatarPicker: true,
       avatarPickerSaving: false,
@@ -851,7 +919,8 @@ Page({
         avatarFrame: currentFrame,
         frameOptions,
         backgroundId,
-        backgroundOptions
+        backgroundOptions,
+        dynamicBackground
       }
     };
     if (avatarUrl && this.data.profileEditor.avatarUrl !== avatarUrl) {
@@ -862,6 +931,9 @@ Page({
     }
     if (this.data.profileEditor.appearanceBackground !== backgroundId) {
       updates['profileEditor.appearanceBackground'] = backgroundId;
+    }
+    if (this.data.profileEditor.appearanceBackgroundAnimated !== dynamicBackground) {
+      updates['profileEditor.appearanceBackgroundAnimated'] = dynamicBackground;
     }
     this.setData(updates);
   },
@@ -940,6 +1012,18 @@ Page({
     });
   },
 
+  handleDynamicBackgroundToggle(event) {
+    if (this.data.avatarPickerSaving) {
+      return;
+    }
+    const detail = event && event.detail ? event.detail : {};
+    const value = !!detail.value;
+    this.setData({
+      'avatarPicker.dynamicBackground': value,
+      'profileEditor.appearanceBackgroundAnimated': value
+    });
+  },
+
   handleAvatarPickerSyncWechat() {
     if (this.data.avatarPickerSaving) {
       return;
@@ -976,19 +1060,23 @@ Page({
       this.data.member,
       this.data.avatarPicker.backgroundId || this.data.profileEditor.appearanceBackground
     );
+    const isAnimated = !!this.data.avatarPicker.dynamicBackground;
     this.setData({ avatarPickerSaving: true });
     try {
       const member = await MemberService.updateArchive({
         avatarUrl,
         avatarFrame,
-        appearanceBackground: backgroundId
+        appearanceBackground: backgroundId,
+        appearanceBackgroundAnimated: isAnimated
       });
       this.applyMemberUpdate(member);
       this.setData({
         showAvatarPicker: false,
         'profileEditor.avatarUrl': avatarUrl,
         'profileEditor.avatarFrame': avatarFrame,
-        'profileEditor.appearanceBackground': backgroundId
+        'profileEditor.appearanceBackground': backgroundId,
+        'profileEditor.appearanceBackgroundAnimated': isAnimated,
+        'avatarPicker.dynamicBackground': isAnimated
       });
       wx.showToast({ title: '外观已更新', icon: 'success' });
     } catch (error) {
@@ -1015,7 +1103,8 @@ Page({
       appearanceBackground: resolveSafeBackgroundId(
         this.data.member,
         this.data.profileEditor.appearanceBackground
-      )
+      ),
+      appearanceBackgroundAnimated: !!this.data.profileEditor.appearanceBackgroundAnimated
     };
     this.setData({ profileSaving: true });
     try {
@@ -1063,13 +1152,13 @@ Page({
       member: sanitizedMember,
       memberStats: deriveMemberStats(sanitizedMember),
       navItems: resolveNavItems(sanitizedMember),
-      backgroundImage: resolveBackgroundImage(sanitizedMember),
       heroImage: resolveCharacterImage(sanitizedMember),
       'profileEditor.nickName': sanitizedMember.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
       'profileEditor.avatarUrl': sanitizedMember.avatarUrl || this.data.profileEditor.avatarUrl,
       'profileEditor.avatarFrame': sanitizedMember.avatarFrame,
       'profileEditor.appearanceBackground': sanitizedMember.appearanceBackground,
+      'profileEditor.appearanceBackgroundAnimated': !!sanitizedMember.appearanceBackgroundAnimated,
       'avatarPicker.avatarUrl': sanitizedMember.avatarUrl || this.data.avatarPicker.avatarUrl,
       'avatarPicker.avatarFrame': sanitizedMember.avatarFrame,
       'avatarPicker.frameOptions': this.data.avatarPicker.frameOptions && this.data.avatarPicker.frameOptions.length
@@ -1077,11 +1166,13 @@ Page({
         : cloneAvatarFrameOptions(),
       'avatarPicker.backgroundId': resolveSafeBackgroundId(sanitizedMember, sanitizedMember.appearanceBackground),
       'avatarPicker.backgroundOptions': buildBackgroundOptionList(sanitizedMember),
+      'avatarPicker.dynamicBackground': !!sanitizedMember.appearanceBackgroundAnimated,
       'profileEditor.renameCredits': sanitizedMember.renameCredits || 0,
       'profileEditor.renameCards': sanitizedMember.renameCards || 0,
       'profileEditor.renameUsed': sanitizedMember.renameUsed || 0,
       'profileEditor.renameHistory': renameHistory
     });
+    this.updateBackgroundDisplay(sanitizedMember, { resetError: true });
     if (this.data.showAvatarPicker) {
       this.refreshAvatarPickerOptions();
     }
