@@ -12,6 +12,10 @@ const { listAvatarFrameUrls, normalizeAvatarFrameValue } = require('../../shared
 
 const app = getApp();
 
+const BACKGROUND_IMAGE_BASE_PATH = '../../assets/background';
+const DEFAULT_BACKGROUND_INDEX = 1;
+const MAX_BACKGROUND_INDEX = 10;
+
 const BASE_NAV_ITEMS = [
   { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
   { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
@@ -25,6 +29,54 @@ const BASE_NAV_ITEMS = [
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
 
 const AVATAR_FRAME_OPTIONS = buildAvatarFrameOptionList();
+
+function clampBackgroundIndex(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return null;
+  }
+  const rounded = Math.round(value);
+  if (rounded < 1) {
+    return DEFAULT_BACKGROUND_INDEX;
+  }
+  if (rounded > MAX_BACKGROUND_INDEX) {
+    return MAX_BACKGROUND_INDEX;
+  }
+  return rounded;
+}
+
+function parseBackgroundIndex(value) {
+  if (typeof value === 'number') {
+    return clampBackgroundIndex(value);
+  }
+  if (typeof value === 'string') {
+    const match = value.match(/\d+/);
+    if (match) {
+      return clampBackgroundIndex(Number(match[0]));
+    }
+  }
+  return null;
+}
+
+function resolveBackgroundImage(member) {
+  const level = member && member.level ? member.level : null;
+  const candidates = [];
+  if (level) {
+    candidates.push(level.backgroundIndex);
+    candidates.push(level.realmOrder);
+    candidates.push(level.order);
+    candidates.push(level.realmId);
+    candidates.push(level.realm);
+  }
+
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = parseBackgroundIndex(candidates[i]);
+    if (candidate) {
+      return `${BACKGROUND_IMAGE_BASE_PATH}/${candidate}.jpg`;
+    }
+  }
+
+  return `${BACKGROUND_IMAGE_BASE_PATH}/${DEFAULT_BACKGROUND_INDEX}.jpg`;
+}
 
 function normalizePercentage(progress) {
   if (!progress || typeof progress.percentage !== 'number') {
@@ -369,6 +421,7 @@ Page({
     progress: null,
     tasks: [],
     loading: true,
+    backgroundImage: resolveBackgroundImage(null),
     navHeight: 88,
     today: '',
     showProfile: false,
@@ -532,6 +585,7 @@ Page({
         progress,
         tasks: tasks.slice(0, 3),
         loading: false,
+        backgroundImage: resolveBackgroundImage(sanitizedMember),
         navItems: resolveNavItems(sanitizedMember),
         memberStats: deriveMemberStats(sanitizedMember),
         progressWidth: width,
@@ -565,7 +619,8 @@ Page({
         loading: false,
         memberStats: deriveMemberStats(this.data.member),
         progressWidth: width,
-        progressStyle: buildWidthStyle(width)
+        progressStyle: buildWidthStyle(width),
+        backgroundImage: resolveBackgroundImage(this.data.member)
       });
     }
     this.bootstrapRunning = false;
@@ -861,6 +916,7 @@ Page({
       member: sanitizedMember,
       memberStats: deriveMemberStats(sanitizedMember),
       navItems: resolveNavItems(sanitizedMember),
+      backgroundImage: resolveBackgroundImage(sanitizedMember),
       'profileEditor.nickName': sanitizedMember.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
       'profileEditor.avatarUrl': sanitizedMember.avatarUrl || this.data.profileEditor.avatarUrl,
