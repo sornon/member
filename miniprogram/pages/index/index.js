@@ -11,18 +11,17 @@ import {
 const { listAvatarFrameUrls, normalizeAvatarFrameValue } = require('../../shared/avatar-frames.js');
 
 const CHARACTER_IMAGE_BASE_PATH = '../../assets/character';
-const CHARACTER_IMAGE_IDS = [
-  'female-c-1',
-  'female-c-2',
-  'female-c-3',
-  'male-c-1',
-  'male-c-2',
-  'male-c-3'
-];
-const CHARACTER_IMAGE_MAP = CHARACTER_IMAGE_IDS.reduce((acc, id) => {
-  acc[id] = `${CHARACTER_IMAGE_BASE_PATH}/${id}.png`;
-  return acc;
-}, {});
+const { listAvatarIds: listAllAvatarIds } = require('../../shared/avatar-catalog.js');
+
+function buildCharacterImageMap() {
+  const ids = listAllAvatarIds();
+  return ids.reduce((acc, id) => {
+    acc[id] = `${CHARACTER_IMAGE_BASE_PATH}/${id}.png`;
+    return acc;
+  }, {});
+}
+
+const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 
 const app = getApp();
 

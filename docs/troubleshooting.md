@@ -66,3 +66,19 @@ Error: TencentCloud API error: {
 - **为何推荐保留**：一旦后续需要上传公共工具或三方依赖，将它们放入 `cloudfunctions/common` 或 `cloudfunctions/shared` 目录后再部署即可复用；同时可以规避因目录为空导致的 `CreateFailed`、`ResourceNotFound.Function` 报错。
 
 > 如果你决定临时删除 `common` 或 `shared`，请同步调整 CI/CD 或开发者工具的部署列表，避免脚本在上传阶段再次访问已删除的函数。
+
+## 首页角色形象未显示
+
+**现象**
+
+在首页选择新的头像（如 `male-b-1`）后，右下角对应的角色全身像未加载。
+
+**原因分析**
+
+首页角色图曾通过硬编码 ID 列表（仅包含部分 `c` 品级）来拼接图片路径，导致新增的 `b`/`a` 等品级头像虽然具备命名规范一致的角色图，但始终无法被映射出来。
+
+**解决方案**
+
+自 2024-05-10 起，首页会使用头像目录的统一清单（`shared/avatar-catalog.js`）动态生成角色图映射。只要为头像与角色图提供同名 PNG 资源（例如头像 `assets/avatar/male-b-1.png` 与角色图 `assets/character/male-b-1.png`），即可自动生效，无需再次修改前端页面代码。
+
+> 补充：新增头像时仍需按照既定流程更新头像清单（`shared/avatar-catalog.js`），以便头像选择器、解锁逻辑及角色图映射同时感知新资源。
