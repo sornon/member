@@ -32,10 +32,16 @@ function decorateLevels(levels = []) {
     .filter(Boolean)
     .map((level) => {
       const color = levelBadgeColor(level.realmOrder || level.order || 1);
+      const experienceRequirement = formatExperience(
+        typeof level.threshold === 'undefined' || level.threshold === null
+          ? 0
+          : level.threshold
+      );
       return {
         ...level,
         badgeColor: color,
-        badgeStyle: `background: ${color};`
+        badgeStyle: `background: ${color};`,
+        experienceRequirement
       };
     });
 }
@@ -174,17 +180,5 @@ Page({
   },
 
   formatCurrency,
-  formatExperience,
-
-  formatDiscount(value) {
-    const numeric = typeof value === 'number' ? value : 1;
-    const discount = numeric * 10;
-    if (Number.isNaN(discount)) {
-      return '10';
-    }
-    if (Math.abs(discount - Math.round(discount)) < 0.001) {
-      return `${Math.round(discount)}`;
-    }
-    return discount.toFixed(1);
-  }
+  formatExperience
 });
