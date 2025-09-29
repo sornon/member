@@ -856,12 +856,17 @@ Page({
     const renameHistory = formatHistoryList(member.renameHistory);
     const sanitizedAvatar = sanitizeAvatarUrl(member.avatarUrl);
     const sanitizedFrame = sanitizeAvatarFrame(member.avatarFrame || '');
+    const sanitizedMember = {
+      ...member,
+      avatarUrl: sanitizedAvatar || '',
+      avatarFrame: sanitizedFrame
+    };
     this.setData({
-      member,
-      memberStats: deriveMemberStats(member),
-      navItems: resolveNavItems(member),
-      'profileEditor.nickName': member.nickName || this.data.profileEditor.nickName,
-      'profileEditor.gender': normalizeGenderValue(member.gender),
+      member: sanitizedMember,
+      memberStats: deriveMemberStats(sanitizedMember),
+      navItems: resolveNavItems(sanitizedMember),
+      'profileEditor.nickName': sanitizedMember.nickName || this.data.profileEditor.nickName,
+      'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
       'profileEditor.avatarUrl': sanitizedAvatar || this.data.profileEditor.avatarUrl,
       'profileEditor.avatarFrame': sanitizedFrame,
       'avatarPicker.avatarUrl': sanitizedAvatar || this.data.avatarPicker.avatarUrl,
@@ -869,16 +874,16 @@ Page({
       'avatarPicker.frameOptions': this.data.avatarPicker.frameOptions && this.data.avatarPicker.frameOptions.length
         ? this.data.avatarPicker.frameOptions
         : cloneAvatarFrameOptions(),
-      'profileEditor.renameCredits': member.renameCredits || 0,
-      'profileEditor.renameCards': member.renameCards || 0,
-      'profileEditor.renameUsed': member.renameUsed || 0,
+      'profileEditor.renameCredits': sanitizedMember.renameCredits || 0,
+      'profileEditor.renameCards': sanitizedMember.renameCards || 0,
+      'profileEditor.renameUsed': sanitizedMember.renameUsed || 0,
       'profileEditor.renameHistory': renameHistory
     });
     if (this.data.showAvatarPicker) {
       this.refreshAvatarPickerOptions();
     }
     if (options.propagate !== false) {
-      setActiveMember(member);
+      setActiveMember(sanitizedMember);
     }
   },
 
