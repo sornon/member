@@ -37,17 +37,17 @@
     "ignore": [
       {
         "type": "folder",
-        "value": "miniprogram/assets/character"
+        "value": "assets/character"
       },
       {
         "type": "folder",
-        "value": "miniprogram/assets/background"
+        "value": "assets/background"
       }
     ],
     "include": [
       {
         "type": "file",
-        "value": "miniprogram/assets/background/1.jpg"
+        "value": "assets/background/1.jpg"
       }
     ]
   },
