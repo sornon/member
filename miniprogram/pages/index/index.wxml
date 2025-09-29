@@ -187,7 +187,10 @@
     <view class="modal-mask" bindtap="handleCloseAvatarPicker"></view>
     <view class="modal-content modal-content--avatar">
       <view class="modal-header modal-header--appearance">
-        <view class="modal-title">外观设置</view>
+        <view class="modal-header__row">
+          <view class="modal-title">外观设置</view>
+          <view class="modal-close" bindtap="handleCloseAvatarPicker">×</view>
+        </view>
         <view class="appearance-tabs">
           <view
             class="appearance-tab {{avatarPicker.activeTab === 'avatar' ? 'appearance-tab--active' : ''}}"
@@ -205,13 +208,9 @@
             bindtap="handleAppearanceTabChange"
           >背景</view>
         </view>
-        <view class="modal-close" bindtap="handleCloseAvatarPicker">×</view>
       </view>
       <scroll-view scroll-y="true" class="modal-body modal-body--scroll">
         <view wx:if="{{avatarPicker.activeTab === 'avatar'}}" class="archive-section appearance-section">
-          <view class="archive-section__header">
-            <view class="archive-section__title">可选头像</view>
-          </view>
           <view class="avatar-grid">
             <view
               class="avatar-option {{avatarPicker.avatarUrl === item.url ? 'avatar-option--active' : ''}}"
@@ -226,9 +225,6 @@
           <button class="archive-action" size="mini" bindtap="handleAvatarPickerSyncWechat">同步微信头像</button>
         </view>
         <view wx:elif="{{avatarPicker.activeTab === 'frame'}}" class="archive-section appearance-section">
-          <view class="archive-section__header">
-            <view class="archive-section__title">可选相框</view>
-          </view>
           <view class="avatar-frame-grid">
             <view
               class="avatar-frame-option {{avatarPicker.avatarFrame === item.url ? 'avatar-frame-option--active' : ''}}"
@@ -255,9 +251,6 @@
           </view>
         </view>
         <view wx:else class="archive-section appearance-section appearance-section--background">
-          <view class="archive-section__header">
-            <view class="archive-section__title">可选背景</view>
-          </view>
           <view class="appearance-background-grid">
             <view
               class="appearance-background-option {{avatarPicker.backgroundId === item.id ? 'appearance-background-option--active' : ''}} {{!item.unlocked ? 'appearance-background-option--locked' : ''}}"
