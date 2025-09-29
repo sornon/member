@@ -1,0 +1,6 @@
+{
+  "name": "shared",
+  "version": "1.0.0",
+  "description": "Placeholder cloud function used to host reusable libraries",
+  "main": "index.js"
+}

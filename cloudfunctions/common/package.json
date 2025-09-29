@@ -1,0 +1,6 @@
+{
+  "name": "common",
+  "version": "1.0.0",
+  "description": "Placeholder cloud function for shared dependencies",
+  "main": "index.js"
+}
