@@ -1,7 +1,7 @@
 import { PveService, MemberService } from '../../services/api';
 import { formatStones } from '../../utils/format';
 
-const ALLOCATABLE_KEYS = ['hp', 'attack', 'defense', 'speed', 'luck'];
+const ALLOCATABLE_KEYS = ['constitution', 'strength', 'spirit', 'root', 'agility', 'insight'];
 
 Page({
   data: {
