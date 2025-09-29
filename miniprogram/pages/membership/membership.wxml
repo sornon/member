@@ -24,10 +24,10 @@
       </view>
     </view>
 
-    <view class="card realm-card" wx:if="{{realms.length}}">
+    <view class="card realm-card" wx:if="{{visibleRealms.length}}">
       <view class="section-title">主境界进阶</view>
       <view class="realm-grid">
-        <view class="realm-item" wx:for="{{realms}}" wx:key="{{item.realm}}">
+        <view class="realm-item" wx:for="{{visibleRealms}}" wx:key="{{item.realmKey || item.realm}}">
           <view class="realm-header">
             <text class="realm-name">{{item.realm}}</text>
             <text class="realm-range">{{formatCurrency(item.start)}} ~ {{formatCurrency(item.end)}}</text>
@@ -44,7 +44,12 @@
 
     <view class="card">
       <view class="section-title">等级列表</view>
-      <view wx:for="{{levels}}" wx:key="_id" class="level-item {{item.milestoneReward ? 'level-item--milestone' : ''}}">
+      <view class="level-toolbar" wx:if="{{!isAdmin}}">
+        <view class="toggle-past" bindtap="onTogglePastLevels">
+          {{showPastLevels ? '隐藏过往等级' : '查看过往等级'}}
+        </view>
+      </view>
+      <view wx:for="{{visibleLevels}}" wx:key="_id" class="level-item {{item.milestoneReward ? 'level-item--milestone' : ''}}">
         <view class="level-rank" style="{{item.badgeStyle}}">
           <text class="rank-realm">{{item.realmShort}}</text>
           <text class="rank-stage">{{item.subLevelLabel}}</text>
@@ -69,6 +74,23 @@
           <view class="level-bonus" wx:if="{{item.rewards && item.rewards.length}}">
             <text class="reward-label">实体权益：</text>
             <text class="reward-text" wx:for="{{item.rewards}}" wx:key="{{index}}">{{item}}</text>
+          </view>
+          <view class="level-actions-row" wx:if="{{item.hasRewards}}">
+            <button
+              wx:if="{{item.claimable}}"
+              class="claim-button claim-button--active"
+              type="default"
+              size="mini"
+              data-level-id="{{item._id}}"
+              bindtap="onClaimReward"
+            >领取奖励</button>
+            <button
+              wx:elif="{{!item.claimed}}"
+              class="claim-button claim-button--disabled"
+              type="default"
+              size="mini"
+              disabled
+            >未达成</button>
           </view>
         </view>
       </view>

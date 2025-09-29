@@ -145,6 +145,12 @@ export const MemberService = {
   async getLevelProgress() {
     return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'progress' });
   },
+  async claimLevelReward(levelId) {
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, {
+      action: 'claimLevelReward',
+      levelId
+    });
+  },
   async getRights() {
     return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'rights' });
   },
