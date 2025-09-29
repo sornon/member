@@ -297,22 +297,7 @@ function formatHistoryList(history) {
     .filter(Boolean);
 }
 
-const BACKGROUND_IMAGE =
-  'data:image/svg+xml;base64,' +
-  'PHN2ZyB3aWR0aD0iNzIwIiBoZWlnaHQ9IjEyODAiIHZpZXdCb3g9IjAgMCA3MjAgMTI4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVm' +
-  'cz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0ic2t5IiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9I' +
-  'iMwNTA5MjEiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSI1MCUiIHN0b3AtY29sb3I9IiMxYjNjNjgiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPS' +
-  'IjMmQwYjNkIi8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPHJhZGlhbEdyYWRpZW50IGlkPSJnbG93IiBjeD0iNTAlIiBjeT0iMjAlIiByPSI2MCUiPgogICAgICA' +
-  '8c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjZjdmMWQ1IiBzdG9wLW9wYWNpdHk9IjAuOCIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9' +
-  'IiNmN2YxZDUiIHN0b3Atb3BhY2l0eT0iMCIvPgogICAgPC9yYWRpYWxHcmFkaWVudD4KICA8L2RlZnM+CiAgPHJlY3Qgd2lkdGg9IjcyMCIgaGVpZ2h0PSIxMjgwIiBma' +
-  'WxsPSJ1cmwoI3NreSkiLz4KICA8Y2lyY2xlIGN4PSIzNjAiIGN5PSIyMDAiIHI9IjE4MCIgZmlsbD0idXJsKCNnbG93KSIvPgogIDxwYXRoIGQ9Ik0wIDkwMCBMMTYwID' +
-  'c2MCBMMzIwIDg4MCBMNDgwIDcyMCBMNjQwIDg2MCBMNzIwIDc4MCBMNzIwIDEyODAgTDAgMTI4MCBaIiBmaWxsPSIjMWYxYjJlIiBvcGFjaXR5PSIwLjYiLz4KICA8cGF' +
-  '0aCBkPSJNMCA5OTAgTDE4MCA4MjAgTDM2MCA5NDAgTDUyMCA3ODAgTDcyMCA5NjAgTDcyMCAxMjgwIEwwIDEyODAgWiIgZmlsbD0iIzI4MWYzZiIgb3BhY2l0eT0iMC43' +
-  'NSIvPgogIDxwYXRoIGQ9Ik0wIDEwODAgTDIwMCA5MDAgTDM2MCAxMDIwIEw1NDAgODgwIEw3MjAgMTA4MCBMNzIwIDEyODAgTDAgMTI4MCBaIiBmaWxsPSIjMzQyODU5' +
-  'IiBvcGFjaXR5PSIwLjkiLz4KICA8ZyBvcGFjaXR5PSIwLjEyIiBmaWxsPSIjZmZmZmZmIj4KICAgIDxjaXJjbGUgY3g9IjEyMCIgY3k9IjE4MCIgcj0iMyIvPgogICAg' +
-  'PGNpcmNsZSBjeD0iMjQwIiBjeT0iMTIwIiByPSIyIi8+CiAgICA8Y2lyY2xlIGN4PSI1MjAiIGN5PSIyMDAiIHI9IjMiLz4KICAgIDxjaXJjbGUgY3g9IjYwMCIgY3k9' +
-  'IjEwMCIgcj0iMi41Ii8+CiAgICA8Y2lyY2xlIGN4PSI0MjAiIGN5PSI2MCIgcj0iMiIvPgogICAgPGNpcmNsZSBjeD0iMzIwIiBjeT0iMjYwIiByPSIyLjQiLz4KICAg' +
-  'IDxjaXJjbGUgY3g9IjIwMCIgY3k9IjMyMCIgcj0iMS44Ii8+CiAgICA8Y2lyY2xlIGN4PSI1ODAiIGN5PSIzMjAiIHI9IjIuMiIvPgogIDwvZz4KPC9zdmc+';
+const BACKGROUND_VIDEO = '/assets/background/1.mp4';
 
 const HERO_IMAGE =
   'data:image/svg+xml;base64,' +
@@ -402,7 +387,7 @@ Page({
       profileAuthorized: false,
       phoneAuthorized: false
     },
-    backgroundImage: BACKGROUND_IMAGE,
+    backgroundVideo: BACKGROUND_VIDEO,
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
     activityIcons: [
@@ -433,13 +418,19 @@ Page({
       avatarOptions: [],
       avatarFrame: '',
       frameOptions: cloneAvatarFrameOptions()
-    }
+    },
+    backgroundVideoError: false
   },
 
   onLoad() {
     this.hasBootstrapped = false;
     this.ensureNavMetrics();
     this.updateToday();
+    this.ensureBackgroundVideoContext();
+    this.backgroundVideoIsPlaying = false;
+    this.backgroundVideoPendingPlay = false;
+    this.backgroundVideoErrorNotified = false;
+    this.backgroundVideoPermanentError = false;
   },
 
   onShow() {
@@ -447,14 +438,164 @@ Page({
     this.updateToday();
     this.attachMemberRealtime();
     this.bootstrap();
+    if (this.data.backgroundVideoError) {
+      if (this.backgroundVideoPermanentError) {
+        return;
+      }
+      this.setData({ backgroundVideoError: false }, () => {
+        this.ensureBackgroundVideoContext();
+        this.playBackgroundVideo();
+      });
+      return;
+    }
+    this.ensureBackgroundVideoContext();
+    this.playBackgroundVideo();
+  },
+
+  onReady() {
+    this.ensureBackgroundVideoContext();
   },
 
   onHide() {
     this.detachMemberRealtime();
+    this.pauseBackgroundVideo();
   },
 
   onUnload() {
     this.detachMemberRealtime();
+    this.destroyBackgroundVideoContext();
+  },
+
+  ensureBackgroundVideoContext() {
+    if (this.backgroundVideoContext || typeof wx === 'undefined' || !wx.createVideoContext) {
+      return;
+    }
+    try {
+      this.backgroundVideoContext = wx.createVideoContext('background-video', this);
+      this.backgroundVideoIsPlaying = false;
+      this.backgroundVideoPendingPlay = false;
+    } catch (error) {
+      console.warn('Failed to create background video context', error);
+      this.backgroundVideoContext = null;
+    }
+  },
+
+  playBackgroundVideo() {
+    if (
+      !this.backgroundVideoContext ||
+      typeof this.backgroundVideoContext.play !== 'function' ||
+      this.backgroundVideoIsPlaying ||
+      this.backgroundVideoPendingPlay
+    ) {
+      return;
+    }
+    this.backgroundVideoPendingPlay = true;
+    try {
+      const maybePromise = this.backgroundVideoContext.play();
+      if (maybePromise && typeof maybePromise.finally === 'function') {
+        maybePromise
+          .catch((error) => {
+            console.warn('Background video play promise rejected', error);
+          })
+          .finally(() => {
+            this.backgroundVideoPendingPlay = false;
+          });
+      } else {
+        this.backgroundVideoPendingPlay = false;
+      }
+    } catch (error) {
+      this.backgroundVideoPendingPlay = false;
+      console.warn('Failed to play background video', error);
+    }
+  },
+
+  pauseBackgroundVideo() {
+    if (!this.backgroundVideoContext || typeof this.backgroundVideoContext.pause !== 'function') {
+      return;
+    }
+    try {
+      this.backgroundVideoContext.pause();
+    } catch (error) {
+      console.warn('Failed to pause background video', error);
+    } finally {
+      this.backgroundVideoIsPlaying = false;
+      this.backgroundVideoPendingPlay = false;
+    }
+  },
+
+  destroyBackgroundVideoContext() {
+    if (!this.backgroundVideoContext) {
+      return;
+    }
+    try {
+      if (typeof this.backgroundVideoContext.pause === 'function') {
+        this.backgroundVideoContext.pause();
+      }
+      if (typeof this.backgroundVideoContext.seek === 'function') {
+        this.backgroundVideoContext.seek(0);
+      }
+    } catch (error) {
+      console.warn('Failed to reset background video', error);
+    }
+    this.backgroundVideoContext = null;
+    this.backgroundVideoIsPlaying = false;
+    this.backgroundVideoPendingPlay = false;
+  },
+
+  handleBackgroundVideoReady() {
+    if (this.data.backgroundVideoError) {
+      this.setData({ backgroundVideoError: false });
+    }
+    this.backgroundVideoErrorNotified = false;
+    this.playBackgroundVideo();
+  },
+
+  handleBackgroundVideoPlay() {
+    this.backgroundVideoIsPlaying = true;
+    this.backgroundVideoPendingPlay = false;
+    this.backgroundVideoPermanentError = false;
+    if (this.data.backgroundVideoError) {
+      this.setData({ backgroundVideoError: false });
+    }
+    this.backgroundVideoErrorNotified = false;
+  },
+
+  handleBackgroundVideoPause() {
+    this.backgroundVideoIsPlaying = false;
+  },
+
+  handleBackgroundVideoEnded() {
+    this.backgroundVideoIsPlaying = false;
+    this.playBackgroundVideo();
+  },
+
+  handleBackgroundVideoError(event) {
+    const detail = event && event.detail;
+    console.warn('Background video failed to play', detail);
+    this.backgroundVideoIsPlaying = false;
+    this.backgroundVideoPendingPlay = false;
+    const errMsg = detail && typeof detail.errMsg === 'string' ? detail.errMsg : '';
+    this.backgroundVideoPermanentError = errMsg.indexOf('MEDIA_ERR_SRC_NOT_SUPPORTED') >= 0;
+    if (!this.data.backgroundVideoError) {
+      this.setData({ backgroundVideoError: true });
+    }
+    this.destroyBackgroundVideoContext();
+    this.notifyBackgroundVideoError(detail);
+  },
+
+  notifyBackgroundVideoError(detail) {
+    if (this.backgroundVideoErrorNotified || typeof wx === 'undefined' || typeof wx.showToast !== 'function') {
+      return;
+    }
+    const message = detail && typeof detail.errMsg === 'string' && detail.errMsg.indexOf('MEDIA_ERR_SRC_NOT_SUPPORTED') >= 0
+      ? '当前设备不支持该背景视频，已展示静态背景。'
+      : '背景视频播放失败，已展示静态背景。';
+    this.backgroundVideoErrorNotified = true;
+    try {
+      wx.showToast({ title: message, icon: 'none', duration: 3000 });
+    } catch (error) {
+      console.warn('Failed to show video error toast', error);
+    }
   },
 
   ensureNavMetrics() {
