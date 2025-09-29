@@ -52,8 +52,7 @@
         <view class="level-info">
           <view class="level-title">LV{{item.order}} · {{item.name}}</view>
           <view class="level-meta">
-            <text>累计充值 {{formatCurrency(item.threshold)}}</text>
-            <text class="level-discount">尊享 {{formatDiscount(item.discount)}} 折</text>
+            <text>修为达到 {{formatExperience(item.threshold)}} 点</text>
           </view>
           <view class="level-desc" wx:if="{{item.subLevel === 1 && item.realmDescription}}">{{item.realmDescription}}</view>
           <view class="level-virtual" wx:if="{{item.virtualRewards && item.virtualRewards.length}}">

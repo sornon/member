@@ -174,17 +174,5 @@ Page({
   },
 
   formatCurrency,
-  formatExperience,
-
-  formatDiscount(value) {
-    const numeric = typeof value === 'number' ? value : 1;
-    const discount = numeric * 10;
-    if (Number.isNaN(discount)) {
-      return '10';
-    }
-    if (Math.abs(discount - Math.round(discount)) < 0.001) {
-      return `${Math.round(discount)}`;
-    }
-    return discount.toFixed(1);
-  }
+  formatExperience
 });

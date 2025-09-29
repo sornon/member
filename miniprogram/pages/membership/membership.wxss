@@ -198,11 +198,6 @@
   margin-top: 12rpx;
 }
 
-.level-discount {
-  color: #ffd39c;
-  font-weight: 600;
-}
-
 .level-desc {
   font-size: 24rpx;
   color: rgba(207, 216, 255, 0.75);
