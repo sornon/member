@@ -26,7 +26,12 @@
   "compileType": "miniprogram",
   "simulatorPluginLibVersion": {},
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      {
+        "type": "glob",
+        "value": "assets/character/**"
+      }
+    ],
     "include": []
   },
   "appid": "wxada3146653042265",

@@ -34,7 +34,12 @@
   "libVersion": "3.10.2",
   "cloudfunctionRoot": "cloudfunctions/",
   "packOptions": {
-    "ignore": [],
+    "ignore": [
+      {
+        "type": "glob",
+        "value": "miniprogram/assets/character/**"
+      }
+    ],
     "include": []
   },
   "miniprogramRoot": "miniprogram/",
