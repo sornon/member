@@ -67,7 +67,8 @@ npm install -g miniprogram-ci # 可选，用于 CI/CD
 cd cloudfunctions/member && npm install && cd -
 # 新增的入口开关依赖于 admin 云函数，同步安装依赖后部署
 cd cloudfunctions/admin && npm install && cd -
-# 共享的 cloudfunctions/common 目录只包含工具方法，无需单独执行 npm install
+# 共享的 cloudfunctions/common / cloudfunctions/member/shared 目录只包含复用方法，无需单独执行 npm install
+# 目录内仅附带最小 package.json 以避免误操作
 # 也可在微信开发者工具中右键「安装依赖」
 ```
 
