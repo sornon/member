@@ -86,7 +86,7 @@ cd cloudfunctions/member && npm install && cd -
 
 ## 常见问题
 
-- **云函数 `common` 上传报错 `CreateFailed`**：通常是首次创建云函数时目录为空导致。请先在云开发控制台删除状态为“创建失败”的 `common` 函数，再重新上传仓库内的 `cloudfunctions/common` 目录，详见 [常见问题排查](docs/troubleshooting.md#云函数-common-上传失败createfailed)。
+- **云函数 `common` 上传报错 `CreateFailed`**：通常是首次创建云函数时目录为空导致。请先在云开发控制台删除状态为“创建失败”的 `common` 函数，再重新上传仓库内的 `cloudfunctions/common` 目录；若删除后提示 `ResourceNotFound.Function`，需要先在控制台重新创建同名函数实例。详见 [常见问题排查](docs/troubleshooting.md#云函数-common-上传失败createfailed)。
 
 ## 数据结构说明
 
