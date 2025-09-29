@@ -219,10 +219,7 @@
 
 .level-actions-row {
   margin-top: 16rpx;
-  display: flex;
-  gap: 12rpx;
-  flex-wrap: wrap;
-  justify-content: flex-start;
+  display: block;
 }
 
 .claim-button {
@@ -242,12 +239,28 @@
   border: none;
 }
 
-.claim-button--active {
-  background: linear-gradient(90deg, #ff5a5a, #ff3030);
-  color: #ffffff;
+.claim-button.claim-button--active {
+    min-height: 48rpx;
+    line-height: 48rpx;
+    padding: 0 24rpx;
+    font-size: 22rpx;
+    min-width: 0;
+    width: auto;
+    border-radius: 999rpx;
+    border: none;
+    background: linear-gradient(90deg, #ff5a5a, #ff3030);
+    color: #ffffff;
 }
 
 .claim-button.claim-button--disabled {
+    min-height: 48rpx;
+    line-height: 48rpx;
+    padding: 0 24rpx;
+    font-size: 22rpx;
+    min-width: 0;
+    width: auto;
+    border-radius: 999rpx;
+    border: none;
   background: rgba(110, 122, 180, 0.4);
   color: rgba(230, 236, 255, 0.6);
 }
