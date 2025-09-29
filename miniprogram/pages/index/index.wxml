@@ -50,7 +50,7 @@
       <view class="hero-copy">
         <view class="today">{{today}}</view>
         <view class="hero-title">仙缘启程</view>
-        <view class="hero-subtitle">灵气回荡的天穹下，万道齐鸣，等你归位。</view>
+        <view class="hero-subtitle">尊贵的酒隐之茄会员：所有充值都会化作修为，消费会化作灵石。</view>
         <view class="progress-info">
           <view class="progress-track">
             <view class="progress-inner" style="{{progressStyle}}"></view>
