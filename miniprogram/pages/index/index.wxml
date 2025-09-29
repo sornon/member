@@ -1,17 +1,22 @@
 <view class="home-page">
   <video
+    wx:if="{{!backgroundVideoError}}"
+    id="background-video"
     class="background"
     src="{{backgroundVideo}}"
     poster="{{backgroundPoster}}"
-    autoplay
-    loop
-    muted
+    autoplay="{{true}}"
+    loop="{{true}}"
+    muted="{{true}}"
     controls="{{false}}"
     show-play-btn="false"
     show-center-play-btn="false"
     show-fullscreen-btn="false"
     enable-progress-gesture="{{false}}"
     object-fit="cover"
+    bindloadedmetadata="handleBackgroundVideoReady"
+    bindended="handleBackgroundVideoEnded"
+    binderror="handleBackgroundVideoError"
   ></video>
   <view class="mist-layer mist-layer--one"></view>
   <view class="mist-layer mist-layer--two"></view>

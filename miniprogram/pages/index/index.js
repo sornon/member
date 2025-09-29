@@ -436,13 +436,15 @@ Page({
       avatarOptions: [],
       avatarFrame: '',
       frameOptions: cloneAvatarFrameOptions()
-    }
+    },
+    backgroundVideoError: false
   },
 
   onLoad() {
     this.hasBootstrapped = false;
     this.ensureNavMetrics();
     this.updateToday();
+    this.ensureBackgroundVideoContext();
   },
 
   onShow() {
@@ -450,14 +452,86 @@ Page({
     this.updateToday();
     this.attachMemberRealtime();
     this.bootstrap();
+    if (this.data.backgroundVideoError) {
+      this.setData({ backgroundVideoError: false }, () => {
+        this.ensureBackgroundVideoContext();
+        this.ensureBackgroundVideoPlaying();
+      });
+    } else {
+      this.ensureBackgroundVideoContext();
+      this.ensureBackgroundVideoPlaying();
+    }
+  },
+
+  onReady() {
+    this.ensureBackgroundVideoContext();
+    this.ensureBackgroundVideoPlaying();
   },
 
   onHide() {
     this.detachMemberRealtime();
+    this.destroyBackgroundVideoContext();
   },
 
   onUnload() {
     this.detachMemberRealtime();
+    this.destroyBackgroundVideoContext();
+  },
+
+  ensureBackgroundVideoContext() {
+    if (this.backgroundVideoContext || typeof wx === 'undefined' || !wx.createVideoContext) {
+      return;
+    }
+    try {
+      this.backgroundVideoContext = wx.createVideoContext('background-video', this);
+    } catch (error) {
+      console.warn('Failed to create background video context', error);
+      this.backgroundVideoContext = null;
+    }
+  },
+
+  ensureBackgroundVideoPlaying() {
+    if (!this.backgroundVideoContext) {
+      this.ensureBackgroundVideoContext();
+    }
+    if (!this.backgroundVideoContext || typeof this.backgroundVideoContext.play !== 'function') {
+      return;
+    }
+    try {
+      this.backgroundVideoContext.play();
+    } catch (error) {
+      console.warn('Failed to play background video', error);
+    }
+  },
+
+  destroyBackgroundVideoContext() {
+    if (this.backgroundVideoContext && typeof this.backgroundVideoContext.stop === 'function') {
+      try {
+        this.backgroundVideoContext.stop();
+      } catch (error) {
+        console.warn('Failed to stop background video', error);
+      }
+    }
+    this.backgroundVideoContext = null;
+  },
+
+  handleBackgroundVideoReady() {
+    if (this.data.backgroundVideoError) {
+      this.setData({ backgroundVideoError: false });
+    }
+    this.ensureBackgroundVideoPlaying();
+  },
+
+  handleBackgroundVideoEnded() {
+    this.ensureBackgroundVideoPlaying();
+  },
+
+  handleBackgroundVideoError(event) {
+    console.warn('Background video failed to play', event && event.detail);
+    if (!this.data.backgroundVideoError) {
+      this.setData({ backgroundVideoError: true });
+    }
+    this.destroyBackgroundVideoContext();
   },
 
   ensureNavMetrics() {
