@@ -51,6 +51,7 @@
    - `errorlogs`
 3. 在“云函数”面板中右键部署以下函数（需先安装依赖）：
    - `bootstrap`
+   - `admin`
    - `member`
    - `tasks`
    - `reservation`
@@ -64,6 +65,8 @@
 npm install -g miniprogram-ci # 可选，用于 CI/CD
 # 进入每个云函数目录安装依赖
 cd cloudfunctions/member && npm install && cd -
+# 新增的入口开关依赖于 admin 云函数，同步安装依赖后部署
+cd cloudfunctions/admin && npm install && cd -
 # 也可在微信开发者工具中右键「安装依赖」
 ```
 
@@ -76,6 +79,7 @@ cd cloudfunctions/member && npm install && cd -
 1. 在 `miniprogram/app.js` 中的 `env` 替换为你的云开发 `envId`。
 2. 若有专属 CDN 或自建 API，可在 `miniprogram/services/config.js` 中调整服务端地址或云函数名称。
 3. 使用开发者工具的“预览”或“真机调试”功能即可运行体验。
+4. 如需全局控制首页底部导航或右上角活动入口，可在上传前端代码后，在小程序内访问“管理后台 → 功能入口开关”页面。首次进入时，系统会自动在 `appSettings` 集合中创建 `entranceSettings` 配置文档，拥有 `admin` / `developer` 角色的成员即可随时开关入口并同步到所有用户端。
 
 ## 监控与错误日志
 
