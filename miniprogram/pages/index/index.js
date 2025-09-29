@@ -297,8 +297,6 @@ function formatHistoryList(history) {
     .filter(Boolean);
 }
 
-const BACKGROUND_VIDEO = '../../assets/background/1.mp4';
-
 const HERO_IMAGE =
   'data:image/svg+xml;base64,' +
   'PHN2ZyB3aWR0aD0iMzYwIiBoZWlnaHQ9IjU2MCIgdmlld0JveD0iMCAwIDM2MCA1NjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPGRlZnM+' +
@@ -387,7 +385,6 @@ Page({
       profileAuthorized: false,
       phoneAuthorized: false
     },
-    backgroundVideo: BACKGROUND_VIDEO,
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
     activityIcons: [
@@ -419,18 +416,12 @@ Page({
       avatarFrame: '',
       frameOptions: cloneAvatarFrameOptions()
     },
-    backgroundVideoError: false
   },
 
   onLoad() {
     this.hasBootstrapped = false;
     this.ensureNavMetrics();
     this.updateToday();
-    this.ensureBackgroundVideoContext();
-    this.backgroundVideoIsPlaying = false;
-    this.backgroundVideoPendingPlay = false;
-    this.backgroundVideoErrorNotified = false;
-    this.backgroundVideoPermanentError = false;
   },
 
   onShow() {
@@ -438,164 +429,16 @@ Page({
     this.updateToday();
     this.attachMemberRealtime();
     this.bootstrap();
-    if (this.data.backgroundVideoError) {
-      if (this.backgroundVideoPermanentError) {
-        return;
-      }
-      this.setData({ backgroundVideoError: false }, () => {
-        this.ensureBackgroundVideoContext();
-        this.playBackgroundVideo();
-      });
-      return;
-    }
-    this.ensureBackgroundVideoContext();
-    this.playBackgroundVideo();
   },
 
-  onReady() {
-    this.ensureBackgroundVideoContext();
-  },
+  onReady() {},
 
   onHide() {
     this.detachMemberRealtime();
-    this.pauseBackgroundVideo();
   },
 
   onUnload() {
     this.detachMemberRealtime();
-    this.destroyBackgroundVideoContext();
-  },
-
-  ensureBackgroundVideoContext() {
-    if (this.backgroundVideoContext || typeof wx === 'undefined' || !wx.createVideoContext) {
-      return;
-    }
-    try {
-      this.backgroundVideoContext = wx.createVideoContext('background-video', this);
-      this.backgroundVideoIsPlaying = false;
-      this.backgroundVideoPendingPlay = false;
-    } catch (error) {
-      console.warn('Failed to create background video context', error);
-      this.backgroundVideoContext = null;
-    }
-  },
-
-  playBackgroundVideo() {
-    if (
-      !this.backgroundVideoContext ||
-      typeof this.backgroundVideoContext.play !== 'function' ||
-      this.backgroundVideoIsPlaying ||
-      this.backgroundVideoPendingPlay
-    ) {
-      return;
-    }
-    this.backgroundVideoPendingPlay = true;
-    try {
-      const maybePromise = this.backgroundVideoContext.play();
-      if (maybePromise && typeof maybePromise.finally === 'function') {
-        maybePromise
-          .catch((error) => {
-            console.warn('Background video play promise rejected', error);
-          })
-          .finally(() => {
-            this.backgroundVideoPendingPlay = false;
-          });
-      } else {
-        this.backgroundVideoPendingPlay = false;
-      }
-    } catch (error) {
-      this.backgroundVideoPendingPlay = false;
-      console.warn('Failed to play background video', error);
-    }
-  },
-
-  pauseBackgroundVideo() {
-    if (!this.backgroundVideoContext || typeof this.backgroundVideoContext.pause !== 'function') {
-      return;
-    }
-    try {
-      this.backgroundVideoContext.pause();
-    } catch (error) {
-      console.warn('Failed to pause background video', error);
-    } finally {
-      this.backgroundVideoIsPlaying = false;
-      this.backgroundVideoPendingPlay = false;
-    }
-  },
-
-  destroyBackgroundVideoContext() {
-    if (!this.backgroundVideoContext) {
-      return;
-    }
-    try {
-      if (typeof this.backgroundVideoContext.pause === 'function') {
-        this.backgroundVideoContext.pause();
-      }
-      if (typeof this.backgroundVideoContext.seek === 'function') {
-        this.backgroundVideoContext.seek(0);
-      }
-    } catch (error) {
-      console.warn('Failed to reset background video', error);
-    }
-    this.backgroundVideoContext = null;
-    this.backgroundVideoIsPlaying = false;
-    this.backgroundVideoPendingPlay = false;
-  },
-
-  handleBackgroundVideoReady() {
-    if (this.data.backgroundVideoError) {
-      this.setData({ backgroundVideoError: false });
-    }
-    this.backgroundVideoErrorNotified = false;
-    this.playBackgroundVideo();
-  },
-
-  handleBackgroundVideoPlay() {
-    this.backgroundVideoIsPlaying = true;
-    this.backgroundVideoPendingPlay = false;
-    this.backgroundVideoPermanentError = false;
-    if (this.data.backgroundVideoError) {
-      this.setData({ backgroundVideoError: false });
-    }
-    this.backgroundVideoErrorNotified = false;
-  },
-
-  handleBackgroundVideoPause() {
-    this.backgroundVideoIsPlaying = false;
-  },
-
-  handleBackgroundVideoEnded() {
-    this.backgroundVideoIsPlaying = false;
-    this.playBackgroundVideo();
-  },
-
-  handleBackgroundVideoError(event) {
-    const detail = event && event.detail;
-    console.warn('Background video failed to play', detail);
-    this.backgroundVideoIsPlaying = false;
-    this.backgroundVideoPendingPlay = false;
-    const errMsg = detail && typeof detail.errMsg === 'string' ? detail.errMsg : '';
-    this.backgroundVideoPermanentError = errMsg.indexOf('MEDIA_ERR_SRC_NOT_SUPPORTED') >= 0;
-    if (!this.data.backgroundVideoError) {
-      this.setData({ backgroundVideoError: true });
-    }
-    this.destroyBackgroundVideoContext();
-    this.notifyBackgroundVideoError(detail);
-  },
-
-  notifyBackgroundVideoError(detail) {
-    if (this.backgroundVideoErrorNotified || typeof wx === 'undefined' || typeof wx.showToast !== 'function') {
-      return;
-    }
-    const message = detail && typeof detail.errMsg === 'string' && detail.errMsg.indexOf('MEDIA_ERR_SRC_NOT_SUPPORTED') >= 0
-      ? '当前设备不支持该背景视频，已展示静态背景。'
-      : '背景视频播放失败，已展示静态背景。';
-    this.backgroundVideoErrorNotified = true;
-    try {
-      wx.showToast({ title: message, icon: 'none', duration: 3000 });
-    } catch (error) {
-      console.warn('Failed to show video error toast', error);
-    }
   },
 
   ensureNavMetrics() {
