@@ -1,6 +1,7 @@
 <view class="home-page">
   <view class="background background--fallback">
     <image
+      wx:if="{{backgroundImage}}"
       class="background-fallback__image"
       src="{{backgroundImage}}"
       mode="aspectFill"
@@ -260,7 +261,12 @@
                 data-hint="{{item.description}}"
                 bindtap="handleBackgroundSelect"
               >
-                <image class="appearance-background-option__image" src="{{item.image}}" mode="aspectFill"></image>
+                <image
+                  wx:if="{{item.image}}"
+                  class="appearance-background-option__image"
+                  src="{{item.image}}"
+                  mode="aspectFill"
+                ></image>
                 <view class="appearance-background-option__overlay">
                   <view class="appearance-background-option__name">{{item.name}}</view>
                   <view class="appearance-background-option__desc">{{item.description}}</view>

@@ -44,12 +44,7 @@
         "value": "miniprogram/assets/background/**"
       }
     ],
-    "include": [
-      {
-        "type": "file",
-        "value": "miniprogram/assets/background/1.jpg"
-      }
-    ]
+    "include": []
   },
   "miniprogramRoot": "miniprogram/",
   "condition": {},

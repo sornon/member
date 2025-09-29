@@ -1,7 +1,4 @@
-const {
-  BACKGROUND_IMAGE_BASE_PATH,
-  LOCAL_BACKGROUND_IMAGE_BASE_PATH
-} = require('./asset-paths.js');
+const { BACKGROUND_IMAGE_BASE_PATH } = require('./asset-paths.js');
 
 const RAW_BACKGROUNDS = [
   { id: 'realm_refining', realmOrder: 1, realmName: '炼气期', name: '炼气之地' },
@@ -16,22 +13,15 @@ const RAW_BACKGROUNDS = [
   { id: 'realm_ascension', realmOrder: 10, realmName: '飞升期', name: '飞升之地' }
 ];
 
-function resolveImageIndex(realmOrder) {
+function resolveBackgroundImageUrl(realmOrder) {
   const order = Number(realmOrder);
-  if (!Number.isFinite(order) || order <= 0) {
-    return 1;
+  if (!Number.isFinite(order) || order <= 1) {
+    return '';
   }
   // 现有素材仅覆盖少量底图，这里按序号循环复用
   const normalizedOrder = Math.max(1, Math.floor(order));
   const availableCount = 3;
-  return ((normalizedOrder - 1) % availableCount) + 1;
-}
-
-function resolveBackgroundImageUrl(realmOrder) {
-  const imageIndex = `${resolveImageIndex(realmOrder)}`;
-  if (imageIndex === '1') {
-    return `${LOCAL_BACKGROUND_IMAGE_BASE_PATH}/${imageIndex}.jpg`;
-  }
+  const imageIndex = ((normalizedOrder - 1) % availableCount) + 1;
   return `${BACKGROUND_IMAGE_BASE_PATH}/${imageIndex}.jpg`;
 }
 

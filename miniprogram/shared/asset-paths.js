@@ -9,13 +9,11 @@ function buildCloudAssetUrl(...segments) {
 }
 
 const BACKGROUND_IMAGE_BASE_PATH = buildCloudAssetUrl('background');
-const LOCAL_BACKGROUND_IMAGE_BASE_PATH = '/assets/background';
 const CHARACTER_IMAGE_BASE_PATH = buildCloudAssetUrl('character');
 
 module.exports = {
   CLOUD_ASSET_BASE_PATH,
   BACKGROUND_IMAGE_BASE_PATH,
-  LOCAL_BACKGROUND_IMAGE_BASE_PATH,
   CHARACTER_IMAGE_BASE_PATH,
   buildCloudAssetUrl
 };

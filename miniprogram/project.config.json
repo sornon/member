@@ -36,12 +36,7 @@
         "value": "assets/background/**"
       }
     ],
-    "include": [
-      {
-        "type": "file",
-        "value": "assets/background/1.jpg"
-      }
-    ]
+    "include": []
   },
   "appid": "wxada3146653042265",
   "editorSetting": {},
