@@ -51,10 +51,6 @@
           <view class="level-stack">
             <view class="level-name">
               {{profile.attributes ? profile.attributes.levelLabel : '--'}}
-              <text
-                class="level-count"
-                wx:if="{{profile.attributes && profile.metadata}}"
-              >（{{profile.attributes.level}} / {{profile.metadata.maxLevel}}）</text>
             </view>
             <view
               class="level-realm"
@@ -71,10 +67,9 @@
           </view>
           <view class="progress-text">
             修为 {{profile.attributes ? profile.attributes.experience : '--'}}
-            <text wx:if="{{profile.attributes && profile.attributes.nextLevelExp != null}}">
-              / {{profile.attributes.nextLevelExp}}
+            <text wx:if="{{profile.attributes && profile.attributes.nextLevelExp == null}}">
+              · 已满阶
             </text>
-            <text wx:else> · 已满阶</text>
           </view>
         </view>
         <view class="progress-bar">
