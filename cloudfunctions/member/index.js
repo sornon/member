@@ -2,8 +2,8 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
-const { listAvatarIds } = require('../../miniprogram/shared/avatar-catalog.js');
-const { normalizeAvatarFrameValue } = require('../../miniprogram/shared/avatar-frames.js');
+const { listAvatarIds } = require('./avatar-catalog.js');
+const { normalizeAvatarFrameValue } = require('./avatar-frames.js');
 
 const db = cloud.database();
 const _ = db.command;
