@@ -25,8 +25,8 @@
     ></video>
   </view>
   <view wx:if="{{!dynamicBackgroundEnabled}}" class="background background--overlay"></view>
-  <view class="mist-layer mist-layer--one"></view>
-  <view class="mist-layer mist-layer--two"></view>
+  <view wx:if="{{!dynamicBackgroundEnabled}}" class="mist-layer mist-layer--one"></view>
+  <view wx:if="{{!dynamicBackgroundEnabled}}" class="mist-layer mist-layer--two"></view>
 
   <custom-nav title="会员中心" enable-back="{{false}}" theme="transparent"></custom-nav>
 
