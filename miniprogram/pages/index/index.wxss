@@ -259,6 +259,7 @@ page {
   width: 100%;
   animation: float 6s ease-in-out infinite;
   filter: drop-shadow(0 12rpx 24rpx rgba(38, 19, 76, 0.65));
+  margin-bottom: 10rpx;
 }
 
 @keyframes float {
@@ -275,9 +276,10 @@ page {
 
 .aura {
   position: absolute;
-  bottom: 10rpx;
+  bottom: 0rpx;
   border-radius: 50%;
   filter: blur(0rpx);
+  z-index: -1;
 }
 
 .aura-1 {
