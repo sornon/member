@@ -30,6 +30,18 @@ const AVATAR_OPTION_GROUPS = [
   }
 ];
 
+function buildAvatarOptionGroups(unlocks = []) {
+  const unlockSet = new Set(normalizeAvatarUnlocks(unlocks));
+  return AVATAR_OPTION_GROUPS.map((group) => ({
+    gender: group.gender,
+    label: group.label,
+    options: group.options.map((option) => ({
+      ...option,
+      checked: option.disabled || unlockSet.has(option.id)
+    }))
+  }));
+}
+
 function ensureMemberRole(roles) {
   const list = Array.isArray(roles) ? [...new Set(roles)] : [];
   if (!list.includes('member')) {
@@ -96,7 +108,7 @@ Page({
       { value: 'admin', label: '管理员', checked: false },
       { value: 'developer', label: '开发', checked: false }
     ],
-    avatarOptionGroups: AVATAR_OPTION_GROUPS,
+    avatarOptionGroups: buildAvatarOptionGroups([]),
     form: {
       nickName: '',
       mobile: '',
@@ -163,6 +175,7 @@ Page({
       ...option,
       checked: roles.includes(option.value)
     }));
+    const avatarUnlocks = normalizeAvatarUnlocks(member.avatarUnlocks);
     this.setData({
       member,
       levels,
@@ -180,10 +193,11 @@ Page({
         renameCredits: String(member.renameCredits ?? 0),
         respecAvailable: String(member.pveRespecAvailable ?? 0),
         roomUsageCount: String(member.roomUsageCount ?? 0),
-        avatarUnlocks: normalizeAvatarUnlocks(member.avatarUnlocks)
+        avatarUnlocks: avatarUnlocks
       },
       roleOptions,
-      renameHistory: formatRenameHistory(member.renameHistory)
+      renameHistory: formatRenameHistory(member.renameHistory),
+      avatarOptionGroups: buildAvatarOptionGroups(avatarUnlocks)
     });
   },
 
@@ -219,7 +233,10 @@ Page({
   handleAvatarUnlockChange(event) {
     const value = Array.isArray(event.detail.value) ? event.detail.value : [];
     const unlocks = normalizeAvatarUnlocks(value);
-    this.setData({ 'form.avatarUnlocks': unlocks });
+    this.setData({
+      'form.avatarUnlocks': unlocks,
+      avatarOptionGroups: buildAvatarOptionGroups(unlocks)
+    });
   },
 
   async handleSubmit() {

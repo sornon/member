@@ -154,7 +154,7 @@
               >
                 <checkbox
                   value="{{option.id}}"
-                  checked="{{option.disabled || form.avatarUnlocks.indexOf(option.id) !== -1}}"
+                  checked="{{option.checked}}"
                   disabled="{{option.disabled}}"
                 />
                 <text class="avatar-permission-name {{option.disabled ? 'avatar-permission-name--disabled' : ''}}">{{option.label}}</text>
