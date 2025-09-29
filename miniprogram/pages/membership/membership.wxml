@@ -52,7 +52,7 @@
         <view class="level-info">
           <view class="level-title">LV{{item.order}} · {{item.name}}</view>
           <view class="level-meta">
-            <text>修为达到 {{formatExperience(item.threshold)}} 点</text>
+            <text>修为达到 {{item.experienceRequirement}} 点</text>
           </view>
           <view class="level-desc" wx:if="{{item.subLevel === 1 && item.realmDescription}}">{{item.realmDescription}}</view>
           <view class="level-virtual" wx:if="{{item.virtualRewards && item.virtualRewards.length}}">

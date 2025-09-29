@@ -32,10 +32,16 @@ function decorateLevels(levels = []) {
     .filter(Boolean)
     .map((level) => {
       const color = levelBadgeColor(level.realmOrder || level.order || 1);
+      const experienceRequirement = formatExperience(
+        typeof level.threshold === 'undefined' || level.threshold === null
+          ? 0
+          : level.threshold
+      );
       return {
         ...level,
         badgeColor: color,
-        badgeStyle: `background: ${color};`
+        badgeStyle: `background: ${color};`,
+        experienceRequirement
       };
     });
 }
