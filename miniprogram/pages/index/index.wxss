@@ -481,6 +481,19 @@ page {
   box-sizing: border-box;
 }
 
+.appearance-modal__body-wrapper {
+  flex: 1;
+  min-height: 520rpx;
+  max-height: 520rpx;
+  height: 520rpx;
+  width: 100%;
+}
+
+.appearance-modal__body {
+  height: 100%;
+  width: 100%;
+}
+
 .archive-section {
   padding: 20rpx 0;
   border-bottom: 1rpx solid rgba(127, 147, 255, 0.18);
