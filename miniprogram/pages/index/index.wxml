@@ -1,5 +1,7 @@
 <view class="home-page">
-  <view wx:if="{{backgroundVideoError}}" class="background background--fallback"></view>
+  <view wx:if="{{backgroundVideoError}}" class="background background--fallback">
+    <view class="background-fallback__overlay"></view>
+  </view>
   <video
     wx:else
     id="background-video"
