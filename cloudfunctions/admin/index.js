@@ -6,7 +6,7 @@ const { listAvatarIds } = require('./avatar-catalog.js');
 const {
   getEntranceSettings: fetchEntranceSettings,
   updateEntranceSettings: persistEntranceSettings
-} = require('../shared/entrance-settings.js');
+} = require('../common/entrance-settings.js');
 
 const db = cloud.database();
 const _ = db.command;

@@ -4,7 +4,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { listAvatarIds } = require('./avatar-catalog.js');
 const { normalizeAvatarFrameValue } = require('./avatar-frames.js');
-const { getEntranceSettings: fetchEntranceSettings } = require('../shared/entrance-settings.js');
+const { getEntranceSettings: fetchEntranceSettings } = require('../common/entrance-settings.js');
 
 const db = cloud.database();
 const _ = db.command;
