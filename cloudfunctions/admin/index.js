@@ -699,6 +699,7 @@ function decorateMemberRecord(member, levelMap) {
   const roles = Array.isArray(member.roles) && member.roles.length ? Array.from(new Set(member.roles)) : ['member'];
   const cashBalance = resolveCashBalance(member);
   const stoneBalance = resolveStoneBalance(member);
+  const respecStats = resolvePveRespecStats(member);
   return {
     _id: member._id,
     nickName: member.nickName || '',
@@ -722,7 +723,10 @@ function decorateMemberRecord(member, levelMap) {
     updatedAt: formatDate(member.updatedAt),
     avatarConfig: member.avatarConfig || {},
     roomUsageCount: normalizeUsageCount(member.roomUsageCount),
-    avatarUnlocks: normalizeAvatarUnlocksList(member.avatarUnlocks)
+    avatarUnlocks: normalizeAvatarUnlocksList(member.avatarUnlocks),
+    pveRespecLimit: respecStats.limit,
+    pveRespecUsed: respecStats.used,
+    pveRespecAvailable: respecStats.available
   };
 }
 
@@ -885,6 +889,16 @@ function normalizeUsageCount(value) {
   return Math.max(0, Math.floor(numeric));
 }
 
+function resolvePveRespecStats(member) {
+  const profile = member && member.pveProfile ? member.pveProfile : {};
+  const attributes = profile && profile.attributes ? profile.attributes : {};
+  const limit = normalizeUsageCount(attributes.respecLimit);
+  const usedRaw = normalizeUsageCount(attributes.respecUsed);
+  const used = Math.min(limit, usedRaw);
+  const available = Math.max(limit - used, 0);
+  return { limit, used, available };
+}
+
 function normalizeAvatarUnlocksList(unlocks) {
   if (!Array.isArray(unlocks)) {
     return [];
@@ -995,6 +1009,13 @@ function buildUpdatePayload(updates, existing = {}) {
   if (Object.prototype.hasOwnProperty.call(updates, 'renameCredits')) {
     const credits = Number(updates.renameCredits || 0);
     payload.renameCredits = Number.isFinite(credits) ? Math.max(0, Math.floor(credits)) : 0;
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'respecAvailable')) {
+    const desiredAvailable = normalizeUsageCount(updates.respecAvailable);
+    const { used: existingUsed } = resolvePveRespecStats(existing);
+    const limit = desiredAvailable + existingUsed;
+    payload['pveProfile.attributes.respecLimit'] = limit;
+    payload['pveProfile.attributes.respecUsed'] = Math.min(limit, existingUsed);
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'roomUsageCount')) {
     payload.roomUsageCount = normalizeUsageCount(updates.roomUsageCount);

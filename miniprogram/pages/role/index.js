@@ -9,6 +9,7 @@ Page({
     profile: null,
     activeTab: 'character',
     drawing: false,
+    resetting: false,
     stoneBalance: 0,
     formattedStoneBalance: formatStones(0)
   },
@@ -192,6 +193,48 @@ Page({
         }
       }
     });
+  },
+
+  handleResetAttributes() {
+    const profile = this.data.profile;
+    const attributes = profile && profile.attributes;
+    const available = attributes ? Number(attributes.respecAvailable || 0) : 0;
+    if (!attributes || available <= 0) {
+      wx.showToast({ title: '洗点次数不足', icon: 'none' });
+      return;
+    }
+    if (this.data.resetting) {
+      return;
+    }
+    const content = `洗点将返还所有已分配的属性点，本次后剩余 ${available - 1} 次。`;
+    wx.showModal({
+      title: '确认洗点',
+      content,
+      confirmText: '立即洗点',
+      cancelText: '暂不',
+      success: (res) => {
+        if (res.confirm) {
+          this.performResetAttributes();
+        }
+      }
+    });
+  },
+
+  async performResetAttributes() {
+    if (this.data.resetting) {
+      return;
+    }
+    this.setData({ resetting: true });
+    try {
+      const res = await PveService.resetAttributes();
+      const updatedProfile = res && res.profile ? res.profile : this.data.profile;
+      this.setData({ profile: updatedProfile, resetting: false });
+      wx.showToast({ title: '洗点完成', icon: 'success', duration: 1200 });
+    } catch (error) {
+      console.error('[role] reset attributes failed', error);
+      wx.showToast({ title: error.errMsg || '洗点失败', icon: 'none' });
+      this.setData({ resetting: false });
+    }
   },
 
   async autoAllocate() {

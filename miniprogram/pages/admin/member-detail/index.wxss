@@ -73,6 +73,14 @@ page {
   color: #cbd5f5;
 }
 
+.respec-meta {
+  display: flex;
+  gap: 24rpx;
+  margin-bottom: 20rpx;
+  font-size: 24rpx;
+  color: #cbd5f5;
+}
+
 .rename-history {
   margin-bottom: 28rpx;
   padding: 20rpx;

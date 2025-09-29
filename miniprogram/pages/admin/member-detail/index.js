@@ -106,6 +106,7 @@ Page({
       levelId: '',
       roles: [],
       renameCredits: '',
+      respecAvailable: '',
       roomUsageCount: '',
       avatarUnlocks: []
     },
@@ -162,24 +163,25 @@ Page({
       ...option,
       checked: roles.includes(option.value)
     }));
-      this.setData({
-        member,
-        levels,
-        levelIndex,
-        currentLevelName: currentLevel.name || '',
-        loading: false,
-        form: {
-          nickName: member.nickName || '',
-          mobile: member.mobile || '',
-          experience: String(member.experience ?? 0),
-          cashBalance: this.formatYuan(member.cashBalance ?? member.balance ?? 0),
-          stoneBalance: String(member.stoneBalance ?? 0),
-          levelId: member.levelId || currentLevel._id || '',
-          roles,
-          renameCredits: String(member.renameCredits ?? 0),
-          roomUsageCount: String(member.roomUsageCount ?? 0),
-          avatarUnlocks: normalizeAvatarUnlocks(member.avatarUnlocks)
-        },
+    this.setData({
+      member,
+      levels,
+      levelIndex,
+      currentLevelName: currentLevel.name || '',
+      loading: false,
+      form: {
+        nickName: member.nickName || '',
+        mobile: member.mobile || '',
+        experience: String(member.experience ?? 0),
+        cashBalance: this.formatYuan(member.cashBalance ?? member.balance ?? 0),
+        stoneBalance: String(member.stoneBalance ?? 0),
+        levelId: member.levelId || currentLevel._id || '',
+        roles,
+        renameCredits: String(member.renameCredits ?? 0),
+        respecAvailable: String(member.pveRespecAvailable ?? 0),
+        roomUsageCount: String(member.roomUsageCount ?? 0),
+        avatarUnlocks: normalizeAvatarUnlocks(member.avatarUnlocks)
+      },
       roleOptions,
       renameHistory: formatRenameHistory(member.renameHistory)
     });
@@ -233,6 +235,7 @@ Page({
         levelId: this.data.form.levelId,
         roles: ensureMemberRole(this.data.form.roles),
         renameCredits: this.parseRenameCredits(this.data.form.renameCredits),
+        respecAvailable: this.parseRespecAvailable(this.data.form.respecAvailable),
         roomUsageCount: Number(this.data.form.roomUsageCount || 0),
         avatarUnlocks: normalizeAvatarUnlocks(this.data.form.avatarUnlocks)
       };
@@ -306,6 +309,24 @@ Page({
   },
 
   parseRenameCredits(input) {
+    if (input == null || input === '') {
+      return 0;
+    }
+    if (typeof input === 'number' && Number.isFinite(input)) {
+      return Math.max(0, Math.floor(input));
+    }
+    if (typeof input === 'string') {
+      const sanitized = input.trim().replace(/[^0-9]/g, '');
+      if (!sanitized) {
+        return 0;
+      }
+      const parsed = Number(sanitized);
+      return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+    }
+    return 0;
+  },
+
+  parseRespecAvailable(input) {
     if (input == null || input === '') {
       return 0;
     }
