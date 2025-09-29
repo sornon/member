@@ -58,3 +58,11 @@ Error: TencentCloud API error: {
 5. 函数创建成功后，再使用微信开发者工具或命令行重新上传 `cloudfunctions/common` 目录，即可恢复部署。
 
 > 若团队使用 `tcb` CLI 或 CI/CD 管道，也可先执行 `tcb functions:create common`（指定运行环境），确认创建成功后再执行 `tcb functions:deploy common`。
+
+## `common` 与 `shared` 云函数的作用
+
+- **定位**：这两个云函数用于托管公共模块与 npm 依赖，便于其他业务函数通过 `require` 引用共享代码，也能满足某些部署流程对非空函数包的要求。
+- **是否必备**：当前版本的前台/后台业务不会直接调用 `common` 与 `shared`，因此若你完全不需要在云端保存共享代码，可以选择不创建它们。
+- **为何推荐保留**：一旦后续需要上传公共工具或三方依赖，将它们放入 `cloudfunctions/common` 或 `cloudfunctions/shared` 目录后再部署即可复用；同时可以规避因目录为空导致的 `CreateFailed`、`ResourceNotFound.Function` 报错。
+
+> 如果你决定临时删除 `common` 或 `shared`，请同步调整 CI/CD 或开发者工具的部署列表，避免脚本在上传阶段再次访问已删除的函数。
