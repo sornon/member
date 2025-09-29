@@ -124,6 +124,9 @@ cd cloudfunctions/member && npm install && cd -
 | `createdAt` | Date | 创建时间 |
 | `updatedAt` | Date | 最近更新时间 |
 
+> 头像 ID 命名遵循 `{gender}-{rarity}-{index}` 格式：`gender` 取值为 `male`/`female`，`rarity` 取值为 `c`、`b`、`a`、`s`，`index` 从 `1` 开始递增。
+> 例如 `male-b-3` 表示男修阵营的 B 级第 3 号头像。后续为会员发放道具时，只需向 `avatarUnlocks` 数组追加对应 ID 即可解锁。
+
 ### memberTimeline
 
 | 字段 | 类型 | 说明 |
