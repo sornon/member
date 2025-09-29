@@ -600,17 +600,6 @@ page {
   pointer-events: none;
 }
 
-.avatar-frame-option__placeholder {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  color: rgba(220, 228, 255, 0.82);
-  font-size: 24rpx;
-  letter-spacing: 2rpx;
-  pointer-events: none;
-}
-
 .avatar-frame-option__label {
   font-size: 24rpx;
   color: rgba(214, 224, 255, 0.82);

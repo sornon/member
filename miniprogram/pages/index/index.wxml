@@ -221,7 +221,6 @@
                     src="{{item.url}}"
                     mode="scaleToFill"
                   ></image>
-                  <view wx:if="{{!item.url}}" class="avatar-frame-option__placeholder">无相框</view>
                 </view>
                 <view class="avatar-frame-option__label">{{item.name}}</view>
               </view>
