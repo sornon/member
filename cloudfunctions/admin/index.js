@@ -14,7 +14,9 @@ const COLLECTIONS = {
   WALLET_TRANSACTIONS: 'walletTransactions',
   RESERVATIONS: 'reservations',
   ROOMS: 'rooms',
-  MEMBER_RIGHTS: 'memberRights'
+  MEMBER_RIGHTS: 'memberRights',
+  MEMBER_EXTRAS: 'memberExtras',
+  MEMBER_TIMELINE: 'memberTimeline'
 };
 
 const EXPERIENCE_PER_YUAN = 100;
@@ -94,6 +96,156 @@ const ACTION_HANDLERS = {
   [ACTIONS.CANCEL_RESERVATION]: (openid, event) => cancelReservation(openid, event.reservationId, event.reason || ''),
   [ACTIONS.MARK_RESERVATION_READ]: (openid) => markReservationRead(openid)
 };
+
+async function resolveMemberExtras(memberId) {
+  if (!memberId) {
+    return { avatarUnlocks: [], claimedLevelRewards: [] };
+  }
+  const collection = db.collection(COLLECTIONS.MEMBER_EXTRAS);
+  const snapshot = await collection
+    .doc(memberId)
+    .get()
+    .catch(() => null);
+  if (snapshot && snapshot.data) {
+    const extras = snapshot.data;
+    if (!Array.isArray(extras.avatarUnlocks)) {
+      extras.avatarUnlocks = [];
+    }
+    if (!Array.isArray(extras.claimedLevelRewards)) {
+      extras.claimedLevelRewards = [];
+    }
+    return extras;
+  }
+  const now = new Date();
+  const data = {
+    avatarUnlocks: [],
+    claimedLevelRewards: [],
+    createdAt: now,
+    updatedAt: now
+  };
+  await collection
+    .doc(memberId)
+    .set({ data })
+    .catch(() => {});
+  return data;
+}
+
+async function updateMemberExtras(memberId, updates = {}) {
+  if (!memberId || !updates || !Object.keys(updates).length) {
+    return;
+  }
+  const collection = db.collection(COLLECTIONS.MEMBER_EXTRAS);
+  const payload = { ...updates, updatedAt: new Date() };
+  await collection
+    .doc(memberId)
+    .update({ data: payload })
+    .catch(async (error) => {
+      if (error && /not exist/i.test(error.errMsg || '')) {
+        await collection
+          .doc(memberId)
+          .set({ data: { ...payload, avatarUnlocks: [], createdAt: new Date() } })
+          .catch(() => {});
+      }
+    });
+}
+
+function arraysEqual(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b)) {
+    return false;
+  }
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function buildRenameTraceId(entry) {
+  if (!entry) {
+    return '';
+  }
+  const previous = typeof entry.previous === 'string' ? entry.previous.trim() : '';
+  const current = typeof entry.current === 'string' ? entry.current.trim() : '';
+  const changedAt = entry.changedAt ? new Date(entry.changedAt) : new Date();
+  const timestamp = Number.isNaN(changedAt.getTime()) ? Date.now() : changedAt.getTime();
+  return `${previous}|${current}|${timestamp}`;
+}
+
+function normalizeRenameLogEntry(entry, { source = 'manual' } = {}) {
+  if (!entry) {
+    return null;
+  }
+  const previous = typeof entry.previous === 'string' ? entry.previous.trim() : '';
+  const current = typeof entry.current === 'string' ? entry.current.trim() : '';
+  const rawChangedAt = entry.changedAt ? new Date(entry.changedAt) : new Date();
+  const changedAt = Number.isNaN(rawChangedAt.getTime()) ? new Date() : rawChangedAt;
+  const safeSource = typeof entry.source === 'string' && entry.source.trim() ? entry.source.trim() : source;
+  if (!previous && !current) {
+    return null;
+  }
+  return {
+    previous,
+    current,
+    changedAt,
+    source: safeSource,
+    traceId: buildRenameTraceId({ previous, current, changedAt })
+  };
+}
+
+async function appendRenameTimeline(memberId, entry, options = {}) {
+  const normalized = normalizeRenameLogEntry(entry, options);
+  if (!memberId || !normalized) {
+    return;
+  }
+  const collection = db.collection(COLLECTIONS.MEMBER_TIMELINE);
+  if (!options.skipDuplicateCheck) {
+    const exists = await collection
+      .where({ memberId, type: 'rename', traceId: normalized.traceId })
+      .limit(1)
+      .get()
+      .catch(() => ({ data: [] }));
+    if (exists.data && exists.data.length) {
+      return;
+    }
+  }
+  await collection.add({
+    data: {
+      memberId,
+      type: 'rename',
+      traceId: normalized.traceId,
+      previous: normalized.previous,
+      current: normalized.current,
+      source: normalized.source,
+      changedAt: normalized.changedAt,
+      createdAt: new Date()
+    }
+  });
+}
+
+async function loadRenameTimeline(memberId, limit = 20) {
+  if (!memberId) {
+    return [];
+  }
+  const collection = db.collection(COLLECTIONS.MEMBER_TIMELINE);
+  const snapshot = await collection
+    .where({ memberId, type: 'rename' })
+    .orderBy('changedAt', 'desc')
+    .orderBy('createdAt', 'desc')
+    .limit(Math.max(1, Math.min(limit, 50)))
+    .get()
+    .catch(() => ({ data: [] }));
+  return (snapshot.data || []).map((item) => ({
+    previous: item.previous || '',
+    current: item.current || '',
+    changedAt: item.changedAt || item.createdAt || new Date(),
+    source: item.source || 'manual'
+  }));
+}
 
 exports.main = async (event = {}) => {
   const { OPENID } = cloud.getWXContext();
@@ -194,17 +346,32 @@ async function updateMember(openid, memberId, updates) {
   if (!memberDoc || !memberDoc.data) {
     throw new Error('会员不存在');
   }
-  const payload = buildUpdatePayload(updates, memberDoc.data);
-  if (!Object.keys(payload).length) {
+  const extras = await resolveMemberExtras(memberId);
+  const { memberUpdates, extrasUpdates, renameLog } = buildUpdatePayload(updates, memberDoc.data, extras);
+  if (!Object.keys(memberUpdates).length && !Object.keys(extrasUpdates).length && !renameLog) {
     return fetchMemberDetail(memberId);
   }
-  payload.updatedAt = new Date();
-  await db
-    .collection(COLLECTIONS.MEMBERS)
-    .doc(memberId)
-    .update({
-      data: payload
-    });
+  const now = new Date();
+  const tasks = [];
+  if (Object.keys(memberUpdates).length) {
+    tasks.push(
+      db
+        .collection(COLLECTIONS.MEMBERS)
+        .doc(memberId)
+        .update({
+          data: { ...memberUpdates, updatedAt: now }
+        })
+    );
+  }
+  if (Object.keys(extrasUpdates).length) {
+    tasks.push(updateMemberExtras(memberId, extrasUpdates));
+  }
+  if (renameLog) {
+    tasks.push(appendRenameTimeline(memberId, { ...renameLog, changedAt: renameLog.changedAt || now }, { skipDuplicateCheck: true }));
+  }
+  if (tasks.length) {
+    await Promise.all(tasks);
+  }
   return fetchMemberDetail(memberId);
 }
 
@@ -643,9 +810,17 @@ async function fetchMemberDetail(memberId) {
   if (!memberDoc || !memberDoc.data) {
     throw new Error('会员不存在');
   }
+  const extras = await resolveMemberExtras(memberId);
+  const renameHistory = await loadRenameTimeline(memberId, 50);
+  const mergedMember = {
+    ...memberDoc.data,
+    avatarUnlocks: extras.avatarUnlocks || [],
+    claimedLevelRewards: extras.claimedLevelRewards || [],
+    renameHistory
+  };
   const levelMap = buildLevelMap(levels);
   return {
-    member: decorateMemberRecord(memberDoc.data, levelMap),
+    member: decorateMemberRecord(mergedMember, levelMap),
     levels: levels.map((level) => ({
       _id: level._id,
       name: level.displayName || level.name,
@@ -951,81 +1126,85 @@ function normalizeReservationBadges(badges) {
   return normalized;
 }
 
-function buildUpdatePayload(updates, existing = {}) {
-  const payload = {};
+function buildUpdatePayload(updates, existing = {}, extras = {}) {
+  const memberUpdates = {};
+  const extrasUpdates = {};
+  let renameLog = null;
+
   if (Object.prototype.hasOwnProperty.call(updates, 'nickName')) {
     const input = updates.nickName;
     const currentName = typeof existing.nickName === 'string' ? existing.nickName : '';
     const target = typeof input === 'string' ? input.trim() : '';
     if (target !== currentName) {
-      payload.nickName = target;
+      memberUpdates.nickName = target;
       if (target) {
-        const history = Array.isArray(existing.renameHistory) ? existing.renameHistory.slice() : [];
         const now = new Date();
-        history.push({
+        const renameUsed = Number(existing.renameUsed || 0);
+        memberUpdates.renameUsed = Number.isFinite(renameUsed) ? renameUsed + 1 : 1;
+        renameLog = {
           previous: currentName || '',
           current: target,
           changedAt: now,
           source: 'admin'
-        });
-        if (history.length > 20) {
-          history.splice(0, history.length - 20);
-        }
-        payload.renameHistory = history;
-        const renameUsed = Number(existing.renameUsed || 0);
-        payload.renameUsed = Number.isFinite(renameUsed) ? renameUsed + 1 : 1;
+        };
       }
     }
   }
+
   if (Object.prototype.hasOwnProperty.call(updates, 'mobile')) {
-    payload.mobile = updates.mobile || '';
+    memberUpdates.mobile = updates.mobile || '';
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'levelId')) {
-    payload.levelId = updates.levelId || '';
+    memberUpdates.levelId = updates.levelId || '';
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'gender')) {
-    payload.gender = normalizeGenderValue(updates.gender);
+    memberUpdates.gender = normalizeGenderValue(updates.gender);
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'avatarUrl')) {
-    payload.avatarUrl = typeof updates.avatarUrl === 'string' ? updates.avatarUrl.trim() : '';
+    memberUpdates.avatarUrl = typeof updates.avatarUrl === 'string' ? updates.avatarUrl.trim() : '';
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'experience')) {
     const experience = Number(updates.experience || 0);
-    payload.experience = Number.isFinite(experience) ? experience : 0;
+    memberUpdates.experience = Number.isFinite(experience) ? experience : 0;
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'cashBalance')) {
     const cash = Number(updates.cashBalance || 0);
-    payload.cashBalance = Number.isFinite(cash) ? Math.round(cash) : 0;
+    memberUpdates.cashBalance = Number.isFinite(cash) ? Math.round(cash) : 0;
   } else if (Object.prototype.hasOwnProperty.call(updates, 'balance')) {
     const legacy = Number(updates.balance || 0);
-    payload.cashBalance = Number.isFinite(legacy) ? Math.round(legacy) : 0;
+    memberUpdates.cashBalance = Number.isFinite(legacy) ? Math.round(legacy) : 0;
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'stoneBalance')) {
     const stones = Number(updates.stoneBalance || 0);
-    payload.stoneBalance = Number.isFinite(stones) ? Math.max(0, Math.floor(stones)) : 0;
+    memberUpdates.stoneBalance = Number.isFinite(stones) ? Math.max(0, Math.floor(stones)) : 0;
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'renameCredits')) {
     const credits = Number(updates.renameCredits || 0);
-    payload.renameCredits = Number.isFinite(credits) ? Math.max(0, Math.floor(credits)) : 0;
+    memberUpdates.renameCredits = Number.isFinite(credits) ? Math.max(0, Math.floor(credits)) : 0;
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'respecAvailable')) {
     const desiredAvailable = normalizeUsageCount(updates.respecAvailable);
-    payload['pveProfile.attributes.respecAvailable'] = desiredAvailable;
-    payload['pveProfile.attributes.respecLimit'] = 0;
-    payload['pveProfile.attributes.respecUsed'] = 0;
+    memberUpdates['pveProfile.attributes.respecAvailable'] = desiredAvailable;
+    memberUpdates['pveProfile.attributes.respecLimit'] = 0;
+    memberUpdates['pveProfile.attributes.respecUsed'] = 0;
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'roomUsageCount')) {
-    payload.roomUsageCount = normalizeUsageCount(updates.roomUsageCount);
+    memberUpdates.roomUsageCount = normalizeUsageCount(updates.roomUsageCount);
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'roles')) {
     const roles = Array.isArray(updates.roles) ? updates.roles : [];
     const filtered = roles.filter((role) => ['member', 'admin', 'developer'].includes(role));
-    payload.roles = filtered.length ? filtered : ['member'];
+    memberUpdates.roles = filtered.length ? filtered : ['member'];
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'avatarUnlocks')) {
-    payload.avatarUnlocks = normalizeAvatarUnlocksList(updates.avatarUnlocks);
+    const currentExtrasUnlocks = Array.isArray(extras.avatarUnlocks) ? extras.avatarUnlocks : [];
+    const desiredUnlocks = normalizeAvatarUnlocksList(updates.avatarUnlocks);
+    if (!arraysEqual(currentExtrasUnlocks, desiredUnlocks)) {
+      extrasUpdates.avatarUnlocks = desiredUnlocks;
+    }
   }
-  return payload;
+
+  return { memberUpdates, extrasUpdates, renameLog };
 }
 
 function normalizeAmountFen(value) {

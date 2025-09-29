@@ -36,6 +36,8 @@
 1. 在 `project.config.json` 中将 `cloudfunctionRoot` 保持默认，后续直接上传即可。
 2. 打开“云开发控制台 → 数据库”，创建以下集合：
    - `members`
+   - `memberExtras`
+   - `memberTimeline`
    - `membershipLevels`
    - `membershipRights`
    - `memberRights`
@@ -95,7 +97,6 @@ cd cloudfunctions/member && npm install && cd -
 | `renameCredits` | number | 剩余改名次数，初始值为 1，可用改名卡增加 |
 | `renameCards` | number | 改名卡库存数量 |
 | `renameUsed` | number | 已经消耗的改名次数，便于审计 |
-| `renameHistory` | array | 改名记录（`previous`、`current`、`changedAt`、`source`） |
 | `levelId` | string | 当前等级 ID |
 | `experience` | number | 累积经验值（可映射到充值额） |
 | `cashBalance` | number | 现金钱包余额（单位：分，用于店内实体消费） |
@@ -105,13 +106,38 @@ cd cloudfunctions/member && npm install && cd -
 
 > 现金钱包与灵石为两套完全独立的账户体系，当前版本不支持兑换或折现，灵石数值仅以整数形式发放与消耗。
 
+> 提示：增长速度较快的扩展字段（如头像解锁、等级奖励、改名记录）已迁移至 `memberExtras` 与 `memberTimeline` 集合，避免主档案文档持续膨胀，从而提升读取性能。
+
+### memberExtras
+
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | string | 与会员 `openid` 一致 |
+| `avatarUnlocks` | array | 已解锁的头像 ID，统一存放在扩展集合以便按需加载 |
+| `claimedLevelRewards` | array | 已领取的等级奖励 ID 列表 |
+| `createdAt` | Date | 创建时间 |
+| `updatedAt` | Date | 最近更新时间 |
+
+### memberTimeline
+
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | string | 文档 ID |
+| `memberId` | string | 对应会员 `openid` |
+| `type` | string | 日志类型（当前用于 `rename`） |
+| `previous` | string | 变更前的值（改名时为旧昵称） |
+| `current` | string | 变更后的值 |
+| `source` | string | 变更来源（`manual`、`admin` 等） |
+| `changedAt` | Date | 业务发生时间 |
+| `createdAt` | Date | 日志写入时间 |
+
 ## 仙缘档案编辑
 
 - **道号（`nickName`）**：
   - 新注册用户默认拥有 1 次改名机会（`renameCredits`）。
-  - 使用“改名卡”会将 `renameCards` 库存转换为新的改名次数，并同步累积 `renameUsed` 与 `renameHistory`。
+  - 使用“改名卡”会将 `renameCards` 库存转换为新的改名次数，并在 `memberTimeline` 中追加改名记录，同时累积 `renameUsed`。
   - 每次改名均会记录原名称、现名称、时间与来源，便于运营稽核。
-  - 管理员后台修改道号会写入 `renameHistory`，来源标记为 `admin`，且不会扣减用户的改名次数。
+  - 管理员后台修改道号同样写入 `memberTimeline`，来源标记为 `admin`，且不会扣减用户的改名次数。
 - **性别（`gender`）**：支持 `male`、`female`、`unknown` 三种取值，可随时切换。
 - **头像（`avatarUrl`）**：前端默认生成 5 个渐变风格的 SVG 头像供选择，也可一键同步微信头像。
 
