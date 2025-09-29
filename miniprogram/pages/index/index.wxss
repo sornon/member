@@ -185,11 +185,14 @@ page {
 }
 
 .hero-section {
+  position: relative;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: flex-end;
   margin-top: 72rpx;
   flex: 1;
+  min-height: 420rpx;
+  padding-right: 320rpx;
 }
 
 .hero-copy {
@@ -242,15 +245,18 @@ page {
 }
 
 .hero-figure {
-  position: relative;
-  width: 300rpx;
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 320rpx;
+  height: 420rpx;
   display: flex;
   justify-content: center;
   align-items: flex-end;
 }
 
 .hero-image {
-  width: 280rpx;
+  width: 100%;
   animation: float 6s ease-in-out infinite;
   filter: drop-shadow(0 12rpx 24rpx rgba(38, 19, 76, 0.65));
 }

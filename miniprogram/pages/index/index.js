@@ -10,6 +10,20 @@ import {
 } from '../../utils/avatar-catalog';
 const { listAvatarFrameUrls, normalizeAvatarFrameValue } = require('../../shared/avatar-frames.js');
 
+const CHARACTER_IMAGE_BASE_PATH = '../../assets/character';
+const CHARACTER_IMAGE_IDS = [
+  'female-c-1',
+  'female-c-2',
+  'female-c-3',
+  'male-c-1',
+  'male-c-2',
+  'male-c-3'
+];
+const CHARACTER_IMAGE_MAP = CHARACTER_IMAGE_IDS.reduce((acc, id) => {
+  acc[id] = `${CHARACTER_IMAGE_BASE_PATH}/${id}.png`;
+  return acc;
+}, {});
+
 const app = getApp();
 
 const BACKGROUND_IMAGE_BASE_PATH = '../../assets/background';
@@ -182,6 +196,25 @@ function extractAvatarIdFromUrl(url) {
   }
   const match = url.trim().toLowerCase().match(/\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png$/);
   return match ? match[1] : '';
+}
+
+function resolveCharacterImageByAvatarId(avatarId) {
+  if (!avatarId) {
+    return '';
+  }
+  return CHARACTER_IMAGE_MAP[avatarId] || '';
+}
+
+function resolveCharacterImage(member) {
+  if (!member) {
+    return HERO_IMAGE;
+  }
+  const avatarId = extractAvatarIdFromUrl(sanitizeAvatarUrl(member.avatarUrl));
+  const characterImage = resolveCharacterImageByAvatarId(avatarId);
+  if (characterImage) {
+    return characterImage;
+  }
+  return HERO_IMAGE;
 }
 
 function computeAvatarOptionList(member, currentAvatar, gender) {
@@ -586,6 +619,7 @@ Page({
         tasks: tasks.slice(0, 3),
         loading: false,
         backgroundImage: resolveBackgroundImage(sanitizedMember),
+        heroImage: resolveCharacterImage(sanitizedMember),
         navItems: resolveNavItems(sanitizedMember),
         memberStats: deriveMemberStats(sanitizedMember),
         progressWidth: width,
@@ -620,7 +654,8 @@ Page({
         memberStats: deriveMemberStats(this.data.member),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
-        backgroundImage: resolveBackgroundImage(this.data.member)
+        backgroundImage: resolveBackgroundImage(this.data.member),
+        heroImage: resolveCharacterImage(this.data.member)
       });
     }
     this.bootstrapRunning = false;
@@ -917,6 +952,7 @@ Page({
       memberStats: deriveMemberStats(sanitizedMember),
       navItems: resolveNavItems(sanitizedMember),
       backgroundImage: resolveBackgroundImage(sanitizedMember),
+      heroImage: resolveCharacterImage(sanitizedMember),
       'profileEditor.nickName': sanitizedMember.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
       'profileEditor.avatarUrl': sanitizedMember.avatarUrl || this.data.profileEditor.avatarUrl,
