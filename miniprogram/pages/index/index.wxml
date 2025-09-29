@@ -1,10 +1,10 @@
 <view class="home-page">
+  <view wx:if="{{backgroundVideoError}}" class="background background--fallback"></view>
   <video
-    wx:if="{{!backgroundVideoError}}"
+    wx:else
     id="background-video"
     class="background"
     src="{{backgroundVideo}}"
-    poster="{{backgroundPoster}}"
     autoplay="{{true}}"
     loop="{{true}}"
     muted="{{true}}"
@@ -15,6 +15,8 @@
     enable-progress-gesture="{{false}}"
     object-fit="cover"
     bindloadedmetadata="handleBackgroundVideoReady"
+    bindplay="handleBackgroundVideoPlay"
+    bindpause="handleBackgroundVideoPause"
     bindended="handleBackgroundVideoEnded"
     binderror="handleBackgroundVideoError"
   ></video>

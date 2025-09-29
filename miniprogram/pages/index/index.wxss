@@ -24,6 +24,13 @@ page {
   pointer-events: none;
 }
 
+.background--fallback {
+  background: linear-gradient(180deg, #050921 0%, #1b3c68 45%, #3d0c3d 100%);
+  background-repeat: no-repeat;
+  background-size: cover;
+  filter: saturate(110%);
+}
+
 .mist-layer {
   position: absolute;
   left: -20%;
