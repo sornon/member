@@ -297,7 +297,7 @@ function formatHistoryList(history) {
     .filter(Boolean);
 }
 
-const BACKGROUND_VIDEO = '/assets/background/1.mp4';
+const BACKGROUND_VIDEO = '../../assets/background/1.mp4';
 
 const HERO_IMAGE =
   'data:image/svg+xml;base64,' +
