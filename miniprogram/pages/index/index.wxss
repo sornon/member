@@ -474,6 +474,8 @@ page {
   flex: 1;
   min-height: 0;
   max-height: 520rpx;
+  height: 520rpx;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 24rpx;
