@@ -431,23 +431,21 @@ page {
   display: flex;
   flex: 1;
   justify-content: center;
-  gap: 16rpx;
+  align-items: center;
+  gap: 40rpx;
+  height: 64rpx;
 }
 
 .appearance-tab {
-  padding: 8rpx 28rpx;
-  border-radius: 26rpx;
-  background: rgba(239, 242, 255, 0.12);
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 26rpx;
+  color: #ffffff;
+  font-size: 28rpx;
   letter-spacing: 2rpx;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, font-size 0.2s ease;
 }
 
 .appearance-tab--active {
-  background: linear-gradient(120deg, #7b5bff, #b07bff);
-  color: #ffffff;
-  box-shadow: 0 8rpx 16rpx rgba(123, 91, 255, 0.35);
+  font-size: 34rpx;
+  font-weight: 700;
 }
 
 .modal-title {
