@@ -24,13 +24,19 @@ page {
   pointer-events: none;
 }
 
+
 .background--fallback {
-  background-image: url('../../assets/background/1.jpg');
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: cover;
-  filter: saturate(110%);
   overflow: hidden;
+}
+
+.background-fallback__image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: saturate(110%);
 }
 
 .background-fallback__overlay {
