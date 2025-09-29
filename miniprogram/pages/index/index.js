@@ -191,6 +191,19 @@ function sanitizeAvatarFrame(value) {
   return normalizeAvatarFrameValue(typeof value === 'string' ? value : '');
 }
 
+function buildSanitizedMember(member) {
+  if (!member) {
+    return null;
+  }
+  const sanitizedAvatar = sanitizeAvatarUrl(member.avatarUrl);
+  const sanitizedFrame = sanitizeAvatarFrame(member.avatarFrame || '');
+  return {
+    ...member,
+    avatarUrl: sanitizedAvatar || '',
+    avatarFrame: sanitizedFrame
+  };
+}
+
 function resolveAvatarSelection(options, currentAvatar, gender) {
   const desired = typeof currentAvatar === 'string' ? currentAvatar : '';
   if (
@@ -525,26 +538,28 @@ Page({
         MemberService.getLevelProgress(),
         TaskService.list()
       ]);
+      const sanitizedMember = buildSanitizedMember(member);
       const width = normalizePercentage(progress);
-      const needsProfile = !member || !member.nickName || !member.mobile;
-      const profileAuthorized = !!(member && member.nickName);
-      const phoneAuthorized = !!(member && member.mobile);
+      const needsProfile = !sanitizedMember || !sanitizedMember.nickName || !sanitizedMember.mobile;
+      const profileAuthorized = !!(sanitizedMember && sanitizedMember.nickName);
+      const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
       this.setData({
-        member,
+        member: sanitizedMember,
         progress,
         tasks: tasks.slice(0, 3),
         loading: false,
-        navItems: resolveNavItems(member),
-        memberStats: deriveMemberStats(member),
+        navItems: resolveNavItems(sanitizedMember),
+        memberStats: deriveMemberStats(sanitizedMember),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
         showOnboarding: needsProfile,
         onboarding: needsProfile
           ? {
               ...this.data.onboarding,
-              nickName: member && member.nickName ? member.nickName : '',
-              avatarUrl: member && member.avatarUrl ? member.avatarUrl : '',
-              mobile: member && member.mobile ? member.mobile : '',
+              nickName: sanitizedMember && sanitizedMember.nickName ? sanitizedMember.nickName : '',
+              avatarUrl:
+                sanitizedMember && sanitizedMember.avatarUrl ? sanitizedMember.avatarUrl : '',
+              mobile: sanitizedMember && sanitizedMember.mobile ? sanitizedMember.mobile : '',
               phoneCloudId: '',
               phoneCode: ''
             }
@@ -559,7 +574,7 @@ Page({
               phoneAuthorized: false
             }
       });
-      setActiveMember(member);
+      setActiveMember(sanitizedMember);
     } catch (err) {
       const width = normalizePercentage(this.data.progress);
       this.setData({
@@ -853,24 +868,21 @@ Page({
     if (!member) {
       return;
     }
+    const sanitizedMember = buildSanitizedMember(member);
+    if (!sanitizedMember) {
+      return;
+    }
     const renameHistory = formatHistoryList(member.renameHistory);
-    const sanitizedAvatar = sanitizeAvatarUrl(member.avatarUrl);
-    const sanitizedFrame = sanitizeAvatarFrame(member.avatarFrame || '');
-    const sanitizedMember = {
-      ...member,
-      avatarUrl: sanitizedAvatar || '',
-      avatarFrame: sanitizedFrame
-    };
     this.setData({
       member: sanitizedMember,
       memberStats: deriveMemberStats(sanitizedMember),
       navItems: resolveNavItems(sanitizedMember),
       'profileEditor.nickName': sanitizedMember.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
-      'profileEditor.avatarUrl': sanitizedAvatar || this.data.profileEditor.avatarUrl,
-      'profileEditor.avatarFrame': sanitizedFrame,
-      'avatarPicker.avatarUrl': sanitizedAvatar || this.data.avatarPicker.avatarUrl,
-      'avatarPicker.avatarFrame': sanitizedFrame,
+      'profileEditor.avatarUrl': sanitizedMember.avatarUrl || this.data.profileEditor.avatarUrl,
+      'profileEditor.avatarFrame': sanitizedMember.avatarFrame,
+      'avatarPicker.avatarUrl': sanitizedMember.avatarUrl || this.data.avatarPicker.avatarUrl,
+      'avatarPicker.avatarFrame': sanitizedMember.avatarFrame,
       'avatarPicker.frameOptions': this.data.avatarPicker.frameOptions && this.data.avatarPicker.frameOptions.length
         ? this.data.avatarPicker.frameOptions
         : cloneAvatarFrameOptions(),
