@@ -297,7 +297,7 @@ function formatHistoryList(history) {
     .filter(Boolean);
 }
 
-const BACKGROUND_IMAGE =
+const BACKGROUND_POSTER =
   'data:image/svg+xml;base64,' +
   'PHN2ZyB3aWR0aD0iNzIwIiBoZWlnaHQ9IjEyODAiIHZpZXdCb3g9IjAgMCA3MjAgMTI4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8ZGVm' +
   'cz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0ic2t5IiB4MT0iMCIgeTE9IjAiIHgyPSIwIiB5Mj0iMSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9I' +
@@ -313,6 +313,8 @@ const BACKGROUND_IMAGE =
   'PGNpcmNsZSBjeD0iMjQwIiBjeT0iMTIwIiByPSIyIi8+CiAgICA8Y2lyY2xlIGN4PSI1MjAiIGN5PSIyMDAiIHI9IjMiLz4KICAgIDxjaXJjbGUgY3g9IjYwMCIgY3k9' +
   'IjEwMCIgcj0iMi41Ii8+CiAgICA8Y2lyY2xlIGN4PSI0MjAiIGN5PSI2MCIgcj0iMiIvPgogICAgPGNpcmNsZSBjeD0iMzIwIiBjeT0iMjYwIiByPSIyLjQiLz4KICAg' +
   'IDxjaXJjbGUgY3g9IjIwMCIgY3k9IjMyMCIgcj0iMS44Ii8+CiAgICA8Y2lyY2xlIGN4PSI1ODAiIGN5PSIzMjAiIHI9IjIuMiIvPgogIDwvZz4KPC9zdmc+';
+
+const BACKGROUND_VIDEO = '/assets/background/1.MOV';
 
 const HERO_IMAGE =
   'data:image/svg+xml;base64,' +
@@ -402,7 +404,8 @@ Page({
       profileAuthorized: false,
       phoneAuthorized: false
     },
-    backgroundImage: BACKGROUND_IMAGE,
+    backgroundVideo: BACKGROUND_VIDEO,
+    backgroundPoster: BACKGROUND_POSTER,
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
     activityIcons: [

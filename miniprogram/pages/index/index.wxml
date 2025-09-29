@@ -1,5 +1,18 @@
 <view class="home-page">
-  <image class="background" src="{{backgroundImage}}" mode="aspectFill"></image>
+  <video
+    class="background"
+    src="{{backgroundVideo}}"
+    poster="{{backgroundPoster}}"
+    autoplay
+    loop
+    muted
+    controls="{{false}}"
+    show-play-btn="false"
+    show-center-play-btn="false"
+    show-fullscreen-btn="false"
+    enable-progress-gesture="{{false}}"
+    object-fit="cover"
+  ></video>
   <view class="mist-layer mist-layer--one"></view>
   <view class="mist-layer mist-layer--two"></view>
 
