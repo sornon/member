@@ -59,6 +59,8 @@
    - `wallet`
    - `avatar`
 
+> **关于 `common` 与 `shared`**：仓库附带的这两个云函数主要用于托管共享模块或 npm 依赖，避免部署脚本因目录为空而创建失败。业务代码不会直接调用它们，因此不是必选项；但若你计划在云端维护公共工具（如封装日志库、公共配置等），建议保留并部署，以免在后续上传时再次触发 `CreateFailed` / `ResourceNotFound.Function` 等错误。
+
 部署方法：
 
 ```bash
@@ -83,6 +85,10 @@ cd cloudfunctions/member && npm install && cd -
 
 - 小程序在调用云函数出现异常时会自动写入 `errorlogs` 集合，记录接口名称、会员 ID、时间以及完整的错误信息，便于排查线上问题。
 - 首次部署或升级到包含该功能的版本时，请确保已经创建 `errorlogs` 集合，可通过重新执行 `bootstrap` 云函数自动创建。
+
+## 常见问题
+
+- **云函数 `common` 上传报错 `CreateFailed`**：通常是首次创建云函数时目录为空导致。请先在云开发控制台删除状态为“创建失败”的 `common` 函数，再重新上传仓库内的 `cloudfunctions/common` 目录；若删除后提示 `ResourceNotFound.Function`，需要先在控制台重新创建同名函数实例。详见 [常见问题排查](docs/troubleshooting.md#云函数-common-上传失败createfailed)。
 
 ## 数据结构说明
 
