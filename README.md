@@ -84,6 +84,10 @@ cd cloudfunctions/member && npm install && cd -
 - 小程序在调用云函数出现异常时会自动写入 `errorlogs` 集合，记录接口名称、会员 ID、时间以及完整的错误信息，便于排查线上问题。
 - 首次部署或升级到包含该功能的版本时，请确保已经创建 `errorlogs` 集合，可通过重新执行 `bootstrap` 云函数自动创建。
 
+## 常见问题
+
+- **云函数 `common` 上传报错 `CreateFailed`**：通常是首次创建云函数时目录为空导致。请先在云开发控制台删除状态为“创建失败”的 `common` 函数，再重新上传仓库内的 `cloudfunctions/common` 目录，详见 [常见问题排查](docs/troubleshooting.md#云函数-common-上传失败createfailed)。
+
 ## 数据结构说明
 
 ### members
