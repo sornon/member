@@ -4,6 +4,14 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { listAvatarIds } = require('./avatar-catalog.js');
 const { normalizeAvatarFrameValue } = require('./avatar-frames.js');
+const {
+  normalizeBackgroundId,
+  getDefaultBackgroundId,
+  isBackgroundUnlocked,
+  resolveHighestUnlockedBackgroundByRealmOrder,
+  resolveBackgroundByRealmName,
+  resolveBackgroundById
+} = require('./shared/backgrounds.js');
 
 const db = cloud.database();
 const _ = db.command;
@@ -238,6 +246,7 @@ async function initMember(openid, profile) {
     nickName: profile.nickName || '',
     avatarUrl: profile.avatarUrl || '',
     avatarFrame: normalizeAvatarFrameValue(profile.avatarFrame || ''),
+    appearanceBackground: normalizeBackgroundId(profile.appearanceBackground || '') || getDefaultBackgroundId(),
     mobile: profile.mobile || '',
     gender: normalizeGender(profile.gender),
     levelId: defaultLevel ? defaultLevel._id : '',
@@ -623,6 +632,67 @@ function normalizeGender(value) {
   return 'unknown';
 }
 
+function resolveRealmOrderFromLevel(level) {
+  if (!level) {
+    return 1;
+  }
+  const { realmOrder, order } = level;
+  if (typeof realmOrder === 'number' && Number.isFinite(realmOrder)) {
+    return Math.max(1, Math.floor(realmOrder));
+  }
+  if (typeof order === 'number' && Number.isFinite(order)) {
+    return Math.max(1, Math.floor((order - 1) / 10) + 1);
+  }
+  return 1;
+}
+
+function resolveMemberRealmOrder(member, levels = []) {
+  if (!member) {
+    return 1;
+  }
+  if (member.level && typeof member.level.realmOrder === 'number' && Number.isFinite(member.level.realmOrder)) {
+    return Math.max(1, Math.floor(member.level.realmOrder));
+  }
+  if (typeof member.levelRealmOrder === 'number' && Number.isFinite(member.levelRealmOrder)) {
+    return Math.max(1, Math.floor(member.levelRealmOrder));
+  }
+  if (typeof member.realmOrder === 'number' && Number.isFinite(member.realmOrder)) {
+    return Math.max(1, Math.floor(member.realmOrder));
+  }
+  const levelId = member.levelId;
+  if (levelId && Array.isArray(levels)) {
+    const matchedLevel = levels.find((item) => item && item._id === levelId);
+    if (matchedLevel) {
+      return resolveRealmOrderFromLevel(matchedLevel);
+    }
+  }
+  if (member.level && typeof member.level.realm === 'string') {
+    const matchedBackground = resolveBackgroundByRealmName(member.level.realm);
+    if (matchedBackground) {
+      return matchedBackground.realmOrder;
+    }
+  }
+  const appearanceBackground = normalizeBackgroundId(member.appearanceBackground || '');
+  if (appearanceBackground) {
+    const background = resolveBackgroundById(appearanceBackground);
+    if (background) {
+      return background.realmOrder;
+    }
+  }
+  if (typeof member.experience === 'number' && Number.isFinite(member.experience) && Array.isArray(levels)) {
+    const sortedLevels = levels
+      .filter((item) => item && typeof item.threshold === 'number')
+      .sort((a, b) => a.threshold - b.threshold);
+    for (let i = sortedLevels.length - 1; i >= 0; i -= 1) {
+      const level = sortedLevels[i];
+      if (member.experience >= (level.threshold || 0)) {
+        return resolveRealmOrderFromLevel(level);
+      }
+    }
+  }
+  return 1;
+}
+
 async function ensureArchiveDefaults(member) {
   if (!member || !member._id) {
     return { member, extras: await resolveMemberExtras(member ? member._id : ''), renameHistory: [] };
@@ -665,6 +735,13 @@ async function ensureArchiveDefaults(member) {
     updates.avatarFrame = avatarFrame;
   }
   member.avatarFrame = avatarFrame;
+
+  const backgroundId = normalizeBackgroundId(member.appearanceBackground || '');
+  const safeBackgroundId = backgroundId || getDefaultBackgroundId();
+  if (!Object.is(safeBackgroundId, member.appearanceBackground || '')) {
+    updates.appearanceBackground = safeBackgroundId;
+  }
+  member.appearanceBackground = safeBackgroundId;
 
   const usageCountRaw = Number(member.roomUsageCount);
   const usageCount = Number.isFinite(usageCountRaw) ? Math.max(0, Math.floor(usageCountRaw)) : 0;
@@ -740,10 +817,12 @@ async function updateArchive(openid, updates = {}) {
 
   const normalized = normalizeAssetFields(existing.data);
   const { member: memberWithDefaults } = await ensureArchiveDefaults(normalized);
-  const member = memberWithDefaults;
+  const levels = await loadLevels();
+  const member = await ensureLevelSync(memberWithDefaults, levels);
   const now = new Date();
   const patch = {};
   let renamed = false;
+  const realmOrder = resolveMemberRealmOrder(member, levels);
 
   if (typeof updates.nickName === 'string') {
     const nickName = updates.nickName.trim();
@@ -786,8 +865,26 @@ async function updateArchive(openid, updates = {}) {
     }
   }
 
+  if (typeof updates.appearanceBackground === 'string') {
+    const desiredBackgroundId = normalizeBackgroundId(updates.appearanceBackground || '');
+    if (desiredBackgroundId) {
+      if (!isBackgroundUnlocked(desiredBackgroundId, realmOrder)) {
+        throw createError('BACKGROUND_NOT_UNLOCKED', '该背景尚未解锁');
+      }
+      if (desiredBackgroundId !== (member.appearanceBackground || '')) {
+        patch.appearanceBackground = desiredBackgroundId;
+      }
+    } else {
+      const fallback = resolveHighestUnlockedBackgroundByRealmOrder(realmOrder);
+      const fallbackId = fallback ? fallback.id : getDefaultBackgroundId();
+      if (fallbackId && fallbackId !== (member.appearanceBackground || '')) {
+        patch.appearanceBackground = fallbackId;
+      }
+    }
+  }
+
   if (!Object.keys(patch).length) {
-    return decorateMember(member, await loadLevels());
+    return decorateMember(member, levels);
   }
 
   if (renamed) {

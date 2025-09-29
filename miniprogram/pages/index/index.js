@@ -9,6 +9,15 @@ import {
   resolveAvatarById
 } from '../../utils/avatar-catalog';
 const { listAvatarFrameUrls, normalizeAvatarFrameValue } = require('../../shared/avatar-frames.js');
+const {
+  listBackgrounds,
+  normalizeBackgroundId,
+  resolveBackgroundById,
+  resolveBackgroundByRealmName,
+  resolveHighestUnlockedBackgroundByRealmOrder,
+  getDefaultBackgroundId,
+  isBackgroundUnlocked
+} = require('../../shared/backgrounds.js');
 
 const CHARACTER_IMAGE_BASE_PATH = '../../assets/character';
 const { listAvatarIds: listAllAvatarIds } = require('../../shared/avatar-catalog.js');
@@ -25,10 +34,6 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 
 const app = getApp();
 
-const BACKGROUND_IMAGE_BASE_PATH = '../../assets/background';
-const DEFAULT_BACKGROUND_INDEX = 1;
-const MAX_BACKGROUND_INDEX = 10;
-
 const BASE_NAV_ITEMS = [
   { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
   { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
@@ -43,52 +48,97 @@ const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
 
 const AVATAR_FRAME_OPTIONS = buildAvatarFrameOptionList();
 
-function clampBackgroundIndex(value) {
-  if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return null;
+function resolveRealmOrderFromLevel(level) {
+  if (!level) {
+    return 1;
   }
-  const rounded = Math.round(value);
-  if (rounded < 1) {
-    return DEFAULT_BACKGROUND_INDEX;
+  if (typeof level.realmOrder === 'number' && Number.isFinite(level.realmOrder)) {
+    return Math.max(1, Math.floor(level.realmOrder));
   }
-  if (rounded > MAX_BACKGROUND_INDEX) {
-    return MAX_BACKGROUND_INDEX;
+  if (typeof level.order === 'number' && Number.isFinite(level.order)) {
+    return Math.max(1, Math.floor((level.order - 1) / 10) + 1);
   }
-  return rounded;
-}
-
-function parseBackgroundIndex(value) {
-  if (typeof value === 'number') {
-    return clampBackgroundIndex(value);
-  }
-  if (typeof value === 'string') {
-    const match = value.match(/\d+/);
-    if (match) {
-      return clampBackgroundIndex(Number(match[0]));
+  if (typeof level.realm === 'string') {
+    const matched = resolveBackgroundByRealmName(level.realm);
+    if (matched) {
+      return matched.realmOrder;
     }
   }
-  return null;
+  return 1;
+}
+
+function resolveMemberRealmOrder(member) {
+  if (!member) {
+    return 1;
+  }
+  if (member.level) {
+    return resolveRealmOrderFromLevel(member.level);
+  }
+  if (typeof member.levelRealmOrder === 'number' && Number.isFinite(member.levelRealmOrder)) {
+    return Math.max(1, Math.floor(member.levelRealmOrder));
+  }
+  if (typeof member.realmOrder === 'number' && Number.isFinite(member.realmOrder)) {
+    return Math.max(1, Math.floor(member.realmOrder));
+  }
+  if (member.appearanceBackground) {
+    const background = resolveBackgroundById(normalizeBackgroundId(member.appearanceBackground));
+    if (background) {
+      return background.realmOrder;
+    }
+  }
+  return 1;
+}
+
+function resolvePreferredBackground(member) {
+  const realmOrder = resolveMemberRealmOrder(member);
+  const desiredId = normalizeBackgroundId(member && member.appearanceBackground);
+  if (desiredId && isBackgroundUnlocked(desiredId, realmOrder)) {
+    const desired = resolveBackgroundById(desiredId);
+    if (desired) {
+      return desired;
+    }
+  }
+  const fallback = resolveHighestUnlockedBackgroundByRealmOrder(realmOrder);
+  if (fallback) {
+    return fallback;
+  }
+  return resolveBackgroundById(getDefaultBackgroundId());
 }
 
 function resolveBackgroundImage(member) {
-  const level = member && member.level ? member.level : null;
-  const candidates = [];
-  if (level) {
-    candidates.push(level.backgroundIndex);
-    candidates.push(level.realmOrder);
-    candidates.push(level.order);
-    candidates.push(level.realmId);
-    candidates.push(level.realm);
+  const background = resolvePreferredBackground(member);
+  if (background && background.image) {
+    return background.image;
   }
+  const fallback = resolveBackgroundById(getDefaultBackgroundId());
+  return fallback && fallback.image ? fallback.image : '';
+}
 
-  for (let i = 0; i < candidates.length; i += 1) {
-    const candidate = parseBackgroundIndex(candidates[i]);
-    if (candidate) {
-      return `${BACKGROUND_IMAGE_BASE_PATH}/${candidate}.jpg`;
+function buildBackgroundOptionList(member) {
+  const realmOrder = resolveMemberRealmOrder(member);
+  const activeId = resolveSafeBackgroundId(member, member && member.appearanceBackground);
+  return listBackgrounds().map((background) => {
+    const unlocked = isBackgroundUnlocked(background.id, realmOrder);
+    let description = `突破至${background.realmName}解锁`;
+    if (unlocked) {
+      description = background.id === activeId ? '当前使用' : '已解锁';
     }
-  }
+    return {
+      ...background,
+      unlocked,
+      description
+    };
+  });
+}
 
-  return `${BACKGROUND_IMAGE_BASE_PATH}/${DEFAULT_BACKGROUND_INDEX}.jpg`;
+function resolveSafeBackgroundId(member, desiredId) {
+  const realmOrder = resolveMemberRealmOrder(member);
+  const sanitizedId = normalizeBackgroundId(desiredId || '');
+  if (sanitizedId && isBackgroundUnlocked(sanitizedId, realmOrder)) {
+    return sanitizedId;
+  }
+  const fallback = resolvePreferredBackground(member);
+  return fallback ? fallback.id : getDefaultBackgroundId();
 }
 
 function normalizePercentage(progress) {
@@ -281,10 +331,12 @@ function buildSanitizedMember(member) {
   }
   const sanitizedAvatar = sanitizeAvatarUrl(member.avatarUrl);
   const sanitizedFrame = sanitizeAvatarFrame(member.avatarFrame || '');
+  const sanitizedBackground = normalizeBackgroundId(member.appearanceBackground || '') || getDefaultBackgroundId();
   return {
     ...member,
     avatarUrl: sanitizedAvatar || '',
-    avatarFrame: sanitizedFrame
+    avatarFrame: sanitizedFrame,
+    appearanceBackground: sanitizedBackground
   };
 }
 
@@ -486,6 +538,7 @@ Page({
       gender: 'unknown',
       avatarUrl: '',
       avatarFrame: '',
+      appearanceBackground: getDefaultBackgroundId(),
       renameCredits: 0,
       renameCards: 0,
       renameUsed: 0,
@@ -496,10 +549,13 @@ Page({
     showAvatarPicker: false,
     avatarPickerSaving: false,
     avatarPicker: {
+      activeTab: 'avatar',
       avatarUrl: '',
       avatarOptions: [],
       avatarFrame: '',
-      frameOptions: cloneAvatarFrameOptions()
+      frameOptions: cloneAvatarFrameOptions(),
+      backgroundId: getDefaultBackgroundId(),
+      backgroundOptions: buildBackgroundOptionList(null)
     },
   },
 
@@ -703,6 +759,7 @@ Page({
     const nickName = member.nickName || '';
     const gender = normalizeGenderValue(member.gender);
     const avatarUrl = member.avatarUrl || this.data.defaultAvatar;
+    const appearanceBackground = resolveSafeBackgroundId(member, member.appearanceBackground);
     const renameHistory = formatHistoryList(member.renameHistory);
     this.setData({
       showProfile: true,
@@ -713,6 +770,7 @@ Page({
         nickName,
         gender,
         avatarUrl,
+        appearanceBackground,
         renameCredits: member.renameCredits || 0,
         renameCards: member.renameCards || 0,
         renameUsed: member.renameUsed || 0,
@@ -753,6 +811,22 @@ Page({
     }
   },
 
+  handleAppearanceTabChange(event) {
+    if (this.data.avatarPickerSaving) {
+      return;
+    }
+    const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
+    const tab = typeof dataset.tab === 'string' ? dataset.tab : '';
+    if (!tab || tab === this.data.avatarPicker.activeTab) {
+      return;
+    }
+    const updates = {
+      'avatarPicker.activeTab': tab,
+      'avatarPicker.backgroundOptions': buildBackgroundOptionList(this.data.member)
+    };
+    this.setData(updates);
+  },
+
   openAvatarPicker() {
     if (this.data.avatarPickerSaving) {
       return;
@@ -766,14 +840,19 @@ Page({
     const currentFrame = sanitizeAvatarFrame(
       this.data.profileEditor.avatarFrame || member.avatarFrame || ''
     );
+    const backgroundId = resolveSafeBackgroundId(member, this.data.profileEditor.appearanceBackground || member.appearanceBackground);
+    const backgroundOptions = buildBackgroundOptionList(member);
     const updates = {
       showAvatarPicker: true,
       avatarPickerSaving: false,
       avatarPicker: {
+        activeTab: 'avatar',
         avatarUrl,
         avatarOptions: options,
         avatarFrame: currentFrame,
-        frameOptions
+        frameOptions,
+        backgroundId,
+        backgroundOptions
       }
     };
     if (avatarUrl && this.data.profileEditor.avatarUrl !== avatarUrl) {
@@ -781,6 +860,9 @@ Page({
     }
     if (this.data.profileEditor.avatarFrame !== currentFrame) {
       updates['profileEditor.avatarFrame'] = currentFrame;
+    }
+    if (this.data.profileEditor.appearanceBackground !== backgroundId) {
+      updates['profileEditor.appearanceBackground'] = backgroundId;
     }
     this.setData(updates);
   },
@@ -803,7 +885,8 @@ Page({
     const avatarUrl = resolveAvatarSelection(avatarOptions, preferredAvatar, gender) || this.data.defaultAvatar;
     const updates = {
       'avatarPicker.avatarOptions': avatarOptions,
-      'avatarPicker.avatarUrl': avatarUrl
+      'avatarPicker.avatarUrl': avatarUrl,
+      'avatarPicker.backgroundOptions': buildBackgroundOptionList(this.data.member)
     };
     if (avatarUrl && this.data.profileEditor.avatarUrl !== avatarUrl) {
       updates['profileEditor.avatarUrl'] = avatarUrl;
@@ -834,6 +917,27 @@ Page({
     this.setData({
       'avatarPicker.avatarFrame': frame,
       'profileEditor.avatarFrame': frame
+    });
+  },
+
+  handleBackgroundSelect(event) {
+    if (this.data.avatarPickerSaving) {
+      return;
+    }
+    const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
+    const disabled = dataset.disabled === true || dataset.disabled === 'true';
+    if (disabled) {
+      const hint = typeof dataset.hint === 'string' && dataset.hint ? dataset.hint : '该背景尚未解锁';
+      wx.showToast({ title: hint, icon: 'none' });
+      return;
+    }
+    const backgroundId = normalizeBackgroundId(dataset.id || '');
+    if (!backgroundId) {
+      return;
+    }
+    this.setData({
+      'avatarPicker.backgroundId': backgroundId,
+      'profileEditor.appearanceBackground': backgroundId
     });
   },
 
@@ -869,19 +973,25 @@ Page({
     }
     const avatarUrl = sanitizeAvatarUrl(this.data.avatarPicker.avatarUrl) || this.data.defaultAvatar;
     const avatarFrame = sanitizeAvatarFrame(this.data.avatarPicker.avatarFrame);
+    const backgroundId = resolveSafeBackgroundId(
+      this.data.member,
+      this.data.avatarPicker.backgroundId || this.data.profileEditor.appearanceBackground
+    );
     this.setData({ avatarPickerSaving: true });
     try {
       const member = await MemberService.updateArchive({
         avatarUrl,
-        avatarFrame
+        avatarFrame,
+        appearanceBackground: backgroundId
       });
       this.applyMemberUpdate(member);
       this.setData({
         showAvatarPicker: false,
         'profileEditor.avatarUrl': avatarUrl,
-        'profileEditor.avatarFrame': avatarFrame
+        'profileEditor.avatarFrame': avatarFrame,
+        'profileEditor.appearanceBackground': backgroundId
       });
-      wx.showToast({ title: '头像已更新', icon: 'success' });
+      wx.showToast({ title: '外观已更新', icon: 'success' });
     } catch (error) {
       // callCloud 已提示
     } finally {
@@ -902,7 +1012,11 @@ Page({
       nickName,
       gender: this.data.profileEditor.gender,
       avatarUrl: this.data.profileEditor.avatarUrl || this.data.defaultAvatar,
-      avatarFrame: sanitizeAvatarFrame(this.data.profileEditor.avatarFrame)
+      avatarFrame: sanitizeAvatarFrame(this.data.profileEditor.avatarFrame),
+      appearanceBackground: resolveSafeBackgroundId(
+        this.data.member,
+        this.data.profileEditor.appearanceBackground
+      )
     };
     this.setData({ profileSaving: true });
     try {
@@ -956,11 +1070,14 @@ Page({
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
       'profileEditor.avatarUrl': sanitizedMember.avatarUrl || this.data.profileEditor.avatarUrl,
       'profileEditor.avatarFrame': sanitizedMember.avatarFrame,
+      'profileEditor.appearanceBackground': sanitizedMember.appearanceBackground,
       'avatarPicker.avatarUrl': sanitizedMember.avatarUrl || this.data.avatarPicker.avatarUrl,
       'avatarPicker.avatarFrame': sanitizedMember.avatarFrame,
       'avatarPicker.frameOptions': this.data.avatarPicker.frameOptions && this.data.avatarPicker.frameOptions.length
         ? this.data.avatarPicker.frameOptions
         : cloneAvatarFrameOptions(),
+      'avatarPicker.backgroundId': resolveSafeBackgroundId(sanitizedMember, sanitizedMember.appearanceBackground),
+      'avatarPicker.backgroundOptions': buildBackgroundOptionList(sanitizedMember),
       'profileEditor.renameCredits': sanitizedMember.renameCredits || 0,
       'profileEditor.renameCards': sanitizedMember.renameCards || 0,
       'profileEditor.renameUsed': sanitizedMember.renameUsed || 0,
