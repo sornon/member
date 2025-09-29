@@ -1,4 +1,4 @@
-const BACKGROUND_IMAGE_BASE_PATH = '/assets/background';
+const { BACKGROUND_IMAGE_BASE_PATH } = require('./asset-paths.js');
 
 const RAW_BACKGROUNDS = [
   { id: 'realm_refining', realmOrder: 1, realmName: '炼气期', name: '炼气之地' },
