@@ -1,6 +1,7 @@
 import { MemberService } from './api';
 
 const { normalizeAvatarFrameValue } = require('../shared/avatar-frames.js');
+const { normalizeBackgroundId } = require('../shared/backgrounds.js');
 
 const MAX_WATCH_RESTART_ATTEMPTS = 5;
 const WATCH_RETRY_DELAY = 2000;
@@ -28,6 +29,7 @@ function sanitizeMemberSnapshot(member) {
   }
   const sanitized = { ...member };
   sanitized.avatarFrame = sanitizeAvatarFrame(sanitized.avatarFrame);
+  sanitized.appearanceBackground = normalizeBackgroundId(sanitized.appearanceBackground || '');
   return sanitized;
 }
 

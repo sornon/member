@@ -186,14 +186,31 @@
   <view wx:if="{{showAvatarPicker}}" class="profile-modal">
     <view class="modal-mask" bindtap="handleCloseAvatarPicker"></view>
     <view class="modal-content modal-content--avatar">
-      <view class="modal-header">
-        <view class="modal-title">选择头像</view>
+      <view class="modal-header modal-header--appearance">
+        <view class="modal-title">外观设置</view>
+        <view class="appearance-tabs">
+          <view
+            class="appearance-tab {{avatarPicker.activeTab === 'avatar' ? 'appearance-tab--active' : ''}}"
+            data-tab="avatar"
+            bindtap="handleAppearanceTabChange"
+          >头像</view>
+          <view
+            class="appearance-tab {{avatarPicker.activeTab === 'frame' ? 'appearance-tab--active' : ''}}"
+            data-tab="frame"
+            bindtap="handleAppearanceTabChange"
+          >相框</view>
+          <view
+            class="appearance-tab {{avatarPicker.activeTab === 'background' ? 'appearance-tab--active' : ''}}"
+            data-tab="background"
+            bindtap="handleAppearanceTabChange"
+          >背景</view>
+        </view>
         <view class="modal-close" bindtap="handleCloseAvatarPicker">×</view>
       </view>
       <scroll-view scroll-y="true" class="modal-body modal-body--scroll">
-        <view class="archive-section">
+        <view wx:if="{{avatarPicker.activeTab === 'avatar'}}" class="archive-section appearance-section">
           <view class="archive-section__header">
-          <view class="archive-section__title">可选头像</view>
+            <view class="archive-section__title">可选头像</view>
           </view>
           <view class="avatar-grid">
             <view
@@ -206,36 +223,58 @@
               <image class="avatar-option__image" src="{{item.url}}" mode="aspectFill"></image>
             </view>
           </view>
-          <view class="avatar-frame-section">
-            <view class="archive-section__header">
-              <view class="archive-section__title">可选相框</view>
+          <button class="archive-action" size="mini" bindtap="handleAvatarPickerSyncWechat">同步微信头像</button>
+        </view>
+        <view wx:elif="{{avatarPicker.activeTab === 'frame'}}" class="archive-section appearance-section">
+          <view class="archive-section__header">
+            <view class="archive-section__title">可选相框</view>
+          </view>
+          <view class="avatar-frame-grid">
+            <view
+              class="avatar-frame-option {{avatarPicker.avatarFrame === item.url ? 'avatar-frame-option--active' : ''}}"
+              wx:for="{{avatarPicker.frameOptions}}"
+              wx:key="id"
+              data-url="{{item.url}}"
+              bindtap="handleAvatarFrameSelect"
+            >
+              <view class="avatar-frame-option__preview">
+                <image
+                  class="avatar-frame-option__avatar"
+                  src="{{avatarPicker.avatarUrl || defaultAvatar}}"
+                  mode="cover"
+                ></image>
+                <image
+                  wx:if="{{item.url}}"
+                  class="avatar-frame-option__frame"
+                  src="{{item.url}}"
+                  mode="scaleToFill"
+                ></image>
+              </view>
+              <view class="avatar-frame-option__label">{{item.name}}</view>
             </view>
-            <view class="avatar-frame-grid">
-              <view
-                class="avatar-frame-option {{avatarPicker.avatarFrame === item.url ? 'avatar-frame-option--active' : ''}}"
-                wx:for="{{avatarPicker.frameOptions}}"
-                wx:key="id"
-                data-url="{{item.url}}"
-                bindtap="handleAvatarFrameSelect"
-              >
-                <view class="avatar-frame-option__preview">
-                  <image
-                    class="avatar-frame-option__avatar"
-                    src="{{avatarPicker.avatarUrl || defaultAvatar}}"
-                    mode="cover"
-                  ></image>
-                  <image
-                    wx:if="{{item.url}}"
-                    class="avatar-frame-option__frame"
-                    src="{{item.url}}"
-                    mode="scaleToFill"
-                  ></image>
-                </view>
-                <view class="avatar-frame-option__label">{{item.name}}</view>
+          </view>
+        </view>
+        <view wx:else class="archive-section appearance-section appearance-section--background">
+          <view class="archive-section__header">
+            <view class="archive-section__title">可选背景</view>
+          </view>
+          <view class="appearance-background-grid">
+            <view
+              class="appearance-background-option {{avatarPicker.backgroundId === item.id ? 'appearance-background-option--active' : ''}} {{!item.unlocked ? 'appearance-background-option--locked' : ''}}"
+              wx:for="{{avatarPicker.backgroundOptions}}"
+              wx:key="id"
+              data-id="{{item.id}}"
+              data-disabled="{{!item.unlocked}}"
+              data-hint="{{item.description}}"
+              bindtap="handleBackgroundSelect"
+            >
+              <image class="appearance-background-option__image" src="{{item.image}}" mode="aspectFill"></image>
+              <view class="appearance-background-option__overlay">
+                <view class="appearance-background-option__name">{{item.name}}</view>
+                <view class="appearance-background-option__desc">{{item.description}}</view>
               </view>
             </view>
           </view>
-          <button class="archive-action" size="mini" bindtap="handleAvatarPickerSyncWechat">同步微信头像</button>
         </view>
       </scroll-view>
       <view class="modal-footer">
@@ -246,7 +285,7 @@
           loading="{{avatarPickerSaving}}"
           disabled="{{avatarPickerSaving}}"
           bindtap="handleAvatarPickerConfirm"
-        >保存头像</button>
+        >保存外观</button>
       </view>
     </view>
   </view>
