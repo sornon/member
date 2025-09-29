@@ -241,6 +241,25 @@ button.pill-btn[disabled] {
   font-size: 24rpx;
 }
 
+.attr-respec {
+  margin-top: 20rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20rpx;
+  flex-wrap: wrap;
+}
+
+.attr-respec__info {
+  font-size: 24rpx;
+  color: rgba(189, 203, 255, 0.82);
+  flex: 1;
+}
+
+.attr-respec__button {
+  min-width: 150rpx;
+}
+
 .subsection-title {
   margin-top: 32rpx;
   font-size: 26rpx;
