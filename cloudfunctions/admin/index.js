@@ -724,8 +724,6 @@ function decorateMemberRecord(member, levelMap) {
     avatarConfig: member.avatarConfig || {},
     roomUsageCount: normalizeUsageCount(member.roomUsageCount),
     avatarUnlocks: normalizeAvatarUnlocksList(member.avatarUnlocks),
-    pveRespecLimit: respecStats.limit,
-    pveRespecUsed: respecStats.used,
     pveRespecAvailable: respecStats.available
   };
 }
@@ -892,11 +890,11 @@ function normalizeUsageCount(value) {
 function resolvePveRespecStats(member) {
   const profile = member && member.pveProfile ? member.pveProfile : {};
   const attributes = profile && profile.attributes ? profile.attributes : {};
-  const limit = normalizeUsageCount(attributes.respecLimit);
-  const usedRaw = normalizeUsageCount(attributes.respecUsed);
-  const used = Math.min(limit, usedRaw);
-  const available = Math.max(limit - used, 0);
-  return { limit, used, available };
+  const legacyLimit = normalizeUsageCount(attributes.respecLimit);
+  const legacyUsed = Math.min(legacyLimit, normalizeUsageCount(attributes.respecUsed));
+  const legacyAvailable = Math.max(legacyLimit - legacyUsed, 0);
+  const available = Math.max(legacyAvailable, normalizeUsageCount(attributes.respecAvailable));
+  return { available };
 }
 
 function normalizeAvatarUnlocksList(unlocks) {
@@ -1012,10 +1010,9 @@ function buildUpdatePayload(updates, existing = {}) {
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'respecAvailable')) {
     const desiredAvailable = normalizeUsageCount(updates.respecAvailable);
-    const { used: existingUsed } = resolvePveRespecStats(existing);
-    const limit = desiredAvailable + existingUsed;
-    payload['pveProfile.attributes.respecLimit'] = limit;
-    payload['pveProfile.attributes.respecUsed'] = Math.min(limit, existingUsed);
+    payload['pveProfile.attributes.respecAvailable'] = desiredAvailable;
+    payload['pveProfile.attributes.respecLimit'] = 0;
+    payload['pveProfile.attributes.respecUsed'] = 0;
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'roomUsageCount')) {
     payload.roomUsageCount = normalizeUsageCount(updates.roomUsageCount);

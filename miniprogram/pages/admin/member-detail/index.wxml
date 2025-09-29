@@ -56,10 +56,6 @@
         bindinput="handleInputChange"
       />
     </view>
-    <view class="respec-meta">
-      <text>总次数：{{member.pveRespecLimit || 0}}</text>
-      <text>已使用：{{member.pveRespecUsed || 0}}</text>
-    </view>
     <view class="form-item">
       <view class="form-label">包房使用次数</view>
       <input

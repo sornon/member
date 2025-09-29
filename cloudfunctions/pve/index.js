@@ -352,7 +352,7 @@ const CONSUMABLE_LIBRARY = [
     id: 'respec_talisman',
     name: '洗点灵符',
     description: '注入灵力的玉符，使用后可额外获得一次洗点机会。',
-    effects: { respecLimit: 1 }
+    effects: { respecAvailable: 1 }
   }
 ];
 
@@ -978,9 +978,12 @@ async function resetAttributes(openid) {
   const member = await ensureMember(openid);
   const profile = await ensurePveProfile(openid, member);
   const attrs = profile.attributes || {};
-  const limit = Math.max(0, Math.floor(Number(attrs.respecLimit) || 0));
-  const used = Math.max(0, Math.floor(Number(attrs.respecUsed) || 0));
-  const available = Math.max(limit - used, 0);
+  let available = Math.max(0, Math.floor(Number(attrs.respecAvailable) || 0));
+  if (available <= 0) {
+    const legacyLimit = Math.max(0, Math.floor(Number(attrs.respecLimit) || 0));
+    const legacyUsed = Math.max(0, Math.floor(Number(attrs.respecUsed) || 0));
+    available = Math.max(legacyLimit - Math.min(legacyLimit, legacyUsed), 0);
+  }
   if (available <= 0) {
     throw createError('NO_RESPEC_AVAILABLE', '洗点次数不足');
   }
@@ -1001,7 +1004,9 @@ async function resetAttributes(openid) {
     return acc;
   }, {});
   attrs.attributePoints = Math.max(0, Math.floor(Number(attrs.attributePoints) || 0)) + refundedPoints;
-  attrs.respecUsed = used + 1;
+  attrs.respecAvailable = available - 1;
+  attrs.respecLimit = 0;
+  attrs.respecUsed = 0;
   profile.attributes = attrs;
 
   const now = new Date();
@@ -1100,8 +1105,7 @@ function buildDefaultAttributes() {
       acc[key] = 0;
       return acc;
     }, {}),
-    respecLimit: 1,
-    respecUsed: 0,
+    respecAvailable: 1,
     realmId: realmPhase.id,
     realmName: realmPhase.name,
     realmShort: realmPhase.short,
@@ -1145,17 +1149,30 @@ function normalizeProfile(profile, now = new Date()) {
 function normalizeAttributes(attributes) {
   const defaults = buildDefaultAttributes();
   const payload = typeof attributes === 'object' && attributes ? attributes : {};
-  const normalizedRespecLimit = Math.max(
-    0,
-    Math.floor(Number(payload.respecLimit || defaults.respecLimit || 0))
-  );
-  const normalizedRespecUsed = Math.max(0, Math.floor(Number(payload.respecUsed) || 0));
+  const rawAvailable = Number(payload.respecAvailable);
+  const hasNewField = Object.prototype.hasOwnProperty.call(payload, 'respecAvailable');
+  const hasLegacyField =
+    Object.prototype.hasOwnProperty.call(payload, 'respecLimit') ||
+    Object.prototype.hasOwnProperty.call(payload, 'respecUsed');
+  const normalizedNewField = Number.isFinite(rawAvailable) ? Math.max(0, Math.floor(rawAvailable)) : null;
+  const legacyLimit = Math.max(0, Math.floor(Number(payload.respecLimit) || 0));
+  const legacyUsed = Math.max(0, Math.floor(Number(payload.respecUsed) || 0));
+  const legacyAvailable = Math.max(legacyLimit - Math.min(legacyLimit, legacyUsed), 0);
+  let respecAvailable;
+  if (hasNewField && normalizedNewField !== null) {
+    respecAvailable = normalizedNewField;
+  } else if (hasLegacyField) {
+    respecAvailable = legacyAvailable;
+  } else if (hasNewField) {
+    respecAvailable = 0;
+  } else {
+    respecAvailable = Math.max(0, Math.floor(Number(defaults.respecAvailable || 0)));
+  }
   return {
     level: Math.max(1, Math.min(MAX_LEVEL, Math.floor(Number(payload.level) || defaults.level || 1))),
     experience: Math.max(0, Math.floor(Number(payload.experience) || 0)),
     attributePoints: Math.max(0, Math.floor(Number(payload.attributePoints) || 0)),
-    respecLimit: normalizedRespecLimit,
-    respecUsed: Math.min(normalizedRespecLimit, normalizedRespecUsed),
+    respecAvailable,
     lastSyncedLevel: Math.max(
       1,
       Math.min(
@@ -1447,10 +1464,12 @@ function calculateAttributes(attributes, equipment, skills) {
   const realmName = attributes.realmName || '';
   const realmShort = attributes.realmShort || '';
   const nextLevelLabel = attributes.nextLevelLabel || '';
-  const respecLimit = Math.max(0, Math.floor(Number(attributes.respecLimit) || 0));
-  const respecUsedRaw = Math.max(0, Math.floor(Number(attributes.respecUsed) || 0));
-  const respecUsed = Math.min(respecLimit, respecUsedRaw);
-  const respecAvailable = Math.max(respecLimit - respecUsed, 0);
+  let respecAvailable = Math.max(0, Math.floor(Number(attributes.respecAvailable) || 0));
+  if (respecAvailable <= 0) {
+    const legacyLimit = Math.max(0, Math.floor(Number(attributes.respecLimit) || 0));
+    const legacyUsed = Math.max(0, Math.floor(Number(attributes.respecUsed) || 0));
+    respecAvailable = Math.max(legacyLimit - Math.min(legacyLimit, legacyUsed), 0);
+  }
 
   return {
     level,
@@ -1463,8 +1482,6 @@ function calculateAttributes(attributes, equipment, skills) {
     realmShort,
     experience,
     attributePoints: Math.max(0, Math.floor(Number(attributes.attributePoints) || 0)),
-    respecLimit,
-    respecUsed,
     respecAvailable,
     nextLevel,
     nextLevelId: attributes.nextLevelId || '',
@@ -2125,7 +2142,7 @@ function decorateBattleHistory(history, profile) {
       const detail = entry.detail || {};
       const consumable = CONSUMABLE_MAP[detail.consumableId] || { name: '道具' };
       let summary = `获得道具：${consumable.name}`;
-      if (detail.effect === 'respecLimit' && detail.amount) {
+      if (detail.effect === 'respecAvailable' && detail.amount) {
         summary += `（洗点次数 +${detail.amount}）`;
       }
       return {
@@ -2571,18 +2588,24 @@ function applyConsumableReward(profile, consumableId, now) {
   if (!profile.attributes) {
     profile.attributes = buildDefaultAttributes();
   }
-  const limitIncrease = definition.effects && definition.effects.respecLimit ? definition.effects.respecLimit : 0;
-  if (limitIncrease > 0) {
+  const availableIncrease = definition.effects && definition.effects.respecAvailable ? definition.effects.respecAvailable : 0;
+  if (availableIncrease > 0) {
     const attrs = profile.attributes;
-    const currentLimit = Math.max(0, Math.floor(Number(attrs.respecLimit) || 0));
-    attrs.respecLimit = currentLimit + limitIncrease;
+    const currentAvailable = Math.max(0, Math.floor(Number(attrs.respecAvailable) || 0));
+    const legacyLimit = Math.max(0, Math.floor(Number(attrs.respecLimit) || 0));
+    const legacyUsed = Math.max(0, Math.floor(Number(attrs.respecUsed) || 0));
+    const legacyAvailable = Math.max(legacyLimit - Math.min(legacyLimit, legacyUsed), 0);
+    const baseAvailable = Math.max(currentAvailable, legacyAvailable);
+    attrs.respecAvailable = baseAvailable + availableIncrease;
+    attrs.respecLimit = 0;
+    attrs.respecUsed = 0;
     profile.attributes = attrs;
     profile.battleHistory = appendHistory(
       profile.battleHistory,
       {
         type: 'consumable',
         createdAt: now,
-        detail: { consumableId, effect: 'respecLimit', amount: limitIncrease }
+        detail: { consumableId, effect: 'respecAvailable', amount: availableIncrease }
       },
       MAX_BATTLE_HISTORY
     );
