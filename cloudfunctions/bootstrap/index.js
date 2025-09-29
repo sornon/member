@@ -60,6 +60,7 @@ const realmConfigs = [
     shortName: '炼气',
     description: '入门境界，通过吸纳天地灵气淬炼肉身，正式踏上修行大道。',
     increment: 100,
+    thresholds: [0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800],
     discount: 1,
     virtualRewards: [
       '称号「炼气·初悟」，解锁灵根检测背景',
@@ -91,9 +92,10 @@ const realmConfigs = [
     shortName: '筑基',
     description: '稳固根基，凝练真元，寿元翻倍，为结丹做足准备。',
     increment: 200,
+    thresholds: [2000, 2200, 2400, 2600, 2800, 3000, 3200, 3400, 3600, 3800],
     discount: 0.99,
     virtualRewards: [
-      '称号「筑基·初成」，昵称前缀升级',
+      '称号「筑基·初成」，昵称前缀升级；累计充值 ¥2,000 解锁筑基一层，赠筑基背景与 ¥200 内商品任选 1 件',
       '灵石积分 +200，可兑换筑基丹材料',
       '头像框「筑基丹炉」解锁',
       '服饰「玄铁束甲」上线',
@@ -122,9 +124,10 @@ const realmConfigs = [
     shortName: '金丹',
     description: '凝聚金丹，可御空飞行，是门派的核心力量。',
     increment: 400,
+    thresholds: [5000, 5500, 6000, 6500, 7000, 7500, 8000, 8500, 9000, 9500],
     discount: 0.98,
     virtualRewards: [
-      '称号「金丹·初凝」，获得金丹铭牌',
+      '称号「金丹·初凝」，获得金丹铭牌；累计充值 ¥5,000 解锁金丹一层，赠金丹背景与包房使用次数 1 次',
       '灵石积分 +400，可兑换珍稀材料',
       '头像框「金丹护体」解锁',
       '服饰「锦云法袍」上线',
@@ -153,9 +156,10 @@ const realmConfigs = [
     shortName: '元婴',
     description: '金丹化婴，元神可离体而存，寿元再度提升。',
     increment: 800,
+    thresholds: [10000, 11000, 12000, 13000, 14000, 15000, 16000, 17000, 18000, 19000],
     discount: 0.97,
     virtualRewards: [
-      '称号「元婴·初现」，展示元神光影',
+      '称号「元婴·初现」，展示元神光影；累计充值 ¥10,000 解锁元婴一层，赠元婴背景与包房使用次数 1 次',
       '灵石积分 +800，用于兑换元婴培元丹',
       '头像框「元婴护持」解锁',
       '服饰「素银道袍」上线',
@@ -184,9 +188,10 @@ const realmConfigs = [
     shortName: '化神',
     description: '感应法则之力，法力不绝，立于人界巅峰门槛。',
     increment: 1600,
+    thresholds: [20000, 22000, 24000, 26000, 28000, 30000, 32000, 34000, 36000, 38000],
     discount: 0.96,
     virtualRewards: [
-      '称号「化神·初悟」，获得法则光纹',
+      '称号「化神·初悟」，获得法则光纹；累计充值 ¥20,000 解锁化神一层，赠化神背景（权益待定，可随时调整）',
       '灵石积分 +1600，可兑换化神法则碎片',
       '头像框「化神神光」解锁',
       '服饰「星辉法衣」上线',
@@ -215,9 +220,10 @@ const realmConfigs = [
     shortName: '炼虚',
     description: '元婴化虚，可凝练分身，调动更广阔的天地之力。',
     increment: 3200,
+    thresholds: [50000, 54000, 58000, 62000, 66000, 70000, 74000, 78000, 82000, 86000],
     discount: 0.95,
     virtualRewards: [
-      '称号「炼虚·洞明」，附带虚化光影',
+      '称号「炼虚·洞明」，附带虚化光影；累计充值 ¥50,000 解锁炼虚一层，赠炼虚背景（权益待定，可随时调整）',
       '灵石积分 +3200，用于兑换虚空晶石',
       '头像框「虚空流光」解锁',
       '服饰「雾隐斗篷」上线',
@@ -246,9 +252,10 @@ const realmConfigs = [
     shortName: '合体',
     description: '元神与分身合一，显化法相真身，掌控磅礴灵力。',
     increment: 6400,
+    thresholds: [100000, 108000, 116000, 124000, 132000, 140000, 148000, 156000, 164000, 172000],
     discount: 0.94,
     virtualRewards: [
-      '称号「合体·初合」，显化合体光环',
+      '称号「合体·初合」，显化合体光环；累计充值 ¥100,000 解锁合体一层，赠合体背景（权益待定，可随时调整）',
       '灵石积分 +6400，兑换合体灵材',
       '头像框「合体法相」解锁',
       '服饰「鸿蒙战铠」上线',
@@ -277,9 +284,10 @@ const realmConfigs = [
     shortName: '大乘',
     description: '修为圆满，掌控更高层次法则之力，距离飞升只差临门一脚。',
     increment: 12800,
+    thresholds: [200000, 212000, 224000, 236000, 248000, 260000, 272000, 284000, 296000, 308000],
     discount: 0.93,
     virtualRewards: [
-      '称号「大乘·初悟」，获得道韵光芒',
+      '称号「大乘·初悟」，获得道韵光芒；累计充值 ¥200,000 解锁大乘一层，赠大乘背景（权益待定，可随时调整）',
       '灵石积分 +12800，可兑换飞升宝材',
       '头像框「大乘法象」解锁',
       '服饰「苍穹霞衣」上线',
@@ -308,9 +316,10 @@ const realmConfigs = [
     shortName: '渡劫',
     description: '迎接雷劫洗礼，冲击仙界门槛，成败在此一举。',
     increment: 25600,
+    thresholds: [500000, 520000, 540000, 560000, 580000, 600000, 620000, 640000, 660000, 680000],
     discount: 0.92,
     virtualRewards: [
-      '称号「渡劫·初雷」，附带雷霆特效',
+      '称号「渡劫·初雷」，附带雷霆特效；累计充值 ¥500,000 解锁渡劫一层，赠渡劫背景（权益待定，可随时调整）',
       '灵石积分 +25600，用于兑换渡劫护符',
       '头像框「雷劫之环」解锁',
       '服饰「劫云战袍」上线',
@@ -339,9 +348,10 @@ const realmConfigs = [
     shortName: '飞升',
     description: '飞升在即，脱离凡俗成就真仙，享无尽寿元与更高维力量。',
     increment: 51200,
+    thresholds: [1000000, 1050000, 1100000, 1150000, 1200000, 1250000, 1300000, 1350000, 1400000, 1450000],
     discount: 0.9,
     virtualRewards: [
-      '称号「飞升·初羽」，获得仙羽光效',
+      '称号「飞升·初羽」，获得仙羽光效；累计充值 ¥1,000,000 解锁飞升一层，赠飞升背景（权益待定，可随时调整）',
       '灵石积分 +51200，可兑换仙界供品',
       '头像框「飞升圣环」解锁',
       '服饰「仙尊羽衣」上线',
@@ -481,12 +491,17 @@ function buildMembershipLevels() {
   let order = 1;
 
   realmConfigs.forEach((realm, realmIndex) => {
-    const { increment, discount, virtualRewards, milestone } = realm;
+    const { increment, discount, virtualRewards, milestone, thresholds } = realm;
+    const hasCustomThresholds =
+      Array.isArray(thresholds) && thresholds.length === subLevelLabels.length;
 
     subLevelLabels.forEach((label, subIndex) => {
       const subLevel = subIndex + 1;
       let thresholdYuan;
-      if (realmIndex === 0 && subLevel === 1) {
+      if (hasCustomThresholds) {
+        thresholdYuan = thresholds[subIndex];
+        cumulativeRecharge = thresholdYuan;
+      } else if (realmIndex === 0 && subLevel === 1) {
         thresholdYuan = 0;
       } else {
         cumulativeRecharge += increment;
