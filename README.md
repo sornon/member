@@ -83,9 +83,9 @@ cd cloudfunctions/member && npm install && cd -
 
 ### 4. 上传与发布注意事项
 
-- 本仓库默认在根目录的 `project.config.json` 与 `miniprogram/project.config.json` 中为 `packOptions.ignore` 添加了 `assets/character/**`（在根目录配置中路径为 `miniprogram/assets/character/**`）的忽略规则，用于阻止体积较大的角色素材在使用微信开发者工具上传/提审时被打包。
-- 同步忽略 `assets/background/**`（根目录配置中路径为 `miniprogram/assets/background/**`），默认背景使用页面样式内置的底色渐变，无需在包体中额外保留本地图片；若需上传新的背景素材，可在 `packOptions.include` 中显式添加路径。
-- 如需上传角色素材，请移除上述忽略规则；若角色素材目录结构发生变化，请同步调整两个配置文件中的 glob 路径，以免资源误上传或遗漏。
+- 本仓库默认在根目录的 `project.config.json` 与 `miniprogram/project.config.json` 中使用 `packOptions.ignore` 的 `folder` 规则忽略 `assets/character/`（在根目录配置中路径为 `miniprogram/assets/character/`），用于阻止体积较大的角色素材在使用微信开发者工具上传/提审时被打包。
+- 同步忽略 `assets/background/`（根目录配置中路径为 `miniprogram/assets/background/`），并通过 `packOptions.include` 显式保留默认背景 `assets/background/1.jpg`（根目录配置中路径为 `miniprogram/assets/background/1.jpg`）。如需上传新的背景素材，可在 `packOptions.include` 中继续添加文件路径。
+- 如需上传角色素材，请移除上述忽略规则；若角色素材目录结构发生变化，请同步调整两个配置文件中的目录路径，以免资源误上传或遗漏。
 
 ## 监控与错误日志
 

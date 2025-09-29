@@ -36,15 +36,20 @@
   "packOptions": {
     "ignore": [
       {
-        "type": "glob",
-        "value": "miniprogram/assets/character/**"
+        "type": "folder",
+        "value": "miniprogram/assets/character"
       },
       {
-        "type": "glob",
-        "value": "miniprogram/assets/background/**"
+        "type": "folder",
+        "value": "miniprogram/assets/background"
       }
     ],
-    "include": []
+    "include": [
+      {
+        "type": "file",
+        "value": "miniprogram/assets/background/1.jpg"
+      }
+    ]
   },
   "miniprogramRoot": "miniprogram/",
   "condition": {},
