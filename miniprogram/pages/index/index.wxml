@@ -1,5 +1,25 @@
 <view class="home-page">
-  <image class="background" src="{{backgroundImage}}" mode="aspectFill"></image>
+  <view wx:if="{{backgroundVideoError}}" class="background background--fallback"></view>
+  <video
+    wx:else
+    id="background-video"
+    class="background"
+    src="{{backgroundVideo}}"
+    autoplay="{{true}}"
+    loop="{{true}}"
+    muted="{{true}}"
+    controls="{{false}}"
+    show-play-btn="false"
+    show-center-play-btn="false"
+    show-fullscreen-btn="false"
+    enable-progress-gesture="{{false}}"
+    object-fit="cover"
+    bindloadedmetadata="handleBackgroundVideoReady"
+    bindplay="handleBackgroundVideoPlay"
+    bindpause="handleBackgroundVideoPause"
+    bindended="handleBackgroundVideoEnded"
+    binderror="handleBackgroundVideoError"
+  ></video>
   <view class="mist-layer mist-layer--one"></view>
   <view class="mist-layer mist-layer--two"></view>
 
