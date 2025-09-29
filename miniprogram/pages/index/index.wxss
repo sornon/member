@@ -433,19 +433,19 @@ page {
   justify-content: center;
   align-items: center;
   gap: 40rpx;
-  height: 64rpx;
+  height: 44rpx;
 }
 
 .appearance-tab {
-  color: #ffffff;
+  color: #ffffff4b;
   font-size: 28rpx;
   letter-spacing: 2rpx;
   transition: color 0.2s ease, font-size 0.2s ease;
 }
 
 .appearance-tab--active {
-  font-size: 34rpx;
-  font-weight: 700;
+  font-size: 28rpx;
+  color: #ffffff;
 }
 
 .modal-title {
