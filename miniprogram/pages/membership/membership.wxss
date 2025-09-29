@@ -198,6 +198,49 @@
   margin-top: 12rpx;
 }
 
+.level-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16rpx;
+}
+
+.toggle-past {
+  font-size: 24rpx;
+  color: #8ea0ff;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid rgba(142, 160, 255, 0.6);
+  background: rgba(14, 22, 58, 0.6);
+}
+
+.toggle-past:active {
+  opacity: 0.7;
+}
+
+.level-actions-row {
+  margin-top: 20rpx;
+  display: flex;
+  gap: 16rpx;
+  flex-wrap: wrap;
+}
+
+.claim-button {
+  background: linear-gradient(90deg, #6f7bff, #9b6fff);
+  color: #ffffff;
+  border: none;
+  border-radius: 999rpx;
+  padding: 0 32rpx;
+}
+
+.claim-button::after {
+  border: none;
+}
+
+.claim-button.claim-button--disabled {
+  background: rgba(110, 122, 180, 0.4);
+  color: rgba(230, 236, 255, 0.6);
+}
+
 .level-desc {
   font-size: 24rpx;
   color: rgba(207, 216, 255, 0.75);

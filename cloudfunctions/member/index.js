@@ -32,6 +32,8 @@ exports.main = async (event, context) => {
       return getProgress(OPENID);
     case 'rights':
       return getRights(OPENID);
+    case 'claimLevelReward':
+      return claimLevelReward(OPENID, event.levelId);
     case 'completeProfile':
       return completeProfile(OPENID, event);
     case 'updateArchive':
@@ -68,6 +70,7 @@ async function initMember(openid, profile) {
     stoneBalance: 0,
     roles: ['member'],
     avatarUnlocks: [],
+    claimedLevelRewards: [],
     createdAt: now,
     updatedAt: now,
     avatarConfig: {},
@@ -122,6 +125,8 @@ async function getProgress(openid) {
   const nextLevel = getNextLevel(levels, currentLevel);
   const percentage = calculatePercentage(member.experience, currentLevel, nextLevel);
   const nextDiff = nextLevel ? Math.max(nextLevel.threshold - member.experience, 0) : 0;
+  const claimedLevelRewards = normalizeClaimedLevelRewards(member.claimedLevelRewards, levels);
+  const experience = Number(member.experience || 0);
   return {
     member: decorateMember(member, levels),
     levels: levels.map((lvl) => ({
@@ -142,8 +147,16 @@ async function getProgress(openid) {
       virtualRewards: lvl.virtualRewards || [],
       milestoneReward: lvl.milestoneReward || '',
       milestoneType: lvl.milestoneType || '',
-      rewards: (lvl.rewards || []).map((reward) => reward.description || reward.name || '')
+      rewards: (lvl.rewards || []).map((reward) => reward.description || reward.name || ''),
+      hasRewards: hasLevelRewards(lvl),
+      claimed: claimedLevelRewards.includes(lvl._id),
+      reached: experience >= (typeof lvl.threshold === 'number' ? lvl.threshold : 0),
+      claimable:
+        hasLevelRewards(lvl) &&
+        experience >= (typeof lvl.threshold === 'number' ? lvl.threshold : 0) &&
+        !claimedLevelRewards.includes(lvl._id)
     })),
+    claimedLevelRewards,
     percentage,
     nextDiff,
     currentLevel,
@@ -331,6 +344,17 @@ function calculatePercentage(exp, currentLevel, nextLevel) {
   return Math.min(100, Math.round(((exp - currentLevel.threshold) / delta) * 100));
 }
 
+function hasLevelRewards(level) {
+  if (!level) return false;
+  if (Array.isArray(level.rewards) && level.rewards.length) {
+    return true;
+  }
+  if (Array.isArray(level.virtualRewards) && level.virtualRewards.length) {
+    return true;
+  }
+  return !!level.milestoneReward;
+}
+
 async function grantLevelRewards(openid, level, levels) {
   const rewards = level.rewards || [];
   if (!rewards.length) return;
@@ -494,6 +518,16 @@ async function ensureArchiveDefaults(member) {
   }
   member.reservationBadges = badges;
 
+  const claimedLevelRewards = normalizeClaimedLevelRewards(member.claimedLevelRewards);
+  const originalClaims = Array.isArray(member.claimedLevelRewards) ? member.claimedLevelRewards : [];
+  const claimsChanged =
+    claimedLevelRewards.length !== originalClaims.length ||
+    claimedLevelRewards.some((value, index) => value !== originalClaims[index]);
+  if (claimsChanged) {
+    updates.claimedLevelRewards = claimedLevelRewards;
+  }
+  member.claimedLevelRewards = claimedLevelRewards;
+
   if (Object.keys(updates).length) {
     updates.updatedAt = new Date();
     await db
@@ -615,6 +649,54 @@ async function redeemRenameCard(openid, count = 1) {
   return getProfile(openid);
 }
 
+async function claimLevelReward(openid, levelId) {
+  if (typeof levelId !== 'string' || !levelId.trim()) {
+    throw createError('INVALID_LEVEL', '无效的等级');
+  }
+  const targetLevelId = levelId.trim();
+  const [levels, memberDoc] = await Promise.all([
+    loadLevels(),
+    db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null)
+  ]);
+  if (!memberDoc || !memberDoc.data) {
+    await initMember(openid, {});
+    return claimLevelReward(openid, targetLevelId);
+  }
+
+  const normalized = normalizeAssetFields(memberDoc.data);
+  const withDefaults = await ensureArchiveDefaults(normalized);
+  const member = await ensureLevelSync(withDefaults, levels);
+  const level = levels.find((lvl) => lvl && lvl._id === targetLevelId);
+  if (!level) {
+    throw createError('LEVEL_NOT_FOUND', '等级不存在');
+  }
+  if (!hasLevelRewards(level)) {
+    throw createError('LEVEL_REWARD_NOT_AVAILABLE', '该等级暂无奖励');
+  }
+
+  const claimedLevelRewards = normalizeClaimedLevelRewards(member.claimedLevelRewards, levels);
+  if (claimedLevelRewards.includes(targetLevelId)) {
+    throw createError('LEVEL_REWARD_ALREADY_CLAIMED', '奖励已领取');
+  }
+
+  const experience = Number(member.experience || 0);
+  if (experience < (typeof level.threshold === 'number' ? level.threshold : 0)) {
+    throw createError('LEVEL_REWARD_NOT_REACHED', '尚未达到该等级');
+  }
+
+  await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(openid)
+    .update({
+      data: {
+        claimedLevelRewards: _.addToSet(targetLevelId),
+        updatedAt: new Date()
+      }
+    });
+
+  return getProgress(openid);
+}
+
 function decorateMember(member, levels) {
   const level = levels.find((lvl) => lvl._id === member.levelId) || null;
   const roles = Array.isArray(member.roles) && member.roles.length ? member.roles : ['member'];
@@ -630,11 +712,13 @@ function decorateMember(member, levels) {
       .catch(() => {});
   }
   const reservationBadges = normalizeReservationBadges(member.reservationBadges);
+  const claimedLevelRewards = normalizeClaimedLevelRewards(member.claimedLevelRewards, levels);
   return {
     ...member,
     roles,
     level,
-    reservationBadges
+    reservationBadges,
+    claimedLevelRewards
   };
 }
 
@@ -690,6 +774,37 @@ function normalizeAvatarUnlocksList(unlocks) {
     result.push(trimmed);
   });
   return result;
+}
+
+function normalizeClaimedLevelRewards(claims, levels = []) {
+  const validIds = new Set();
+  if (Array.isArray(levels)) {
+    levels.forEach((level) => {
+      if (level && typeof level._id === 'string') {
+        validIds.add(level._id);
+      }
+    });
+  }
+  if (!Array.isArray(claims)) {
+    return [];
+  }
+  const seen = new Set();
+  const normalized = [];
+  claims.forEach((value) => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      return;
+    }
+    if (validIds.size && !validIds.has(trimmed)) {
+      return;
+    }
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  });
+  return normalized;
 }
 
 function extractAvatarIdFromUrl(url) {
