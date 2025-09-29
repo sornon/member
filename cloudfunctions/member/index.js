@@ -4,6 +4,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { listAvatarIds } = require('./avatar-catalog.js');
 const { normalizeAvatarFrameValue } = require('./avatar-frames.js');
+const { getEntranceSettings: fetchEntranceSettings } = require('../shared/entrance-settings.js');
 
 const db = cloud.database();
 const _ = db.command;
@@ -40,6 +41,8 @@ exports.main = async (event, context) => {
       return updateArchive(OPENID, event.updates || {});
     case 'redeemRenameCard':
       return redeemRenameCard(OPENID, event.count || 1);
+    case 'getEntranceSettings':
+      return fetchEntranceSettings(db);
     default:
       throw new Error(`Unknown action: ${action}`);
   }

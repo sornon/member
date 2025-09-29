@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "入口开关管理",
+  "usingComponents": {
+    "custom-nav": "/components/custom-nav/custom-nav"
+  }
+}

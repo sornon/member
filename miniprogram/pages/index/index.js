@@ -1,4 +1,4 @@
-import { MemberService, TaskService } from '../../services/api';
+import { MemberService, TaskService, SettingsService } from '../../services/api';
 import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../services/member-realtime';
 import { formatCurrency, formatExperience, formatStones } from '../../utils/format';
 import {
@@ -8,6 +8,13 @@ import {
   normalizeAvatarUnlocks,
   resolveAvatarById
 } from '../../utils/avatar-catalog';
+import {
+  createDefaultEntranceConfig,
+  normalizeEntranceConfig,
+  isEntranceEnabled,
+  ENTRANCE_GROUPS,
+  mergeEntranceConfig
+} from '../../shared/entrance-config';
 const { listAvatarFrameUrls, normalizeAvatarFrameValue } = require('../../shared/avatar-frames.js');
 
 const app = getApp();
@@ -17,18 +24,26 @@ const DEFAULT_BACKGROUND_INDEX = 1;
 const MAX_BACKGROUND_INDEX = 10;
 
 const BASE_NAV_ITEMS = [
-  { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
-  { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
-  { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' },
-  { icon: '🎁', label: '权益', url: '/pages/rights/rights' },
-  { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
-  { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
-  { icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
+  { key: 'role', icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
+  { key: 'equipment', icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
+  { key: 'skill', icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' },
+  { key: 'rights', icon: '🎁', label: '权益', url: '/pages/rights/rights' },
+  { key: 'reservation', icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
+  { key: 'wallet', icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
+  { key: 'avatar', icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
+];
+
+const BASE_ACTIVITY_ICONS = [
+  { key: 'pve', icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
+  { key: 'festival', icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
+  { key: 'arena', icon: '🔥', label: '比武' }
 ];
 
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
 
 const AVATAR_FRAME_OPTIONS = buildAvatarFrameOptionList();
+
+const DEFAULT_ENTRANCE_CONFIG = createDefaultEntranceConfig();
 
 function clampBackgroundIndex(value) {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
@@ -395,17 +410,21 @@ function deriveMemberStats(member) {
   };
 }
 
-function resolveNavItems(member) {
+function resolveNavItems(member, entranceConfig) {
+  const normalizedConfig = normalizeEntranceConfig(entranceConfig || {});
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
   const badges = normalizeReservationBadges(member && member.reservationBadges);
-  const navItems = BASE_NAV_ITEMS.map((item) => {
-    if (item.label === '预订') {
+  const navItems = BASE_NAV_ITEMS.filter((item) =>
+    isEntranceEnabled(normalizedConfig, ENTRANCE_GROUPS.BOTTOM_NAV, item.key)
+  ).map((item) => {
+    if (item.key === 'reservation') {
       return { ...item, showDot: shouldShowReservationDot(badges) };
     }
     return { ...item };
   });
   if (roles.some((role) => ADMIN_ALLOWED_ROLES.includes(role))) {
     navItems.push({
+      key: 'admin',
       icon: '🛡️',
       label: '管理员',
       url: '/pages/admin/index',
@@ -413,6 +432,26 @@ function resolveNavItems(member) {
     });
   }
   return navItems;
+}
+
+function resolveActivityIcons(entranceConfig) {
+  const normalizedConfig = normalizeEntranceConfig(entranceConfig || {});
+  return BASE_ACTIVITY_ICONS.filter((item) =>
+    isEntranceEnabled(normalizedConfig, ENTRANCE_GROUPS.ACTIVITY, item.key)
+  ).map((item) => ({ ...item }));
+}
+
+function resolveEntranceConfigValue(incomingConfig, currentConfig) {
+  if (incomingConfig && typeof incomingConfig === 'object') {
+    const payload = incomingConfig.config || incomingConfig;
+    if (payload && typeof payload === 'object') {
+      return mergeEntranceConfig(DEFAULT_ENTRANCE_CONFIG, payload);
+    }
+  }
+  if (currentConfig && typeof currentConfig === 'object') {
+    return mergeEntranceConfig(DEFAULT_ENTRANCE_CONFIG, currentConfig);
+  }
+  return createDefaultEntranceConfig();
 }
 
 Page({
@@ -440,12 +479,9 @@ Page({
     },
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
-    activityIcons: [
-      { icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
-      { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
-      { icon: '🔥', label: '比武' }
-    ],
-    navItems: [...BASE_NAV_ITEMS],
+    entranceConfig: createDefaultEntranceConfig(),
+    activityIcons: resolveActivityIcons(DEFAULT_ENTRANCE_CONFIG),
+    navItems: resolveNavItems(null, DEFAULT_ENTRANCE_CONFIG),
     memberStats: { ...EMPTY_MEMBER_STATS },
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
@@ -569,24 +605,29 @@ Page({
     if (showLoading) {
       this.setData({ loading: true });
     }
+    const entrancePromise = SettingsService.getEntranceSettings().catch(() => null);
     try {
-      const [member, progress, tasks] = await Promise.all([
+      const [member, progress, tasks, entranceSettings] = await Promise.all([
         MemberService.getMember(),
         MemberService.getLevelProgress(),
-        TaskService.list()
+        TaskService.list(),
+        entrancePromise
       ]);
       const sanitizedMember = buildSanitizedMember(member);
       const width = normalizePercentage(progress);
       const needsProfile = !sanitizedMember || !sanitizedMember.nickName || !sanitizedMember.mobile;
       const profileAuthorized = !!(sanitizedMember && sanitizedMember.nickName);
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
+      const entranceConfig = resolveEntranceConfigValue(entranceSettings, this.data.entranceConfig);
       this.setData({
         member: sanitizedMember,
         progress,
         tasks: tasks.slice(0, 3),
         loading: false,
         backgroundImage: resolveBackgroundImage(sanitizedMember),
-        navItems: resolveNavItems(sanitizedMember),
+        entranceConfig,
+        activityIcons: resolveActivityIcons(entranceConfig),
+        navItems: resolveNavItems(sanitizedMember, entranceConfig),
         memberStats: deriveMemberStats(sanitizedMember),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
@@ -615,12 +656,17 @@ Page({
       setActiveMember(sanitizedMember);
     } catch (err) {
       const width = normalizePercentage(this.data.progress);
+      const entranceSettings = await entrancePromise;
+      const entranceConfig = resolveEntranceConfigValue(entranceSettings, this.data.entranceConfig);
       this.setData({
         loading: false,
         memberStats: deriveMemberStats(this.data.member),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
-        backgroundImage: resolveBackgroundImage(this.data.member)
+        backgroundImage: resolveBackgroundImage(this.data.member),
+        entranceConfig,
+        activityIcons: resolveActivityIcons(entranceConfig),
+        navItems: resolveNavItems(this.data.member, entranceConfig)
       });
     }
     this.bootstrapRunning = false;
@@ -912,10 +958,12 @@ Page({
       return;
     }
     const renameHistory = formatHistoryList(member.renameHistory);
+    const entranceConfig = this.data.entranceConfig;
     this.setData({
       member: sanitizedMember,
       memberStats: deriveMemberStats(sanitizedMember),
-      navItems: resolveNavItems(sanitizedMember),
+      navItems: resolveNavItems(sanitizedMember, entranceConfig),
+      activityIcons: resolveActivityIcons(entranceConfig),
       backgroundImage: resolveBackgroundImage(sanitizedMember),
       'profileEditor.nickName': sanitizedMember.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),

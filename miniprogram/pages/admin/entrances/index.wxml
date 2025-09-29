@@ -1,0 +1,40 @@
+<custom-nav title="入口开关管理" theme="dark"></custom-nav>
+<view class="entrance-admin">
+  <view wx:if="{{loading}}" class="entrance-admin__loading">数据加载中...</view>
+  <block wx:else>
+    <view class="entrance-admin__meta" wx:if="{{lastUpdatedAt || lastUpdatedBy}}">
+      <view wx:if="{{lastUpdatedAt}}" class="entrance-admin__meta-text">最近更新：{{lastUpdatedAt}}</view>
+      <view wx:if="{{lastUpdatedBy}}" class="entrance-admin__meta-text">操作人：{{lastUpdatedBy}}</view>
+    </view>
+    <block wx:for="{{groups}}" wx:for-item="group" wx:key="key">
+      <view class="entrance-section">
+        <view class="entrance-section__title">{{group.title}}</view>
+        <view class="entrance-section__list">
+          <view class="entrance-toggle" wx:for="{{group.items}}" wx:for-item="item" wx:key="key">
+            <view class="entrance-toggle__info">
+              <view class="entrance-toggle__label">{{item.label}}</view>
+              <view class="entrance-toggle__desc">{{item.description}}</view>
+            </view>
+            <switch
+              class="entrance-toggle__switch"
+              checked="{{item.enabled}}"
+              data-group="{{group.key}}"
+              data-key="{{item.key}}"
+              bindchange="handleToggleChange"
+            ></switch>
+          </view>
+        </view>
+      </view>
+    </block>
+    <view wx:if="{{dirty}}" class="entrance-admin__hint">有未保存的更改</view>
+    <view class="entrance-admin__actions">
+      <button
+        class="entrance-admin__save"
+        type="primary"
+        loading="{{saving}}"
+        disabled="{{saving || !dirty}}"
+        bindtap="handleSave"
+      >保存配置</button>
+    </view>
+  </block>
+</view>

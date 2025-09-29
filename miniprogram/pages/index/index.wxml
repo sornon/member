@@ -39,7 +39,7 @@
       </view>
 
       <view class="activity-panel">
-        <view class="activity-item" wx:for="{{activityIcons}}" wx:key="label" data-url="{{item.url}}" data-label="{{item.label}}" bindtap="handleActivityTap">
+        <view class="activity-item" wx:for="{{activityIcons}}" wx:key="key" data-url="{{item.url}}" data-label="{{item.label}}" bindtap="handleActivityTap">
           <view class="activity-icon">{{item.icon}}</view>
           <view class="activity-label">{{item.label}}</view>
         </view>
@@ -67,7 +67,7 @@
     </view>
 
     <view class="bottom-nav">
-      <view class="nav-item" wx:for="{{navItems}}" wx:key="label" data-url="{{item.url}}" bindtap="handleNavTap">
+      <view class="nav-item" wx:for="{{navItems}}" wx:key="key" data-url="{{item.url}}" bindtap="handleNavTap">
         <view class="nav-icon-wrapper">
           <text class="nav-icon">{{item.icon}}</text>
           <view wx:if="{{item.showDot}}" class="nav-item__dot"></view>

@@ -184,6 +184,12 @@ export const MemberService = {
   }
 };
 
+export const SettingsService = {
+  async getEntranceSettings() {
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'getEntranceSettings' });
+  }
+};
+
 export const TaskService = {
   async list() {
     return callCloud(CLOUD_FUNCTIONS.TASKS, { action: 'list' });
@@ -392,6 +398,17 @@ export const AdminService = {
   async markReservationRead() {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'markReservationRead'
+    });
+  },
+  async getEntranceSettings() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'getEntranceSettings'
+    });
+  },
+  async updateEntranceSettings(config) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'updateEntranceSettings',
+      config
     });
   }
 };

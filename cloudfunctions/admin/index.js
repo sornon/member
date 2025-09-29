@@ -3,6 +3,10 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { listAvatarIds } = require('./avatar-catalog.js');
+const {
+  getEntranceSettings: fetchEntranceSettings,
+  updateEntranceSettings: persistEntranceSettings
+} = require('../shared/entrance-settings.js');
 
 const db = cloud.database();
 const _ = db.command;
@@ -36,7 +40,9 @@ const ACTIONS = {
   APPROVE_RESERVATION: 'approveReservation',
   REJECT_RESERVATION: 'rejectReservation',
   CANCEL_RESERVATION: 'cancelReservation',
-  MARK_RESERVATION_READ: 'markReservationRead'
+  MARK_RESERVATION_READ: 'markReservationRead',
+  GET_ENTRANCE_SETTINGS: 'getEntranceSettings',
+  UPDATE_ENTRANCE_SETTINGS: 'updateEntranceSettings'
 };
 
 const ACTION_ALIASES = {
@@ -53,7 +59,9 @@ const ACTION_ALIASES = {
   approvereservation: ACTIONS.APPROVE_RESERVATION,
   rejectreservation: ACTIONS.REJECT_RESERVATION,
   cancelreservation: ACTIONS.CANCEL_RESERVATION,
-  markreservationread: ACTIONS.MARK_RESERVATION_READ
+  markreservationread: ACTIONS.MARK_RESERVATION_READ,
+  getentrancesettings: ACTIONS.GET_ENTRANCE_SETTINGS,
+  updateentrancesettings: ACTIONS.UPDATE_ENTRANCE_SETTINGS
 };
 
 function normalizeAction(action) {
@@ -92,7 +100,10 @@ const ACTION_HANDLERS = {
   [ACTIONS.APPROVE_RESERVATION]: (openid, event) => approveReservation(openid, event.reservationId),
   [ACTIONS.REJECT_RESERVATION]: (openid, event) => rejectReservation(openid, event.reservationId, event.reason || ''),
   [ACTIONS.CANCEL_RESERVATION]: (openid, event) => cancelReservation(openid, event.reservationId, event.reason || ''),
-  [ACTIONS.MARK_RESERVATION_READ]: (openid) => markReservationRead(openid)
+  [ACTIONS.MARK_RESERVATION_READ]: (openid) => markReservationRead(openid),
+  [ACTIONS.GET_ENTRANCE_SETTINGS]: (openid) => getEntranceSettings(openid),
+  [ACTIONS.UPDATE_ENTRANCE_SETTINGS]: (openid, event) =>
+    updateEntranceSettings(openid, event.config || event.settings || {})
 };
 
 exports.main = async (event = {}) => {
@@ -128,6 +139,23 @@ async function ensureAdmin(openid) {
     throw new Error('无权访问管理员功能');
   }
   return member;
+}
+
+async function getEntranceSettings(openid) {
+  await ensureAdmin(openid);
+  return fetchEntranceSettings(db);
+}
+
+async function updateEntranceSettings(openid, config) {
+  const adminMember = await ensureAdmin(openid);
+  return persistEntranceSettings(db, config, {
+    updatedBy: openid,
+    updatedByMember: {
+      _id: adminMember._id,
+      nickName: adminMember.nickName || '',
+      roles: adminMember.roles || []
+    }
+  });
 }
 
 async function listMembers(openid, keyword, page, pageSize) {
