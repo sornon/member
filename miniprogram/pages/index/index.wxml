@@ -8,12 +8,19 @@
   <view class="content" wx:if="{{!loading}}" style="min-height: calc(100vh - {{navHeight}}px);">
     <view class="top-bar">
       <view class="profile-card">
-        <image
-          class="profile-avatar"
-          src="{{(member && member.avatarUrl) ? member.avatarUrl : defaultAvatar}}"
-          mode="cover"
-          bindtap="handleAvatarTap"
-        ></image>
+        <view class="profile-avatar-wrapper" bindtap="handleAvatarTap">
+          <image
+            class="profile-avatar"
+            src="{{(member && member.avatarUrl) ? member.avatarUrl : defaultAvatar}}"
+            mode="cover"
+          ></image>
+          <image
+            wx:if="{{member && member.avatarFrame}}"
+            class="profile-avatar-frame"
+            src="{{member.avatarFrame}}"
+            mode="scaleToFill"
+          ></image>
+        </view>
         <view class="profile-info">
           <view class="profile-name" bindtap="handleProfileTap">{{member ? (member.nickName || '无名仙友') : '无名仙友'}}</view>
           <view class="profile-meta">
@@ -188,6 +195,36 @@
               bindtap="handleAvatarPickerSelect"
             >
               <image class="avatar-option__image" src="{{item.url}}" mode="aspectFill"></image>
+            </view>
+          </view>
+          <view class="avatar-frame-section">
+            <view class="archive-section__header">
+              <view class="archive-section__title">可选相框</view>
+            </view>
+            <view class="avatar-frame-grid">
+              <view
+                class="avatar-frame-option {{avatarPicker.avatarFrame === item.url ? 'avatar-frame-option--active' : ''}}"
+                wx:for="{{avatarPicker.frameOptions}}"
+                wx:key="id"
+                data-url="{{item.url}}"
+                bindtap="handleAvatarFrameSelect"
+              >
+                <view class="avatar-frame-option__preview">
+                  <image
+                    class="avatar-frame-option__avatar"
+                    src="{{avatarPicker.avatarUrl || defaultAvatar}}"
+                    mode="cover"
+                  ></image>
+                  <image
+                    wx:if="{{item.url}}"
+                    class="avatar-frame-option__frame"
+                    src="{{item.url}}"
+                    mode="scaleToFill"
+                  ></image>
+                  <view wx:if="{{!item.url}}" class="avatar-frame-option__placeholder">无相框</view>
+                </view>
+                <view class="avatar-frame-option__label">{{item.name}}</view>
+              </view>
             </view>
           </view>
           <button class="archive-action" size="mini" bindtap="handleAvatarPickerSyncWechat">同步微信头像</button>
