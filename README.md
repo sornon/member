@@ -81,6 +81,11 @@ cd cloudfunctions/member && npm install && cd -
 2. 若有专属 CDN 或自建 API，可在 `miniprogram/services/config.js` 中调整服务端地址或云函数名称。
 3. 使用开发者工具的“预览”或“真机调试”功能即可运行体验。
 
+### 4. 上传与发布注意事项
+
+- 本仓库默认在根目录的 `project.config.json` 与 `miniprogram/project.config.json` 中为 `packOptions.ignore` 添加了 `assets/character/**`（在根目录配置中路径为 `miniprogram/assets/character/**`）的忽略规则，用于阻止体积较大的角色素材在使用微信开发者工具上传/提审时被打包。
+- 如需上传角色素材，请移除上述忽略规则；若角色素材目录结构发生变化，请同步调整两个配置文件中的 glob 路径，以免资源误上传或遗漏。
+
 ## 监控与错误日志
 
 - 小程序在调用云函数出现异常时会自动写入 `errorlogs` 集合，记录接口名称、会员 ID、时间以及完整的错误信息，便于排查线上问题。
