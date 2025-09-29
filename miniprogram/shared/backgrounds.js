@@ -1,4 +1,7 @@
-const { BACKGROUND_IMAGE_BASE_PATH } = require('./asset-paths.js');
+const {
+  BACKGROUND_IMAGE_BASE_PATH,
+  LOCAL_BACKGROUND_IMAGE_BASE_PATH
+} = require('./asset-paths.js');
 
 const RAW_BACKGROUNDS = [
   { id: 'realm_refining', realmOrder: 1, realmName: '炼气期', name: '炼气之地' },
@@ -24,9 +27,17 @@ function resolveImageIndex(realmOrder) {
   return ((normalizedOrder - 1) % availableCount) + 1;
 }
 
+function resolveBackgroundImageUrl(realmOrder) {
+  const imageIndex = `${resolveImageIndex(realmOrder)}`;
+  if (imageIndex === '1') {
+    return `${LOCAL_BACKGROUND_IMAGE_BASE_PATH}/${imageIndex}.jpg`;
+  }
+  return `${BACKGROUND_IMAGE_BASE_PATH}/${imageIndex}.jpg`;
+}
+
 const BACKGROUNDS = RAW_BACKGROUNDS.map((item) => ({
   ...item,
-  image: `${BACKGROUND_IMAGE_BASE_PATH}/${resolveImageIndex(item.realmOrder)}.jpg`
+  image: resolveBackgroundImageUrl(item.realmOrder)
 }));
 
 function cloneBackground(background) {

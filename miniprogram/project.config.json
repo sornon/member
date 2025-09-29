@@ -26,8 +26,22 @@
   "compileType": "miniprogram",
   "simulatorPluginLibVersion": {},
   "packOptions": {
-    "ignore": [],
-    "include": []
+    "ignore": [
+      {
+        "type": "glob",
+        "value": "assets/character/**"
+      },
+      {
+        "type": "glob",
+        "value": "assets/background/**"
+      }
+    ],
+    "include": [
+      {
+        "type": "file",
+        "value": "assets/background/1.jpg"
+      }
+    ]
   },
   "appid": "wxada3146653042265",
   "editorSetting": {},
