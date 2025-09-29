@@ -2,7 +2,7 @@
   <view class="background background--fallback">
     <image
       class="background-fallback__image"
-      src="../../assets/background/1.jpg"
+      src="{{backgroundImage}}"
       mode="aspectFill"
     ></image>
     <view class="background-fallback__overlay"></view>
