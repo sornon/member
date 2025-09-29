@@ -12,12 +12,190 @@ const COLLECTIONS = {
   MEMBERS: 'members',
   LEVELS: 'membershipLevels',
   RIGHTS_MASTER: 'membershipRights',
-  MEMBER_RIGHTS: 'memberRights'
+  MEMBER_RIGHTS: 'memberRights',
+  MEMBER_EXTRAS: 'memberExtras',
+  MEMBER_TIMELINE: 'memberTimeline'
 };
 
 const GENDER_OPTIONS = ['unknown', 'male', 'female'];
 const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
 const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
+
+async function resolveMemberExtras(memberId) {
+  if (!memberId) {
+    return { avatarUnlocks: [], claimedLevelRewards: [] };
+  }
+  const collection = db.collection(COLLECTIONS.MEMBER_EXTRAS);
+  const snapshot = await collection
+    .doc(memberId)
+    .get()
+    .catch(() => null);
+  if (snapshot && snapshot.data) {
+    const extras = snapshot.data;
+    if (!Array.isArray(extras.avatarUnlocks)) {
+      extras.avatarUnlocks = [];
+    }
+    if (!Array.isArray(extras.claimedLevelRewards)) {
+      extras.claimedLevelRewards = [];
+    }
+    return extras;
+  }
+  const now = new Date();
+  const data = {
+    avatarUnlocks: [],
+    claimedLevelRewards: [],
+    createdAt: now,
+    updatedAt: now
+  };
+  await collection
+    .doc(memberId)
+    .set({ data })
+    .catch(() => {});
+  return data;
+}
+
+async function updateMemberExtras(memberId, updates = {}) {
+  if (!memberId || !updates || !Object.keys(updates).length) {
+    return;
+  }
+  const collection = db.collection(COLLECTIONS.MEMBER_EXTRAS);
+  const payload = { ...updates, updatedAt: new Date() };
+  await collection
+    .doc(memberId)
+    .update({ data: payload })
+    .catch(async (error) => {
+      if (error && /not exist/i.test(error.errMsg || '')) {
+        await collection
+          .doc(memberId)
+          .set({ data: { ...payload, createdAt: new Date() } })
+          .catch(() => {});
+      }
+    });
+}
+
+function arraysEqual(a, b) {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b)) {
+    return false;
+  }
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function buildRenameTraceId(entry) {
+  if (!entry) {
+    return '';
+  }
+  const previous = typeof entry.previous === 'string' ? entry.previous.trim() : '';
+  const current = typeof entry.current === 'string' ? entry.current.trim() : '';
+  const changedAt = entry.changedAt ? new Date(entry.changedAt) : new Date();
+  const timestamp = Number.isNaN(changedAt.getTime()) ? Date.now() : changedAt.getTime();
+  return `${previous}|${current}|${timestamp}`;
+}
+
+function normalizeRenameLogEntry(entry, { source = 'manual' } = {}) {
+  if (!entry) {
+    return null;
+  }
+  const previous = typeof entry.previous === 'string' ? entry.previous.trim() : '';
+  const current = typeof entry.current === 'string' ? entry.current.trim() : '';
+  const rawChangedAt = entry.changedAt ? new Date(entry.changedAt) : new Date();
+  const changedAt = Number.isNaN(rawChangedAt.getTime()) ? new Date() : rawChangedAt;
+  const safeSource = typeof entry.source === 'string' && entry.source.trim() ? entry.source.trim() : source;
+  if (!current && !previous) {
+    return null;
+  }
+  return {
+    previous,
+    current,
+    changedAt,
+    source: safeSource,
+    traceId: buildRenameTraceId({ previous, current, changedAt })
+  };
+}
+
+async function appendRenameTimeline(memberId, entry, options = {}) {
+  const normalized = normalizeRenameLogEntry(entry, options);
+  if (!memberId || !normalized) {
+    return;
+  }
+  const collection = db.collection(COLLECTIONS.MEMBER_TIMELINE);
+  if (!options.skipDuplicateCheck) {
+    const exists = await collection
+      .where({ memberId, type: 'rename', traceId: normalized.traceId })
+      .limit(1)
+      .get()
+      .catch(() => ({ data: [] }));
+    if (exists.data && exists.data.length) {
+      return;
+    }
+  }
+  await collection.add({
+    data: {
+      memberId,
+      type: 'rename',
+      traceId: normalized.traceId,
+      previous: normalized.previous,
+      current: normalized.current,
+      source: normalized.source,
+      changedAt: normalized.changedAt,
+      createdAt: new Date()
+    }
+  });
+}
+
+async function loadRenameTimeline(memberId, limit = 20) {
+  if (!memberId) {
+    return [];
+  }
+  const collection = db.collection(COLLECTIONS.MEMBER_TIMELINE);
+  const snapshot = await collection
+    .where({ memberId, type: 'rename' })
+    .orderBy('changedAt', 'desc')
+    .orderBy('createdAt', 'desc')
+    .limit(Math.max(1, Math.min(limit, 50)))
+    .get()
+    .catch(() => ({ data: [] }));
+  return (snapshot.data || []).map((item) => ({
+    previous: item.previous || '',
+    current: item.current || '',
+    changedAt: item.changedAt || item.createdAt || new Date(),
+    source: item.source || 'manual'
+  }));
+}
+
+async function migrateRenameHistoryField(member) {
+  if (!member || !member._id) {
+    return;
+  }
+  if (!Array.isArray(member.renameHistory) || !member.renameHistory.length) {
+    return;
+  }
+  const tasks = member.renameHistory
+    .slice(-50)
+    .map((entry) => appendRenameTimeline(member._id, entry));
+  if (tasks.length) {
+    await Promise.all(tasks);
+  }
+  await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(member._id)
+    .update({
+      data: {
+        renameHistory: _.remove(),
+        updatedAt: new Date()
+      }
+    })
+    .catch(() => {});
+  member.renameHistory = [];
+}
 
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext();
@@ -69,15 +247,12 @@ async function initMember(openid, profile) {
     totalSpend: 0,
     stoneBalance: 0,
     roles: ['member'],
-    avatarUnlocks: [],
-    claimedLevelRewards: [],
     createdAt: now,
     updatedAt: now,
     avatarConfig: {},
     renameCredits: 1,
     renameUsed: 0,
     renameCards: 0,
-    renameHistory: [],
     roomUsageCount: 0,
     reservationBadges: {
       memberVersion: 0,
@@ -88,6 +263,18 @@ async function initMember(openid, profile) {
     }
   };
   await membersCollection.add({ data: doc });
+  await db
+    .collection(COLLECTIONS.MEMBER_EXTRAS)
+    .doc(openid)
+    .set({
+      data: {
+        avatarUnlocks: [],
+        claimedLevelRewards: [],
+        createdAt: now,
+        updatedAt: now
+      }
+    })
+    .catch(() => {});
   if (defaultLevel) {
     await grantLevelRewards(openid, defaultLevel, []);
   }
@@ -104,7 +291,7 @@ async function getProfile(openid) {
     return getProfile(openid);
   }
   const normalized = normalizeAssetFields(memberDoc.data);
-  const withDefaults = await ensureArchiveDefaults(normalized);
+  const { member: withDefaults } = await ensureArchiveDefaults(normalized);
   const synced = await ensureLevelSync(withDefaults, levels);
   return decorateMember(synced, levels);
 }
@@ -119,7 +306,7 @@ async function getProgress(openid) {
     return getProgress(openid);
   }
   const normalized = normalizeAssetFields(memberDoc.data);
-  const withDefaults = await ensureArchiveDefaults(normalized);
+  const { member: withDefaults } = await ensureArchiveDefaults(normalized);
   const member = await ensureLevelSync(withDefaults, levels);
   const currentLevel = levels.find((lvl) => lvl._id === member.levelId) || levels[0];
   const nextLevel = getNextLevel(levels, currentLevel);
@@ -438,9 +625,13 @@ function normalizeGender(value) {
 
 async function ensureArchiveDefaults(member) {
   if (!member || !member._id) {
-    return member;
+    return { member, extras: await resolveMemberExtras(member ? member._id : ''), renameHistory: [] };
   }
+  await migrateRenameHistoryField(member);
   const updates = {};
+  const extrasUpdates = {};
+  const memberId = member._id;
+
   if (!GENDER_OPTIONS.includes(member.gender)) {
     member.gender = 'unknown';
     updates.gender = 'unknown';
@@ -449,10 +640,8 @@ async function ensureArchiveDefaults(member) {
   const renameUsed = Number.isFinite(member.renameUsed) ? Math.max(0, Math.floor(member.renameUsed)) : 0;
   if (!Object.is(renameUsed, member.renameUsed)) {
     updates.renameUsed = renameUsed;
-    member.renameUsed = renameUsed;
-  } else {
-    member.renameUsed = renameUsed;
   }
+  member.renameUsed = renameUsed;
 
   const hasRenameCredits = Object.prototype.hasOwnProperty.call(member, 'renameCredits');
   const rawRenameCredits = hasRenameCredits ? member.renameCredits : Math.max(0, 1 - renameUsed);
@@ -462,53 +651,27 @@ async function ensureArchiveDefaults(member) {
     : Math.max(0, 1 - renameUsed);
   if (!Object.is(renameCredits, member.renameCredits)) {
     updates.renameCredits = renameCredits;
-    member.renameCredits = renameCredits;
-  } else {
-    member.renameCredits = renameCredits;
   }
+  member.renameCredits = renameCredits;
 
   const renameCards = Number.isFinite(member.renameCards) ? Math.max(0, Math.floor(member.renameCards)) : 0;
   if (!Object.is(renameCards, member.renameCards)) {
     updates.renameCards = renameCards;
-    member.renameCards = renameCards;
-  } else {
-    member.renameCards = renameCards;
   }
-
-  if (!Array.isArray(member.renameHistory)) {
-    member.renameHistory = [];
-    updates.renameHistory = [];
-  } else if (member.renameHistory.length > 20) {
-    member.renameHistory = member.renameHistory.slice(-20);
-    updates.renameHistory = member.renameHistory;
-  }
-
-  const avatarUnlocks = normalizeAvatarUnlocksList(member.avatarUnlocks);
-  const originalUnlocks = Array.isArray(member.avatarUnlocks) ? member.avatarUnlocks : [];
-  const unlocksChanged =
-    avatarUnlocks.length !== originalUnlocks.length ||
-    avatarUnlocks.some((value, index) => value !== originalUnlocks[index]);
-  if (unlocksChanged) {
-    updates.avatarUnlocks = avatarUnlocks;
-  }
-  member.avatarUnlocks = avatarUnlocks;
+  member.renameCards = renameCards;
 
   const avatarFrame = normalizeAvatarFrameValue(member.avatarFrame || '');
   if (!Object.is(avatarFrame, member.avatarFrame || '')) {
     updates.avatarFrame = avatarFrame;
-    member.avatarFrame = avatarFrame;
-  } else {
-    member.avatarFrame = avatarFrame;
   }
+  member.avatarFrame = avatarFrame;
 
   const usageCountRaw = Number(member.roomUsageCount);
   const usageCount = Number.isFinite(usageCountRaw) ? Math.max(0, Math.floor(usageCountRaw)) : 0;
   if (!Object.is(usageCount, member.roomUsageCount)) {
     updates.roomUsageCount = usageCount;
-    member.roomUsageCount = usageCount;
-  } else {
-    member.roomUsageCount = usageCount;
   }
+  member.roomUsageCount = usageCount;
 
   const badges = normalizeReservationBadges(member.reservationBadges);
   const originalBadges = member.reservationBadges || {};
@@ -518,28 +681,53 @@ async function ensureArchiveDefaults(member) {
   }
   member.reservationBadges = badges;
 
-  const claimedLevelRewards = normalizeClaimedLevelRewards(member.claimedLevelRewards);
-  const originalClaims = Array.isArray(member.claimedLevelRewards) ? member.claimedLevelRewards : [];
-  const claimsChanged =
-    claimedLevelRewards.length !== originalClaims.length ||
-    claimedLevelRewards.some((value, index) => value !== originalClaims[index]);
-  if (claimsChanged) {
-    updates.claimedLevelRewards = claimedLevelRewards;
+  const extras = await resolveMemberExtras(memberId);
+
+  const hadAvatarUnlocksField = Object.prototype.hasOwnProperty.call(member, 'avatarUnlocks');
+  const hadClaimsField = Object.prototype.hasOwnProperty.call(member, 'claimedLevelRewards');
+  const memberUnlocks = normalizeAvatarUnlocksList(member.avatarUnlocks);
+  const extrasUnlocks = normalizeAvatarUnlocksList(extras.avatarUnlocks);
+  const mergedUnlocks = Array.from(new Set([...extrasUnlocks, ...memberUnlocks]));
+  if (!arraysEqual(extrasUnlocks, mergedUnlocks)) {
+    extrasUpdates.avatarUnlocks = mergedUnlocks;
+    extras.avatarUnlocks = mergedUnlocks;
   }
-  member.claimedLevelRewards = claimedLevelRewards;
+  if (hadAvatarUnlocksField) {
+    updates.avatarUnlocks = _.remove();
+  }
+  member.avatarUnlocks = mergedUnlocks;
+
+  const memberClaims = normalizeClaimedLevelRewards(member.claimedLevelRewards);
+  const extrasClaims = normalizeClaimedLevelRewards(extras.claimedLevelRewards);
+  const mergedClaims = normalizeClaimedLevelRewards([...extrasClaims, ...memberClaims]);
+  if (!arraysEqual(extrasClaims, mergedClaims)) {
+    extrasUpdates.claimedLevelRewards = mergedClaims;
+    extras.claimedLevelRewards = mergedClaims;
+  }
+  if (hadClaimsField) {
+    updates.claimedLevelRewards = _.remove();
+  }
+  member.claimedLevelRewards = mergedClaims;
+
+  const renameHistory = await loadRenameTimeline(memberId, 20);
+  member.renameHistory = renameHistory;
 
   if (Object.keys(updates).length) {
     updates.updatedAt = new Date();
     await db
       .collection(COLLECTIONS.MEMBERS)
-      .doc(member._id)
+      .doc(memberId)
       .update({
         data: updates
       })
       .catch(() => {});
   }
 
-  return member;
+  if (Object.keys(extrasUpdates).length) {
+    await updateMemberExtras(memberId, extrasUpdates);
+  }
+
+  return { member, extras, renameHistory };
 }
 
 async function updateArchive(openid, updates = {}) {
@@ -551,7 +739,8 @@ async function updateArchive(openid, updates = {}) {
   }
 
   const normalized = normalizeAssetFields(existing.data);
-  const member = await ensureArchiveDefaults(normalized);
+  const { member: memberWithDefaults } = await ensureArchiveDefaults(normalized);
+  const member = memberWithDefaults;
   const now = new Date();
   const patch = {};
   let renamed = false;
@@ -564,17 +753,12 @@ async function updateArchive(openid, updates = {}) {
       }
       patch.nickName = nickName;
       renamed = true;
-      const history = Array.isArray(member.renameHistory) ? [...member.renameHistory] : [];
-      history.push({
+      await appendRenameTimeline(openid, {
         previous: member.nickName || '',
         current: nickName,
         changedAt: now,
         source: updates.source || 'manual'
       });
-      if (history.length > 20) {
-        history.splice(0, history.length - 20);
-      }
-      patch.renameHistory = history;
     }
   }
 
@@ -632,7 +816,8 @@ async function redeemRenameCard(openid, count = 1) {
   }
 
   const normalized = normalizeAssetFields(existing.data);
-  const member = await ensureArchiveDefaults(normalized);
+  const { member: memberWithDefaults } = await ensureArchiveDefaults(normalized);
+  const member = memberWithDefaults;
   const available = Math.max(0, Math.floor(member.renameCards || 0));
   if (available < quantity) {
     throw createError('RENAME_CARD_INSUFFICIENT', '改名卡数量不足');
@@ -664,7 +849,7 @@ async function claimLevelReward(openid, levelId) {
   }
 
   const normalized = normalizeAssetFields(memberDoc.data);
-  const withDefaults = await ensureArchiveDefaults(normalized);
+  const { member: withDefaults } = await ensureArchiveDefaults(normalized);
   const member = await ensureLevelSync(withDefaults, levels);
   const level = levels.find((lvl) => lvl && lvl._id === targetLevelId);
   if (!level) {
@@ -685,12 +870,28 @@ async function claimLevelReward(openid, levelId) {
   }
 
   await db
-    .collection(COLLECTIONS.MEMBERS)
+    .collection(COLLECTIONS.MEMBER_EXTRAS)
     .doc(openid)
     .update({
       data: {
         claimedLevelRewards: _.addToSet(targetLevelId),
         updatedAt: new Date()
+      }
+    })
+    .catch(async (error) => {
+      if (error && /not exist/i.test(error.errMsg || '')) {
+        await db
+          .collection(COLLECTIONS.MEMBER_EXTRAS)
+          .doc(openid)
+          .set({
+            data: {
+              claimedLevelRewards: [targetLevelId],
+              avatarUnlocks: [],
+              createdAt: new Date(),
+              updatedAt: new Date()
+            }
+          })
+          .catch(() => {});
       }
     });
 

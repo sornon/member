@@ -9,6 +9,7 @@ const MANUAL_REFRESH_INTERVAL = 15000;
 
 const listeners = new Set();
 let watcher = null;
+let extrasWatcher = null;
 let activeMemberId = '';
 let ensurePromise = null;
 let restartTimer = null;
@@ -128,6 +129,14 @@ function stopWatcher() {
     }
   }
   watcher = null;
+  if (extrasWatcher && typeof extrasWatcher.close === 'function') {
+    try {
+      extrasWatcher.close();
+    } catch (error) {
+      console.error('[member-realtime] close extras watcher failed', error);
+    }
+  }
+  extrasWatcher = null;
 }
 
 function disableWatcherTemporarily(error) {
@@ -192,10 +201,56 @@ function startWatcher() {
           scheduleRestart(error);
         }
       });
+    startExtrasWatcher(db);
   } catch (error) {
     restartAttempts += 1;
     console.error('[member-realtime] start watcher failed', error);
     stopWatcher();
+    scheduleRestart(error);
+  }
+}
+
+function startExtrasWatcher(db) {
+  if (!db || !activeMemberId || extrasWatcher) {
+    return;
+  }
+  try {
+    extrasWatcher = db
+      .collection('memberExtras')
+      .doc(activeMemberId)
+      .watch({
+        onChange(snapshot) {
+          restartAttempts = 0;
+          if (!snapshot) {
+            return;
+          }
+          notify({ type: 'memberExtrasChanged', snapshot });
+        },
+        onError(error) {
+          restartAttempts += 1;
+          console.error('[member-realtime] extras watch error', error);
+          if (extrasWatcher && typeof extrasWatcher.close === 'function') {
+            try {
+              extrasWatcher.close();
+            } catch (closeError) {
+              console.error('[member-realtime] close extras watcher failed', closeError);
+            }
+          }
+          extrasWatcher = null;
+          scheduleRestart(error);
+        }
+      });
+  } catch (error) {
+    restartAttempts += 1;
+    console.error('[member-realtime] start extras watcher failed', error);
+    if (extrasWatcher && typeof extrasWatcher.close === 'function') {
+      try {
+        extrasWatcher.close();
+      } catch (closeError) {
+        console.error('[member-realtime] close extras watcher failed', closeError);
+      }
+    }
+    extrasWatcher = null;
     scheduleRestart(error);
   }
 }

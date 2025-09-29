@@ -559,7 +559,7 @@ Page({
         }
         return;
       }
-      if (event.type !== 'memberChanged') {
+      if (event.type !== 'memberChanged' && event.type !== 'memberExtrasChanged') {
         return;
       }
       const { snapshot } = event;
