@@ -5,8 +5,24 @@
       src="{{backgroundImage}}"
       mode="aspectFill"
     ></image>
-    <view class="background-fallback__overlay"></view>
   </view>
+  <view class="background background--video">
+    <video
+      class="background-video"
+      src="cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/background/1.mp4"
+      autoplay
+      loop
+      muted
+      controls="{{false}}"
+      show-center-play-btn="{{false}}"
+      show-fullscreen-btn="{{false}}"
+      show-play-btn="{{false}}"
+      show-screen-lock-button="{{false}}"
+      enable-progress-gesture="{{false}}"
+      objectFit="cover"
+    ></video>
+  </view>
+  <view class="background background--overlay"></view>
   <view class="mist-layer mist-layer--one"></view>
   <view class="mist-layer mist-layer--two"></view>
 
