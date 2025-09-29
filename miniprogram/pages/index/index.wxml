@@ -24,7 +24,7 @@
       binderror="handleBackgroundVideoError"
     ></video>
   </view>
-  <view class="background background--overlay"></view>
+  <view wx:if="{{!dynamicBackgroundEnabled}}" class="background background--overlay"></view>
   <view class="mist-layer mist-layer--one"></view>
   <view class="mist-layer mist-layer--two"></view>
 
