@@ -82,3 +82,26 @@ Error: TencentCloud API error: {
 自 2024-05-10 起，首页会使用头像目录的统一清单（`shared/avatar-catalog.js`）动态生成角色图映射。只要为头像与角色图提供同名 PNG 资源（例如头像 `assets/avatar/male-b-1.png` 与角色图 `assets/character/male-b-1.png`），即可自动生效，无需再次修改前端页面代码。
 
 > 补充：新增头像时仍需按照既定流程更新头像清单（`shared/avatar-catalog.js`），以便头像选择器、解锁逻辑及角色图映射同时感知新资源。
+
+## 主包体积超过 1.5M 导致上传失败
+
+**现象**
+
+微信开发者工具在预览或上传时代码包体积检测失败，提示“主包大小超过 1.5M，无法上传”。
+
+**原因分析**
+
+项目的背景图与角色立绘（`assets/background/*`、`assets/character/*`）数量较多，随着新增资源累积会导致主包快速膨胀，超出微信小程序 1.5M 的主包限制。
+
+**解决方案**
+
+1. 将这两类静态资源上传到云开发的存储空间，保持目录结构不变，例如当前环境使用的：
+   - `cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/background/`
+   - `cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/character/`
+2. 在前端代码中统一改为引用云存储路径。仓库已新增 `miniprogram/shared/asset-paths.js`，用于集中维护云端基础路径，并被首页背景与角色图逻辑复用；代码会在运行时自动将 `cloud://` 文件 ID 转换为云开发的 CDN 域名（例如 `https://636c-cloud1-8gyoxq651fcc92c2-1380371219.tcb.qcloud.la/...`），确保体验版与正式版都能直接加载图片。
+3. 日后新增背景/角色素材时，只需：
+   - 将文件上传至对应云端目录；
+   - 确保文件名与本地约定一致（例如 `1.jpg`、`male-b-1.png`）；
+   - 无需重新打包图片到主包内，从而保持主包体积稳定在 1.5M 以下。
+
+> 若需要临时回退为本地资源，可在 `asset-paths.js` 中调整基础路径为本地 `assets` 目录，但请注意这会再次增加主包体积。

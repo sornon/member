@@ -1,4 +1,7 @@
-const BACKGROUND_IMAGE_BASE_PATH = '/assets/background';
+const {
+  BACKGROUND_IMAGE_BASE_PATH,
+  buildCloudAssetFileId
+} = require('./asset-paths.js');
 
 const RAW_BACKGROUNDS = [
   { id: 'realm_refining', realmOrder: 1, realmName: '炼气期', name: '炼气之地' },
@@ -24,10 +27,14 @@ function resolveImageIndex(realmOrder) {
   return ((normalizedOrder - 1) % availableCount) + 1;
 }
 
-const BACKGROUNDS = RAW_BACKGROUNDS.map((item) => ({
-  ...item,
-  image: `${BACKGROUND_IMAGE_BASE_PATH}/${resolveImageIndex(item.realmOrder)}.jpg`
-}));
+const BACKGROUNDS = RAW_BACKGROUNDS.map((item) => {
+  const fileName = `${resolveImageIndex(item.realmOrder)}.jpg`;
+  return {
+    ...item,
+    image: `${BACKGROUND_IMAGE_BASE_PATH}/${fileName}`,
+    imageFileId: buildCloudAssetFileId('background', fileName)
+  };
+});
 
 function cloneBackground(background) {
   return background ? { ...background } : null;

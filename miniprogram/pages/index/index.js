@@ -18,8 +18,7 @@ const {
   getDefaultBackgroundId,
   isBackgroundUnlocked
 } = require('../../shared/backgrounds.js');
-
-const CHARACTER_IMAGE_BASE_PATH = '../../assets/character';
+const { CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
 const { listAvatarIds: listAllAvatarIds } = require('../../shared/avatar-catalog.js');
 
 function buildCharacterImageMap() {
