@@ -191,11 +191,6 @@ button.pill-btn[disabled] {
   gap: 6rpx;
 }
 
-.level-count {
-  font-size: 22rpx;
-  color: rgba(174, 190, 255, 0.72);
-}
-
 .level-realm {
   font-size: 24rpx;
   color: rgba(196, 206, 255, 0.8);
