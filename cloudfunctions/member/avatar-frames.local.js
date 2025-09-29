@@ -1,7 +1,12 @@
-const AVATAR_FRAME_BASE_PATH = '/assets/border';
+const AVATAR_FRAME_BASE_PATH =
+  'cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/border';
+const LEGACY_AVATAR_FRAME_BASE_PATH = '/assets/border';
 const AVATAR_FRAME_IDS = ['1', '2', '3'];
 
 const AVATAR_FRAME_URLS = AVATAR_FRAME_IDS.map((id) => `${AVATAR_FRAME_BASE_PATH}/${id}.png`);
+const LEGACY_AVATAR_FRAME_URLS = AVATAR_FRAME_IDS.map((id) => `${LEGACY_AVATAR_FRAME_BASE_PATH}/${id}.png`);
+
+const LEGACY_AVATAR_FRAME_URL_PATTERN = /^\/?assets\/border\/([1-9]\d*)\.png$/i;
 
 function listAvatarFrameUrls() {
   return AVATAR_FRAME_URLS.slice();
@@ -29,7 +34,17 @@ function isValidAvatarFrameUrl(url) {
   if (!trimmed) {
     return false;
   }
-  return AVATAR_FRAME_URLS.includes(trimmed);
+  if (AVATAR_FRAME_URLS.includes(trimmed)) {
+    return true;
+  }
+  if (LEGACY_AVATAR_FRAME_URLS.includes(trimmed)) {
+    return true;
+  }
+  const match = trimmed.match(LEGACY_AVATAR_FRAME_URL_PATTERN);
+  if (!match) {
+    return false;
+  }
+  return AVATAR_FRAME_IDS.includes(match[1]);
 }
 
 function normalizeAvatarFrameValue(value) {
@@ -42,6 +57,10 @@ function normalizeAvatarFrameValue(value) {
   }
   if (AVATAR_FRAME_URLS.includes(trimmed)) {
     return trimmed;
+  }
+  const legacyMatch = trimmed.match(LEGACY_AVATAR_FRAME_URL_PATTERN);
+  if (legacyMatch && AVATAR_FRAME_IDS.includes(legacyMatch[1])) {
+    return buildAvatarFrameUrlById(legacyMatch[1]);
   }
   const byId = buildAvatarFrameUrlById(trimmed);
   if (byId) {

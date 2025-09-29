@@ -79,7 +79,7 @@ Error: TencentCloud API error: {
 
 **解决方案**
 
-自 2024-05-10 起，首页会使用头像目录的统一清单（`shared/avatar-catalog.js`）动态生成角色图映射。只要为头像与角色图提供同名 PNG 资源（例如头像 `assets/avatar/male-b-1.png` 与角色图 `assets/character/male-b-1.png`），即可自动生效，无需再次修改前端页面代码。
+自 2024-05-10 起，首页会使用头像目录的统一清单（`shared/avatar-catalog.js`）动态生成角色图映射。只要为头像与角色图提供同名 PNG 资源（例如头像 `cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/avatar/male-b-1.png` 与角色图 `cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/character/male-b-1.png`），即可自动生效，无需再次修改前端页面代码。
 
 > 补充：新增头像时仍需按照既定流程更新头像清单（`shared/avatar-catalog.js`），以便头像选择器、解锁逻辑及角色图映射同时感知新资源。
 
@@ -95,10 +95,12 @@ Error: TencentCloud API error: {
 
 **解决方案**
 
-1. 将这两类静态资源上传到云开发的存储空间，保持目录结构不变，例如当前环境使用的：
+1. 将静态资源上传到云开发的存储空间，保持目录结构不变，例如当前环境使用的：
    - `cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/background/`
    - `cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/character/`
-2. 在前端代码中统一改为引用云存储路径。仓库已新增 `miniprogram/shared/asset-paths.js`，用于集中维护云端基础路径，并被首页背景与角色图逻辑复用。
+   - `cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/avatar/`
+   - `cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/border/`
+2. 在前端代码中统一改为引用云存储路径。仓库已新增 `miniprogram/shared/asset-paths.js`，用于集中维护云端基础路径，并被首页背景、角色图、头像与相框逻辑复用。
 3. 日后新增背景/角色素材时，只需：
    - 将文件上传至对应云端目录；
    - 确保文件名与本地约定一致（例如 `1.jpg`、`male-b-1.png`）；

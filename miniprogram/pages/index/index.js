@@ -18,8 +18,13 @@ const {
   getDefaultBackgroundId,
   isBackgroundUnlocked
 } = require('../../shared/backgrounds.js');
-const { CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
+const {
+  CHARACTER_IMAGE_BASE_PATH,
+  AVATAR_IMAGE_BASE_PATH
+} = require('../../shared/asset-paths.js');
 const { listAvatarIds: listAllAvatarIds } = require('../../shared/avatar-catalog.js');
+
+const LEGACY_AVATAR_URL_PATTERN = /^\/?assets\/avatar\/((male|female)-[a-z]+-\d+)\.png$/i;
 
 function buildCharacterImageMap() {
   const ids = listAllAvatarIds();
@@ -368,6 +373,10 @@ function sanitizeAvatarUrl(url) {
   let sanitized = url.trim();
   if (!sanitized) {
     return '';
+  }
+  const legacyMatch = sanitized.match(LEGACY_AVATAR_URL_PATTERN);
+  if (legacyMatch) {
+    return `${AVATAR_IMAGE_BASE_PATH}/${legacyMatch[1]}.png`;
   }
   if (!sanitized.startsWith('data:')) {
     sanitized = sanitized.replace(/^http:\/\//i, 'https://');

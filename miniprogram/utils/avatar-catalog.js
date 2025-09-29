@@ -1,4 +1,9 @@
-const { RAW_AVATARS, buildAvatarId, listAvatarIds } = require('../shared/avatar-catalog.js');
+const {
+  RAW_AVATARS,
+  buildAvatarId,
+  listAvatarIds
+} = require('../shared/avatar-catalog.js');
+const { AVATAR_IMAGE_BASE_PATH } = require('../shared/asset-paths.js');
 
 const AVATAR_GENDER_LABELS = {
   male: '男',
@@ -29,7 +34,7 @@ function buildAvatarName({ gender, rarity, index }) {
 }
 
 function buildAvatarUrl(id) {
-  return `/assets/avatar/${id}.png`;
+  return `${AVATAR_IMAGE_BASE_PATH}/${id}.png`;
 }
 
 export const AVATAR_CATALOG = RAW_AVATARS.map((item) => {
