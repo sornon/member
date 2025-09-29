@@ -6,72 +6,63 @@
 
 ### 角色属性
 
-- **等级与境界**：角色等级与会员境界完全同步，共 100 级。充值产生的修为值决定境界，境界决定基础属性；秘境挑战不会掉落修为，因此无法在副本内升级。
-- **基础属性**：气血、攻击、防御、身法、灵运、暴击率、暴击伤害。角色初始化时使用炼气一阶的基础档位。
-- **属性点**：会员每提升 1 级会额外获得 `3 + floor(等级 / 3)` 点属性点，部分副本奖励也会掉落属性点；属性点可在秘境中自由分配到气血、攻击、防御、身法、灵运五项基础属性。
+- **等级与境界**：角色等级与会员境界完全同步，共 100 级。充值产生的修为值决定境界，秘境挑战不会掉落修为，因此无法在副本内升级；云函数会在进入时依据会员当前境界同步基础属性、境界标签与突破加成。【F:cloudfunctions/pve/index.js†L522-L642】【F:cloudfunctions/pve/index.js†L1323-L1440】
+- **六维基础属性**：体质、力量、灵力、根骨、敏捷、悟性。体质奠定生命与减伤，力量与灵力分别加强物理/法术输出，根骨提供双防与控制抗性，敏捷主导速度与闪避，悟性带来命中、暴击与控制命中收益。【F:cloudfunctions/pve/index.js†L63-L79】【F:cloudfunctions/pve/index.js†L1617-L1658】
+- **属性点**：会员每升一级固定获得 5 点属性点，可在六维之间自由分配；活动奖励也会额外投放属性点。属性点加成都累计在 `trained` 字段中，由云函数负责校验与记录。【F:cloudfunctions/pve/index.js†L572-L642】【F:cloudfunctions/pve/index.js†L919-L961】
 
-#### 基础属性成长公式
+#### 等级成长与境界
 
-设角色当前等级为 `L (1 ≤ L ≤ 100)`，各项基础属性按以下线性公式增长：
+- **初始档位**：炼气一阶的默认属性为 体质 20、力量 16、灵力 16、根骨 18、敏捷 12、悟性 12。【F:cloudfunctions/pve/index.js†L72-L79】
+- **境界分段成长**：等级被划分为炼气期 (1-30)、筑基期 (31-60)、金丹期 (61-90)、元婴期 (91-100)。每段境界定义了六维的逐级成长值以及突破时对生命、攻击、防御、速度、命中的乘法增益。【F:cloudfunctions/pve/index.js†L81-L128】
+- **累积计算**：`calculateBaseAttributesForLevel` 会按境界成长表逐级累积出目标等级的基础属性，再由 `syncAttributesWithMemberLevel` 写回档案并追加突破加成、境界标签与下一级的经验阈值信息。【F:cloudfunctions/pve/index.js†L536-L558】【F:cloudfunctions/pve/index.js†L576-L642】
 
-- 气血：`HP(L) = 1200 + 180 × (L - 1)`
-- 攻击：`ATK(L) = 120 + 12 × (L - 1)`
-- 防御：`DEF(L) = 80 + 9 × (L - 1)`
-- 身法：`SPD(L) = 60 + 3 × (L - 1)`
-- 灵运：`LUK(L) = 10 + 1 × (L - 1)`
-- 暴击率：`CR(L) = 0.05 + 0.002 × (L - 1)`
-- 暴击伤害：`CD(L) = 1.5 + 0.015 × (L - 1)`
+#### 六维到战斗属性映射
 
-> 服务端会对百分比属性按四位小数（暴击率）或两位小数（暴击伤害）保留，其余属性取整。该公式与会员境界保持一致，确保充值→修为→等级→基础属性的一致链路。
+`deriveBaseCombatStats` 将六维转换为可直接参与战斗的基础数值，随后再叠加装备、技能与境界倍率形成最终面板：
 
-#### 属性影响说明
+- 生命值：`500 + 体质 × 100 + 根骨 × 20`。
+- 物攻 / 法攻：`50 + 力量 × 2` 与 `50 + 灵力 × 2`。
+- 物防 / 法防：根骨提供 1 点基础防御，力量与灵力分别再带来 0.2 点增益。
+- 速度 / 命中 / 闪避：速度 = `80 + 敏捷`；命中 = `100 + 悟性`；闪避值 = `80 + 敏捷 × 0.9 + 悟性 × 0.4`。
+- 会心体系：暴击率 = `5% + 悟性 × 0.1%`，暴击伤害 = `150% + 悟性 × 0.15%`，并以函数下限/上限限制暴击概率与倍率。
+- 其他衍生：体质与根骨共同提供最终减伤（上限 40%），灵力增加治疗强化（每点 0.5%），悟性与灵力提升控制命中，根骨提升控制抗性，力量/灵力换算为破甲/法穿。【F:cloudfunctions/pve/index.js†L1617-L1658】【F:cloudfunctions/pve/index.js†L1672-L1704】
 
-- **气血**：决定开场生命值，并与技能护盾叠加后作为总生命池参与战斗。【F:cloudfunctions/pve/index.js†L1121-L1207】【F:cloudfunctions/pve/index.js†L1688-L1699】
-- **攻击**：参与基础伤害计算，公式为 `max(5, 攻击 − 敌方防御 × 0.35)`；暴击与额外伤害都会在此基础上叠加。【F:cloudfunctions/pve/index.js†L1723-L1753】【F:cloudfunctions/pve/index.js†L1782-L1796】
-- **防御**：按同样的 `max(5, 敌方攻击 − 防御 × 0.35)` 公式减少敌方伤害，越高越能缓解被击压力。【F:cloudfunctions/pve/index.js†L1723-L1724】【F:cloudfunctions/pve/index.js†L1799-L1807】
-- **身法**：决定首回合的出手顺序，`player.speed ≥ enemy.speed` 时玩家先手；高速搭配技能还能提高闪避收益。【F:cloudfunctions/pve/index.js†L1688-L1723】
-- **灵运**：提升暴击概率（额外加成为 `min(0.25, 灵运 × 0.0025)`）、触发额外震荡伤害的几率（`min(0.2, 灵运 × 0.002)`）以及闪避与掉落/灵石奖励的加成。【F:cloudfunctions/pve/index.js†L1688-L1699】【F:cloudfunctions/pve/index.js†L1784-L1793】【F:cloudfunctions/pve/index.js†L1823-L1827】【F:cloudfunctions/pve/index.js†L1835-L1844】
-- **暴击率 / 暴击伤害**：直接参与暴击判断与暴击倍率，最终暴击率封顶 85%，暴击伤害至少 1.2 倍。【F:cloudfunctions/pve/index.js†L1784-L1788】
-- **技能与装备加成**：装备提供固定或精炼后的属性加成，技能既有加法也有乘法增益；所有加成会在基础属性和训练属性之上统一汇总。【F:cloudfunctions/pve/index.js†L1226-L1294】
+境界突破提供的加成会乘算在生命、双攻、防御、速度与命中上，使阶段跃迁更具冲刺感。【F:cloudfunctions/pve/index.js†L81-L128】【F:cloudfunctions/pve/index.js†L1650-L1655】最終面板会经过封顶函数，确保暴击率、最终减伤、吸血等属性保持在合理区间。【F:cloudfunctions/pve/index.js†L2563-L2583】
 
 ### 装备体系
 
-- 装备分为 **武器**、**护具**、**饰品** 三个槽位，每件装备带有固定属性加成及稀有度标签（常见、稀有、史诗、传说）。
-- 玩家默认拥有一套入门装备，后续可通过副本掉落或运营投放获取更高品质装备。
-- 重复获取相同装备会提升“精炼等级”，在云函数中按装备系数放大加成。
+- 装备分为 **武器**、**护具**、**饰品** 等槽位，每件装备带有固定属性加成及稀有度标签（常见、稀有、史诗、传说）。【F:cloudfunctions/pve/index.js†L159-L164】
+- 玩家默认拥有一套入门装备，后续可通过副本掉落或运营投放获取更高品质装备；重复获取会提升“精炼等级”，放大装备基础数值。【F:cloudfunctions/pve/index.js†L1045-L1054】【F:cloudfunctions/pve/index.js†L2397-L2422】
+- 云函数在计算装备词条时支持基础属性、战斗属性与倍率类加成，并统一转化为展示用文本，便于前端直接渲染。【F:cloudfunctions/pve/index.js†L1707-L1745】【F:cloudfunctions/pve/index.js†L2083-L2108】
 
 ### 技能体系
 
-- 技能以卡牌形式存在，按稀有度划分为常见/稀有/史诗/传说，并可通过“抽取灵技”获得。
-- 技能提供攻击加成、护盾、闪避等多种效果，同时可叠加到装备后的最终战力。
-- 抽到重复技能会自动提升技能等级（上限 5 级），对应地增强加成或附加效果。
+- 技能以卡牌形式存在，按稀有度划分为常见/稀有/史诗/传说，并可通过“抽取灵技”获得。抽到重复技能会提升技能等级（上限 5 级）。【F:cloudfunctions/pve/index.js†L755-L814】【F:cloudfunctions/pve/index.js†L1756-L1779】
+- 技能提供基础数值、最终倍率、护盾、闪避等多种效果，`aggregateSkillEffects` 会把技能加成拆解为加法与乘法两部分，并与装备一同叠加到最终战斗面板。【F:cloudfunctions/pve/index.js†L1553-L1602】【F:cloudfunctions/pve/index.js†L1672-L1704】
+- 抽卡与装备更换均会写入技能历史，以便运营复盘玩家培养路径。【F:cloudfunctions/pve/index.js†L755-L860】【F:cloudfunctions/pve/index.js†L2040-L2068】
 
 ### 秘境副本
 
-- 当前内置四个标识性副本（灵芽傀儡、炽火幽灵、渊狱巨灵、缚时织者），覆盖不同阶段的战力需求与掉落。
-- 战斗流程采用回合制模拟，综合考虑攻击、防御、暴击、闪避等参数，产出详细战报与奖励。
-- 奖励包含灵石、属性点以及随机装备/技能掉落，并自动写入灵石流水；修为仅能通过充值等会员消费场景提升。
+- 当前内置四个标识性副本（灵芽傀儡、炽火幽灵、渊狱巨灵、缚时织者），覆盖不同阶段的战力需求与掉落。【F:cloudfunctions/pve/index.js†L350-L476】
+- 战斗流程采用回合制模拟，综合考虑命中、暴击、破甲、最终增减伤等参数，产出详细战报与奖励。【F:cloudfunctions/pve/index.js†L2117-L2198】
+- 奖励包含灵石、属性点以及随机装备/技能掉落，并自动写入灵石流水；修为仅能通过充值等会员消费场景提升。【F:cloudfunctions/pve/index.js†L2331-L2386】【F:cloudfunctions/pve/index.js†L2397-L2422】
 
 ## 前端交互
 
 - 首页底部导航新增“秘境”入口，跳转至 `/pages/pve/pve` 页面。
-- 页面包含以下模块：
-  - **角色属性**：展示战力、修为进度、属性明细，并提供手动/自动分配属性点。
-  - **装备总览**：显示当前穿戴与背包装备，可一键切换。
-  - **技能与抽卡**：查看已装备技能、背包技能，支持抽取新技能。
-- **秘境对手**：列出可挑战副本、推荐战力与基础奖励。
-- **战斗记录**：展示最近战斗战报与技能抽卡历史。
+- `/pages/role/index` 中的“角色属性”页签会并列展示六维基础属性与战斗属性映射，支持查看基础/装备/技能来源，并在战斗属性中追加境界倍率提示。【F:miniprogram/pages/role/index.wxml†L26-L99】【F:miniprogram/pages/role/index.wxss†L204-L280】
+- 属性分配面板改为使用六维属性键位，支持手动选择与平均分配；所有操作均通过云函数校验剩余属性点并记录战斗日志。【F:miniprogram/pages/role/index.js†L1-L220】【F:cloudfunctions/pve/index.js†L919-L961】
+- 装备与技能页签保留已有交互：展示当前穿戴、背包、抽卡按钮以及技能槽位，并与云函数互通刷新档案。【F:miniprogram/pages/role/index.wxml†L102-L170】【F:miniprogram/pages/role/index.js†L108-L196】
 
-### 战斗计算要点
+## 战斗计算要点
 
-1. **最终属性汇总**：角色的最终属性为“基础属性 + 训练加点 + 装备加成 + 技能加成”，其中技能加成包含加法与倍率两部分，计算完成后用于战力与回合模拟。【F:cloudfunctions/pve/index.js†L1121-L1207】【F:cloudfunctions/pve/index.js†L1226-L1294】
-2. **出手与伤害**：
-   - 先手由身法决定，身法高者率先行动。【F:cloudfunctions/pve/index.js†L1688-L1723】
-   - 玩家基础伤害 `basePlayerDamage = max(5, 攻击 − 敌防 × 0.35)`，再乘以 0.85~1.15 的浮动系数并叠加技能附加伤害；暴击概率为 `clamp(暴击率 + min(0.25, 灵运 × 0.0025), 0, 0.85)`，暴击时再乘暴击伤害系数。【F:cloudfunctions/pve/index.js†L1723-L1753】【F:cloudfunctions/pve/index.js†L1782-L1796】
-   - 敌方伤害遵循 `max(5, 敌攻 − 防御 × 0.35)` 与 0.9~1.15 浮动，暴击概率与倍率取自敌方配置。【F:cloudfunctions/pve/index.js†L1723-L1724】【F:cloudfunctions/pve/index.js†L1799-L1807】
-   - 闪避概率由技能提供的闪避值与灵运附加 `min(0.15, 灵运 × 0.001)` 叠加，最高 50%。【F:cloudfunctions/pve/index.js†L1688-L1699】
-3. **幸运与额外效果**：灵运还会带来 20% 封顶的额外震荡伤害机会，以及提升掉落与灵石奖励的 Luck Bonus（掉落加成为 `min(0.2, 灵运 × 0.0015)`，灵石加成为 `min(0.3, 灵运 × 0.003)`）。【F:cloudfunctions/pve/index.js†L1784-L1793】【F:cloudfunctions/pve/index.js†L1835-L1844】【F:cloudfunctions/pve/index.js†L1823-L1825】
-4. **奖励结算**：胜利时按配置发放灵石、属性点和掉落，灵石奖励会乘以 Luck Bonus，失败或平局不会发放修为；所有秘境战斗均返回 `exp: 0`，并额外提示“修为不可提升”。【F:cloudfunctions/pve/index.js†L1810-L1827】【F:cloudfunctions/pve/index.js†L2079-L2098】【F:cloudfunctions/pve/index.js†L1536-L1541】
+1. **最终属性汇总**：角色最终面板由“基础 + 训练加点 + 装备 + 技能”组成，并在战斗前附加境界突破倍率；云函数会把计算结果和特殊效果（护盾、额外伤害、闪避率）传递给模拟器。【F:cloudfunctions/pve/index.js†L1323-L1440】【F:cloudfunctions/pve/index.js†L1672-L1704】
+2. **出手与命中**：战斗首回合由速度决定；每次攻击先以 `clamp(0.85 + (命中 − 闪避) × 0.005, 0.2, 0.99)` 进行命中判定，再与目标的技能闪避概率对抗。【F:cloudfunctions/pve/index.js†L2117-L2130】【F:cloudfunctions/pve/index.js†L2273-L2283】
+3. **伤害路径**：系统会比较物理与法术两条路线的净收益：`max(攻击 × 25%, 攻击 − 防御 × (1 − 穿透))`，并选择更高的一种；随后乘以 0.9~1.1 的浮动并叠加技能额外伤害。【F:cloudfunctions/pve/index.js†L2286-L2307】
+4. **暴击与最终修正**：暴击概率为 `clamp(暴击率 − 抗暴, 5%, 95%)`，暴击时按暴击伤害倍率放大；最终伤害再乘以 `(1 + 增伤 − 减伤)`，并保证至少造成 10% 的原始伤害，上限不低于 1 点。【F:cloudfunctions/pve/index.js†L2309-L2318】
+5. **吸血与治疗系数**：吸血最多结算 60%，同时受治疗强化与治疗削弱影响，最终回血 = 伤害 × 吸血 × `clamp(1 + 强化 − 削弱, 0, 2)`。【F:cloudfunctions/pve/index.js†L2322-L2326】
+6. **战斗节奏**：战斗最多 30 回合，支持护盾、额外伤害与闪避特效；若双方都未倒下则判定为平局并按 30% 的灵石奖励结算。【F:cloudfunctions/pve/index.js†L2117-L2178】【F:cloudfunctions/pve/index.js†L2331-L2344】
+7. **掉落与加成**：悟性会提高灵石收益（上限 25%，仅折半计入灵石）并提升装备/技能掉落概率（上限 20%），同时额外属性点奖励完全取决于副本配置。【F:cloudfunctions/pve/index.js†L2344-L2369】
 
 ## 云函数接口
 
@@ -86,7 +77,7 @@
 | `equipItem` | 更换装备槽位。 |
 | `allocatePoints` | 分配属性点，按服务端定义的步进值更新属性。 |
 
-所有动作均会同步写回 `members` 表的 `pveProfile` 字段，并在需要时记录灵石流水（`stoneTransactions`）。
+所有动作均会同步写回 `members` 表的 `pveProfile` 字段，并在需要时记录灵石流水（`stoneTransactions`）。【F:cloudfunctions/pve/index.js†L691-L707】【F:cloudfunctions/pve/index.js†L713-L961】
 
 ## 部署提示
 

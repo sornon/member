@@ -80,6 +80,22 @@
           <text>战力 {{profile.attributes ? profile.attributes.combatPower : '--'}}</text>
           <text>剩余属性点 {{profile.attributes ? profile.attributes.attributePoints : 0}}</text>
         </view>
+        <block
+          wx:if="{{profile.attributes && profile.attributes.combatStats && profile.attributes.combatStats.length}}"
+        >
+          <view class="subsection-title">战斗属性映射</view>
+          <view class="combat-grid">
+            <view class="combat-item" wx:for="{{profile.attributes.combatStats}}" wx:key="key">
+              <view class="combat-label">{{item.label}}</view>
+              <view class="combat-value">{{item.formattedValue}}</view>
+              <view class="combat-detail">
+                基础 {{item.formattedBase}} · 装备 {{item.formattedEquipment}}
+                <text wx:if="{{item.formattedSkill}}"> · 技能 {{item.formattedSkill}}</text>
+                <text wx:if="{{item.formattedMultiplier}}"> · 加成 {{item.formattedMultiplier}}</text>
+              </view>
+            </view>
+          </view>
+        </block>
       </view>
     </block>
 
