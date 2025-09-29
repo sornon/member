@@ -39,14 +39,22 @@ page {
   filter: saturate(110%);
 }
 
-.background-fallback__overlay {
+.background--video {
+  overflow: hidden;
+}
+
+.background-video {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
-  background: linear-gradient(180deg, rgba(5, 9, 33, 0.65) 0%, rgba(27, 60, 104, 0.45) 45%, rgba(61, 12, 61, 0.6) 100%);
+  object-fit: cover;
   pointer-events: none;
+}
+
+.background--overlay {
+  background: linear-gradient(180deg, rgba(5, 9, 33, 0.65) 0%, rgba(27, 60, 104, 0.45) 45%, rgba(61, 12, 61, 0.6) 100%);
 }
 
 .mist-layer {
@@ -675,14 +683,45 @@ page {
 }
 
 .appearance-section--background {
-  padding-bottom: 12rpx;
+  padding-bottom: 16rpx;
+}
+
+.appearance-background-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  padding: 8rpx 0 20rpx;
+}
+
+.appearance-background-toggle__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.appearance-background-toggle__title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #fdfcff;
+}
+
+.appearance-background-toggle__desc {
+  font-size: 22rpx;
+  color: rgba(220, 230, 255, 0.78);
+  line-height: 1.5;
+}
+
+.appearance-background-toggle__switch {
+  min-width: 0;
 }
 
 .appearance-background-grid {
+  margin: 12rpx 0 24rpx;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24rpx;
-  margin: 12rpx 0 24rpx;
 }
 
 .appearance-background-option {

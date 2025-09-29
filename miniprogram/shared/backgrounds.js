@@ -1,4 +1,4 @@
-const { BACKGROUND_IMAGE_BASE_PATH } = require('./asset-paths.js');
+const { BACKGROUND_IMAGE_BASE_PATH, BACKGROUND_VIDEO_BASE_PATH } = require('./asset-paths.js');
 
 const RAW_BACKGROUNDS = [
   { id: 'realm_refining', realmOrder: 1, realmName: '炼气期', name: '炼气之地' },
@@ -13,21 +13,24 @@ const RAW_BACKGROUNDS = [
   { id: 'realm_ascension', realmOrder: 10, realmName: '飞升期', name: '飞升之地' }
 ];
 
-function resolveImageIndex(realmOrder) {
+function resolveMediaKey(realmOrder) {
   const order = Number(realmOrder);
   if (!Number.isFinite(order) || order <= 0) {
-    return 1;
+    return '1';
   }
-  // 现有素材仅覆盖少量底图，这里按序号循环复用
   const normalizedOrder = Math.max(1, Math.floor(order));
-  const availableCount = 3;
-  return ((normalizedOrder - 1) % availableCount) + 1;
+  return `${normalizedOrder}`;
 }
 
-const BACKGROUNDS = RAW_BACKGROUNDS.map((item) => ({
-  ...item,
-  image: `${BACKGROUND_IMAGE_BASE_PATH}/${resolveImageIndex(item.realmOrder)}.jpg`
-}));
+const BACKGROUNDS = RAW_BACKGROUNDS.map((item) => {
+  const mediaKey = resolveMediaKey(item.realmOrder);
+  return {
+    ...item,
+    mediaKey,
+    image: `${BACKGROUND_IMAGE_BASE_PATH}/${mediaKey}.jpg`,
+    video: `${BACKGROUND_VIDEO_BASE_PATH}/${mediaKey}.mp4`
+  };
+});
 
 function cloneBackground(background) {
   return background ? { ...background } : null;
