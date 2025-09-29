@@ -46,6 +46,17 @@
       <text>已使用改名次数：{{member.renameUsed || 0}}</text>
     </view>
     <view class="form-item">
+      <view class="form-label">可洗点次数</view>
+      <input
+        class="form-input"
+        type="number"
+        value="{{form.respecAvailable}}"
+        placeholder="请输入剩余洗点次数"
+        data-field="respecAvailable"
+        bindinput="handleInputChange"
+      />
+    </view>
+    <view class="form-item">
       <view class="form-label">包房使用次数</view>
       <input
         class="form-input"

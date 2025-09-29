@@ -284,6 +284,9 @@ export const PveService = {
   },
   async allocatePoints(allocations = {}) {
     return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'allocatePoints', allocations });
+  },
+  async resetAttributes() {
+    return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'resetAttributes' });
   }
 };
 
