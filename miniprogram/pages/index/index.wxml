@@ -51,7 +51,7 @@
         <view class="today">{{today}}</view>
         <view class="hero-title">仙缘启程</view>
         <view class="hero-subtitle" style="white-space: pre-wrap">
-最贵的酒隐之茄会员：
+尊贵的酒隐之茄会员：
 现实中的休闲娱乐，能够积攒此位面的修为与灵石。</view>
         <view class="progress-info">
           <view class="progress-track">
