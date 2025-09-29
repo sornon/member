@@ -1,5 +1,7 @@
 import { MemberService } from './api';
 
+const { normalizeAvatarFrameValue } = require('../shared/avatar-frames.js');
+
 const MAX_WATCH_RESTART_ATTEMPTS = 5;
 const WATCH_RETRY_DELAY = 2000;
 const WATCH_SUSPEND_DURATION = 60000;
@@ -14,6 +16,19 @@ let restartAttempts = 0;
 let watcherSuspendedUntil = 0;
 let manualRefreshTimer = null;
 let manualRefreshPromise = null;
+
+function sanitizeAvatarFrame(value) {
+  return normalizeAvatarFrameValue(typeof value === 'string' ? value : '');
+}
+
+function sanitizeMemberSnapshot(member) {
+  if (!member || typeof member !== 'object') {
+    return null;
+  }
+  const sanitized = { ...member };
+  sanitized.avatarFrame = sanitizeAvatarFrame(sanitized.avatarFrame);
+  return sanitized;
+}
 
 function getDatabaseInstance() {
   const canUseDatabase = wx.cloud && typeof wx.cloud.database === 'function';
@@ -57,11 +72,12 @@ function setGlobalMember(member) {
 }
 
 function notifyMemberSnapshot(member, origin = 'unknown') {
-  if (!member) {
+  const sanitized = sanitizeMemberSnapshot(member);
+  if (!sanitized) {
     return;
   }
-  setGlobalMember(member);
-  notify({ type: 'memberSnapshot', member, origin });
+  setGlobalMember(sanitized);
+  notify({ type: 'memberSnapshot', member: sanitized, origin });
 }
 
 function stopManualRefresh() {
@@ -185,16 +201,17 @@ function startWatcher() {
 }
 
 export function setActiveMember(member) {
-  if (!member || typeof member !== 'object') {
+  const sanitized = sanitizeMemberSnapshot(member);
+  if (!sanitized) {
     return;
   }
-  const memberId = member._id || member.id;
+  const memberId = sanitized._id || sanitized.id;
   if (!memberId) {
     return;
   }
   activeMemberId = memberId;
   restartAttempts = 0;
-  notifyMemberSnapshot(member, 'activeMember');
+  notifyMemberSnapshot(sanitized, 'activeMember');
   startWatcher();
 }
 

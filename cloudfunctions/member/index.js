@@ -195,7 +195,8 @@ async function completeProfile(openid, payload = {}) {
 
   const nickName = typeof profile.nickName === 'string' ? profile.nickName.trim() : '';
   const avatarUrl = typeof profile.avatarUrl === 'string' ? profile.avatarUrl : '';
-  const avatarFrame = normalizeAvatarFrameValue(profile.avatarFrame || '');
+  const hasAvatarFrame = Object.prototype.hasOwnProperty.call(profile, 'avatarFrame');
+  const avatarFrame = hasAvatarFrame ? normalizeAvatarFrameValue(profile.avatarFrame || '') : '';
   const genderValue = normalizeGender(profile.gender);
   const mobile = await resolveMobile(payload);
 
@@ -212,7 +213,7 @@ async function completeProfile(openid, payload = {}) {
   if (typeof profile.gender !== 'undefined' && profile.gender !== null) {
     updates.gender = genderValue;
   }
-  if (avatarFrame) {
+  if (hasAvatarFrame) {
     updates.avatarFrame = avatarFrame;
   }
 
