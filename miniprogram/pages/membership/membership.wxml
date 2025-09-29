@@ -24,10 +24,10 @@
       </view>
     </view>
 
-    <view class="card realm-card" wx:if="{{realms.length}}">
+    <view class="card realm-card" wx:if="{{visibleRealms.length}}">
       <view class="section-title">主境界进阶</view>
       <view class="realm-grid">
-        <view class="realm-item" wx:for="{{realms}}" wx:key="{{item.realm}}">
+        <view class="realm-item" wx:for="{{visibleRealms}}" wx:key="{{item.realmKey || item.realm}}">
           <view class="realm-header">
             <text class="realm-name">{{item.realm}}</text>
             <text class="realm-range">{{formatCurrency(item.start)}} ~ {{formatCurrency(item.end)}}</text>
@@ -78,7 +78,7 @@
           <view class="level-actions-row" wx:if="{{item.hasRewards}}">
             <button
               wx:if="{{item.claimable}}"
-              class="claim-button"
+              class="claim-button claim-button--active"
               type="default"
               size="mini"
               data-level-id="{{item._id}}"

@@ -43,6 +43,26 @@ function isAdminRoleList(roles = []) {
   return normalized.some((role) => ADMIN_ROLE_KEYWORDS.includes(role));
 }
 
+function buildRealmKey(level = {}) {
+  if (!level) {
+    return '';
+  }
+  if (level.realmId) {
+    return String(level.realmId);
+  }
+  const realm = typeof level.realm === 'string' ? level.realm : '';
+  const order =
+    typeof level.realmOrder === 'number'
+      ? level.realmOrder
+      : typeof level.order === 'number'
+      ? level.order
+      : '';
+  if (!realm && order === '') {
+    return '';
+  }
+  return `${realm}_${order}`;
+}
+
 function decorateLevels(levels = [], options = {}) {
   const claimedLevelRewards = Array.isArray(options.claimedLevelRewards)
     ? options.claimedLevelRewards
@@ -96,6 +116,40 @@ function resolveVisibleLevels(levels = [], options = {}) {
   return levels.filter((level) => level && (level._id === currentId || level._id === nextId));
 }
 
+function resolveVisibleRealms(realms = [], options = {}) {
+  const { isAdmin, showPastLevels, currentLevel, nextLevel } = options;
+  if (isAdmin || showPastLevels) {
+    return [...realms];
+  }
+  if (!Array.isArray(realms) || realms.length === 0) {
+    return [];
+  }
+  const currentKey = buildRealmKey(currentLevel);
+  let currentIndex = realms.findIndex((realm) => realm && realm.realmKey === currentKey);
+  if (currentIndex === -1 && currentLevel && currentLevel.realm) {
+    currentIndex = realms.findIndex((realm) => realm && realm.realm === currentLevel.realm);
+  }
+  if (currentIndex === -1 && nextLevel) {
+    const nextKey = buildRealmKey(nextLevel);
+    const nextIndex = realms.findIndex((realm) => realm && realm.realmKey === nextKey);
+    if (nextIndex > 0) {
+      currentIndex = nextIndex - 1;
+    }
+  }
+  if (currentIndex < 0) {
+    currentIndex = 0;
+  }
+  const visible = [];
+  if (realms[currentIndex]) {
+    visible.push(realms[currentIndex]);
+  }
+  const nextRealm = realms[currentIndex + 1];
+  if (nextRealm) {
+    visible.push(nextRealm);
+  }
+  return visible;
+}
+
 Page({
   data: {
     loading: true,
@@ -111,7 +165,8 @@ Page({
     isAdmin: false,
     showPastLevels: false,
     visibleLevels: [],
-    claimedLevelRewards: []
+    claimedLevelRewards: [],
+    visibleRealms: []
   },
 
   claimingReward: false,
@@ -181,7 +236,7 @@ Page({
       const realmMap = {};
       rawLevels.forEach((lvl) => {
         if (!lvl) return;
-        const key = lvl.realmId || `${lvl.realm || ''}_${lvl.realmOrder || lvl.order}`;
+        const key = buildRealmKey(lvl);
         if (!key) return;
         if (!realmMap[key]) {
           realmMap[key] = {
@@ -193,7 +248,8 @@ Page({
             end: typeof lvl.threshold === 'number' ? lvl.threshold : 0,
             milestoneReward: lvl.milestoneReward || '',
             milestoneType: lvl.milestoneType || '',
-            milestoneThreshold: lvl.milestoneReward ? lvl.threshold : 0
+            milestoneThreshold: lvl.milestoneReward ? lvl.threshold : 0,
+            realmKey: key
           };
         } else if (typeof lvl.threshold === 'number') {
           realmMap[key].start = Math.min(realmMap[key].start, lvl.threshold);
@@ -218,12 +274,14 @@ Page({
       const upcomingMilestone = levels.find((lvl) => lvl.order > currentOrder && lvl.milestoneReward) || null;
       const width = normalizePercentage(progress);
       const isAdmin = isAdminRoleList(mergedMember.roles);
-      const visibleLevels = resolveVisibleLevels(levels, {
+      const visibilityOptions = {
         isAdmin,
         showPastLevels: this.data.showPastLevels,
         currentLevel,
         nextLevel
-      });
+      };
+      const visibleLevels = resolveVisibleLevels(levels, visibilityOptions);
+      const visibleRealms = resolveVisibleRealms(realms, visibilityOptions);
       mergedMember.claimedLevelRewards = claimedLevelRewards;
 
       this.setData({
@@ -239,6 +297,7 @@ Page({
         progressStyle: buildWidthStyle(width),
         isAdmin,
         visibleLevels,
+        visibleRealms,
         claimedLevelRewards
       });
     } catch (error) {
@@ -248,7 +307,7 @@ Page({
         progressWidth: width,
         progressStyle: buildWidthStyle(width)
       });
-      this.refreshVisibleLevels();
+      this.refreshVisibility();
     }
     this.fetchingData = false;
     if (this.pendingFetchData) {
@@ -257,14 +316,16 @@ Page({
     }
   },
 
-  refreshVisibleLevels() {
-    const visibleLevels = resolveVisibleLevels(this.data.levels, {
+  refreshVisibility() {
+    const options = {
       isAdmin: this.data.isAdmin,
       showPastLevels: this.data.showPastLevels,
       currentLevel: this.data.currentLevel,
       nextLevel: this.data.nextLevel
-    });
-    this.setData({ visibleLevels });
+    };
+    const visibleLevels = resolveVisibleLevels(this.data.levels, options);
+    const visibleRealms = resolveVisibleRealms(this.data.realms, options);
+    this.setData({ visibleLevels, visibleRealms });
   },
 
   onTogglePastLevels() {
@@ -272,15 +333,18 @@ Page({
       return;
     }
     const nextShow = !this.data.showPastLevels;
-    const visibleLevels = resolveVisibleLevels(this.data.levels, {
+    const options = {
       isAdmin: this.data.isAdmin,
       showPastLevels: nextShow,
       currentLevel: this.data.currentLevel,
       nextLevel: this.data.nextLevel
-    });
+    };
+    const visibleLevels = resolveVisibleLevels(this.data.levels, options);
+    const visibleRealms = resolveVisibleRealms(this.data.realms, options);
     this.setData({
       showPastLevels: nextShow,
-      visibleLevels
+      visibleLevels,
+      visibleRealms
     });
   },
 
