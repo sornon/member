@@ -474,13 +474,24 @@ page {
   flex: 1;
   min-height: 0;
   max-height: 520rpx;
-  height: 520rpx;
-  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 24rpx;
   padding-right: 12rpx;
   box-sizing: border-box;
+}
+
+.appearance-modal__body-wrapper {
+  flex: 1;
+  min-height: 520rpx;
+  max-height: 520rpx;
+  height: 520rpx;
+  width: 100%;
+}
+
+.appearance-modal__body {
+  height: 100%;
+  width: 100%;
 }
 
 .archive-section {
