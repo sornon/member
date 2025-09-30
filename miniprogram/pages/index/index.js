@@ -530,6 +530,7 @@ Page({
     backgroundImage: resolveBackgroundImage(null),
     backgroundVideo: resolveBackgroundVideo(null),
     showBackgroundVideo: false,
+    showBackgroundOverlay: true,
     backgroundVideoError: false,
     dynamicBackgroundEnabled: false,
     navHeight: 88,
@@ -622,11 +623,13 @@ Page({
     const { image, video, dynamicEnabled } = resolveBackgroundDisplay(member);
     const shouldShowVideo = dynamicEnabled && !!video;
     const hasError = shouldShowVideo ? (options.resetError ? false : !!this.data.backgroundVideoError) : false;
+    const showVideo = hasError ? false : shouldShowVideo;
     this.setData({
       backgroundImage: image,
       backgroundVideo: video,
       dynamicBackgroundEnabled: dynamicEnabled,
-      showBackgroundVideo: hasError ? false : shouldShowVideo,
+      showBackgroundVideo: showVideo,
+      showBackgroundOverlay: !showVideo,
       backgroundVideoError: hasError
     });
   },
@@ -637,7 +640,8 @@ Page({
     }
     this.setData({
       backgroundVideoError: true,
-      showBackgroundVideo: false
+      showBackgroundVideo: false,
+      showBackgroundOverlay: true
     });
   },
 
