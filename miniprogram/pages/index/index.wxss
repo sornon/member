@@ -24,6 +24,14 @@ page {
   pointer-events: none;
 }
 
+.background-layer {
+    opacity: 0;
+    transition: opacity 3600ms ease;
+  }
+  
+  .background-layer--visible {
+    opacity: 1;
+  }
 
 .background--fallback {
   overflow: hidden;

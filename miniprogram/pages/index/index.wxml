@@ -6,9 +6,12 @@
       mode="aspectFill"
     ></image>
   </view>
-  <view wx:if="{{showBackgroundVideo}}" class="background background--video">
+  <view
+    wx:if="{{backgroundVideo}}"
+    class="background background--video background-layer {{showBackgroundVideo ? 'background-layer--visible' : ''}}"
+  >
     <video
-      class="background-video"
+      class="background-video background-layer {{showBackgroundVideo ? 'background-layer--visible' : ''}}"
       src="{{backgroundVideo}}"
       autoplay
       loop
@@ -24,10 +27,9 @@
       binderror="handleBackgroundVideoError"
     ></video>
   </view>
-  <view wx:if="{{!dynamicBackgroundEnabled}}" class="background background--overlay"></view>
-  <view wx:if="{{!dynamicBackgroundEnabled}}" class="mist-layer mist-layer--one"></view>
-  <view wx:if="{{!dynamicBackgroundEnabled}}" class="mist-layer mist-layer--two"></view>
-
+  <view class="background background--overlay background-layer {{showBackgroundOverlay ? 'background-layer--visible' : ''}}"></view>
+  <view class="mist-layer mist-layer--one background-layer {{showBackgroundOverlay ? 'background-layer--visible' : ''}}"></view>
+  <view class="mist-layer mist-layer--two background-layer {{showBackgroundOverlay ? 'background-layer--visible' : ''}}"></view>
   <custom-nav title="会员中心" enable-back="{{false}}" theme="transparent"></custom-nav>
 
   <view class="content" wx:if="{{!loading}}" style="min-height: calc(100vh - {{navHeight}}px);">
