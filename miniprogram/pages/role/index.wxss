@@ -110,9 +110,8 @@ page {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 56rpx;
   line-height: 1;
-  padding: 0 28rpx;
+  padding: 16rpx 28rpx;
   border-radius: 999rpx;
   border: 1rpx solid rgba(108, 136, 255, 0.32);
   background: rgba(60, 88, 190, 0.18);
