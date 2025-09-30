@@ -66,6 +66,14 @@ function resolveRealmOrderFromLevel(level) {
   return 1;
 }
 
+function isMemberAdmin(member) {
+  if (!member) {
+    return false;
+  }
+  const roles = Array.isArray(member.roles) ? member.roles : [];
+  return roles.some((role) => ADMIN_ALLOWED_ROLES.includes(role));
+}
+
 function resolveMemberRealmOrder(member) {
   if (!member) {
     return 1;
@@ -138,7 +146,14 @@ function resolveBackgroundDisplay(member) {
 function buildBackgroundOptionList(member) {
   const realmOrder = resolveMemberRealmOrder(member);
   const activeId = resolveSafeBackgroundId(member, member && member.appearanceBackground);
-  return listBackgrounds().map((background) => {
+  const backgrounds = listBackgrounds();
+  let visibleBackgrounds = backgrounds;
+  if (!isMemberAdmin(member)) {
+    const maxRealmOrder = backgrounds.length ? backgrounds[backgrounds.length - 1].realmOrder : 1;
+    const highestVisibleOrder = Math.min(maxRealmOrder, realmOrder + 1);
+    visibleBackgrounds = backgrounds.filter((background) => background.realmOrder <= highestVisibleOrder);
+  }
+  return visibleBackgrounds.map((background) => {
     const unlocked = isBackgroundUnlocked(background.id, realmOrder);
     let description = `突破至${background.realmName}解锁`;
     if (unlocked) {
