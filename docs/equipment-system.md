@@ -225,9 +225,9 @@
 - `formatBattleResult` 的装备掉落改为输出 `quality`、`qualityLabel`、`qualityColor`，确保战斗日志与新品质体系保持一致。【F:cloudfunctions/pve/index.js†L3738-L3768】
 
 ### 3. 使用指引
-- 小程序「角色」页的“装备”页签以四列紧凑方格展示 12 个槽位与背包装备，所有装备信息均收束在图标方框内，名称采用 18rpx 不换行样式以确保一屏呈现。长按任一图标会弹出浮层查看品质、精炼、词条与特效等详情，并在背包装备中提供快速装备按钮。【F:miniprogram/pages/role/index.wxml†L120-L185】【F:miniprogram/pages/role/index.wxml†L284-L318】【F:miniprogram/pages/role/index.wxss†L303-L430】【F:miniprogram/pages/role/index.js†L157-L204】
+- 小程序「角色」页的“装备”页签以四列紧凑方格展示 12 个槽位与背包装备，所有装备信息均收束在图标方框内，名称采用 18rpx 不换行样式以确保一屏呈现。长按任一图标会弹出浮层查看品质、精炼、词条与特效等详情，并直接提供装备或卸下按钮，方便在不离开面板的情况下整理装备。【F:miniprogram/pages/role/index.wxml†L120-L329】【F:miniprogram/pages/role/index.wxss†L303-L430】【F:miniprogram/pages/role/index.js†L150-L245】
 - “已激活套装”“装备特性”摘要区块继续读取 `bonus.sets`、`bonus.notes`，便于玩家在界面中查看套装效果与特效描述。【F:miniprogram/pages/role/index.wxml†L143-L162】
-- 玩家在背包装备图标上长按并点击弹层内的“装备”按钮即可替换当前槽位；装备上阵后，`profile.attributes` 中的 `equipmentBonus` 会附带 `sets` 与 `notes`，便于后续在面板或战斗日志中展示套装详情。【F:miniprogram/pages/role/index.wxml†L284-L318】【F:miniprogram/pages/role/index.js†L157-L204】【F:cloudfunctions/pve/index.js†L1424-L1452】【F:cloudfunctions/pve/index.js†L2580-L2624】
+- 玩家在背包装备图标上长按并点击弹层内的“装备”或“卸下”按钮即可快速调整当前槽位；装备状态变化会即时写回 `profile` 并触发 `equipmentBonus` 的套装与特性汇总，便于在面板或战斗日志中查看套装详情。【F:miniprogram/pages/role/index.wxml†L284-L329】【F:miniprogram/pages/role/index.js†L150-L245】【F:cloudfunctions/pve/index.js†L1795-L1865】【F:cloudfunctions/pve/index.js†L2580-L2624】
 
 ### 4. 扩展与维护
 - **新增装备**：在 `EQUIPMENT_LIBRARY` 追加条目并指定 `slot`、`quality`、`mainAttribute`、`subAttributes`、`uniqueEffects`、`setId` 即可。若引入新的词条或槽位，需同步更新 `EQUIPMENT_ATTRIBUTE_RULES`/`EQUIPMENT_AFFIX_RULES` 或 `EQUIPMENT_SLOTS`。【F:cloudfunctions/pve/index.js†L241-L321】【F:cloudfunctions/pve/index.js†L412-L692】

@@ -131,6 +131,7 @@
               style="border-color: {{item.item ? item.item.qualityColor : 'rgba(86, 110, 210, 0.48)'}};"
               bindlongpress="handleEquipmentLongPress"
               data-source="slot"
+              data-slot="{{item.slot}}"
               data-slot-label="{{item.slotLabel}}"
               data-item="{{item.item}}"
             >
@@ -177,6 +178,7 @@
               style="border-color: {{item.qualityColor}};"
               bindlongpress="handleEquipmentLongPress"
               data-source="inventory"
+              data-slot="{{item.slot}}"
               data-item="{{item}}"
             >
               <text class="inventory-card__icon-name">{{item.shortName || item.name}}</text>
@@ -298,7 +300,10 @@
         <text wx:if="{{equipmentTooltip.item.refineLabel}}">{{equipmentTooltip.item.refineLabel}}</text>
         <text wx:elif="{{equipmentTooltip.item.refine != null}}">精炼 {{equipmentTooltip.item.refine}}</text>
       </view>
-      <view class="equipment-tooltip__stats" wx:if="{{equipmentTooltip.item.statsText && equipmentTooltip.item.statsText.length}}">
+      <view
+        class="equipment-tooltip__stats"
+        wx:if="{{equipmentTooltip.item.statsText && equipmentTooltip.item.statsText.length}}"
+      >
         <text wx:for="{{equipmentTooltip.item.statsText}}" wx:key="index">{{item}}</text>
       </view>
       <view
@@ -308,13 +313,20 @@
         <text wx:for="{{equipmentTooltip.item.notes}}" wx:key="index">{{item}}</text>
       </view>
       <button
-        wx:if="{{equipmentTooltip.source === 'inventory' && !equipmentTooltip.item.equipped}}"
+        wx:if="{{equipmentTooltip.item.equipped}}"
+        class="equipment-tooltip__equip pill-btn pill-btn--ghost"
+        hover-class="pill-btn--hover"
+        size="mini"
+        data-slot="{{equipmentTooltip.slot || equipmentTooltip.item.slot}}"
+        bindtap="handleUnequipFromTooltip"
+      >卸下</button>
+      <button
+        wx:elif="{{equipmentTooltip.source === 'inventory'}}"
         class="equipment-tooltip__equip pill-btn pill-btn--primary"
         hover-class="pill-btn--primary-hover"
         size="mini"
         bindtap="handleEquipFromTooltip"
       >装备</button>
-      <view wx:elif="{{equipmentTooltip.source === 'inventory'}}" class="equipment-tooltip__equipped">当前已装备</view>
     </view>
   </view>
 </view>

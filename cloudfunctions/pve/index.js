@@ -1793,14 +1793,49 @@ async function equipSkill(openid, event) {
 }
 
 async function equipItem(openid, event) {
-  const { itemId } = event;
+  const { itemId, slot: rawSlot } = event;
   const member = await ensureMember(openid);
   const profile = await ensurePveProfile(openid, member);
   const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
   const slots = profile.equipment.slots || {};
 
+  const slot = typeof rawSlot === 'string' ? rawSlot.trim() : '';
+
   if (!itemId) {
-    throw createError('ITEM_REQUIRED', '请选择要装备的装备');
+    if (!slot) {
+      throw createError('SLOT_REQUIRED', '请选择要卸下的装备槽位');
+    }
+    if (!Object.prototype.hasOwnProperty.call(EQUIPMENT_SLOTS, slot)) {
+      throw createError('INVALID_SLOT', '装备槽位不存在');
+    }
+    const currentItemId = slots[slot];
+    if (!currentItemId) {
+      throw createError('SLOT_EMPTY', '该槽位暂无装备');
+    }
+
+    slots[slot] = '';
+    profile.equipment.slots = slots;
+
+    const now = new Date();
+    profile.battleHistory = appendHistory(
+      profile.battleHistory,
+      {
+        type: 'equipment-change',
+        createdAt: now,
+        detail: { slot, itemId: currentItemId, action: 'unequip' }
+      },
+      MAX_BATTLE_HISTORY
+    );
+
+    await db.collection(COLLECTIONS.MEMBERS).doc(openid).update({
+      data: {
+        pveProfile: profile,
+        updatedAt: now
+      }
+    });
+
+    const decorated = decorateProfile(member, profile);
+    return { profile: decorated };
   }
   const definition = EQUIPMENT_MAP[itemId];
   if (!definition) {
@@ -1809,6 +1844,10 @@ async function equipItem(openid, event) {
   const hasItem = inventory.some((entry) => entry.itemId === itemId);
   if (!hasItem) {
     throw createError('ITEM_NOT_OWNED', '尚未拥有该装备，无法装备');
+  }
+
+  if (slot && slot !== definition.slot) {
+    throw createError('SLOT_MISMATCH', '装备与槽位不匹配');
   }
 
   slots[definition.slot] = itemId;
@@ -1820,7 +1859,7 @@ async function equipItem(openid, event) {
     {
       type: 'equipment-change',
       createdAt: now,
-      detail: { itemId, slot: definition.slot }
+      detail: { itemId, slot: definition.slot, action: 'equip' }
     },
     MAX_BATTLE_HISTORY
   );
@@ -3232,12 +3271,23 @@ function decorateBattleHistory(history, profile) {
       };
     }
     if (entry.type === 'equipment-change') {
-      const definition = EQUIPMENT_MAP[entry.detail && entry.detail.itemId];
+      const detail = entry.detail || {};
+      const definition = detail.itemId ? EQUIPMENT_MAP[detail.itemId] : null;
+      const slotLabel = detail.slot ? EQUIPMENT_SLOT_LABELS[detail.slot] || '装备' : '';
+      let summary;
+      if (detail.action === 'unequip') {
+        summary = slotLabel ? `${slotLabel} · 卸下` : '卸下装备';
+      } else if (definition) {
+        const resolvedSlot = EQUIPMENT_SLOT_LABELS[definition.slot] || slotLabel || '装备';
+        summary = `${resolvedSlot} · ${definition.name}`;
+      } else {
+        summary = slotLabel ? `${slotLabel} · 装备变动` : '装备变动';
+      }
       return {
         type: 'equipment',
         createdAt: entry.createdAt,
         createdAtText: formatDateTime(entry.createdAt),
-        summary: definition ? `${EQUIPMENT_SLOT_LABELS[definition.slot] || '装备'} · ${definition.name}` : '装备变动'
+        summary
       };
     }
     if (entry.type === 'consumable') {
