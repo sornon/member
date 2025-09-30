@@ -26,12 +26,16 @@ page {
 
 .tab-item {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   font-size: 28rpx;
   color: rgba(167, 186, 255, 0.72);
   position: relative;
   padding: 20rpx 0;
   transition: color 0.2s ease;
+  line-height: 1;
 }
 
 .tab-item::after {
@@ -107,7 +111,7 @@ page {
   align-items: center;
   justify-content: center;
   height: 56rpx;
-  line-height: 56rpx;
+  line-height: 1;
   padding: 0 28rpx;
   border-radius: 999rpx;
   border: 1rpx solid rgba(108, 136, 255, 0.32);
@@ -338,6 +342,7 @@ button.pill-btn[disabled] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  line-height: 1;
 }
 
 .slot-card__icon {
@@ -362,6 +367,12 @@ button.pill-btn[disabled] {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  line-height: 1.2;
 }
 
 .inventory-title {
@@ -404,6 +415,10 @@ button.pill-btn[disabled] {
   border-radius: 999rpx;
   background: rgba(70, 90, 190, 0.4);
   color: rgba(214, 224, 255, 0.88);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .inventory-card__icon {
@@ -428,6 +443,37 @@ button.pill-btn[disabled] {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  line-height: 1.2;
+}
+
+.inventory-card__status {
+  position: absolute;
+  top: 14rpx;
+  right: 16rpx;
+  padding: 4rpx 10rpx;
+  font-size: 20rpx;
+  border-radius: 999rpx;
+  background: rgba(122, 205, 133, 0.9);
+  color: #041827;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.inventory-card--equipped {
+  border-color: rgba(132, 178, 255, 0.62);
+  box-shadow: 0 12rpx 28rpx rgba(72, 112, 220, 0.24);
+}
+
+.inventory-card--equipped .inventory-card__icon {
+  box-shadow: 0 0 0 4rpx rgba(120, 176, 255, 0.32);
 }
 
 .equipment-summary {
