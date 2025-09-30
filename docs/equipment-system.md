@@ -206,3 +206,34 @@
 
 ## 结语
 本次重构方案在不考虑爆率的前提下，明确了装备的槽位定位、品质梯度、主副属性生成规则与套装协同逻辑，为后续拓展掉落、锻造、洗练等系统奠定坚实基础。通过差异化的词条组合与成套加成，玩家可在同一框架内打造个性化的战斗流派，持续探索最佳解与克制关系。
+
+## 十、实现与运维说明
+
+### 1. 代码映射速览
+- 槽位、品质、词条与套装的全部配置集中在 `cloudfunctions/pve/index.js` 顶部：
+  - `EQUIPMENT_SLOTS` 记录 12 个槽位的主属性候选、权重与词条标签。【F:cloudfunctions/pve/index.js†L120-L213】
+  - `EQUIPMENT_QUALITY_CONFIG` 定义凡品至至宝九档品质的主属性系数、允许的词条段位与配色，代码里对应的键分别是 `mortal`、`inferior`、`standard`、`superior`、`excellent`、`immortal`、`perfect`、`primordial`、`relic`。【F:cloudfunctions/pve/index.js†L215-L233】
+  - `EQUIPMENT_ATTRIBUTE_RULES` 与 `EQUIPMENT_AFFIX_RULES` 列举所有基础与战斗属性的成长斜率、精度与标签，驱动 `calculateEquipmentStats` 的主/副属性数值结算。【F:cloudfunctions/pve/index.js†L241-L321】
+  - `EQUIPMENT_SET_LIBRARY` 描述六大套装的 2/4 件效果，并在 `sumEquipmentBonuses` 中统一结算加成与提示文字。【F:cloudfunctions/pve/index.js†L323-L410】【F:cloudfunctions/pve/index.js†L2580-L2624】
+  - `EQUIPMENT_LIBRARY` 列表即本次上线的全量装备，包含新手 12 件基础装、六大套装成员以及传奇装备，均使用上述配置生成主副属性与特效。【F:cloudfunctions/pve/index.js†L412-L692】
+
+### 2. 数值计算路径
+- `calculateEquipmentStats` 会基于品质系数、槽位系数、词条段位等因素生成主属性、各条副属性与唯一特效，并统一写入 `stats`、`mainAttribute`、`subAttributes` 等字段供前端展示。【F:cloudfunctions/pve/index.js†L2726-L2802】
+- `sumEquipmentBonuses` 在角色结算时遍历所有装备，累加基础属性、战斗属性、多乘算词条以及套装效果，同时收集装备与套装描述文字，最终输出到 `equipmentBonus`。【F:cloudfunctions/pve/index.js†L2580-L2624】
+- 战斗力计算新增了连击率、反击率、护盾强度、元素易伤等权重，使新引入的战斗属性能够正确影响数值评估。【F:cloudfunctions/pve/index.js†L2927-L2966】
+- `decorateEquipment` 复用 `equipmentBonus` 以返回 `bonus.sets` 与 `bonus.notes`，支持前端直接展示套装触发情况与特性说明。【F:cloudfunctions/pve/index.js†L2992-L3015】
+- `formatBattleResult` 的装备掉落改为输出 `quality`、`qualityLabel`、`qualityColor`，确保战斗日志与新品质体系保持一致。【F:cloudfunctions/pve/index.js†L3738-L3768】
+
+### 3. 使用指引
+- 小程序「角色」页的“装备”页签会列出 12 个槽位与背包装备。每件装备会显示主属性、副属性、特效以及所属套装，颜色与标签基于 `quality` 字段自动匹配。【F:miniprogram/pages/role/index.wxml†L120-L174】
+- 新增的“已激活套装”“装备特性”摘要区块读取 `bonus.sets`、`bonus.notes`，便于玩家在界面中查看套装效果与特效描述。【F:miniprogram/pages/role/index.wxml†L175-L198】
+- 玩家通过“装备”按钮即可替换当前槽位；装备上阵后，`profile.attributes` 中的 `equipmentBonus` 会附带 `sets` 与 `notes`，便于后续在面板或战斗日志中展示套装详情。【F:cloudfunctions/pve/index.js†L1424-L1452】【F:cloudfunctions/pve/index.js†L2580-L2624】
+
+### 4. 扩展与维护
+- **新增装备**：在 `EQUIPMENT_LIBRARY` 追加条目并指定 `slot`、`quality`、`mainAttribute`、`subAttributes`、`uniqueEffects`、`setId` 即可。若引入新的词条或槽位，需同步更新 `EQUIPMENT_ATTRIBUTE_RULES`/`EQUIPMENT_AFFIX_RULES` 或 `EQUIPMENT_SLOTS`。【F:cloudfunctions/pve/index.js†L241-L321】【F:cloudfunctions/pve/index.js†L412-L692】
+- **新增套装**：向 `EQUIPMENT_SET_LIBRARY` 添加配置并在 `EQUIPMENT_LIBRARY` 中让相关装备引用新的 `setId`，即可自动触发 2/4 件加成与提示文字。【F:cloudfunctions/pve/index.js†L323-L373】
+- **调整数值**：主属性、词条成长与品质系数均集中在上述常量中，无需修改核心逻辑函数即可完成平衡性调优。
+
+### 5. 部署流程
+- 云函数：在微信开发者工具中打开 `cloudfunctions/pve`，运行上传部署即可将装备结算逻辑同步到云端。
+- 小程序前端：重新编译并上传 `miniprogram` 目录即可获得新的装备展示与操作界面。本次改造未引入额外依赖，不需要额外安装步骤。

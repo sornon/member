@@ -346,6 +346,13 @@ button.pill-btn[disabled] {
   color: rgba(168, 186, 246, 0.72);
 }
 
+.slot-notes text {
+  display: block;
+  font-size: 22rpx;
+  color: rgba(203, 216, 255, 0.82);
+  margin-top: 6rpx;
+}
+
 .slot-empty {
   font-size: 24rpx;
   color: rgba(149, 167, 228, 0.68);
@@ -360,6 +367,63 @@ button.pill-btn[disabled] {
 
 .inventory-empty {
   margin-bottom: 12rpx;
+}
+
+.equipment-summary {
+  margin-top: 28rpx;
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: rgba(30, 46, 98, 0.78);
+  border: 1rpx solid rgba(100, 130, 240, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.summary-title {
+  font-size: 26rpx;
+  color: #f4f6ff;
+  font-weight: 600;
+}
+
+.set-item {
+  border-radius: 20rpx;
+  padding: 18rpx 22rpx;
+  background: rgba(18, 30, 74, 0.62);
+  border: 1rpx solid rgba(96, 124, 228, 0.24);
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+
+.set-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 24rpx;
+  color: rgba(217, 226, 255, 0.92);
+  font-weight: 600;
+}
+
+.set-count {
+  font-size: 22rpx;
+  color: rgba(179, 196, 255, 0.82);
+}
+
+.set-effect {
+  font-size: 22rpx;
+  color: rgba(197, 210, 255, 0.82);
+  line-height: 1.5;
+}
+
+.note-item {
+  font-size: 22rpx;
+  color: rgba(197, 210, 255, 0.82);
+  line-height: 1.5;
+  padding: 10rpx 12rpx;
+  border-radius: 16rpx;
+  background: rgba(20, 32, 76, 0.58);
+  border: 1rpx solid rgba(92, 118, 225, 0.2);
 }
 
 .inventory-footer {
