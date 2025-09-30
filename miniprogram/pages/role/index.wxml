@@ -117,40 +117,85 @@
         <view class="section-header">
           <view class="section-title">装备总览</view>
         </view>
-        <view class="slot-list">
-          <view class="slot" wx:for="{{(profile.equipment && profile.equipment.slots) || []}}" wx:key="slot">
-            <view class="slot-label">{{item.slotLabel}}</view>
-            <view wx:if="{{item.item}}" class="slot-content">
-              <view class="slot-name" style="border-color: {{item.item.rarityColor}};">{{item.item.name}}</view>
-              <view class="slot-meta">{{item.item.rarityLabel}} · 精炼 {{item.item.refine}}</view>
-              <view class="slot-stats">
-                <text wx:for="{{item.item.statsText || []}}" wx:key="index">{{stat}}</text>
+        <view class="slot-grid">
+          <view
+            class="slot-card {{item.item ? 'slot-card--filled' : 'slot-card--empty'}}"
+            wx:for="{{(profile.equipment && profile.equipment.slots) || []}}"
+            wx:key="slot"
+          >
+            <view class="slot-card__header">
+              <text class="slot-card__slot">{{item.slotLabel}}</text>
+              <text
+                class="slot-card__quality"
+                wx:if="{{item.item}}"
+                style="color: {{item.item.qualityColor}};"
+              >{{item.item.qualityLabel}}</text>
+            </view>
+            <view wx:if="{{item.item}}" class="slot-card__body">
+              <view
+                class="slot-card__icon"
+                style="border-color: {{item.item.qualityColor}};"
+              >
+                <text class="slot-card__icon-text">{{item.item.shortName || item.item.name}}</text>
+              </view>
+              <view class="slot-card__name">{{item.item.name}}</view>
+              <view class="slot-card__meta">精炼 {{item.item.refine}}</view>
+              <view class="slot-card__stats" wx:if="{{item.item.statsText && item.item.statsText.length}}">
+                <text wx:for="{{item.item.statsText}}" wx:key="index">{{stat}}</text>
+              </view>
+              <view
+                class="slot-card__notes"
+                wx:if="{{item.item.notes && item.item.notes.length}}"
+              >
+                <text wx:for="{{item.item.notes}}" wx:for-item="note" wx:key="index">{{note}}</text>
               </view>
             </view>
-            <view wx:else class="slot-empty">未装备</view>
+            <view wx:else class="slot-card__empty-label">未装备</view>
           </view>
+        </view>
+        <view wx:if="{{profile.equipment && profile.equipment.bonus && profile.equipment.bonus.sets && profile.equipment.bonus.sets.length}}" class="equipment-summary">
+          <view class="summary-title">已激活套装</view>
+          <view
+            class="set-item"
+            wx:for="{{profile.equipment.bonus.sets}}"
+            wx:key="setId"
+          >
+            <view class="set-head">
+              <text class="set-name">{{item.name}}</text>
+              <text class="set-count">{{item.count}} 件</text>
+            </view>
+            <view class="set-effect" wx:for="{{item.effects || []}}" wx:key="pieces">
+              {{item.pieces}} 件：{{item.description}}
+            </view>
+          </view>
+        </view>
+        <view wx:if="{{profile.equipment && profile.equipment.bonus && profile.equipment.bonus.notes && profile.equipment.bonus.notes.length}}" class="equipment-summary">
+          <view class="summary-title">装备特性</view>
+          <view class="note-item" wx:for="{{profile.equipment.bonus.notes}}" wx:key="index">{{item}}</view>
         </view>
         <view class="inventory-title">背包装备</view>
         <view
           wx:if="{{!(profile.equipment && profile.equipment.inventory && profile.equipment.inventory.length)}}"
           class="empty-tip inventory-empty"
         >暂未获得额外装备</view>
-        <view
-          class="equipment-item"
-          wx:for="{{(profile.equipment && profile.equipment.inventory) || []}}"
-          wx:key="itemId"
-        >
-          <view class="equipment-head">
-            <view class="equipment-name" style="color: {{item.rarityColor}};">{{item.name}}</view>
-            <view class="equipment-meta">{{item.slotLabel}} · {{item.rarityLabel}}</view>
-          </view>
-          <view class="equipment-desc">{{item.description}}</view>
-          <view class="equipment-stats">
-            <text wx:for="{{item.statsText || []}}" wx:key="index">{{stat}}</text>
-          </view>
-          <view class="equipment-actions">
+        <view class="inventory-grid">
+          <view
+            class="inventory-card"
+            wx:for="{{(profile.equipment && profile.equipment.inventory) || []}}"
+            wx:key="itemId"
+          >
+            <view class="inventory-card__badge">{{item.slotLabel}}</view>
+            <view class="inventory-card__icon" style="border-color: {{item.qualityColor}};">
+              <text>{{item.shortName || item.name}}</text>
+            </view>
+            <view class="inventory-card__name" style="color: {{item.qualityColor}};">{{item.name}}</view>
+            <view class="inventory-card__meta">{{item.qualityLabel}}</view>
+            <view class="inventory-card__refine">{{item.refineLabel}}</view>
+            <view class="inventory-card__stats" wx:if="{{item.statsText && item.statsText.length}}">
+              <text wx:for="{{item.statsText}}" wx:key="index">{{stat}}</text>
+            </view>
             <button
-              class="pill-btn pill-btn--primary"
+              class="inventory-card__equip pill-btn pill-btn--primary"
               hover-class="pill-btn--primary-hover"
               size="mini"
               data-item-id="{{item.itemId}}"
@@ -159,7 +204,6 @@
             >
               {{item.equipped ? '使用中' : '装备'}}
             </button>
-            <view class="equipment-refine">{{item.refineLabel}}</view>
           </view>
         </view>
         <view class="inventory-footer" bindtap="handleOpenStones" hover-class="inventory-footer--hover">

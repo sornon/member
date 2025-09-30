@@ -299,56 +299,131 @@ button.pill-btn[disabled] {
   color: rgba(204, 214, 255, 0.75);
 }
 
-.slot-list {
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.slot-card {
+  position: relative;
+  background: rgba(22, 36, 86, 0.9);
+  border-radius: 20rpx;
+  padding: 20rpx 16rpx 24rpx;
+  border: 1rpx solid rgba(93, 119, 214, 0.36);
   display: flex;
-  gap: 24rpx;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  min-height: 240rpx;
+  box-sizing: border-box;
 }
 
-.slot {
-  flex: 1 1 220rpx;
-  min-width: 220rpx;
-  background: rgba(22, 36, 86, 0.86);
-  border-radius: 24rpx;
-  padding: 24rpx;
-  border: 1rpx solid rgba(93, 119, 214, 0.3);
+.slot-card--empty {
+  opacity: 0.72;
 }
 
-.slot-label {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: rgba(196, 208, 255, 0.88);
+.slot-card__header {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 22rpx;
+  color: rgba(190, 204, 255, 0.85);
   margin-bottom: 16rpx;
 }
 
-.slot-content {
+.slot-card__slot {
+  font-weight: 600;
+}
+
+.slot-card__quality {
+  font-weight: 600;
+}
+
+.slot-card__body {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 12rpx;
+  width: 100%;
 }
 
-.slot-name {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #f1f5ff;
-  padding-bottom: 8rpx;
-  border-bottom: 4rpx solid rgba(103, 133, 255, 0.6);
-}
-
-.slot-meta {
-  font-size: 22rpx;
-  color: rgba(176, 192, 247, 0.72);
-}
-
-.slot-stats text {
-  display: block;
-  font-size: 22rpx;
-  color: rgba(168, 186, 246, 0.72);
-}
-
-.slot-empty {
+.slot-card__icon {
+  width: 112rpx;
+  height: 112rpx;
+  border: 4rpx solid rgba(113, 140, 255, 0.6);
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(12, 20, 52, 0.88);
+  color: #f5f8ff;
   font-size: 24rpx;
-  color: rgba(149, 167, 228, 0.68);
+  text-align: center;
+  padding: 8rpx;
+  box-sizing: border-box;
+}
+
+.slot-card__icon-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.slot-card__name {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #f0f4ff;
+  text-align: center;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slot-card__meta {
+  font-size: 22rpx;
+  color: rgba(180, 195, 252, 0.8);
+}
+
+.slot-card__stats {
+  width: 100%;
+  font-size: 20rpx;
+  color: rgba(172, 189, 250, 0.78);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.slot-card__stats text {
+  display: block;
+}
+
+.slot-card__notes {
+  width: 100%;
+  font-size: 20rpx;
+  color: rgba(203, 216, 255, 0.86);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.slot-card__notes text {
+  display: block;
+}
+
+.slot-card__empty-label {
+  margin-top: auto;
+  font-size: 24rpx;
+  color: rgba(149, 167, 228, 0.7);
 }
 
 .inventory-title {
@@ -360,6 +435,159 @@ button.pill-btn[disabled] {
 
 .inventory-empty {
   margin-bottom: 12rpx;
+}
+
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.inventory-card {
+  position: relative;
+  background: rgba(18, 30, 74, 0.9);
+  border-radius: 20rpx;
+  padding: 18rpx 14rpx 22rpx;
+  border: 1rpx solid rgba(84, 110, 208, 0.34);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10rpx;
+  min-height: 260rpx;
+  box-sizing: border-box;
+}
+
+.inventory-card__badge {
+  position: absolute;
+  top: 14rpx;
+  left: 16rpx;
+  padding: 4rpx 10rpx;
+  font-size: 20rpx;
+  border-radius: 999rpx;
+  background: rgba(70, 90, 190, 0.4);
+  color: rgba(214, 224, 255, 0.88);
+}
+
+.inventory-card__icon {
+  width: 112rpx;
+  height: 112rpx;
+  border: 4rpx solid rgba(120, 146, 255, 0.62);
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 14, 40, 0.9);
+  color: #f5f8ff;
+  font-size: 24rpx;
+  text-align: center;
+  padding: 8rpx;
+  box-sizing: border-box;
+}
+
+.inventory-card__icon text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.inventory-card__name {
+  font-size: 24rpx;
+  font-weight: 600;
+  text-align: center;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inventory-card__meta {
+  font-size: 22rpx;
+  color: rgba(182, 196, 250, 0.82);
+}
+
+.inventory-card__refine {
+  font-size: 22rpx;
+  color: rgba(168, 187, 247, 0.78);
+}
+
+.inventory-card__stats {
+  width: 100%;
+  font-size: 20rpx;
+  color: rgba(170, 189, 250, 0.78);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.inventory-card__stats text {
+  display: block;
+}
+
+.inventory-card__equip {
+  margin-top: auto;
+  min-width: auto;
+  padding: 0 18rpx;
+}
+
+.equipment-summary {
+  margin-top: 28rpx;
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: rgba(30, 46, 98, 0.78);
+  border: 1rpx solid rgba(100, 130, 240, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.summary-title {
+  font-size: 26rpx;
+  color: #f4f6ff;
+  font-weight: 600;
+}
+
+.set-item {
+  border-radius: 20rpx;
+  padding: 18rpx 22rpx;
+  background: rgba(18, 30, 74, 0.62);
+  border: 1rpx solid rgba(96, 124, 228, 0.24);
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+
+.set-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 24rpx;
+  color: rgba(217, 226, 255, 0.92);
+  font-weight: 600;
+}
+
+.set-count {
+  font-size: 22rpx;
+  color: rgba(179, 196, 255, 0.82);
+}
+
+.set-effect {
+  font-size: 22rpx;
+  color: rgba(197, 210, 255, 0.82);
+  line-height: 1.5;
+}
+
+.note-item {
+  font-size: 22rpx;
+  color: rgba(197, 210, 255, 0.82);
+  line-height: 1.5;
+  padding: 10rpx 12rpx;
+  border-radius: 16rpx;
+  background: rgba(20, 32, 76, 0.58);
+  border: 1rpx solid rgba(92, 118, 225, 0.2);
 }
 
 .inventory-footer {
@@ -398,48 +626,6 @@ button.pill-btn[disabled] {
 .inventory-footer__label {
   font-size: 24rpx;
   color: rgba(197, 208, 255, 0.8);
-}
-
-.equipment-item {
-  border: 1rpx solid rgba(93, 119, 214, 0.3);
-  border-radius: 24rpx;
-  padding: 24rpx;
-  margin-bottom: 16rpx;
-  background: rgba(18, 30, 72, 0.88);
-}
-
-.equipment-head {
-  display: flex;
-  justify-content: space-between;
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #f1f4ff;
-}
-
-.equipment-desc {
-  margin: 12rpx 0;
-  color: rgba(188, 198, 246, 0.78);
-  font-size: 24rpx;
-}
-
-.equipment-stats text {
-  display: inline-block;
-  margin-right: 12rpx;
-  margin-bottom: 4rpx;
-  font-size: 22rpx;
-  color: rgba(176, 192, 247, 0.76);
-}
-
-.equipment-actions {
-  margin-top: 16rpx;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.equipment-refine {
-  font-size: 22rpx;
-  color: rgba(184, 197, 247, 0.74);
 }
 
 .skill-slots {
