@@ -125,32 +125,19 @@
           >
             <view class="slot-card__header">
               <text class="slot-card__slot">{{item.slotLabel}}</text>
-              <text
-                class="slot-card__quality"
-                wx:if="{{item.item}}"
-                style="color: {{item.item.qualityColor}};"
-              >{{item.item.qualityLabel}}</text>
             </view>
-            <view wx:if="{{item.item}}" class="slot-card__body">
-              <view
-                class="slot-card__icon"
-                style="border-color: {{item.item.qualityColor}};"
-              >
-                <text class="slot-card__icon-text">{{item.item.shortName || item.item.name}}</text>
-              </view>
-              <view class="slot-card__name">{{item.item.name}}</view>
-              <view class="slot-card__meta">精炼 {{item.item.refine}}</view>
-              <view class="slot-card__stats" wx:if="{{item.item.statsText && item.item.statsText.length}}">
-                <text wx:for="{{item.item.statsText}}" wx:key="index">{{stat}}</text>
-              </view>
-              <view
-                class="slot-card__notes"
-                wx:if="{{item.item.notes && item.item.notes.length}}"
-              >
-                <text wx:for="{{item.item.notes}}" wx:for-item="note" wx:key="index">{{note}}</text>
-              </view>
+            <view
+              class="slot-card__icon"
+              style="border-color: {{item.item ? item.item.qualityColor : 'rgba(86, 110, 210, 0.48)'}};"
+              bindlongpress="handleEquipmentLongPress"
+              data-source="slot"
+              data-slot-label="{{item.slotLabel}}"
+              data-item="{{item.item}}"
+            >
+              <text class="slot-card__icon-name">
+                {{item.item ? (item.item.shortName || item.item.name) : '未装备'}}
+              </text>
             </view>
-            <view wx:else class="slot-card__empty-label">未装备</view>
           </view>
         </view>
         <view wx:if="{{profile.equipment && profile.equipment.bonus && profile.equipment.bonus.sets && profile.equipment.bonus.sets.length}}" class="equipment-summary">
@@ -185,25 +172,15 @@
             wx:key="itemId"
           >
             <view class="inventory-card__badge">{{item.slotLabel}}</view>
-            <view class="inventory-card__icon" style="border-color: {{item.qualityColor}};">
-              <text>{{item.shortName || item.name}}</text>
-            </view>
-            <view class="inventory-card__name" style="color: {{item.qualityColor}};">{{item.name}}</view>
-            <view class="inventory-card__meta">{{item.qualityLabel}}</view>
-            <view class="inventory-card__refine">{{item.refineLabel}}</view>
-            <view class="inventory-card__stats" wx:if="{{item.statsText && item.statsText.length}}">
-              <text wx:for="{{item.statsText}}" wx:key="index">{{stat}}</text>
-            </view>
-            <button
-              class="inventory-card__equip pill-btn pill-btn--primary"
-              hover-class="pill-btn--primary-hover"
-              size="mini"
-              data-item-id="{{item.itemId}}"
-              bindtap="handleEquipItem"
-              disabled="{{item.equipped}}"
+            <view
+              class="inventory-card__icon"
+              style="border-color: {{item.qualityColor}};"
+              bindlongpress="handleEquipmentLongPress"
+              data-source="inventory"
+              data-item="{{item}}"
             >
-              {{item.equipped ? '使用中' : '装备'}}
-            </button>
+              <text class="inventory-card__icon-name">{{item.shortName || item.name}}</text>
+            </view>
           </view>
         </view>
         <view class="inventory-footer" bindtap="handleOpenStones" hover-class="inventory-footer--hover">
@@ -302,5 +279,42 @@
 
   <view wx:else class="empty-card">
     <text class="empty-tip">暂未获取到角色信息</text>
+  </view>
+
+  <view wx:if="{{equipmentTooltip && equipmentTooltip.visible}}" class="equipment-tooltip">
+    <view class="equipment-tooltip__mask" catchtouchmove="noop" bindtap="closeEquipmentTooltip"></view>
+    <view class="equipment-tooltip__card">
+      <view class="equipment-tooltip__header">
+        <text
+          class="equipment-tooltip__name"
+          style="color: {{equipmentTooltip.item.qualityColor}};"
+        >
+          {{equipmentTooltip.item.name}}
+        </text>
+        <text class="equipment-tooltip__quality">{{equipmentTooltip.item.qualityLabel}}</text>
+      </view>
+      <view class="equipment-tooltip__meta">
+        <text wx:if="{{equipmentTooltip.slotLabel}}">槽位：{{equipmentTooltip.slotLabel}}</text>
+        <text wx:if="{{equipmentTooltip.item.refineLabel}}">{{equipmentTooltip.item.refineLabel}}</text>
+        <text wx:elif="{{equipmentTooltip.item.refine != null}}">精炼 {{equipmentTooltip.item.refine}}</text>
+      </view>
+      <view class="equipment-tooltip__stats" wx:if="{{equipmentTooltip.item.statsText && equipmentTooltip.item.statsText.length}}">
+        <text wx:for="{{equipmentTooltip.item.statsText}}" wx:key="index">{{item}}</text>
+      </view>
+      <view
+        class="equipment-tooltip__notes"
+        wx:if="{{equipmentTooltip.item.notes && equipmentTooltip.item.notes.length}}"
+      >
+        <text wx:for="{{equipmentTooltip.item.notes}}" wx:key="index">{{item}}</text>
+      </view>
+      <button
+        wx:if="{{equipmentTooltip.source === 'inventory' && !equipmentTooltip.item.equipped}}"
+        class="equipment-tooltip__equip pill-btn pill-btn--primary"
+        hover-class="pill-btn--primary-hover"
+        size="mini"
+        bindtap="handleEquipFromTooltip"
+      >装备</button>
+      <view wx:elif="{{equipmentTooltip.source === 'inventory'}}" class="equipment-tooltip__equipped">当前已装备</view>
+    </view>
   </view>
 </view>

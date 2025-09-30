@@ -11,7 +11,8 @@ Page({
     drawing: false,
     resetting: false,
     stoneBalance: 0,
-    formattedStoneBalance: formatStones(0)
+    formattedStoneBalance: formatStones(0),
+    equipmentTooltip: null
   },
 
   onLoad(options = {}) {
@@ -155,16 +156,50 @@ Page({
 
   async handleEquipItem(event) {
     const itemId = event.currentTarget.dataset.itemId;
-    if (!itemId) return;
+    if (!itemId) return false;
     try {
       const res = await PveService.equipItem(itemId);
       this.setData({ profile: res.profile });
       wx.showToast({ title: '装备成功', icon: 'success', duration: 1200 });
+      return true;
     } catch (error) {
       console.error('[role] equip item failed', error);
       wx.showToast({ title: error.errMsg || '操作失败', icon: 'none' });
+      return false;
     }
   },
+
+  handleEquipmentLongPress(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const rawItem = dataset.item;
+    if (!rawItem) {
+      return;
+    }
+    const tooltip = {
+      visible: true,
+      source: dataset.source || 'inventory',
+      slotLabel: dataset.slotLabel || rawItem.slotLabel || '',
+      item: { ...rawItem }
+    };
+    this.setData({ equipmentTooltip: tooltip });
+  },
+
+  closeEquipmentTooltip() {
+    this.setData({ equipmentTooltip: null });
+  },
+
+  async handleEquipFromTooltip() {
+    const tooltip = this.data.equipmentTooltip;
+    if (!tooltip || !tooltip.item || !tooltip.item.itemId) {
+      return;
+    }
+    const success = await this.handleEquipItem({ currentTarget: { dataset: { itemId: tooltip.item.itemId } } });
+    if (success) {
+      this.closeEquipmentTooltip();
+    }
+  },
+
+  noop() {},
 
   handleAllocate(event) {
     const mode = event.currentTarget.dataset.mode;

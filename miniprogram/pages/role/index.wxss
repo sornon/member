@@ -310,120 +310,58 @@ button.pill-btn[disabled] {
   position: relative;
   background: rgba(22, 36, 86, 0.9);
   border-radius: 20rpx;
-  padding: 20rpx 16rpx 24rpx;
+  padding: 18rpx 16rpx 24rpx;
   border: 1rpx solid rgba(93, 119, 214, 0.36);
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-height: 240rpx;
+  gap: 12rpx;
+  min-height: 196rpx;
   box-sizing: border-box;
 }
 
-.slot-card--empty {
-  opacity: 0.72;
+.slot-card--empty .slot-card__icon {
+  color: rgba(167, 186, 255, 0.68);
+  border-color: rgba(94, 120, 210, 0.4);
 }
 
 .slot-card__header {
   width: 100%;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  justify-content: center;
   font-size: 22rpx;
-  color: rgba(190, 204, 255, 0.85);
-  margin-bottom: 16rpx;
+  color: rgba(190, 204, 255, 0.86);
+  font-weight: 600;
 }
 
 .slot-card__slot {
-  font-weight: 600;
-}
-
-.slot-card__quality {
-  font-weight: 600;
-}
-
-.slot-card__body {
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
   align-items: center;
-  gap: 12rpx;
-  width: 100%;
+  justify-content: center;
 }
 
 .slot-card__icon {
-  width: 112rpx;
-  height: 112rpx;
+  width: 128rpx;
+  height: 128rpx;
   border: 4rpx solid rgba(113, 140, 255, 0.6);
   border-radius: 20rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(12, 20, 52, 0.88);
+  background: rgba(12, 20, 52, 0.9);
   color: #f5f8ff;
-  font-size: 24rpx;
-  text-align: center;
-  padding: 8rpx;
+  padding: 0 10rpx;
   box-sizing: border-box;
 }
 
-.slot-card__icon-text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-
-.slot-card__name {
-  font-size: 24rpx;
+.slot-card__icon-name {
+  max-width: 100%;
+  font-size: 18rpx;
   font-weight: 600;
-  color: #f0f4ff;
   text-align: center;
-  width: 100%;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.slot-card__meta {
-  font-size: 22rpx;
-  color: rgba(180, 195, 252, 0.8);
-}
-
-.slot-card__stats {
-  width: 100%;
-  font-size: 20rpx;
-  color: rgba(172, 189, 250, 0.78);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  text-align: center;
-  line-height: 1.4;
-}
-
-.slot-card__stats text {
-  display: block;
-}
-
-.slot-card__notes {
-  width: 100%;
-  font-size: 20rpx;
-  color: rgba(203, 216, 255, 0.86);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  text-align: center;
-  line-height: 1.4;
-}
-
-.slot-card__notes text {
-  display: block;
-}
-
-.slot-card__empty-label {
-  margin-top: auto;
-  font-size: 24rpx;
-  color: rgba(149, 167, 228, 0.7);
 }
 
 .inventory-title {
@@ -452,8 +390,8 @@ button.pill-btn[disabled] {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10rpx;
-  min-height: 260rpx;
+  gap: 12rpx;
+  min-height: 188rpx;
   box-sizing: border-box;
 }
 
@@ -469,8 +407,8 @@ button.pill-btn[disabled] {
 }
 
 .inventory-card__icon {
-  width: 112rpx;
-  height: 112rpx;
+  width: 128rpx;
+  height: 128rpx;
   border: 4rpx solid rgba(120, 146, 255, 0.62);
   border-radius: 20rpx;
   display: flex;
@@ -478,59 +416,18 @@ button.pill-btn[disabled] {
   justify-content: center;
   background: rgba(8, 14, 40, 0.9);
   color: #f5f8ff;
-  font-size: 24rpx;
-  text-align: center;
-  padding: 8rpx;
+  padding: 0 10rpx;
   box-sizing: border-box;
 }
 
-.inventory-card__icon text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-}
-
-.inventory-card__name {
-  font-size: 24rpx;
+.inventory-card__icon-name {
+  max-width: 100%;
+  font-size: 18rpx;
   font-weight: 600;
   text-align: center;
-  width: 100%;
+  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.inventory-card__meta {
-  font-size: 22rpx;
-  color: rgba(182, 196, 250, 0.82);
-}
-
-.inventory-card__refine {
-  font-size: 22rpx;
-  color: rgba(168, 187, 247, 0.78);
-}
-
-.inventory-card__stats {
-  width: 100%;
-  font-size: 20rpx;
-  color: rgba(170, 189, 250, 0.78);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  text-align: center;
-  line-height: 1.4;
-}
-
-.inventory-card__stats text {
-  display: block;
-}
-
-.inventory-card__equip {
-  margin-top: auto;
-  min-width: auto;
-  padding: 0 18rpx;
 }
 
 .equipment-summary {
@@ -626,6 +523,87 @@ button.pill-btn[disabled] {
 .inventory-footer__label {
   font-size: 24rpx;
   color: rgba(197, 208, 255, 0.8);
+}
+
+.equipment-tooltip {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.equipment-tooltip__mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 9, 28, 0.72);
+}
+
+.equipment-tooltip__card {
+  position: relative;
+  max-width: 640rpx;
+  width: calc(100% - 120rpx);
+  padding: 40rpx 36rpx;
+  border-radius: 28rpx;
+  background: rgba(18, 30, 74, 0.92);
+  border: 1rpx solid rgba(102, 130, 238, 0.46);
+  box-shadow: 0 24rpx 48rpx rgba(6, 10, 32, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  box-sizing: border-box;
+}
+
+.equipment-tooltip__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.equipment-tooltip__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #f5f8ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.equipment-tooltip__quality {
+  font-size: 24rpx;
+  color: rgba(214, 224, 255, 0.88);
+}
+
+.equipment-tooltip__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx 16rpx;
+  font-size: 22rpx;
+  color: rgba(198, 210, 255, 0.85);
+}
+
+.equipment-tooltip__stats,
+.equipment-tooltip__notes {
+  font-size: 22rpx;
+  color: rgba(204, 216, 255, 0.9);
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.equipment-tooltip__equip {
+  align-self: flex-start;
+  margin-top: 4rpx;
+}
+
+.equipment-tooltip__equipped {
+  font-size: 22rpx;
+  color: rgba(195, 206, 255, 0.82);
 }
 
 .skill-slots {
