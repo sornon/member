@@ -11,9 +11,10 @@
     class="background background--video background-layer {{showBackgroundVideo ? 'background-layer--visible' : ''}}"
   >
     <video
+      id="backgroundVideo"
       class="background-video background-layer {{showBackgroundVideo ? 'background-layer--visible' : ''}}"
       src="{{backgroundVideo}}"
-      autoplay
+      autoplay="{{showBackgroundVideo}}"
       loop
       muted
       controls="{{false}}"

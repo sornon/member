@@ -590,6 +590,7 @@ Page({
 
   onLoad() {
     this.hasBootstrapped = false;
+    this.backgroundVideoContext = null;
     this.ensureNavMetrics();
     this.updateToday();
   },
@@ -599,16 +600,19 @@ Page({
     this.updateToday();
     this.attachMemberRealtime();
     this.bootstrap();
+    this.syncBackgroundVideoPlayback();
   },
 
   onReady() {},
 
   onHide() {
     this.detachMemberRealtime();
+    this.pauseBackgroundVideoContext();
   },
 
   onUnload() {
     this.detachMemberRealtime();
+    this.pauseBackgroundVideoContext();
   },
 
   ensureNavMetrics() {
@@ -631,6 +635,8 @@ Page({
       showBackgroundVideo: showVideo,
       showBackgroundOverlay: !showVideo,
       backgroundVideoError: hasError
+    }, () => {
+      this.syncBackgroundVideoPlayback();
     });
   },
 
@@ -642,7 +648,39 @@ Page({
       backgroundVideoError: true,
       showBackgroundVideo: false,
       showBackgroundOverlay: true
+    }, () => {
+      this.syncBackgroundVideoPlayback();
     });
+  },
+
+  syncBackgroundVideoPlayback() {
+    const { backgroundVideo, showBackgroundVideo } = this.data;
+    if (!backgroundVideo) {
+      if (this.backgroundVideoContext && typeof this.backgroundVideoContext.pause === 'function') {
+        this.backgroundVideoContext.pause();
+      }
+      this.backgroundVideoContext = null;
+      return;
+    }
+    if (!this.backgroundVideoContext) {
+      this.backgroundVideoContext = wx.createVideoContext('backgroundVideo', this);
+    }
+    if (!this.backgroundVideoContext) {
+      return;
+    }
+    if (showBackgroundVideo) {
+      if (typeof this.backgroundVideoContext.play === 'function') {
+        this.backgroundVideoContext.play();
+      }
+    } else if (typeof this.backgroundVideoContext.pause === 'function') {
+      this.backgroundVideoContext.pause();
+    }
+  },
+
+  pauseBackgroundVideoContext() {
+    if (this.backgroundVideoContext && typeof this.backgroundVideoContext.pause === 'function') {
+      this.backgroundVideoContext.pause();
+    }
   },
 
   attachMemberRealtime() {
