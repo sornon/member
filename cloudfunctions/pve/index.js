@@ -35,7 +35,17 @@ const COMBAT_STAT_KEYS = [
   'controlHit',
   'controlResist',
   'physicalPenetration',
-  'magicPenetration'
+  'magicPenetration',
+  'comboRate',
+  'block',
+  'counterRate',
+  'damageReduction',
+  'healingReceived',
+  'rageGain',
+  'controlStrength',
+  'shieldPower',
+  'summonPower',
+  'elementalVulnerability'
 ];
 
 const COMBAT_STAT_LABELS = {
@@ -57,7 +67,17 @@ const COMBAT_STAT_LABELS = {
   controlHit: '控制命中',
   controlResist: '控制抗性',
   physicalPenetration: '破甲',
-  magicPenetration: '法穿'
+  magicPenetration: '法穿',
+  comboRate: '连击率',
+  block: '格挡',
+  counterRate: '反击率',
+  damageReduction: '减伤',
+  healingReceived: '受疗加成',
+  rageGain: '怒气获取',
+  controlStrength: '控制强度',
+  shieldPower: '护盾强度',
+  summonPower: '召唤物强度',
+  elementalVulnerability: '元素易伤'
 };
 
 const ATTRIBUTE_CONFIG = [
@@ -156,10 +176,338 @@ const RARITY_CONFIG = {
   legendary: { key: 'legendary', label: '传说', color: '#ffa940', weight: 5 }
 };
 
-const EQUIPMENT_SLOT_LABELS = {
-  weapon: '武器',
-  armor: '护具',
-  accessory: '饰品'
+const EQUIPMENT_SLOTS = {
+  weapon: {
+    key: 'weapon',
+    label: '武器',
+    mainAttributes: [
+      { key: 'physicalAttack', weight: 50, coefficient: 1.2 },
+      { key: 'finalDamageBonus', weight: 35, coefficient: 1 },
+      { key: 'comboRate', weight: 15, coefficient: 1 }
+    ],
+    subTags: ['offense', 'crit', 'speed']
+  },
+  helm: {
+    key: 'helm',
+    label: '头部',
+    mainAttributes: [
+      { key: 'physicalDefense', weight: 45, coefficient: 1.05 },
+      { key: 'magicDefense', weight: 35, coefficient: 1.05 },
+      { key: 'block', weight: 20, coefficient: 1 }
+    ],
+    subTags: ['defense', 'control', 'support']
+  },
+  chest: {
+    key: 'chest',
+    label: '衣服',
+    mainAttributes: [
+      { key: 'maxHpMultiplier', weight: 40, coefficient: 1.1 },
+      { key: 'damageReduction', weight: 40, coefficient: 1.05 },
+      { key: 'shieldPower', weight: 20, coefficient: 1 }
+    ],
+    subTags: ['defense', 'support']
+  },
+  boots: {
+    key: 'boots',
+    label: '鞋履',
+    mainAttributes: [
+      { key: 'speed', weight: 60, coefficient: 1.15 },
+      { key: 'dodge', weight: 25, coefficient: 1.05 },
+      { key: 'accuracy', weight: 15, coefficient: 1 }
+    ],
+    subTags: ['speed', 'evasion', 'control']
+  },
+  belt: {
+    key: 'belt',
+    label: '腰带',
+    mainAttributes: [
+      { key: 'maxHpMultiplier', weight: 40, coefficient: 1 },
+      { key: 'healingReceived', weight: 30, coefficient: 1 },
+      { key: 'healingBonus', weight: 30, coefficient: 1 }
+    ],
+    subTags: ['defense', 'support']
+  },
+  bracer: {
+    key: 'bracer',
+    label: '护腕',
+    mainAttributes: [
+      { key: 'physicalAttack', weight: 50, coefficient: 1 },
+      { key: 'counterRate', weight: 30, coefficient: 1 },
+      { key: 'block', weight: 20, coefficient: 1 }
+    ],
+    subTags: ['offense', 'crit', 'defense']
+  },
+  orb: {
+    key: 'orb',
+    label: '宝珠',
+    mainAttributes: [
+      { key: 'magicAttack', weight: 45, coefficient: 1.15 },
+      { key: 'controlHit', weight: 35, coefficient: 1.05 },
+      { key: 'finalDamageBonus', weight: 20, coefficient: 1 }
+    ],
+    subTags: ['arcane', 'control', 'support']
+  },
+  necklace: {
+    key: 'necklace',
+    label: '项圈',
+    mainAttributes: [
+      { key: 'controlHit', weight: 40, coefficient: 1 },
+      { key: 'healingBonus', weight: 35, coefficient: 1 },
+      { key: 'rageGain', weight: 25, coefficient: 1 }
+    ],
+    subTags: ['support', 'control', 'speed']
+  },
+  token: {
+    key: 'token',
+    label: '信物',
+    mainAttributes: [
+      { key: 'allAttributes', weight: 50, coefficient: 1 },
+      { key: 'damageReduction', weight: 30, coefficient: 1 },
+      { key: 'shieldPower', weight: 20, coefficient: 1 }
+    ],
+    subTags: ['support', 'defense']
+  },
+  puppet: {
+    key: 'puppet',
+    label: '傀儡',
+    mainAttributes: [
+      { key: 'counterRate', weight: 35, coefficient: 1 },
+      { key: 'shieldPower', weight: 35, coefficient: 1 },
+      { key: 'summonPower', weight: 30, coefficient: 1 }
+    ],
+    subTags: ['defense', 'support']
+  },
+  focus: {
+    key: 'focus',
+    label: '法器',
+    mainAttributes: [
+      { key: 'magicAttack', weight: 45, coefficient: 1.1 },
+      { key: 'finalDamageBonus', weight: 35, coefficient: 1.05 },
+      { key: 'elementalVulnerability', weight: 20, coefficient: 1 }
+    ],
+    subTags: ['arcane', 'offense', 'control']
+  },
+  treasure: {
+    key: 'treasure',
+    label: '秘宝',
+    mainAttributes: [
+      { key: 'finalDamageBonus', weight: 40, coefficient: 1.05 },
+      { key: 'finalDamageReduction', weight: 25, coefficient: 1 },
+      { key: 'damageReduction', weight: 25, coefficient: 1 },
+      { key: 'shieldPower', weight: 10, coefficient: 1 }
+    ],
+    subTags: ['offense', 'defense', 'support']
+  }
+};
+
+const EQUIPMENT_SLOT_LABELS = Object.keys(EQUIPMENT_SLOTS).reduce((map, key) => {
+  map[key] = EQUIPMENT_SLOTS[key].label;
+  return map;
+}, {});
+
+const EQUIPMENT_QUALITY_CONFIG = {
+  mortal: { key: 'mortal', label: '凡品', color: '#8d9099', mainCoefficient: 0.8, subCount: 0, subTierRange: ['common'], dropWeight: 42 },
+  inferior: { key: 'inferior', label: '下品', color: '#63a86c', mainCoefficient: 1, subCount: 0, subTierRange: ['common'], dropWeight: 34 },
+  standard: { key: 'standard', label: '中品', color: '#3c9bd4', mainCoefficient: 1.1, subCount: 1, subTierRange: ['common'], dropWeight: 28 },
+  superior: { key: 'superior', label: '上品', color: '#7f6bff', mainCoefficient: 1.25, subCount: 1, subTierRange: ['common', 'rare'], dropWeight: 18 },
+  excellent: { key: 'excellent', label: '极品', color: '#ff985a', mainCoefficient: 1.4, subCount: 2, subTierRange: ['common', 'rare'], dropWeight: 12 },
+  immortal: { key: 'immortal', label: '仙品', color: '#f05d7d', mainCoefficient: 1.6, subCount: 2, subTierRange: ['common', 'rare', 'advanced'], dropWeight: 6 },
+  perfect: { key: 'perfect', label: '完美', color: '#d4a93c', mainCoefficient: 1.85, subCount: 2, subTierRange: ['rare', 'advanced'], dropWeight: 3 },
+  primordial: { key: 'primordial', label: '先天', color: '#f7baff', mainCoefficient: 2.05, subCount: 3, subTierRange: ['rare', 'advanced', 'legendary'], dropWeight: 1 },
+  relic: {
+    key: 'relic',
+    label: '至宝',
+    color: '#6cf4ff',
+    mainCoefficient: 2.3,
+    subCount: 3,
+    subTierRange: ['advanced', 'legendary'],
+    guaranteeLegendaryAffix: true,
+    dropWeight: 0.2
+  }
+};
+
+const EQUIPMENT_AFFIX_TIER_MULTIPLIER = {
+  common: 0.85,
+  rare: 1,
+  advanced: 1.25,
+  legendary: 1.55
+};
+
+const EQUIPMENT_ATTRIBUTE_RULES = {
+  physicalAttack: { type: 'flat', base: 32, perLevel: 6.4, precision: 0 },
+  magicAttack: { type: 'flat', base: 32, perLevel: 6.4, precision: 0 },
+  physicalDefense: { type: 'flat', base: 26, perLevel: 4.2, precision: 0 },
+  magicDefense: { type: 'flat', base: 26, perLevel: 4.2, precision: 0 },
+  maxHp: { type: 'flat', base: 420, perLevel: 70, precision: 0 },
+  maxHpMultiplier: { type: 'percent', base: 0.08, perLevel: 0.0025, precision: 4 },
+  finalDamageBonus: { type: 'percent', base: 0.05, perLevel: 0.0018, precision: 4 },
+  finalDamageReduction: { type: 'percent', base: 0.04, perLevel: 0.0016, precision: 4 },
+  comboRate: { type: 'percent', base: 0.08, perLevel: 0.0022, precision: 4 },
+  block: { type: 'percent', base: 0.1, perLevel: 0.0022, precision: 4 },
+  counterRate: { type: 'percent', base: 0.12, perLevel: 0.0024, precision: 4 },
+  damageReduction: { type: 'percent', base: 0.12, perLevel: 0.0024, precision: 4 },
+  speed: { type: 'flat', base: 22, perLevel: 1.5, precision: 0 },
+  accuracy: { type: 'flat', base: 18, perLevel: 1.4, precision: 0 },
+  dodge: { type: 'flat', base: 20, perLevel: 1.6, precision: 0 },
+  controlHit: { type: 'flat', base: 28, perLevel: 2.4, precision: 0 },
+  controlResist: { type: 'flat', base: 24, perLevel: 2.2, precision: 0 },
+  controlStrength: { type: 'percent', base: 0.09, perLevel: 0.0023, precision: 4 },
+  healingBonus: { type: 'percent', base: 0.1, perLevel: 0.0025, precision: 4 },
+  healingReceived: { type: 'percent', base: 0.1, perLevel: 0.0025, precision: 4 },
+  rageGain: { type: 'percent', base: 0.14, perLevel: 0.003, precision: 4 },
+  shieldPower: { type: 'percent', base: 0.14, perLevel: 0.003, precision: 4 },
+  summonPower: { type: 'percent', base: 0.14, perLevel: 0.0032, precision: 4 },
+  elementalVulnerability: { type: 'percent', base: 0.12, perLevel: 0.0026, precision: 4 },
+  bonusDamage: { type: 'flat', base: 90, perLevel: 12, precision: 0 },
+  shield: { type: 'flat', base: 220, perLevel: 28, precision: 0 },
+  dodgeChance: { type: 'percent', base: 0.08, perLevel: 0.0018, precision: 4 },
+  lifeSteal: { type: 'percent', base: 0.06, perLevel: 0.0016, precision: 4 },
+  physicalPenetration: { type: 'flat', base: 22, perLevel: 2.2, precision: 0 },
+  magicPenetration: { type: 'flat', base: 22, perLevel: 2.2, precision: 0 },
+  constitution: { type: 'flat', base: 18, perLevel: 2.2, precision: 0 },
+  strength: { type: 'flat', base: 18, perLevel: 2.2, precision: 0 },
+  spirit: { type: 'flat', base: 18, perLevel: 2.2, precision: 0 },
+  root: { type: 'flat', base: 18, perLevel: 2.2, precision: 0 },
+  agility: { type: 'flat', base: 18, perLevel: 2, precision: 0 },
+  insight: { type: 'flat', base: 18, perLevel: 2, precision: 0 },
+  allAttributes: { type: 'composite', base: 8, perLevel: 1.6, precision: 0, components: BASE_ATTRIBUTE_KEYS }
+};
+
+const EQUIPMENT_AFFIX_RULES = {
+  physicalAttack: { key: 'physicalAttack', tags: ['offense'], scale: 0.55 },
+  magicAttack: { key: 'magicAttack', tags: ['offense', 'arcane'], scale: 0.55 },
+  physicalDefense: { key: 'physicalDefense', tags: ['defense'], scale: 0.6 },
+  magicDefense: { key: 'magicDefense', tags: ['defense'], scale: 0.6 },
+  maxHp: { key: 'maxHp', tags: ['defense'], scale: 0.5 },
+  maxHpMultiplier: { key: 'maxHpMultiplier', tags: ['defense', 'support'], scale: 0.6 },
+  finalDamageBonus: { key: 'finalDamageBonus', tags: ['offense', 'arcane'], scale: 0.55 },
+  finalDamageReduction: { key: 'finalDamageReduction', tags: ['defense'], scale: 0.55 },
+  damageReduction: { key: 'damageReduction', tags: ['defense'], scale: 0.55 },
+  critRate: { key: 'critRate', tags: ['offense', 'crit'], scale: 0.7 },
+  critDamage: { key: 'critDamage', tags: ['offense', 'crit'], scale: 0.75 },
+  comboRate: { key: 'comboRate', tags: ['offense', 'crit'], scale: 0.65 },
+  speed: { key: 'speed', tags: ['speed'], scale: 0.6 },
+  dodge: { key: 'dodge', tags: ['speed', 'evasion'], scale: 0.6 },
+  accuracy: { key: 'accuracy', tags: ['speed', 'control'], scale: 0.55 },
+  controlHit: { key: 'controlHit', tags: ['control'], scale: 0.65 },
+  controlResist: { key: 'controlResist', tags: ['defense', 'control'], scale: 0.6 },
+  controlStrength: { key: 'controlStrength', tags: ['control'], scale: 0.7 },
+  block: { key: 'block', tags: ['defense'], scale: 0.65 },
+  counterRate: { key: 'counterRate', tags: ['defense', 'offense'], scale: 0.65 },
+  shieldPower: { key: 'shieldPower', tags: ['defense', 'support'], scale: 0.7 },
+  summonPower: { key: 'summonPower', tags: ['support'], scale: 0.7 },
+  healingBonus: { key: 'healingBonus', tags: ['support'], scale: 0.7 },
+  healingReceived: { key: 'healingReceived', tags: ['support', 'defense'], scale: 0.7 },
+  rageGain: { key: 'rageGain', tags: ['support', 'speed'], scale: 0.65 },
+  elementalVulnerability: { key: 'elementalVulnerability', tags: ['offense', 'arcane'], scale: 0.65 },
+  lifeSteal: { key: 'lifeSteal', tags: ['offense', 'support'], scale: 0.6 },
+  physicalPenetration: { key: 'physicalPenetration', tags: ['offense'], scale: 0.6 },
+  magicPenetration: { key: 'magicPenetration', tags: ['offense', 'arcane'], scale: 0.6 },
+  bonusDamage: { key: 'bonusDamage', tags: ['offense'], scale: 0.5 },
+  shield: { key: 'shield', tags: ['defense', 'support'], scale: 0.5 },
+  dodgeChance: { key: 'dodgeChance', tags: ['evasion'], scale: 0.55 },
+  constitution: { key: 'constitution', tags: ['defense'], scale: 0.5 },
+  strength: { key: 'strength', tags: ['offense'], scale: 0.5 },
+  spirit: { key: 'spirit', tags: ['support', 'arcane'], scale: 0.5 },
+  root: { key: 'root', tags: ['defense'], scale: 0.5 },
+  agility: { key: 'agility', tags: ['speed'], scale: 0.5 },
+  insight: { key: 'insight', tags: ['control', 'crit'], scale: 0.5 },
+  allAttributes: { key: 'allAttributes', tags: ['support'], scale: 0.5 }
+};
+
+const EQUIPMENT_SET_LIBRARY = {
+  berserker_shadow: {
+    id: 'berserker_shadow',
+    name: '狂暴之影',
+    bonuses: {
+      2: {
+        stats: { critRate: 0.15, critDamage: 0.25 },
+        description: '暴击率 +15%，暴击伤害 +25%'
+      },
+      4: {
+        stats: { finalDamageBonus: 0.1 },
+        description:
+          '暴击后触发 60% 概率的追加攻击，追加攻击享受 50% 最终增伤，并在 5 秒内获得额外 10% 最终增伤（不可叠加）。',
+        notes: ['追加攻击继承暴击与连击判定', '额外增伤持续期间仅刷新，不叠加']
+      }
+    }
+  },
+  immovable_bulwark: {
+    id: 'immovable_bulwark',
+    name: '不动壁垒',
+    bonuses: {
+      2: {
+        stats: { maxHpMultiplier: 0.22, damageReduction: 0.15 },
+        description: '生命上限 +22%，减伤 +15%'
+      },
+      4: {
+        stats: { counterRate: 0.4, shieldPower: 0.2 },
+        description: '受击必定反击（冷却 1 回合），反击伤害 +60%，触发时自身获得 20% 格挡（2 回合）。',
+        notes: ['反击冷却 1 回合，无法叠加', '格挡加成可被驱散']
+      }
+    }
+  },
+  swift_convergence: {
+    id: 'swift_convergence',
+    name: '迅疾震慑',
+    bonuses: {
+      2: {
+        stats: { speedMultiplier: 0.22, controlHitMultiplier: 0.18 },
+        description: '速度 +22%，控制命中 +18%'
+      },
+      4: {
+        stats: { controlStrength: 0.12 },
+        description:
+          '先手施加控制后延长 1 回合；若控制失败，自身立即获得 30% 速度加成和 20% 控制命中（持续 1 回合）。',
+        notes: ['延长效果对免疫目标无效', '失败补偿的增益不可叠加']
+      }
+    }
+  },
+  sacred_aegis: {
+    id: 'sacred_aegis',
+    name: '圣愈庇护',
+    bonuses: {
+      2: {
+        stats: { healingBonus: 0.25, healingReceived: 0.15 },
+        description: '治疗量 +25%，受疗 +15%'
+      },
+      4: {
+        stats: { damageReduction: 0.12, healingReduction: -0.25 },
+        description: '我方获得治疗时赋予 12% 减伤庇护（可叠 3 层），同时敌方受疗 -25%。',
+        notes: ['庇护效果最多叠加 3 层', '减疗效果对首领单位折半']
+      }
+    }
+  },
+  shadow_maze: {
+    id: 'shadow_maze',
+    name: '影缚迷踪',
+    bonuses: {
+      2: {
+        stats: { dodgeMultiplier: 0.18, accuracyMultiplier: 0.1 },
+        description: '闪避 +18%，命中 +10%'
+      },
+      4: {
+        stats: { physicalPenetration: 35 },
+        description: '闪避成功后 2 秒内速度 +30%，下一次攻击附带 50% 破甲；若命中目标触发控制，延长控制 0.5 回合。',
+        notes: ['破甲效果以实际命中判定为准', '延长控制仅对非免疫目标生效']
+      }
+    }
+  },
+  scorching_inferno: {
+    id: 'scorching_inferno',
+    name: '灼心焚天',
+    bonuses: {
+      2: {
+        stats: { magicAttackMultiplier: 0.2, finalDamageBonus: 0.1 },
+        description: '道法伤害 +20%，最终增伤 +10%'
+      },
+      4: {
+        stats: { elementalVulnerability: 0.12, finalDamageBonus: 0.12 },
+        description: '技能命中时点燃目标，使其在 3 秒内承受额外 12% 最终伤害，并降低其火焰抗性 15%。',
+        notes: ['点燃效果不可叠加，仅刷新持续时间']
+      }
+    }
+  }
 };
 
 const EQUIPMENT_LIBRARY = [
@@ -167,102 +515,661 @@ const EQUIPMENT_LIBRARY = [
     id: 'novice_sword',
     name: '青竹剑',
     slot: 'weapon',
-    rarity: 'common',
+    quality: 'inferior',
     levelRequirement: 1,
     description: '以万年青竹制成的入门木剑，轻巧易上手。',
-    stats: { strength: 6, agility: 3, critRate: 0.015 },
+    mainAttribute: { key: 'physicalAttack', coefficient: 0.9 },
+    subAttributes: [{ key: 'critRate', tier: 'common' }],
     tags: ['入门', '轻灵'],
-    refineScale: 0.08
+    refineScale: 0.05
+  },
+  {
+    id: 'apprentice_helm',
+    name: '护灵冠',
+    slot: 'helm',
+    quality: 'inferior',
+    levelRequirement: 1,
+    description: '镶嵌护灵符的头冠，能稍许缓冲灵识冲击。',
+    mainAttribute: { key: 'physicalDefense' },
+    subAttributes: [{ key: 'block', tier: 'common' }],
+    tags: ['入门', '防护'],
+    refineScale: 0.05
+  },
+  {
+    id: 'apprentice_robe',
+    name: '灵纹道袍',
+    slot: 'chest',
+    quality: 'inferior',
+    levelRequirement: 1,
+    description: '绣有基础灵纹的道袍，可抵挡初阶灵力冲击。',
+    mainAttribute: { key: 'maxHpMultiplier', coefficient: 0.9 },
+    subAttributes: [{ key: 'damageReduction', tier: 'common' }],
+    tags: ['护体'],
+    refineScale: 0.05
+  },
+  {
+    id: 'lightstep_boots',
+    name: '轻跃靴',
+    slot: 'boots',
+    quality: 'inferior',
+    levelRequirement: 1,
+    description: '以妖兽筋骨缝制，令步伐轻盈。',
+    mainAttribute: { key: 'speed' },
+    subAttributes: [{ key: 'dodge', tier: 'common' }],
+    tags: ['身法'],
+    refineScale: 0.05
+  },
+  {
+    id: 'spirit_belt',
+    name: '聚灵束带',
+    slot: 'belt',
+    quality: 'inferior',
+    levelRequirement: 1,
+    description: '束带内缝灵丝，可稳定气血与灵息。',
+    mainAttribute: { key: 'healingReceived' },
+    subAttributes: [{ key: 'maxHp', tier: 'common' }],
+    tags: ['续航'],
+    refineScale: 0.05
+  },
+  {
+    id: 'initiate_bracers',
+    name: '练骨护腕',
+    slot: 'bracer',
+    quality: 'inferior',
+    levelRequirement: 1,
+    description: '用以稳固腕力的皮质护腕。',
+    mainAttribute: { key: 'physicalAttack', coefficient: 0.8 },
+    subAttributes: [{ key: 'block', tier: 'common' }],
+    tags: ['入门'],
+    refineScale: 0.05
+  },
+  {
+    id: 'initiate_orb',
+    name: '启明灵珠',
+    slot: 'orb',
+    quality: 'inferior',
+    levelRequirement: 1,
+    description: '蕴含微量灵光的灵珠，助力凝神。',
+    mainAttribute: { key: 'magicAttack', coefficient: 0.9 },
+    subAttributes: [{ key: 'controlHit', tier: 'common' }],
+    tags: ['入门', '术法'],
+    refineScale: 0.05
+  },
+  {
+    id: 'spirit_ring',
+    name: '聚灵戒',
+    slot: 'necklace',
+    quality: 'inferior',
+    levelRequirement: 1,
+    description: '简易聚灵阵刻印于戒身，辅助修行者凝聚灵气。',
+    mainAttribute: { key: 'healingBonus', coefficient: 0.9 },
+    subAttributes: [{ key: 'insight', tier: 'common' }],
+    tags: ['入门'],
+    refineScale: 0.05
+  },
+  {
+    id: 'oath_token',
+    name: '誓盟信符',
+    slot: 'token',
+    quality: 'inferior',
+    levelRequirement: 1,
+    description: '刻有宗门誓约的信符，激励持有者稳固心性。',
+    mainAttribute: { key: 'allAttributes', coefficient: 0.8 },
+    subAttributes: [{ key: 'damageReduction', tier: 'common' }],
+    tags: ['入门', '团队'],
+    refineScale: 0.05
+  },
+  {
+    id: 'wooden_puppet',
+    name: '木灵傀儡',
+    slot: 'puppet',
+    quality: 'inferior',
+    levelRequirement: 1,
+    description: '木灵催生的简陋傀儡，可在战斗中分担压力。',
+    mainAttribute: { key: 'counterRate', coefficient: 0.8 },
+    subAttributes: [{ key: 'shieldPower', tier: 'common' }],
+    tags: ['入门', '防御'],
+    refineScale: 0.05
+  },
+  {
+    id: 'initiate_focus',
+    name: '初华法镜',
+    slot: 'focus',
+    quality: 'inferior',
+    levelRequirement: 1,
+    description: '以灵晶打磨的法镜，能略微聚焦法力。',
+    mainAttribute: { key: 'magicAttack', coefficient: 0.9 },
+    subAttributes: [{ key: 'finalDamageBonus', tier: 'common' }],
+    tags: ['入门', '术法'],
+    refineScale: 0.05
+  },
+  {
+    id: 'initiate_treasure',
+    name: '护息秘简',
+    slot: 'treasure',
+    quality: 'inferior',
+    levelRequirement: 1,
+    description: '记录呼吸吐纳之法的秘简，护持气机。',
+    mainAttribute: { key: 'finalDamageReduction', coefficient: 0.9 },
+    subAttributes: [{ key: 'shield', tier: 'common' }],
+    tags: ['入门', '护持'],
+    refineScale: 0.05
   },
   {
     id: 'spirit_blade',
     name: '灵光剑',
     slot: 'weapon',
-    rarity: 'rare',
-    levelRequirement: 6,
+    quality: 'superior',
+    levelRequirement: 8,
     description: '由灵矿铸造的利刃，剑身流转灵光，出手凌厉。',
-    stats: { strength: 12, spirit: 6, agility: 4, critRate: 0.03 },
+    mainAttribute: { key: 'physicalAttack', coefficient: 1.05 },
+    subAttributes: [
+      { key: 'critRate', tier: 'rare' },
+      { key: 'comboRate', tier: 'common' }
+    ],
+    uniqueEffects: [{ description: '暴击时额外获得 5% 怒气回复。', stats: { rageGain: 0.05 } }],
+    setId: 'berserker_shadow',
     tags: ['输出', '暴击'],
+    refineScale: 0.07
+  },
+  {
+    id: 'stormwrath_bracers',
+    name: '风雷护腕',
+    slot: 'bracer',
+    quality: 'excellent',
+    levelRequirement: 12,
+    description: '风雷灵纹交织的护腕，激发近战潜能。',
+    mainAttribute: { key: 'comboRate', coefficient: 1.05 },
+    subAttributes: [
+      { key: 'critDamage', tier: 'rare' },
+      { key: 'physicalPenetration', tier: 'rare' }
+    ],
+    setId: 'berserker_shadow',
+    tags: ['爆发', '近战'],
+    refineScale: 0.08
+  },
+  {
+    id: 'abyssal_focus',
+    name: '渊光法器',
+    slot: 'focus',
+    quality: 'immortal',
+    levelRequirement: 16,
+    description: '摄取深渊之光锻造，可撕裂敌方护罩。',
+    mainAttribute: { key: 'finalDamageBonus', coefficient: 1.15 },
+    subAttributes: [
+      { key: 'elementalVulnerability', tier: 'advanced' },
+      { key: 'magicPenetration', tier: 'rare' }
+    ],
+    uniqueEffects: [{ description: '法术命中时额外造成 60 点焚蚀伤害。', stats: { bonusDamage: 60 } }],
+    setId: 'berserker_shadow',
+    tags: ['术法', '爆发'],
     refineScale: 0.09
+  },
+  {
+    id: 'shadow_talisman',
+    name: '影殇秘符',
+    slot: 'treasure',
+    quality: 'immortal',
+    levelRequirement: 18,
+    description: '秘符引动阴翳之力，加速连击的节奏。',
+    mainAttribute: { key: 'finalDamageBonus', coefficient: 1.1 },
+    subAttributes: [
+      { key: 'critRate', tier: 'advanced' },
+      { key: 'comboRate', tier: 'advanced' }
+    ],
+    uniqueEffects: [{ description: '连击后 4 秒内暴击率 +12%。', stats: { critRate: 0.12 } }],
+    setId: 'berserker_shadow',
+    tags: ['暴击', '连击'],
+    refineScale: 0.1
+  },
+  {
+    id: 'starsea_mail',
+    name: '星海甲',
+    slot: 'chest',
+    quality: 'superior',
+    levelRequirement: 10,
+    description: '凝聚星辰碎屑炼制而成，能在战斗中缓释星辉。',
+    mainAttribute: { key: 'maxHpMultiplier', coefficient: 1.1 },
+    subAttributes: [
+      { key: 'damageReduction', tier: 'rare' },
+      { key: 'shieldPower', tier: 'rare' }
+    ],
+    uniqueEffects: [{ description: '每 12 秒获得一层星辉护盾，吸收 180 点伤害。', stats: { shield: 180 } }],
+    setId: 'immovable_bulwark',
+    tags: ['稳固', '星辉护佑'],
+    refineScale: 0.07
+  },
+  {
+    id: 'stoneheart_belt',
+    name: '磐心束带',
+    slot: 'belt',
+    quality: 'excellent',
+    levelRequirement: 12,
+    description: '以山岳之髓织造，稳如磐石。',
+    mainAttribute: { key: 'damageReduction', coefficient: 1.05 },
+    subAttributes: [
+      { key: 'healingReceived', tier: 'rare' },
+      { key: 'block', tier: 'rare' }
+    ],
+    setId: 'immovable_bulwark',
+    tags: ['减伤', '稳固'],
+    refineScale: 0.08
+  },
+  {
+    id: 'guardian_token',
+    name: '玄龟信物',
+    slot: 'token',
+    quality: 'immortal',
+    levelRequirement: 14,
+    description: '玄龟甲片雕琢而成，蕴含坚毅守护之意。',
+    mainAttribute: { key: 'allAttributes', coefficient: 1.1 },
+    subAttributes: [
+      { key: 'shieldPower', tier: 'advanced' },
+      { key: 'damageReduction', tier: 'advanced' }
+    ],
+    uniqueEffects: [{ description: '队友受到控制时，为其提供 8% 减伤（4 秒）。' }],
+    setId: 'immovable_bulwark',
+    tags: ['团队', '护持'],
+    refineScale: 0.09
+  },
+  {
+    id: 'ironwall_puppet',
+    name: '铁壁傀儡',
+    slot: 'puppet',
+    quality: 'excellent',
+    levelRequirement: 15,
+    description: '以玄铁塑形的防御傀儡，擅长替主人承受攻击。',
+    mainAttribute: { key: 'counterRate', coefficient: 1.05 },
+    subAttributes: [
+      { key: 'shieldPower', tier: 'rare' },
+      { key: 'block', tier: 'rare' }
+    ],
+    uniqueEffects: [{ description: '每次反击额外附带 20% 护盾强化。', stats: { shieldPower: 0.2 } }],
+    setId: 'immovable_bulwark',
+    tags: ['防御', '反击'],
+    refineScale: 0.08
+  },
+  {
+    id: 'void_silk',
+    name: '虚丝羽衣',
+    slot: 'boots',
+    quality: 'superior',
+    levelRequirement: 14,
+    description: '虚空灵蛛吐丝织就，既轻若鸿羽，又可化去钝击。',
+    mainAttribute: { key: 'speed', coefficient: 1.15 },
+    subAttributes: [
+      { key: 'dodge', tier: 'rare' },
+      { key: 'accuracy', tier: 'common' }
+    ],
+    uniqueEffects: [{ description: '闪避成功后 2 秒内速度 +30%。' }],
+    setId: 'swift_convergence',
+    tags: ['闪避', '轻盈'],
+    refineScale: 0.08
+  },
+  {
+    id: 'chronos_orb',
+    name: '缚时宝珠',
+    slot: 'orb',
+    quality: 'excellent',
+    levelRequirement: 16,
+    description: '凝练时间碎片，可加速术式的牵引。',
+    mainAttribute: { key: 'controlHit', coefficient: 1.1 },
+    subAttributes: [
+      { key: 'controlStrength', tier: 'rare' },
+      { key: 'speed', tier: 'rare' }
+    ],
+    setId: 'swift_convergence',
+    tags: ['控制', '身法'],
+    refineScale: 0.09
+  },
+  {
+    id: 'skyline_necklace',
+    name: '穹辉项链',
+    slot: 'necklace',
+    quality: 'excellent',
+    levelRequirement: 16,
+    description: '项链捕捉高空灵光，激发操控欲望。',
+    mainAttribute: { key: 'rageGain', coefficient: 1.1 },
+    subAttributes: [
+      { key: 'controlHit', tier: 'rare' },
+      { key: 'speed', tier: 'rare' }
+    ],
+    setId: 'swift_convergence',
+    tags: ['怒气', '控制'],
+    refineScale: 0.09
+  },
+  {
+    id: 'starlit_visor',
+    name: '星辉面纱',
+    slot: 'helm',
+    quality: 'immortal',
+    levelRequirement: 17,
+    description: '星辉薄纱遮面，令持有者心神澄澈。',
+    mainAttribute: { key: 'dodge', coefficient: 1.1 },
+    subAttributes: [
+      { key: 'controlResist', tier: 'advanced' },
+      { key: 'controlHit', tier: 'rare' }
+    ],
+    setId: 'swift_convergence',
+    tags: ['控场', '身法'],
+    refineScale: 0.09
+  },
+  {
+    id: 'lumina_belt',
+    name: '灵晖腰带',
+    slot: 'belt',
+    quality: 'excellent',
+    levelRequirement: 15,
+    description: '储存温润灵光的腰带，庇护队友。',
+    mainAttribute: { key: 'healingReceived', coefficient: 1.1 },
+    subAttributes: [
+      { key: 'healingBonus', tier: 'rare' },
+      { key: 'damageReduction', tier: 'rare' }
+    ],
+    setId: 'sacred_aegis',
+    tags: ['治疗', '续航'],
+    refineScale: 0.08
+  },
+  {
+    id: 'aegis_orb',
+    name: '护华灵珠',
+    slot: 'orb',
+    quality: 'immortal',
+    levelRequirement: 17,
+    description: '纯净灵泉凝成的宝珠，回荡治愈乐章。',
+    mainAttribute: { key: 'healingBonus', coefficient: 1.2 },
+    subAttributes: [
+      { key: 'healingReceived', tier: 'advanced' },
+      { key: 'shieldPower', tier: 'advanced' }
+    ],
+    uniqueEffects: [{ description: '治疗暴击时为目标附加 8% 减伤（6 秒）。' }],
+    setId: 'sacred_aegis',
+    tags: ['治疗', '庇护'],
+    refineScale: 0.09
+  },
+  {
+    id: 'serene_token',
+    name: '澄心法印',
+    slot: 'token',
+    quality: 'immortal',
+    levelRequirement: 17,
+    description: '法印流转安神之力，稳固团队节奏。',
+    mainAttribute: { key: 'allAttributes', coefficient: 1.05 },
+    subAttributes: [
+      { key: 'healingReceived', tier: 'advanced' },
+      { key: 'damageReduction', tier: 'rare' }
+    ],
+    setId: 'sacred_aegis',
+    tags: ['团队', '治疗'],
+    refineScale: 0.09
+  },
+  {
+    id: 'guardian_puppet',
+    name: '圣辉侍灵',
+    slot: 'puppet',
+    quality: 'perfect',
+    levelRequirement: 18,
+    description: '圣辉化身的侍灵，为主人抵挡一切创伤。',
+    mainAttribute: { key: 'shieldPower', coefficient: 1.15 },
+    subAttributes: [
+      { key: 'summonPower', tier: 'advanced' },
+      { key: 'healingReceived', tier: 'advanced' }
+    ],
+    uniqueEffects: [{ description: '每 10 秒为生命最低的队友提供 120 点护盾。', stats: { shield: 120 } }],
+    setId: 'sacred_aegis',
+    tags: ['护盾', '治疗'],
+    refineScale: 0.09
+  },
+  {
+    id: 'shade_boots',
+    name: '影缚靴',
+    slot: 'boots',
+    quality: 'immortal',
+    levelRequirement: 16,
+    description: '暗影织就的靴子，步伐神出鬼没。',
+    mainAttribute: { key: 'dodge', coefficient: 1.15 },
+    subAttributes: [
+      { key: 'speed', tier: 'advanced' },
+      { key: 'accuracy', tier: 'rare' }
+    ],
+    setId: 'shadow_maze',
+    tags: ['闪避', '游击'],
+    refineScale: 0.09
+  },
+  {
+    id: 'umbra_bracers',
+    name: '迷踪护腕',
+    slot: 'bracer',
+    quality: 'immortal',
+    levelRequirement: 16,
+    description: '护腕藏匿阴影之力，擅长反制。',
+    mainAttribute: { key: 'counterRate', coefficient: 1.1 },
+    subAttributes: [
+      { key: 'dodge', tier: 'advanced' },
+      { key: 'critRate', tier: 'rare' }
+    ],
+    setId: 'shadow_maze',
+    tags: ['反击', '游击'],
+    refineScale: 0.09
+  },
+  {
+    id: 'veil_treasure',
+    name: '幽幕秘宝',
+    slot: 'treasure',
+    quality: 'perfect',
+    levelRequirement: 18,
+    description: '秘宝遮蔽天机，让敌人难以捕捉身形。',
+    mainAttribute: { key: 'damageReduction', coefficient: 1.1 },
+    subAttributes: [
+      { key: 'dodge', tier: 'advanced' },
+      { key: 'dodgeChance', tier: 'advanced' }
+    ],
+    uniqueEffects: [{ description: '闪避成功后下一次攻击附带 50% 破甲。', stats: { physicalPenetration: 30 } }],
+    setId: 'shadow_maze',
+    tags: ['闪避', '破甲'],
+    refineScale: 0.1
+  },
+  {
+    id: 'phantom_focus',
+    name: '幻踪法器',
+    slot: 'focus',
+    quality: 'perfect',
+    levelRequirement: 18,
+    description: '法器引动幻影之术，擅于扰乱敌阵。',
+    mainAttribute: { key: 'elementalVulnerability', coefficient: 1.1 },
+    subAttributes: [
+      { key: 'controlHit', tier: 'advanced' },
+      { key: 'speed', tier: 'rare' }
+    ],
+    setId: 'shadow_maze',
+    tags: ['控场', '游击'],
+    refineScale: 0.1
   },
   {
     id: 'dragonbone_sabre',
     name: '龙骨刀',
     slot: 'weapon',
-    rarity: 'epic',
-    levelRequirement: 12,
+    quality: 'immortal',
+    levelRequirement: 18,
     description: '以远古蛟龙之骨打磨而成，刀啸之间风雷激荡。',
-    stats: { strength: 18, critRate: 0.05, critDamage: 0.2 },
+    mainAttribute: { key: 'physicalAttack', coefficient: 1.2 },
+    subAttributes: [
+      { key: 'critDamage', tier: 'advanced' },
+      { key: 'finalDamageBonus', tier: 'advanced' },
+      { key: 'comboRate', tier: 'rare' }
+    ],
+    uniqueEffects: [{ description: '释放武技后下一次攻击附带 80 点龙息伤害。', stats: { bonusDamage: 80 } }],
+    setId: 'scorching_inferno',
     tags: ['爆发', '传奇猎获'],
     refineScale: 0.1
   },
   {
-    id: 'apprentice_robe',
-    name: '灵纹道袍',
-    slot: 'armor',
-    rarity: 'common',
-    levelRequirement: 1,
-    description: '绣有基础灵纹的道袍，可抵挡初阶灵力冲击。',
-    stats: { constitution: 10, root: 8, physicalDefense: 18 },
-    tags: ['护体'],
-    refineScale: 0.06
+    id: 'inferno_orb',
+    name: '炽心宝珠',
+    slot: 'orb',
+    quality: 'relic',
+    levelRequirement: 20,
+    description: '炽烈火心化为宝珠，焚烧一切阻碍。',
+    mainAttribute: { key: 'magicAttack', coefficient: 1.25 },
+    subAttributes: [
+      { key: 'finalDamageBonus', tier: 'legendary' },
+      { key: 'elementalVulnerability', tier: 'advanced' },
+      { key: 'rageGain', tier: 'advanced' }
+    ],
+    setId: 'scorching_inferno',
+    tags: ['术法', '爆发'],
+    refineScale: 0.12
   },
   {
-    id: 'starsea_mail',
-    name: '星海甲',
-    slot: 'armor',
-    rarity: 'rare',
-    levelRequirement: 7,
-    description: '凝聚星辰碎屑炼制而成，能在战斗中缓释星辉。',
-    stats: { constitution: 14, root: 12, finalDamageReduction: 0.04 },
-    tags: ['稳固', '星辉护佑'],
-    refineScale: 0.07
-  },
-  {
-    id: 'void_silk',
-    name: '虚丝羽衣',
-    slot: 'armor',
-    rarity: 'epic',
-    levelRequirement: 14,
-    description: '虚空灵蛛吐丝织就，既轻若鸿羽，又可化去钝击。',
-    stats: { agility: 12, root: 10, dodge: 18, dodgeChance: 0.05 },
-    tags: ['闪避', '轻盈'],
-    refineScale: 0.08
-  },
-  {
-    id: 'spirit_ring',
-    name: '聚灵戒',
-    slot: 'accessory',
-    rarity: 'common',
-    levelRequirement: 1,
-    description: '简易聚灵阵刻印于戒身，辅助修行者凝聚灵气。',
-    stats: { spirit: 8, insight: 6, critRate: 0.02 },
-    tags: ['入门'],
-    refineScale: 0.07
-  },
-  {
-    id: 'jade_talisman',
-    name: '青霄玉佩',
-    slot: 'accessory',
-    rarity: 'rare',
-    levelRequirement: 8,
-    description: '玉佩蕴含青霄雷意，为持有者带来敏锐感知。',
-    stats: { insight: 10, spirit: 6, critDamage: 0.15 },
-    tags: ['暴击', '雷意'],
-    refineScale: 0.08
+    id: 'ember_focus',
+    name: '炽焰法器',
+    slot: 'focus',
+    quality: 'relic',
+    levelRequirement: 20,
+    description: '法器内封存不灭的火焰，点燃敌人心魂。',
+    mainAttribute: { key: 'elementalVulnerability', coefficient: 1.2 },
+    subAttributes: [
+      { key: 'finalDamageBonus', tier: 'legendary' },
+      { key: 'comboRate', tier: 'advanced' },
+      { key: 'magicPenetration', tier: 'advanced' }
+    ],
+    uniqueEffects: [
+      {
+        description: '技能命中时点燃目标，使其在 3 秒内承受额外 12% 最终伤害，并降低其火焰抗性 15%。',
+        stats: { finalDamageBonus: 0.12, elementalVulnerability: 0.15 }
+      }
+    ],
+    setId: 'scorching_inferno',
+    tags: ['焚烧', '术法'],
+    refineScale: 0.12
   },
   {
     id: 'phoenix_plume',
     name: '凤羽灵坠',
-    slot: 'accessory',
-    rarity: 'legendary',
-    levelRequirement: 18,
+    slot: 'treasure',
+    quality: 'relic',
+    levelRequirement: 20,
     description: '传闻采自南明离火凤凰的一缕尾羽，可唤醒血脉之力。',
-    stats: { strength: 12, agility: 10, insight: 8, critRate: 0.06, finalDamageBonus: 0.04 },
+    mainAttribute: { key: 'finalDamageBonus', coefficient: 1.2 },
+    subAttributes: [
+      { key: 'critRate', tier: 'legendary' },
+      { key: 'critDamage', tier: 'legendary' },
+      { key: 'finalDamageReduction', tier: 'advanced' }
+    ],
+    uniqueEffects: [
+      {
+        description: '释放必杀技时获得凤凰灼心：6 秒内最终增伤 +15%，生命低于 30% 时额外获得 20% 减伤。',
+        stats: { finalDamageBonus: 0.15, damageReduction: 0.2 }
+      }
+    ],
+    setId: 'scorching_inferno',
     tags: ['传说', '高爆发'],
-    refineScale: 0.1
+    refineScale: 0.12
   }
 ];
+
+function resolveEquipmentQualityConfig(quality) {
+  return EQUIPMENT_QUALITY_CONFIG[quality] || EQUIPMENT_QUALITY_CONFIG.inferior;
+}
+
+function resolveEquipmentQualityLabel(quality) {
+  return resolveEquipmentQualityConfig(quality).label;
+}
+
+function resolveEquipmentQualityColor(quality) {
+  return resolveEquipmentQualityConfig(quality).color;
+}
+
+function resolveEquipmentSlotConfig(slot) {
+  return EQUIPMENT_SLOTS[slot] || null;
+}
+
+function resolveEquipmentAffixRule(key) {
+  return EQUIPMENT_AFFIX_RULES[key] || null;
+}
+
+function resolveAttributeRule(key) {
+  return EQUIPMENT_ATTRIBUTE_RULES[key] || null;
+}
+
+function finalizeAttributeValue(rule, value) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  if (!rule) {
+    return Math.round(value);
+  }
+  const precision =
+    typeof rule.precision === 'number'
+      ? rule.precision
+      : rule.type === 'percent'
+      ? 4
+      : 0;
+  if (precision > 0) {
+    return Number(value.toFixed(precision));
+  }
+  return Math.round(value);
+}
+
+function computeEquipmentAttributeValue({
+  key,
+  level,
+  qualityMultiplier = 1,
+  slotCoefficient = 1,
+  scale = 1,
+  tierMultiplier = 1,
+  variance = 0,
+  refineMultiplier = 1
+}) {
+  if (!key) {
+    return null;
+  }
+  const rule = resolveAttributeRule(key);
+  if (!rule) {
+    const baseValue = qualityMultiplier * slotCoefficient * scale * tierMultiplier * refineMultiplier * (1 + variance);
+    return { key, value: finalizeAttributeValue(null, baseValue), rule: null };
+  }
+  const base = (rule.base || 0) + (Math.max(1, level) - 1) * (rule.perLevel || 0);
+  let value = base * qualityMultiplier * slotCoefficient * scale * tierMultiplier;
+  value *= 1 + variance;
+  value *= refineMultiplier;
+  return { key, value: finalizeAttributeValue(rule, value), rule };
+}
+
+function applyComputedAttribute(target, computed) {
+  if (!computed || !target) {
+    return;
+  }
+  const { key, value, rule } = computed;
+  if (!Number.isFinite(value) || value === 0) {
+    return;
+  }
+  if (rule && rule.type === 'composite' && Array.isArray(rule.components)) {
+    rule.components.forEach((component) => {
+      target[component] = (target[component] || 0) + value;
+    });
+    return;
+  }
+  target[key] = (target[key] || 0) + value;
+}
+
+function applyStatValue(target, key, value) {
+  if (!target || key == null || value == null || value === 0) {
+    return;
+  }
+  const rule = resolveAttributeRule(key);
+  if (rule && rule.type === 'composite' && Array.isArray(rule.components)) {
+    rule.components.forEach((component) => {
+      target[component] = (target[component] || 0) + value;
+    });
+    return;
+  }
+  if (typeof value === 'number' && rule) {
+    target[key] = (target[key] || 0) + finalizeAttributeValue(rule, value);
+    return;
+  }
+  target[key] = (target[key] || 0) + value;
+}
 
 const SKILL_LIBRARY = [
   {
@@ -886,14 +1793,49 @@ async function equipSkill(openid, event) {
 }
 
 async function equipItem(openid, event) {
-  const { itemId } = event;
+  const { itemId, slot: rawSlot } = event;
   const member = await ensureMember(openid);
   const profile = await ensurePveProfile(openid, member);
   const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
   const slots = profile.equipment.slots || {};
 
+  const slot = typeof rawSlot === 'string' ? rawSlot.trim() : '';
+
   if (!itemId) {
-    throw createError('ITEM_REQUIRED', '请选择要装备的装备');
+    if (!slot) {
+      throw createError('SLOT_REQUIRED', '请选择要卸下的装备槽位');
+    }
+    if (!Object.prototype.hasOwnProperty.call(EQUIPMENT_SLOTS, slot)) {
+      throw createError('INVALID_SLOT', '装备槽位不存在');
+    }
+    const currentItemId = slots[slot];
+    if (!currentItemId) {
+      throw createError('SLOT_EMPTY', '该槽位暂无装备');
+    }
+
+    slots[slot] = '';
+    profile.equipment.slots = slots;
+
+    const now = new Date();
+    profile.battleHistory = appendHistory(
+      profile.battleHistory,
+      {
+        type: 'equipment-change',
+        createdAt: now,
+        detail: { slot, itemId: currentItemId, action: 'unequip' }
+      },
+      MAX_BATTLE_HISTORY
+    );
+
+    await db.collection(COLLECTIONS.MEMBERS).doc(openid).update({
+      data: {
+        pveProfile: profile,
+        updatedAt: now
+      }
+    });
+
+    const decorated = decorateProfile(member, profile);
+    return { profile: decorated };
   }
   const definition = EQUIPMENT_MAP[itemId];
   if (!definition) {
@@ -902,6 +1844,10 @@ async function equipItem(openid, event) {
   const hasItem = inventory.some((entry) => entry.itemId === itemId);
   if (!hasItem) {
     throw createError('ITEM_NOT_OWNED', '尚未拥有该装备，无法装备');
+  }
+
+  if (slot && slot !== definition.slot) {
+    throw createError('SLOT_MISMATCH', '装备与槽位不匹配');
   }
 
   slots[definition.slot] = itemId;
@@ -913,7 +1859,7 @@ async function equipItem(openid, event) {
     {
       type: 'equipment-change',
       createdAt: now,
-      detail: { itemId, slot: definition.slot }
+      detail: { itemId, slot: definition.slot, action: 'equip' }
     },
     MAX_BATTLE_HISTORY
   );
@@ -1114,16 +2060,36 @@ function buildDefaultAttributes() {
 }
 
 function buildDefaultEquipment(now = new Date()) {
-  const defaults = ['novice_sword', 'apprentice_robe', 'spirit_ring'];
-  const inventory = defaults.map((itemId) => createEquipmentInventoryEntry(itemId, now));
-  return {
-    inventory,
-    slots: {
-      weapon: 'novice_sword',
-      armor: 'apprentice_robe',
-      accessory: 'spirit_ring'
+  const defaults = [
+    'novice_sword',
+    'apprentice_helm',
+    'apprentice_robe',
+    'lightstep_boots',
+    'spirit_belt',
+    'initiate_bracers',
+    'initiate_orb',
+    'spirit_ring',
+    'oath_token',
+    'wooden_puppet',
+    'initiate_focus',
+    'initiate_treasure'
+  ];
+  const inventory = defaults
+    .map((itemId) => createEquipmentInventoryEntry(itemId, now))
+    .filter((entry) => !!entry);
+  const slots = {};
+  inventory.forEach((entry) => {
+    const definition = EQUIPMENT_MAP[entry.itemId];
+    if (definition && definition.slot && !slots[definition.slot]) {
+      slots[definition.slot] = entry.itemId;
     }
-  };
+  });
+  Object.keys(EQUIPMENT_SLOTS).forEach((slot) => {
+    if (!slots[slot]) {
+      slots[slot] = '';
+    }
+  });
+  return { inventory, slots };
 }
 
 function buildDefaultSkills(now = new Date()) {
@@ -1327,7 +2293,7 @@ function normalizeEquipmentInventoryItem(item, now = new Date()) {
   const refine = Math.max(0, Math.floor(Number(item.refine) || 0));
   return {
     itemId,
-    rarity: definition.rarity,
+    quality: definition.quality,
     level,
     refine,
     obtainedAt: item.obtainedAt ? new Date(item.obtainedAt) : now,
@@ -1364,7 +2330,7 @@ function createEquipmentInventoryEntry(itemId, obtainedAt = new Date()) {
   }
   return {
     itemId,
-    rarity: definition.rarity,
+    quality: definition.quality,
     level: 1,
     refine: 0,
     obtainedAt,
@@ -1389,7 +2355,7 @@ function createSkillInventoryEntry(skillId, obtainedAt = new Date()) {
 function decorateProfile(member, profile) {
   const { attributes, equipment, skills } = profile;
   const attributeSummary = calculateAttributes(attributes, equipment, skills);
-  const equipmentSummary = decorateEquipment(profile);
+  const equipmentSummary = decorateEquipment(profile, attributeSummary.equipmentBonus);
   const skillsSummary = decorateSkills(profile);
   const enemies = ENEMY_LIBRARY.map((enemy) => decorateEnemy(enemy, attributeSummary));
   const battleHistory = decorateBattleHistory(profile.battleHistory, profile);
@@ -1553,7 +2519,9 @@ function createBonusSummary() {
     base,
     combatAdditive,
     combatMultipliers,
-    special: { shield: 0, bonusDamage: 0, dodgeChance: 0 }
+    special: { shield: 0, bonusDamage: 0, dodgeChance: 0 },
+    sets: [],
+    notes: []
   };
 }
 
@@ -1577,6 +2545,8 @@ function cloneBonusSummary(summary = createBonusSummary()) {
     summary.special && typeof summary.special.bonusDamage === 'number' ? summary.special.bonusDamage : 0;
   cloned.special.dodgeChance =
     summary.special && typeof summary.special.dodgeChance === 'number' ? summary.special.dodgeChance : 0;
+  cloned.sets = Array.isArray(summary.sets) ? [...summary.sets] : [];
+  cloned.notes = Array.isArray(summary.notes) ? [...summary.notes] : [];
   return cloned;
 }
 
@@ -1618,6 +2588,12 @@ function mergeBonusSummary(target, source) {
   target.special.shield = (target.special.shield || 0) + (source.special.shield || 0);
   target.special.bonusDamage = (target.special.bonusDamage || 0) + (source.special.bonusDamage || 0);
   target.special.dodgeChance = (target.special.dodgeChance || 0) + (source.special.dodgeChance || 0);
+  if (Array.isArray(source.notes) && source.notes.length) {
+    target.notes.push(...source.notes);
+  }
+  if (Array.isArray(source.sets) && source.sets.length) {
+    target.sets.push(...source.sets);
+  }
   return target;
 }
 
@@ -1659,6 +2635,7 @@ function sumEquipmentBonuses(equipment) {
     map[item.itemId] = item;
     return map;
   }, {});
+  const setCounters = {};
 
   Object.keys(slots).forEach((slot) => {
     const itemId = slots[slot];
@@ -1666,11 +2643,56 @@ function sumEquipmentBonuses(equipment) {
     const definition = EQUIPMENT_MAP[itemId];
     if (!definition) return;
     const owned = inventoryMap[itemId] || { itemId, refine: 0 };
-    const bonus = calculateEquipmentStats(definition, owned.refine || 0);
-    Object.keys(bonus).forEach((key) => {
-      applyBonus(summary, key, bonus[key]);
+    const detail = calculateEquipmentStats(definition, owned.refine || 0);
+    const bonusStats = detail.stats || {};
+    Object.keys(bonusStats).forEach((key) => {
+      applyBonus(summary, key, bonusStats[key]);
     });
+    if (detail.extraDescriptions && detail.extraDescriptions.length) {
+      summary.notes.push(...detail.extraDescriptions);
+    }
+    if (detail.setId) {
+      setCounters[detail.setId] = (setCounters[detail.setId] || 0) + 1;
+    }
   });
+
+  const activeSets = [];
+  Object.keys(setCounters).forEach((setId) => {
+    const count = setCounters[setId];
+    const definition = EQUIPMENT_SET_LIBRARY[setId];
+    if (!definition) {
+      return;
+    }
+    const setDetail = { setId, name: definition.name, count, effects: [] };
+    const twoPiece = definition.bonuses && definition.bonuses[2];
+    if (count >= 2 && twoPiece) {
+      if (twoPiece.stats) {
+        Object.keys(twoPiece.stats).forEach((key) => {
+          applyBonus(summary, key, twoPiece.stats[key]);
+        });
+      }
+      setDetail.effects.push({ pieces: 2, description: twoPiece.description });
+      if (twoPiece.notes) {
+        summary.notes.push(...twoPiece.notes);
+      }
+    }
+    const fourPiece = definition.bonuses && definition.bonuses[4];
+    if (count >= 4 && fourPiece) {
+      if (fourPiece.stats) {
+        Object.keys(fourPiece.stats).forEach((key) => {
+          applyBonus(summary, key, fourPiece.stats[key]);
+        });
+      }
+      setDetail.effects.push({ pieces: 4, description: fourPiece.description });
+      if (fourPiece.notes) {
+        summary.notes.push(...fourPiece.notes);
+      }
+    }
+    activeSets.push(setDetail);
+  });
+
+  summary.sets = activeSets;
+  summary.notes = summary.notes.filter((note, index, list) => typeof note === 'string' && note && list.indexOf(note) === index);
 
   return summary;
 }
@@ -1803,52 +2825,114 @@ function calculateDerivedStatBlock(baseAttributes, realmBonus, equipmentSummary,
 }
 
 function calculateEquipmentStats(definition, refine = 0) {
-  if (!definition || !definition.stats) {
-    return {};
+  if (!definition) {
+    return { stats: {}, mainAttribute: null, subAttributes: [], uniqueEffects: [], extraDescriptions: [], setId: null };
   }
-  const multiplier = 1 + Math.max(0, refine) * (definition.refineScale || 0.07);
-  const result = {};
-  Object.keys(definition.stats).forEach((key) => {
-    const baseValue = definition.stats[key];
-    if (typeof baseValue !== 'number') return;
-    const value = baseValue * multiplier;
-    if (
-      BASE_ATTRIBUTE_KEYS.includes(key) ||
-      ['speed', 'accuracy', 'dodge', 'physicalDefense', 'magicDefense', 'physicalAttack', 'magicAttack'].includes(key)
-    ) {
-      result[key] = Math.round(value);
+  const qualityConfig = resolveEquipmentQualityConfig(definition.quality);
+  const slotConfig = resolveEquipmentSlotConfig(definition.slot) || {};
+  const level = Math.max(1, Math.floor(Number(definition.levelRequirement) || 1));
+  const refineMultiplier = 1 + Math.max(0, refine) * (definition.refineScale || 0.07);
+  const stats = {};
+  let mainAttribute = null;
+  const subAttributes = [];
+  const uniqueEffects = [];
+  const extraDescriptions = [];
+
+  const mainAttrDefinition = definition.mainAttribute || {};
+  const slotMainCandidates = Array.isArray(slotConfig.mainAttributes) ? slotConfig.mainAttributes : [];
+  const resolvedMainKey =
+    mainAttrDefinition.key || (slotMainCandidates.length ? slotMainCandidates[0].key : null);
+  if (resolvedMainKey) {
+    const slotEntry = slotMainCandidates.find((item) => item.key === resolvedMainKey) || { coefficient: 1 };
+    const scale = typeof mainAttrDefinition.coefficient === 'number' ? mainAttrDefinition.coefficient : 1;
+    const tierMultiplier = mainAttrDefinition.tier
+      ? EQUIPMENT_AFFIX_TIER_MULTIPLIER[mainAttrDefinition.tier] || 1
+      : 1;
+    const variance = Number(mainAttrDefinition.variance) || 0;
+    const computed = computeEquipmentAttributeValue({
+      key: resolvedMainKey,
+      level,
+      qualityMultiplier: qualityConfig.mainCoefficient || 1,
+      slotCoefficient: slotEntry.coefficient || 1,
+      scale,
+      tierMultiplier,
+      variance,
+      refineMultiplier
+    });
+    applyComputedAttribute(stats, computed);
+    if (computed) {
+      mainAttribute = {
+        key: resolvedMainKey,
+        value: computed.value,
+        label: resolveAttributeLabel(resolvedMainKey),
+        display: formatStatDisplay(resolvedMainKey, computed.value, true),
+        tier: mainAttrDefinition.tier || null
+      };
+    }
+  }
+
+  const subAttrDefinitions = Array.isArray(definition.subAttributes) ? definition.subAttributes : [];
+  subAttrDefinitions.forEach((affix, index) => {
+    if (!affix || !affix.key) {
       return;
     }
-    if (key.endsWith('Multiplier')) {
-      result[key] = Number(value.toFixed(4));
-      return;
-    }
-    if (
-      key === 'critRate' ||
-      key === 'finalDamageBonus' ||
-      key === 'finalDamageReduction' ||
-      key === 'lifeSteal' ||
-      key === 'healingBonus' ||
-      key === 'healingReduction'
-    ) {
-      result[key] = Number(value.toFixed(4));
-      return;
-    }
-    if (key === 'critDamage') {
-      result[key] = Number(value.toFixed(2));
-      return;
-    }
-    if (key === 'bonusDamage' || key === 'shield') {
-      result[key] = Math.round(value);
-      return;
-    }
-    if (key === 'dodgeChance') {
-      result[key] = Number(value.toFixed(4));
-      return;
-    }
-    result[key] = Math.round(value);
+    const rule = resolveEquipmentAffixRule(affix.key) || {};
+    const tierRange = qualityConfig.subTierRange || [];
+    const fallbackTier = tierRange[Math.min(index, tierRange.length - 1)] || 'common';
+    const tier = affix.tier || fallbackTier;
+    const tierMultiplier = EQUIPMENT_AFFIX_TIER_MULTIPLIER[tier] || 1;
+    const scale = typeof affix.scale === 'number' ? affix.scale : rule.scale || 1;
+    const variance = Number(affix.variance) || 0;
+    const computed = computeEquipmentAttributeValue({
+      key: affix.key,
+      level,
+      qualityMultiplier: qualityConfig.mainCoefficient || 1,
+      slotCoefficient: 1,
+      scale,
+      tierMultiplier,
+      variance,
+      refineMultiplier
+    });
+    applyComputedAttribute(stats, computed);
+    subAttributes.push({
+      key: affix.key,
+      tier,
+      value: computed ? computed.value : 0,
+      label: resolveAttributeLabel(affix.key),
+      display: computed ? formatStatDisplay(affix.key, computed.value, true) : ''
+    });
   });
-  return result;
+
+  const uniques = Array.isArray(definition.uniqueEffects) ? definition.uniqueEffects : [];
+  uniques.forEach((effect) => {
+    if (!effect) return;
+    if (effect.stats && typeof effect.stats === 'object') {
+      Object.keys(effect.stats).forEach((key) => {
+        applyStatValue(stats, key, effect.stats[key]);
+      });
+    }
+    if (effect.description) {
+      extraDescriptions.push(effect.description);
+    }
+    uniqueEffects.push({ description: effect.description || '', stats: effect.stats || null });
+  });
+
+  if (definition.extraStats && typeof definition.extraStats === 'object') {
+    Object.keys(definition.extraStats).forEach((key) => {
+      applyStatValue(stats, key, definition.extraStats[key]);
+    });
+  }
+
+  return {
+    stats,
+    mainAttribute,
+    subAttributes,
+    uniqueEffects,
+    extraDescriptions,
+    quality: definition.quality || 'inferior',
+    levelRequirement: level,
+    setId: definition.setId || null
+  };
 }
 
 function resolveSkillEffects(definition, level = 1) {
@@ -1897,6 +2981,16 @@ function calculateCombatPower(stats, special = {}) {
   const controlResist = Number(stats.controlResist) || 0;
   const physicalPenetration = Number(stats.physicalPenetration) || 0;
   const magicPenetration = Number(stats.magicPenetration) || 0;
+  const comboRate = Number(stats.comboRate) || 0;
+  const block = Number(stats.block) || 0;
+  const counterRate = Number(stats.counterRate) || 0;
+  const damageReduction = Number(stats.damageReduction) || 0;
+  const healingReceived = Number(stats.healingReceived) || 0;
+  const rageGain = Number(stats.rageGain) || 0;
+  const controlStrength = Number(stats.controlStrength) || 0;
+  const shieldPower = Number(stats.shieldPower) || 0;
+  const summonPower = Number(stats.summonPower) || 0;
+  const elementalVulnerability = Number(stats.elementalVulnerability) || 0;
   const shield = special.shield || 0;
   const bonusDamage = special.bonusDamage || 0;
   const dodgeChance = special.dodgeChance || 0;
@@ -1918,19 +3012,30 @@ function calculateCombatPower(stats, special = {}) {
     controlResist * 1.1 +
     physicalPenetration * 2.2 +
     magicPenetration * 2.2 +
+    comboRate * 520 +
+    block * 380 +
+    counterRate * 480 +
+    damageReduction * 360 +
+    healingReceived * 340 +
+    rageGain * 320 +
+    controlStrength * 300 +
+    shieldPower * 260 +
+    summonPower * 240 +
+    elementalVulnerability * 320 +
     shield * 0.25 +
     bonusDamage * 1.4 +
     dodgeChance * 620;
   return Math.round(power);
 }
 
-function decorateEquipment(profile) {
+function decorateEquipment(profile, summary = null) {
   const equipment = profile.equipment || {};
   const inventory = Array.isArray(equipment.inventory) ? equipment.inventory : [];
   const slots = equipment.slots || {};
   const list = inventory
     .map((entry) => decorateEquipmentInventoryEntry(entry, slots))
     .filter((item) => !!item);
+  const bonusSummary = summary || sumEquipmentBonuses(equipment);
   const slotDetails = Object.keys(EQUIPMENT_SLOT_LABELS).map((slot) => {
     const itemId = slots[slot];
     const item = list.find((entry) => entry.itemId === itemId);
@@ -1942,7 +3047,11 @@ function decorateEquipment(profile) {
   });
   return {
     slots: slotDetails,
-    inventory: list
+    inventory: list,
+    bonus: {
+      sets: Array.isArray(bonusSummary && bonusSummary.sets) ? bonusSummary.sets : [],
+      notes: Array.isArray(bonusSummary && bonusSummary.notes) ? bonusSummary.notes : []
+    }
   };
 }
 
@@ -1951,27 +3060,58 @@ function decorateEquipmentInventoryEntry(entry, slots = {}) {
   if (!definition) {
     return null;
   }
-  const stats = calculateEquipmentStats(definition, entry.refine || 0);
+  const detail = calculateEquipmentStats(definition, entry.refine || 0);
+  const stats = detail.stats || {};
   const statTexts = formatStatsText({ ...stats });
+  const breakdownTexts = [];
+  const notes = [];
+  if (detail.mainAttribute) {
+    breakdownTexts.push(
+      `${detail.mainAttribute.label} ${formatStatDisplay(detail.mainAttribute.key, detail.mainAttribute.value, true)}`
+    );
+  }
+  detail.subAttributes.forEach((affix) => {
+    if (!affix.label) {
+      return;
+    }
+    breakdownTexts.push(`${affix.label} ${formatStatDisplay(affix.key, affix.value, true)}`);
+  });
+  detail.uniqueEffects.forEach((effect) => {
+    if (effect.description) {
+      notes.push(`特效：${effect.description}`);
+    }
+  });
+  const setDefinition = definition.setId ? EQUIPMENT_SET_LIBRARY[definition.setId] : null;
+  if (setDefinition) {
+    breakdownTexts.push(`套装：${setDefinition.name}`);
+  }
+  const combinedTexts = [...statTexts, ...breakdownTexts];
+  const displayTexts = combinedTexts.filter((text, index, list) => text && list.indexOf(text) === index);
   const equipped = Object.values(slots || {}).includes(entry.itemId);
   return {
     itemId: entry.itemId,
     name: definition.name,
-    rarity: definition.rarity,
-    rarityLabel: resolveRarityLabel(definition.rarity),
-    rarityColor: resolveRarityColor(definition.rarity),
+    quality: definition.quality,
+    qualityLabel: resolveEquipmentQualityLabel(definition.quality),
+    qualityColor: resolveEquipmentQualityColor(definition.quality),
     description: definition.description,
     slot: definition.slot,
     slotLabel: EQUIPMENT_SLOT_LABELS[definition.slot] || '装备',
     stats,
-    statsText: statTexts,
+    statsText: displayTexts,
+    mainAttribute: detail.mainAttribute,
+    subAttributes: detail.subAttributes,
+    uniqueEffects: detail.uniqueEffects,
     refine: entry.refine || 0,
     refineLabel: entry.refine ? `精炼 +${entry.refine}` : '未精炼',
     levelRequirement: definition.levelRequirement || 1,
     tags: definition.tags || [],
     obtainedAt: entry.obtainedAt,
     obtainedAtText: formatDateTime(entry.obtainedAt),
-    equipped
+    setId: definition.setId || null,
+    setName: setDefinition ? setDefinition.name : '',
+    equipped,
+    notes: notes.filter((note, index, list) => note && list.indexOf(note) === index)
   };
 }
 
@@ -2069,8 +3209,9 @@ function decorateEnemyLoot(loot) {
         itemId: item.itemId,
         chance: item.chance,
         label: definition ? definition.name : '装备',
-        rarity: definition ? definition.rarity : 'common',
-        rarityLabel: definition ? resolveRarityLabel(definition.rarity) : '常见'
+        quality: definition ? definition.quality : 'mortal',
+        qualityLabel: definition ? resolveEquipmentQualityLabel(definition.quality) : resolveEquipmentQualityLabel('mortal'),
+        qualityColor: definition ? resolveEquipmentQualityColor(definition.quality) : resolveEquipmentQualityColor('mortal')
       };
     }
     if (item.type === 'skill') {
@@ -2130,12 +3271,23 @@ function decorateBattleHistory(history, profile) {
       };
     }
     if (entry.type === 'equipment-change') {
-      const definition = EQUIPMENT_MAP[entry.detail && entry.detail.itemId];
+      const detail = entry.detail || {};
+      const definition = detail.itemId ? EQUIPMENT_MAP[detail.itemId] : null;
+      const slotLabel = detail.slot ? EQUIPMENT_SLOT_LABELS[detail.slot] || '装备' : '';
+      let summary;
+      if (detail.action === 'unequip') {
+        summary = slotLabel ? `${slotLabel} · 卸下` : '卸下装备';
+      } else if (definition) {
+        const resolvedSlot = EQUIPMENT_SLOT_LABELS[definition.slot] || slotLabel || '装备';
+        summary = `${resolvedSlot} · ${definition.name}`;
+      } else {
+        summary = slotLabel ? `${slotLabel} · 装备变动` : '装备变动';
+      }
       return {
         type: 'equipment',
         createdAt: entry.createdAt,
         createdAtText: formatDateTime(entry.createdAt),
-        summary: definition ? `${EQUIPMENT_SLOT_LABELS[definition.slot] || '装备'} · ${definition.name}` : '装备变动'
+        summary
       };
     }
     if (entry.type === 'consumable') {
@@ -2657,8 +3809,13 @@ function formatBattleResult(result) {
             type: 'equipment',
             itemId: item.itemId,
             name: def ? def.name : '装备',
-            rarity: def ? def.rarity : 'common',
-            rarityLabel: def ? resolveRarityLabel(def.rarity) : '常见'
+            quality: def ? def.quality : 'mortal',
+            qualityLabel: def
+              ? resolveEquipmentQualityLabel(def.quality)
+              : resolveEquipmentQualityLabel('mortal'),
+            qualityColor: def
+              ? resolveEquipmentQualityColor(def.quality)
+              : resolveEquipmentQualityColor('mortal')
           };
         }
         if (item.type === 'skill') {
@@ -2760,6 +3917,22 @@ function formatStatResult(key, value) {
   if (key === 'healingBonus' || key === 'healingReduction') {
     return Number(value.toFixed(4));
   }
+  if (
+    [
+      'comboRate',
+      'block',
+      'counterRate',
+      'damageReduction',
+      'healingReceived',
+      'rageGain',
+      'controlStrength',
+      'shieldPower',
+      'summonPower',
+      'elementalVulnerability'
+    ].includes(key)
+  ) {
+    return Number(value.toFixed(4));
+  }
   return Math.round(value);
 }
 
@@ -2777,7 +3950,19 @@ function formatStatDisplay(key, value, signed = false) {
     key === 'finalDamageReduction' ||
     key === 'lifeSteal' ||
     key === 'healingBonus' ||
-    key === 'healingReduction'
+    key === 'healingReduction' ||
+    [
+      'comboRate',
+      'block',
+      'counterRate',
+      'damageReduction',
+      'healingReceived',
+      'rageGain',
+      'controlStrength',
+      'shieldPower',
+      'summonPower',
+      'elementalVulnerability'
+    ].includes(key)
   ) {
     return `${prefix}${Math.round(abs * 10000) / 100}%`;
   }

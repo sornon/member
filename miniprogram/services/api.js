@@ -279,8 +279,17 @@ export const PveService = {
     }
     return callCloud(CLOUD_FUNCTIONS.PVE, payload);
   },
-  async equipItem(itemId) {
-    return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'equipItem', itemId });
+  async equipItem({ itemId = '', slot = '' } = {}) {
+    const payload = { action: 'equipItem' };
+    const normalizedItemId = typeof itemId === 'string' ? itemId : '';
+    const normalizedSlot = typeof slot === 'string' ? slot.trim() : '';
+    if (normalizedItemId) {
+      payload.itemId = normalizedItemId;
+    }
+    if (normalizedSlot) {
+      payload.slot = normalizedSlot;
+    }
+    return callCloud(CLOUD_FUNCTIONS.PVE, payload);
   },
   async allocatePoints(allocations = {}) {
     return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'allocatePoints', allocations });

@@ -74,7 +74,7 @@
 | `battle` | 挑战指定副本，返回战斗结果、奖励以及更新后的角色状态。 |
 | `drawSkill` | 执行一次技能抽卡，返回抽取结果并更新技能背包。 |
 | `equipSkill` | 装备/卸下技能，自动校验槽位数量。 |
-| `equipItem` | 更换装备槽位。 |
+| `equipItem` | 更换或卸下装备：传入 `itemId` 装备至对应槽位，传入 `slot` 且 `itemId` 为空时表示卸下该槽位装备。 |
 | `allocatePoints` | 分配属性点，按服务端定义的步进值更新属性。 |
 
 所有动作均会同步写回 `members` 表的 `pveProfile` 字段，并在需要时记录灵石流水（`stoneTransactions`）。【F:cloudfunctions/pve/index.js†L691-L707】【F:cloudfunctions/pve/index.js†L713-L961】

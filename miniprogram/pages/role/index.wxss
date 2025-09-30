@@ -26,12 +26,16 @@ page {
 
 .tab-item {
   flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   font-size: 28rpx;
   color: rgba(167, 186, 255, 0.72);
   position: relative;
   padding: 20rpx 0;
   transition: color 0.2s ease;
+  line-height: 1;
 }
 
 .tab-item::after {
@@ -106,9 +110,8 @@ page {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 56rpx;
-  line-height: 56rpx;
-  padding: 0 28rpx;
+  line-height: 1;
+  padding: 16rpx 28rpx;
   border-radius: 999rpx;
   border: 1rpx solid rgba(108, 136, 255, 0.32);
   background: rgba(60, 88, 190, 0.18);
@@ -299,56 +302,76 @@ button.pill-btn[disabled] {
   color: rgba(204, 214, 255, 0.75);
 }
 
-.slot-list {
-  display: flex;
-  gap: 24rpx;
-  flex-wrap: wrap;
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16rpx;
 }
 
-.slot {
-  flex: 1 1 220rpx;
-  min-width: 220rpx;
-  background: rgba(22, 36, 86, 0.86);
-  border-radius: 24rpx;
-  padding: 24rpx;
-  border: 1rpx solid rgba(93, 119, 214, 0.3);
-}
-
-.slot-label {
-  font-size: 26rpx;
-  font-weight: 600;
-  color: rgba(196, 208, 255, 0.88);
-  margin-bottom: 16rpx;
-}
-
-.slot-content {
+.slot-card {
+  position: relative;
+  background: rgba(22, 36, 86, 0.9);
+  border-radius: 20rpx;
+  padding: 18rpx 16rpx 24rpx;
+  border: 1rpx solid rgba(93, 119, 214, 0.36);
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 12rpx;
+  min-height: 196rpx;
+  box-sizing: border-box;
 }
 
-.slot-name {
-  font-size: 28rpx;
+.slot-card--empty .slot-card__icon {
+  color: rgba(167, 186, 255, 0.68);
+  border-color: rgba(94, 120, 210, 0.4);
+}
+
+.slot-card__header {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  font-size: 22rpx;
+  color: rgba(190, 204, 255, 0.86);
   font-weight: 600;
-  color: #f1f5ff;
-  padding-bottom: 8rpx;
-  border-bottom: 4rpx solid rgba(103, 133, 255, 0.6);
 }
 
-.slot-meta {
-  font-size: 22rpx;
-  color: rgba(176, 192, 247, 0.72);
+.slot-card__slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
-.slot-stats text {
-  display: block;
-  font-size: 22rpx;
-  color: rgba(168, 186, 246, 0.72);
+.slot-card__icon {
+  width: 128rpx;
+  height: 128rpx;
+  border: 4rpx solid rgba(113, 140, 255, 0.6);
+  border-radius: 20rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(12, 20, 52, 0.9);
+  color: #f5f8ff;
+  padding: 0 10rpx;
+  box-sizing: border-box;
 }
 
-.slot-empty {
-  font-size: 24rpx;
-  color: rgba(149, 167, 228, 0.68);
+.slot-card__icon-name {
+  max-width: 100%;
+  font-size: 18rpx;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  line-height: 1.2;
 }
 
 .inventory-title {
@@ -360,6 +383,164 @@ button.pill-btn[disabled] {
 
 .inventory-empty {
   margin-bottom: 12rpx;
+}
+
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.inventory-card {
+  position: relative;
+  background: rgba(18, 30, 74, 0.9);
+  border-radius: 20rpx;
+  border: 1rpx solid rgba(84, 110, 208, 0.34);
+  box-sizing: border-box;
+}
+
+.inventory-card::before {
+  content: '';
+  display: block;
+  padding-top: 100%;
+}
+
+.inventory-card__frame {
+  position: absolute;
+  inset: 12rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.inventory-card__badge {
+  position: absolute;
+  top: 12rpx;
+  left: 12rpx;
+  padding: 4rpx 10rpx;
+  font-size: 20rpx;
+  border-radius: 999rpx;
+  background: rgba(70, 90, 190, 0.4);
+  color: rgba(214, 224, 255, 0.88);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  z-index: 2;
+}
+
+.inventory-card__icon {
+  width: 100%;
+  height: 100%;
+  border: 4rpx solid rgba(120, 146, 255, 0.62);
+  border-radius: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 14, 40, 0.9);
+  color: #f5f8ff;
+  padding: 0 10rpx;
+  box-sizing: border-box;
+  position: relative;
+}
+
+.inventory-card__icon-name {
+  max-width: 100%;
+  font-size: 18rpx;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  line-height: 1.2;
+}
+
+.inventory-card__status {
+  position: absolute;
+  right: 12rpx;
+  bottom: 12rpx;
+  padding: 4rpx 10rpx;
+  font-size: 18rpx;
+  border-radius: 999rpx;
+  background: rgba(10, 22, 56, 0.72);
+  color: rgba(236, 246, 255, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.inventory-card--equipped {
+  border-color: rgba(132, 178, 255, 0.62);
+  box-shadow: 0 12rpx 28rpx rgba(72, 112, 220, 0.24);
+}
+
+.inventory-card--equipped .inventory-card__icon {
+  box-shadow: 0 0 0 4rpx rgba(120, 176, 255, 0.32);
+}
+
+.equipment-summary {
+  margin-top: 28rpx;
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: rgba(30, 46, 98, 0.78);
+  border: 1rpx solid rgba(100, 130, 240, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.summary-title {
+  font-size: 26rpx;
+  color: #f4f6ff;
+  font-weight: 600;
+}
+
+.set-item {
+  border-radius: 20rpx;
+  padding: 18rpx 22rpx;
+  background: rgba(18, 30, 74, 0.62);
+  border: 1rpx solid rgba(96, 124, 228, 0.24);
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+
+.set-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 24rpx;
+  color: rgba(217, 226, 255, 0.92);
+  font-weight: 600;
+}
+
+.set-count {
+  font-size: 22rpx;
+  color: rgba(179, 196, 255, 0.82);
+}
+
+.set-effect {
+  font-size: 22rpx;
+  color: rgba(197, 210, 255, 0.82);
+  line-height: 1.5;
+}
+
+.note-item {
+  font-size: 22rpx;
+  color: rgba(197, 210, 255, 0.82);
+  line-height: 1.5;
+  padding: 10rpx 12rpx;
+  border-radius: 16rpx;
+  background: rgba(20, 32, 76, 0.58);
+  border: 1rpx solid rgba(92, 118, 225, 0.2);
 }
 
 .inventory-footer {
@@ -400,46 +581,85 @@ button.pill-btn[disabled] {
   color: rgba(197, 208, 255, 0.8);
 }
 
-.equipment-item {
-  border: 1rpx solid rgba(93, 119, 214, 0.3);
-  border-radius: 24rpx;
-  padding: 24rpx;
-  margin-bottom: 16rpx;
-  background: rgba(18, 30, 72, 0.88);
-}
-
-.equipment-head {
+.equipment-tooltip {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
   display: flex;
-  justify-content: space-between;
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #f1f4ff;
-}
-
-.equipment-desc {
-  margin: 12rpx 0;
-  color: rgba(188, 198, 246, 0.78);
-  font-size: 24rpx;
-}
-
-.equipment-stats text {
-  display: inline-block;
-  margin-right: 12rpx;
-  margin-bottom: 4rpx;
-  font-size: 22rpx;
-  color: rgba(176, 192, 247, 0.76);
-}
-
-.equipment-actions {
-  margin-top: 16rpx;
-  display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: center;
 }
 
-.equipment-refine {
+.equipment-tooltip__mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 9, 28, 0.72);
+}
+
+.equipment-tooltip__card {
+  position: relative;
+  max-width: 640rpx;
+  width: calc(100% - 120rpx);
+  padding: 24rpx 36rpx 36rpx;
+  border-radius: 28rpx;
+  background: rgba(18, 30, 74, 0.92);
+  border: 1rpx solid rgba(102, 130, 238, 0.46);
+  box-shadow: 0 24rpx 48rpx rgba(6, 10, 32, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  box-sizing: border-box;
+}
+
+.equipment-tooltip__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.equipment-tooltip__name {
+  flex: 1;
+  min-width: 0;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #f5f8ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.equipment-tooltip__quality {
+  font-size: 24rpx;
+  color: rgba(214, 224, 255, 0.88);
+}
+
+.equipment-tooltip__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx 16rpx;
   font-size: 22rpx;
-  color: rgba(184, 197, 247, 0.74);
+  color: rgba(198, 210, 255, 0.85);
+}
+
+.equipment-tooltip__stats,
+.equipment-tooltip__notes {
+  font-size: 22rpx;
+  color: rgba(204, 216, 255, 0.9);
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.equipment-tooltip__equip {
+  align-self: flex-start;
+  margin-top: 4rpx;
+}
+
+.equipment-tooltip__equipped {
+  font-size: 22rpx;
+  color: rgba(195, 206, 255, 0.82);
 }
 
 .skill-slots {
