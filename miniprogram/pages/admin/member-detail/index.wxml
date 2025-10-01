@@ -172,27 +172,19 @@
   <view class="section">
     <view class="section-title">PVE 装备</view>
     <view class="equipment-admin__actions">
-      <picker
-        mode="selector"
-        range="{{equipmentCatalog}}"
-        range-key="label"
-        value="{{equipmentPickerIndex}}"
-        bindchange="handleEquipmentPickerChange"
+      <button
+        class="grant-equipment-btn"
+        size="mini"
+        type="primary"
+        loading="{{grantingEquipment}}"
         disabled="{{!(equipmentCatalog && equipmentCatalog.length)}}"
+        bindtap="showEquipmentGrantDialog"
       >
-        <button
-          class="grant-equipment-btn"
-          size="mini"
-          type="primary"
-          loading="{{grantingEquipment}}"
-          disabled="{{!(equipmentCatalog && equipmentCatalog.length)}}"
-        >
-          发放装备
-        </button>
-      </picker>
+        装备发放
+      </button>
       <text wx:if="{{!(equipmentCatalog && equipmentCatalog.length)}}" class="equipment-admin__hint">请稍候，正在加载装备目录</text>
     </view>
-    <view class="equipment-admin__content">
+    <view wx:if="{{equipmentProfileLoaded}}" class="equipment-admin__content">
       <view class="equipment-admin__block">
         <view class="equipment-admin__subtitle">已装备</view>
         <view wx:if="{{equipmentSlots.length}}" class="equipment-admin__slot-list">
@@ -219,6 +211,7 @@
         <view wx:else class="equipment-admin__empty">尚未拥有其他装备</view>
       </view>
     </view>
+    <view wx:else class="equipment-admin__empty">暂未获取装备数据</view>
   </view>
 </view>
 
@@ -240,6 +233,36 @@
     <view class="dialog-actions">
       <button size="mini" class="dialog-btn" bindtap="hideRechargeDialog">取消</button>
       <button size="mini" class="dialog-btn primary" bindtap="handleRechargeConfirm">确认充值</button>
+    </view>
+  </view>
+</view>
+
+<view wx:if="{{equipmentDialogVisible}}" class="dialog-mask" bindtap="hideEquipmentGrantDialog">
+  <view class="equipment-dialog" catchtap="noop" catchtouchmove="noop">
+    <view class="equipment-dialog__title">选择发放装备</view>
+    <scroll-view scroll-y class="equipment-dialog__list">
+      <radio-group class="equipment-dialog__group" bindchange="handleEquipmentSelect">
+        <label
+          wx:for="{{equipmentCatalog}}"
+          wx:key="id"
+          class="equipment-dialog__option {{equipmentSelectionId === item.id ? 'equipment-dialog__option--active' : ''}}"
+        >
+          <radio value="{{item.id}}" checked="{{equipmentSelectionId === item.id}}" />
+          <text class="equipment-dialog__option-text">{{item.name}}</text>
+        </label>
+      </radio-group>
+    </scroll-view>
+    <view class="equipment-dialog__actions">
+      <button size="mini" class="dialog-btn" bindtap="hideEquipmentGrantDialog">取消</button>
+      <button
+        size="mini"
+        class="dialog-btn primary"
+        type="primary"
+        loading="{{grantingEquipment}}"
+        bindtap="handleEquipmentGrantConfirm"
+      >
+        确认发放
+      </button>
     </view>
   </view>
 </view>

@@ -175,7 +175,10 @@ Page({
     equipmentInventory: [],
     equipmentCatalog: [],
     equipmentCatalogLoaded: false,
-    equipmentPickerIndex: 0,
+    equipmentProfileLoaded: false,
+    equipmentDialogVisible: false,
+    equipmentSelectionId: '',
+    equipmentSelectionIndex: -1,
     grantingEquipment: false
   },
 
@@ -224,9 +227,20 @@ Page({
       const catalog = Array.isArray(res && res.items)
         ? res.items.map((item) => ({ ...item, label: buildCatalogLabel(item) }))
         : [];
+      let selectionId = this.data.equipmentSelectionId;
+      let selectionIndex = this.data.equipmentSelectionIndex;
+      if (selectionId) {
+        selectionIndex = catalog.findIndex((item) => item.id === selectionId);
+      }
+      if ((!selectionId || selectionIndex < 0) && catalog.length) {
+        selectionIndex = 0;
+        selectionId = catalog[0].id;
+      }
       this.setData({
         equipmentCatalog: catalog,
-        equipmentCatalogLoaded: true
+        equipmentCatalogLoaded: true,
+        equipmentSelectionId: selectionId || '',
+        equipmentSelectionIndex: catalog.length ? selectionIndex : -1
       });
     } catch (error) {
       console.error('[admin] load equipment catalog failed', error);
@@ -275,11 +289,13 @@ Page({
   },
 
   applyEquipmentProfile(profile) {
-    const equipmentSlots = formatEquipmentSlots(profile);
-    const equipmentInventory = formatEquipmentInventory(profile);
+    const hasProfile = !!(profile && profile.equipment);
+    const equipmentSlots = hasProfile ? formatEquipmentSlots(profile) : [];
+    const equipmentInventory = hasProfile ? formatEquipmentInventory(profile) : [];
     this.setData({
       equipmentSlots,
-      equipmentInventory
+      equipmentInventory,
+      equipmentProfileLoaded: hasProfile
     });
   },
 
@@ -321,23 +337,65 @@ Page({
     });
   },
 
-  async handleEquipmentPickerChange(event) {
+  showEquipmentGrantDialog() {
     const catalog = this.data.equipmentCatalog || [];
-    const index = Number(event && event.detail ? event.detail.value : -1);
-    if (!Number.isFinite(index) || index < 0 || index >= catalog.length) {
+    if (!catalog.length) {
+      if (!this.data.equipmentCatalogLoaded) {
+        this.loadEquipmentCatalog(true);
+        wx.showToast({ title: '装备目录加载中，请稍候', icon: 'none' });
+      } else {
+        wx.showToast({ title: '暂无可发放的装备', icon: 'none' });
+      }
       return;
     }
-    this.setData({ equipmentPickerIndex: index });
-    const target = catalog[index];
-    if (!target || !target.id) {
+    let { equipmentSelectionId, equipmentSelectionIndex } = this.data;
+    if (!equipmentSelectionId || equipmentSelectionIndex < 0 || !catalog[equipmentSelectionIndex] || catalog[equipmentSelectionIndex].id !== equipmentSelectionId) {
+      const matchedIndex = equipmentSelectionId
+        ? catalog.findIndex((item) => item.id === equipmentSelectionId)
+        : -1;
+      if (matchedIndex >= 0) {
+        equipmentSelectionIndex = matchedIndex;
+      } else {
+        equipmentSelectionIndex = 0;
+        equipmentSelectionId = catalog[0].id;
+      }
+    }
+    this.setData({
+      equipmentDialogVisible: true,
+      equipmentSelectionId,
+      equipmentSelectionIndex
+    });
+  },
+
+  hideEquipmentGrantDialog() {
+    this.setData({ equipmentDialogVisible: false });
+  },
+
+  handleEquipmentSelect(event) {
+    const value = event && event.detail ? event.detail.value : '';
+    const catalog = this.data.equipmentCatalog || [];
+    const index = catalog.findIndex((item) => item.id === value);
+    this.setData({
+      equipmentSelectionId: value,
+      equipmentSelectionIndex: index
+    });
+  },
+
+  async handleEquipmentGrantConfirm() {
+    const itemId = this.data.equipmentSelectionId;
+    if (!itemId) {
+      wx.showToast({ title: '请选择装备', icon: 'none' });
       return;
     }
-    await this.grantEquipmentToMember(target.id);
+    const success = await this.grantEquipmentToMember(itemId);
+    if (success) {
+      this.hideEquipmentGrantDialog();
+    }
   },
 
   async grantEquipmentToMember(itemId) {
     if (this.data.grantingEquipment || !this.data.memberId || !itemId) {
-      return;
+      return false;
     }
     this.setData({ grantingEquipment: true });
     try {
@@ -349,9 +407,17 @@ Page({
         this.applyEquipmentProfile(res.profile);
       }
       wx.showToast({ title: '发放成功', icon: 'success' });
+      const catalog = this.data.equipmentCatalog || [];
+      const selectionIndex = catalog.findIndex((item) => item.id === itemId);
+      this.setData({
+        equipmentSelectionId: itemId,
+        equipmentSelectionIndex: selectionIndex
+      });
+      return true;
     } catch (error) {
       console.error('[admin] grant equipment failed', error);
       wx.showToast({ title: error.errMsg || error.message || '发放失败', icon: 'none' });
+      return false;
     } finally {
       this.setData({ grantingEquipment: false });
     }

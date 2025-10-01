@@ -309,6 +309,75 @@ page {
   padding: 0 32rpx;
 }
 
+.equipment-dialog {
+  width: 88%;
+  max-width: 620rpx;
+  max-height: 70vh;
+  background: #141a3c;
+  border-radius: 24rpx;
+  padding: 32rpx;
+  box-shadow: 0 24rpx 60rpx rgba(3, 8, 30, 0.5);
+  display: flex;
+  flex-direction: column;
+  color: #f2f6ff;
+}
+
+.equipment-dialog__title {
+  font-size: 30rpx;
+  font-weight: 600;
+  margin-bottom: 24rpx;
+}
+
+.equipment-dialog__list {
+  max-height: 420rpx;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 18rpx;
+  background: rgba(15, 23, 42, 0.7);
+  padding: 12rpx;
+}
+
+.equipment-dialog__group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.equipment-dialog__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 10rpx 18rpx;
+  border-radius: 18rpx;
+  border: 1px solid transparent;
+  background: rgba(30, 41, 71, 0.6);
+  color: #cbd5f5;
+  font-size: 24rpx;
+}
+
+.equipment-dialog__option radio {
+  transform: scale(0.8);
+}
+
+.equipment-dialog__option--active {
+  border-color: rgba(96, 165, 250, 0.8);
+  background: rgba(59, 130, 246, 0.18);
+  color: #e0edff;
+}
+
+.equipment-dialog__option-text {
+  max-width: 360rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.equipment-dialog__actions {
+  margin-top: 28rpx;
+  display: flex;
+  justify-content: flex-end;
+  gap: 24rpx;
+}
+
 .equipment-admin__hint {
   font-size: 22rpx;
   color: #64748b;
