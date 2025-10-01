@@ -15,6 +15,8 @@ const DEFAULT_EQUIPMENT_IDS = [
 
 const DEFAULT_EQUIPMENT_ID_SET = new Set(DEFAULT_EQUIPMENT_IDS);
 
+const EXCLUDED_SLOT_KEYS = new Set(['accessory', 'armor']);
+
 function cloneItem(item) {
   return item && typeof item === 'object' ? { ...item } : null;
 }
@@ -46,15 +48,23 @@ export function sanitizeEquipmentProfile(profile) {
   const equipment = profile.equipment && typeof profile.equipment === 'object' ? profile.equipment : {};
   const rawSlots = Array.isArray(equipment.slots) ? equipment.slots : [];
   const rawInventory = Array.isArray(equipment.inventory) ? equipment.inventory : [];
+  const rawStorage = equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : {};
 
-  const sanitizedSlots = rawSlots.map((slot) => {
-    if (!slot || typeof slot !== 'object') {
-      return { slot: '', slotLabel: '', item: null };
-    }
-    const rawItem = slot.item && typeof slot.item === 'object' ? slot.item : null;
-    const item = rawItem && rawItem.itemId && !isDefaultEquipmentId(rawItem.itemId) ? cloneItem(rawItem) : null;
-    return { ...slot, item };
-  });
+  const sanitizedSlots = rawSlots
+    .map((slot) => {
+      if (!slot || typeof slot !== 'object') {
+        return { slot: '', slotLabel: '', item: null };
+      }
+      const rawItem = slot.item && typeof slot.item === 'object' ? slot.item : null;
+      const item = rawItem && rawItem.itemId && !isDefaultEquipmentId(rawItem.itemId) ? cloneItem(rawItem) : null;
+      return { ...slot, item };
+    })
+    .filter((slot) => {
+      if (!slot || !slot.slot) {
+        return true;
+      }
+      return !EXCLUDED_SLOT_KEYS.has(slot.slot);
+    });
 
   const sanitizedInventory = rawInventory
     .filter((item) => item && typeof item === 'object' && item.itemId && !isDefaultEquipmentId(item.itemId))
@@ -87,10 +97,58 @@ export function sanitizeEquipmentProfile(profile) {
 
   const notes = extractNotesFromSlots(sanitizedSlots);
 
+  const storageCategories = Array.isArray(rawStorage.categories) ? rawStorage.categories : [];
+  const rawStorageMetadata = rawStorage.metadata && typeof rawStorage.metadata === 'object' ? rawStorage.metadata : {};
+  const metadata = {};
+  const numericKeys = [
+    'baseCapacity',
+    'perUpgrade',
+    'sharedUpgrades',
+    'upgradeLimit',
+    'remainingUpgrades',
+    'capacity',
+    'nextCapacity',
+    'totalItems',
+    'remainingSlots',
+    'usagePercent'
+  ];
+  numericKeys.forEach((key) => {
+    const value = rawStorageMetadata[key];
+    if (typeof value === 'number' && !Number.isNaN(value)) {
+      metadata[key] = value;
+      return;
+    }
+    if (typeof value === 'string' && value.trim()) {
+      const numeric = Number(value);
+      if (!Number.isNaN(numeric)) {
+        metadata[key] = numeric;
+      }
+    }
+  });
+  const sanitizedStorage = {
+    categories: storageCategories
+      .map((category) => {
+        if (!category || typeof category !== 'object') {
+          return null;
+        }
+        const items = Array.isArray(category.items)
+          ? category.items
+              .filter((item) => item && typeof item === 'object' && item.itemId && !isDefaultEquipmentId(item.itemId))
+              .map((item) => cloneItem(item))
+          : [];
+        return { ...category, items };
+      })
+      .filter((category) => !!category)
+  };
+  if (Object.keys(metadata).length) {
+    sanitizedStorage.metadata = metadata;
+  }
+
   const sanitizedEquipment = {
     ...equipment,
     slots: sanitizedSlots,
     inventory: sanitizedInventory,
+    storage: sanitizedStorage,
     bonus: {
       sets: sanitizedSets,
       notes
