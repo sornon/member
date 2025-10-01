@@ -36,7 +36,12 @@ page {
 .toolbar {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   margin-bottom: 16rpx;
+}
+
+.toolbar button + button {
+  margin-left: 16rpx;
 }
 
 .toolbar .recharge {
@@ -45,6 +50,22 @@ page {
   border-radius: 32rpx;
   padding: 12rpx 24rpx;
   border: none;
+}
+
+.toolbar .delete-member {
+  background: rgba(244, 63, 94, 0.14);
+  color: #fda4af;
+  border-radius: 32rpx;
+  padding: 12rpx 24rpx;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.toolbar .delete-member::after {
+  border: none;
+}
+
+.toolbar .delete-member[disabled] {
+  opacity: 0.6;
 }
 
 .info-row {
