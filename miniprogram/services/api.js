@@ -295,6 +295,18 @@ export const PveService = {
     }
     return callCloud(CLOUD_FUNCTIONS.PVE, payload);
   },
+  async discardItem({ inventoryId = '', category = '' } = {}) {
+    const payload = { action: 'discardItem' };
+    const normalizedInventoryId = typeof inventoryId === 'string' ? inventoryId.trim() : '';
+    const normalizedCategory = typeof category === 'string' ? category.trim() : '';
+    if (normalizedInventoryId) {
+      payload.inventoryId = normalizedInventoryId;
+    }
+    if (normalizedCategory) {
+      payload.category = normalizedCategory;
+    }
+    return callCloud(CLOUD_FUNCTIONS.PVE, payload);
+  },
   async upgradeStorage({ category = '' } = {}) {
     const normalizedCategory = typeof category === 'string' ? category.trim() : '';
     return callCloud(CLOUD_FUNCTIONS.PVE, {

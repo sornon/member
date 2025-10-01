@@ -123,6 +123,9 @@ export function sanitizeEquipmentProfile(profile) {
       }
       const rawItem = slot.item && typeof slot.item === 'object' ? slot.item : null;
       const item = rawItem && rawItem.itemId && !isDefaultEquipmentId(rawItem.itemId) ? cloneItem(rawItem) : null;
+      if (item && !item.storageCategory) {
+        item.storageCategory = 'equipment';
+      }
       return { ...slot, item };
     })
     .filter((slot) => {
@@ -134,7 +137,13 @@ export function sanitizeEquipmentProfile(profile) {
 
   const sanitizedInventory = rawInventory
     .filter((item) => item && typeof item === 'object' && item.itemId && !isDefaultEquipmentId(item.itemId))
-    .map((item) => cloneItem(item));
+    .map((item) => {
+      const cloned = cloneItem(item);
+      if (cloned && !cloned.storageCategory) {
+        cloned.storageCategory = 'equipment';
+      }
+      return cloned;
+    });
 
   const setCounts = {};
   sanitizedSlots.forEach((slot) => {
@@ -177,7 +186,13 @@ export function sanitizeEquipmentProfile(profile) {
       const items = Array.isArray(category.items)
         ? category.items
             .filter((item) => item && typeof item === 'object' && item.itemId && !isDefaultEquipmentId(item.itemId))
-            .map((item) => cloneItem(item))
+            .map((item) => {
+              const cloned = cloneItem(item);
+              if (cloned && !cloned.storageCategory) {
+                cloned.storageCategory = key;
+              }
+              return cloned;
+            })
         : [];
       const baseCapacity = toPositiveInt(category.baseCapacity);
       const perUpgrade = toPositiveInt(category.perUpgrade);

@@ -2136,6 +2136,8 @@ exports.main = async (event = {}) => {
       return equipSkill(actorId, event);
     case 'equipItem':
       return equipItem(actorId, event);
+    case 'discardItem':
+      return discardItem(actorId, event);
     case 'upgradeStorage':
       return upgradeStorage(actorId, event);
     case 'listEquipmentCatalog':
@@ -2440,6 +2442,124 @@ async function equipItem(actorId, event) {
         slot: definition.slot,
         inventoryId: normalizedEntry && normalizedEntry.inventoryId ? normalizedEntry.inventoryId : '',
         action: 'equip'
+      }
+    },
+    MAX_BATTLE_HISTORY
+  );
+
+  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
+    data: {
+      pveProfile: _.set(profile),
+      updatedAt: now
+    }
+  });
+
+  const decorated = decorateProfile(member, profile);
+  return { profile: decorated };
+}
+
+async function discardItem(actorId, event = {}) {
+  const inventoryId =
+    event && typeof event.inventoryId === 'string' && event.inventoryId.trim() ? event.inventoryId.trim() : '';
+  if (!inventoryId) {
+    throw createError('INVENTORY_ID_REQUIRED', '缺少物品编号');
+  }
+  const category = event && typeof event.category === 'string' ? event.category.trim() : '';
+  if (category === 'quest') {
+    throw createError('QUEST_ITEM_LOCKED', '任务道具无法删除');
+  }
+  const member = await ensureMember(actorId);
+  const profile = await ensurePveProfile(actorId, member);
+  const equipment = profile.equipment || {};
+  profile.equipment = equipment;
+  const inventory = Array.isArray(equipment.inventory) ? equipment.inventory : [];
+  const storage = equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : {};
+  let removedEntry = null;
+  let removedCategory = category || 'equipment';
+
+  const findInventoryIndex = () => inventory.findIndex((entry) => entry && entry.inventoryId === inventoryId);
+  let index = findInventoryIndex();
+  if (index >= 0) {
+    const candidate = inventory[index];
+    const candidateCategory = category || (candidate && candidate.storageCategory) || 'equipment';
+    if (candidateCategory === 'quest') {
+      throw createError('QUEST_ITEM_LOCKED', '任务道具无法删除');
+    }
+    removedEntry = candidate;
+    removedCategory = candidateCategory;
+    inventory.splice(index, 1);
+    profile.equipment.inventory = inventory;
+  }
+
+  if (!removedEntry) {
+    const rawCategories = Array.isArray(storage.categories) ? storage.categories : [];
+    let updatedCategories = null;
+    for (let i = 0; i < rawCategories.length; i += 1) {
+      const categoryEntry = rawCategories[i];
+      if (!categoryEntry || typeof categoryEntry !== 'object') {
+        continue;
+      }
+      if (category && categoryEntry.key !== category) {
+        continue;
+      }
+      const items = Array.isArray(categoryEntry.items) ? categoryEntry.items : [];
+      const itemIndex = items.findIndex((item) => item && item.inventoryId === inventoryId);
+      if (itemIndex < 0) {
+        continue;
+      }
+      const candidate = items[itemIndex];
+      const candidateCategory = category || candidate.storageCategory || categoryEntry.key || '';
+      if (candidateCategory === 'quest') {
+        throw createError('QUEST_ITEM_LOCKED', '任务道具无法删除');
+      }
+      removedEntry = candidate;
+      removedCategory = candidateCategory || categoryEntry.key || '';
+      const clonedItems = items.slice();
+      clonedItems.splice(itemIndex, 1);
+      const clonedCategory = { ...categoryEntry, items: clonedItems };
+      updatedCategories = rawCategories.map((entry, idx) => (idx === i ? clonedCategory : entry));
+      break;
+    }
+    if (updatedCategories) {
+      profile.equipment.storage = { ...storage, categories: updatedCategories };
+      equipment.storage = profile.equipment.storage;
+    }
+  }
+
+  if (!removedEntry) {
+    throw createError('ITEM_NOT_FOUND', '未找到对应物品');
+  }
+
+  const slots =
+    equipment.slots && typeof equipment.slots === 'object' ? { ...equipment.slots } : createEmptySlotMap();
+  let slotChanged = false;
+  Object.keys(slots).forEach((slotKey) => {
+    const slotEntry = slots[slotKey];
+    if (!slotEntry) {
+      return;
+    }
+    const sameInventory = slotEntry.inventoryId && slotEntry.inventoryId === inventoryId;
+    const sameItem = !slotEntry.inventoryId && removedEntry && slotEntry.itemId === removedEntry.itemId;
+    if (sameInventory || sameItem) {
+      slots[slotKey] = null;
+      slotChanged = true;
+    }
+  });
+  if (slotChanged) {
+    profile.equipment.slots = slots;
+  }
+
+  const now = new Date();
+  profile.battleHistory = appendHistory(
+    profile.battleHistory,
+    {
+      type: 'equipment-change',
+      createdAt: now,
+      detail: {
+        action: 'discard',
+        itemId: removedEntry && removedEntry.itemId ? removedEntry.itemId : '',
+        inventoryId,
+        category: removedCategory
       }
     },
     MAX_BATTLE_HISTORY

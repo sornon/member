@@ -145,6 +145,27 @@ const STORAGE_CATEGORY_LABELS = {
 const STORAGE_DEFAULT_BASE_CAPACITY = 100;
 const STORAGE_DEFAULT_PER_UPGRADE = 20;
 
+function buildTooltipLockKey({ source = '', slot = '', inventoryId = '', itemId = '' } = {}) {
+  return [source, slot, inventoryId, itemId].join('|');
+}
+
+function normalizeTooltipMode(mode) {
+  return mode === 'delete' ? 'delete' : 'default';
+}
+
+function resolveTooltipDeleteState(tooltip) {
+  if (!tooltip || tooltip.mode !== 'delete') {
+    return { canDelete: false, reason: '' };
+  }
+  if (!tooltip.inventoryId) {
+    return { canDelete: false, reason: '该物品无法删除' };
+  }
+  if ((tooltip.category || '') === 'quest') {
+    return { canDelete: false, reason: '任务道具不可删除' };
+  }
+  return { canDelete: true, reason: '' };
+}
+
 Page({
   data: {
     loading: true,
@@ -251,10 +272,14 @@ Page({
         const items = Array.isArray(category.items) ? category.items : [];
         const normalizedItems = items.map((item, index) => {
           const storageKey = `${key}-${item && item.inventoryId ? item.inventoryId : `${item && item.itemId ? item.itemId : 'item'}-${index}`}`;
-          return { ...item, storageKey };
+          const normalized = { ...item, storageKey };
+          if (!normalized.storageCategory) {
+            normalized.storageCategory = key;
+          }
+          return normalized;
         });
         const slotCount = Math.max(capacity, normalizedItems.length);
-        const slots = normalizedItems.map((item) => ({ ...item, placeholder: false }));
+        const slots = normalizedItems.map((item) => ({ ...item, placeholder: false, storageCategory: key }));
         for (let i = normalizedItems.length; i < slotCount; i += 1) {
           slots.push({ placeholder: true, storageKey: `${key}-placeholder-${i}` });
         }
@@ -280,6 +305,7 @@ Page({
   },
 
   onLoad(options = {}) {
+    this.tooltipLock = null;
     const initialTab = this.normalizeTab(options.tab);
     if (initialTab) {
       this.setData({ activeTab: initialTab });
@@ -468,6 +494,75 @@ Page({
     }
     const slot = (typeof dataset.slot === 'string' && dataset.slot.trim()) || rawItem.slot || '';
     const source = dataset.source || 'inventory';
+    const inventoryId = dataset.inventoryId || rawItem.inventoryId || '';
+    const itemId = rawItem.itemId || '';
+    const lockKey = buildTooltipLockKey({
+      source,
+      slot,
+      inventoryId,
+      itemId
+    });
+    if (this.tooltipLock && this.tooltipLock.key === lockKey && this.tooltipLock.expiresAt > Date.now()) {
+      this.tooltipLock = null;
+      return;
+    }
+    this.tooltipLock = null;
+    const slotLabel = dataset.slotLabel || rawItem.slotLabel || '';
+    const category = typeof dataset.category === 'string' ? dataset.category : rawItem.storageCategory || '';
+    this.openEquipmentTooltip({
+      source,
+      slot,
+      slotLabel,
+      item: rawItem,
+      inventoryId,
+      mode: 'default',
+      category
+    });
+  },
+
+  handleEquipmentLongPress(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const rawItem = dataset.item;
+    if (!rawItem) {
+      return;
+    }
+    const slot = (typeof dataset.slot === 'string' && dataset.slot.trim()) || rawItem.slot || '';
+    const source = dataset.source || 'inventory';
+    const inventoryId = dataset.inventoryId || rawItem.inventoryId || '';
+    const itemId = rawItem.itemId || '';
+    const lockKey = buildTooltipLockKey({
+      source,
+      slot,
+      inventoryId,
+      itemId
+    });
+    this.tooltipLock = { key: lockKey, expiresAt: Date.now() + 500 };
+    const slotLabel = dataset.slotLabel || rawItem.slotLabel || '';
+    const category = typeof dataset.category === 'string' ? dataset.category : rawItem.storageCategory || '';
+    this.openEquipmentTooltip({
+      source,
+      slot,
+      slotLabel,
+      item: rawItem,
+      inventoryId,
+      mode: 'delete',
+      category
+    });
+  },
+
+  openEquipmentTooltip(options = {}) {
+    const rawItem = options && options.item;
+    if (!rawItem) {
+      this.closeEquipmentTooltip();
+      return;
+    }
+    const slot = (typeof options.slot === 'string' && options.slot.trim()) || rawItem.slot || '';
+    const source = options.source || 'inventory';
+    const mode = normalizeTooltipMode(options.mode);
+    const inventoryId =
+      (typeof options.inventoryId === 'string' && options.inventoryId.trim()) || rawItem.inventoryId || '';
+    const slotLabel = options.slotLabel || rawItem.slotLabel || '';
+    const category = typeof options.category === 'string' ? options.category : rawItem.storageCategory || '';
     const currentTooltip = this.data && this.data.equipmentTooltip;
     if (
       currentTooltip &&
@@ -475,7 +570,9 @@ Page({
       rawItem.itemId &&
       currentTooltip.item.itemId === rawItem.itemId &&
       currentTooltip.source === source &&
-      currentTooltip.slot === slot
+      currentTooltip.slot === slot &&
+      normalizeTooltipMode(currentTooltip.mode) === mode &&
+      ((currentTooltip.inventoryId || '') === (inventoryId || ''))
     ) {
       this.closeEquipmentTooltip();
       return;
@@ -484,14 +581,21 @@ Page({
       visible: true,
       source,
       slot,
-      slotLabel: dataset.slotLabel || rawItem.slotLabel || '',
+      slotLabel,
       item: { ...rawItem },
-      inventoryId: dataset.inventoryId || rawItem.inventoryId || ''
+      inventoryId: inventoryId || '',
+      mode,
+      category,
+      deleting: false
     };
+    const deleteState = resolveTooltipDeleteState(tooltip);
+    tooltip.canDelete = deleteState.canDelete;
+    tooltip.deleteDisabledReason = deleteState.reason;
     this.setData({ equipmentTooltip: tooltip });
   },
 
   closeEquipmentTooltip() {
+    this.tooltipLock = null;
     this.setData({ equipmentTooltip: null });
   },
 
@@ -527,6 +631,62 @@ Page({
     const success = await this.handleUnequipItem({ slot });
     if (success) {
       this.closeEquipmentTooltip();
+    }
+  },
+
+  handleDeleteFromTooltip() {
+    const tooltip = this.data && this.data.equipmentTooltip;
+    if (!tooltip || normalizeTooltipMode(tooltip.mode) !== 'delete') {
+      return;
+    }
+    if (tooltip.deleting) {
+      return;
+    }
+    if (!tooltip.canDelete) {
+      if (tooltip.deleteDisabledReason) {
+        wx.showToast({ title: tooltip.deleteDisabledReason, icon: 'none' });
+      }
+      return;
+    }
+    const itemName =
+      (tooltip.item && (tooltip.item.name || tooltip.item.shortName)) || tooltip.slotLabel || '该物品';
+    wx.showModal({
+      title: '删除物品',
+      content: `确定要删除「${itemName}」吗？删除后无法恢复。`,
+      confirmText: '删除',
+      confirmColor: '#fa5151',
+      cancelText: '保留',
+      success: (res) => {
+        if (res.confirm) {
+          this.performDeleteItem();
+        }
+      }
+    });
+  },
+
+  async performDeleteItem() {
+    const tooltip = this.data && this.data.equipmentTooltip;
+    if (!tooltip || normalizeTooltipMode(tooltip.mode) !== 'delete' || !tooltip.canDelete || tooltip.deleting) {
+      return;
+    }
+    const inventoryId = tooltip.inventoryId || (tooltip.item && tooltip.item.inventoryId) || '';
+    if (!inventoryId) {
+      wx.showToast({ title: '缺少物品信息', icon: 'none' });
+      return;
+    }
+    const category = tooltip.category || (tooltip.item && tooltip.item.storageCategory) || '';
+    this.setData({ 'equipmentTooltip.deleting': true });
+    try {
+      const res = await PveService.discardItem({ inventoryId, category });
+      if (res && res.profile) {
+        this.applyProfile(res.profile);
+      }
+      wx.showToast({ title: '已删除', icon: 'success', duration: 1200 });
+      this.closeEquipmentTooltip();
+    } catch (error) {
+      console.error('[role] discard item failed', error);
+      wx.showToast({ title: error.errMsg || '删除失败', icon: 'none' });
+      this.setData({ 'equipmentTooltip.deleting': false });
     }
   },
 
