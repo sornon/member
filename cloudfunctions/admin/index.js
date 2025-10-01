@@ -41,7 +41,8 @@ const ACTIONS = {
   MARK_RESERVATION_READ: 'markReservationRead',
   LIST_EQUIPMENT_CATALOG: 'listEquipmentCatalog',
   GRANT_EQUIPMENT: 'grantEquipment',
-  REMOVE_EQUIPMENT: 'removeEquipment'
+  REMOVE_EQUIPMENT: 'removeEquipment',
+  UPDATE_EQUIPMENT_ATTRIBUTES: 'updateEquipmentAttributes'
 };
 
 const ACTION_ALIASES = {
@@ -61,7 +62,8 @@ const ACTION_ALIASES = {
   markreservationread: ACTIONS.MARK_RESERVATION_READ,
   listequipmentcatalog: ACTIONS.LIST_EQUIPMENT_CATALOG,
   grantequipment: ACTIONS.GRANT_EQUIPMENT,
-  removeequipment: ACTIONS.REMOVE_EQUIPMENT
+  removeequipment: ACTIONS.REMOVE_EQUIPMENT,
+  updateequipmentattributes: ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES
 };
 
 function normalizeAction(action) {
@@ -103,7 +105,10 @@ const ACTION_HANDLERS = {
   [ACTIONS.MARK_RESERVATION_READ]: (openid) => markReservationRead(openid),
   [ACTIONS.LIST_EQUIPMENT_CATALOG]: (openid) => listEquipmentCatalog(openid),
   [ACTIONS.GRANT_EQUIPMENT]: (openid, event) => grantEquipment(openid, event.memberId, event.itemId),
-  [ACTIONS.REMOVE_EQUIPMENT]: (openid, event) => removeEquipment(openid, event.memberId, event.itemId)
+  [ACTIONS.REMOVE_EQUIPMENT]: (openid, event) =>
+    removeEquipment(openid, event.memberId, event.itemId, event.inventoryId),
+  [ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES]: (openid, event) =>
+    updateEquipmentAttributes(openid, event.memberId, event.itemId, event.attributes || {}, event)
 };
 
 async function resolveMemberExtras(memberId) {
@@ -408,7 +413,7 @@ async function grantEquipment(openid, memberId, itemId) {
   return result || {};
 }
 
-async function removeEquipment(openid, memberId, itemId) {
+async function removeEquipment(openid, memberId, itemId, inventoryId) {
   await ensureAdmin(openid);
   if (!memberId) {
     throw new Error('缺少会员编号');
@@ -416,9 +421,57 @@ async function removeEquipment(openid, memberId, itemId) {
   if (!itemId) {
     throw new Error('请选择要删除的装备');
   }
-  const result = await callPveFunction('removeEquipment', { actorId: openid, memberId, itemId }).catch((error) => {
+  const payload = { actorId: openid, memberId, itemId };
+  if (inventoryId) {
+    payload.inventoryId = inventoryId;
+  }
+  const result = await callPveFunction('removeEquipment', payload).catch((error) => {
     console.error('[admin] remove equipment failed', error);
     throw new Error(error && error.errMsg ? error.errMsg : '删除装备失败');
+  });
+  return result || {};
+}
+
+async function updateEquipmentAttributes(openid, memberId, itemId, attributes = {}, event = {}) {
+  await ensureAdmin(openid);
+  if (!memberId) {
+    throw new Error('缺少会员编号');
+  }
+  if (!itemId) {
+    throw new Error('请选择装备');
+  }
+  const payload = { ...(attributes || {}) };
+  if (typeof event.refine !== 'undefined' && typeof payload.refine === 'undefined') {
+    payload.refine = event.refine;
+  }
+  if (typeof event.level !== 'undefined' && typeof payload.level === 'undefined') {
+    payload.level = event.level;
+  }
+  if (typeof event.favorite !== 'undefined' && typeof payload.favorite === 'undefined') {
+    payload.favorite = event.favorite;
+  }
+  const sanitizedAttributes = {};
+  if (Object.prototype.hasOwnProperty.call(payload, 'refine')) {
+    sanitizedAttributes.refine = payload.refine;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'level')) {
+    sanitizedAttributes.level = payload.level;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'favorite')) {
+    sanitizedAttributes.favorite = payload.favorite;
+  }
+  if (!Object.keys(sanitizedAttributes).length) {
+    throw new Error('请填写要调整的属性');
+  }
+  const result = await callPveFunction('updateEquipmentAttributes', {
+    actorId: openid,
+    memberId,
+    itemId,
+    inventoryId: event.inventoryId,
+    attributes: sanitizedAttributes
+  }).catch((error) => {
+    console.error('[admin] update equipment attributes failed', error);
+    throw new Error(error && error.errMsg ? error.errMsg : '修改装备失败');
   });
   return result || {};
 }

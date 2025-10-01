@@ -351,12 +351,28 @@ export const AdminService = {
       itemId
     });
   },
-  async removeEquipment({ memberId, itemId }) {
-    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+  async removeEquipment({ memberId, itemId, inventoryId }) {
+    const payload = {
       action: 'removeEquipment',
       memberId,
       itemId
-    });
+    };
+    if (inventoryId) {
+      payload.inventoryId = inventoryId;
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
+  },
+  async updateEquipmentAttributes({ memberId, itemId, inventoryId, refine }) {
+    const payload = {
+      action: 'updateEquipmentAttributes',
+      memberId,
+      itemId,
+      attributes: { refine }
+    };
+    if (inventoryId) {
+      payload.inventoryId = inventoryId;
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   },
   async createChargeOrder(items) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {

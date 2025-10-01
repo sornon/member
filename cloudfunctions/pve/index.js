@@ -2033,6 +2033,8 @@ exports.main = async (event = {}) => {
       return grantEquipment(actorId, event);
     case 'removeEquipment':
       return removeEquipment(actorId, event);
+    case 'updateEquipmentAttributes':
+      return updateEquipmentAttributes(actorId, event);
     case 'allocatePoints':
       return allocatePoints(actorId, event.allocations || {});
     case 'resetAttributes':
@@ -2443,15 +2445,11 @@ async function grantEquipment(actorId, event = {}) {
   const now = new Date();
   const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
   const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
-  let entry = inventory.find((record) => record.itemId === itemId);
+  const entry = createEquipmentInventoryEntry(itemId, now);
   if (!entry) {
-    entry = createEquipmentInventoryEntry(itemId, now);
-    if (entry) {
-      inventory.push(entry);
-    }
-  } else {
-    entry.obtainedAt = now;
+    throw createError('ITEM_NOT_FOUND', '装备不存在');
   }
+  inventory.push(entry);
   profile.equipment.inventory = inventory;
   profile.battleHistory = appendHistory(
     profile.battleHistory,
@@ -2471,7 +2469,7 @@ async function grantEquipment(actorId, event = {}) {
   });
 
   const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
-  const granted = entry ? decorateEquipmentInventoryEntry(entry, profile.equipment.slots) : null;
+  const granted = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
   return { profile: decorated, granted };
 }
 
@@ -2486,11 +2484,19 @@ async function removeEquipment(actorId, event = {}) {
   if (!itemId) {
     throw createError('ITEM_ID_REQUIRED', '请选择要删除的装备');
   }
+  const inventoryId =
+    typeof event.inventoryId === 'string' && event.inventoryId.trim() ? event.inventoryId.trim() : '';
   const targetMember = await ensureMember(memberId);
   const now = new Date();
   const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
   const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
-  const index = inventory.findIndex((record) => record.itemId === itemId);
+  let index = -1;
+  if (inventoryId) {
+    index = inventory.findIndex((record) => record.inventoryId === inventoryId);
+  }
+  if (index < 0) {
+    index = inventory.findIndex((record) => record.itemId === itemId);
+  }
   if (index < 0) {
     throw createError('ITEM_NOT_FOUND', '会员未拥有该装备');
   }
@@ -2523,6 +2529,104 @@ async function removeEquipment(actorId, event = {}) {
 
   const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
   return { profile: decorated };
+}
+
+async function updateEquipmentAttributes(actorId, event = {}) {
+  const admin = await ensureMember(actorId);
+  ensureAdminAccess(admin);
+  const memberId = typeof event.memberId === 'string' && event.memberId.trim() ? event.memberId.trim() : '';
+  if (!memberId) {
+    throw createError('MEMBER_ID_REQUIRED', '缺少会员编号');
+  }
+  const itemId = typeof event.itemId === 'string' && event.itemId.trim() ? event.itemId.trim() : '';
+  if (!itemId) {
+    throw createError('ITEM_ID_REQUIRED', '请选择装备');
+  }
+  const rawAttributes = event.attributes && typeof event.attributes === 'object' ? { ...event.attributes } : {};
+  if (typeof event.refine !== 'undefined' && typeof rawAttributes.refine === 'undefined') {
+    rawAttributes.refine = event.refine;
+  }
+  if (typeof event.level !== 'undefined' && typeof rawAttributes.level === 'undefined') {
+    rawAttributes.level = event.level;
+  }
+  if (typeof event.favorite !== 'undefined' && typeof rawAttributes.favorite === 'undefined') {
+    rawAttributes.favorite = event.favorite;
+  }
+  const inventoryId =
+    typeof event.inventoryId === 'string' && event.inventoryId.trim() ? event.inventoryId.trim() : '';
+  const targetMember = await ensureMember(memberId);
+  const now = new Date();
+  const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
+  const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
+  let index = -1;
+  if (inventoryId) {
+    index = inventory.findIndex((record) => record.inventoryId === inventoryId);
+  }
+  if (index < 0) {
+    index = inventory.findIndex((record) => record.itemId === itemId);
+  }
+  if (index < 0) {
+    throw createError('ITEM_NOT_FOUND', '会员未拥有该装备');
+  }
+  const entry = { ...inventory[index] };
+  let changed = false;
+  if (Object.prototype.hasOwnProperty.call(rawAttributes, 'refine')) {
+    const value = Number(rawAttributes.refine);
+    const nextRefine = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+    if (entry.refine !== nextRefine) {
+      entry.refine = nextRefine;
+      changed = true;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(rawAttributes, 'level')) {
+    const value = Number(rawAttributes.level);
+    const nextLevel = Number.isFinite(value) ? Math.max(1, Math.floor(value)) : 1;
+    if (entry.level !== nextLevel) {
+      entry.level = nextLevel;
+      changed = true;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(rawAttributes, 'favorite')) {
+    const favorite = !!rawAttributes.favorite;
+    if (!!entry.favorite !== favorite) {
+      entry.favorite = favorite;
+      changed = true;
+    }
+  }
+  if (!changed) {
+    const decoratedProfile = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+    const updated = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
+    return { profile: decoratedProfile, updated };
+  }
+  inventory[index] = entry;
+  profile.equipment.inventory = inventory;
+  const definition = EQUIPMENT_MAP[itemId];
+  profile.battleHistory = appendHistory(
+    profile.battleHistory,
+    {
+      type: 'equipment-change',
+      createdAt: now,
+      detail: {
+        itemId,
+        slot: (definition && definition.slot) || '',
+        action: 'update',
+        refine: entry.refine,
+        level: entry.level
+      }
+    },
+    MAX_BATTLE_HISTORY
+  );
+
+  await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
+    data: {
+      pveProfile: profile,
+      updatedAt: now
+    }
+  });
+
+  const decoratedProfile = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+  const updated = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
+  return { profile: decoratedProfile, updated };
 }
 
 function resolveActorId(openid, event = {}) {
@@ -2778,35 +2882,53 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
   const payload = typeof equipment === 'object' && equipment ? equipment : {};
   const inventory = Array.isArray(payload.inventory) ? payload.inventory : [];
   const normalizedInventory = [];
-  const seen = new Set();
+  const seenInventoryIds = new Set();
+  const itemCounts = {};
+  const trackEntry = (entry) => {
+    if (!entry) {
+      return;
+    }
+    normalizedInventory.push(entry);
+    if (entry && entry.inventoryId) {
+      seenInventoryIds.add(entry.inventoryId);
+    }
+    if (entry && entry.itemId) {
+      itemCounts[entry.itemId] = (itemCounts[entry.itemId] || 0) + 1;
+    }
+  };
   inventory.forEach((item) => {
     const normalizedItem = normalizeEquipmentInventoryItem(item, now);
-    if (normalizedItem && !seen.has(normalizedItem.itemId)) {
-      normalizedInventory.push(normalizedItem);
-      seen.add(normalizedItem.itemId);
+    if (normalizedItem && !seenInventoryIds.has(normalizedItem.inventoryId)) {
+      trackEntry(normalizedItem);
     }
   });
   if (includeDefaults) {
     defaults.inventory.forEach((item) => {
-      if (!seen.has(item.itemId)) {
-        normalizedInventory.push(item);
-        seen.add(item.itemId);
+      if (!itemCounts[item.itemId]) {
+        trackEntry(item);
       }
     });
   }
 
   const slots = { ...defaults.slots };
   const rawSlots = payload.slots || {};
+  const ensureInventoryEntry = (itemId) => {
+    if (!itemId || itemCounts[itemId]) {
+      return;
+    }
+    const entry = createEquipmentInventoryEntry(itemId, now);
+    if (entry && !seenInventoryIds.has(entry.inventoryId)) {
+      trackEntry(entry);
+    }
+  };
   Object.keys(slots).forEach((slot) => {
     const candidate = typeof rawSlots[slot] === 'string' ? rawSlots[slot] : '';
     if (candidate && EQUIPMENT_MAP[candidate]) {
-      if (seen.has(candidate)) {
+      if (itemCounts[candidate]) {
         slots[slot] = candidate;
       } else if (includeDefaults) {
-        const entry = createEquipmentInventoryEntry(candidate, now);
-        if (entry && !seen.has(entry.itemId)) {
-          normalizedInventory.push(entry);
-          seen.add(entry.itemId);
+        ensureInventoryEntry(candidate);
+        if (itemCounts[candidate]) {
           slots[slot] = candidate;
         }
       } else {
@@ -2824,7 +2946,7 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
       }
       const candidate = typeof rawSlots[slot] === 'string' ? rawSlots[slot] : '';
       if (candidate && EQUIPMENT_MAP[candidate]) {
-        if (seen.has(candidate)) {
+        if (itemCounts[candidate]) {
           slots[slot] = candidate;
         }
       } else {
@@ -2922,12 +3044,15 @@ function normalizeEquipmentInventoryItem(item, now = new Date()) {
   }
   const level = Math.max(1, Math.floor(Number(item.level) || 1));
   const refine = Math.max(0, Math.floor(Number(item.refine) || 0));
+  const obtainedAt = item.obtainedAt ? new Date(item.obtainedAt) : now;
+  const inventoryId = resolveEquipmentInventoryId(item, itemId, obtainedAt);
   return {
+    inventoryId,
     itemId,
     quality: definition.quality,
     level,
     refine,
-    obtainedAt: item.obtainedAt ? new Date(item.obtainedAt) : now,
+    obtainedAt,
     favorite: !!item.favorite
   };
 }
@@ -2954,17 +3079,43 @@ function normalizeSkillInventoryEntry(entry, now = new Date()) {
   };
 }
 
+function generateEquipmentInventoryId(itemId, obtainedAt = new Date()) {
+  const timestamp = obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : Date.now();
+  const random = Math.random().toString(36).slice(2, 8);
+  return `eq-${itemId}-${timestamp}-${random}`;
+}
+
+function resolveEquipmentInventoryId(item, itemId, obtainedAt = new Date()) {
+  const candidates = [
+    item && item.inventoryId,
+    item && item.instanceId,
+    item && item.entryId,
+    item && item.id,
+    item && item._id
+  ];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = candidates[i];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+  const timestamp = obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : Date.now();
+  return `eq-${itemId}-${timestamp}`;
+}
+
 function createEquipmentInventoryEntry(itemId, obtainedAt = new Date()) {
   const definition = EQUIPMENT_MAP[itemId];
   if (!definition) {
     return null;
   }
+  const safeObtainedAt = obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt : new Date();
   return {
+    inventoryId: generateEquipmentInventoryId(itemId, safeObtainedAt),
     itemId,
     quality: definition.quality,
     level: 1,
     refine: 0,
-    obtainedAt,
+    obtainedAt: safeObtainedAt,
     favorite: false
   };
 }
@@ -3669,10 +3820,35 @@ function decorateEquipment(profile, summary = null) {
   const list = inventory
     .map((entry) => decorateEquipmentInventoryEntry(entry, slots))
     .filter((item) => !!item);
+  const slotItemIds = Object.values(slots || {}).filter((value) => typeof value === 'string' && value);
+  const equippedCounts = {};
+  slotItemIds.forEach((itemId) => {
+    equippedCounts[itemId] = (equippedCounts[itemId] || 0) + 1;
+  });
+  const equippedUsage = {};
+  list.forEach((item) => {
+    const limit = equippedCounts[item.itemId] || 0;
+    const used = equippedUsage[item.itemId] || 0;
+    item.equipped = used < limit;
+    equippedUsage[item.itemId] = used + 1;
+  });
+  const entriesByItemId = {};
+  list.forEach((item) => {
+    if (!entriesByItemId[item.itemId]) {
+      entriesByItemId[item.itemId] = [];
+    }
+    entriesByItemId[item.itemId].push(item);
+  });
+  const slotUsage = {};
   const bonusSummary = summary || sumEquipmentBonuses(equipment);
   const slotDetails = Object.keys(EQUIPMENT_SLOT_LABELS).map((slot) => {
-    const itemId = slots[slot];
-    const item = list.find((entry) => entry.itemId === itemId);
+    const itemId = typeof slots[slot] === 'string' ? slots[slot] : '';
+    const usage = itemId ? slotUsage[itemId] || 0 : 0;
+    const candidates = itemId ? entriesByItemId[itemId] || [] : [];
+    const item = candidates[usage] || null;
+    if (itemId) {
+      slotUsage[itemId] = usage + 1;
+    }
     return {
       slot,
       slotLabel: EQUIPMENT_SLOT_LABELS[slot],
@@ -3723,6 +3899,7 @@ function decorateEquipmentInventoryEntry(entry, slots = {}) {
   const displayTexts = combinedTexts.filter((text, index, list) => text && list.indexOf(text) === index);
   const equipped = Object.values(slots || {}).includes(entry.itemId);
   return {
+    inventoryId: entry.inventoryId,
     itemId: entry.itemId,
     name: definition.name,
     quality: definition.quality,
@@ -3736,6 +3913,7 @@ function decorateEquipmentInventoryEntry(entry, slots = {}) {
     mainAttribute: detail.mainAttribute,
     subAttributes: detail.subAttributes,
     uniqueEffects: detail.uniqueEffects,
+    level: entry.level || 1,
     refine: entry.refine || 0,
     refineLabel: entry.refine ? `精炼 +${entry.refine}` : '未精炼',
     levelRequirement: definition.levelRequirement || 1,
@@ -3745,6 +3923,7 @@ function decorateEquipmentInventoryEntry(entry, slots = {}) {
     setId: definition.setId || null,
     setName: setDefinition ? setDefinition.name : '',
     equipped,
+    favorite: !!entry.favorite,
     notes: notes.filter((note, index, list) => note && list.indexOf(note) === index)
   };
 }

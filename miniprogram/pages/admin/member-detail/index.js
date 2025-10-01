@@ -21,9 +21,12 @@ function formatEquipmentSlots(profile) {
       return {
         slot: slot.slot,
         slotLabel: slot.slotLabel || '',
+        inventoryId: item.inventoryId || item.itemId || '',
+        itemId: item.itemId || '',
         name: item.name || '',
         qualityLabel: item.qualityLabel || '',
-        qualityColor: item.qualityColor || '#a5adb8'
+        qualityColor: item.qualityColor || '#a5adb8',
+        refine: typeof item.refine === 'number' ? item.refine : 0
       };
     })
     .filter((slot) => !!slot && slot.name);
@@ -34,13 +37,20 @@ function formatEquipmentInventory(profile) {
     return [];
   }
   return profile.equipment.inventory.map((item) => ({
+    inventoryId: item.inventoryId || item.itemId || '',
     itemId: item.itemId,
     name: item.name,
     qualityLabel: item.qualityLabel,
     qualityColor: item.qualityColor,
     slotLabel: item.slotLabel || '',
     obtainedAtText: item.obtainedAtText || '',
-    equipped: !!item.equipped
+    equipped: !!item.equipped,
+    refine: typeof item.refine === 'number' ? item.refine : 0,
+    refineLabel: item.refineLabel || '',
+    statsText: Array.isArray(item.statsText) ? item.statsText : [],
+    slot: item.slot || '',
+    level: typeof item.level === 'number' ? item.level : 1,
+    favorite: !!item.favorite
   }));
 }
 
@@ -243,7 +253,11 @@ Page({
     equipmentSelectionId: '',
     equipmentSelectionIndex: -1,
     grantingEquipment: false,
-    removingEquipmentId: ''
+    removingEquipmentInventoryId: '',
+    equipmentEditDialogVisible: false,
+    equipmentEditItem: null,
+    equipmentEditForm: { refine: '' },
+    updatingEquipment: false
   },
 
   onLoad(options) {
@@ -546,8 +560,8 @@ Page({
   },
 
   async handleEquipmentDelete(event) {
-    const { itemId } = (event && event.currentTarget && event.currentTarget.dataset) || {};
-    if (!itemId || this.data.removingEquipmentId) {
+    const { itemId, inventoryId } = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    if (!itemId || this.data.removingEquipmentInventoryId) {
       return;
     }
     const confirmed = await new Promise((resolve) => {
@@ -564,18 +578,20 @@ Page({
     if (!confirmed) {
       return;
     }
-    await this.removeEquipmentFromMember(itemId);
+    await this.removeEquipmentFromMember(itemId, inventoryId);
   },
 
-  async removeEquipmentFromMember(itemId) {
-    if (!itemId || !this.data.memberId || this.data.removingEquipmentId) {
+  async removeEquipmentFromMember(itemId, inventoryId) {
+    if (!itemId || !this.data.memberId || this.data.removingEquipmentInventoryId) {
       return false;
     }
-    this.setData({ removingEquipmentId: itemId });
+    const pendingId = inventoryId || itemId;
+    this.setData({ removingEquipmentInventoryId: pendingId });
     try {
       const res = await AdminService.removeEquipment({
         memberId: this.data.memberId,
-        itemId
+        itemId,
+        inventoryId
       });
       if (res && res.profile) {
         this.applyEquipmentProfile(res.profile);
@@ -587,7 +603,7 @@ Page({
       wx.showToast({ title: error.errMsg || error.message || '删除失败', icon: 'none' });
       return false;
     } finally {
-      this.setData({ removingEquipmentId: '' });
+      this.setData({ removingEquipmentInventoryId: '' });
     }
   },
 
@@ -616,6 +632,74 @@ Page({
       wx.showToast({ title: error.errMsg || error.message || '保存失败', icon: 'none' });
     } finally {
       this.setData({ saving: false });
+    }
+  },
+
+  handleEquipmentItemLongPress(event) {
+    const { itemId, inventoryId } = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    if (!itemId) {
+      return;
+    }
+    const inventory = Array.isArray(this.data.equipmentInventory) ? this.data.equipmentInventory : [];
+    let item = inventory.find((entry) => entry.inventoryId === inventoryId);
+    if (!item) {
+      item = inventory.find((entry) => entry.itemId === itemId);
+    }
+    if (!item) {
+      wx.showToast({ title: '未找到装备信息', icon: 'none' });
+      return;
+    }
+    this.setData({
+      equipmentEditDialogVisible: true,
+      equipmentEditItem: item,
+      equipmentEditForm: {
+        refine: String(typeof item.refine === 'number' ? item.refine : 0)
+      }
+    });
+  },
+
+  hideEquipmentEditDialog() {
+    this.setData({
+      equipmentEditDialogVisible: false,
+      equipmentEditItem: null,
+      equipmentEditForm: { refine: '' }
+    });
+  },
+
+  handleEquipmentEditRefineInput(event) {
+    const value = event && event.detail ? event.detail.value : '';
+    this.setData({ 'equipmentEditForm.refine': value });
+  },
+
+  async handleEquipmentEditConfirm() {
+    if (!this.data.equipmentEditDialogVisible || this.data.updatingEquipment) {
+      return;
+    }
+    const item = this.data.equipmentEditItem;
+    if (!item || !item.itemId) {
+      wx.showToast({ title: '缺少装备信息', icon: 'none' });
+      return;
+    }
+    const refineInput = Number(this.data.equipmentEditForm.refine);
+    const refine = Number.isFinite(refineInput) ? Math.max(0, Math.floor(refineInput)) : 0;
+    this.setData({ updatingEquipment: true });
+    try {
+      const res = await AdminService.updateEquipmentAttributes({
+        memberId: this.data.memberId,
+        itemId: item.itemId,
+        inventoryId: item.inventoryId,
+        refine
+      });
+      if (res && res.profile) {
+        this.applyEquipmentProfile(res.profile);
+      }
+      wx.showToast({ title: '修改成功', icon: 'success' });
+      this.hideEquipmentEditDialog();
+    } catch (error) {
+      console.error('[admin] update equipment attributes failed', error);
+      wx.showToast({ title: error.errMsg || error.message || '修改失败', icon: 'none' });
+    } finally {
+      this.setData({ updatingEquipment: false });
     }
   },
 

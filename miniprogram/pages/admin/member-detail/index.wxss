@@ -438,6 +438,91 @@ page {
   color: #94a3b8;
 }
 
+.equipment-edit-dialog {
+  width: 88%;
+  max-width: 620rpx;
+  background: #141a3c;
+  border-radius: 24rpx;
+  padding: 32rpx;
+  box-shadow: 0 24rpx 60rpx rgba(3, 8, 30, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  color: #f2f6ff;
+}
+
+.equipment-edit-dialog__title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.equipment-edit-dialog__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  font-size: 24rpx;
+  color: #cbd5f5;
+}
+
+.equipment-edit-dialog__stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  max-height: 200rpx;
+  overflow-y: auto;
+  font-size: 24rpx;
+  color: #e2e8f0;
+}
+
+.equipment-edit-dialog__stat {
+  display: block;
+}
+
+.equipment-edit-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.equipment-edit-dialog__label {
+  font-size: 26rpx;
+  color: #f8fafc;
+}
+
+.equipment-edit-dialog__input {
+  padding: 20rpx;
+  border-radius: 16rpx;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(15, 23, 42, 0.82);
+  color: #f8fafc;
+}
+
+.equipment-edit-dialog__hint {
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+
+.equipment-edit-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 20rpx;
+  margin-top: 8rpx;
+}
+
+.equipment-edit-dialog__btn {
+  border: none;
+  border-radius: 20rpx;
+  padding: 16rpx 32rpx;
+  background: rgba(255, 255, 255, 0.12);
+  color: #d0deff;
+}
+
+.equipment-edit-dialog__btn--primary {
+  background: linear-gradient(90deg, #7cc4ff, #6a8bff);
+  color: #0b1330;
+  font-weight: 600;
+}
+
 .equipment-admin__hint {
   font-size: 22rpx;
   color: #64748b;
