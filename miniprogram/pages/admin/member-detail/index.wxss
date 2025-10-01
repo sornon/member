@@ -138,6 +138,8 @@ page {
   background: rgba(15, 23, 42, 0.8);
   color: #f8fafc;
   box-sizing: border-box;
+  min-height: 88rpx;
+  line-height: 1.5;
 }
 
 .picker-value {
