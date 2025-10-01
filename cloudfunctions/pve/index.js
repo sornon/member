@@ -15,6 +15,18 @@ const MAX_SKILL_SLOTS = 3;
 const MAX_BATTLE_HISTORY = 15;
 const MAX_SKILL_HISTORY = 30;
 
+const STORAGE_CATEGORY_DEFINITIONS = [
+  { key: 'equipment', label: '装备', baseCapacity: 100, perUpgrade: 20 },
+  { key: 'quest', label: '任务', baseCapacity: 100, perUpgrade: 20 },
+  { key: 'material', label: '材料', baseCapacity: 100, perUpgrade: 20 },
+  { key: 'consumable', label: '道具', baseCapacity: 100, perUpgrade: 20 }
+];
+const STORAGE_CATEGORY_KEYS = STORAGE_CATEGORY_DEFINITIONS.map((item) => item.key);
+const STORAGE_DEFAULT_BASE_CAPACITY =
+  STORAGE_CATEGORY_DEFINITIONS.length > 0 ? STORAGE_CATEGORY_DEFINITIONS[0].baseCapacity : 100;
+const STORAGE_DEFAULT_PER_UPGRADE =
+  STORAGE_CATEGORY_DEFINITIONS.length > 0 ? STORAGE_CATEGORY_DEFINITIONS[0].perUpgrade : 20;
+
 const BASE_ATTRIBUTE_KEYS = ['constitution', 'strength', 'spirit', 'root', 'agility', 'insight'];
 const COMBAT_STAT_KEYS = [
   'maxHp',
@@ -308,6 +320,12 @@ const EQUIPMENT_SLOT_LABELS = Object.keys(EQUIPMENT_SLOTS).reduce((map, key) => 
   map[key] = EQUIPMENT_SLOTS[key].label;
   return map;
 }, {});
+
+const IGNORED_EQUIPMENT_SLOTS = new Set(['accessory', 'armor']);
+
+function isIgnoredEquipmentSlot(slot) {
+  return typeof slot === 'string' && IGNORED_EQUIPMENT_SLOTS.has(slot);
+}
 
 const EQUIPMENT_QUALITY_CONFIG = {
   mortal: { key: 'mortal', label: '凡品', color: '#8d9099', mainCoefficient: 0.8, subCount: 0, subTierRange: ['common'], dropWeight: 42 },
@@ -2025,6 +2043,8 @@ exports.main = async (event = {}) => {
       return equipSkill(actorId, event);
     case 'equipItem':
       return equipItem(actorId, event);
+    case 'upgradeStorage':
+      return upgradeStorage(actorId, event);
     case 'listEquipmentCatalog':
       return listEquipmentCatalog(actorId);
     case 'adminInspectProfile':
@@ -2065,7 +2085,7 @@ async function simulateBattle(actorId, enemyId) {
 
   const now = new Date();
   const updatedProfile = applyBattleOutcome(profile, result, enemy, now, member, levels);
-  const updates = { pveProfile: updatedProfile, updatedAt: now };
+  const updates = { pveProfile: _.set(updatedProfile), updatedAt: now };
   if (result.rewards && result.rewards.stones > 0) {
     updates.stoneBalance = _.inc(result.rewards.stones);
   }
@@ -2128,7 +2148,7 @@ async function drawSkill(actorId) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2197,7 +2217,7 @@ async function equipSkill(actorId, event) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2208,10 +2228,15 @@ async function equipSkill(actorId, event) {
 
 async function equipItem(actorId, event) {
   const { itemId, slot: rawSlot } = event;
+  const inventoryId =
+    event && typeof event.inventoryId === 'string' && event.inventoryId.trim() ? event.inventoryId.trim() : '';
   const member = await ensureMember(actorId);
   const profile = await ensurePveProfile(actorId, member);
   const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
-  const slots = profile.equipment.slots || {};
+  const slots =
+    profile.equipment && typeof profile.equipment.slots === 'object' && profile.equipment.slots
+      ? profile.equipment.slots
+      : createEmptySlotMap();
 
   const slot = typeof rawSlot === 'string' ? rawSlot.trim() : '';
 
@@ -2222,13 +2247,28 @@ async function equipItem(actorId, event) {
     if (!Object.prototype.hasOwnProperty.call(EQUIPMENT_SLOTS, slot)) {
       throw createError('INVALID_SLOT', '装备槽位不存在');
     }
-    const currentItemId = slots[slot];
-    if (!currentItemId) {
+    const currentEntry = slots[slot];
+    if (!currentEntry || !currentEntry.itemId) {
       throw createError('SLOT_EMPTY', '该槽位暂无装备');
     }
 
-    slots[slot] = '';
+    slots[slot] = null;
     profile.equipment.slots = slots;
+
+    if (currentEntry) {
+      const normalizedEntry = normalizeEquipmentInventoryItem(currentEntry, new Date()) || {
+        ...createEquipmentInventoryEntry(currentEntry.itemId, new Date())
+      };
+      if (normalizedEntry && normalizedEntry.inventoryId) {
+        const existingIndex = inventory.findIndex((entry) => entry.inventoryId === normalizedEntry.inventoryId);
+        if (existingIndex >= 0) {
+          inventory.splice(existingIndex, 1);
+        }
+      }
+      if (normalizedEntry) {
+        inventory.push(normalizedEntry);
+      }
+    }
 
     const now = new Date();
     profile.battleHistory = appendHistory(
@@ -2236,14 +2276,20 @@ async function equipItem(actorId, event) {
       {
         type: 'equipment-change',
         createdAt: now,
-        detail: { slot, itemId: currentItemId, action: 'unequip' }
+        detail: {
+          slot,
+          itemId: currentEntry.itemId,
+          inventoryId: currentEntry.inventoryId || '',
+          action: 'unequip'
+        }
       },
       MAX_BATTLE_HISTORY
     );
 
+    profile.equipment.inventory = inventory;
     await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
       data: {
-        pveProfile: profile,
+        pveProfile: _.set(profile),
         updatedAt: now
       }
     });
@@ -2255,8 +2301,14 @@ async function equipItem(actorId, event) {
   if (!definition) {
     throw createError('ITEM_NOT_FOUND', '装备不存在');
   }
-  const hasItem = inventory.some((entry) => entry.itemId === itemId);
-  if (!hasItem) {
+  let index = -1;
+  if (inventoryId) {
+    index = inventory.findIndex((entry) => entry.inventoryId === inventoryId);
+  }
+  if (index < 0) {
+    index = inventory.findIndex((entry) => entry.itemId === itemId);
+  }
+  if (index < 0) {
     throw createError('ITEM_NOT_OWNED', '尚未拥有该装备，无法装备');
   }
 
@@ -2264,29 +2316,106 @@ async function equipItem(actorId, event) {
     throw createError('SLOT_MISMATCH', '装备与槽位不匹配');
   }
 
-  slots[definition.slot] = itemId;
-  profile.equipment.slots = slots;
-
   const now = new Date();
+  const entry = inventory.splice(index, 1)[0];
+  const normalizedEntry = normalizeEquipmentInventoryItem(entry, now) || createEquipmentInventoryEntry(itemId, now);
+  const targetSlot = definition.slot;
+  const previous = slots[targetSlot];
+  if (previous && previous.itemId) {
+    const previousNormalized = normalizeEquipmentInventoryItem(previous, now);
+    if (previousNormalized) {
+      if (previousNormalized.inventoryId) {
+        const existingIndex = inventory.findIndex((record) => record.inventoryId === previousNormalized.inventoryId);
+        if (existingIndex >= 0) {
+          inventory.splice(existingIndex, 1);
+        }
+      }
+      inventory.push(previousNormalized);
+    }
+  }
+  slots[targetSlot] = normalizedEntry ? { ...normalizedEntry } : null;
+  profile.equipment.slots = slots;
+  profile.equipment.inventory = inventory;
+
   profile.battleHistory = appendHistory(
     profile.battleHistory,
     {
       type: 'equipment-change',
       createdAt: now,
-      detail: { itemId, slot: definition.slot, action: 'equip' }
+      detail: {
+        itemId,
+        slot: definition.slot,
+        inventoryId: normalizedEntry && normalizedEntry.inventoryId ? normalizedEntry.inventoryId : '',
+        action: 'equip'
+      }
     },
     MAX_BATTLE_HISTORY
   );
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
 
   const decorated = decorateProfile(member, profile);
   return { profile: decorated };
+}
+
+async function upgradeStorage(actorId, event = {}) {
+  const category =
+    event && typeof event.category === 'string' && event.category.trim() ? event.category.trim() : '';
+  if (!category) {
+    throw createError('CATEGORY_REQUIRED', '请选择要升级的储物类型');
+  }
+  if (!STORAGE_CATEGORY_KEYS.includes(category)) {
+    throw createError('INVALID_CATEGORY', '储物类型不存在');
+  }
+  const member = await ensureMember(actorId);
+  const profile = await ensurePveProfile(actorId, member);
+  const storage = profile.equipment && typeof profile.equipment.storage === 'object' ? profile.equipment.storage : {};
+  const current = Math.max(0, Math.floor(Number(storage.upgrades || 0)));
+  const rawAvailable =
+    storage && typeof storage.upgradeAvailable !== 'undefined' ? Number(storage.upgradeAvailable) : null;
+  const rawLimit = storage && typeof storage.upgradeLimit !== 'undefined' ? Number(storage.upgradeLimit) : null;
+  const available =
+    rawAvailable !== null && Number.isFinite(rawAvailable) ? Math.max(0, Math.floor(rawAvailable)) : null;
+  const limit = rawLimit !== null && Number.isFinite(rawLimit) ? Math.max(0, Math.floor(rawLimit)) : null;
+  if (available !== null && available <= 0) {
+    throw createError('NO_STORAGE_UPGRADES', '储物空间升级次数不足');
+  }
+  if (limit !== null && current >= limit) {
+    throw createError('NO_STORAGE_UPGRADES', '储物空间升级次数不足');
+  }
+  const next = current + 1;
+  const nextAvailable = available !== null ? Math.max(0, available - 1) : null;
+  const updatedStorage = { ...storage, upgrades: next };
+  if (nextAvailable !== null) {
+    updatedStorage.upgradeAvailable = nextAvailable;
+  }
+  profile.equipment.storage = updatedStorage;
+  const now = new Date();
+  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
+    data: {
+      pveProfile: _.set(profile),
+      updatedAt: now
+    }
+  });
+  const decorated = decorateProfile(member, profile);
+  const baseCapacity = STORAGE_DEFAULT_BASE_CAPACITY;
+  const perUpgrade = STORAGE_DEFAULT_PER_UPGRADE;
+  const capacity = baseCapacity + perUpgrade * next;
+  return {
+    profile: decorated,
+    storage: {
+      category,
+      upgrades: next,
+      capacity,
+      upgradeAvailable: nextAvailable,
+      upgradeLimit: limit
+    }
+  };
 }
 
 async function allocatePoints(actorId, allocations) {
@@ -2325,7 +2454,7 @@ async function allocatePoints(actorId, allocations) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2382,7 +2511,7 @@ async function resetAttributes(actorId) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2463,7 +2592,7 @@ async function grantEquipment(actorId, event = {}) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2503,10 +2632,23 @@ async function removeEquipment(actorId, event = {}) {
   const definition = EQUIPMENT_MAP[itemId];
   inventory.splice(index, 1);
   profile.equipment.inventory = inventory;
-  const slots = typeof profile.equipment.slots === 'object' && profile.equipment.slots ? profile.equipment.slots : {};
+  const slots =
+    profile.equipment && typeof profile.equipment.slots === 'object'
+      ? profile.equipment.slots
+      : createEmptySlotMap();
   Object.keys(slots).forEach((slotKey) => {
-    if (slots[slotKey] === itemId) {
-      slots[slotKey] = '';
+    const slotEntry = slots[slotKey];
+    if (!slotEntry) {
+      return;
+    }
+    if (inventoryId) {
+      if (slotEntry && slotEntry.inventoryId === inventoryId) {
+        slots[slotKey] = null;
+      }
+      return;
+    }
+    if (slotEntry.itemId === itemId) {
+      slots[slotKey] = null;
     }
   });
   profile.equipment.slots = slots;
@@ -2522,7 +2664,7 @@ async function removeEquipment(actorId, event = {}) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2619,7 +2761,7 @@ async function updateEquipmentAttributes(actorId, event = {}) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2702,7 +2844,7 @@ async function ensurePveProfile(actorId, member, levelCache) {
   if (changed) {
     await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
       data: {
-        pveProfile: profile,
+        pveProfile: _.set(profile),
         updatedAt: now
       }
     });
@@ -2754,7 +2896,7 @@ function buildDefaultAttributes() {
 function createEmptySlotMap() {
   const slots = {};
   Object.keys(EQUIPMENT_SLOTS).forEach((slot) => {
-    slots[slot] = '';
+    slots[slot] = null;
   });
   return slots;
 }
@@ -2774,14 +2916,17 @@ function buildDefaultEquipment(now = new Date()) {
     'initiate_focus',
     'initiate_treasure'
   ];
-  const inventory = defaults
+  const generated = defaults
     .map((itemId) => createEquipmentInventoryEntry(itemId, now))
     .filter((entry) => !!entry);
   const slots = createEmptySlotMap();
-  inventory.forEach((entry) => {
+  const inventory = [];
+  generated.forEach((entry) => {
     const definition = EQUIPMENT_MAP[entry.itemId];
     if (definition && definition.slot && !slots[definition.slot]) {
-      slots[definition.slot] = entry.itemId;
+      slots[definition.slot] = { ...entry };
+    } else {
+      inventory.push({ ...entry });
     }
   });
   return { inventory, slots };
@@ -2880,82 +3025,159 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
   const includeDefaults = options && options.includeDefaults !== false;
   const defaults = includeDefaults ? buildDefaultEquipment(now) : { inventory: [], slots: createEmptySlotMap() };
   const payload = typeof equipment === 'object' && equipment ? equipment : {};
-  const inventory = Array.isArray(payload.inventory) ? payload.inventory : [];
+  const rawInventory = Array.isArray(payload.inventory) ? payload.inventory : [];
   const normalizedInventory = [];
   const seenInventoryIds = new Set();
-  const itemCounts = {};
-  const trackEntry = (entry) => {
-    if (!entry) {
+
+  const trackInventory = (entry) => {
+    if (!entry || !entry.inventoryId || seenInventoryIds.has(entry.inventoryId)) {
       return;
     }
     normalizedInventory.push(entry);
-    if (entry && entry.inventoryId) {
-      seenInventoryIds.add(entry.inventoryId);
-    }
-    if (entry && entry.itemId) {
-      itemCounts[entry.itemId] = (itemCounts[entry.itemId] || 0) + 1;
-    }
+    seenInventoryIds.add(entry.inventoryId);
   };
-  inventory.forEach((item) => {
+
+  rawInventory.forEach((item) => {
     const normalizedItem = normalizeEquipmentInventoryItem(item, now);
-    if (normalizedItem && !seenInventoryIds.has(normalizedItem.inventoryId)) {
-      trackEntry(normalizedItem);
+    if (normalizedItem) {
+      trackInventory(normalizedItem);
     }
   });
-  if (includeDefaults) {
-    defaults.inventory.forEach((item) => {
-      if (!itemCounts[item.itemId]) {
-        trackEntry(item);
-      }
-    });
-  }
 
-  const slots = { ...defaults.slots };
+  (defaults.inventory || []).forEach((entry) => {
+    if (entry) {
+      trackInventory({ ...entry });
+    }
+  });
+
+  const availableById = new Map();
+  const availableByItemId = {};
+  normalizedInventory.forEach((entry) => {
+    availableById.set(entry.inventoryId, entry);
+    if (!availableByItemId[entry.itemId]) {
+      availableByItemId[entry.itemId] = [];
+    }
+    availableByItemId[entry.itemId].push(entry);
+  });
+
+  const claimEntry = (entry) => {
+    if (!entry || !entry.inventoryId) {
+      return entry || null;
+    }
+    const claimed = availableById.get(entry.inventoryId);
+    if (!claimed) {
+      return entry;
+    }
+    availableById.delete(entry.inventoryId);
+    const list = availableByItemId[entry.itemId] || [];
+    const index = list.findIndex((candidate) => candidate.inventoryId === entry.inventoryId);
+    if (index >= 0) {
+      list.splice(index, 1);
+    }
+    return claimed;
+  };
+
+  const claimByItemId = (itemId) => {
+    const list = availableByItemId[itemId];
+    if (!list || !list.length) {
+      return null;
+    }
+    const entry = list.shift();
+    if (entry && entry.inventoryId) {
+      availableById.delete(entry.inventoryId);
+    }
+    return entry ? { ...entry } : null;
+  };
+
+  const resolvedSlots = createEmptySlotMap();
   const rawSlots = payload.slots || {};
-  const ensureInventoryEntry = (itemId) => {
-    if (!itemId || itemCounts[itemId]) {
+
+  Object.keys(resolvedSlots).forEach((slot) => {
+    const raw = rawSlots[slot];
+    let normalizedEntry = null;
+    if (raw && typeof raw === 'object' && raw.itemId) {
+      const candidate = normalizeEquipmentInventoryItem(raw, now);
+      if (candidate) {
+        normalizedEntry = { ...candidate };
+      }
+    } else if (typeof raw === 'string' && raw) {
+      normalizedEntry = claimByItemId(raw);
+    }
+    if (!normalizedEntry && defaults.slots && defaults.slots[slot]) {
+      normalizedEntry = { ...defaults.slots[slot] };
+    }
+    if (normalizedEntry) {
+      const claimed = claimEntry(normalizedEntry);
+      resolvedSlots[slot] = claimed ? { ...claimed } : { ...normalizedEntry };
+    } else {
+      resolvedSlots[slot] = null;
+    }
+  });
+
+  Object.keys(rawSlots || {}).forEach((slot) => {
+    if (isIgnoredEquipmentSlot(slot)) {
       return;
     }
-    const entry = createEquipmentInventoryEntry(itemId, now);
-    if (entry && !seenInventoryIds.has(entry.inventoryId)) {
-      trackEntry(entry);
+    if (Object.prototype.hasOwnProperty.call(resolvedSlots, slot)) {
+      return;
     }
-  };
-  Object.keys(slots).forEach((slot) => {
-    const candidate = typeof rawSlots[slot] === 'string' ? rawSlots[slot] : '';
-    if (candidate && EQUIPMENT_MAP[candidate]) {
-      if (itemCounts[candidate]) {
-        slots[slot] = candidate;
-      } else if (includeDefaults) {
-        ensureInventoryEntry(candidate);
-        if (itemCounts[candidate]) {
-          slots[slot] = candidate;
-        }
-      } else {
-        slots[slot] = '';
+    const raw = rawSlots[slot];
+    let normalizedEntry = null;
+    if (raw && typeof raw === 'object' && raw.itemId) {
+      const candidate = normalizeEquipmentInventoryItem(raw, now);
+      if (candidate) {
+        normalizedEntry = { ...candidate };
       }
-    } else if (!includeDefaults) {
-      slots[slot] = '';
+    } else if (typeof raw === 'string' && raw) {
+      normalizedEntry = claimByItemId(raw);
     }
+    resolvedSlots[slot] = normalizedEntry ? { ...normalizedEntry } : null;
   });
 
-  if (!includeDefaults) {
-    Object.keys(rawSlots).forEach((slot) => {
-      if (Object.prototype.hasOwnProperty.call(slots, slot)) {
+  const remainingInventory = Array.from(availableById.values()).map((entry) => ({ ...entry }));
+
+  const rawStorage = payload.storage && typeof payload.storage === 'object' ? payload.storage : {};
+  let storageUpgrades = 0;
+  if (rawStorage && typeof rawStorage.upgrades === 'number') {
+    const numeric = Number(rawStorage.upgrades);
+    storageUpgrades = Number.isFinite(numeric) ? Math.max(0, Math.floor(numeric)) : 0;
+  } else if (rawStorage && typeof rawStorage.upgrades === 'object') {
+    storageUpgrades = STORAGE_CATEGORY_KEYS.reduce((acc, key) => {
+      const value = Number(rawStorage.upgrades[key]);
+      if (Number.isFinite(value) && value > acc) {
+        return Math.max(0, Math.floor(value));
+      }
+      return acc;
+    }, 0);
+  }
+  const normalizedStorage = {};
+  if (rawStorage && typeof rawStorage === 'object') {
+    Object.keys(rawStorage).forEach((key) => {
+      if (key === 'upgrades' || key === 'upgradeAvailable' || key === 'upgradeLimit') {
         return;
       }
-      const candidate = typeof rawSlots[slot] === 'string' ? rawSlots[slot] : '';
-      if (candidate && EQUIPMENT_MAP[candidate]) {
-        if (itemCounts[candidate]) {
-          slots[slot] = candidate;
-        }
-      } else {
-        slots[slot] = '';
-      }
+      normalizedStorage[key] = rawStorage[key];
     });
   }
+  normalizedStorage.upgrades = storageUpgrades;
+  if (rawStorage && typeof rawStorage.upgradeAvailable !== 'undefined') {
+    const availableNumeric = Number(rawStorage.upgradeAvailable);
+    if (Number.isFinite(availableNumeric)) {
+      normalizedStorage.upgradeAvailable = Math.max(0, Math.floor(availableNumeric));
+    }
+  }
+  if (rawStorage && typeof rawStorage.upgradeLimit !== 'undefined') {
+    const limitNumeric = Number(rawStorage.upgradeLimit);
+    if (Number.isFinite(limitNumeric)) {
+      normalizedStorage.upgradeLimit = Math.max(0, Math.floor(limitNumeric));
+    }
+  }
 
-  return { inventory: normalizedInventory, slots };
+  return {
+    inventory: remainingInventory,
+    slots: resolvedSlots,
+    storage: normalizedStorage
+  };
 }
 
 function normalizeSkills(skills, now = new Date()) {
@@ -3412,20 +3634,25 @@ function sumEquipmentBonuses(equipment) {
     return summary;
   }
   const slots = equipment.slots || {};
-  const inventory = Array.isArray(equipment.inventory) ? equipment.inventory : [];
-  const inventoryMap = inventory.reduce((map, item) => {
-    map[item.itemId] = item;
-    return map;
-  }, {});
   const setCounters = {};
 
   Object.keys(slots).forEach((slot) => {
-    const itemId = slots[slot];
+    if (isIgnoredEquipmentSlot(slot)) {
+      return;
+    }
+    const slotEntry = slots[slot];
+    const itemId =
+      typeof slotEntry === 'string'
+        ? slotEntry
+        : slotEntry && typeof slotEntry === 'object' && slotEntry.itemId
+        ? slotEntry.itemId
+        : '';
     if (!itemId) return;
     const definition = EQUIPMENT_MAP[itemId];
     if (!definition) return;
-    const owned = inventoryMap[itemId] || { itemId, refine: 0 };
-    const detail = calculateEquipmentStats(definition, owned.refine || 0);
+    const refine =
+      slotEntry && typeof slotEntry.refine === 'number' ? Math.max(0, Math.floor(slotEntry.refine)) : 0;
+    const detail = calculateEquipmentStats(definition, refine);
     const bonusStats = detail.stats || {};
     Object.keys(bonusStats).forEach((key) => {
       applyBonus(summary, key, bonusStats[key]);
@@ -3817,47 +4044,148 @@ function decorateEquipment(profile, summary = null) {
   const equipment = profile.equipment || {};
   const inventory = Array.isArray(equipment.inventory) ? equipment.inventory : [];
   const slots = equipment.slots || {};
-  const list = inventory
-    .map((entry) => decorateEquipmentInventoryEntry(entry, slots))
-    .filter((item) => !!item);
-  const slotItemIds = Object.values(slots || {}).filter((value) => typeof value === 'string' && value);
-  const equippedCounts = {};
-  slotItemIds.forEach((itemId) => {
-    equippedCounts[itemId] = (equippedCounts[itemId] || 0) + 1;
-  });
-  const equippedUsage = {};
-  list.forEach((item) => {
-    const limit = equippedCounts[item.itemId] || 0;
-    const used = equippedUsage[item.itemId] || 0;
-    item.equipped = used < limit;
-    equippedUsage[item.itemId] = used + 1;
-  });
-  const entriesByItemId = {};
-  list.forEach((item) => {
-    if (!entriesByItemId[item.itemId]) {
-      entriesByItemId[item.itemId] = [];
+  const equippedInventoryIds = new Set();
+  const slotDetails = [];
+  Object.keys(EQUIPMENT_SLOT_LABELS).forEach((slot) => {
+    if (isIgnoredEquipmentSlot(slot)) {
+      return;
     }
-    entriesByItemId[item.itemId].push(item);
-  });
-  const slotUsage = {};
-  const bonusSummary = summary || sumEquipmentBonuses(equipment);
-  const slotDetails = Object.keys(EQUIPMENT_SLOT_LABELS).map((slot) => {
-    const itemId = typeof slots[slot] === 'string' ? slots[slot] : '';
-    const usage = itemId ? slotUsage[itemId] || 0 : 0;
-    const candidates = itemId ? entriesByItemId[itemId] || [] : [];
-    const item = candidates[usage] || null;
-    if (itemId) {
-      slotUsage[itemId] = usage + 1;
+    const entry = slots[slot];
+    const decorated = entry
+      ? decorateEquipmentInventoryEntry(entry, { equipped: true, slotKey: slot })
+      : null;
+    if (decorated) {
+      if (decorated.inventoryId) {
+        equippedInventoryIds.add(decorated.inventoryId);
+      } else {
+        equippedInventoryIds.add(`slot:${slot}:${decorated.itemId}`);
+      }
     }
-    return {
+    slotDetails.push({
       slot,
       slotLabel: EQUIPMENT_SLOT_LABELS[slot],
-      item: item || null
+      item: decorated || null
+    });
+  });
+  Object.keys(slots).forEach((slot) => {
+    if (isIgnoredEquipmentSlot(slot)) {
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(EQUIPMENT_SLOT_LABELS, slot)) {
+      return;
+    }
+    const entry = slots[slot];
+    const decorated = entry
+      ? decorateEquipmentInventoryEntry(entry, { equipped: true, slotKey: slot })
+      : null;
+    if (decorated) {
+      if (decorated.inventoryId) {
+        equippedInventoryIds.add(decorated.inventoryId);
+      } else {
+        equippedInventoryIds.add(`slot:${slot}:${decorated.itemId}`);
+      }
+    }
+    slotDetails.push({ slot, slotLabel: slot, item: decorated || null });
+  });
+
+  const list = inventory
+    .map((entry) => {
+      const decorated = decorateEquipmentInventoryEntry(entry, { equipped: false });
+      if (!decorated) {
+        return null;
+      }
+      if (decorated.inventoryId && equippedInventoryIds.has(decorated.inventoryId)) {
+        decorated.equipped = true;
+      }
+      return decorated;
+    })
+    .filter((item) => !!item);
+
+  const bonusSummary = summary || sumEquipmentBonuses(equipment);
+  const storagePayload = equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : {};
+  const totalUpgrades = Math.max(0, Math.floor(Number(storagePayload.upgrades || 0)));
+  const baseCapacity = STORAGE_DEFAULT_BASE_CAPACITY;
+  const perUpgrade = STORAGE_DEFAULT_PER_UPGRADE;
+  const capacity = baseCapacity + perUpgrade * totalUpgrades;
+  const rawCategories = Array.isArray(storagePayload.categories) ? storagePayload.categories : [];
+  const categoryMap = {};
+  let totalUsed = 0;
+  rawCategories.forEach((category) => {
+    if (!category || typeof category !== 'object') {
+      return;
+    }
+    const key = typeof category.key === 'string' ? category.key : '';
+    if (!key) {
+      return;
+    }
+    const items = Array.isArray(category.items) ? category.items.map((item) => ({ ...item })) : [];
+    categoryMap[key] = items;
+    totalUsed += items.length;
+  });
+  const equipmentItems = list.map((item) => ({ ...item }));
+  const previousEquipment = categoryMap.equipment ? categoryMap.equipment.length : 0;
+  categoryMap.equipment = equipmentItems;
+  totalUsed = totalUsed - previousEquipment + equipmentItems.length;
+  const definedKeys = new Set(STORAGE_CATEGORY_DEFINITIONS.map((item) => item.key));
+  const storageCategories = STORAGE_CATEGORY_DEFINITIONS.map((definition) => {
+    const items = categoryMap[definition.key]
+      ? categoryMap[definition.key].map((item) => ({ ...item }))
+      : [];
+    return {
+      key: definition.key,
+      label: definition.label,
+      baseCapacity,
+      perUpgrade,
+      upgrades: totalUpgrades,
+      capacity,
+      used: items.length,
+      remaining: Math.max(capacity - items.length, 0),
+      items
     };
   });
+  rawCategories.forEach((category) => {
+    if (!category || typeof category !== 'object') {
+      return;
+    }
+    const key = typeof category.key === 'string' ? category.key : '';
+    if (!key || definedKeys.has(key)) {
+      return;
+    }
+    const items = categoryMap[key] ? categoryMap[key].map((item) => ({ ...item })) : [];
+    storageCategories.push({
+      key,
+      label: typeof category.label === 'string' ? category.label : key,
+      baseCapacity,
+      perUpgrade,
+      upgrades: totalUpgrades,
+      capacity,
+      used: items.length,
+      remaining: Math.max(capacity - items.length, 0),
+      items
+    });
+  });
+  const upgradeAvailableNumeric =
+    typeof storagePayload.upgradeAvailable !== 'undefined' ? Number(storagePayload.upgradeAvailable) : null;
+  const upgradeLimitNumeric =
+    typeof storagePayload.upgradeLimit !== 'undefined' ? Number(storagePayload.upgradeLimit) : null;
+  const summaryPayload = {
+    baseCapacity,
+    perUpgrade,
+    upgrades: totalUpgrades,
+    capacity,
+    used: totalUsed,
+    remaining: Math.max(capacity - totalUsed, 0)
+  };
+  if (upgradeAvailableNumeric !== null && Number.isFinite(upgradeAvailableNumeric)) {
+    summaryPayload.upgradeAvailable = Math.max(0, Math.floor(upgradeAvailableNumeric));
+  }
+  if (upgradeLimitNumeric !== null && Number.isFinite(upgradeLimitNumeric)) {
+    summaryPayload.upgradeLimit = Math.max(0, Math.floor(upgradeLimitNumeric));
+  }
   return {
     slots: slotDetails,
     inventory: list,
+    storage: { summary: summaryPayload, categories: storageCategories },
     bonus: {
       sets: Array.isArray(bonusSummary && bonusSummary.sets) ? bonusSummary.sets : [],
       notes: Array.isArray(bonusSummary && bonusSummary.notes) ? bonusSummary.notes : []
@@ -3865,12 +4193,16 @@ function decorateEquipment(profile, summary = null) {
   };
 }
 
-function decorateEquipmentInventoryEntry(entry, slots = {}) {
-  const definition = EQUIPMENT_MAP[entry.itemId];
+function decorateEquipmentInventoryEntry(entry, options = {}) {
+  if (!entry) {
+    return null;
+  }
+  const payload = typeof entry === 'object' ? entry : { itemId: entry };
+  const definition = EQUIPMENT_MAP[payload.itemId];
   if (!definition) {
     return null;
   }
-  const detail = calculateEquipmentStats(definition, entry.refine || 0);
+  const detail = calculateEquipmentStats(definition, payload.refine || 0);
   const stats = detail.stats || {};
   const statTexts = formatStatsText({ ...stats });
   const breakdownTexts = [];
@@ -3897,10 +4229,10 @@ function decorateEquipmentInventoryEntry(entry, slots = {}) {
   }
   const combinedTexts = [...statTexts, ...breakdownTexts];
   const displayTexts = combinedTexts.filter((text, index, list) => text && list.indexOf(text) === index);
-  const equipped = Object.values(slots || {}).includes(entry.itemId);
+  const equipped = !!(options && options.equipped);
   return {
-    inventoryId: entry.inventoryId,
-    itemId: entry.itemId,
+    inventoryId: payload.inventoryId,
+    itemId: payload.itemId,
     name: definition.name,
     quality: definition.quality,
     qualityLabel: resolveEquipmentQualityLabel(definition.quality),
@@ -3913,17 +4245,18 @@ function decorateEquipmentInventoryEntry(entry, slots = {}) {
     mainAttribute: detail.mainAttribute,
     subAttributes: detail.subAttributes,
     uniqueEffects: detail.uniqueEffects,
-    level: entry.level || 1,
-    refine: entry.refine || 0,
-    refineLabel: entry.refine ? `精炼 +${entry.refine}` : '未精炼',
+    level: payload.level || 1,
+    refine: payload.refine || 0,
+    refineLabel: payload.refine ? `精炼 +${payload.refine}` : '未精炼',
     levelRequirement: definition.levelRequirement || 1,
     tags: definition.tags || [],
-    obtainedAt: entry.obtainedAt,
-    obtainedAtText: formatDateTime(entry.obtainedAt),
+    obtainedAt: payload.obtainedAt,
+    obtainedAtText: formatDateTime(payload.obtainedAt),
     setId: definition.setId || null,
     setName: setDefinition ? setDefinition.name : '',
     equipped,
-    favorite: !!entry.favorite,
+    equippedSlot: options && options.slotKey ? options.slotKey : '',
+    favorite: !!payload.favorite,
     notes: notes.filter((note, index, list) => note && list.indexOf(note) === index)
   };
 }
