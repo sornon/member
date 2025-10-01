@@ -1,5 +1,6 @@
 import { AdminService } from '../../../services/api';
 import { listAllAvatars, normalizeAvatarUnlocks } from '../../../utils/avatar-catalog';
+import { sanitizeEquipmentProfile } from '../../../utils/equipment';
 
 const RENAME_SOURCE_LABELS = {
   admin: '管理员调整',
@@ -11,16 +12,21 @@ function formatEquipmentSlots(profile) {
   if (!profile || !profile.equipment || !Array.isArray(profile.equipment.slots)) {
     return [];
   }
-  return profile.equipment.slots.map((slot) => {
-    const item = slot && slot.item ? slot.item : null;
-    return {
-      slot: slot.slot,
-      slotLabel: slot.slotLabel || '',
-      name: item ? item.name : '',
-      qualityLabel: item ? item.qualityLabel : '',
-      qualityColor: item ? item.qualityColor : '#a5adb8'
-    };
-  });
+  return profile.equipment.slots
+    .map((slot) => {
+      const item = slot && slot.item ? slot.item : null;
+      if (!item) {
+        return null;
+      }
+      return {
+        slot: slot.slot,
+        slotLabel: slot.slotLabel || '',
+        name: item.name || '',
+        qualityLabel: item.qualityLabel || '',
+        qualityColor: item.qualityColor || '#a5adb8'
+      };
+    })
+    .filter((slot) => !!slot && slot.name);
 }
 
 function formatEquipmentInventory(profile) {
@@ -289,13 +295,14 @@ Page({
   },
 
   applyEquipmentProfile(profile) {
-    const hasProfile = !!(profile && profile.equipment);
-    const equipmentSlots = hasProfile ? formatEquipmentSlots(profile) : [];
-    const equipmentInventory = hasProfile ? formatEquipmentInventory(profile) : [];
+    const sanitizedProfile = sanitizeEquipmentProfile(profile);
+    const hasProfile = !!(sanitizedProfile && sanitizedProfile.equipment);
+    const equipmentSlots = hasProfile ? formatEquipmentSlots(sanitizedProfile) : [];
+    const equipmentInventory = hasProfile ? formatEquipmentInventory(sanitizedProfile) : [];
     this.setData({
       equipmentSlots,
       equipmentInventory,
-      equipmentProfileLoaded: hasProfile
+      equipmentProfileLoaded: !!sanitizedProfile
     });
   },
 
