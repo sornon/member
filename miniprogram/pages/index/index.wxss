@@ -1055,8 +1055,9 @@ page {
   font-size: 28rpx;
   color: #ffffff;
   letter-spacing: 2rpx;
-  display: block;
-  line-height: 88rpx;
+  display: flex;
+  align-items: center;
+  height: 100%;
 }
 
 .authorization-phone__value--placeholder {
