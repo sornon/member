@@ -1,3 +1,22 @@
+import { buildCloudAssetUrl } from '../shared/asset-paths';
+
+const EQUIPMENT_QUALITY_ORDER = [
+  'mortal',
+  'inferior',
+  'standard',
+  'superior',
+  'excellent',
+  'immortal',
+  'perfect',
+  'primordial',
+  'relic'
+];
+
+const EQUIPMENT_QUALITY_RANK_MAP = EQUIPMENT_QUALITY_ORDER.reduce((map, key, index) => {
+  map[key] = index + 1;
+  return map;
+}, {});
+
 const DEFAULT_EQUIPMENT_IDS = [
   'novice_sword',
   'apprentice_helm',
@@ -87,6 +106,39 @@ function cloneItem(item) {
   return item && typeof item === 'object' ? { ...item } : null;
 }
 
+function resolveEquipmentQualityRank(quality) {
+  const key = typeof quality === 'string' ? quality : '';
+  return EQUIPMENT_QUALITY_RANK_MAP[key] || 1;
+}
+
+export function buildEquipmentIconPaths(item) {
+  if (!item || typeof item !== 'object') {
+    return { iconUrl: '', iconFallbackUrl: '' };
+  }
+  const iconId = toPositiveInt(item.iconId);
+  const qualityRank = toPositiveInt(item.qualityRank) || resolveEquipmentQualityRank(item.quality);
+  if (!qualityRank) {
+    return { iconUrl: '', iconFallbackUrl: '' };
+  }
+  const fallbackUrl = buildCloudAssetUrl('item', `equip-${qualityRank}.png`);
+  const iconUrl = iconId ? buildCloudAssetUrl('item', `equip-${qualityRank}-${iconId}.png`) : fallbackUrl;
+  return { iconUrl, iconFallbackUrl: fallbackUrl };
+}
+
+function applyEquipmentIcon(item) {
+  if (!item || typeof item !== 'object') {
+    return item;
+  }
+  const { iconUrl, iconFallbackUrl } = buildEquipmentIconPaths(item);
+  if (iconUrl) {
+    item.iconUrl = iconUrl;
+  }
+  if (iconFallbackUrl) {
+    item.iconFallbackUrl = iconFallbackUrl;
+  }
+  return item;
+}
+
 function extractNotesFromSlots(slots) {
   const notes = [];
   (slots || []).forEach((slot) => {
@@ -126,6 +178,9 @@ export function sanitizeEquipmentProfile(profile) {
       if (item && !item.storageCategory) {
         item.storageCategory = 'equipment';
       }
+      if (item) {
+        applyEquipmentIcon(item);
+      }
       return { ...slot, item };
     })
     .filter((slot) => {
@@ -141,6 +196,9 @@ export function sanitizeEquipmentProfile(profile) {
       const cloned = cloneItem(item);
       if (cloned && !cloned.storageCategory) {
         cloned.storageCategory = 'equipment';
+      }
+      if (cloned) {
+        applyEquipmentIcon(cloned);
       }
       return cloned;
     });
@@ -190,6 +248,9 @@ export function sanitizeEquipmentProfile(profile) {
               const cloned = cloneItem(item);
               if (cloned && !cloned.storageCategory) {
                 cloned.storageCategory = key;
+              }
+              if (cloned) {
+                applyEquipmentIcon(cloned);
               }
               return cloned;
             })

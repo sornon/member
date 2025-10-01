@@ -1,6 +1,6 @@
 import { AdminService } from '../../../services/api';
 import { listAllAvatars, normalizeAvatarUnlocks } from '../../../utils/avatar-catalog';
-import { sanitizeEquipmentProfile } from '../../../utils/equipment';
+import { sanitizeEquipmentProfile, buildEquipmentIconPaths } from '../../../utils/equipment';
 
 const RENAME_SOURCE_LABELS = {
   admin: '管理员调整',
@@ -18,6 +18,7 @@ function formatEquipmentSlots(profile) {
       if (!item) {
         return null;
       }
+      const icon = buildEquipmentIconPaths(item);
       return {
         slot: slot.slot,
         slotLabel: slot.slotLabel || '',
@@ -26,7 +27,9 @@ function formatEquipmentSlots(profile) {
         name: item.name || '',
         qualityLabel: item.qualityLabel || '',
         qualityColor: item.qualityColor || '#a5adb8',
-        refine: typeof item.refine === 'number' ? item.refine : 0
+        refine: typeof item.refine === 'number' ? item.refine : 0,
+        iconUrl: item.iconUrl || icon.iconUrl,
+        iconFallbackUrl: item.iconFallbackUrl || icon.iconFallbackUrl
       };
     })
     .filter((slot) => !!slot && slot.name);
@@ -36,22 +39,27 @@ function formatEquipmentInventory(profile) {
   if (!profile || !profile.equipment || !Array.isArray(profile.equipment.inventory)) {
     return [];
   }
-  return profile.equipment.inventory.map((item) => ({
-    inventoryId: item.inventoryId || item.itemId || '',
-    itemId: item.itemId,
-    name: item.name,
-    qualityLabel: item.qualityLabel,
-    qualityColor: item.qualityColor,
-    slotLabel: item.slotLabel || '',
-    obtainedAtText: item.obtainedAtText || '',
-    equipped: !!item.equipped,
-    refine: typeof item.refine === 'number' ? item.refine : 0,
-    refineLabel: item.refineLabel || '',
-    statsText: Array.isArray(item.statsText) ? item.statsText : [],
-    slot: item.slot || '',
-    level: typeof item.level === 'number' ? item.level : 1,
-    favorite: !!item.favorite
-  }));
+  return profile.equipment.inventory.map((item) => {
+    const icon = buildEquipmentIconPaths(item);
+    return {
+      inventoryId: item.inventoryId || item.itemId || '',
+      itemId: item.itemId,
+      name: item.name,
+      qualityLabel: item.qualityLabel,
+      qualityColor: item.qualityColor,
+      slotLabel: item.slotLabel || '',
+      obtainedAtText: item.obtainedAtText || '',
+      equipped: !!item.equipped,
+      refine: typeof item.refine === 'number' ? item.refine : 0,
+      refineLabel: item.refineLabel || '',
+      statsText: Array.isArray(item.statsText) ? item.statsText : [],
+      slot: item.slot || '',
+      level: typeof item.level === 'number' ? item.level : 1,
+      favorite: !!item.favorite,
+      iconUrl: item.iconUrl || icon.iconUrl,
+      iconFallbackUrl: item.iconFallbackUrl || icon.iconFallbackUrl
+    };
+  });
 }
 
 function buildCatalogLabel(item) {
@@ -321,7 +329,11 @@ Page({
     try {
       const res = await AdminService.listEquipmentCatalog();
       const catalog = Array.isArray(res && res.items)
-        ? res.items.map((item) => ({ ...item, label: buildCatalogLabel(item) }))
+        ? res.items.map((item) => {
+            const icon = buildEquipmentIconPaths(item);
+            const entry = { ...item, ...icon };
+            return { ...entry, label: buildCatalogLabel(entry) };
+          })
         : [];
       const slotOptions = buildEquipmentFilterOptions(catalog, 'slot', 'slotLabel', '全部部位');
       const qualityOptions = buildEquipmentFilterOptions(catalog, 'quality', 'qualityLabel', '全部品质');
@@ -442,6 +454,67 @@ Page({
       equipmentInventory,
       equipmentProfileLoaded: !!sanitizedProfile
     });
+  },
+
+  handleEquipmentIconError(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const fallback = typeof dataset.fallback === 'string' ? dataset.fallback : '';
+    if (!fallback) {
+      return;
+    }
+    const context = typeof dataset.context === 'string' ? dataset.context : '';
+    const updates = {};
+    if (context === 'slot') {
+      const indexValue = typeof dataset.index === 'number' ? dataset.index : Number(dataset.index);
+      const slots = Array.isArray(this.data.equipmentSlots) ? this.data.equipmentSlots.slice() : [];
+      if (!Number.isFinite(indexValue) || indexValue < 0 || !slots[indexValue]) {
+        return;
+      }
+      if (slots[indexValue].iconUrl === fallback) {
+        return;
+      }
+      slots[indexValue] = { ...slots[indexValue], iconUrl: fallback };
+      updates.equipmentSlots = slots;
+    } else if (context === 'inventory') {
+      const indexValue = typeof dataset.index === 'number' ? dataset.index : Number(dataset.index);
+      const inventory = Array.isArray(this.data.equipmentInventory) ? this.data.equipmentInventory.slice() : [];
+      if (!Number.isFinite(indexValue) || indexValue < 0 || !inventory[indexValue]) {
+        return;
+      }
+      if (inventory[indexValue].iconUrl === fallback) {
+        return;
+      }
+      inventory[indexValue] = { ...inventory[indexValue], iconUrl: fallback };
+      updates.equipmentInventory = inventory;
+    } else if (context === 'catalog') {
+      const id = typeof dataset.id === 'string' ? dataset.id : dataset.id ? String(dataset.id) : '';
+      if (!id) {
+        return;
+      }
+      const catalog = Array.isArray(this.data.equipmentCatalog) ? this.data.equipmentCatalog.slice() : [];
+      const filtered = Array.isArray(this.data.filteredEquipmentCatalog)
+        ? this.data.filteredEquipmentCatalog.slice()
+        : [];
+      let changed = false;
+      const catalogIndex = catalog.findIndex((item) => item.id === id);
+      if (catalogIndex >= 0 && catalog[catalogIndex].iconUrl !== fallback) {
+        catalog[catalogIndex] = { ...catalog[catalogIndex], iconUrl: fallback };
+        changed = true;
+      }
+      const filteredIndex = filtered.findIndex((item) => item.id === id);
+      if (filteredIndex >= 0 && filtered[filteredIndex].iconUrl !== fallback) {
+        filtered[filteredIndex] = { ...filtered[filteredIndex], iconUrl: fallback };
+        changed = true;
+      }
+      if (!changed) {
+        return;
+      }
+      updates.equipmentCatalog = catalog;
+      updates.filteredEquipmentCatalog = filtered;
+    } else {
+      return;
+    }
+    this.setData(updates);
   },
 
   handleInputChange(event) {

@@ -188,6 +188,7 @@ Page({
     storageMeta: null,
     activeStorageCategory: 'equipment',
     activeStorageCategoryData: null,
+    activeStorageCategoryIndex: -1,
     storageUpgrading: false
   },
 
@@ -238,11 +239,13 @@ Page({
     const storageMeta = finalizeStorageMeta(storageMetaBase, storageCategories);
     const activeKey = this.resolveActiveStorageCategory(storageCategories);
     const activeCategory = storageCategories.find((category) => category.key === activeKey) || null;
+    const activeIndex = storageCategories.findIndex((category) => category.key === activeKey);
     return {
       storageCategories,
       storageMeta,
       activeStorageCategory: activeKey,
-      activeStorageCategoryData: activeCategory
+      activeStorageCategoryData: activeCategory,
+      activeStorageCategoryIndex: activeIndex
     };
   },
 
@@ -661,6 +664,92 @@ Page({
     }
   },
 
+  handleEquipmentIconError(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const fallback = typeof dataset.fallback === 'string' ? dataset.fallback : '';
+    if (!fallback) {
+      return;
+    }
+    const context = typeof dataset.context === 'string' ? dataset.context : '';
+    const indexValue =
+      typeof dataset.index === 'number' ? dataset.index : Number(dataset.index);
+    if (!Number.isFinite(indexValue) || indexValue < 0) {
+      return;
+    }
+    const updates = {};
+    if (context === 'slot') {
+      const slots =
+        (((this.data || {}).profile || {}).equipment || {}).slots;
+      const list = Array.isArray(slots) ? slots : [];
+      const target = list[indexValue] && list[indexValue].item ? list[indexValue].item : null;
+      if (!target || target.iconUrl === fallback) {
+        return;
+      }
+      updates[`profile.equipment.slots[${indexValue}].item.iconUrl`] = fallback;
+    } else if (context === 'inventory') {
+      const inventory =
+        (((this.data || {}).profile || {}).equipment || {}).inventory;
+      const list = Array.isArray(inventory) ? inventory : [];
+      const target = list[indexValue] || null;
+      if (!target || target.iconUrl === fallback) {
+        return;
+      }
+      updates[`profile.equipment.inventory[${indexValue}].iconUrl`] = fallback;
+    } else if (context === 'storage') {
+      const categoryIndexValue =
+        typeof dataset.categoryIndex === 'number' ? dataset.categoryIndex : Number(dataset.categoryIndex);
+      if (!Number.isFinite(categoryIndexValue) || categoryIndexValue < 0) {
+        return;
+      }
+      const storageCategories = Array.isArray(this.data.storageCategories) ? this.data.storageCategories : [];
+      const storageCategory = storageCategories[categoryIndexValue];
+      const activeCategoryData = this.data.activeStorageCategoryData || null;
+      const activeSlots = activeCategoryData && Array.isArray(activeCategoryData.slots) ? activeCategoryData.slots : [];
+      const storageSlots = storageCategory && Array.isArray(storageCategory.slots) ? storageCategory.slots : [];
+      if (activeSlots[indexValue] && activeSlots[indexValue].iconUrl !== fallback) {
+        updates[`activeStorageCategoryData.slots[${indexValue}].iconUrl`] = fallback;
+      }
+      if (
+        activeCategoryData &&
+        Array.isArray(activeCategoryData.items) &&
+        activeCategoryData.items[indexValue] &&
+        activeCategoryData.items[indexValue].iconUrl !== fallback
+      ) {
+        updates[`activeStorageCategoryData.items[${indexValue}].iconUrl`] = fallback;
+      }
+      if (storageSlots[indexValue] && storageSlots[indexValue].iconUrl !== fallback) {
+        updates[`storageCategories[${categoryIndexValue}].slots[${indexValue}].iconUrl`] = fallback;
+      }
+      if (
+        storageCategory &&
+        Array.isArray(storageCategory.items) &&
+        storageCategory.items[indexValue] &&
+        storageCategory.items[indexValue].iconUrl !== fallback
+      ) {
+        updates[`storageCategories[${categoryIndexValue}].items[${indexValue}].iconUrl`] = fallback;
+      }
+      const profileStorage =
+        (((this.data || {}).profile || {}).equipment || {}).storage;
+      const profileCategories =
+        profileStorage && Array.isArray(profileStorage.categories) ? profileStorage.categories : [];
+      const profileCategory = profileCategories[categoryIndexValue];
+      if (
+        profileCategory &&
+        Array.isArray(profileCategory.items) &&
+        profileCategory.items[indexValue] &&
+        profileCategory.items[indexValue].iconUrl !== fallback
+      ) {
+        updates[`profile.equipment.storage.categories[${categoryIndexValue}].items[${indexValue}].iconUrl`] = fallback;
+      }
+      if (!Object.keys(updates).length) {
+        return;
+      }
+    } else {
+      return;
+    }
+    this.setData(updates);
+  },
+
   handleEquipmentTap(event) {
     const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
     const rawItem = dataset.item;
@@ -877,9 +966,11 @@ Page({
       return;
     }
     const activeCategory = categories.find((category) => category.key === key) || null;
+    const categoryIndex = categories.findIndex((category) => category.key === key);
     this.setData({
       activeStorageCategory: key,
-      activeStorageCategoryData: activeCategory
+      activeStorageCategoryData: activeCategory,
+      activeStorageCategoryIndex: categoryIndex
     });
   },
 

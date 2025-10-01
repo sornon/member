@@ -191,7 +191,7 @@
             </view>
           </view>
           <view class="storage-grid">
-            <block wx:for="{{activeStorageCategoryData.slots}}" wx:key="storageKey">
+            <block wx:for="{{activeStorageCategoryData.slots}}" wx:for-index="slotIndex" wx:key="storageKey">
               <view wx:if="{{!item.placeholder}}" class="storage-slot">
                 <view class="storage-slot__badge">{{item.slotLabel}}</view>
                 <view
@@ -207,7 +207,24 @@
                   data-category="{{item.storageCategory || activeStorageCategory}}"
                 >
                   <view class="storage-slot__icon" style="border-color: {{item.qualityColor}};">
-                    <view class="storage-slot__name">{{item.shortName || item.name}}</view>
+                    <block wx:if="{{item.iconUrl}}">
+                      <image
+                        class="storage-slot__icon-image"
+                        src="{{item.iconUrl}}"
+                        mode="aspectFill"
+                        data-context="storage"
+                        data-index="{{slotIndex}}"
+                        data-category-index="{{activeStorageCategoryIndex}}"
+                        data-fallback="{{item.iconFallbackUrl}}"
+                        binderror="handleEquipmentIconError"
+                      />
+                      <view class="storage-slot__name storage-slot__name--overlay">
+                        {{item.shortName || item.name}}
+                      </view>
+                    </block>
+                    <view wx:else class="storage-slot__name storage-slot__name--placeholder">
+                      {{item.shortName || item.name}}
+                    </view>
                   </view>
                 </view>
               </view>
@@ -232,6 +249,7 @@
           <view
             class="slot-card {{item.item ? 'slot-card--filled' : 'slot-card--empty'}}"
             wx:for="{{(profile.equipment && profile.equipment.slots) || []}}"
+            wx:for-index="slotIndex"
             wx:key="slot"
           >
             <view class="slot-card__header">
@@ -246,9 +264,19 @@
               data-slot-label="{{item.slotLabel}}"
               data-item="{{item.item}}"
             >
-              <view class="slot-card__icon-name">
-                {{item.item ? (item.item.shortName || item.item.name) : '未装备'}}
-              </view>
+              <block wx:if="{{item.item}}">
+                <image
+                  class="slot-card__icon-image"
+                  src="{{item.item.iconUrl}}"
+                  mode="aspectFill"
+                  data-context="slot"
+                  data-index="{{slotIndex}}"
+                  data-fallback="{{item.item.iconFallbackUrl}}"
+                  binderror="handleEquipmentIconError"
+                />
+                <view class="slot-card__icon-label">{{item.item.shortName || item.item.name}}</view>
+              </block>
+              <view wx:else class="slot-card__icon-placeholder">未装备</view>
             </view>
           </view>
         </view>
@@ -281,6 +309,7 @@
           <view
             class="inventory-card {{item.equipped ? 'inventory-card--equipped' : ''}}"
             wx:for="{{(profile.equipment && profile.equipment.inventory) || []}}"
+            wx:for-index="inventoryIndex"
             wx:key="inventoryId"
           >
             <view class="inventory-card__badge">{{item.slotLabel}}</view>
@@ -297,7 +326,16 @@
                 data-slot-label="{{item.slotLabel || ''}}"
                 data-category="{{item.storageCategory || 'equipment'}}"
               >
-                <view class="inventory-card__icon-name">{{item.shortName || item.name}}</view>
+                <image
+                  class="inventory-card__icon-image"
+                  src="{{item.iconUrl}}"
+                  mode="aspectFill"
+                  data-context="inventory"
+                  data-index="{{inventoryIndex}}"
+                  data-fallback="{{item.iconFallbackUrl}}"
+                  binderror="handleEquipmentIconError"
+                />
+                <view class="inventory-card__icon-label">{{item.shortName || item.name}}</view>
                 <view wx:if="{{item.equipped}}" class="inventory-card__status">已装备</view>
               </view>
             </view>

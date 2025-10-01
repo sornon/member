@@ -223,13 +223,33 @@
           <view
             class="equipment-admin__slot"
             wx:for="{{equipmentSlots}}"
+            wx:for-index="slotIndex"
             wx:key="slot"
             data-item-id="{{item.itemId}}"
             data-inventory-id="{{item.inventoryId || item.itemId}}"
             bindlongpress="handleEquipmentItemLongPress"
           >
-            <text class="equipment-admin__slot-label">{{item.slotLabel}}</text>
-            <text class="equipment-admin__slot-value" style="color: {{item.qualityColor}};">{{item.name || '未装备'}}</text>
+            <view class="equipment-admin__slot-content">
+              <view
+                wx:if="{{item.iconUrl}}"
+                class="equipment-admin__slot-icon"
+                style="border-color: {{item.qualityColor}};"
+              >
+                <image
+                  class="equipment-admin__slot-icon-image"
+                  src="{{item.iconUrl}}"
+                  mode="aspectFill"
+                  data-context="slot"
+                  data-index="{{slotIndex}}"
+                  data-fallback="{{item.iconFallbackUrl}}"
+                  binderror="handleEquipmentIconError"
+                />
+              </view>
+              <view class="equipment-admin__slot-text">
+                <text class="equipment-admin__slot-label">{{item.slotLabel}}</text>
+                <text class="equipment-admin__slot-value" style="color: {{item.qualityColor}};">{{item.name || '未装备'}}</text>
+              </view>
+            </view>
           </view>
         </view>
         <view wx:else class="equipment-admin__empty">暂无装备数据</view>
@@ -240,11 +260,27 @@
           <view
             class="equipment-admin__inventory-item"
             wx:for="{{equipmentInventory}}"
+            wx:for-index="inventoryIndex"
             wx:key="inventoryId"
             data-item-id="{{item.itemId}}"
             data-inventory-id="{{item.inventoryId || item.itemId}}"
             bindlongpress="handleEquipmentItemLongPress"
           >
+            <view
+              wx:if="{{item.iconUrl}}"
+              class="equipment-admin__inventory-icon"
+              style="border-color: {{item.qualityColor}};"
+            >
+              <image
+                class="equipment-admin__inventory-icon-image"
+                src="{{item.iconUrl}}"
+                mode="aspectFill"
+                data-context="inventory"
+                data-index="{{inventoryIndex}}"
+                data-fallback="{{item.iconFallbackUrl}}"
+                binderror="handleEquipmentIconError"
+              />
+            </view>
             <view class="equipment-admin__inventory-info">
               <view class="equipment-admin__inventory-name" style="color: {{item.qualityColor}};">{{item.name}}</view>
               <view class="equipment-admin__inventory-meta">
@@ -387,7 +423,24 @@
           class="equipment-dialog__option {{equipmentSelectionId === item.id ? 'equipment-dialog__option--active' : ''}}"
         >
           <radio value="{{item.id}}" checked="{{equipmentSelectionId === item.id}}" />
-          <text class="equipment-dialog__option-text">{{item.name}}</text>
+          <view class="equipment-dialog__option-content">
+            <view
+              wx:if="{{item.iconUrl}}"
+              class="equipment-dialog__option-icon"
+              style="border-color: {{item.qualityColor}};"
+            >
+              <image
+                class="equipment-dialog__option-icon-image"
+                src="{{item.iconUrl}}"
+                mode="aspectFill"
+                data-context="catalog"
+                data-id="{{item.id}}"
+                data-fallback="{{item.iconFallbackUrl}}"
+                binderror="handleEquipmentIconError"
+              />
+            </view>
+            <text class="equipment-dialog__option-text">{{item.name}}</text>
+          </view>
         </label>
       </radio-group>
     </scroll-view>
