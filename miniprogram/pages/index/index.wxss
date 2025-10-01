@@ -1053,10 +1053,9 @@ page {
 
 .authorization-phone__value {
   font-size: 28rpx;
+  line-height: 28rpx;
   color: #ffffff;
   letter-spacing: 2rpx;
-  display: flex;
-  align-items: center;
   height: 100%;
 }
 
