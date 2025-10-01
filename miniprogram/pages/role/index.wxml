@@ -198,11 +198,13 @@
                   class="storage-slot__frame"
                   hover-class="storage-slot__frame--hover"
                   bindtap="handleEquipmentTap"
+                  bindlongpress="handleEquipmentLongPress"
                   data-source="storage"
                   data-slot="{{item.slot}}"
                   data-slot-label="{{item.slotLabel}}"
                   data-item="{{item}}"
                   data-inventory-id="{{item.inventoryId || ''}}"
+                  data-category="{{item.storageCategory || activeStorageCategory}}"
                 >
                   <view class="storage-slot__icon" style="border-color: {{item.qualityColor}};">
                     <view class="storage-slot__name">{{item.shortName || item.name}}</view>
@@ -287,10 +289,13 @@
                 class="inventory-card__icon"
                 style="border-color: {{item.qualityColor}};"
                 bindtap="handleEquipmentTap"
+                bindlongpress="handleEquipmentLongPress"
                 data-source="inventory"
                 data-slot="{{item.slot}}"
                 data-item="{{item}}"
                 data-inventory-id="{{item.inventoryId || ''}}"
+                data-slot-label="{{item.slotLabel || ''}}"
+                data-category="{{item.storageCategory || 'equipment'}}"
               >
                 <view class="inventory-card__icon-name">{{item.shortName || item.name}}</view>
                 <view wx:if="{{item.equipped}}" class="inventory-card__status">已装备</view>
@@ -424,7 +429,7 @@
         <text wx:for="{{equipmentTooltip.item.notes}}" wx:key="index">{{item}}</text>
       </view>
       <button
-        wx:if="{{equipmentTooltip.item.equipped}}"
+        wx:if="{{equipmentTooltip.mode !== 'delete' && equipmentTooltip.item.equipped}}"
         class="equipment-tooltip__equip pill-btn pill-btn--ghost"
         hover-class="pill-btn--hover"
         size="mini"
@@ -432,12 +437,25 @@
         bindtap="handleUnequipFromTooltip"
       >卸下</button>
       <button
-        wx:elif="{{equipmentTooltip.source === 'inventory'}}"
+        wx:elif="{{equipmentTooltip.mode !== 'delete' && equipmentTooltip.source === 'inventory'}}"
         class="equipment-tooltip__equip pill-btn pill-btn--primary"
         hover-class="pill-btn--primary-hover"
         size="mini"
         bindtap="handleEquipFromTooltip"
       >装备</button>
+      <button
+        wx:elif="{{equipmentTooltip.mode === 'delete'}}"
+        class="equipment-tooltip__equip pill-btn pill-btn--danger"
+        hover-class="pill-btn--danger-hover"
+        size="mini"
+        loading="{{equipmentTooltip.deleting}}"
+        disabled="{{!equipmentTooltip.canDelete || equipmentTooltip.deleting}}"
+        bindtap="handleDeleteFromTooltip"
+      >{{equipmentTooltip.canDelete ? '删除物品' : '无法删除'}}</button>
+      <view
+        wx:if="{{equipmentTooltip.mode === 'delete' && equipmentTooltip.deleteDisabledReason}}"
+        class="equipment-tooltip__hint"
+      >{{equipmentTooltip.deleteDisabledReason}}</view>
     </view>
   </view>
 </view>
