@@ -17,7 +17,7 @@ const MAX_SKILL_HISTORY = 30;
 
 const STORAGE_BASE_CAPACITY = 100;
 const STORAGE_PER_UPGRADE = 20;
-const DEFAULT_STORAGE_UPGRADE_LIMIT = 10;
+const DEFAULT_STORAGE_UPGRADE_LIMIT = 20;
 const STORAGE_CATEGORY_DEFINITIONS = [
   { key: 'equipment', label: '装备' },
   { key: 'quest', label: '任务' },
