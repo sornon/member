@@ -339,6 +339,18 @@ export const AdminService = {
       updates
     });
   },
+  async listEquipmentCatalog() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'listEquipmentCatalog'
+    });
+  },
+  async grantEquipment({ memberId, itemId }) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'grantEquipment',
+      memberId,
+      itemId
+    });
+  },
   async createChargeOrder(items) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'createChargeOrder',
