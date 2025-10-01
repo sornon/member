@@ -7,6 +7,51 @@ const RENAME_SOURCE_LABELS = {
   system: '系统同步'
 };
 
+function formatEquipmentSlots(profile) {
+  if (!profile || !profile.equipment || !Array.isArray(profile.equipment.slots)) {
+    return [];
+  }
+  return profile.equipment.slots.map((slot) => {
+    const item = slot && slot.item ? slot.item : null;
+    return {
+      slot: slot.slot,
+      slotLabel: slot.slotLabel || '',
+      name: item ? item.name : '',
+      qualityLabel: item ? item.qualityLabel : '',
+      qualityColor: item ? item.qualityColor : '#a5adb8'
+    };
+  });
+}
+
+function formatEquipmentInventory(profile) {
+  if (!profile || !profile.equipment || !Array.isArray(profile.equipment.inventory)) {
+    return [];
+  }
+  return profile.equipment.inventory.map((item) => ({
+    itemId: item.itemId,
+    name: item.name,
+    qualityLabel: item.qualityLabel,
+    qualityColor: item.qualityColor,
+    slotLabel: item.slotLabel || '',
+    obtainedAtText: item.obtainedAtText || '',
+    equipped: !!item.equipped
+  }));
+}
+
+function buildCatalogLabel(item) {
+  if (!item) {
+    return '';
+  }
+  const segments = [item.name || '未知装备'];
+  if (item.qualityLabel) {
+    segments.push(item.qualityLabel);
+  }
+  if (item.slotLabel) {
+    segments.push(item.slotLabel);
+  }
+  return segments.join(' · ');
+}
+
 const RAW_AVATAR_OPTIONS = listAllAvatars();
 
 const AVATAR_OPTION_GROUPS = [
@@ -124,7 +169,14 @@ Page({
     },
     rechargeVisible: false,
     rechargeAmount: '',
-    renameHistory: []
+    renameHistory: [],
+    pveProfile: null,
+    equipmentSlots: [],
+    equipmentInventory: [],
+    equipmentCatalog: [],
+    equipmentCatalogLoaded: false,
+    equipmentPickerIndex: 0,
+    grantingEquipment: false
   },
 
   onLoad(options) {
@@ -141,6 +193,7 @@ Page({
       return;
     }
     this.loadMember(this.data.memberId);
+    this.loadEquipmentCatalog();
   },
 
   onPullDownRefresh() {
@@ -159,6 +212,24 @@ Page({
       console.error('[admin:member:detail]', error);
       this.setData({ loading: false });
       wx.showToast({ title: error.errMsg || error.message || '加载失败', icon: 'none' });
+    }
+  },
+
+  async loadEquipmentCatalog(force = false) {
+    if (this.data.equipmentCatalogLoaded && !force) {
+      return;
+    }
+    try {
+      const res = await AdminService.listEquipmentCatalog();
+      const catalog = Array.isArray(res && res.items)
+        ? res.items.map((item) => ({ ...item, label: buildCatalogLabel(item) }))
+        : [];
+      this.setData({
+        equipmentCatalog: catalog,
+        equipmentCatalogLoaded: true
+      });
+    } catch (error) {
+      console.error('[admin] load equipment catalog failed', error);
     }
   },
 
@@ -197,7 +268,18 @@ Page({
       },
       roleOptions,
       renameHistory: formatRenameHistory(member.renameHistory),
-      avatarOptionGroups: buildAvatarOptionGroups(avatarUnlocks)
+      avatarOptionGroups: buildAvatarOptionGroups(avatarUnlocks),
+      pveProfile: detail.pveProfile || null
+    });
+    this.applyEquipmentProfile(detail.pveProfile);
+  },
+
+  applyEquipmentProfile(profile) {
+    const equipmentSlots = formatEquipmentSlots(profile);
+    const equipmentInventory = formatEquipmentInventory(profile);
+    this.setData({
+      equipmentSlots,
+      equipmentInventory
     });
   },
 
@@ -237,6 +319,42 @@ Page({
       'form.avatarUnlocks': unlocks,
       avatarOptionGroups: buildAvatarOptionGroups(unlocks)
     });
+  },
+
+  async handleEquipmentPickerChange(event) {
+    const catalog = this.data.equipmentCatalog || [];
+    const index = Number(event && event.detail ? event.detail.value : -1);
+    if (!Number.isFinite(index) || index < 0 || index >= catalog.length) {
+      return;
+    }
+    this.setData({ equipmentPickerIndex: index });
+    const target = catalog[index];
+    if (!target || !target.id) {
+      return;
+    }
+    await this.grantEquipmentToMember(target.id);
+  },
+
+  async grantEquipmentToMember(itemId) {
+    if (this.data.grantingEquipment || !this.data.memberId || !itemId) {
+      return;
+    }
+    this.setData({ grantingEquipment: true });
+    try {
+      const res = await AdminService.grantEquipment({
+        memberId: this.data.memberId,
+        itemId
+      });
+      if (res && res.profile) {
+        this.applyEquipmentProfile(res.profile);
+      }
+      wx.showToast({ title: '发放成功', icon: 'success' });
+    } catch (error) {
+      console.error('[admin] grant equipment failed', error);
+      wx.showToast({ title: error.errMsg || error.message || '发放失败', icon: 'none' });
+    } finally {
+      this.setData({ grantingEquipment: false });
+    }
   },
 
   async handleSubmit() {

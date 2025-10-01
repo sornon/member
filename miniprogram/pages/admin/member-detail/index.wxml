@@ -168,6 +168,58 @@
   </view>
 
   <button class="submit" type="primary" loading="{{saving}}" bindtap="handleSubmit">保存修改</button>
+
+  <view class="section">
+    <view class="section-title">PVE 装备</view>
+    <view class="equipment-admin__actions">
+      <picker
+        mode="selector"
+        range="{{equipmentCatalog}}"
+        range-key="label"
+        value="{{equipmentPickerIndex}}"
+        bindchange="handleEquipmentPickerChange"
+        disabled="{{!(equipmentCatalog && equipmentCatalog.length)}}"
+      >
+        <button
+          class="grant-equipment-btn"
+          size="mini"
+          type="primary"
+          loading="{{grantingEquipment}}"
+          disabled="{{!(equipmentCatalog && equipmentCatalog.length)}}"
+        >
+          发放装备
+        </button>
+      </picker>
+      <text wx:if="{{!(equipmentCatalog && equipmentCatalog.length)}}" class="equipment-admin__hint">请稍候，正在加载装备目录</text>
+    </view>
+    <view class="equipment-admin__content">
+      <view class="equipment-admin__block">
+        <view class="equipment-admin__subtitle">已装备</view>
+        <view wx:if="{{equipmentSlots.length}}" class="equipment-admin__slot-list">
+          <view class="equipment-admin__slot" wx:for="{{equipmentSlots}}" wx:key="slot">
+            <text class="equipment-admin__slot-label">{{item.slotLabel}}</text>
+            <text class="equipment-admin__slot-value" style="color: {{item.qualityColor}};">{{item.name || '未装备'}}</text>
+          </view>
+        </view>
+        <view wx:else class="equipment-admin__empty">暂无装备数据</view>
+      </view>
+      <view class="equipment-admin__block">
+        <view class="equipment-admin__subtitle">背包装备</view>
+        <view wx:if="{{equipmentInventory.length}}" class="equipment-admin__inventory">
+          <view class="equipment-admin__inventory-item" wx:for="{{equipmentInventory}}" wx:key="itemId">
+            <view class="equipment-admin__inventory-name" style="color: {{item.qualityColor}};">{{item.name}}</view>
+            <view class="equipment-admin__inventory-meta">
+              <text>{{item.qualityLabel}}</text>
+              <text wx:if="{{item.slotLabel}}">{{item.slotLabel}}</text>
+              <text wx:if="{{item.obtainedAtText}}">{{item.obtainedAtText}}</text>
+              <text wx:if="{{item.equipped}}" class="equipment-admin__inventory-tag">已装备</text>
+            </view>
+          </view>
+        </view>
+        <view wx:else class="equipment-admin__empty">尚未拥有其他装备</view>
+      </view>
+    </view>
+  </view>
 </view>
 
 <view wx:if="{{loading}}" class="loading">加载会员资料...</view>
