@@ -192,10 +192,10 @@
           </view>
           <view class="storage-grid">
             <block wx:for="{{activeStorageCategoryData.slots}}" wx:for-index="slotIndex" wx:key="storageKey">
-              <view wx:if="{{!item.placeholder}}" class="storage-slot">
+              <view wx:if="{{!item.placeholder}}" class="storage-slot {{item.iconUrl ? 'storage-slot--has-icon' : ''}}">
                 <view wx:if="{{!item.iconUrl}}" class="storage-slot__badge">{{item.slotLabel}}</view>
                 <view
-                  class="storage-slot__frame"
+                  class="storage-slot__frame {{item.iconUrl ? 'storage-slot__frame--icon' : ''}}"
                   hover-class="storage-slot__frame--hover"
                   bindtap="handleEquipmentTap"
                   bindlongpress="handleEquipmentLongPress"
@@ -206,7 +206,10 @@
                   data-inventory-id="{{item.inventoryId || ''}}"
                   data-category="{{item.storageCategory || activeStorageCategory}}"
                 >
-                  <view class="storage-slot__icon" style="border-color: {{item.qualityColor}};">
+                  <view
+                    class="storage-slot__icon {{item.iconUrl ? 'storage-slot__icon--image' : ''}}"
+                    style="{{item.iconUrl ? '' : 'border-color: ' + item.qualityColor + ';'}}"
+                  >
                     <block wx:if="{{item.iconUrl}}">
                       <image
                         class="storage-slot__icon-image"
