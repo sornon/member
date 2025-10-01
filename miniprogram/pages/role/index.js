@@ -215,16 +215,31 @@ Page({
     }
   },
 
-  handleEquipmentLongPress(event) {
+  handleEquipmentTap(event) {
     const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
     const rawItem = dataset.item;
     if (!rawItem) {
+      this.closeEquipmentTooltip();
+      return;
+    }
+    const slot = (typeof dataset.slot === 'string' && dataset.slot.trim()) || rawItem.slot || '';
+    const source = dataset.source || 'inventory';
+    const currentTooltip = this.data && this.data.equipmentTooltip;
+    if (
+      currentTooltip &&
+      currentTooltip.item &&
+      rawItem.itemId &&
+      currentTooltip.item.itemId === rawItem.itemId &&
+      currentTooltip.source === source &&
+      currentTooltip.slot === slot
+    ) {
+      this.closeEquipmentTooltip();
       return;
     }
     const tooltip = {
       visible: true,
-      source: dataset.source || 'inventory',
-      slot: (typeof dataset.slot === 'string' && dataset.slot.trim()) || rawItem.slot || '',
+      source,
+      slot,
       slotLabel: dataset.slotLabel || rawItem.slotLabel || '',
       item: { ...rawItem }
     };
