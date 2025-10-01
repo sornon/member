@@ -293,3 +293,108 @@ page {
   color: #0b1330;
   font-weight: 600;
 }
+
+.equipment-admin__actions {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin-bottom: 20rpx;
+}
+
+.grant-equipment-btn {
+  background: rgba(56, 189, 248, 0.2);
+  border: none;
+  color: #38bdf8;
+  border-radius: 24rpx;
+  padding: 0 32rpx;
+}
+
+.equipment-admin__hint {
+  font-size: 22rpx;
+  color: #64748b;
+}
+
+.equipment-admin__content {
+  display: grid;
+  gap: 24rpx;
+}
+
+.equipment-admin__block {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 16rpx;
+  padding: 20rpx;
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.equipment-admin__subtitle {
+  font-size: 26rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+  color: #f8fafc;
+}
+
+.equipment-admin__slot-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220rpx, 1fr));
+  gap: 16rpx;
+}
+
+.equipment-admin__slot {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  padding: 16rpx;
+  border-radius: 12rpx;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.equipment-admin__slot-label {
+  font-size: 24rpx;
+  color: #94a3b8;
+}
+
+.equipment-admin__slot-value {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.equipment-admin__empty {
+  font-size: 24rpx;
+  color: #64748b;
+}
+
+.equipment-admin__inventory {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.equipment-admin__inventory-item {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 14rpx;
+  padding: 16rpx;
+  background: rgba(15, 23, 42, 0.75);
+}
+
+.equipment-admin__inventory-name {
+  font-size: 26rpx;
+  font-weight: 600;
+  margin-bottom: 6rpx;
+}
+
+.equipment-admin__inventory-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+
+.equipment-admin__inventory-tag {
+  padding: 4rpx 12rpx;
+  border-radius: 12rpx;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}

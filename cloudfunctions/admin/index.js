@@ -38,7 +38,9 @@ const ACTIONS = {
   APPROVE_RESERVATION: 'approveReservation',
   REJECT_RESERVATION: 'rejectReservation',
   CANCEL_RESERVATION: 'cancelReservation',
-  MARK_RESERVATION_READ: 'markReservationRead'
+  MARK_RESERVATION_READ: 'markReservationRead',
+  LIST_EQUIPMENT_CATALOG: 'listEquipmentCatalog',
+  GRANT_EQUIPMENT: 'grantEquipment'
 };
 
 const ACTION_ALIASES = {
@@ -55,7 +57,9 @@ const ACTION_ALIASES = {
   approvereservation: ACTIONS.APPROVE_RESERVATION,
   rejectreservation: ACTIONS.REJECT_RESERVATION,
   cancelreservation: ACTIONS.CANCEL_RESERVATION,
-  markreservationread: ACTIONS.MARK_RESERVATION_READ
+  markreservationread: ACTIONS.MARK_RESERVATION_READ,
+  listequipmentcatalog: ACTIONS.LIST_EQUIPMENT_CATALOG,
+  grantequipment: ACTIONS.GRANT_EQUIPMENT
 };
 
 function normalizeAction(action) {
@@ -94,7 +98,9 @@ const ACTION_HANDLERS = {
   [ACTIONS.APPROVE_RESERVATION]: (openid, event) => approveReservation(openid, event.reservationId),
   [ACTIONS.REJECT_RESERVATION]: (openid, event) => rejectReservation(openid, event.reservationId, event.reason || ''),
   [ACTIONS.CANCEL_RESERVATION]: (openid, event) => cancelReservation(openid, event.reservationId, event.reason || ''),
-  [ACTIONS.MARK_RESERVATION_READ]: (openid) => markReservationRead(openid)
+  [ACTIONS.MARK_RESERVATION_READ]: (openid) => markReservationRead(openid),
+  [ACTIONS.LIST_EQUIPMENT_CATALOG]: (openid) => listEquipmentCatalog(openid),
+  [ACTIONS.GRANT_EQUIPMENT]: (openid, event) => grantEquipment(openid, event.memberId, event.itemId)
 };
 
 async function resolveMemberExtras(memberId) {
@@ -330,7 +336,7 @@ async function getMemberDetail(openid, memberId) {
   if (!memberId) {
     throw new Error('缺少会员编号');
   }
-  return fetchMemberDetail(memberId);
+  return fetchMemberDetail(memberId, openid);
 }
 
 async function updateMember(openid, memberId, updates) {
@@ -349,7 +355,7 @@ async function updateMember(openid, memberId, updates) {
   const extras = await resolveMemberExtras(memberId);
   const { memberUpdates, extrasUpdates, renameLog } = buildUpdatePayload(updates, memberDoc.data, extras);
   if (!Object.keys(memberUpdates).length && !Object.keys(extrasUpdates).length && !renameLog) {
-    return fetchMemberDetail(memberId);
+    return fetchMemberDetail(memberId, openid);
   }
   const now = new Date();
   const tasks = [];
@@ -372,7 +378,31 @@ async function updateMember(openid, memberId, updates) {
   if (tasks.length) {
     await Promise.all(tasks);
   }
-  return fetchMemberDetail(memberId);
+  return fetchMemberDetail(memberId, openid);
+}
+
+async function listEquipmentCatalog(openid) {
+  await ensureAdmin(openid);
+  const result = await callPveFunction('listEquipmentCatalog', { actorId: openid }).catch((error) => {
+    console.error('[admin] list equipment catalog failed', error);
+    throw new Error(error && error.errMsg ? error.errMsg : '获取装备列表失败');
+  });
+  return result && result.items ? result : { items: [] };
+}
+
+async function grantEquipment(openid, memberId, itemId) {
+  await ensureAdmin(openid);
+  if (!memberId) {
+    throw new Error('缺少会员编号');
+  }
+  if (!itemId) {
+    throw new Error('请选择装备');
+  }
+  const result = await callPveFunction('grantEquipment', { actorId: openid, memberId, itemId }).catch((error) => {
+    console.error('[admin] grant equipment failed', error);
+    throw new Error(error && error.errMsg ? error.errMsg : '发放装备失败');
+  });
+  return result || {};
 }
 
 async function createChargeOrder(openid, items) {
@@ -798,7 +828,7 @@ async function getReservationRecord(reservationId) {
   );
 }
 
-async function fetchMemberDetail(memberId) {
+async function fetchMemberDetail(memberId, adminId) {
   const [memberDoc, levels] = await Promise.all([
     db
       .collection(COLLECTIONS.MEMBERS)
@@ -819,19 +849,47 @@ async function fetchMemberDetail(memberId) {
     renameHistory
   };
   const levelMap = buildLevelMap(levels);
+  const pveProfile = await loadMemberPveProfile(memberId, adminId);
   return {
     member: decorateMemberRecord(mergedMember, levelMap),
     levels: levels.map((level) => ({
       _id: level._id,
       name: level.displayName || level.name,
       order: level.order
-    }))
+    })),
+    pveProfile: pveProfile || null
   };
 }
 
 async function loadLevels() {
   const snapshot = await db.collection(COLLECTIONS.LEVELS).orderBy('order', 'asc').get();
   return snapshot.data || [];
+}
+
+async function callPveFunction(action, data = {}) {
+  try {
+    const response = await cloud.callFunction({
+      name: 'pve',
+      data: { action, ...data }
+    });
+    return response && response.result ? response.result : null;
+  } catch (error) {
+    throw error;
+  }
+}
+
+async function loadMemberPveProfile(memberId, adminId) {
+  if (!memberId) {
+    return null;
+  }
+  try {
+    const payload = adminId ? { actorId: adminId, memberId } : { memberId };
+    const result = await callPveFunction('adminInspectProfile', payload);
+    return result && result.profile ? result.profile : null;
+  } catch (error) {
+    console.error('[admin] load member pve profile failed', memberId, error);
+    return null;
+  }
 }
 
 async function syncMemberLevel(memberId) {
