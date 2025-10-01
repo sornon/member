@@ -2411,8 +2411,13 @@ async function inspectProfileForAdmin(openid, memberId) {
     throw createError('MEMBER_ID_REQUIRED', '缺少会员编号');
   }
   const targetMember = await ensureMember(targetId);
-  const profile = await ensurePveProfile(targetId, targetMember);
-  const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+  const rawProfile = targetMember.pveProfile;
+  if (!rawProfile || typeof rawProfile !== 'object') {
+    return { profile: null };
+  }
+  const now = new Date();
+  const normalizedProfile = normalizeProfileWithoutEquipmentDefaults(rawProfile, now);
+  const decorated = decorateProfile({ ...targetMember, pveProfile: normalizedProfile }, normalizedProfile);
   return { profile: decorated };
 }
 
@@ -2432,9 +2437,8 @@ async function grantEquipment(openid, event = {}) {
     throw createError('ITEM_NOT_FOUND', '装备不存在');
   }
   const targetMember = await ensureMember(memberId);
-  const profile = await ensurePveProfile(memberId, targetMember);
   const now = new Date();
-  profile.equipment = normalizeEquipment(profile.equipment, now);
+  const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
   const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
   let entry = inventory.find((record) => record.itemId === itemId);
   if (!entry) {
@@ -2564,6 +2568,14 @@ function buildDefaultAttributes() {
   };
 }
 
+function createEmptySlotMap() {
+  const slots = {};
+  Object.keys(EQUIPMENT_SLOTS).forEach((slot) => {
+    slots[slot] = '';
+  });
+  return slots;
+}
+
 function buildDefaultEquipment(now = new Date()) {
   const defaults = [
     'novice_sword',
@@ -2582,16 +2594,11 @@ function buildDefaultEquipment(now = new Date()) {
   const inventory = defaults
     .map((itemId) => createEquipmentInventoryEntry(itemId, now))
     .filter((entry) => !!entry);
-  const slots = {};
+  const slots = createEmptySlotMap();
   inventory.forEach((entry) => {
     const definition = EQUIPMENT_MAP[entry.itemId];
     if (definition && definition.slot && !slots[definition.slot]) {
       slots[definition.slot] = entry.itemId;
-    }
-  });
-  Object.keys(EQUIPMENT_SLOTS).forEach((slot) => {
-    if (!slots[slot]) {
-      slots[slot] = '';
     }
   });
   return { inventory, slots };
@@ -2614,6 +2621,17 @@ function normalizeProfile(profile, now = new Date()) {
     skills: normalizeSkills(profile.skills, now),
     battleHistory: normalizeHistory(profile.battleHistory, MAX_BATTLE_HISTORY),
     skillHistory: normalizeHistory(profile.skillHistory, MAX_SKILL_HISTORY)
+  };
+}
+
+function normalizeProfileWithoutEquipmentDefaults(profile, now = new Date()) {
+  const payload = typeof profile === 'object' && profile ? profile : {};
+  return {
+    attributes: normalizeAttributes(payload.attributes),
+    equipment: normalizeEquipment(payload.equipment, now, { includeDefaults: false }),
+    skills: normalizeSkills(payload.skills, now),
+    battleHistory: normalizeHistory(payload.battleHistory, MAX_BATTLE_HISTORY),
+    skillHistory: normalizeHistory(payload.skillHistory, MAX_SKILL_HISTORY)
   };
 }
 
@@ -2675,8 +2693,9 @@ function normalizeAttributes(attributes) {
   };
 }
 
-function normalizeEquipment(equipment, now = new Date()) {
-  const defaults = buildDefaultEquipment(now);
+function normalizeEquipment(equipment, now = new Date(), options = {}) {
+  const includeDefaults = options && options.includeDefaults !== false;
+  const defaults = includeDefaults ? buildDefaultEquipment(now) : { inventory: [], slots: createEmptySlotMap() };
   const payload = typeof equipment === 'object' && equipment ? equipment : {};
   const inventory = Array.isArray(payload.inventory) ? payload.inventory : [];
   const normalizedInventory = [];
@@ -2688,12 +2707,14 @@ function normalizeEquipment(equipment, now = new Date()) {
       seen.add(normalizedItem.itemId);
     }
   });
-  defaults.inventory.forEach((item) => {
-    if (!seen.has(item.itemId)) {
-      normalizedInventory.push(item);
-      seen.add(item.itemId);
-    }
-  });
+  if (includeDefaults) {
+    defaults.inventory.forEach((item) => {
+      if (!seen.has(item.itemId)) {
+        normalizedInventory.push(item);
+        seen.add(item.itemId);
+      }
+    });
+  }
 
   const slots = { ...defaults.slots };
   const rawSlots = payload.slots || {};
@@ -2702,10 +2723,37 @@ function normalizeEquipment(equipment, now = new Date()) {
     if (candidate && EQUIPMENT_MAP[candidate]) {
       slots[slot] = candidate;
       if (!normalizedInventory.find((entry) => entry.itemId === candidate)) {
-        normalizedInventory.push(createEquipmentInventoryEntry(candidate, now));
+        const entry = createEquipmentInventoryEntry(candidate, now);
+        if (entry && !seen.has(entry.itemId)) {
+          normalizedInventory.push(entry);
+          seen.add(entry.itemId);
+        }
       }
+    } else if (!includeDefaults) {
+      slots[slot] = '';
     }
   });
+
+  if (!includeDefaults) {
+    Object.keys(rawSlots).forEach((slot) => {
+      if (Object.prototype.hasOwnProperty.call(slots, slot)) {
+        return;
+      }
+      const candidate = typeof rawSlots[slot] === 'string' ? rawSlots[slot] : '';
+      if (candidate && EQUIPMENT_MAP[candidate]) {
+        slots[slot] = candidate;
+        if (!seen.has(candidate)) {
+          const entry = createEquipmentInventoryEntry(candidate, now);
+          if (entry) {
+            normalizedInventory.push(entry);
+            seen.add(entry.itemId);
+          }
+        }
+      } else {
+        slots[slot] = '';
+      }
+    });
+  }
 
   return { inventory: normalizedInventory, slots };
 }
