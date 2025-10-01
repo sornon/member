@@ -316,6 +316,12 @@ const EQUIPMENT_SLOT_LABELS = Object.keys(EQUIPMENT_SLOTS).reduce((map, key) => 
   return map;
 }, {});
 
+const IGNORED_EQUIPMENT_SLOTS = new Set(['accessory', 'armor']);
+
+function isIgnoredEquipmentSlot(slot) {
+  return typeof slot === 'string' && IGNORED_EQUIPMENT_SLOTS.has(slot);
+}
+
 const EQUIPMENT_QUALITY_CONFIG = {
   mortal: { key: 'mortal', label: '凡品', color: '#8d9099', mainCoefficient: 0.8, subCount: 0, subTierRange: ['common'], dropWeight: 42 },
   inferior: { key: 'inferior', label: '下品', color: '#63a86c', mainCoefficient: 1, subCount: 0, subTierRange: ['common'], dropWeight: 34 },
@@ -3088,6 +3094,9 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
   });
 
   Object.keys(rawSlots || {}).forEach((slot) => {
+    if (isIgnoredEquipmentSlot(slot)) {
+      return;
+    }
     if (Object.prototype.hasOwnProperty.call(resolvedSlots, slot)) {
       return;
     }
@@ -3579,6 +3588,9 @@ function sumEquipmentBonuses(equipment) {
   const setCounters = {};
 
   Object.keys(slots).forEach((slot) => {
+    if (isIgnoredEquipmentSlot(slot)) {
+      return;
+    }
     const slotEntry = slots[slot];
     const itemId =
       typeof slotEntry === 'string'
@@ -3986,6 +3998,9 @@ function decorateEquipment(profile, summary = null) {
   const equippedInventoryIds = new Set();
   const slotDetails = [];
   Object.keys(EQUIPMENT_SLOT_LABELS).forEach((slot) => {
+    if (isIgnoredEquipmentSlot(slot)) {
+      return;
+    }
     const entry = slots[slot];
     const decorated = entry
       ? decorateEquipmentInventoryEntry(entry, { equipped: true, slotKey: slot })
@@ -4004,6 +4019,9 @@ function decorateEquipment(profile, summary = null) {
     });
   });
   Object.keys(slots).forEach((slot) => {
+    if (isIgnoredEquipmentSlot(slot)) {
+      return;
+    }
     if (Object.prototype.hasOwnProperty.call(EQUIPMENT_SLOT_LABELS, slot)) {
       return;
     }

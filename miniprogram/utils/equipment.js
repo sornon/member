@@ -15,6 +15,8 @@ const DEFAULT_EQUIPMENT_IDS = [
 
 const DEFAULT_EQUIPMENT_ID_SET = new Set(DEFAULT_EQUIPMENT_IDS);
 
+const EXCLUDED_SLOT_KEYS = new Set(['accessory', 'armor']);
+
 function cloneItem(item) {
   return item && typeof item === 'object' ? { ...item } : null;
 }
@@ -48,14 +50,21 @@ export function sanitizeEquipmentProfile(profile) {
   const rawInventory = Array.isArray(equipment.inventory) ? equipment.inventory : [];
   const rawStorage = equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : {};
 
-  const sanitizedSlots = rawSlots.map((slot) => {
-    if (!slot || typeof slot !== 'object') {
-      return { slot: '', slotLabel: '', item: null };
-    }
-    const rawItem = slot.item && typeof slot.item === 'object' ? slot.item : null;
-    const item = rawItem && rawItem.itemId && !isDefaultEquipmentId(rawItem.itemId) ? cloneItem(rawItem) : null;
-    return { ...slot, item };
-  });
+  const sanitizedSlots = rawSlots
+    .map((slot) => {
+      if (!slot || typeof slot !== 'object') {
+        return { slot: '', slotLabel: '', item: null };
+      }
+      const rawItem = slot.item && typeof slot.item === 'object' ? slot.item : null;
+      const item = rawItem && rawItem.itemId && !isDefaultEquipmentId(rawItem.itemId) ? cloneItem(rawItem) : null;
+      return { ...slot, item };
+    })
+    .filter((slot) => {
+      if (!slot || !slot.slot) {
+        return true;
+      }
+      return !EXCLUDED_SLOT_KEYS.has(slot.slot);
+    });
 
   const sanitizedInventory = rawInventory
     .filter((item) => item && typeof item === 'object' && item.itemId && !isDefaultEquipmentId(item.itemId))
