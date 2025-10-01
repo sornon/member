@@ -1,6 +1,90 @@
 import { PveService, MemberService } from '../../services/api';
 import { formatStones } from '../../utils/format';
 
+const DEFAULT_EQUIPMENT_IDS = [
+  'novice_sword',
+  'apprentice_helm',
+  'apprentice_robe',
+  'lightstep_boots',
+  'spirit_belt',
+  'initiate_bracers',
+  'initiate_orb',
+  'spirit_ring',
+  'oath_token',
+  'wooden_puppet',
+  'initiate_focus',
+  'initiate_treasure'
+];
+
+const DEFAULT_EQUIPMENT_ID_SET = new Set(DEFAULT_EQUIPMENT_IDS);
+
+function sanitizeEquipmentProfile(profile) {
+  if (!profile || typeof profile !== 'object') {
+    return null;
+  }
+  const sourceEquipment = profile.equipment && typeof profile.equipment === 'object' ? profile.equipment : {};
+  const rawSlots = Array.isArray(sourceEquipment.slots) ? sourceEquipment.slots : [];
+  const rawInventory = Array.isArray(sourceEquipment.inventory) ? sourceEquipment.inventory : [];
+  const sanitizedSlots = rawSlots.map((slot) => {
+    if (!slot || typeof slot !== 'object') {
+      return { slot: '', slotLabel: '', item: null };
+    }
+    const rawItem = slot.item && typeof slot.item === 'object' ? slot.item : null;
+    const item = rawItem && rawItem.itemId && !DEFAULT_EQUIPMENT_ID_SET.has(rawItem.itemId)
+      ? { ...rawItem }
+      : null;
+    return { ...slot, item };
+  });
+  const sanitizedInventory = rawInventory
+    .filter((item) => item && typeof item === 'object' && item.itemId && !DEFAULT_EQUIPMENT_ID_SET.has(item.itemId))
+    .map((item) => ({ ...item }));
+  const setCounts = {};
+  sanitizedSlots.forEach((slot) => {
+    const item = slot && slot.item;
+    if (item && item.setId) {
+      const setId = item.setId;
+      setCounts[setId] = (setCounts[setId] || 0) + 1;
+    }
+  });
+  const rawBonus = sourceEquipment.bonus && typeof sourceEquipment.bonus === 'object' ? sourceEquipment.bonus : {};
+  const rawSets = Array.isArray(rawBonus.sets) ? rawBonus.sets : [];
+  const sanitizedSets = rawSets
+    .map((set) => {
+      if (!set || typeof set !== 'object') {
+        return null;
+      }
+      const setId = set.setId;
+      const count = setId ? setCounts[setId] || 0 : 0;
+      if (!count) {
+        return null;
+      }
+      return { ...set, count };
+    })
+    .filter((set) => !!set);
+  const notes = [];
+  sanitizedSlots.forEach((slot) => {
+    const item = slot && slot.item;
+    if (!item || !Array.isArray(item.notes)) {
+      return;
+    }
+    item.notes.forEach((note) => {
+      if (note && !notes.includes(note)) {
+        notes.push(note);
+      }
+    });
+  });
+  const sanitizedEquipment = {
+    ...sourceEquipment,
+    slots: sanitizedSlots,
+    inventory: sanitizedInventory,
+    bonus: {
+      sets: sanitizedSets,
+      notes
+    }
+  };
+  return { ...profile, equipment: sanitizedEquipment };
+}
+
 const ALLOCATABLE_KEYS = ['constitution', 'strength', 'spirit', 'root', 'agility', 'insight'];
 
 Page({
@@ -13,6 +97,29 @@ Page({
     stoneBalance: 0,
     formattedStoneBalance: formatStones(0),
     equipmentTooltip: null
+  },
+
+  applyProfile(profile, extraState = {}) {
+    const sanitizedProfile = sanitizeEquipmentProfile(profile);
+    const updates = { ...extraState, profile: sanitizedProfile };
+    const tooltip = this.data ? this.data.equipmentTooltip : null;
+    if (tooltip && tooltip.item) {
+      const itemId = tooltip.item.itemId;
+      const equipment = sanitizedProfile && sanitizedProfile.equipment;
+      const inSlots =
+        equipment &&
+        Array.isArray(equipment.slots) &&
+        equipment.slots.some((slot) => slot && slot.item && slot.item.itemId === itemId);
+      const inInventory =
+        equipment &&
+        Array.isArray(equipment.inventory) &&
+        equipment.inventory.some((item) => item && item.itemId === itemId);
+      if (!inSlots && !inInventory) {
+        updates.equipmentTooltip = null;
+      }
+    }
+    this.setData(updates);
+    return sanitizedProfile;
   },
 
   onLoad(options = {}) {
@@ -44,7 +151,7 @@ Page({
     }
     try {
       const profile = await PveService.profile();
-      this.setData({ profile, loading: false });
+      this.applyProfile(profile, { loading: false });
     } catch (error) {
       console.error('[role] load profile failed', error);
       wx.showToast({ title: error.errMsg || '加载失败', icon: 'none' });
@@ -113,7 +220,7 @@ Page({
     this.setData({ drawing: true });
     try {
       const res = await PveService.drawSkill();
-      this.setData({ profile: res.profile, drawing: false });
+      this.applyProfile(res.profile, { drawing: false });
       if (res.acquiredSkill) {
         wx.showToast({
           title: `${res.acquiredSkill.rarityLabel}·${res.acquiredSkill.name}`,
@@ -134,7 +241,7 @@ Page({
     if (!skillId) return;
     try {
       const res = await PveService.equipSkill({ skillId });
-      this.setData({ profile: res.profile });
+      this.applyProfile(res.profile);
       wx.showToast({ title: '已装备', icon: 'success', duration: 1200 });
     } catch (error) {
       console.error('[role] equip skill failed', error);
@@ -147,7 +254,7 @@ Page({
     if (!Number.isFinite(slot)) return;
     try {
       const res = await PveService.equipSkill({ skillId: '', slot });
-      this.setData({ profile: res.profile });
+      this.applyProfile(res.profile);
     } catch (error) {
       console.error('[role] unequip skill failed', error);
       wx.showToast({ title: error.errMsg || '操作失败', icon: 'none' });
@@ -163,7 +270,7 @@ Page({
     if (!itemId) return false;
     try {
       const res = await PveService.equipItem({ itemId, slot });
-      this.setData({ profile: res.profile });
+      this.applyProfile(res.profile);
       wx.showToast({ title: '装备成功', icon: 'success', duration: 1200 });
       return true;
     } catch (error) {
@@ -181,7 +288,7 @@ Page({
     if (!slot) return false;
     try {
       const res = await PveService.equipItem({ slot, itemId: '' });
-      this.setData({ profile: res.profile });
+      this.applyProfile(res.profile);
       wx.showToast({ title: '已卸下', icon: 'success', duration: 1200 });
       return true;
     } catch (error) {
@@ -308,7 +415,7 @@ Page({
     try {
       const res = await PveService.resetAttributes();
       const updatedProfile = res && res.profile ? res.profile : this.data.profile;
-      this.setData({ profile: updatedProfile, resetting: false });
+      this.applyProfile(updatedProfile, { resetting: false });
       wx.showToast({ title: '洗点完成', icon: 'success', duration: 1200 });
     } catch (error) {
       console.error('[role] reset attributes failed', error);
@@ -350,7 +457,7 @@ Page({
     }
     try {
       const res = await PveService.allocatePoints(allocations);
-      this.setData({ profile: res.profile });
+      this.applyProfile(res.profile);
       wx.showToast({ title: '属性已分配', icon: 'success', duration: 1200 });
     } catch (error) {
       console.error('[role] allocate points failed', error);
