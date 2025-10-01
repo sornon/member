@@ -170,7 +170,7 @@
   <button class="submit" type="primary" loading="{{saving}}" bindtap="handleSubmit">保存修改</button>
 
   <view class="section section--equipment">
-    <view class="section-title">会员物品管理</view>
+    <view class="section-title">物品管理</view>
     <view class="equipment-admin__actions">
       <button
         class="grant-equipment-btn"
