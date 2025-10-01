@@ -2485,7 +2485,22 @@ function resolveActorId(openid, event = {}) {
 }
 
 async function ensureMember(memberId) {
-  const snapshot = await db.collection(COLLECTIONS.MEMBERS).doc(memberId).get().catch(() => null);
+  const normalizedId =
+    typeof memberId === 'string'
+      ? memberId.trim()
+      : typeof memberId === 'number' && Number.isFinite(memberId)
+      ? String(memberId)
+      : '';
+
+  if (!normalizedId) {
+    throw createError('MEMBER_ID_REQUIRED', '缺少会员编号');
+  }
+
+  const snapshot = await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(normalizedId)
+    .get()
+    .catch(() => null);
   if (!snapshot || !snapshot.data) {
     throw createError('MEMBER_NOT_FOUND', '会员信息不存在，请先完成注册');
   }
