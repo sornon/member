@@ -46,6 +46,7 @@ export function sanitizeEquipmentProfile(profile) {
   const equipment = profile.equipment && typeof profile.equipment === 'object' ? profile.equipment : {};
   const rawSlots = Array.isArray(equipment.slots) ? equipment.slots : [];
   const rawInventory = Array.isArray(equipment.inventory) ? equipment.inventory : [];
+  const rawStorage = equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : {};
 
   const sanitizedSlots = rawSlots.map((slot) => {
     if (!slot || typeof slot !== 'object') {
@@ -87,10 +88,28 @@ export function sanitizeEquipmentProfile(profile) {
 
   const notes = extractNotesFromSlots(sanitizedSlots);
 
+  const storageCategories = Array.isArray(rawStorage.categories) ? rawStorage.categories : [];
+  const sanitizedStorage = {
+    categories: storageCategories
+      .map((category) => {
+        if (!category || typeof category !== 'object') {
+          return null;
+        }
+        const items = Array.isArray(category.items)
+          ? category.items
+              .filter((item) => item && typeof item === 'object' && item.itemId && !isDefaultEquipmentId(item.itemId))
+              .map((item) => cloneItem(item))
+          : [];
+        return { ...category, items };
+      })
+      .filter((category) => !!category)
+  };
+
   const sanitizedEquipment = {
     ...equipment,
     slots: sanitizedSlots,
     inventory: sanitizedInventory,
+    storage: sanitizedStorage,
     bonus: {
       sets: sanitizedSets,
       notes

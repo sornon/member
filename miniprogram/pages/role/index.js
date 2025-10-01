@@ -13,30 +13,119 @@ Page({
     resetting: false,
     stoneBalance: 0,
     formattedStoneBalance: formatStones(0),
-    equipmentTooltip: null
+    equipmentTooltip: null,
+    storageCategories: [],
+    activeStorageCategory: 'equipment',
+    activeStorageCategoryData: null,
+    storageUpgrading: false
   },
 
   applyProfile(profile, extraState = {}) {
     const sanitizedProfile = sanitizeEquipmentProfile(profile);
-    const updates = { ...extraState, profile: sanitizedProfile };
+    const storageState = this.buildStorageState(sanitizedProfile);
+    const updates = { ...extraState, profile: sanitizedProfile, ...storageState };
     const tooltip = this.data ? this.data.equipmentTooltip : null;
     if (tooltip && tooltip.item) {
       const itemId = tooltip.item.itemId;
+      const inventoryId = tooltip.item.inventoryId || tooltip.inventoryId || '';
       const equipment = sanitizedProfile && sanitizedProfile.equipment;
       const inSlots =
         equipment &&
         Array.isArray(equipment.slots) &&
-        equipment.slots.some((slot) => slot && slot.item && slot.item.itemId === itemId);
+        equipment.slots.some((slot) => {
+          if (!slot || !slot.item) return false;
+          if (inventoryId) {
+            return slot.item.inventoryId === inventoryId;
+          }
+          return slot.item.itemId === itemId;
+        });
       const inInventory =
         equipment &&
         Array.isArray(equipment.inventory) &&
-        equipment.inventory.some((item) => item && item.itemId === itemId);
+        equipment.inventory.some((item) => {
+          if (!item) return false;
+          if (inventoryId) {
+            return item.inventoryId === inventoryId;
+          }
+          return item.itemId === itemId;
+        });
       if (!inSlots && !inInventory) {
         updates.equipmentTooltip = null;
       }
     }
     this.setData(updates);
     return sanitizedProfile;
+  },
+
+  buildStorageState(profile) {
+    const storageCategories = this.buildStorageCategories(profile);
+    const activeKey = this.resolveActiveStorageCategory(storageCategories);
+    const activeCategory = storageCategories.find((category) => category.key === activeKey) || null;
+    return {
+      storageCategories,
+      activeStorageCategory: activeKey,
+      activeStorageCategoryData: activeCategory
+    };
+  },
+
+  resolveActiveStorageCategory(categories) {
+    const list = Array.isArray(categories) ? categories : [];
+    const current = this.data && this.data.activeStorageCategory;
+    if (current && list.some((category) => category.key === current)) {
+      return current;
+    }
+    const defaultCategory = list.find((category) => category.key === 'equipment');
+    if (defaultCategory) {
+      return defaultCategory.key;
+    }
+    return list.length ? list[0].key : '';
+  },
+
+  buildStorageCategories(profile) {
+    const storage =
+      profile && profile.equipment && profile.equipment.storage && typeof profile.equipment.storage === 'object'
+        ? profile.equipment.storage
+        : {};
+    const categories = Array.isArray(storage.categories) ? storage.categories : [];
+    return categories.map((category) => {
+      const key = category && typeof category.key === 'string' ? category.key : '';
+      const label = category && typeof category.label === 'string' ? category.label : '';
+      const baseCapacity = Math.max(0, Math.floor(Number(category && category.baseCapacity) || 100));
+      const perUpgrade = Math.max(0, Math.floor(Number(category && category.perUpgrade) || 20));
+      const rawCapacity = Math.max(0, Math.floor(Number(category && category.capacity) || baseCapacity));
+      const upgrades = Math.max(0, Math.floor(Number(category && category.upgrades) || 0));
+      const items = Array.isArray(category && category.items) ? category.items : [];
+      const normalizedItems = items.map((item, index) => {
+        const storageKey = `${key}-${item && item.inventoryId ? item.inventoryId : `${item && item.itemId ? item.itemId : 'item'}-${index}`}`;
+        return { ...item, storageKey };
+      });
+      const slotCount = Math.max(rawCapacity, normalizedItems.length);
+      const slots = normalizedItems.map((item) => ({ ...item, placeholder: false }));
+      for (let i = normalizedItems.length; i < slotCount; i += 1) {
+        slots.push({ placeholder: true, storageKey: `${key}-placeholder-${i}` });
+      }
+      const used = typeof category.used === 'number' ? Math.max(0, Math.floor(category.used)) : normalizedItems.length;
+      const remaining =
+        typeof category.remaining === 'number'
+          ? Math.max(0, Math.floor(category.remaining))
+          : Math.max(slotCount - normalizedItems.length, 0);
+      const usagePercent = slotCount ? Math.min(100, Math.round((normalizedItems.length / slotCount) * 100)) : 0;
+      const nextCapacity = slotCount + perUpgrade;
+      return {
+        key,
+        label,
+        baseCapacity,
+        perUpgrade,
+        upgrades,
+        capacity: slotCount,
+        used: Math.min(used, slotCount),
+        remaining,
+        usagePercent,
+        nextCapacity,
+        items: normalizedItems,
+        slots
+      };
+    });
   },
 
   onLoad(options = {}) {
@@ -85,8 +174,11 @@ Page({
     if (value === 'character' || value === 'role') {
       return 'character';
     }
-    if (value === 'equipment' || value === 'equip' || value === 'bag') {
+    if (value === 'equipment' || value === 'equip') {
       return 'equipment';
+    }
+    if (value === 'storage' || value === 'bag' || value === 'inventory' || value === 'najie') {
+      return 'storage';
     }
     if (value === 'skill' || value === 'skills') {
       return 'skill';
@@ -184,9 +276,10 @@ Page({
       (options && typeof options === 'object' ? options : {}) || {};
     const itemId = typeof dataset.itemId === 'string' ? dataset.itemId : '';
     const slot = typeof dataset.slot === 'string' ? dataset.slot.trim() : '';
+    const inventoryId = typeof dataset.inventoryId === 'string' ? dataset.inventoryId : '';
     if (!itemId) return false;
     try {
-      const res = await PveService.equipItem({ itemId, slot });
+      const res = await PveService.equipItem({ itemId, slot, inventoryId });
       this.applyProfile(res.profile);
       wx.showToast({ title: '装备成功', icon: 'success', duration: 1200 });
       return true;
@@ -241,7 +334,8 @@ Page({
       source,
       slot,
       slotLabel: dataset.slotLabel || rawItem.slotLabel || '',
-      item: { ...rawItem }
+      item: { ...rawItem },
+      inventoryId: dataset.inventoryId || rawItem.inventoryId || ''
     };
     this.setData({ equipmentTooltip: tooltip });
   },
@@ -258,9 +352,11 @@ Page({
     const slot =
       (typeof tooltip.slot === 'string' && tooltip.slot.trim()) ||
       (typeof tooltip.item.slot === 'string' ? tooltip.item.slot : '');
+    const inventoryId = tooltip.item.inventoryId || tooltip.inventoryId || '';
     const success = await this.handleEquipItem({
       itemId: tooltip.item.itemId,
-      slot
+      slot,
+      inventoryId
     });
     if (success) {
       this.closeEquipmentTooltip();
@@ -280,6 +376,41 @@ Page({
     const success = await this.handleUnequipItem({ slot });
     if (success) {
       this.closeEquipmentTooltip();
+    }
+  },
+
+  handleStorageCategoryChange(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const key = typeof dataset.key === 'string' ? dataset.key : '';
+    if (!key || key === this.data.activeStorageCategory) {
+      return;
+    }
+    const categories = Array.isArray(this.data.storageCategories) ? this.data.storageCategories : [];
+    if (!categories.some((category) => category.key === key)) {
+      return;
+    }
+    const activeCategory = categories.find((category) => category.key === key) || null;
+    this.setData({
+      activeStorageCategory: key,
+      activeStorageCategoryData: activeCategory
+    });
+  },
+
+  async handleUpgradeStorage() {
+    const category = this.data.activeStorageCategory;
+    if (!category || this.data.storageUpgrading) {
+      return;
+    }
+    this.setData({ storageUpgrading: true });
+    try {
+      const res = await PveService.upgradeStorage({ category });
+      const updatedProfile = (res && res.profile) || this.data.profile;
+      this.applyProfile(updatedProfile, { storageUpgrading: false });
+      wx.showToast({ title: '储物空间已扩展', icon: 'success', duration: 1200 });
+    } catch (error) {
+      console.error('[role] upgrade storage failed', error);
+      wx.showToast({ title: error.errMsg || '升级失败', icon: 'none' });
+      this.setData({ storageUpgrading: false });
     }
   },
 
