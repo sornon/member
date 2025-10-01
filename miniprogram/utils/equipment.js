@@ -17,6 +17,72 @@ const DEFAULT_EQUIPMENT_ID_SET = new Set(DEFAULT_EQUIPMENT_IDS);
 
 const EXCLUDED_SLOT_KEYS = new Set(['accessory', 'armor']);
 
+const DEFAULT_STORAGE_BASE_CAPACITY = 100;
+const DEFAULT_STORAGE_PER_UPGRADE = 20;
+
+const STORAGE_UPGRADE_AVAILABLE_KEYS = ['upgradeAvailable', 'upgradeRemaining', 'availableUpgrades', 'upgradeTokens'];
+const STORAGE_UPGRADE_LIMIT_KEYS = ['upgradeLimit', 'maxUpgrades', 'limit'];
+
+function toPositiveInt(value) {
+  const number = Number(value);
+  if (Number.isFinite(number)) {
+    return Math.max(0, Math.floor(number));
+  }
+  return null;
+}
+
+function toOptionalPositiveInt(value) {
+  if (value === null) {
+    return null;
+  }
+  const number = Number(value);
+  if (Number.isFinite(number)) {
+    return Math.max(0, Math.floor(number));
+  }
+  return null;
+}
+
+function sanitizeStorageMeta(meta) {
+  if (!meta || typeof meta !== 'object') {
+    return null;
+  }
+  const sanitized = {};
+  const assignInt = (key) => {
+    if (!Object.prototype.hasOwnProperty.call(meta, key)) {
+      return;
+    }
+    const value = toPositiveInt(meta[key]);
+    if (value !== null) {
+      sanitized[key] = value;
+    }
+  };
+  const assignOptional = (key) => {
+    if (!Object.prototype.hasOwnProperty.call(meta, key)) {
+      return;
+    }
+    if (meta[key] === null) {
+      sanitized[key] = null;
+      return;
+    }
+    const value = toPositiveInt(meta[key]);
+    if (value !== null) {
+      sanitized[key] = value;
+    }
+  };
+  assignInt('baseCapacity');
+  assignInt('perUpgrade');
+  assignInt('upgrades');
+  assignInt('capacity');
+  assignInt('used');
+  assignInt('remaining');
+  assignInt('nextCapacity');
+  assignInt('usagePercent');
+  assignOptional('upgradeAvailable');
+  assignOptional('upgradeLimit');
+  assignOptional('upgradesRemaining');
+  return Object.keys(sanitized).length ? sanitized : null;
+}
+
 function cloneItem(item) {
   return item && typeof item === 'object' ? { ...item } : null;
 }
@@ -98,50 +164,93 @@ export function sanitizeEquipmentProfile(profile) {
   const notes = extractNotesFromSlots(sanitizedSlots);
 
   const storageCategories = Array.isArray(rawStorage.categories) ? rawStorage.categories : [];
-  const rawStorageMetadata = rawStorage.metadata && typeof rawStorage.metadata === 'object' ? rawStorage.metadata : {};
-  const metadata = {};
-  const numericKeys = [
-    'baseCapacity',
-    'perUpgrade',
-    'sharedUpgrades',
-    'upgradeLimit',
-    'remainingUpgrades',
-    'capacity',
-    'nextCapacity',
-    'totalItems',
-    'remainingSlots',
-    'usagePercent'
-  ];
-  numericKeys.forEach((key) => {
-    const value = rawStorageMetadata[key];
-    if (typeof value === 'number' && !Number.isNaN(value)) {
-      metadata[key] = value;
-      return;
-    }
-    if (typeof value === 'string' && value.trim()) {
-      const numeric = Number(value);
-      if (!Number.isNaN(numeric)) {
-        metadata[key] = numeric;
+  const sanitizedStorageCategories = storageCategories
+    .map((category) => {
+      if (!category || typeof category !== 'object') {
+        return null;
       }
+      const key = typeof category.key === 'string' ? category.key : '';
+      if (!key) {
+        return null;
+      }
+      const label = typeof category.label === 'string' ? category.label : key;
+      const items = Array.isArray(category.items)
+        ? category.items
+            .filter((item) => item && typeof item === 'object' && item.itemId && !isDefaultEquipmentId(item.itemId))
+            .map((item) => cloneItem(item))
+        : [];
+      const baseCapacity = toPositiveInt(category.baseCapacity);
+      const perUpgrade = toPositiveInt(category.perUpgrade);
+      const upgrades = toPositiveInt(category.upgrades);
+      const capacity = toPositiveInt(category.capacity);
+      const used = toPositiveInt(category.used);
+      const remaining = toPositiveInt(category.remaining);
+      const usagePercent = toPositiveInt(category.usagePercent);
+      const nextCapacity = toPositiveInt(category.nextCapacity);
+      const payload = {
+        key,
+        label,
+        items
+      };
+      payload.baseCapacity = baseCapacity !== null ? baseCapacity : DEFAULT_STORAGE_BASE_CAPACITY;
+      payload.perUpgrade = perUpgrade !== null ? perUpgrade : DEFAULT_STORAGE_PER_UPGRADE;
+      payload.upgrades = upgrades !== null ? upgrades : 0;
+      payload.capacity = capacity !== null ? capacity : payload.baseCapacity + payload.upgrades * payload.perUpgrade;
+      payload.used = used !== null ? used : items.length;
+      payload.remaining = remaining !== null ? remaining : Math.max(payload.capacity - payload.used, 0);
+      payload.usagePercent = usagePercent !== null
+        ? Math.min(100, usagePercent)
+        : payload.capacity
+        ? Math.min(100, Math.round((payload.used / payload.capacity) * 100))
+        : 0;
+      payload.nextCapacity = nextCapacity !== null ? nextCapacity : payload.capacity + payload.perUpgrade;
+      return payload;
+    })
+    .filter((category) => !!category);
+
+  const sanitizedStorage = { categories: sanitizedStorageCategories };
+
+  const sanitizedMeta = sanitizeStorageMeta(rawStorage.meta);
+  if (sanitizedMeta) {
+    sanitizedStorage.meta = sanitizedMeta;
+  }
+
+  const baseCapacity = toPositiveInt(rawStorage.baseCapacity);
+  sanitizedStorage.baseCapacity = baseCapacity !== null ? baseCapacity : DEFAULT_STORAGE_BASE_CAPACITY;
+
+  const perUpgrade = toPositiveInt(rawStorage.perUpgrade);
+  sanitizedStorage.perUpgrade = perUpgrade !== null ? perUpgrade : DEFAULT_STORAGE_PER_UPGRADE;
+
+  const globalUpgrades = toPositiveInt(rawStorage.globalUpgrades);
+  sanitizedStorage.globalUpgrades = globalUpgrades !== null ? globalUpgrades : 0;
+
+  if (rawStorage.upgrades && typeof rawStorage.upgrades === 'object') {
+    const upgrades = {};
+    Object.keys(rawStorage.upgrades).forEach((key) => {
+      const value = toPositiveInt(rawStorage.upgrades[key]);
+      if (value !== null) {
+        upgrades[key] = value;
+      }
+    });
+    if (Object.keys(upgrades).length) {
+      sanitizedStorage.upgrades = upgrades;
     }
-  });
-  const sanitizedStorage = {
-    categories: storageCategories
-      .map((category) => {
-        if (!category || typeof category !== 'object') {
-          return null;
-        }
-        const items = Array.isArray(category.items)
-          ? category.items
-              .filter((item) => item && typeof item === 'object' && item.itemId && !isDefaultEquipmentId(item.itemId))
-              .map((item) => cloneItem(item))
-          : [];
-        return { ...category, items };
-      })
-      .filter((category) => !!category)
-  };
-  if (Object.keys(metadata).length) {
-    sanitizedStorage.metadata = metadata;
+  }
+
+  for (const key of STORAGE_UPGRADE_AVAILABLE_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(rawStorage, key)) {
+      const value = toOptionalPositiveInt(rawStorage[key]);
+      sanitizedStorage.upgradeAvailable = value;
+      break;
+    }
+  }
+
+  for (const key of STORAGE_UPGRADE_LIMIT_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(rawStorage, key)) {
+      const value = toOptionalPositiveInt(rawStorage[key]);
+      sanitizedStorage.upgradeLimit = value;
+      break;
+    }
   }
 
   const sanitizedEquipment = {

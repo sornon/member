@@ -2,6 +2,138 @@ import { PveService, MemberService } from '../../services/api';
 import { formatStones } from '../../utils/format';
 import { sanitizeEquipmentProfile } from '../../utils/equipment';
 
+const DEFAULT_STORAGE_BASE_CAPACITY = 100;
+const DEFAULT_STORAGE_PER_UPGRADE = 20;
+
+function sanitizeCount(value, fallback = 0) {
+  const number = Number(value);
+  if (Number.isFinite(number)) {
+    return Math.max(0, Math.floor(number));
+  }
+  const fallbackNumber = Number(fallback);
+  if (Number.isFinite(fallbackNumber)) {
+    return Math.max(0, Math.floor(fallbackNumber));
+  }
+  return 0;
+}
+
+function sanitizeOptionalCount(value) {
+  if (value === null) {
+    return null;
+  }
+  const number = Number(value);
+  if (Number.isFinite(number)) {
+    return Math.max(0, Math.floor(number));
+  }
+  return null;
+}
+
+function extractStorageMetaFromProfile(profile) {
+  const storage =
+    profile &&
+    profile.equipment &&
+    profile.equipment.storage &&
+    typeof profile.equipment.storage === 'object'
+      ? profile.equipment.storage
+      : {};
+  const meta = storage && typeof storage.meta === 'object' ? storage.meta : {};
+  const baseCapacitySource = Object.prototype.hasOwnProperty.call(meta, 'baseCapacity')
+    ? meta.baseCapacity
+    : storage.baseCapacity;
+  const perUpgradeSource = Object.prototype.hasOwnProperty.call(meta, 'perUpgrade')
+    ? meta.perUpgrade
+    : storage.perUpgrade;
+  const upgradesSource = Object.prototype.hasOwnProperty.call(meta, 'upgrades')
+    ? meta.upgrades
+    : storage.globalUpgrades;
+  const baseCapacity = sanitizeCount(baseCapacitySource, DEFAULT_STORAGE_BASE_CAPACITY);
+  const perUpgrade = sanitizeCount(perUpgradeSource, DEFAULT_STORAGE_PER_UPGRADE);
+  const upgrades = sanitizeCount(upgradesSource, 0);
+  const capacitySource = Object.prototype.hasOwnProperty.call(meta, 'capacity') ? meta.capacity : null;
+  const capacity = sanitizeCount(capacitySource, baseCapacity + perUpgrade * upgrades);
+  const nextCapacitySource = Object.prototype.hasOwnProperty.call(meta, 'nextCapacity') ? meta.nextCapacity : null;
+  const nextCapacity = sanitizeCount(nextCapacitySource, capacity + perUpgrade);
+  let upgradeAvailable = null;
+  if (Object.prototype.hasOwnProperty.call(meta, 'upgradeAvailable')) {
+    upgradeAvailable = sanitizeOptionalCount(meta.upgradeAvailable);
+  } else if (Object.prototype.hasOwnProperty.call(storage, 'upgradeAvailable')) {
+    upgradeAvailable = sanitizeOptionalCount(storage.upgradeAvailable);
+  }
+  let upgradeLimit = null;
+  if (Object.prototype.hasOwnProperty.call(meta, 'upgradeLimit')) {
+    upgradeLimit = sanitizeOptionalCount(meta.upgradeLimit);
+  } else if (Object.prototype.hasOwnProperty.call(storage, 'upgradeLimit')) {
+    upgradeLimit = sanitizeOptionalCount(storage.upgradeLimit);
+  }
+  if (upgradeLimit !== null && upgradeLimit <= 0) {
+    upgradeLimit = null;
+  }
+  let upgradesRemaining = null;
+  if (Object.prototype.hasOwnProperty.call(meta, 'upgradesRemaining')) {
+    upgradesRemaining = sanitizeOptionalCount(meta.upgradesRemaining);
+  }
+  if (upgradesRemaining === null && upgradeLimit !== null) {
+    upgradesRemaining = Math.max(upgradeLimit - Math.min(upgradeLimit, upgrades), 0);
+  }
+  return {
+    baseCapacity,
+    perUpgrade,
+    upgrades,
+    capacity,
+    nextCapacity,
+    upgradeAvailable,
+    upgradeLimit,
+    upgradesRemaining
+  };
+}
+
+function finalizeStorageMeta(meta, categories) {
+  const list = Array.isArray(categories) ? categories : [];
+  const summary = { ...meta };
+  const firstCategory = list[0] || {};
+  summary.baseCapacity = sanitizeCount(
+    summary.baseCapacity,
+    meta.baseCapacity || firstCategory.baseCapacity || DEFAULT_STORAGE_BASE_CAPACITY
+  );
+  summary.perUpgrade = sanitizeCount(
+    summary.perUpgrade,
+    meta.perUpgrade || firstCategory.perUpgrade || DEFAULT_STORAGE_PER_UPGRADE
+  );
+  summary.upgrades = sanitizeCount(summary.upgrades, meta.upgrades || firstCategory.upgrades || 0);
+  const capacityFallback =
+    typeof meta.capacity === 'number'
+      ? meta.capacity
+      : typeof firstCategory.capacity === 'number'
+      ? firstCategory.capacity
+      : summary.baseCapacity + summary.perUpgrade * summary.upgrades;
+  summary.capacity = sanitizeCount(summary.capacity, capacityFallback);
+  summary.nextCapacity = sanitizeCount(summary.nextCapacity, summary.capacity + summary.perUpgrade);
+  const usedTotal = list.reduce(
+    (total, category) => total + (Array.isArray(category.items) ? category.items.length : 0),
+    0
+  );
+  const used = sanitizeCount(summary.used, usedTotal);
+  const clampedUsed = summary.capacity ? Math.min(used, summary.capacity) : used;
+  summary.used = clampedUsed;
+  if (summary.capacity < clampedUsed) {
+    summary.capacity = clampedUsed;
+  }
+  summary.remaining = summary.capacity ? Math.max(summary.capacity - clampedUsed, 0) : 0;
+  summary.usagePercent = summary.capacity
+    ? Math.min(100, Math.round((clampedUsed / summary.capacity) * 100))
+    : 0;
+  if (summary.upgradesRemaining === null && summary.upgradeLimit !== null) {
+    summary.upgradesRemaining = Math.max(summary.upgradeLimit - Math.min(summary.upgradeLimit, summary.upgrades), 0);
+  } else if (typeof summary.upgradesRemaining === 'number') {
+    summary.upgradesRemaining = Math.max(0, summary.upgradesRemaining);
+  }
+  if (summary.upgradeLimit !== null && summary.upgradeLimit <= 0) {
+    summary.upgradeLimit = null;
+    summary.upgradesRemaining = null;
+  }
+  return summary;
+}
+
 const ALLOCATABLE_KEYS = ['constitution', 'strength', 'spirit', 'root', 'agility', 'insight'];
 const STORAGE_CATEGORY_ORDER = ['equipment', 'quest', 'material', 'consumable'];
 const STORAGE_CATEGORY_LABELS = {
@@ -24,9 +156,9 @@ Page({
     formattedStoneBalance: formatStones(0),
     equipmentTooltip: null,
     storageCategories: [],
+    storageMeta: null,
     activeStorageCategory: 'equipment',
     activeStorageCategoryData: null,
-    storageMetadata: null,
     storageUpgrading: false
   },
 
@@ -68,83 +200,16 @@ Page({
   },
 
   buildStorageState(profile) {
-    const storageMetadata = this.buildStorageMetadata(profile);
-    const storageCategories = this.buildStorageCategories(profile, storageMetadata);
+    const storageMetaBase = extractStorageMetaFromProfile(profile);
+    const storageCategories = this.buildStorageCategories(profile, storageMetaBase);
+    const storageMeta = finalizeStorageMeta(storageMetaBase, storageCategories);
     const activeKey = this.resolveActiveStorageCategory(storageCategories);
     const activeCategory = storageCategories.find((category) => category.key === activeKey) || null;
-    const normalizedMetadata = storageMetadata
-      ? {
-          ...storageMetadata,
-          totalItems: storageCategories.reduce((sum, category) => sum + category.items.length, 0)
-        }
-      : null;
-    if (normalizedMetadata && typeof normalizedMetadata.capacity === 'number') {
-      const remainingSlots = Math.max(normalizedMetadata.capacity - normalizedMetadata.totalItems, 0);
-      normalizedMetadata.remainingSlots = remainingSlots;
-      normalizedMetadata.usagePercent = normalizedMetadata.capacity
-        ? Math.min(100, Math.round((normalizedMetadata.totalItems / normalizedMetadata.capacity) * 100))
-        : 0;
-    }
     return {
       storageCategories,
+      storageMeta,
       activeStorageCategory: activeKey,
-      activeStorageCategoryData: activeCategory,
-      storageMetadata: normalizedMetadata
-    };
-  },
-
-  buildStorageMetadata(profile) {
-    const storage =
-      profile && profile.equipment && profile.equipment.storage && typeof profile.equipment.storage === 'object'
-        ? profile.equipment.storage
-        : null;
-    const rawMetadata = storage && typeof storage.metadata === 'object' ? storage.metadata : {};
-    const parseIntValue = (value, fallback = null) => {
-      const numeric = Number(value);
-      if (Number.isFinite(numeric) && numeric >= 0) {
-        return Math.floor(numeric);
-      }
-      return fallback;
-    };
-    const baseCapacity = parseIntValue(rawMetadata.baseCapacity, STORAGE_DEFAULT_BASE_CAPACITY);
-    const perUpgrade = parseIntValue(rawMetadata.perUpgrade, STORAGE_DEFAULT_PER_UPGRADE);
-    const sharedUpgrades = parseIntValue(rawMetadata.sharedUpgrades, 0);
-    const upgradeLimit = parseIntValue(rawMetadata.upgradeLimit, 0);
-    let remainingUpgrades =
-      rawMetadata.remainingUpgrades != null ? parseIntValue(rawMetadata.remainingUpgrades, 0) : null;
-    const totalItems = parseIntValue(rawMetadata.totalItems, 0);
-    let capacity = rawMetadata.capacity != null ? parseIntValue(rawMetadata.capacity, null) : null;
-    if (capacity === null) {
-      capacity = baseCapacity + sharedUpgrades * perUpgrade;
-    }
-    let nextCapacity = rawMetadata.nextCapacity != null ? parseIntValue(rawMetadata.nextCapacity, null) : null;
-    if (nextCapacity === null) {
-      nextCapacity = baseCapacity + (sharedUpgrades + 1) * perUpgrade;
-    }
-    if (upgradeLimit > 0) {
-      remainingUpgrades = Math.max(upgradeLimit - sharedUpgrades, 0);
-    }
-    let remainingSlots = rawMetadata.remainingSlots != null ? parseIntValue(rawMetadata.remainingSlots, null) : null;
-    if (remainingSlots === null) {
-      remainingSlots = Math.max(capacity - totalItems, 0);
-    }
-    let usagePercent = rawMetadata.usagePercent != null ? Number(rawMetadata.usagePercent) : null;
-    if (!Number.isFinite(usagePercent) || usagePercent < 0) {
-      usagePercent = capacity ? Math.min(100, Math.round((totalItems / capacity) * 100)) : 0;
-    } else {
-      usagePercent = Math.max(0, Math.min(100, Math.round(usagePercent)));
-    }
-    return {
-      baseCapacity,
-      perUpgrade,
-      sharedUpgrades,
-      upgradeLimit,
-      remainingUpgrades,
-      capacity,
-      nextCapacity,
-      totalItems,
-      remainingSlots,
-      usagePercent
+      activeStorageCategoryData: activeCategory
     };
   },
 
@@ -161,54 +226,57 @@ Page({
     return list.length ? list[0].key : '';
   },
 
-  buildStorageCategories(profile, metadata = null) {
+  buildStorageCategories(profile, storageMeta = null) {
     const storage =
       profile && profile.equipment && profile.equipment.storage && typeof profile.equipment.storage === 'object'
         ? profile.equipment.storage
         : {};
     const categories = Array.isArray(storage.categories) ? storage.categories : [];
-    const baseCapacity = metadata && typeof metadata.baseCapacity === 'number' ? metadata.baseCapacity : STORAGE_DEFAULT_BASE_CAPACITY;
-    const perUpgrade = metadata && typeof metadata.perUpgrade === 'number' ? metadata.perUpgrade : STORAGE_DEFAULT_PER_UPGRADE;
-    const capacity = metadata && typeof metadata.capacity === 'number' ? metadata.capacity : baseCapacity;
-    const nextCapacity = metadata && typeof metadata.nextCapacity === 'number' ? metadata.nextCapacity : capacity + perUpgrade;
-    return STORAGE_CATEGORY_ORDER.map((key) => {
-      const category = categories.find((entry) => entry && entry.key === key) || {};
-      const label = category && typeof category.label === 'string' ? category.label : STORAGE_CATEGORY_LABELS[key] || '';
-      const upgrades = Math.max(0, Math.floor(Number(category && category.upgrades) || 0));
-      const items = Array.isArray(category && category.items) ? category.items : [];
-      const normalizedItems = items.map((item, index) => {
-        const identifier =
-          item && item.inventoryId
-            ? item.inventoryId
-            : item && item.itemId
-            ? item.itemId
-            : `item-${index}`;
-        const storageKey = `${key}-${identifier}-${index}`;
-        return { ...item, storageKey };
-      });
-      const slotCount = Math.max(capacity, normalizedItems.length);
-      const slots = normalizedItems.map((item) => ({ ...item, placeholder: false }));
-      for (let i = normalizedItems.length; i < slotCount; i += 1) {
-        slots.push({ placeholder: true, storageKey: `${key}-placeholder-${i}` });
-      }
-      const used = normalizedItems.length;
-      const remaining = Math.max(slotCount - used, 0);
-      const usagePercent = slotCount ? Math.min(100, Math.round((used / slotCount) * 100)) : 0;
-      return {
-        key,
-        label,
-        baseCapacity,
-        perUpgrade,
-        upgrades,
-        capacity: slotCount,
-        used,
-        remaining,
-        usagePercent,
-        nextCapacity,
-        items: normalizedItems,
-        slots
-      };
-    });
+    const meta = storageMeta || extractStorageMetaFromProfile(profile);
+    const baseCapacity = typeof meta.baseCapacity === 'number' ? meta.baseCapacity : DEFAULT_STORAGE_BASE_CAPACITY;
+    const perUpgrade = typeof meta.perUpgrade === 'number' ? meta.perUpgrade : DEFAULT_STORAGE_PER_UPGRADE;
+    const upgrades = typeof meta.upgrades === 'number' ? meta.upgrades : 0;
+    const capacity = typeof meta.capacity === 'number' ? meta.capacity : baseCapacity + perUpgrade * upgrades;
+    const nextCapacity = typeof meta.nextCapacity === 'number' ? meta.nextCapacity : capacity + perUpgrade;
+    return categories
+      .map((category) => {
+        if (!category || typeof category !== 'object') {
+          return null;
+        }
+        const key = typeof category.key === 'string' ? category.key : '';
+        if (!key) {
+          return null;
+        }
+        const label = typeof category.label === 'string' ? category.label : key;
+        const items = Array.isArray(category.items) ? category.items : [];
+        const normalizedItems = items.map((item, index) => {
+          const storageKey = `${key}-${item && item.inventoryId ? item.inventoryId : `${item && item.itemId ? item.itemId : 'item'}-${index}`}`;
+          return { ...item, storageKey };
+        });
+        const slotCount = Math.max(capacity, normalizedItems.length);
+        const slots = normalizedItems.map((item) => ({ ...item, placeholder: false }));
+        for (let i = normalizedItems.length; i < slotCount; i += 1) {
+          slots.push({ placeholder: true, storageKey: `${key}-placeholder-${i}` });
+        }
+        const used = Math.min(normalizedItems.length, slotCount);
+        const remaining = Math.max(capacity - normalizedItems.length, 0);
+        const usagePercent = capacity ? Math.min(100, Math.round((normalizedItems.length / capacity) * 100)) : 0;
+        return {
+          key,
+          label,
+          baseCapacity,
+          perUpgrade,
+          upgrades,
+          capacity: slotCount,
+          used,
+          remaining,
+          usagePercent,
+          nextCapacity,
+          items: normalizedItems,
+          slots
+        };
+      })
+      .filter((category) => !!category);
   },
 
   onLoad(options = {}) {
@@ -484,12 +552,27 @@ Page({
     if (!category || this.data.storageUpgrading) {
       return;
     }
-    const metadata = this.data.storageMetadata;
-    const remaining =
-      metadata && typeof metadata.remainingUpgrades === 'number' ? metadata.remainingUpgrades : null;
-    if (remaining !== null && remaining <= 0) {
-      wx.showToast({ title: '升级次数不足', icon: 'none' });
-      return;
+    const storageMeta = this.data.storageMeta;
+    if (storageMeta) {
+      const limit =
+        typeof storageMeta.upgradeLimit === 'number' && storageMeta.upgradeLimit > 0
+          ? storageMeta.upgradeLimit
+          : null;
+      const upgrades = typeof storageMeta.upgrades === 'number' ? storageMeta.upgrades : 0;
+      if (limit !== null && upgrades >= limit) {
+        wx.showToast({ title: '储物空间已达上限', icon: 'none' });
+        return;
+      }
+      const available = typeof storageMeta.upgradeAvailable === 'number' ? storageMeta.upgradeAvailable : null;
+      const fallbackRemaining =
+        available === null && typeof storageMeta.upgradesRemaining === 'number'
+          ? storageMeta.upgradesRemaining
+          : null;
+      const remaining = available !== null ? available : fallbackRemaining;
+      if (remaining !== null && remaining <= 0) {
+        wx.showToast({ title: '升级次数不足', icon: 'none' });
+        return;
+      }
     }
     this.setData({ storageUpgrading: true });
     try {

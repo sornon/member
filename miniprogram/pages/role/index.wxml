@@ -135,14 +135,19 @@
           </view>
         </view>
         <block wx:if="{{activeStorageCategoryData}}">
-          <view class="storage-summary">
+          <view wx:if="{{storageMeta}}" class="storage-summary">
             <view class="storage-summary__line">
-              <text>已用 {{storageMetadata ? storageMetadata.totalItems : activeStorageCategoryData.items.length}} / {{storageMetadata ? storageMetadata.capacity : activeStorageCategoryData.capacity}}</text>
-              <text>剩余 {{storageMetadata ? storageMetadata.remainingSlots : activeStorageCategoryData.remaining}}</text>
+              <text>总容量 {{storageMeta.capacity}}</text>
+              <text>已用 {{storageMeta.used}}</text>
+            </view>
+            <view class="storage-summary__line">
+              <text>剩余 {{storageMeta.remaining}}</text>
+              <text wx:if="{{storageMeta.upgradeAvailable !== null}}">剩余升级次数 {{storageMeta.upgradeAvailable}}</text>
+              <text wx:elif="{{storageMeta.upgradesRemaining !== null}}">可升级次数 {{storageMeta.upgradesRemaining}}</text>
             </view>
             <progress
               class="storage-summary__progress"
-              percent="{{storageMetadata ? storageMetadata.usagePercent : activeStorageCategoryData.usagePercent}}"
+              percent="{{storageMeta.usagePercent}}"
               stroke-width="6"
               backgroundColor="#1b2036"
               activeColor="#566ed2"
@@ -157,15 +162,32 @@
                 disabled="{{storageUpgrading}}"
                 bindtap="handleUpgradeStorage"
               >升级储物空间</button>
-              <view class="storage-summary__info">
-                <text wx:if="{{storageMetadata && storageMetadata.remainingUpgrades !== null}}"
-                  >剩余升级次数 {{storageMetadata.remainingUpgrades}}</text
-                >
-                <text class="storage-summary__hint"
-                  >下次升级容量
-                  {{storageMetadata ? storageMetadata.nextCapacity : activeStorageCategoryData.nextCapacity}}</text
-                >
-              </view>
+              <text class="storage-summary__hint" wx:if="{{storageMeta.nextCapacity}}">下次升级容量 {{storageMeta.nextCapacity}}</text>
+            </view>
+          </view>
+          <view wx:else class="storage-summary">
+            <view class="storage-summary__line">
+              <text>已用 {{activeStorageCategoryData.items.length}} / {{activeStorageCategoryData.capacity}}</text>
+              <text>剩余 {{activeStorageCategoryData.remaining}}</text>
+            </view>
+            <progress
+              class="storage-summary__progress"
+              percent="{{activeStorageCategoryData.usagePercent}}"
+              stroke-width="6"
+              backgroundColor="#1b2036"
+              activeColor="#566ed2"
+              show-info="{{false}}"
+            ></progress>
+            <view class="storage-summary__actions">
+              <button
+                class="pill-btn pill-btn--primary storage-summary__upgrade"
+                hover-class="pill-btn--primary-hover"
+                size="mini"
+                loading="{{storageUpgrading}}"
+                disabled="{{storageUpgrading}}"
+                bindtap="handleUpgradeStorage"
+              >升级储物空间</button>
+              <text class="storage-summary__hint">下次升级容量 {{activeStorageCategoryData.nextCapacity}}</text>
             </view>
           </view>
           <view class="storage-grid">

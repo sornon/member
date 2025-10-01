@@ -15,21 +15,110 @@ const MAX_SKILL_SLOTS = 3;
 const MAX_BATTLE_HISTORY = 15;
 const MAX_SKILL_HISTORY = 30;
 
+const STORAGE_BASE_CAPACITY = 100;
+const STORAGE_PER_UPGRADE = 20;
 const STORAGE_CATEGORY_DEFINITIONS = [
-  { key: 'equipment', label: '装备', baseCapacity: 100, perUpgrade: 20 },
-  { key: 'quest', label: '任务', baseCapacity: 100, perUpgrade: 20 },
-  { key: 'material', label: '材料', baseCapacity: 100, perUpgrade: 20 },
-  { key: 'consumable', label: '道具', baseCapacity: 100, perUpgrade: 20 }
-];
+  { key: 'equipment', label: '装备' },
+  { key: 'quest', label: '任务' },
+  { key: 'material', label: '材料' },
+  { key: 'consumable', label: '道具' }
+].map((definition) => ({
+  ...definition,
+  baseCapacity: STORAGE_BASE_CAPACITY,
+  perUpgrade: STORAGE_PER_UPGRADE
+}));
 const STORAGE_CATEGORY_KEYS = STORAGE_CATEGORY_DEFINITIONS.map((item) => item.key);
-const DEFAULT_STORAGE_BASE_CAPACITY = STORAGE_CATEGORY_DEFINITIONS.reduce(
-  (max, item) => Math.max(max, item.baseCapacity || 0),
-  0
-);
-const DEFAULT_STORAGE_PER_UPGRADE = STORAGE_CATEGORY_DEFINITIONS.reduce(
-  (max, item) => Math.max(max, item.perUpgrade || 0),
-  0
-);
+
+const STORAGE_UPGRADE_AVAILABLE_KEYS = ['upgradeAvailable', 'upgradeRemaining', 'availableUpgrades', 'upgradeTokens'];
+const STORAGE_UPGRADE_LIMIT_KEYS = ['upgradeLimit', 'maxUpgrades', 'limit'];
+
+function toPositiveInt(value, fallback = 0) {
+  const number = Number(value);
+  if (Number.isFinite(number)) {
+    return Math.max(0, Math.floor(number));
+  }
+  const fallbackNumber = Number(fallback);
+  if (Number.isFinite(fallbackNumber)) {
+    return Math.max(0, Math.floor(fallbackNumber));
+  }
+  return 0;
+}
+
+function toOptionalPositiveInt(value) {
+  if (value === null) {
+    return null;
+  }
+  const number = Number(value);
+  if (Number.isFinite(number)) {
+    return Math.max(0, Math.floor(number));
+  }
+  return null;
+}
+
+function resolveStorageBaseCapacity(storage) {
+  return toPositiveInt(storage && storage.baseCapacity, STORAGE_BASE_CAPACITY);
+}
+
+function resolveStoragePerUpgrade(storage) {
+  return toPositiveInt(storage && storage.perUpgrade, STORAGE_PER_UPGRADE);
+}
+
+function resolveStorageUpgradeState(storage) {
+  const raw = storage && storage.upgrades;
+  let level = 0;
+  if (typeof raw === 'number') {
+    level = toPositiveInt(raw, 0);
+  }
+  if (raw && typeof raw === 'object') {
+    STORAGE_CATEGORY_KEYS.forEach((key) => {
+      level = Math.max(level, toPositiveInt(raw[key], 0));
+    });
+    if (Object.prototype.hasOwnProperty.call(raw, 'global')) {
+      level = Math.max(level, toPositiveInt(raw.global, 0));
+    }
+  }
+  if (storage && Object.prototype.hasOwnProperty.call(storage, 'globalUpgrades')) {
+    level = Math.max(level, toPositiveInt(storage.globalUpgrades, 0));
+  }
+  const upgrades = {};
+  STORAGE_CATEGORY_KEYS.forEach((key) => {
+    upgrades[key] = level;
+  });
+  return { level, upgrades };
+}
+
+function extractStorageUpgradeAvailable(storage) {
+  if (!storage || typeof storage !== 'object') {
+    return { value: null, key: null };
+  }
+  for (const key of STORAGE_UPGRADE_AVAILABLE_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(storage, key)) {
+      return { value: toOptionalPositiveInt(storage[key]), key };
+    }
+  }
+  return { value: null, key: null };
+}
+
+function extractStorageUpgradeLimit(storage) {
+  if (!storage || typeof storage !== 'object') {
+    return { value: null, key: null };
+  }
+  for (const key of STORAGE_UPGRADE_LIMIT_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(storage, key)) {
+      return { value: toOptionalPositiveInt(storage[key]), key };
+    }
+  }
+  return { value: null, key: null };
+}
+
+function resolveStorageUpgradeAvailable(storage) {
+  return extractStorageUpgradeAvailable(storage).value;
+}
+
+function resolveStorageUpgradeLimit(storage) {
+  return extractStorageUpgradeLimit(storage).value;
+}
+
 
 const BASE_ATTRIBUTE_KEYS = ['constitution', 'strength', 'spirit', 'root', 'agility', 'insight'];
 const COMBAT_STAT_KEYS = [
@@ -2370,67 +2459,49 @@ async function equipItem(actorId, event) {
 async function upgradeStorage(actorId, event = {}) {
   const category =
     event && typeof event.category === 'string' && event.category.trim() ? event.category.trim() : '';
-  if (!category) {
-    throw createError('CATEGORY_REQUIRED', '请选择要升级的储物类型');
-  }
-  if (!STORAGE_CATEGORY_KEYS.includes(category)) {
+  if (category && !STORAGE_CATEGORY_KEYS.includes(category)) {
     throw createError('INVALID_CATEGORY', '储物类型不存在');
   }
   const member = await ensureMember(actorId);
   const profile = await ensurePveProfile(actorId, member);
   const storage = profile.equipment && typeof profile.equipment.storage === 'object' ? profile.equipment.storage : {};
-  const rawUpgrades = storage && typeof storage.upgrades === 'object' ? storage.upgrades : {};
-  const storageMetadata = storage && typeof storage.metadata === 'object' ? storage.metadata : {};
-  const highestCurrent = STORAGE_CATEGORY_KEYS.reduce(
-    (max, key) => Math.max(max, Math.max(0, Math.floor(Number(rawUpgrades[key] || 0)))),
-    0
-  );
-  const metadataShared = storageMetadata && storageMetadata.sharedUpgrades != null
-    ? Math.max(0, Math.floor(storageMetadata.sharedUpgrades))
-    : 0;
-  const sharedUpgrades = Math.max(highestCurrent, metadataShared);
-  const upgradeLimit = storageMetadata && storageMetadata.upgradeLimit != null
-    ? Math.max(0, Math.floor(storageMetadata.upgradeLimit))
-    : 0;
-  const remainingUpgrades = storageMetadata && storageMetadata.remainingUpgrades != null
-    ? Math.max(0, Math.floor(storageMetadata.remainingUpgrades))
-    : null;
-  if (upgradeLimit > 0 && sharedUpgrades >= upgradeLimit) {
-    throw createError('UPGRADE_LIMIT_REACHED', '储物空间升级次数已用完');
+  const { level: currentLevel } = resolveStorageUpgradeState(storage);
+  const baseCapacity = resolveStorageBaseCapacity(storage);
+  const perUpgrade = resolveStoragePerUpgrade(storage);
+  const { value: upgradeAvailable, key: upgradeAvailableKey } = extractStorageUpgradeAvailable(storage);
+  const { value: upgradeLimit, key: upgradeLimitKey } = extractStorageUpgradeLimit(storage);
+  const normalizedLimit = upgradeLimit !== null && upgradeLimit > 0 ? upgradeLimit : null;
+  if (normalizedLimit !== null && currentLevel >= normalizedLimit) {
+    throw createError('STORAGE_MAX_UPGRADES', '储物空间已达到上限');
   }
-  if (upgradeLimit <= 0 && remainingUpgrades !== null && remainingUpgrades <= 0) {
-    throw createError('UPGRADE_LIMIT_REACHED', '储物空间升级次数已用完');
+  if (upgradeAvailable !== null && upgradeAvailable <= 0) {
+    throw createError('STORAGE_NO_UPGRADES', '升级次数不足');
   }
-
-  const current = Math.max(0, Math.floor(Number(rawUpgrades[category] || 0)));
-  const next = current + 1;
-  const updatedUpgrades = { ...rawUpgrades, [category]: next };
-  const baseCapacity =
-    storageMetadata && storageMetadata.baseCapacity != null
-      ? Math.max(0, Math.floor(storageMetadata.baseCapacity))
-      : DEFAULT_STORAGE_BASE_CAPACITY;
-  const perUpgrade =
-    storageMetadata && storageMetadata.perUpgrade != null
-      ? Math.max(0, Math.floor(storageMetadata.perUpgrade))
-      : DEFAULT_STORAGE_PER_UPGRADE;
-  const nextSharedUpgrades = Math.max(sharedUpgrades, next);
-  const capacity = baseCapacity + nextSharedUpgrades * perUpgrade;
-  const updatedMetadata = {
-    ...storageMetadata,
-    sharedUpgrades: nextSharedUpgrades,
-    capacity,
-    nextCapacity: baseCapacity + (nextSharedUpgrades + 1) * perUpgrade
+  const nextLevel = currentLevel + 1;
+  if (normalizedLimit !== null && nextLevel > normalizedLimit) {
+    throw createError('STORAGE_MAX_UPGRADES', '储物空间已达到上限');
+  }
+  const nextAvailable = upgradeAvailable !== null ? Math.max(upgradeAvailable - 1, 0) : null;
+  const updatedUpgrades = {};
+  STORAGE_CATEGORY_KEYS.forEach((key) => {
+    updatedUpgrades[key] = nextLevel;
+  });
+  const updatedStorage = {
+    ...storage,
+    upgrades: updatedUpgrades,
+    globalUpgrades: nextLevel,
+    baseCapacity,
+    perUpgrade
   };
-  if (upgradeLimit > 0) {
-    updatedMetadata.remainingUpgrades = Math.max(upgradeLimit - nextSharedUpgrades, 0);
-  } else if (remainingUpgrades !== null) {
-    updatedMetadata.remainingUpgrades = Math.max(remainingUpgrades - 1, 0);
+  if (upgradeAvailableKey || nextAvailable !== null) {
+    const key = upgradeAvailableKey || 'upgradeAvailable';
+    updatedStorage[key] = nextAvailable;
   }
-  if (typeof updatedMetadata.totalItems === 'number') {
-    const totalItems = Math.max(0, Math.floor(updatedMetadata.totalItems));
-    updatedMetadata.remainingSlots = Math.max(capacity - totalItems, 0);
+  if (upgradeLimitKey || normalizedLimit !== null) {
+    const key = upgradeLimitKey || 'upgradeLimit';
+    updatedStorage[key] = normalizedLimit;
   }
-  profile.equipment.storage = { ...storage, upgrades: updatedUpgrades, metadata: updatedMetadata };
+  profile.equipment.storage = updatedStorage;
   const now = new Date();
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
@@ -2439,15 +2510,26 @@ async function upgradeStorage(actorId, event = {}) {
     }
   });
   const decorated = decorateProfile(member, profile);
+  const capacity = baseCapacity + perUpgrade * nextLevel;
+  const upgradesRemaining =
+    normalizedLimit !== null ? Math.max(normalizedLimit - Math.min(normalizedLimit, nextLevel), 0) : null;
+  const result = {
+    upgrades: nextLevel,
+    capacity
+  };
+  if (nextAvailable !== null) {
+    result.upgradeAvailable = nextAvailable;
+  }
+  if (normalizedLimit !== null) {
+    result.upgradeLimit = normalizedLimit;
+    result.upgradesRemaining = upgradesRemaining;
+  }
+  if (category) {
+    result.category = category;
+  }
   return {
     profile: decorated,
-    storage: {
-      category,
-      upgrades: next,
-      capacity,
-      sharedUpgrades: nextSharedUpgrades,
-      remainingUpgrades: updatedMetadata.remainingUpgrades != null ? updatedMetadata.remainingUpgrades : null
-    }
+    storage: result
   };
 }
 
@@ -3254,24 +3336,31 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
   const remainingInventory = Array.from(availableById.values()).map((entry) => ({ ...entry }));
 
   const rawStorage = payload.storage && typeof payload.storage === 'object' ? payload.storage : {};
-  const rawUpgrades =
-    rawStorage && rawStorage.upgrades && typeof rawStorage.upgrades === 'object' ? rawStorage.upgrades : {};
-  const storageUpgrades = {};
-  STORAGE_CATEGORY_KEYS.forEach((key) => {
-    const value = Number(rawUpgrades[key]);
-    storageUpgrades[key] = Number.isFinite(value) && value > 0 ? Math.max(0, Math.floor(value)) : 0;
-  });
-
-  const storageMetadata = normalizeStorageMetadata(rawStorage);
-  const storagePayload = { upgrades: storageUpgrades };
-  if (Object.keys(storageMetadata).length) {
-    storagePayload.metadata = storageMetadata;
+  const { level: storageLevel, upgrades: storageUpgrades } = resolveStorageUpgradeState(rawStorage);
+  const baseCapacity = resolveStorageBaseCapacity(rawStorage);
+  const perUpgrade = resolveStoragePerUpgrade(rawStorage);
+  const { value: storageUpgradeAvailable, key: storageUpgradeAvailableKey } =
+    extractStorageUpgradeAvailable(rawStorage);
+  const { value: storageUpgradeLimit, key: storageUpgradeLimitKey } = extractStorageUpgradeLimit(rawStorage);
+  const normalizedStorage = {
+    upgrades: storageUpgrades,
+    globalUpgrades: storageLevel,
+    baseCapacity,
+    perUpgrade
+  };
+  if (storageUpgradeAvailable !== null) {
+    const key = storageUpgradeAvailableKey || 'upgradeAvailable';
+    normalizedStorage[key] = storageUpgradeAvailable;
+  }
+  if (storageUpgradeLimit !== null) {
+    const key = storageUpgradeLimitKey || 'upgradeLimit';
+    normalizedStorage[key] = storageUpgradeLimit;
   }
 
   return {
     inventory: remainingInventory,
     slots: resolvedSlots,
-    storage: storagePayload
+    storage: normalizedStorage
   };
 }
 
@@ -4197,85 +4286,69 @@ function decorateEquipment(profile, summary = null) {
     .filter((item) => !!item);
 
   const bonusSummary = summary || sumEquipmentBonuses(equipment);
-  const storagePayload = equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : {};
-  const storageUpgrades = storagePayload.upgrades && typeof storagePayload.upgrades === 'object' ? storagePayload.upgrades : {};
-  const storageMetadata = storagePayload.metadata && typeof storagePayload.metadata === 'object' ? storagePayload.metadata : {};
-  const baseCapacity =
-    storageMetadata.baseCapacity != null
-      ? Math.max(0, Math.floor(storageMetadata.baseCapacity))
-      : DEFAULT_STORAGE_BASE_CAPACITY;
-  const perUpgrade =
-    storageMetadata.perUpgrade != null
-      ? Math.max(0, Math.floor(storageMetadata.perUpgrade))
-      : DEFAULT_STORAGE_PER_UPGRADE;
-  const categoryUpgradeList = STORAGE_CATEGORY_KEYS.map((key) =>
-    Math.max(0, Math.floor(Number(storageUpgrades[key] || 0)))
-  );
-  const metadataSharedUpgrades =
-    storageMetadata.sharedUpgrades != null ? Math.max(0, Math.floor(storageMetadata.sharedUpgrades)) : 0;
-  const currentSharedUpgrades = categoryUpgradeList.reduce((max, value) => Math.max(max, value), 0);
-  const sharedUpgrades = Math.max(metadataSharedUpgrades, currentSharedUpgrades);
-  const rawCapacity =
-    storageMetadata.capacity != null ? Math.max(0, Math.floor(storageMetadata.capacity)) : baseCapacity + sharedUpgrades * perUpgrade;
-  const capacity = Math.max(rawCapacity, list.length);
-  const nextCapacity = Math.max(
-    storageMetadata.nextCapacity != null ? Math.max(0, Math.floor(storageMetadata.nextCapacity)) : 0,
-    baseCapacity + (sharedUpgrades + 1) * perUpgrade
-  );
-  const upgradeLimit =
-    storageMetadata.upgradeLimit != null ? Math.max(0, Math.floor(storageMetadata.upgradeLimit)) : 0;
-  let remainingUpgrades =
-    storageMetadata.remainingUpgrades != null
-      ? Math.max(0, Math.floor(storageMetadata.remainingUpgrades))
-      : null;
-  if (upgradeLimit > 0) {
-    remainingUpgrades = Math.max(upgradeLimit - sharedUpgrades, 0);
-  }
-  const totalItems = list.length;
-  const remainingSlots = Math.max(capacity - totalItems, 0);
-  const usagePercent = capacity ? Math.min(100, Math.round((totalItems / capacity) * 100)) : 0;
-
+  const storage = equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : {};
+  const { level: storageLevel, upgrades: storageLevelMap } = resolveStorageUpgradeState(storage);
+  const baseCapacity = resolveStorageBaseCapacity(storage);
+  const perUpgrade = resolveStoragePerUpgrade(storage);
+  const capacity = baseCapacity + perUpgrade * storageLevel;
+  const upgradeAvailable = resolveStorageUpgradeAvailable(storage);
+  const rawUpgradeLimit = resolveStorageUpgradeLimit(storage);
+  const upgradeLimit = rawUpgradeLimit !== null && rawUpgradeLimit > 0 ? rawUpgradeLimit : null;
+  const upgradesRemaining =
+    upgradeLimit !== null ? Math.max(upgradeLimit - Math.min(upgradeLimit, storageLevel), 0) : null;
   const storageCategories = STORAGE_CATEGORY_DEFINITIONS.map((definition) => {
-    const upgrades = Math.max(0, Math.floor(Number(storageUpgrades[definition.key] || 0)));
     const items = definition.key === 'equipment' ? list : [];
     const used = items.length;
     const remaining = Math.max(capacity - used, 0);
-    const categoryUsagePercent = capacity ? Math.min(100, Math.round((used / capacity) * 100)) : 0;
     return {
       key: definition.key,
       label: definition.label,
       baseCapacity,
       perUpgrade,
-      upgrades,
+      upgrades: storageLevel,
       capacity,
       used,
       remaining,
-      usagePercent: categoryUsagePercent,
-      nextCapacity,
       items
     };
   });
-
-  const decoratedStorage = {
-    categories: storageCategories,
-    metadata: {
-      baseCapacity,
-      perUpgrade,
-      sharedUpgrades,
-      upgradeLimit,
-      remainingUpgrades,
-      capacity,
-      nextCapacity,
-      totalItems,
-      remainingSlots,
-      usagePercent
-    }
+  const totalUsed = storageCategories.reduce((sum, category) => sum + (category.used || 0), 0);
+  const clampedUsed = Math.min(totalUsed, capacity);
+  const storageMeta = {
+    baseCapacity,
+    perUpgrade,
+    upgrades: storageLevel,
+    capacity,
+    used: clampedUsed,
+    remaining: Math.max(capacity - clampedUsed, 0),
+    usagePercent: capacity ? Math.min(100, Math.round((clampedUsed / capacity) * 100)) : 0,
+    nextCapacity: capacity + perUpgrade
   };
-
+  if (upgradeAvailable !== null) {
+    storageMeta.upgradeAvailable = upgradeAvailable;
+  }
+  if (upgradeLimit !== null) {
+    storageMeta.upgradeLimit = upgradeLimit;
+    storageMeta.upgradesRemaining = upgradesRemaining;
+  }
+  const storagePayload = {
+    categories: storageCategories,
+    baseCapacity,
+    perUpgrade,
+    globalUpgrades: storageLevel,
+    upgrades: storageLevelMap,
+    meta: storageMeta
+  };
+  if (upgradeAvailable !== null) {
+    storagePayload.upgradeAvailable = upgradeAvailable;
+  }
+  if (upgradeLimit !== null) {
+    storagePayload.upgradeLimit = upgradeLimit;
+  }
   return {
     slots: slotDetails,
     inventory: list,
-    storage: decoratedStorage,
+    storage: storagePayload,
     bonus: {
       sets: Array.isArray(bonusSummary && bonusSummary.sets) ? bonusSummary.sets : [],
       notes: Array.isArray(bonusSummary && bonusSummary.notes) ? bonusSummary.notes : []

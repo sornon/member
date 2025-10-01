@@ -538,6 +538,8 @@ button.pill-btn[disabled] {
   justify-content: space-between;
   font-size: 24rpx;
   color: rgba(205, 214, 255, 0.82);
+  flex-wrap: wrap;
+  gap: 8rpx 24rpx;
 }
 
 .storage-summary__progress {
@@ -546,31 +548,19 @@ button.pill-btn[disabled] {
 
 .storage-summary__actions {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 16rpx;
   flex-wrap: wrap;
 }
 
+.storage-summary__upgrade {
+  min-width: auto;
+  padding: 12rpx 24rpx;
+  font-size: 22rpx;
+}
+
 .storage-summary__hint {
   font-size: 22rpx;
-  color: rgba(186, 198, 255, 0.76);
-}
-
-.storage-summary__upgrade {
-  padding: 10rpx 20rpx;
-  min-width: auto;
-  font-size: 22rpx;
-}
-
-.storage-summary__info {
-  display: flex;
-  flex-direction: column;
-  gap: 6rpx;
-  font-size: 22rpx;
-  color: rgba(186, 198, 255, 0.76);
-}
-
-.storage-summary__info text {
   color: rgba(186, 198, 255, 0.76);
 }
 
