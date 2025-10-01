@@ -135,6 +135,15 @@ function finalizeStorageMeta(meta, categories) {
 }
 
 const ALLOCATABLE_KEYS = ['constitution', 'strength', 'spirit', 'root', 'agility', 'insight'];
+const STORAGE_CATEGORY_ORDER = ['equipment', 'quest', 'material', 'consumable'];
+const STORAGE_CATEGORY_LABELS = {
+  equipment: '装备',
+  quest: '任务',
+  material: '材料',
+  consumable: '道具'
+};
+const STORAGE_DEFAULT_BASE_CAPACITY = 100;
+const STORAGE_DEFAULT_PER_UPGRADE = 20;
 
 Page({
   data: {

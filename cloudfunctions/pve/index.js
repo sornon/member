@@ -119,6 +119,7 @@ function resolveStorageUpgradeLimit(storage) {
   return extractStorageUpgradeLimit(storage).value;
 }
 
+
 const BASE_ATTRIBUTE_KEYS = ['constitution', 'strength', 'spirit', 'root', 'agility', 'insight'];
 const COMBAT_STAT_KEYS = [
   'maxHp',
@@ -3064,6 +3065,90 @@ function normalizeProfile(profile, now = new Date()) {
     battleHistory: normalizeHistory(profile.battleHistory, MAX_BATTLE_HISTORY),
     skillHistory: normalizeHistory(profile.skillHistory, MAX_SKILL_HISTORY)
   };
+}
+
+function readStorageNumber(payload, metadata, keys, options = {}) {
+  const { allowFloat = false } = options;
+  const sources = [payload, metadata];
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    for (let j = 0; j < sources.length; j += 1) {
+      const source = sources[j];
+      if (!source || !Object.prototype.hasOwnProperty.call(source, key)) {
+        continue;
+      }
+      const value = Number(source[key]);
+      if (Number.isNaN(value)) {
+        continue;
+      }
+      if (allowFloat) {
+        return value;
+      }
+      if (value >= 0) {
+        return Math.floor(value);
+      }
+    }
+  }
+  return null;
+}
+
+function normalizeStorageMetadata(rawStorage) {
+  const payload = rawStorage && typeof rawStorage === 'object' ? rawStorage : {};
+  const metadata = payload.metadata && typeof payload.metadata === 'object' ? payload.metadata : {};
+  const normalized = {};
+
+  const baseCapacity = readStorageNumber(payload, metadata, ['baseCapacity']);
+  if (baseCapacity !== null) {
+    normalized.baseCapacity = baseCapacity;
+  }
+
+  const perUpgrade = readStorageNumber(payload, metadata, ['perUpgrade']);
+  if (perUpgrade !== null) {
+    normalized.perUpgrade = perUpgrade;
+  }
+
+  const sharedUpgrades = readStorageNumber(payload, metadata, ['sharedUpgrades', 'upgrades', 'upgradeLevel']);
+  if (sharedUpgrades !== null) {
+    normalized.sharedUpgrades = sharedUpgrades;
+  }
+
+  const upgradeLimit = readStorageNumber(payload, metadata, ['upgradeLimit', 'limit', 'maxUpgrades']);
+  if (upgradeLimit !== null) {
+    normalized.upgradeLimit = upgradeLimit;
+  }
+
+  const remainingUpgrades = readStorageNumber(payload, metadata, ['remainingUpgrades', 'availableUpgrades', 'upgradesRemaining']);
+  if (remainingUpgrades !== null) {
+    normalized.remainingUpgrades = remainingUpgrades;
+  }
+
+  const capacity = readStorageNumber(payload, metadata, ['capacity', 'sharedCapacity']);
+  if (capacity !== null) {
+    normalized.capacity = capacity;
+  }
+
+  const nextCapacity = readStorageNumber(payload, metadata, ['nextCapacity']);
+  if (nextCapacity !== null) {
+    normalized.nextCapacity = nextCapacity;
+  }
+
+  const totalItems = readStorageNumber(payload, metadata, ['totalItems']);
+  if (totalItems !== null) {
+    normalized.totalItems = totalItems;
+  }
+
+  const remainingSlots = readStorageNumber(payload, metadata, ['remainingSlots']);
+  if (remainingSlots !== null) {
+    normalized.remainingSlots = remainingSlots;
+  }
+
+  const usagePercent = readStorageNumber(payload, metadata, ['usagePercent'], { allowFloat: true });
+  if (usagePercent !== null) {
+    const bounded = Math.max(0, Math.min(100, Math.round(usagePercent)));
+    normalized.usagePercent = bounded;
+  }
+
+  return normalized;
 }
 
 function normalizeProfileWithoutEquipmentDefaults(profile, now = new Date()) {
