@@ -193,6 +193,7 @@
             wx:for="{{equipmentSlots}}"
             wx:key="slot"
             data-item-id="{{item.itemId}}"
+            data-inventory-id="{{item.inventoryId || item.itemId}}"
             bindlongpress="handleEquipmentItemLongPress"
           >
             <text class="equipment-admin__slot-label">{{item.slotLabel}}</text>
@@ -207,8 +208,9 @@
           <view
             class="equipment-admin__inventory-item"
             wx:for="{{equipmentInventory}}"
-            wx:key="itemId"
+            wx:key="inventoryId"
             data-item-id="{{item.itemId}}"
+            data-inventory-id="{{item.inventoryId || item.itemId}}"
             bindlongpress="handleEquipmentItemLongPress"
           >
             <view class="equipment-admin__inventory-info">
@@ -224,9 +226,10 @@
               class="equipment-admin__inventory-remove"
               size="mini"
               type="warn"
-              loading="{{removingEquipmentId === item.itemId}}"
-              disabled="{{removingEquipmentId && removingEquipmentId !== item.itemId}}"
+              loading="{{removingEquipmentInventoryId === (item.inventoryId || item.itemId)}}"
+              disabled="{{removingEquipmentInventoryId && removingEquipmentInventoryId !== (item.inventoryId || item.itemId)}}"
               data-item-id="{{item.itemId}}"
+              data-inventory-id="{{item.inventoryId || item.itemId}}"
               bindtap="handleEquipmentDelete"
             >
               删除

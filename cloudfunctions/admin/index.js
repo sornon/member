@@ -105,7 +105,8 @@ const ACTION_HANDLERS = {
   [ACTIONS.MARK_RESERVATION_READ]: (openid) => markReservationRead(openid),
   [ACTIONS.LIST_EQUIPMENT_CATALOG]: (openid) => listEquipmentCatalog(openid),
   [ACTIONS.GRANT_EQUIPMENT]: (openid, event) => grantEquipment(openid, event.memberId, event.itemId),
-  [ACTIONS.REMOVE_EQUIPMENT]: (openid, event) => removeEquipment(openid, event.memberId, event.itemId),
+  [ACTIONS.REMOVE_EQUIPMENT]: (openid, event) =>
+    removeEquipment(openid, event.memberId, event.itemId, event.inventoryId),
   [ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES]: (openid, event) =>
     updateEquipmentAttributes(openid, event.memberId, event.itemId, event.attributes || {}, event)
 };
@@ -412,7 +413,7 @@ async function grantEquipment(openid, memberId, itemId) {
   return result || {};
 }
 
-async function removeEquipment(openid, memberId, itemId) {
+async function removeEquipment(openid, memberId, itemId, inventoryId) {
   await ensureAdmin(openid);
   if (!memberId) {
     throw new Error('缺少会员编号');
@@ -420,7 +421,11 @@ async function removeEquipment(openid, memberId, itemId) {
   if (!itemId) {
     throw new Error('请选择要删除的装备');
   }
-  const result = await callPveFunction('removeEquipment', { actorId: openid, memberId, itemId }).catch((error) => {
+  const payload = { actorId: openid, memberId, itemId };
+  if (inventoryId) {
+    payload.inventoryId = inventoryId;
+  }
+  const result = await callPveFunction('removeEquipment', payload).catch((error) => {
     console.error('[admin] remove equipment failed', error);
     throw new Error(error && error.errMsg ? error.errMsg : '删除装备失败');
   });
@@ -462,6 +467,7 @@ async function updateEquipmentAttributes(openid, memberId, itemId, attributes = 
     actorId: openid,
     memberId,
     itemId,
+    inventoryId: event.inventoryId,
     attributes: sanitizedAttributes
   }).catch((error) => {
     console.error('[admin] update equipment attributes failed', error);
