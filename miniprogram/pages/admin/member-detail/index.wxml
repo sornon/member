@@ -169,8 +169,8 @@
 
   <button class="submit" type="primary" loading="{{saving}}" bindtap="handleSubmit">保存修改</button>
 
-  <view class="section">
-    <view class="section-title">PVE 装备</view>
+  <view class="section section--equipment">
+    <view class="section-title">会员物品管理</view>
     <view class="equipment-admin__actions">
       <button
         class="grant-equipment-btn"
@@ -199,13 +199,26 @@
         <view class="equipment-admin__subtitle">背包装备</view>
         <view wx:if="{{equipmentInventory.length}}" class="equipment-admin__inventory">
           <view class="equipment-admin__inventory-item" wx:for="{{equipmentInventory}}" wx:key="itemId">
-            <view class="equipment-admin__inventory-name" style="color: {{item.qualityColor}};">{{item.name}}</view>
-            <view class="equipment-admin__inventory-meta">
-              <text>{{item.qualityLabel}}</text>
-              <text wx:if="{{item.slotLabel}}">{{item.slotLabel}}</text>
-              <text wx:if="{{item.obtainedAtText}}">{{item.obtainedAtText}}</text>
-              <text wx:if="{{item.equipped}}" class="equipment-admin__inventory-tag">已装备</text>
+            <view class="equipment-admin__inventory-info">
+              <view class="equipment-admin__inventory-name" style="color: {{item.qualityColor}};">{{item.name}}</view>
+              <view class="equipment-admin__inventory-meta">
+                <text>{{item.qualityLabel}}</text>
+                <text wx:if="{{item.slotLabel}}">{{item.slotLabel}}</text>
+                <text wx:if="{{item.obtainedAtText}}">{{item.obtainedAtText}}</text>
+                <text wx:if="{{item.equipped}}" class="equipment-admin__inventory-tag">已装备</text>
+              </view>
             </view>
+            <button
+              class="equipment-admin__inventory-remove"
+              size="mini"
+              type="warn"
+              loading="{{removingEquipmentId === item.itemId}}"
+              disabled="{{removingEquipmentId && removingEquipmentId !== item.itemId}}"
+              data-item-id="{{item.itemId}}"
+              bindtap="handleEquipmentDelete"
+            >
+              删除
+            </button>
           </view>
         </view>
         <view wx:else class="equipment-admin__empty">尚未拥有其他装备</view>

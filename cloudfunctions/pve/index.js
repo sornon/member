@@ -2031,6 +2031,8 @@ exports.main = async (event = {}) => {
       return inspectProfileForAdmin(actorId, event.memberId);
     case 'grantEquipment':
       return grantEquipment(actorId, event);
+    case 'removeEquipment':
+      return removeEquipment(actorId, event);
     case 'allocatePoints':
       return allocatePoints(actorId, event.allocations || {});
     case 'resetAttributes':
@@ -2471,6 +2473,56 @@ async function grantEquipment(actorId, event = {}) {
   const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
   const granted = entry ? decorateEquipmentInventoryEntry(entry, profile.equipment.slots) : null;
   return { profile: decorated, granted };
+}
+
+async function removeEquipment(actorId, event = {}) {
+  const admin = await ensureMember(actorId);
+  ensureAdminAccess(admin);
+  const memberId = typeof event.memberId === 'string' && event.memberId.trim() ? event.memberId.trim() : '';
+  if (!memberId) {
+    throw createError('MEMBER_ID_REQUIRED', '缺少会员编号');
+  }
+  const itemId = typeof event.itemId === 'string' && event.itemId.trim() ? event.itemId.trim() : '';
+  if (!itemId) {
+    throw createError('ITEM_ID_REQUIRED', '请选择要删除的装备');
+  }
+  const targetMember = await ensureMember(memberId);
+  const now = new Date();
+  const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
+  const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
+  const index = inventory.findIndex((record) => record.itemId === itemId);
+  if (index < 0) {
+    throw createError('ITEM_NOT_FOUND', '会员未拥有该装备');
+  }
+  const definition = EQUIPMENT_MAP[itemId];
+  inventory.splice(index, 1);
+  profile.equipment.inventory = inventory;
+  const slots = typeof profile.equipment.slots === 'object' && profile.equipment.slots ? profile.equipment.slots : {};
+  Object.keys(slots).forEach((slotKey) => {
+    if (slots[slotKey] === itemId) {
+      slots[slotKey] = '';
+    }
+  });
+  profile.equipment.slots = slots;
+  profile.battleHistory = appendHistory(
+    profile.battleHistory,
+    {
+      type: 'equipment-change',
+      createdAt: now,
+      detail: { itemId, slot: (definition && definition.slot) || '', action: 'remove' }
+    },
+    MAX_BATTLE_HISTORY
+  );
+
+  await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
+    data: {
+      pveProfile: profile,
+      updatedAt: now
+    }
+  });
+
+  const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+  return { profile: decorated };
 }
 
 function resolveActorId(openid, event = {}) {

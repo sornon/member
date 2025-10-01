@@ -22,6 +22,10 @@ page {
   backdrop-filter: blur(12px);
 }
 
+.section--equipment {
+  margin-top: 32rpx;
+}
+
 .section-title {
   font-size: 32rpx;
   font-weight: 600;
@@ -441,10 +445,19 @@ page {
 }
 
 .equipment-admin__inventory-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
   border: 1px solid rgba(148, 163, 184, 0.2);
   border-radius: 14rpx;
   padding: 16rpx;
   background: rgba(15, 23, 42, 0.75);
+}
+
+.equipment-admin__inventory-info {
+  flex: 1;
+  min-width: 0;
 }
 
 .equipment-admin__inventory-name {
@@ -466,4 +479,13 @@ page {
   border-radius: 12rpx;
   background: rgba(56, 189, 248, 0.15);
   color: #38bdf8;
+}
+
+.equipment-admin__inventory-remove {
+  flex-shrink: 0;
+  border: none;
+  border-radius: 20rpx;
+  padding: 8rpx 24rpx;
+  font-size: 24rpx;
+  line-height: 1.6;
 }

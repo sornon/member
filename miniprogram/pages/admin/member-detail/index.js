@@ -185,7 +185,8 @@ Page({
     equipmentDialogVisible: false,
     equipmentSelectionId: '',
     equipmentSelectionIndex: -1,
-    grantingEquipment: false
+    grantingEquipment: false,
+    removingEquipmentId: ''
   },
 
   onLoad(options) {
@@ -427,6 +428,52 @@ Page({
       return false;
     } finally {
       this.setData({ grantingEquipment: false });
+    }
+  },
+
+  async handleEquipmentDelete(event) {
+    const { itemId } = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    if (!itemId || this.data.removingEquipmentId) {
+      return;
+    }
+    const confirmed = await new Promise((resolve) => {
+      wx.showModal({
+        title: '删除装备',
+        content: '确定要删除该装备吗？',
+        confirmText: '删除',
+        confirmColor: '#ef4444',
+        cancelText: '取消',
+        success: (res) => resolve(!!(res && res.confirm)),
+        fail: () => resolve(false)
+      });
+    });
+    if (!confirmed) {
+      return;
+    }
+    await this.removeEquipmentFromMember(itemId);
+  },
+
+  async removeEquipmentFromMember(itemId) {
+    if (!itemId || !this.data.memberId || this.data.removingEquipmentId) {
+      return false;
+    }
+    this.setData({ removingEquipmentId: itemId });
+    try {
+      const res = await AdminService.removeEquipment({
+        memberId: this.data.memberId,
+        itemId
+      });
+      if (res && res.profile) {
+        this.applyEquipmentProfile(res.profile);
+      }
+      wx.showToast({ title: '删除成功', icon: 'success' });
+      return true;
+    } catch (error) {
+      console.error('[admin] remove equipment failed', error);
+      wx.showToast({ title: error.errMsg || error.message || '删除失败', icon: 'none' });
+      return false;
+    } finally {
+      this.setData({ removingEquipmentId: '' });
     }
   },
 
