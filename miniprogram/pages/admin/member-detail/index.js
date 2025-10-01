@@ -232,7 +232,7 @@ Page({
       renameCredits: '',
       respecAvailable: '',
       roomUsageCount: '',
-      storageUpgradeAvailable: '',
+      storageUpgradeAvailable: '0',
       avatarUnlocks: []
     },
     rechargeVisible: false,
@@ -351,8 +351,13 @@ Page({
       typeof sanitizedProfile.equipment.storage === 'object'
         ? sanitizedProfile.equipment.storage
         : null;
-    const storageUpgradeAvailable =
-      storage && typeof storage.upgradeAvailable === 'number' ? String(storage.upgradeAvailable) : '';
+    const storageUpgradeAvailable = String(
+      this.parseStorageUpgradeAvailable(
+        storage && Object.prototype.hasOwnProperty.call(storage, 'upgradeAvailable')
+          ? storage.upgradeAvailable
+          : 0
+      )
+    );
     const levelIndex = Math.max(
       levels.findIndex((level) => level._id === member.levelId),
       0
