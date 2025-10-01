@@ -129,7 +129,7 @@
             <view
               class="slot-card__icon"
               style="border-color: {{item.item ? item.item.qualityColor : 'rgba(86, 110, 210, 0.48)'}};"
-              bindlongpress="handleEquipmentLongPress"
+              bindtap="handleEquipmentTap"
               data-source="slot"
               data-slot="{{item.slot}}"
               data-slot-label="{{item.slotLabel}}"
@@ -177,7 +177,7 @@
               <view
                 class="inventory-card__icon"
                 style="border-color: {{item.qualityColor}};"
-                bindlongpress="handleEquipmentLongPress"
+                bindtap="handleEquipmentTap"
                 data-source="inventory"
                 data-slot="{{item.slot}}"
                 data-item="{{item}}"
