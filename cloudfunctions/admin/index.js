@@ -40,7 +40,8 @@ const ACTIONS = {
   CANCEL_RESERVATION: 'cancelReservation',
   MARK_RESERVATION_READ: 'markReservationRead',
   LIST_EQUIPMENT_CATALOG: 'listEquipmentCatalog',
-  GRANT_EQUIPMENT: 'grantEquipment'
+  GRANT_EQUIPMENT: 'grantEquipment',
+  REMOVE_EQUIPMENT: 'removeEquipment'
 };
 
 const ACTION_ALIASES = {
@@ -59,7 +60,8 @@ const ACTION_ALIASES = {
   cancelreservation: ACTIONS.CANCEL_RESERVATION,
   markreservationread: ACTIONS.MARK_RESERVATION_READ,
   listequipmentcatalog: ACTIONS.LIST_EQUIPMENT_CATALOG,
-  grantequipment: ACTIONS.GRANT_EQUIPMENT
+  grantequipment: ACTIONS.GRANT_EQUIPMENT,
+  removeequipment: ACTIONS.REMOVE_EQUIPMENT
 };
 
 function normalizeAction(action) {
@@ -100,7 +102,8 @@ const ACTION_HANDLERS = {
   [ACTIONS.CANCEL_RESERVATION]: (openid, event) => cancelReservation(openid, event.reservationId, event.reason || ''),
   [ACTIONS.MARK_RESERVATION_READ]: (openid) => markReservationRead(openid),
   [ACTIONS.LIST_EQUIPMENT_CATALOG]: (openid) => listEquipmentCatalog(openid),
-  [ACTIONS.GRANT_EQUIPMENT]: (openid, event) => grantEquipment(openid, event.memberId, event.itemId)
+  [ACTIONS.GRANT_EQUIPMENT]: (openid, event) => grantEquipment(openid, event.memberId, event.itemId),
+  [ACTIONS.REMOVE_EQUIPMENT]: (openid, event) => removeEquipment(openid, event.memberId, event.itemId)
 };
 
 async function resolveMemberExtras(memberId) {
@@ -401,6 +404,21 @@ async function grantEquipment(openid, memberId, itemId) {
   const result = await callPveFunction('grantEquipment', { actorId: openid, memberId, itemId }).catch((error) => {
     console.error('[admin] grant equipment failed', error);
     throw new Error(error && error.errMsg ? error.errMsg : '发放装备失败');
+  });
+  return result || {};
+}
+
+async function removeEquipment(openid, memberId, itemId) {
+  await ensureAdmin(openid);
+  if (!memberId) {
+    throw new Error('缺少会员编号');
+  }
+  if (!itemId) {
+    throw new Error('请选择要删除的装备');
+  }
+  const result = await callPveFunction('removeEquipment', { actorId: openid, memberId, itemId }).catch((error) => {
+    console.error('[admin] remove equipment failed', error);
+    throw new Error(error && error.errMsg ? error.errMsg : '删除装备失败');
   });
   return result || {};
 }
