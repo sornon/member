@@ -13,30 +13,195 @@ Page({
     resetting: false,
     stoneBalance: 0,
     formattedStoneBalance: formatStones(0),
-    equipmentTooltip: null
+    equipmentTooltip: null,
+    storageCategories: [],
+    activeStorageCategory: 'equipment',
+    activeStorageCategoryData: null,
+    storageOverview: null,
+    storageUpgrading: false
   },
 
   applyProfile(profile, extraState = {}) {
     const sanitizedProfile = sanitizeEquipmentProfile(profile);
-    const updates = { ...extraState, profile: sanitizedProfile };
+    const storageState = this.buildStorageState(sanitizedProfile);
+    const updates = { ...extraState, profile: sanitizedProfile, ...storageState };
     const tooltip = this.data ? this.data.equipmentTooltip : null;
     if (tooltip && tooltip.item) {
       const itemId = tooltip.item.itemId;
+      const inventoryId = tooltip.item.inventoryId || tooltip.inventoryId || '';
       const equipment = sanitizedProfile && sanitizedProfile.equipment;
       const inSlots =
         equipment &&
         Array.isArray(equipment.slots) &&
-        equipment.slots.some((slot) => slot && slot.item && slot.item.itemId === itemId);
+        equipment.slots.some((slot) => {
+          if (!slot || !slot.item) return false;
+          if (inventoryId) {
+            return slot.item.inventoryId === inventoryId;
+          }
+          return slot.item.itemId === itemId;
+        });
       const inInventory =
         equipment &&
         Array.isArray(equipment.inventory) &&
-        equipment.inventory.some((item) => item && item.itemId === itemId);
+        equipment.inventory.some((item) => {
+          if (!item) return false;
+          if (inventoryId) {
+            return item.inventoryId === inventoryId;
+          }
+          return item.itemId === itemId;
+        });
       if (!inSlots && !inInventory) {
         updates.equipmentTooltip = null;
       }
     }
     this.setData(updates);
     return sanitizedProfile;
+  },
+
+  buildStorageState(profile) {
+    const storageCategories = this.buildStorageCategories(profile);
+    const storageOverview = this.buildStorageOverview(profile, storageCategories);
+    const activeKey = this.resolveActiveStorageCategory(storageCategories);
+    const activeCategory = storageCategories.find((category) => category.key === activeKey) || null;
+    return {
+      storageCategories,
+      activeStorageCategory: activeKey,
+      activeStorageCategoryData: activeCategory,
+      storageOverview
+    };
+  },
+
+  buildStorageOverview(profile, categories = []) {
+    const storage =
+      profile &&
+      profile.equipment &&
+      typeof profile.equipment.storage === 'object'
+        ? profile.equipment.storage
+        : {};
+    const overview = storage && typeof storage.overview === 'object' ? storage.overview : null;
+    const sanitizeNumber = (value, fallback = 0) => {
+      const num = Number(value);
+      if (!Number.isFinite(num)) {
+        return fallback;
+      }
+      return Math.max(0, Math.floor(num));
+    };
+    const resolved = {};
+    if (overview) {
+      resolved.baseCapacity = sanitizeNumber(overview.baseCapacity, 0);
+      resolved.perUpgrade = sanitizeNumber(overview.perUpgrade, 0);
+      resolved.upgrades = sanitizeNumber(overview.upgrades, 0);
+      const capacityFallback = resolved.baseCapacity + resolved.perUpgrade * resolved.upgrades;
+      resolved.capacity = sanitizeNumber(overview.capacity, capacityFallback);
+      resolved.used = sanitizeNumber(overview.used, 0);
+      const remainingFallback = Math.max(resolved.capacity - resolved.used, 0);
+      resolved.remaining = sanitizeNumber(overview.remaining, remainingFallback);
+      const nextFallback = resolved.capacity + resolved.perUpgrade;
+      resolved.nextCapacity = sanitizeNumber(overview.nextCapacity, nextFallback);
+      if (typeof overview.upgradeAvailable === 'number' && Number.isFinite(overview.upgradeAvailable)) {
+        resolved.upgradeAvailable = Math.max(0, Math.floor(overview.upgradeAvailable));
+      } else if (overview.upgradeAvailable === null) {
+        resolved.upgradeAvailable = null;
+      }
+    } else {
+      const list = Array.isArray(categories) ? categories : [];
+      if (!list.length) {
+        return null;
+      }
+      const capacity = list.reduce((acc, category) => Math.max(acc, sanitizeNumber(category.capacity, 0)), 0);
+      const perUpgrade = list.reduce((acc, category) => Math.max(acc, sanitizeNumber(category.perUpgrade, 0)), 0);
+      const upgrades = list.reduce((acc, category) => Math.max(acc, sanitizeNumber(category.upgrades, 0)), 0);
+      const baseCapacity = Math.max(0, capacity - perUpgrade * upgrades);
+      const used = list.reduce((acc, category) => {
+        const items = Array.isArray(category.items) ? category.items.length : 0;
+        return acc + items;
+      }, 0);
+      const remaining = Math.max(capacity - used, 0);
+      resolved.baseCapacity = baseCapacity;
+      resolved.perUpgrade = perUpgrade;
+      resolved.upgrades = upgrades;
+      resolved.capacity = capacity;
+      resolved.used = used;
+      resolved.remaining = remaining;
+      resolved.nextCapacity = capacity + perUpgrade;
+    }
+    if (
+      typeof resolved.upgradeAvailable === 'undefined' &&
+      typeof storage.upgradeAvailable === 'number' &&
+      Number.isFinite(storage.upgradeAvailable)
+    ) {
+      resolved.upgradeAvailable = Math.max(0, Math.floor(storage.upgradeAvailable));
+    } else if (
+      typeof resolved.upgradeAvailable === 'undefined' &&
+      storage.upgradeAvailable === null
+    ) {
+      resolved.upgradeAvailable = null;
+    }
+    const usageBase = resolved.capacity ? Math.min(resolved.used, resolved.capacity) : 0;
+    resolved.usagePercent = resolved.capacity
+      ? Math.min(100, Math.round((usageBase / resolved.capacity) * 100))
+      : 0;
+    return resolved;
+  },
+
+  resolveActiveStorageCategory(categories) {
+    const list = Array.isArray(categories) ? categories : [];
+    const current = this.data && this.data.activeStorageCategory;
+    if (current && list.some((category) => category.key === current)) {
+      return current;
+    }
+    const defaultCategory = list.find((category) => category.key === 'equipment');
+    if (defaultCategory) {
+      return defaultCategory.key;
+    }
+    return list.length ? list[0].key : '';
+  },
+
+  buildStorageCategories(profile) {
+    const storage =
+      profile && profile.equipment && profile.equipment.storage && typeof profile.equipment.storage === 'object'
+        ? profile.equipment.storage
+        : {};
+    const categories = Array.isArray(storage.categories) ? storage.categories : [];
+    return categories.map((category) => {
+      const key = category && typeof category.key === 'string' ? category.key : '';
+      const label = category && typeof category.label === 'string' ? category.label : '';
+      const baseCapacity = Math.max(0, Math.floor(Number(category && category.baseCapacity) || 100));
+      const perUpgrade = Math.max(0, Math.floor(Number(category && category.perUpgrade) || 20));
+      const rawCapacity = Math.max(0, Math.floor(Number(category && category.capacity) || baseCapacity));
+      const upgrades = Math.max(0, Math.floor(Number(category && category.upgrades) || 0));
+      const items = Array.isArray(category && category.items) ? category.items : [];
+      const normalizedItems = items.map((item, index) => {
+        const storageKey = `${key}-${item && item.inventoryId ? item.inventoryId : `${item && item.itemId ? item.itemId : 'item'}-${index}`}`;
+        return { ...item, storageKey };
+      });
+      const slotCount = Math.max(rawCapacity, normalizedItems.length);
+      const slots = normalizedItems.map((item) => ({ ...item, placeholder: false }));
+      for (let i = normalizedItems.length; i < slotCount; i += 1) {
+        slots.push({ placeholder: true, storageKey: `${key}-placeholder-${i}` });
+      }
+      const used = typeof category.used === 'number' ? Math.max(0, Math.floor(category.used)) : normalizedItems.length;
+      const remaining =
+        typeof category.remaining === 'number'
+          ? Math.max(0, Math.floor(category.remaining))
+          : Math.max(slotCount - normalizedItems.length, 0);
+      const usagePercent = slotCount ? Math.min(100, Math.round((normalizedItems.length / slotCount) * 100)) : 0;
+      const nextCapacity = slotCount + perUpgrade;
+      return {
+        key,
+        label,
+        baseCapacity,
+        perUpgrade,
+        upgrades,
+        capacity: slotCount,
+        used: Math.min(used, slotCount),
+        remaining,
+        usagePercent,
+        nextCapacity,
+        items: normalizedItems,
+        slots
+      };
+    });
   },
 
   onLoad(options = {}) {
@@ -85,8 +250,11 @@ Page({
     if (value === 'character' || value === 'role') {
       return 'character';
     }
-    if (value === 'equipment' || value === 'equip' || value === 'bag') {
+    if (value === 'equipment' || value === 'equip') {
       return 'equipment';
+    }
+    if (value === 'storage' || value === 'bag' || value === 'inventory' || value === 'najie') {
+      return 'storage';
     }
     if (value === 'skill' || value === 'skills') {
       return 'skill';
@@ -184,9 +352,10 @@ Page({
       (options && typeof options === 'object' ? options : {}) || {};
     const itemId = typeof dataset.itemId === 'string' ? dataset.itemId : '';
     const slot = typeof dataset.slot === 'string' ? dataset.slot.trim() : '';
+    const inventoryId = typeof dataset.inventoryId === 'string' ? dataset.inventoryId : '';
     if (!itemId) return false;
     try {
-      const res = await PveService.equipItem({ itemId, slot });
+      const res = await PveService.equipItem({ itemId, slot, inventoryId });
       this.applyProfile(res.profile);
       wx.showToast({ title: '装备成功', icon: 'success', duration: 1200 });
       return true;
@@ -241,7 +410,8 @@ Page({
       source,
       slot,
       slotLabel: dataset.slotLabel || rawItem.slotLabel || '',
-      item: { ...rawItem }
+      item: { ...rawItem },
+      inventoryId: dataset.inventoryId || rawItem.inventoryId || ''
     };
     this.setData({ equipmentTooltip: tooltip });
   },
@@ -258,9 +428,11 @@ Page({
     const slot =
       (typeof tooltip.slot === 'string' && tooltip.slot.trim()) ||
       (typeof tooltip.item.slot === 'string' ? tooltip.item.slot : '');
+    const inventoryId = tooltip.item.inventoryId || tooltip.inventoryId || '';
     const success = await this.handleEquipItem({
       itemId: tooltip.item.itemId,
-      slot
+      slot,
+      inventoryId
     });
     if (success) {
       this.closeEquipmentTooltip();
@@ -280,6 +452,45 @@ Page({
     const success = await this.handleUnequipItem({ slot });
     if (success) {
       this.closeEquipmentTooltip();
+    }
+  },
+
+  handleStorageCategoryChange(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const key = typeof dataset.key === 'string' ? dataset.key : '';
+    if (!key || key === this.data.activeStorageCategory) {
+      return;
+    }
+    const categories = Array.isArray(this.data.storageCategories) ? this.data.storageCategories : [];
+    if (!categories.some((category) => category.key === key)) {
+      return;
+    }
+    const activeCategory = categories.find((category) => category.key === key) || null;
+    this.setData({
+      activeStorageCategory: key,
+      activeStorageCategoryData: activeCategory
+    });
+  },
+
+  async handleUpgradeStorage() {
+    const overview = this.data.storageOverview;
+    if (this.data.storageUpgrading) {
+      return;
+    }
+    if (overview && typeof overview.upgradeAvailable === 'number' && overview.upgradeAvailable <= 0) {
+      wx.showToast({ title: '升级次数已用完', icon: 'none' });
+      return;
+    }
+    this.setData({ storageUpgrading: true });
+    try {
+      const res = await PveService.upgradeStorage();
+      const updatedProfile = (res && res.profile) || this.data.profile;
+      this.applyProfile(updatedProfile, { storageUpgrading: false });
+      wx.showToast({ title: '储物空间已扩展', icon: 'success', duration: 1200 });
+    } catch (error) {
+      console.error('[role] upgrade storage failed', error);
+      wx.showToast({ title: error.errMsg || '升级失败', icon: 'none' });
+      this.setData({ storageUpgrading: false });
     }
   },
 
