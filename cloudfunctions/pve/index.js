@@ -2122,7 +2122,10 @@ function syncAttributesWithMemberLevel(attributes, member, levels) {
 
 exports.main = async (event = {}) => {
   const { OPENID } = cloud.getWXContext();
-  const action = event.action || 'profile';
+  const action =
+    event && typeof event.action === 'string' && event.action.trim()
+      ? event.action.trim()
+      : 'profile';
   const actorId = resolveActorId(OPENID, event);
 
   switch (action) {
