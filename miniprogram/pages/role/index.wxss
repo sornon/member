@@ -866,15 +866,27 @@ button.pill-btn[disabled] {
   border-radius: 24rpx;
   padding: 24rpx;
   border: 1rpx solid rgba(93, 119, 214, 0.32);
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.slot-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .slot-index {
   font-size: 24rpx;
   color: rgba(180, 195, 250, 0.74);
-  margin-bottom: 12rpx;
 }
 
-.skill-detail {
+.slot-action {
+  min-width: 120rpx;
+}
+
+.skill-slot__body {
   display: flex;
   flex-direction: column;
   gap: 12rpx;
@@ -886,44 +898,227 @@ button.pill-btn[disabled] {
   color: #f1f4ff;
 }
 
-.skill-effects text {
+.skill-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+}
+
+.skill-tag {
+  padding: 4rpx 12rpx;
+  border-radius: 12rpx;
+  background: rgba(67, 94, 180, 0.32);
+  color: rgba(198, 210, 255, 0.88);
+  font-size: 20rpx;
+}
+
+.skill-tag--muted {
+  background: rgba(55, 71, 130, 0.26);
+  color: rgba(188, 202, 255, 0.7);
+}
+
+.skill-meta-line--compact {
+  margin-top: -6rpx;
+}
+
+.skill-brief {
+  font-size: 22rpx;
+  color: rgba(177, 193, 247, 0.76);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.skill-slot__note {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  font-size: 20rpx;
+  color: rgba(188, 202, 255, 0.82);
+}
+
+.skill-resource {
+  font-size: 22rpx;
+  color: rgba(188, 202, 255, 0.82);
+  margin-top: 8rpx;
+}
+
+.skill-imprint {
+  font-size: 20rpx;
+  color: rgba(164, 186, 255, 0.78);
+  margin-top: 6rpx;
+}
+
+.skill-imprint--inline {
+  margin-top: 12rpx;
+}
+
+.skill-highlights {
+  margin-top: 8rpx;
+}
+
+.skill-highlights text {
   display: block;
   font-size: 22rpx;
   color: rgba(177, 193, 247, 0.76);
 }
 
-.skill-item {
-  border: 1rpx solid rgba(93, 119, 214, 0.3);
-  border-radius: 24rpx;
-  padding: 24rpx;
-  margin-bottom: 16rpx;
+.skill-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20rpx;
+}
+
+.skill-grid__item {
+  flex: 1 1 300rpx;
   background: rgba(18, 30, 72, 0.88);
+  border-radius: 24rpx;
+  border: 1rpx solid rgba(93, 119, 214, 0.3);
+  padding: 24rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.skill-grid__content {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  flex: 1;
+}
+
+.skill-grid__name {
+  font-size: 26rpx;
+  font-weight: 600;
   color: #f1f4ff;
 }
 
-.skill-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12rpx;
+.skill-grid__brief {
+  font-size: 22rpx;
+  color: rgba(177, 193, 247, 0.76);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
-.skill-desc {
-  color: rgba(188, 198, 246, 0.78);
+.skill-grid__resource {
+  font-size: 20rpx;
+  color: rgba(188, 202, 255, 0.78);
+}
+
+.skill-grid__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.skill-grid__time {
+  font-size: 20rpx;
+  color: rgba(184, 197, 247, 0.74);
+}
+
+.skill-modal {
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99;
+}
+
+.skill-modal__mask {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(5, 9, 21, 0.82);
+}
+
+.skill-modal__card {
+  position: relative;
+  z-index: 1;
+  width: 620rpx;
+  max-width: 92%;
+  background: rgba(15, 25, 60, 0.96);
+  border-radius: 28rpx;
+  border: 1rpx solid rgba(90, 118, 255, 0.32);
+  box-shadow: 0 24rpx 48rpx rgba(4, 8, 28, 0.6);
+  padding: 40rpx 36rpx 32rpx;
+  color: #f3f6ff;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.skill-modal__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16rpx;
+}
+
+.skill-modal__name {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #f3f6ff;
+}
+
+.skill-modal__level {
+  font-size: 26rpx;
+  color: rgba(189, 201, 255, 0.82);
+}
+
+.skill-modal__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+}
+
+.skill-modal__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  font-size: 22rpx;
+  color: rgba(188, 202, 255, 0.82);
+}
+
+.skill-modal__note {
+  line-height: 1.5;
+}
+
+.skill-modal__description {
   font-size: 24rpx;
-  margin-bottom: 12rpx;
+  color: rgba(195, 206, 255, 0.88);
+  line-height: 1.6;
 }
 
-.skill-actions {
+.skill-modal__highlights {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  gap: 8rpx;
+  font-size: 22rpx;
+  color: rgba(177, 193, 247, 0.78);
+}
+
+.skill-modal__time {
   font-size: 22rpx;
   color: rgba(184, 197, 247, 0.74);
 }
 
-.skill-time {
-  font-size: 22rpx;
+.skill-modal__actions {
+  display: flex;
+  gap: 16rpx;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 
 .history-item {

@@ -180,13 +180,16 @@ Page({
     storageMeta: null,
     activeStorageCategory: 'equipment',
     activeStorageCategoryData: null,
-    storageUpgrading: false
+    storageUpgrading: false,
+    skillPreview: null
   },
 
   applyProfile(profile, extraState = {}) {
     const sanitizedProfile = sanitizeEquipmentProfile(profile);
     const storageState = this.buildStorageState(sanitizedProfile);
-    const updates = { ...extraState, profile: sanitizedProfile, ...storageState };
+    const shouldRebuildPreview = !Object.prototype.hasOwnProperty.call(extraState, 'skillPreview');
+    const previewState = shouldRebuildPreview ? this.rebuildSkillPreviewState(sanitizedProfile) : {};
+    const updates = { ...extraState, profile: sanitizedProfile, ...storageState, ...previewState };
     const tooltip = this.data ? this.data.equipmentTooltip : null;
     if (tooltip && tooltip.item) {
       const itemId = tooltip.item.itemId;
@@ -218,6 +221,81 @@ Page({
     }
     this.setData(updates);
     return sanitizedProfile;
+  },
+
+  rebuildSkillPreviewState(profile) {
+    const current = (this.data && this.data.skillPreview) || null;
+    if (!current) {
+      return {};
+    }
+    const refreshed = this.resolveSkillPreviewFromProfile(profile, current);
+    if (refreshed) {
+      return { skillPreview: refreshed };
+    }
+    return { skillPreview: null };
+  },
+
+  resolveSkillPreviewFromProfile(profile, preview) {
+    if (!preview || !profile || !profile.skills) {
+      return null;
+    }
+    if (preview.source === 'equipped') {
+      const slots = Array.isArray(profile.skills.equipped) ? profile.skills.equipped : [];
+      const slotIndex = Number(preview.slot);
+      if (!Number.isFinite(slotIndex)) {
+        return null;
+      }
+      const match = slots.find((slot) => slot && Number(slot.slot) === slotIndex && slot.detail);
+      if (match && match.detail) {
+        return this.buildSkillPreviewDetail(match.detail, {
+          source: 'equipped',
+          slot: slotIndex
+        });
+      }
+      return null;
+    }
+    const inventory = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
+    const skillId = preview.skillId;
+    if (!skillId) {
+      return null;
+    }
+    const found = inventory.find((item) => item && item.skillId === skillId);
+    if (found) {
+      return this.buildSkillPreviewDetail(found, {
+        source: 'inventory',
+        slot: null
+      });
+    }
+    return null;
+  },
+
+  buildSkillPreviewDetail(rawDetail = {}, options = {}) {
+    const source = options.source || 'inventory';
+    const slot = Number.isFinite(options.slot) ? options.slot : null;
+    const highlights = Array.isArray(rawDetail.highlights) ? rawDetail.highlights : [];
+    const normalizedHighlights = highlights
+      .map((highlight) => (typeof highlight === 'string' ? highlight : ''))
+      .filter((highlight) => !!highlight);
+    return {
+      source,
+      slot,
+      skillId: rawDetail.skillId || '',
+      name: rawDetail.name || '',
+      level: Number.isFinite(rawDetail.level) ? rawDetail.level : rawDetail.level || 0,
+      qualityLabel: rawDetail.qualityLabel || '',
+      qualityColor: rawDetail.qualityColor || '#f1f4ff',
+      typeLabel: rawDetail.typeLabel || '',
+      disciplineLabel: rawDetail.disciplineLabel || '',
+      elementLabel: rawDetail.elementLabel || '',
+      resourceText: rawDetail.resourceText || '',
+      imprintText: rawDetail.imprintText || '',
+      description: rawDetail.description || '',
+      obtainedAtText: rawDetail.obtainedAtText || '',
+      highlights: normalizedHighlights,
+      equipped: source === 'equipped' || !!rawDetail.equipped,
+      canUnequip: source === 'equipped' && Number.isFinite(slot),
+      canEquip: source !== 'equipped' && !rawDetail.equipped
+    };
   },
 
   buildStorageState(profile) {
@@ -409,7 +487,7 @@ Page({
       this.applyProfile(res.profile, { drawing: false });
       if (res.acquiredSkill) {
         wx.showToast({
-          title: `${res.acquiredSkill.rarityLabel}·${res.acquiredSkill.name}`,
+          title: `${res.acquiredSkill.qualityLabel}·${res.acquiredSkill.name}`,
           icon: 'success'
         });
       } else {
@@ -443,6 +521,80 @@ Page({
       this.applyProfile(res.profile);
     } catch (error) {
       console.error('[role] unequip skill failed', error);
+      wx.showToast({ title: error.errMsg || '操作失败', icon: 'none' });
+    }
+  },
+
+  openSkillPreview(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const source = dataset.source || '';
+    const profile = this.data && this.data.profile;
+    if (!profile || !profile.skills) {
+      return;
+    }
+    let preview = null;
+    if (source === 'equipped') {
+      const slot = Number(dataset.slot);
+      if (!Number.isFinite(slot)) {
+        return;
+      }
+      const slots = Array.isArray(profile.skills.equipped) ? profile.skills.equipped : [];
+      const match = slots.find((item) => item && Number(item.slot) === slot && item.detail);
+      if (match && match.detail) {
+        preview = this.buildSkillPreviewDetail(match.detail, { source: 'equipped', slot });
+      }
+    } else if (source === 'inventory') {
+      const skillId = dataset.skillId;
+      if (!skillId) {
+        return;
+      }
+      const inventory = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
+      const found = inventory.find((item) => item && item.skillId === skillId);
+      if (found) {
+        preview = this.buildSkillPreviewDetail(found, { source: 'inventory', slot: null });
+      }
+    }
+    if (preview) {
+      this.setData({ skillPreview: preview });
+    }
+  },
+
+  closeSkillPreview() {
+    if (this.data && this.data.skillPreview) {
+      this.setData({ skillPreview: null });
+    }
+  },
+
+  async handleSkillPreviewEquip() {
+    const preview = (this.data && this.data.skillPreview) || null;
+    if (!preview || !preview.skillId || !preview.canEquip) {
+      return;
+    }
+    try {
+      const res = await PveService.equipSkill({ skillId: preview.skillId });
+      this.applyProfile(res.profile, { skillPreview: null });
+      wx.showToast({ title: '已装备', icon: 'success', duration: 1200 });
+    } catch (error) {
+      console.error('[role] equip skill from preview failed', error);
+      wx.showToast({ title: error.errMsg || '操作失败', icon: 'none' });
+    }
+  },
+
+  async handleSkillPreviewUnequip() {
+    const preview = (this.data && this.data.skillPreview) || null;
+    if (!preview || !preview.canUnequip) {
+      return;
+    }
+    const slot = Number(preview.slot);
+    if (!Number.isFinite(slot)) {
+      return;
+    }
+    try {
+      const res = await PveService.equipSkill({ skillId: '', slot });
+      this.applyProfile(res.profile, { skillPreview: null });
+      wx.showToast({ title: '已卸下', icon: 'success', duration: 1200 });
+    } catch (error) {
+      console.error('[role] unequip skill from preview failed', error);
       wx.showToast({ title: error.errMsg || '操作失败', icon: 'none' });
     }
   },
