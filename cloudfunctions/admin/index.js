@@ -1320,6 +1320,13 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
   if (Object.prototype.hasOwnProperty.call(updates, 'roomUsageCount')) {
     memberUpdates.roomUsageCount = normalizeUsageCount(updates.roomUsageCount);
   }
+  if (Object.prototype.hasOwnProperty.call(updates, 'storageUpgradeAvailable')) {
+    const available = normalizeUsageCount(updates.storageUpgradeAvailable);
+    memberUpdates['pveProfile.equipment.storage.upgradeAvailable'] = available;
+    memberUpdates['pveProfile.equipment.storage.upgradeRemaining'] = available;
+    memberUpdates['pveProfile.equipment.storage.meta.upgradeAvailable'] = available;
+    memberUpdates['pveProfile.equipment.storage.meta.upgradesRemaining'] = available;
+  }
   if (Object.prototype.hasOwnProperty.call(updates, 'roles')) {
     const roles = Array.isArray(updates.roles) ? updates.roles : [];
     const filtered = roles.filter((role) => ['member', 'admin', 'developer'].includes(role));
