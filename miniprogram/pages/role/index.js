@@ -166,6 +166,28 @@ function resolveTooltipDeleteState(tooltip) {
   return { canDelete: true, reason: '' };
 }
 
+function extractSkillKey(skill = {}) {
+  if (!skill || typeof skill !== 'object') {
+    return '';
+  }
+  return (
+    skill.skillId ||
+    skill.id ||
+    skill.uid ||
+    skill._id ||
+    ''
+  );
+}
+
+function cloneSkillForPreview(skill = {}) {
+  if (!skill || typeof skill !== 'object') {
+    return null;
+  }
+  const clone = { ...skill };
+  clone.highlights = Array.isArray(skill.highlights) ? [...skill.highlights] : [];
+  return clone;
+}
+
 Page({
   data: {
     loading: true,
@@ -180,7 +202,8 @@ Page({
     storageMeta: null,
     activeStorageCategory: 'equipment',
     activeStorageCategoryData: null,
-    storageUpgrading: false
+    storageUpgrading: false,
+    skillPreview: null
   },
 
   applyProfile(profile, extraState = {}) {
@@ -215,6 +238,12 @@ Page({
       if (!inSlots && !inInventory) {
         updates.equipmentTooltip = null;
       }
+    }
+    if (this.data && this.data.skillPreview && this.data.skillPreview.visible) {
+      const previewSkill = this.resolveSkillPreviewSkill(sanitizedProfile, this.data.skillPreview);
+      updates.skillPreview = previewSkill
+        ? { ...this.data.skillPreview, skill: previewSkill }
+        : null;
     }
     this.setData(updates);
     return sanitizedProfile;
@@ -409,7 +438,7 @@ Page({
       this.applyProfile(res.profile, { drawing: false });
       if (res.acquiredSkill) {
         wx.showToast({
-          title: `${res.acquiredSkill.rarityLabel}·${res.acquiredSkill.name}`,
+          title: `${res.acquiredSkill.qualityLabel}·${res.acquiredSkill.name}`,
           icon: 'success'
         });
       } else {
@@ -444,6 +473,97 @@ Page({
     } catch (error) {
       console.error('[role] unequip skill failed', error);
       wx.showToast({ title: error.errMsg || '操作失败', icon: 'none' });
+    }
+  },
+
+  resolveSkillByDataset(profile, dataset = {}) {
+    if (!profile || !profile.skills) {
+      return null;
+    }
+    const source = typeof dataset.source === 'string' ? dataset.source : '';
+    const skills = profile.skills;
+    if (source === 'equipped') {
+      const list = Array.isArray(skills.equipped) ? skills.equipped : [];
+      const slotNumber = Number(dataset.slot);
+      let entry = null;
+      if (Number.isFinite(slotNumber)) {
+        entry = list.find((item) => Number(item && item.slot) === slotNumber) || null;
+      }
+      if (!entry && typeof dataset.index !== 'undefined') {
+        const idx = Number(dataset.index);
+        if (Number.isFinite(idx) && idx >= 0 && idx < list.length) {
+          entry = list[idx];
+        }
+      }
+      if (!entry && dataset.skillId) {
+        const key = dataset.skillId;
+        entry = list.find((item) => extractSkillKey(item && (item.detail || item)) === key) || null;
+      }
+      if (!entry) {
+        return null;
+      }
+      if (entry.detail) {
+        return cloneSkillForPreview(entry.detail);
+      }
+      return cloneSkillForPreview(entry);
+    }
+    const inventory = Array.isArray(skills.inventory) ? skills.inventory : [];
+    if (dataset.skillId) {
+      const key = dataset.skillId;
+      const found = inventory.find((skill) => extractSkillKey(skill) === key);
+      if (found) {
+        return cloneSkillForPreview(found);
+      }
+    }
+    if (typeof dataset.index !== 'undefined') {
+      const idx = Number(dataset.index);
+      if (Number.isFinite(idx) && idx >= 0 && idx < inventory.length) {
+        return cloneSkillForPreview(inventory[idx]);
+      }
+    }
+    return null;
+  },
+
+  resolveSkillPreviewSkill(profile, previewState) {
+    if (!previewState || !previewState.visible) {
+      return null;
+    }
+    const dataset = {
+      source: previewState.source,
+      slot: previewState.slot,
+      index: previewState.index,
+      skillId: previewState.skillId
+    };
+    return this.resolveSkillByDataset(profile, dataset);
+  },
+
+  openSkillPreview(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const profile = this.data && this.data.profile;
+    const skill = this.resolveSkillByDataset(profile, dataset);
+    if (!skill) {
+      return;
+    }
+    const source = typeof dataset.source === 'string' ? dataset.source : 'inventory';
+    const slotNumber = Number(dataset.slot);
+    const slot = Number.isFinite(slotNumber) ? slotNumber : null;
+    const indexNumber = Number(dataset.index);
+    const index = Number.isFinite(indexNumber) ? indexNumber : null;
+    const skillKey = extractSkillKey(skill) || (typeof dataset.skillId === 'string' ? dataset.skillId : '');
+    const nextPreview = {
+      visible: true,
+      source,
+      slot,
+      index,
+      skillId: skillKey,
+      skill
+    };
+    this.setData({ skillPreview: nextPreview });
+  },
+
+  closeSkillPreview() {
+    if (this.data && this.data.skillPreview) {
+      this.setData({ skillPreview: null });
     }
   },
 
