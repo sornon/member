@@ -358,6 +358,14 @@ export const AdminService = {
       itemId
     });
   },
+  async updateEquipmentAttributes({ memberId, itemId, refine }) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'updateEquipmentAttributes',
+      memberId,
+      itemId,
+      attributes: { refine }
+    });
+  },
   async createChargeOrder(items) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'createChargeOrder',

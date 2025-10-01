@@ -2033,6 +2033,8 @@ exports.main = async (event = {}) => {
       return grantEquipment(actorId, event);
     case 'removeEquipment':
       return removeEquipment(actorId, event);
+    case 'updateEquipmentAttributes':
+      return updateEquipmentAttributes(actorId, event);
     case 'allocatePoints':
       return allocatePoints(actorId, event.allocations || {});
     case 'resetAttributes':
@@ -2523,6 +2525,96 @@ async function removeEquipment(actorId, event = {}) {
 
   const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
   return { profile: decorated };
+}
+
+async function updateEquipmentAttributes(actorId, event = {}) {
+  const admin = await ensureMember(actorId);
+  ensureAdminAccess(admin);
+  const memberId = typeof event.memberId === 'string' && event.memberId.trim() ? event.memberId.trim() : '';
+  if (!memberId) {
+    throw createError('MEMBER_ID_REQUIRED', '缺少会员编号');
+  }
+  const itemId = typeof event.itemId === 'string' && event.itemId.trim() ? event.itemId.trim() : '';
+  if (!itemId) {
+    throw createError('ITEM_ID_REQUIRED', '请选择装备');
+  }
+  const rawAttributes = event.attributes && typeof event.attributes === 'object' ? { ...event.attributes } : {};
+  if (typeof event.refine !== 'undefined' && typeof rawAttributes.refine === 'undefined') {
+    rawAttributes.refine = event.refine;
+  }
+  if (typeof event.level !== 'undefined' && typeof rawAttributes.level === 'undefined') {
+    rawAttributes.level = event.level;
+  }
+  if (typeof event.favorite !== 'undefined' && typeof rawAttributes.favorite === 'undefined') {
+    rawAttributes.favorite = event.favorite;
+  }
+  const targetMember = await ensureMember(memberId);
+  const now = new Date();
+  const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
+  const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
+  const index = inventory.findIndex((record) => record.itemId === itemId);
+  if (index < 0) {
+    throw createError('ITEM_NOT_FOUND', '会员未拥有该装备');
+  }
+  const entry = { ...inventory[index] };
+  let changed = false;
+  if (Object.prototype.hasOwnProperty.call(rawAttributes, 'refine')) {
+    const value = Number(rawAttributes.refine);
+    const nextRefine = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
+    if (entry.refine !== nextRefine) {
+      entry.refine = nextRefine;
+      changed = true;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(rawAttributes, 'level')) {
+    const value = Number(rawAttributes.level);
+    const nextLevel = Number.isFinite(value) ? Math.max(1, Math.floor(value)) : 1;
+    if (entry.level !== nextLevel) {
+      entry.level = nextLevel;
+      changed = true;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(rawAttributes, 'favorite')) {
+    const favorite = !!rawAttributes.favorite;
+    if (!!entry.favorite !== favorite) {
+      entry.favorite = favorite;
+      changed = true;
+    }
+  }
+  if (!changed) {
+    const decoratedProfile = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+    const updated = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
+    return { profile: decoratedProfile, updated };
+  }
+  inventory[index] = entry;
+  profile.equipment.inventory = inventory;
+  const definition = EQUIPMENT_MAP[itemId];
+  profile.battleHistory = appendHistory(
+    profile.battleHistory,
+    {
+      type: 'equipment-change',
+      createdAt: now,
+      detail: {
+        itemId,
+        slot: (definition && definition.slot) || '',
+        action: 'update',
+        refine: entry.refine,
+        level: entry.level
+      }
+    },
+    MAX_BATTLE_HISTORY
+  );
+
+  await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
+    data: {
+      pveProfile: profile,
+      updatedAt: now
+    }
+  });
+
+  const decoratedProfile = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+  const updated = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
+  return { profile: decoratedProfile, updated };
 }
 
 function resolveActorId(openid, event = {}) {
