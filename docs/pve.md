@@ -37,7 +37,8 @@
 
 #### 储物空间与升级限制
 
-- 储物空间以统一的品类数组定义，初始容量为 100 格，单次升级增加 20 格，并设定默认最多 10 次升级的上限。【F:cloudfunctions/pve/index.js†L18-L31】
+- 储物空间以统一的品类数组定义，初始容量为 100 格，单次升级增加 20 格，并设定默认最多 10 次升级的上限。【F:cloudfunctions/pve/index.js†L18-L34】
+- 新会员建档时可用的纳戒升级次数默认为 0，需要通过后台或运营投放提升次数后才能升级存储空间。【F:cloudfunctions/pve/index.js†L3179-L3195】【F:cloudfunctions/admin/index.js†L1574-L1580】
 - 新会员建档时会调用 `buildDefaultStorage` 写入基础配置，记录当前升级层级、容量成长参数、可用升级次数与固定上限，避免出现“未初始化导致无限升级”的状态。【F:cloudfunctions/pve/index.js†L3182-L3196】
 - 旧档案在 `normalizeEquipment` 中会回填缺失字段：如果历史数据缺乏上限或剩余次数，会用默认上限推导，并在存在任何一项时把两者校正到“上限 − 已升级次数”的安全区间。【F:cloudfunctions/pve/index.js†L3520-L3565】
 - 升级接口会综合当前层数、剩余次数与上限判定：一旦当前层数达到或超过上限立即拒绝；否则扣减一次可用次数并把所有品类的升级层级同步加一，同时把上限写回档案，防止客户端伪造字段绕过校验。【F:cloudfunctions/pve/index.js†L2610-L2666】

@@ -3186,13 +3186,15 @@ function buildDefaultStorage(level = 0) {
   STORAGE_CATEGORY_KEYS.forEach((key) => {
     upgrades[key] = safeLevel;
   });
+  const upgradeAvailable =
+    safeLevel > 0 ? Math.max(limit - Math.min(limit, safeLevel), 0) : 0;
   return {
     upgrades,
     globalUpgrades: safeLevel,
     baseCapacity: STORAGE_BASE_CAPACITY,
     perUpgrade: STORAGE_PER_UPGRADE,
     upgradeLimit: limit,
-    upgradeAvailable: Math.max(limit - Math.min(limit, safeLevel), 0)
+    upgradeAvailable
   };
 }
 
