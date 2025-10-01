@@ -29,6 +29,8 @@ const ADMIN_ROLES = ['admin', 'developer'];
 const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
 const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
 
+const STORAGE_UPGRADE_LIMIT_KEYS = ['upgradeLimit', 'maxUpgrades', 'limit'];
+
 const ACTIONS = {
   LIST_MEMBERS: 'listMembers',
   GET_MEMBER_DETAIL: 'getMemberDetail',
@@ -1345,6 +1347,96 @@ function normalizeUsageCount(value) {
   return Math.max(0, Math.floor(numeric));
 }
 
+function normalizeOptionalUsageLimit(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  const positive = Math.max(0, Math.floor(numeric));
+  return positive > 0 ? positive : null;
+}
+
+function storageIsObject(value) {
+  return value && typeof value === 'object';
+}
+
+function resolveExistingStorage(existing = {}) {
+  const profile = existing && existing.pveProfile ? existing.pveProfile : {};
+  const equipment = profile && profile.equipment ? profile.equipment : {};
+  const storage = equipment && storageIsObject(equipment.storage) ? equipment.storage : {};
+  return storageIsObject(storage) ? storage : {};
+}
+
+function resolveExistingStorageUpgradeLimit(existing = {}) {
+  const storage = resolveExistingStorage(existing);
+  if (!Object.keys(storage).length) {
+    return null;
+  }
+  const meta = storageIsObject(storage.meta) ? storage.meta : {};
+  for (const key of STORAGE_UPGRADE_LIMIT_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(meta, key)) {
+      const limit = normalizeOptionalUsageLimit(meta[key]);
+      if (limit !== null) {
+        return limit;
+      }
+    }
+  }
+  for (const key of STORAGE_UPGRADE_LIMIT_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(storage, key)) {
+      const limit = normalizeOptionalUsageLimit(storage[key]);
+      if (limit !== null) {
+        return limit;
+      }
+    }
+  }
+  return null;
+}
+
+function resolveExistingStorageUpgradeLevel(existing = {}) {
+  const storage = resolveExistingStorage(existing);
+  let level = normalizeUsageCount(storage.globalUpgrades);
+  if (storageIsObject(storage.upgrades)) {
+    Object.keys(storage.upgrades).forEach((key) => {
+      level = Math.max(level, normalizeUsageCount(storage.upgrades[key]));
+    });
+  }
+  const meta = storageIsObject(storage.meta) ? storage.meta : {};
+  if (Object.prototype.hasOwnProperty.call(meta, 'upgrades')) {
+    level = Math.max(level, normalizeUsageCount(meta.upgrades));
+  }
+  if (Object.prototype.hasOwnProperty.call(meta, 'globalUpgrades')) {
+    level = Math.max(level, normalizeUsageCount(meta.globalUpgrades));
+  }
+  return level;
+}
+
+function calculateDefaultStorageUpgradeLimit(existing, availableCount) {
+  const currentLevel = resolveExistingStorageUpgradeLevel(existing);
+  const desired = currentLevel + Math.max(0, availableCount);
+  if (desired > 0) {
+    return desired;
+  }
+  return currentLevel > 0 ? currentLevel : null;
+}
+
+function resolveStorageUpgradeLimitForUpdate(existing, availableCount) {
+  const existingLimit = resolveExistingStorageUpgradeLimit(existing);
+  const defaultLimit = calculateDefaultStorageUpgradeLimit(existing, availableCount);
+  if (existingLimit !== null && defaultLimit !== null) {
+    return Math.max(existingLimit, defaultLimit);
+  }
+  if (existingLimit !== null) {
+    return existingLimit;
+  }
+  if (defaultLimit !== null) {
+    return defaultLimit;
+  }
+  return undefined;
+}
+
 function resolvePveRespecStats(member) {
   const profile = member && member.pveProfile ? member.pveProfile : {};
   const attributes = profile && profile.attributes ? profile.attributes : {};
@@ -1474,12 +1566,29 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
   if (Object.prototype.hasOwnProperty.call(updates, 'roomUsageCount')) {
     memberUpdates.roomUsageCount = normalizeUsageCount(updates.roomUsageCount);
   }
+  let storageUpgradeLimitProvided = false;
+  let storageUpgradeLimitValue = null;
+  if (Object.prototype.hasOwnProperty.call(updates, 'storageUpgradeLimit')) {
+    storageUpgradeLimitProvided = true;
+    storageUpgradeLimitValue = normalizeOptionalUsageLimit(updates.storageUpgradeLimit);
+  }
   if (Object.prototype.hasOwnProperty.call(updates, 'storageUpgradeAvailable')) {
     const available = normalizeUsageCount(updates.storageUpgradeAvailable);
     memberUpdates['pveProfile.equipment.storage.upgradeAvailable'] = available;
     memberUpdates['pveProfile.equipment.storage.upgradeRemaining'] = available;
     memberUpdates['pveProfile.equipment.storage.meta.upgradeAvailable'] = available;
     memberUpdates['pveProfile.equipment.storage.meta.upgradesRemaining'] = available;
+    if (!storageUpgradeLimitProvided) {
+      const resolvedLimit = resolveStorageUpgradeLimitForUpdate(existing, available);
+      if (resolvedLimit !== undefined) {
+        storageUpgradeLimitProvided = true;
+        storageUpgradeLimitValue = resolvedLimit;
+      }
+    }
+  }
+  if (storageUpgradeLimitProvided) {
+    memberUpdates['pveProfile.equipment.storage.upgradeLimit'] = storageUpgradeLimitValue;
+    memberUpdates['pveProfile.equipment.storage.meta.upgradeLimit'] = storageUpgradeLimitValue;
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'roles')) {
     const roles = Array.isArray(updates.roles) ? updates.roles : [];

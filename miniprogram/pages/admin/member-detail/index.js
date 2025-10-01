@@ -249,6 +249,7 @@ Page({
       respecAvailable: '',
       roomUsageCount: '',
       storageUpgradeAvailable: '0',
+      storageUpgradeLimit: '',
       avatarUnlocks: []
     },
     rechargeVisible: false,
@@ -374,6 +375,7 @@ Page({
           : 0
       )
     );
+    const storageUpgradeLimit = this.resolveStorageUpgradeLimitInput(storage);
     const levelIndex = Math.max(
       levels.findIndex((level) => level._id === member.levelId),
       0
@@ -403,6 +405,7 @@ Page({
         respecAvailable: String(member.pveRespecAvailable ?? 0),
         roomUsageCount: String(member.roomUsageCount ?? 0),
         storageUpgradeAvailable,
+        storageUpgradeLimit,
         avatarUnlocks: avatarUnlocks
       },
       roleOptions,
@@ -411,6 +414,22 @@ Page({
       pveProfile: sanitizedProfile || null
     });
     this.applyEquipmentProfile(sanitizedProfile);
+  },
+
+  resolveStorageUpgradeLimitInput(storage) {
+    if (!storage || typeof storage !== 'object') {
+      return '';
+    }
+    const meta = storage.meta && typeof storage.meta === 'object' ? storage.meta : {};
+    if (Object.prototype.hasOwnProperty.call(meta, 'upgradeLimit')) {
+      const parsed = this.parseStorageUpgradeLimit(meta.upgradeLimit);
+      return parsed === null ? '' : String(parsed);
+    }
+    if (Object.prototype.hasOwnProperty.call(storage, 'upgradeLimit')) {
+      const parsed = this.parseStorageUpgradeLimit(storage.upgradeLimit);
+      return parsed === null ? '' : String(parsed);
+    }
+    return '';
   },
 
   applyEquipmentProfile(profile) {
@@ -658,6 +677,7 @@ Page({
         storageUpgradeAvailable: this.parseStorageUpgradeAvailable(
           this.data.form.storageUpgradeAvailable
         ),
+        storageUpgradeLimit: this.parseStorageUpgradeLimit(this.data.form.storageUpgradeLimit),
         avatarUnlocks: normalizeAvatarUnlocks(this.data.form.avatarUnlocks)
       };
       const detail = await AdminService.updateMember(this.data.memberId, payload);
@@ -919,5 +939,28 @@ Page({
       return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
     }
     return 0;
+  },
+
+  parseStorageUpgradeLimit(input) {
+    if (input == null || input === '') {
+      return null;
+    }
+    if (typeof input === 'number' && Number.isFinite(input)) {
+      const value = Math.max(0, Math.floor(input));
+      return value > 0 ? value : null;
+    }
+    if (typeof input === 'string') {
+      const sanitized = input.trim().replace(/[^0-9]/g, '');
+      if (!sanitized) {
+        return null;
+      }
+      const parsed = Number(sanitized);
+      if (!Number.isFinite(parsed)) {
+        return null;
+      }
+      const value = Math.max(0, Math.floor(parsed));
+      return value > 0 ? value : null;
+    }
+    return null;
   }
 });

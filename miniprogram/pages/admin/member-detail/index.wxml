@@ -78,6 +78,17 @@
       />
     </view>
     <view class="form-item">
+      <view class="form-label">纳戒升级上限</view>
+      <input
+        class="form-input"
+        type="number"
+        value="{{form.storageUpgradeLimit}}"
+        placeholder="请输入纳戒升级上限"
+        data-field="storageUpgradeLimit"
+        bindinput="handleInputChange"
+      />
+    </view>
+    <view class="form-item">
       <view class="form-label">包房使用次数</view>
       <input
         class="form-input"
