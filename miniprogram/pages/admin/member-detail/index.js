@@ -1,5 +1,6 @@
 import { AdminService } from '../../../services/api';
 import { listAllAvatars, normalizeAvatarUnlocks } from '../../../utils/avatar-catalog';
+import { sanitizeEquipmentProfile } from '../../../utils/equipment';
 
 const RENAME_SOURCE_LABELS = {
   admin: '管理员调整',
@@ -11,16 +12,21 @@ function formatEquipmentSlots(profile) {
   if (!profile || !profile.equipment || !Array.isArray(profile.equipment.slots)) {
     return [];
   }
-  return profile.equipment.slots.map((slot) => {
-    const item = slot && slot.item ? slot.item : null;
-    return {
-      slot: slot.slot,
-      slotLabel: slot.slotLabel || '',
-      name: item ? item.name : '',
-      qualityLabel: item ? item.qualityLabel : '',
-      qualityColor: item ? item.qualityColor : '#a5adb8'
-    };
-  });
+  return profile.equipment.slots
+    .map((slot) => {
+      const item = slot && slot.item ? slot.item : null;
+      if (!item) {
+        return null;
+      }
+      return {
+        slot: slot.slot,
+        slotLabel: slot.slotLabel || '',
+        name: item.name || '',
+        qualityLabel: item.qualityLabel || '',
+        qualityColor: item.qualityColor || '#a5adb8'
+      };
+    })
+    .filter((slot) => !!slot && slot.name);
 }
 
 function formatEquipmentInventory(profile) {
@@ -50,6 +56,57 @@ function buildCatalogLabel(item) {
     segments.push(item.slotLabel);
   }
   return segments.join(' · ');
+}
+
+const EQUIPMENT_FILTER_DEFAULT = {
+  slot: 'all',
+  quality: 'all'
+};
+
+function buildEquipmentFilterOptions(catalog, valueKey, labelKey, defaultLabel) {
+  const options = [{ value: 'all', label: defaultLabel }];
+  const seen = new Set();
+  (catalog || []).forEach((item) => {
+    if (!item || !item[valueKey]) {
+      return;
+    }
+    const value = item[valueKey];
+    if (seen.has(value)) {
+      return;
+    }
+    seen.add(value);
+    options.push({
+      value,
+      label: item[labelKey] || '未分类'
+    });
+  });
+  return options;
+}
+
+function filterEquipmentCatalog(catalog, filters = EQUIPMENT_FILTER_DEFAULT) {
+  const list = Array.isArray(catalog) ? catalog : [];
+  const slot = filters && filters.slot;
+  const quality = filters && filters.quality;
+  return list.filter((item) => {
+    if (!item) {
+      return false;
+    }
+    const slotMatched = !slot || slot === 'all' || item.slot === slot;
+    const qualityMatched = !quality || quality === 'all' || item.quality === quality;
+    return slotMatched && qualityMatched;
+  });
+}
+
+function resolveFilteredSelection(catalog, currentId) {
+  const list = Array.isArray(catalog) ? catalog : [];
+  if (!list.length) {
+    return { id: '', index: -1 };
+  }
+  const existingIndex = list.findIndex((item) => item.id === currentId);
+  if (existingIndex >= 0) {
+    return { id: currentId, index: existingIndex };
+  }
+  return { id: list[0].id, index: 0 };
 }
 
 const RAW_AVATAR_OPTIONS = listAllAvatars();
@@ -175,8 +232,18 @@ Page({
     equipmentInventory: [],
     equipmentCatalog: [],
     equipmentCatalogLoaded: false,
-    equipmentPickerIndex: 0,
-    grantingEquipment: false
+    filteredEquipmentCatalog: [],
+    equipmentFilters: { ...EQUIPMENT_FILTER_DEFAULT },
+    equipmentFilterSlotOptions: [{ value: 'all', label: '全部部位' }],
+    equipmentFilterQualityOptions: [{ value: 'all', label: '全部品质' }],
+    equipmentFilterSlotIndex: 0,
+    equipmentFilterQualityIndex: 0,
+    equipmentProfileLoaded: false,
+    equipmentDialogVisible: false,
+    equipmentSelectionId: '',
+    equipmentSelectionIndex: -1,
+    grantingEquipment: false,
+    removingEquipmentId: ''
   },
 
   onLoad(options) {
@@ -224,9 +291,34 @@ Page({
       const catalog = Array.isArray(res && res.items)
         ? res.items.map((item) => ({ ...item, label: buildCatalogLabel(item) }))
         : [];
+      const slotOptions = buildEquipmentFilterOptions(catalog, 'slot', 'slotLabel', '全部部位');
+      const qualityOptions = buildEquipmentFilterOptions(catalog, 'quality', 'qualityLabel', '全部品质');
+      const currentFilters = this.data.equipmentFilters || { ...EQUIPMENT_FILTER_DEFAULT };
+      let slotIndex = slotOptions.findIndex((option) => option.value === currentFilters.slot);
+      if (slotIndex < 0) {
+        slotIndex = 0;
+      }
+      let qualityIndex = qualityOptions.findIndex((option) => option.value === currentFilters.quality);
+      if (qualityIndex < 0) {
+        qualityIndex = 0;
+      }
+      const filters = {
+        slot: slotOptions[slotIndex] ? slotOptions[slotIndex].value : 'all',
+        quality: qualityOptions[qualityIndex] ? qualityOptions[qualityIndex].value : 'all'
+      };
+      const filteredCatalog = filterEquipmentCatalog(catalog, filters);
+      const selection = resolveFilteredSelection(filteredCatalog, this.data.equipmentSelectionId);
       this.setData({
         equipmentCatalog: catalog,
-        equipmentCatalogLoaded: true
+        equipmentCatalogLoaded: true,
+        equipmentFilters: filters,
+        equipmentFilterSlotOptions: slotOptions,
+        equipmentFilterQualityOptions: qualityOptions,
+        equipmentFilterSlotIndex: slotIndex,
+        equipmentFilterQualityIndex: qualityIndex,
+        filteredEquipmentCatalog: filteredCatalog,
+        equipmentSelectionId: selection.id,
+        equipmentSelectionIndex: selection.index
       });
     } catch (error) {
       console.error('[admin] load equipment catalog failed', error);
@@ -275,11 +367,14 @@ Page({
   },
 
   applyEquipmentProfile(profile) {
-    const equipmentSlots = formatEquipmentSlots(profile);
-    const equipmentInventory = formatEquipmentInventory(profile);
+    const sanitizedProfile = sanitizeEquipmentProfile(profile);
+    const hasProfile = !!(sanitizedProfile && sanitizedProfile.equipment);
+    const equipmentSlots = hasProfile ? formatEquipmentSlots(sanitizedProfile) : [];
+    const equipmentInventory = hasProfile ? formatEquipmentInventory(sanitizedProfile) : [];
     this.setData({
       equipmentSlots,
-      equipmentInventory
+      equipmentInventory,
+      equipmentProfileLoaded: !!sanitizedProfile
     });
   },
 
@@ -321,23 +416,108 @@ Page({
     });
   },
 
-  async handleEquipmentPickerChange(event) {
+  showEquipmentGrantDialog() {
     const catalog = this.data.equipmentCatalog || [];
-    const index = Number(event && event.detail ? event.detail.value : -1);
-    if (!Number.isFinite(index) || index < 0 || index >= catalog.length) {
+    if (!catalog.length) {
+      if (!this.data.equipmentCatalogLoaded) {
+        this.loadEquipmentCatalog(true);
+        wx.showToast({ title: '装备目录加载中，请稍候', icon: 'none' });
+      } else {
+        wx.showToast({ title: '暂无可发放的装备', icon: 'none' });
+      }
       return;
     }
-    this.setData({ equipmentPickerIndex: index });
-    const target = catalog[index];
-    if (!target || !target.id) {
+    const filteredCatalog = this.data.filteredEquipmentCatalog || [];
+    let equipmentSelectionId = this.data.equipmentSelectionId;
+    let equipmentSelectionIndex = this.data.equipmentSelectionIndex;
+    if (filteredCatalog.length) {
+      const matchedIndex = filteredCatalog.findIndex((item) => item.id === equipmentSelectionId);
+      if (matchedIndex >= 0) {
+        equipmentSelectionIndex = matchedIndex;
+      } else {
+        equipmentSelectionId = filteredCatalog[0].id;
+        equipmentSelectionIndex = 0;
+      }
+    } else {
+      equipmentSelectionId = '';
+      equipmentSelectionIndex = -1;
+      wx.showToast({ title: '当前筛选下暂无装备，请调整筛选条件', icon: 'none' });
+    }
+    this.setData({
+      equipmentDialogVisible: true,
+      equipmentSelectionId,
+      equipmentSelectionIndex
+    });
+  },
+
+  hideEquipmentGrantDialog() {
+    this.setData({ equipmentDialogVisible: false });
+  },
+
+  handleEquipmentSelect(event) {
+    const value = event && event.detail ? event.detail.value : '';
+    const catalog = this.data.filteredEquipmentCatalog || [];
+    const index = catalog.findIndex((item) => item.id === value);
+    this.setData({
+      equipmentSelectionId: value,
+      equipmentSelectionIndex: index
+    });
+  },
+
+  handleEquipmentSlotFilterChange(event) {
+    const index = Number(event && event.detail ? event.detail.value : 0);
+    this.applyEquipmentFilterChanges({ slotIndex: Number.isNaN(index) ? 0 : index });
+  },
+
+  handleEquipmentQualityFilterChange(event) {
+    const index = Number(event && event.detail ? event.detail.value : 0);
+    this.applyEquipmentFilterChanges({ qualityIndex: Number.isNaN(index) ? 0 : index });
+  },
+
+  applyEquipmentFilterChanges(updates = {}) {
+    const slotOptions = this.data.equipmentFilterSlotOptions || [];
+    const qualityOptions = this.data.equipmentFilterQualityOptions || [];
+    let slotIndex =
+      typeof updates.slotIndex === 'number' ? updates.slotIndex : this.data.equipmentFilterSlotIndex || 0;
+    let qualityIndex =
+      typeof updates.qualityIndex === 'number' ? updates.qualityIndex : this.data.equipmentFilterQualityIndex || 0;
+    if (slotIndex < 0 || slotIndex >= slotOptions.length) {
+      slotIndex = 0;
+    }
+    if (qualityIndex < 0 || qualityIndex >= qualityOptions.length) {
+      qualityIndex = 0;
+    }
+    const filters = {
+      slot: slotOptions[slotIndex] ? slotOptions[slotIndex].value : 'all',
+      quality: qualityOptions[qualityIndex] ? qualityOptions[qualityIndex].value : 'all'
+    };
+    const filteredCatalog = filterEquipmentCatalog(this.data.equipmentCatalog || [], filters);
+    const selection = resolveFilteredSelection(filteredCatalog, this.data.equipmentSelectionId);
+    this.setData({
+      equipmentFilterSlotIndex: slotIndex,
+      equipmentFilterQualityIndex: qualityIndex,
+      equipmentFilters: filters,
+      filteredEquipmentCatalog: filteredCatalog,
+      equipmentSelectionId: selection.id,
+      equipmentSelectionIndex: selection.index
+    });
+  },
+
+  async handleEquipmentGrantConfirm() {
+    const itemId = this.data.equipmentSelectionId;
+    if (!itemId) {
+      wx.showToast({ title: '请选择装备', icon: 'none' });
       return;
     }
-    await this.grantEquipmentToMember(target.id);
+    const success = await this.grantEquipmentToMember(itemId);
+    if (success) {
+      this.hideEquipmentGrantDialog();
+    }
   },
 
   async grantEquipmentToMember(itemId) {
     if (this.data.grantingEquipment || !this.data.memberId || !itemId) {
-      return;
+      return false;
     }
     this.setData({ grantingEquipment: true });
     try {
@@ -349,11 +529,65 @@ Page({
         this.applyEquipmentProfile(res.profile);
       }
       wx.showToast({ title: '发放成功', icon: 'success' });
+      const catalog = this.data.filteredEquipmentCatalog || [];
+      const selectionIndex = catalog.findIndex((item) => item.id === itemId);
+      this.setData({
+        equipmentSelectionId: itemId,
+        equipmentSelectionIndex: selectionIndex
+      });
+      return true;
     } catch (error) {
       console.error('[admin] grant equipment failed', error);
       wx.showToast({ title: error.errMsg || error.message || '发放失败', icon: 'none' });
+      return false;
     } finally {
       this.setData({ grantingEquipment: false });
+    }
+  },
+
+  async handleEquipmentDelete(event) {
+    const { itemId } = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    if (!itemId || this.data.removingEquipmentId) {
+      return;
+    }
+    const confirmed = await new Promise((resolve) => {
+      wx.showModal({
+        title: '删除装备',
+        content: '确定要删除该装备吗？',
+        confirmText: '删除',
+        confirmColor: '#ef4444',
+        cancelText: '取消',
+        success: (res) => resolve(!!(res && res.confirm)),
+        fail: () => resolve(false)
+      });
+    });
+    if (!confirmed) {
+      return;
+    }
+    await this.removeEquipmentFromMember(itemId);
+  },
+
+  async removeEquipmentFromMember(itemId) {
+    if (!itemId || !this.data.memberId || this.data.removingEquipmentId) {
+      return false;
+    }
+    this.setData({ removingEquipmentId: itemId });
+    try {
+      const res = await AdminService.removeEquipment({
+        memberId: this.data.memberId,
+        itemId
+      });
+      if (res && res.profile) {
+        this.applyEquipmentProfile(res.profile);
+      }
+      wx.showToast({ title: '删除成功', icon: 'success' });
+      return true;
+    } catch (error) {
+      console.error('[admin] remove equipment failed', error);
+      wx.showToast({ title: error.errMsg || error.message || '删除失败', icon: 'none' });
+      return false;
+    } finally {
+      this.setData({ removingEquipmentId: '' });
     }
   },
 
