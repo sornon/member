@@ -57,6 +57,17 @@
       />
     </view>
     <view class="form-item">
+      <view class="form-label">纳戒升级次数</view>
+      <input
+        class="form-input"
+        type="number"
+        value="{{form.storageUpgradeAvailable}}"
+        placeholder="请输入剩余纳戒升级次数"
+        data-field="storageUpgradeAvailable"
+        bindinput="handleInputChange"
+      />
+    </view>
+    <view class="form-item">
       <view class="form-label">包房使用次数</view>
       <input
         class="form-input"

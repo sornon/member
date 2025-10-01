@@ -232,6 +232,7 @@ Page({
       renameCredits: '',
       respecAvailable: '',
       roomUsageCount: '',
+      storageUpgradeAvailable: '0',
       avatarUnlocks: []
     },
     rechargeVisible: false,
@@ -342,6 +343,21 @@ Page({
   applyDetail(detail) {
     if (!detail || !detail.member) return;
     const { member, levels = [] } = detail;
+    const sanitizedProfile = sanitizeEquipmentProfile(detail.pveProfile);
+    const storage =
+      sanitizedProfile &&
+      sanitizedProfile.equipment &&
+      sanitizedProfile.equipment.storage &&
+      typeof sanitizedProfile.equipment.storage === 'object'
+        ? sanitizedProfile.equipment.storage
+        : null;
+    const storageUpgradeAvailable = String(
+      this.parseStorageUpgradeAvailable(
+        storage && Object.prototype.hasOwnProperty.call(storage, 'upgradeAvailable')
+          ? storage.upgradeAvailable
+          : 0
+      )
+    );
     const levelIndex = Math.max(
       levels.findIndex((level) => level._id === member.levelId),
       0
@@ -370,14 +386,15 @@ Page({
         renameCredits: String(member.renameCredits ?? 0),
         respecAvailable: String(member.pveRespecAvailable ?? 0),
         roomUsageCount: String(member.roomUsageCount ?? 0),
+        storageUpgradeAvailable,
         avatarUnlocks: avatarUnlocks
       },
       roleOptions,
       renameHistory: formatRenameHistory(member.renameHistory),
       avatarOptionGroups: buildAvatarOptionGroups(avatarUnlocks),
-      pveProfile: detail.pveProfile || null
+      pveProfile: sanitizedProfile || null
     });
-    this.applyEquipmentProfile(detail.pveProfile);
+    this.applyEquipmentProfile(sanitizedProfile);
   },
 
   applyEquipmentProfile(profile) {
@@ -622,6 +639,9 @@ Page({
         renameCredits: this.parseRenameCredits(this.data.form.renameCredits),
         respecAvailable: this.parseRespecAvailable(this.data.form.respecAvailable),
         roomUsageCount: Number(this.data.form.roomUsageCount || 0),
+        storageUpgradeAvailable: this.parseStorageUpgradeAvailable(
+          this.data.form.storageUpgradeAvailable
+        ),
         avatarUnlocks: normalizeAvatarUnlocks(this.data.form.avatarUnlocks)
       };
       const detail = await AdminService.updateMember(this.data.memberId, payload);
@@ -780,6 +800,24 @@ Page({
   },
 
   parseRespecAvailable(input) {
+    if (input == null || input === '') {
+      return 0;
+    }
+    if (typeof input === 'number' && Number.isFinite(input)) {
+      return Math.max(0, Math.floor(input));
+    }
+    if (typeof input === 'string') {
+      const sanitized = input.trim().replace(/[^0-9]/g, '');
+      if (!sanitized) {
+        return 0;
+      }
+      const parsed = Number(sanitized);
+      return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+    }
+    return 0;
+  },
+
+  parseStorageUpgradeAvailable(input) {
     if (input == null || input === '') {
       return 0;
     }
