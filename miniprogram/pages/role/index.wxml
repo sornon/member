@@ -14,6 +14,12 @@
       bindtap="handleTabChange"
     >装备</view>
     <view
+      class="tab-item {{activeTab === 'storage' ? 'tab-item--active' : ''}}"
+      data-tab="storage"
+      hover-class="tab-item--hover"
+      bindtap="handleTabChange"
+    >纳戒</view>
+    <view
       class="tab-item {{activeTab === 'skill' ? 'tab-item--active' : ''}}"
       data-tab="skill"
       hover-class="tab-item--hover"
@@ -112,6 +118,109 @@
       </view>
     </block>
 
+    <block wx:elif="{{activeTab === 'storage'}}">
+      <view class="section-card storage-section">
+        <view class="section-header">
+          <view class="section-title">纳戒储物</view>
+        </view>
+        <view wx:if="{{storageCategories.length}}" class="storage-tabs">
+          <view
+            wx:for="{{storageCategories}}"
+            wx:key="key"
+            class="storage-tab {{activeStorageCategory === item.key ? 'storage-tab--active' : ''}}"
+            data-key="{{item.key}}"
+            bindtap="handleStorageCategoryChange"
+          >
+            <text class="storage-tab__label">{{item.label}}</text>
+          </view>
+        </view>
+        <block wx:if="{{activeStorageCategoryData}}">
+          <view wx:if="{{storageMeta}}" class="storage-summary">
+            <view class="storage-summary__line">
+              <text>总容量 {{storageMeta.capacity}}</text>
+              <text>已用 {{storageMeta.used}}</text>
+            </view>
+            <view class="storage-summary__line">
+              <text>剩余 {{storageMeta.remaining}}</text>
+              <text wx:if="{{storageMeta.upgradeAvailable !== null}}">剩余升级次数 {{storageMeta.upgradeAvailable}}</text>
+              <text wx:elif="{{storageMeta.upgradesRemaining !== null}}">可升级次数 {{storageMeta.upgradesRemaining}}</text>
+            </view>
+            <progress
+              class="storage-summary__progress"
+              percent="{{storageMeta.usagePercent}}"
+              stroke-width="6"
+              backgroundColor="#1b2036"
+              activeColor="#566ed2"
+              show-info="{{false}}"
+            ></progress>
+            <view class="storage-summary__actions">
+              <button
+                class="pill-btn pill-btn--primary storage-summary__upgrade"
+                hover-class="pill-btn--primary-hover"
+                size="mini"
+                loading="{{storageUpgrading}}"
+                disabled="{{storageUpgrading}}"
+                bindtap="handleUpgradeStorage"
+              >升级储物空间</button>
+              <text class="storage-summary__hint" wx:if="{{storageMeta.nextCapacity}}">下次升级容量 {{storageMeta.nextCapacity}}</text>
+            </view>
+          </view>
+          <view wx:else class="storage-summary">
+            <view class="storage-summary__line">
+              <text>已用 {{activeStorageCategoryData.items.length}} / {{activeStorageCategoryData.capacity}}</text>
+              <text>剩余 {{activeStorageCategoryData.remaining}}</text>
+            </view>
+            <progress
+              class="storage-summary__progress"
+              percent="{{activeStorageCategoryData.usagePercent}}"
+              stroke-width="6"
+              backgroundColor="#1b2036"
+              activeColor="#566ed2"
+              show-info="{{false}}"
+            ></progress>
+            <view class="storage-summary__actions">
+              <button
+                class="pill-btn pill-btn--primary storage-summary__upgrade"
+                hover-class="pill-btn--primary-hover"
+                size="mini"
+                loading="{{storageUpgrading}}"
+                disabled="{{storageUpgrading}}"
+                bindtap="handleUpgradeStorage"
+              >升级储物空间</button>
+              <text class="storage-summary__hint">下次升级容量 {{activeStorageCategoryData.nextCapacity}}</text>
+            </view>
+          </view>
+          <view class="storage-grid">
+            <block wx:for="{{activeStorageCategoryData.slots}}" wx:key="storageKey">
+              <view wx:if="{{!item.placeholder}}" class="storage-slot">
+                <view class="storage-slot__badge">{{item.slotLabel}}</view>
+                <view
+                  class="storage-slot__frame"
+                  hover-class="storage-slot__frame--hover"
+                  bindtap="handleEquipmentTap"
+                  data-source="storage"
+                  data-slot="{{item.slot}}"
+                  data-slot-label="{{item.slotLabel}}"
+                  data-item="{{item}}"
+                  data-inventory-id="{{item.inventoryId || ''}}"
+                >
+                  <view class="storage-slot__icon" style="border-color: {{item.qualityColor}};">
+                    <view class="storage-slot__name">{{item.shortName || item.name}}</view>
+                  </view>
+                </view>
+              </view>
+              <view wx:else class="storage-slot storage-slot--empty">
+                <view class="storage-slot__frame storage-slot__frame--empty">
+                  <view class="storage-slot__placeholder">空</view>
+                </view>
+              </view>
+            </block>
+          </view>
+        </block>
+        <view wx:else class="empty-tip storage-empty">暂无储物数据</view>
+      </view>
+    </block>
+
     <block wx:elif="{{activeTab === 'equipment'}}">
       <view class="section-card">
         <view class="section-header">
@@ -170,7 +279,7 @@
           <view
             class="inventory-card {{item.equipped ? 'inventory-card--equipped' : ''}}"
             wx:for="{{(profile.equipment && profile.equipment.inventory) || []}}"
-            wx:key="itemId"
+            wx:key="inventoryId"
           >
             <view class="inventory-card__badge">{{item.slotLabel}}</view>
             <view class="inventory-card__frame">
@@ -181,6 +290,7 @@
                 data-source="inventory"
                 data-slot="{{item.slot}}"
                 data-item="{{item}}"
+                data-inventory-id="{{item.inventoryId || ''}}"
               >
                 <view class="inventory-card__icon-name">{{item.shortName || item.name}}</view>
                 <view wx:if="{{item.equipped}}" class="inventory-card__status">已装备</view>
