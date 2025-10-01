@@ -41,6 +41,10 @@
         },
         {
           "type": "folder",
+          "value": "assets/item"
+        },
+        {
+          "type": "folder",
           "value": "assets/background"
         }
     ],
