@@ -331,9 +331,17 @@
           <view class="skill-slot" wx:for="{{(profile.skills && profile.skills.equipped) || []}}" wx:key="slot">
             <view class="slot-index">槽位 {{item.slot + 1}}</view>
             <view wx:if="{{item.detail}}" class="skill-detail">
-              <view class="skill-name" style="color: {{item.detail.rarityColor}};">{{item.detail.name}} Lv.{{item.detail.level}}</view>
-              <view class="skill-effects">
-                <text wx:for="{{item.detail.effectsSummary || []}}" wx:key="index">{{effect}}</text>
+              <view class="skill-name" style="color: {{item.detail.qualityColor}};">{{item.detail.name}} Lv.{{item.detail.level}}</view>
+              <view class="skill-meta-line">
+                <text class="skill-tag">{{item.detail.qualityLabel}}</text>
+                <text class="skill-tag">{{item.detail.typeLabel}}</text>
+                <text class="skill-tag">{{item.detail.disciplineLabel}}</text>
+                <text class="skill-tag">{{item.detail.elementLabel}}</text>
+              </view>
+              <view wx:if="{{item.detail.resourceText}}" class="skill-resource">{{item.detail.resourceText}}</view>
+              <view wx:if="{{item.detail.imprintText}}" class="skill-imprint">{{item.detail.imprintText}}</view>
+              <view class="skill-highlights">
+                <text wx:for="{{item.detail.highlights || []}}" wx:key="index">{{highlight}}</text>
               </view>
               <button
                 class="pill-btn pill-btn--ghost"
@@ -353,12 +361,18 @@
         >暂无技能</view>
         <view class="skill-item" wx:for="{{(profile.skills && profile.skills.inventory) || []}}" wx:key="skillId">
           <view class="skill-header">
-            <view class="skill-name" style="color: {{item.rarityColor}};">{{item.name}} Lv.{{item.level}}</view>
-            <view class="skill-meta">{{item.rarityLabel}}</view>
+            <view class="skill-name" style="color: {{item.qualityColor}};">{{item.name}} Lv.{{item.level}}</view>
+            <view class="skill-meta">{{item.qualityLabel}} · {{item.typeLabel}}</view>
           </view>
+          <view class="skill-meta-line">
+            <text class="skill-tag">{{item.disciplineLabel}}</text>
+            <text class="skill-tag">{{item.elementLabel}}</text>
+            <text wx:if="{{item.resourceText}}" class="skill-tag skill-tag--muted">{{item.resourceText}}</text>
+          </view>
+          <view wx:if="{{item.imprintText}}" class="skill-imprint skill-imprint--inline">{{item.imprintText}}</view>
           <view class="skill-desc">{{item.description}}</view>
-          <view class="skill-effects">
-            <text wx:for="{{item.effectsSummary || []}}" wx:key="index">{{effect}}</text>
+          <view class="skill-highlights">
+            <text wx:for="{{item.highlights || []}}" wx:key="index">{{highlight}}</text>
           </view>
           <view class="skill-actions">
             <button

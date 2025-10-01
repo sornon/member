@@ -886,7 +886,46 @@ button.pill-btn[disabled] {
   color: #f1f4ff;
 }
 
-.skill-effects text {
+.skill-meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+}
+
+.skill-tag {
+  padding: 4rpx 12rpx;
+  border-radius: 12rpx;
+  background: rgba(67, 94, 180, 0.32);
+  color: rgba(198, 210, 255, 0.88);
+  font-size: 20rpx;
+}
+
+.skill-tag--muted {
+  background: rgba(55, 71, 130, 0.26);
+  color: rgba(188, 202, 255, 0.7);
+}
+
+.skill-resource {
+  font-size: 22rpx;
+  color: rgba(188, 202, 255, 0.82);
+  margin-top: 8rpx;
+}
+
+.skill-imprint {
+  font-size: 20rpx;
+  color: rgba(164, 186, 255, 0.78);
+  margin-top: 6rpx;
+}
+
+.skill-imprint--inline {
+  margin-top: 12rpx;
+}
+
+.skill-highlights {
+  margin-top: 8rpx;
+}
+
+.skill-highlights text {
   display: block;
   font-size: 22rpx;
   color: rgba(177, 193, 247, 0.76);
@@ -908,10 +947,15 @@ button.pill-btn[disabled] {
   margin-bottom: 12rpx;
 }
 
+.skill-meta {
+  font-size: 22rpx;
+  color: rgba(184, 197, 247, 0.74);
+}
+
 .skill-desc {
   color: rgba(188, 198, 246, 0.78);
   font-size: 24rpx;
-  margin-bottom: 12rpx;
+  margin: 12rpx 0;
 }
 
 .skill-actions {

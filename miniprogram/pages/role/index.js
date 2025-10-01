@@ -409,7 +409,7 @@ Page({
       this.applyProfile(res.profile, { drawing: false });
       if (res.acquiredSkill) {
         wx.showToast({
-          title: `${res.acquiredSkill.rarityLabel}·${res.acquiredSkill.name}`,
+          title: `${res.acquiredSkill.qualityLabel}·${res.acquiredSkill.name}`,
           icon: 'success'
         });
       } else {
