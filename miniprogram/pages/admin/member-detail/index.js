@@ -211,6 +211,7 @@ Page({
     memberId: '',
     loading: true,
     saving: false,
+    deleting: false,
     member: null,
     levels: [],
     levelIndex: 0,
@@ -652,6 +653,51 @@ Page({
       wx.showToast({ title: error.errMsg || error.message || '保存失败', icon: 'none' });
     } finally {
       this.setData({ saving: false });
+    }
+  },
+
+  handleDeleteMember() {
+    if (!this.data.memberId || this.data.deleting) {
+      return;
+    }
+    wx.showModal({
+      title: '删除会员',
+      content: '删除后将无法恢复该会员及其所有相关数据，确定继续吗？',
+      confirmText: '删除',
+      confirmColor: '#f43f5e',
+      cancelText: '取消',
+      success: (res) => {
+        if (res && res.confirm) {
+          this.confirmDeleteMember();
+        }
+      }
+    });
+  },
+
+  async confirmDeleteMember() {
+    if (!this.data.memberId || this.data.deleting) {
+      return;
+    }
+    this.setData({ deleting: true });
+    wx.showLoading({ title: '删除中', mask: true });
+    try {
+      await AdminService.deleteMember(this.data.memberId);
+      wx.hideLoading();
+      wx.showToast({ title: '删除成功', icon: 'success' });
+      setTimeout(() => {
+        wx.navigateBack({
+          delta: 1,
+          fail: () => {
+            wx.redirectTo({ url: '/pages/admin/members/index' });
+          }
+        });
+      }, 500);
+    } catch (error) {
+      wx.hideLoading();
+      console.error('[admin:member:delete]', error);
+      wx.showToast({ title: error.errMsg || error.message || '删除失败', icon: 'none' });
+    } finally {
+      this.setData({ deleting: false });
     }
   },
 

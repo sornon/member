@@ -20,6 +20,16 @@
     <view class="section-title">基础资料</view>
     <view class="toolbar">
       <button class="recharge" size="mini" bindtap="showRechargeDialog">为该会员充值</button>
+      <button
+        class="delete-member"
+        size="mini"
+        type="warn"
+        loading="{{deleting}}"
+        disabled="{{loading || deleting}}"
+        bindtap="handleDeleteMember"
+      >
+        删除会员
+      </button>
     </view>
     <view class="form-item">
       <view class="form-label">道号</view>

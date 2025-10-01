@@ -350,6 +350,12 @@ export const AdminService = {
       updates
     });
   },
+  async deleteMember(memberId) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'deleteMember',
+      memberId
+    });
+  },
   async listEquipmentCatalog() {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'listEquipmentCatalog'

@@ -16,7 +16,11 @@ const COLLECTIONS = {
   ROOMS: 'rooms',
   MEMBER_RIGHTS: 'memberRights',
   MEMBER_EXTRAS: 'memberExtras',
-  MEMBER_TIMELINE: 'memberTimeline'
+  MEMBER_TIMELINE: 'memberTimeline',
+  TASK_RECORDS: 'taskRecords',
+  COUPON_RECORDS: 'couponRecords',
+  STONE_TRANSACTIONS: 'stoneTransactions',
+  ERROR_LOGS: 'errorlogs'
 };
 
 const EXPERIENCE_PER_YUAN = 100;
@@ -29,6 +33,7 @@ const ACTIONS = {
   LIST_MEMBERS: 'listMembers',
   GET_MEMBER_DETAIL: 'getMemberDetail',
   UPDATE_MEMBER: 'updateMember',
+  DELETE_MEMBER: 'deleteMember',
   CREATE_CHARGE_ORDER: 'createChargeOrder',
   GET_CHARGE_ORDER: 'getChargeOrder',
   LIST_CHARGE_ORDERS: 'listChargeOrders',
@@ -49,6 +54,7 @@ const ACTION_ALIASES = {
   listmembers: ACTIONS.LIST_MEMBERS,
   getmemberdetail: ACTIONS.GET_MEMBER_DETAIL,
   updatemember: ACTIONS.UPDATE_MEMBER,
+  deletemember: ACTIONS.DELETE_MEMBER,
   createchargeorder: ACTIONS.CREATE_CHARGE_ORDER,
   getchargeorder: ACTIONS.GET_CHARGE_ORDER,
   getchargeorderqrcode: ACTIONS.GET_CHARGE_ORDER_QR_CODE,
@@ -82,6 +88,7 @@ const ACTION_HANDLERS = {
     listMembers(openid, event.keyword || '', event.page || 1, event.pageSize || 20),
   [ACTIONS.GET_MEMBER_DETAIL]: (openid, event) => getMemberDetail(openid, event.memberId),
   [ACTIONS.UPDATE_MEMBER]: (openid, event) => updateMember(openid, event.memberId, event.updates || {}),
+  [ACTIONS.DELETE_MEMBER]: (openid, event) => deleteMember(openid, event.memberId),
   [ACTIONS.CREATE_CHARGE_ORDER]: (openid, event) => createChargeOrder(openid, event.items || []),
   [ACTIONS.GET_CHARGE_ORDER]: (openid, event) => getChargeOrder(openid, event.orderId),
   [ACTIONS.GET_CHARGE_ORDER_QR_CODE]: (openid, event) => getChargeOrderQrCode(openid, event.orderId),
@@ -387,6 +394,31 @@ async function updateMember(openid, memberId, updates) {
     await Promise.all(tasks);
   }
   return fetchMemberDetail(memberId, openid);
+}
+
+async function deleteMember(openid, memberId) {
+  const admin = await ensureAdmin(openid);
+  const targetId = normalizeMemberIdValue(memberId);
+  if (!targetId) {
+    throw new Error('缺少会员编号');
+  }
+  if (targetId === admin._id) {
+    throw new Error('无法删除当前管理员账号');
+  }
+  const memberDoc = await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(targetId)
+    .get()
+    .catch(() => null);
+  if (!memberDoc || !memberDoc.data) {
+    throw new Error('会员不存在');
+  }
+  const cleanup = await cleanupMemberData(targetId);
+  return {
+    success: true,
+    memberId: targetId,
+    cleanup
+  };
 }
 
 async function listEquipmentCatalog(openid) {
@@ -1181,6 +1213,129 @@ async function updateAdminReservationBadges({ incrementVersion = false } = {}) {
     console.error('[admin] update admin reservation badges failed', error);
     return 0;
   }
+}
+
+async function cleanupMemberData(memberId) {
+  const summary = { removed: {}, errors: [] };
+
+  await removeCollectionByMemberId(COLLECTIONS.MEMBER_TIMELINE, memberId, summary);
+  await removeDocumentById(COLLECTIONS.MEMBER_EXTRAS, memberId, summary);
+
+  const reservationsRemoved = await removeCollectionByMemberId(COLLECTIONS.RESERVATIONS, memberId, summary);
+  await removeCollectionByMemberId(COLLECTIONS.MEMBER_RIGHTS, memberId, summary);
+
+  await removeCollectionByMemberId(COLLECTIONS.WALLET_TRANSACTIONS, memberId, summary);
+  await removeCollectionByMemberId(COLLECTIONS.STONE_TRANSACTIONS, memberId, summary);
+  await removeCollectionByMemberId(COLLECTIONS.TASK_RECORDS, memberId, summary);
+  await removeCollectionByMemberId(COLLECTIONS.COUPON_RECORDS, memberId, summary);
+  await removeCollectionByMemberId(COLLECTIONS.CHARGE_ORDERS, memberId, summary);
+  await removeCollectionByMemberId(COLLECTIONS.ERROR_LOGS, memberId, summary);
+
+  await removeDocumentById(COLLECTIONS.MEMBERS, memberId, summary);
+
+  if (reservationsRemoved > 0) {
+    await updateAdminReservationBadges({ incrementVersion: true });
+  }
+
+  return summary;
+}
+
+async function removeCollectionByMemberId(collectionName, memberId, summary) {
+  const targetId = normalizeMemberIdValue(memberId);
+  if (!targetId) {
+    return 0;
+  }
+  const collection = db.collection(collectionName);
+  const limit = 100;
+  let removed = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const snapshot = await collection
+      .where({ memberId: targetId })
+      .limit(limit)
+      .get()
+      .catch((error) => {
+        if (!isNotFoundError(error)) {
+          pushCleanupError(summary, collectionName, error);
+        }
+        return { data: [] };
+      });
+    const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+
+    await Promise.all(
+      docs.map((doc) =>
+        collection
+          .doc(doc._id)
+          .remove()
+          .then(() => {
+            removed += 1;
+          })
+          .catch((error) => {
+            if (!isNotFoundError(error)) {
+              pushCleanupError(summary, collectionName, error, doc._id);
+            }
+          })
+      )
+    );
+
+    if (docs.length < limit) {
+      hasMore = false;
+    }
+  }
+
+  if (removed > 0) {
+    summary.removed[collectionName] = (summary.removed[collectionName] || 0) + removed;
+  }
+  return removed;
+}
+
+async function removeDocumentById(collectionName, docId, summary) {
+  const targetId = normalizeMemberIdValue(docId);
+  if (!targetId) {
+    return 0;
+  }
+  try {
+    await db
+      .collection(collectionName)
+      .doc(targetId)
+      .remove();
+    summary.removed[collectionName] = (summary.removed[collectionName] || 0) + 1;
+    return 1;
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      return 0;
+    }
+    pushCleanupError(summary, collectionName, error, targetId);
+    return 0;
+  }
+}
+
+function pushCleanupError(summary, collectionName, error, docId = '') {
+  const message = (error && (error.errMsg || error.message)) || 'Unknown error';
+  summary.errors.push({ collection: collectionName, id: docId, message });
+  console.error('[admin] cleanup member data failed', collectionName, docId, error);
+}
+
+function isNotFoundError(error) {
+  if (!error) {
+    return false;
+  }
+  const message = error.errMsg || error.message || '';
+  return /not exist/i.test(message);
+}
+
+function normalizeMemberIdValue(value) {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return '';
 }
 
 function normalizeUsageCount(value) {
