@@ -27,6 +27,7 @@ const COMBAT_STAT_KEYS = [
   'dodge',
   'critRate',
   'critDamage',
+  'critResist',
   'finalDamageBonus',
   'finalDamageReduction',
   'lifeSteal',
@@ -59,6 +60,7 @@ const COMBAT_STAT_LABELS = {
   dodge: '闪避值',
   critRate: '暴击率',
   critDamage: '暴击伤害',
+  critResist: '抗暴击',
   finalDamageBonus: '最终增伤',
   finalDamageReduction: '最终减伤',
   lifeSteal: '吸血',
@@ -291,10 +293,12 @@ const EQUIPMENT_SLOTS = {
     key: 'treasure',
     label: '秘宝',
     mainAttributes: [
-      { key: 'finalDamageBonus', weight: 40, coefficient: 1.05 },
-      { key: 'finalDamageReduction', weight: 25, coefficient: 1 },
-      { key: 'damageReduction', weight: 25, coefficient: 1 },
-      { key: 'shieldPower', weight: 10, coefficient: 1 }
+      { key: 'finalDamageBonus', weight: 28, coefficient: 1.05 },
+      { key: 'finalDamageReduction', weight: 20, coefficient: 1 },
+      { key: 'damageReduction', weight: 18, coefficient: 1 },
+      { key: 'shieldPower', weight: 8, coefficient: 1 },
+      { key: 'critRate', weight: 16, coefficient: 1 },
+      { key: 'critResist', weight: 10, coefficient: 1 }
     ],
     subTags: ['offense', 'defense', 'support']
   }
@@ -346,6 +350,8 @@ const EQUIPMENT_ATTRIBUTE_RULES = {
   block: { type: 'percent', base: 0.1, perLevel: 0.0022, precision: 4 },
   counterRate: { type: 'percent', base: 0.12, perLevel: 0.0024, precision: 4 },
   damageReduction: { type: 'percent', base: 0.12, perLevel: 0.0024, precision: 4 },
+  critRate: { type: 'percent', base: 0.05, perLevel: 0.0015, precision: 4 },
+  critResist: { type: 'percent', base: 0.04, perLevel: 0.0012, precision: 4 },
   speed: { type: 'flat', base: 22, perLevel: 1.5, precision: 0 },
   accuracy: { type: 'flat', base: 18, perLevel: 1.4, precision: 0 },
   dodge: { type: 'flat', base: 20, perLevel: 1.6, precision: 0 },
@@ -385,6 +391,7 @@ const EQUIPMENT_AFFIX_RULES = {
   damageReduction: { key: 'damageReduction', tags: ['defense'], scale: 0.55 },
   critRate: { key: 'critRate', tags: ['offense', 'crit'], scale: 0.7 },
   critDamage: { key: 'critDamage', tags: ['offense', 'crit'], scale: 0.75 },
+  critResist: { key: 'critResist', tags: ['defense'], scale: 0.6 },
   comboRate: { key: 'comboRate', tags: ['offense', 'crit'], scale: 0.65 },
   speed: { key: 'speed', tags: ['speed'], scale: 0.6 },
   dodge: { key: 'dodge', tags: ['speed', 'evasion'], scale: 0.6 },
@@ -511,6 +518,402 @@ const EQUIPMENT_SET_LIBRARY = {
 };
 
 const EQUIPMENT_LIBRARY = [
+  {
+    id: 'mortal_weapon_staff',
+    name: '青竹练气杖',
+    slot: 'weapon',
+    quality: 'mortal',
+    levelRequirement: 1,
+    description: '青竹制成的入门木杖，帮助新修士稳定出手。',
+    mainAttribute: { key: 'physicalAttack', coefficient: 0.98 },
+    tags: ['凡品', '入门'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_weapon_sabre',
+    name: '赤铜灵锋',
+    slot: 'weapon',
+    quality: 'mortal',
+    levelRequirement: 4,
+    description: '赤铜淬炼的短刃，注重攻击倍率的稳步提升。',
+    mainAttribute: { key: 'finalDamageBonus', coefficient: 1.26 },
+    tags: ['凡品', '进阶'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_weapon_crossbow',
+    name: '飞星散弩',
+    slot: 'weapon',
+    quality: 'mortal',
+    levelRequirement: 7,
+    description: '便携散弩，鼓励修士在圆满阶段尝试连击。',
+    mainAttribute: { key: 'comboRate', coefficient: 0.6 },
+    tags: ['凡品', '连击'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_helm_headband',
+    name: '羊皮束额',
+    slot: 'helm',
+    quality: 'mortal',
+    levelRequirement: 1,
+    description: '柔软羊皮束额，可缓解早期副本的物理冲击。',
+    mainAttribute: { key: 'physicalDefense', coefficient: 0.93 },
+    tags: ['凡品', '防御'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_helm_veil',
+    name: '凝露纱冠',
+    slot: 'helm',
+    quality: 'mortal',
+    levelRequirement: 4,
+    description: '缀有凝露的纱冠，加强对灵力怪物的抵抗力。',
+    mainAttribute: { key: 'magicDefense', coefficient: 0.76 },
+    tags: ['凡品', '法防'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_helm_mask',
+    name: '烁纹面甲',
+    slot: 'helm',
+    quality: 'mortal',
+    levelRequirement: 7,
+    description: '烁纹雕刻的面甲，搭配反击流提升格挡。',
+    mainAttribute: { key: 'block', coefficient: 0.6 },
+    tags: ['凡品', '格挡'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_chest_robe',
+    name: '初阳布袍',
+    slot: 'chest',
+    quality: 'mortal',
+    levelRequirement: 1,
+    description: '轻薄布袍，为新手提供基础生命倍率。',
+    mainAttribute: { key: 'maxHpMultiplier', coefficient: 0.71 },
+    tags: ['凡品', '耐久'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_chest_plate',
+    name: '定岩护甲',
+    slot: 'chest',
+    quality: 'mortal',
+    levelRequirement: 4,
+    description: '以山岩为芯的护甲，强调中期的防御倍率。',
+    mainAttribute: { key: 'damageReduction', coefficient: 0.55 },
+    tags: ['凡品', '减伤'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_chest_mantle',
+    name: '沁灵罩衣',
+    slot: 'chest',
+    quality: 'mortal',
+    levelRequirement: 7,
+    description: '沁灵纹路的罩衣，强化护盾相关词条。',
+    mainAttribute: { key: 'shieldPower', coefficient: 0.6 },
+    tags: ['凡品', '护盾'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_boots_cloth',
+    name: '踪风布鞋',
+    slot: 'boots',
+    quality: 'mortal',
+    levelRequirement: 1,
+    description: '布鞋轻盈，帮助修士在炼气初期抢占先手。',
+    mainAttribute: { key: 'speed', coefficient: 0.7 },
+    tags: ['凡品', '速度'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_boots_lightstep',
+    name: '翎痕轻履',
+    slot: 'boots',
+    quality: 'mortal',
+    levelRequirement: 4,
+    description: '镶嵌羽翎的轻履，引导中期尝试闪避流。',
+    mainAttribute: { key: 'dodge', coefficient: 0.6 },
+    tags: ['凡品', '闪避'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_boots_balance',
+    name: '乾衡行靴',
+    slot: 'boots',
+    quality: 'mortal',
+    levelRequirement: 7,
+    description: '行靴稳固脚步，在圆满阶段补足命中阈值。',
+    mainAttribute: { key: 'accuracy', coefficient: 0.71 },
+    tags: ['凡品', '命中'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_belt_rope',
+    name: '绳结束带',
+    slot: 'belt',
+    quality: 'mortal',
+    levelRequirement: 1,
+    description: '朴素束带，搭配衣装提升基础生命。',
+    mainAttribute: { key: 'maxHpMultiplier', coefficient: 0.6 },
+    tags: ['凡品', '生命'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_belt_ring',
+    name: '知风木环',
+    slot: 'belt',
+    quality: 'mortal',
+    levelRequirement: 4,
+    description: '木环刻录风纹，提高治疗端的受疗系数。',
+    mainAttribute: { key: 'healingReceived', coefficient: 0.58 },
+    tags: ['凡品', '治疗'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_belt_wrap',
+    name: '灵息法缠',
+    slot: 'belt',
+    quality: 'mortal',
+    levelRequirement: 7,
+    description: '灵息缠绕的腰带，让治疗在圆满阶段更稳定。',
+    mainAttribute: { key: 'healingBonus', coefficient: 0.63 },
+    tags: ['凡品', '治疗'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_bracer_stone',
+    name: '砭石护腕',
+    slot: 'bracer',
+    quality: 'mortal',
+    levelRequirement: 1,
+    description: '镶嵌砭石的护腕，强化初段的基础攻击。',
+    mainAttribute: { key: 'physicalAttack', coefficient: 0.94 },
+    tags: ['凡品', '输出'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_bracer_echo',
+    name: '回鸣臂缚',
+    slot: 'bracer',
+    quality: 'mortal',
+    levelRequirement: 4,
+    description: '回声灵纹缠绕的臂缚，中段尝试反击流派。',
+    mainAttribute: { key: 'counterRate', coefficient: 0.52 },
+    tags: ['凡品', '反击'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_bracer_leaf',
+    name: '护山叶铠',
+    slot: 'bracer',
+    quality: 'mortal',
+    levelRequirement: 7,
+    description: '以灵叶铸成的护臂，兼顾格挡与防御。',
+    mainAttribute: { key: 'block', coefficient: 0.51 },
+    tags: ['凡品', '格挡'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_orb_amber',
+    name: '琥珀聚灵',
+    slot: 'orb',
+    quality: 'mortal',
+    levelRequirement: 1,
+    description: '琥珀封存灵息，巩固法系入门的法攻基数。',
+    mainAttribute: { key: 'magicAttack', coefficient: 1.02 },
+    tags: ['凡品', '术法'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_orb_calm',
+    name: '清魂定珠',
+    slot: 'orb',
+    quality: 'mortal',
+    levelRequirement: 4,
+    description: '清魂之珠，中期堆叠控制命中的关键素材。',
+    mainAttribute: { key: 'controlHit', coefficient: 0.36 },
+    tags: ['凡品', '控制'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_orb_flame',
+    name: '炎脉注灵',
+    slot: 'orb',
+    quality: 'mortal',
+    levelRequirement: 7,
+    description: '灌注炎脉的灵珠，让术法输出获得额外加成。',
+    mainAttribute: { key: 'finalDamageBonus', coefficient: 1.11 },
+    tags: ['凡品', '术法'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_necklace_rune',
+    name: '灵纹索坠',
+    slot: 'necklace',
+    quality: 'mortal',
+    levelRequirement: 1,
+    description: '灵纹牵引心神，为控制职业提供命中底座。',
+    mainAttribute: { key: 'controlHit', coefficient: 0.42 },
+    tags: ['凡品', '控制'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_necklace_care',
+    name: '慈流颈环',
+    slot: 'necklace',
+    quality: 'mortal',
+    levelRequirement: 4,
+    description: '慈流回旋的颈环，中期治疗的稳固支点。',
+    mainAttribute: { key: 'healingBonus', coefficient: 0.6 },
+    tags: ['凡品', '治疗'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_necklace_fang',
+    name: '斗志牙牌',
+    slot: 'necklace',
+    quality: 'mortal',
+    levelRequirement: 7,
+    description: '铭刻斗志的牙牌，加快怒气循环。',
+    mainAttribute: { key: 'rageGain', coefficient: 0.57 },
+    tags: ['凡品', '怒气'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_token_oath',
+    name: '初悟令符',
+    slot: 'token',
+    quality: 'mortal',
+    levelRequirement: 1,
+    description: '初悟之人佩戴的令符，平衡六维基础成长。',
+    mainAttribute: { key: 'allAttributes', coefficient: 0.94 },
+    tags: ['凡品', '平衡'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_token_banner',
+    name: '碧甲战旗',
+    slot: 'token',
+    quality: 'mortal',
+    levelRequirement: 4,
+    description: '小型战旗，为团队提供持续的防御倍率。',
+    mainAttribute: { key: 'damageReduction', coefficient: 0.46 },
+    tags: ['凡品', '防御'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_token_shield',
+    name: '灵盾石佩',
+    slot: 'token',
+    quality: 'mortal',
+    levelRequirement: 7,
+    description: '灵盾石雕成的佩饰，强化护盾型流派。',
+    mainAttribute: { key: 'shieldPower', coefficient: 0.54 },
+    tags: ['凡品', '护盾'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_puppet_wood',
+    name: '木魈守偶',
+    slot: 'puppet',
+    quality: 'mortal',
+    levelRequirement: 1,
+    description: '木魈化灵的小傀儡，入门反击流的伙伴。',
+    mainAttribute: { key: 'counterRate', coefficient: 0.57 },
+    tags: ['凡品', '反击'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_puppet_vine',
+    name: '雾藤护灵',
+    slot: 'puppet',
+    quality: 'mortal',
+    levelRequirement: 4,
+    description: '雾藤缠绕的护灵，为队伍提供额外护盾支援。',
+    mainAttribute: { key: 'shieldPower', coefficient: 0.52 },
+    tags: ['凡品', '护盾'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_puppet_feather',
+    name: '羽翎侍从',
+    slot: 'puppet',
+    quality: 'mortal',
+    levelRequirement: 7,
+    description: '羽翎构筑的侍灵，提前体验召唤规模化。',
+    mainAttribute: { key: 'summonPower', coefficient: 0.55 },
+    tags: ['凡品', '召唤'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_focus_brush',
+    name: '霜毫法笔',
+    slot: 'focus',
+    quality: 'mortal',
+    levelRequirement: 1,
+    description: '寒霜之毫制成的法笔，稳固术法基础。',
+    mainAttribute: { key: 'magicAttack', coefficient: 1.02 },
+    tags: ['凡品', '术法'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_focus_mirror',
+    name: '银辉法鉴',
+    slot: 'focus',
+    quality: 'mortal',
+    levelRequirement: 4,
+    description: '银辉流转的法鉴，中期提升法术强度倍率。',
+    mainAttribute: { key: 'finalDamageBonus', coefficient: 1.08 },
+    tags: ['凡品', '术法'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_focus_bell',
+    name: '烈脉骨铃',
+    slot: 'focus',
+    quality: 'mortal',
+    levelRequirement: 7,
+    description: '骨铃震荡烈脉，让术法穿透提前成型。',
+    mainAttribute: { key: 'magicPenetration', coefficient: 0.043 },
+    tags: ['凡品', '法穿'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_treasure_dawn',
+    name: '破晓灵盘',
+    slot: 'treasure',
+    quality: 'mortal',
+    levelRequirement: 1,
+    description: '破晓之光凝成的灵盘，帮助输出突破暴击线。',
+    mainAttribute: { key: 'critRate', coefficient: 0.88 },
+    tags: ['凡品', '暴击'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_treasure_ward',
+    name: '守心石印',
+    slot: 'treasure',
+    quality: 'mortal',
+    levelRequirement: 4,
+    description: '石印稳固心神，为队伍提供抗暴击保障。',
+    mainAttribute: { key: 'critResist', coefficient: 1.18 },
+    tags: ['凡品', '抗压'],
+    refineScale: 0.04
+  },
+  {
+    id: 'mortal_treasure_flare',
+    name: '流火坠玉',
+    slot: 'treasure',
+    quality: 'mortal',
+    levelRequirement: 7,
+    description: '流火淬玉之作，圆满阶段的团队减伤核心。',
+    mainAttribute: { key: 'damageReduction', coefficient: 0.56 },
+    tags: ['凡品', '减伤'],
+    refineScale: 0.04
+  },
   {
     id: 'novice_sword',
     name: '青竹剑',
@@ -1621,6 +2024,12 @@ exports.main = async (event) => {
       return equipSkill(OPENID, event);
     case 'equipItem':
       return equipItem(OPENID, event);
+    case 'listEquipmentCatalog':
+      return listEquipmentCatalog(OPENID);
+    case 'adminInspectProfile':
+      return inspectProfileForAdmin(OPENID, event.memberId);
+    case 'grantEquipment':
+      return grantEquipment(OPENID, event);
     case 'allocatePoints':
       return allocatePoints(OPENID, event.allocations || {});
     case 'resetAttributes':
@@ -1977,12 +2386,108 @@ async function resetAttributes(openid) {
   return { profile: decorated };
 }
 
+async function listEquipmentCatalog(openid) {
+  const member = await ensureMember(openid);
+  ensureAdminAccess(member);
+  const items = EQUIPMENT_LIBRARY.map((item) => ({
+    id: item.id,
+    name: item.name,
+    slot: item.slot,
+    slotLabel: EQUIPMENT_SLOT_LABELS[item.slot] || '',
+    quality: item.quality,
+    qualityLabel: resolveEquipmentQualityLabel(item.quality),
+    qualityColor: resolveEquipmentQualityColor(item.quality),
+    levelRequirement: item.levelRequirement || 1,
+    tags: item.tags || []
+  }));
+  return { items };
+}
+
+async function inspectProfileForAdmin(openid, memberId) {
+  const admin = await ensureMember(openid);
+  ensureAdminAccess(admin);
+  const targetId = typeof memberId === 'string' && memberId.trim() ? memberId.trim() : '';
+  if (!targetId) {
+    throw createError('MEMBER_ID_REQUIRED', '缺少会员编号');
+  }
+  const targetMember = await ensureMember(targetId);
+  const profile = await ensurePveProfile(targetId, targetMember);
+  const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+  return { profile: decorated };
+}
+
+async function grantEquipment(openid, event = {}) {
+  const admin = await ensureMember(openid);
+  ensureAdminAccess(admin);
+  const memberId = typeof event.memberId === 'string' && event.memberId.trim() ? event.memberId.trim() : '';
+  if (!memberId) {
+    throw createError('MEMBER_ID_REQUIRED', '缺少会员编号');
+  }
+  const itemId = typeof event.itemId === 'string' && event.itemId.trim() ? event.itemId.trim() : '';
+  if (!itemId) {
+    throw createError('ITEM_ID_REQUIRED', '请选择装备');
+  }
+  const definition = EQUIPMENT_MAP[itemId];
+  if (!definition) {
+    throw createError('ITEM_NOT_FOUND', '装备不存在');
+  }
+  const targetMember = await ensureMember(memberId);
+  const profile = await ensurePveProfile(memberId, targetMember);
+  const now = new Date();
+  profile.equipment = normalizeEquipment(profile.equipment, now);
+  const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
+  let entry = inventory.find((record) => record.itemId === itemId);
+  if (!entry) {
+    entry = createEquipmentInventoryEntry(itemId, now);
+    if (entry) {
+      inventory.push(entry);
+    }
+  } else {
+    entry.obtainedAt = now;
+  }
+  profile.equipment.inventory = inventory;
+  profile.battleHistory = appendHistory(
+    profile.battleHistory,
+    {
+      type: 'equipment-change',
+      createdAt: now,
+      detail: { itemId, slot: definition.slot || '', action: 'grant' }
+    },
+    MAX_BATTLE_HISTORY
+  );
+
+  await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
+    data: {
+      pveProfile: profile,
+      updatedAt: now
+    }
+  });
+
+  const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+  const granted = entry ? decorateEquipmentInventoryEntry(entry, profile.equipment.slots) : null;
+  return { profile: decorated, granted };
+}
+
 async function ensureMember(openid) {
   const snapshot = await db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null);
   if (!snapshot || !snapshot.data) {
     throw createError('MEMBER_NOT_FOUND', '会员信息不存在，请先完成注册');
   }
   return snapshot.data;
+}
+
+function isAdminMember(member) {
+  if (!member || typeof member !== 'object') {
+    return false;
+  }
+  const roles = Array.isArray(member.roles) ? member.roles : [];
+  return roles.includes('admin') || roles.includes('developer');
+}
+
+function ensureAdminAccess(member) {
+  if (!isAdminMember(member)) {
+    throw createError('FORBIDDEN', '仅管理员可执行该操作');
+  }
 }
 
 async function ensurePveProfile(openid, member, levelCache) {
@@ -2757,6 +3262,7 @@ function deriveBaseCombatStats(baseAttributes, realmBonus = {}) {
   stats.dodge = 80 + agility * 0.9 + insight * 0.4;
   stats.critRate = 0.05 + insight * 0.001;
   stats.critDamage = 1.5 + insight * 0.0015;
+  stats.critResist = Math.min(0.25, root * 0.0008 + constitution * 0.0002);
   stats.finalDamageBonus = 0;
   stats.finalDamageReduction = Math.min(0.4, root * 0.001 + constitution * 0.0003);
   stats.lifeSteal = 0;
@@ -2973,6 +3479,7 @@ function calculateCombatPower(stats, special = {}) {
   const dodge = Number(stats.dodge) || 0;
   const critRate = clamp(Number(stats.critRate) || 0, 0, 0.95);
   const critDamage = Math.max(1.2, Number(stats.critDamage) || 1.5);
+  const critResist = Number(stats.critResist) || 0;
   const finalDamageBonus = Number(stats.finalDamageBonus) || 0;
   const finalDamageReduction = Number(stats.finalDamageReduction) || 0;
   const lifeSteal = Number(stats.lifeSteal) || 0;
@@ -3006,6 +3513,7 @@ function calculateCombatPower(stats, special = {}) {
     (critDamage - 1) * 180 +
     finalDamageBonus * 650 -
     finalDamageReduction * 480 +
+    critResist * 360 +
     lifeSteal * 420 +
     healingBonus * 380 +
     controlHit * 1.1 +
@@ -3905,6 +4413,9 @@ function formatStatResult(key, value) {
   if (key === 'critDamage') {
     return Number(Math.max(1.2, value).toFixed(2));
   }
+  if (key === 'critResist') {
+    return Number(Math.max(0, Math.min(0.8, value)).toFixed(4));
+  }
   if (key === 'finalDamageBonus') {
     return Number(Math.max(-0.5, Math.min(1.5, value)).toFixed(4));
   }
@@ -3951,6 +4462,7 @@ function formatStatDisplay(key, value, signed = false) {
     key === 'lifeSteal' ||
     key === 'healingBonus' ||
     key === 'healingReduction' ||
+    key === 'critResist' ||
     [
       'comboRate',
       'block',

@@ -271,6 +271,8 @@ PVP 最终伤害为 `DamagePVP = HitRate × Final`。由于守方可同时堆叠
 
 凡品装备遵循《寻道大千》中的数值分层：所有 T0 级的“最终增伤”“最终减伤”类属性都延后到下品及以上品质开放，凡品仅提供基础攻击、防御、速度、命中、治疗等一阶数值或倍率。每个槽位的数值目标均以炼气期平均面板的 30%~35% 为上限，保证新手装备提供稳定增益而不会在前期破坏伤害与防御阈值。
 
+上述凡品条目已以 `mortal_` 前缀写入 `EQUIPMENT_LIBRARY`，覆盖十二个槽位共三十六件装备，便于作为新手掉落或后台直发的基线库。【F:cloudfunctions/pve/index.js†L416-L705】后台调用 `grantEquipment` 接口即可为指定会员追加这些装备，确保文档中的设计与实际产物保持一致。【F:cloudfunctions/admin/index.js†L99-L147】 
+
 ### 武器（主属性：基础攻击 / 攻击倍率 / 连击率）
 
 | 名称 | 推荐等级 | 主属性（凡品·阶段基准） | 定位说明 |
@@ -366,3 +368,9 @@ PVP 最终伤害为 `DamagePVP = HitRate × Final`。由于守方可同时堆叠
 | 破晓灵盘 | 炼气·初悟（1-3） | 暴击率 +3.5% | 入门秘宝，帮助输出突破初段伤害线。 |
 | 守心石印 | 炼气·小成（4-6） | 抗暴击 +4.0% | 中段抗压工具，降低群怪爆发。 |
 | 流火坠玉 | 炼气·圆满（7-10） | 减伤 +6.0% | 圆满阶段的团队防御核心，补足高端副本需求。 |
+
+## 十二、部署与运营提示
+
+- **云函数同步**：凡品装备库、管理员发放接口均落地在 `cloudfunctions/pve` 与 `cloudfunctions/admin` 中，更新后需在微信云开发控制台重新上传这两个函数目录并安装依赖。
+- **后台操作**：运营后台的“会员资料”详情页已经新增“PVE 装备”面板，可通过下拉选择器调用 `listEquipmentCatalog` 查看可发放装备并执行 `grantEquipment` 发放动作。更新前端代码后即可使用。【F:miniprogram/pages/admin/member-detail/index.wxml†L121-L171】【F:miniprogram/pages/admin/member-detail/index.js†L1-L270】
+- **发放记录**：发放装备会写入会员的 `battleHistory`，便于后续审计或排查；同一装备重复发放会刷新 `obtainedAt` 时间但不会产生重复条目，保持背包的唯一性。【F:cloudfunctions/pve/index.js†L1795-L1856】【F:cloudfunctions/pve/index.js†L1869-L1911】
