@@ -88,28 +88,36 @@ function resolveStorageUpgradeState(storage) {
   return { level, upgrades };
 }
 
-function extractStorageUpgradeAvailable(storage) {
+function extractStorageField(storage, keys) {
   if (!storage || typeof storage !== 'object') {
-    return { value: null, key: null };
+    return { value: null, key: null, container: null };
   }
-  for (const key of STORAGE_UPGRADE_AVAILABLE_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(storage, key)) {
-      return { value: toOptionalPositiveInt(storage[key]), key };
+  const containers = [
+    { object: storage, container: null },
+    { object: storage.meta, container: 'meta' },
+    { object: storage.metadata, container: 'metadata' }
+  ];
+  for (let i = 0; i < containers.length; i += 1) {
+    const { object, container } = containers[i];
+    if (!object || typeof object !== 'object') {
+      continue;
+    }
+    for (let j = 0; j < keys.length; j += 1) {
+      const key = keys[j];
+      if (Object.prototype.hasOwnProperty.call(object, key)) {
+        return { value: toOptionalPositiveInt(object[key]), key, container };
+      }
     }
   }
-  return { value: null, key: null };
+  return { value: null, key: null, container: null };
+}
+
+function extractStorageUpgradeAvailable(storage) {
+  return extractStorageField(storage, STORAGE_UPGRADE_AVAILABLE_KEYS);
 }
 
 function extractStorageUpgradeLimit(storage) {
-  if (!storage || typeof storage !== 'object') {
-    return { value: null, key: null };
-  }
-  for (const key of STORAGE_UPGRADE_LIMIT_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(storage, key)) {
-      return { value: toOptionalPositiveInt(storage[key]), key };
-    }
-  }
-  return { value: null, key: null };
+  return extractStorageField(storage, STORAGE_UPGRADE_LIMIT_KEYS);
 }
 
 function resolveStorageUpgradeAvailable(storage) {
@@ -118,6 +126,25 @@ function resolveStorageUpgradeAvailable(storage) {
 
 function resolveStorageUpgradeLimit(storage) {
   return extractStorageUpgradeLimit(storage).value;
+}
+
+function setStorageField(target, descriptor, defaultKey, value) {
+  if (!target || value == null) {
+    return;
+  }
+  const key = (descriptor && descriptor.key) || defaultKey;
+  const container = descriptor && descriptor.container ? descriptor.container : null;
+  if (container === 'meta' || container === 'metadata') {
+    const property = container;
+    const existing = target[property] && typeof target[property] === 'object' ? target[property] : {};
+    target[property] = { ...existing, [key]: value };
+    target[defaultKey] = value;
+    return;
+  }
+  target[key] = value;
+  if (key !== defaultKey) {
+    target[defaultKey] = value;
+  }
 }
 
 
@@ -2592,9 +2619,15 @@ async function upgradeStorage(actorId, event = {}) {
   const { level: currentLevel } = resolveStorageUpgradeState(storage);
   const baseCapacity = resolveStorageBaseCapacity(storage);
   const perUpgrade = resolveStoragePerUpgrade(storage);
-  const { value: upgradeAvailable, key: upgradeAvailableKey } = extractStorageUpgradeAvailable(storage);
-  const { value: upgradeLimit, key: upgradeLimitKey } = extractStorageUpgradeLimit(storage);
-  const normalizedLimit = upgradeLimit !== null && upgradeLimit > 0 ? upgradeLimit : null;
+  const upgradeAvailableDescriptor = extractStorageUpgradeAvailable(storage);
+  const upgradeLimitDescriptor = extractStorageUpgradeLimit(storage);
+  const upgradeAvailable = upgradeAvailableDescriptor.value;
+  const upgradeLimit = upgradeLimitDescriptor.value;
+  let normalizedLimit = upgradeLimit !== null && upgradeLimit > 0 ? upgradeLimit : null;
+  if (normalizedLimit === null) {
+    const fallbackLimitBase = currentLevel + (upgradeAvailable !== null ? upgradeAvailable : 0);
+    normalizedLimit = Math.max(DEFAULT_STORAGE_UPGRADE_LIMIT, fallbackLimitBase);
+  }
   if (normalizedLimit !== null && currentLevel >= normalizedLimit) {
     throw createError('STORAGE_MAX_UPGRADES', '储物空间已达到上限');
   }
@@ -2605,7 +2638,15 @@ async function upgradeStorage(actorId, event = {}) {
   if (normalizedLimit !== null && nextLevel > normalizedLimit) {
     throw createError('STORAGE_MAX_UPGRADES', '储物空间已达到上限');
   }
-  const nextAvailable = upgradeAvailable !== null ? Math.max(upgradeAvailable - 1, 0) : null;
+  let nextAvailable = null;
+  if (upgradeAvailable !== null) {
+    nextAvailable = Math.max(upgradeAvailable - 1, 0);
+    if (normalizedLimit !== null) {
+      nextAvailable = Math.min(nextAvailable, Math.max(normalizedLimit - nextLevel, 0));
+    }
+  } else if (normalizedLimit !== null) {
+    nextAvailable = Math.max(normalizedLimit - nextLevel, 0);
+  }
   const updatedUpgrades = {};
   STORAGE_CATEGORY_KEYS.forEach((key) => {
     updatedUpgrades[key] = nextLevel;
@@ -2617,13 +2658,11 @@ async function upgradeStorage(actorId, event = {}) {
     baseCapacity,
     perUpgrade
   };
-  if (upgradeAvailableKey || nextAvailable !== null) {
-    const key = upgradeAvailableKey || 'upgradeAvailable';
-    updatedStorage[key] = nextAvailable;
+  if (nextAvailable !== null) {
+    setStorageField(updatedStorage, upgradeAvailableDescriptor, 'upgradeAvailable', nextAvailable);
   }
-  if (upgradeLimitKey || normalizedLimit !== null) {
-    const key = upgradeLimitKey || 'upgradeLimit';
-    updatedStorage[key] = normalizedLimit;
+  if (normalizedLimit !== null) {
+    setStorageField(updatedStorage, upgradeLimitDescriptor, 'upgradeLimit', normalizedLimit);
   }
   profile.equipment.storage = updatedStorage;
   const now = new Date();
