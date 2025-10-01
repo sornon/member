@@ -166,6 +166,13 @@ function resolveTooltipDeleteState(tooltip) {
   return { canDelete: true, reason: '' };
 }
 
+function normalizeSkillId(value) {
+  if (value === null || typeof value === 'undefined') {
+    return '';
+  }
+  return String(value);
+}
+
 Page({
   data: {
     loading: true,
@@ -176,6 +183,7 @@ Page({
     stoneBalance: 0,
     formattedStoneBalance: formatStones(0),
     equipmentTooltip: null,
+    skillModal: null,
     storageCategories: [],
     storageMeta: null,
     activeStorageCategory: 'equipment',
@@ -215,6 +223,10 @@ Page({
       if (!inSlots && !inInventory) {
         updates.equipmentTooltip = null;
       }
+    }
+    const currentSkillModal = this.data ? this.data.skillModal : null;
+    if (currentSkillModal) {
+      updates.skillModal = this.rebuildSkillModal(sanitizedProfile, currentSkillModal);
     }
     this.setData(updates);
     return sanitizedProfile;
@@ -409,7 +421,7 @@ Page({
       this.applyProfile(res.profile, { drawing: false });
       if (res.acquiredSkill) {
         wx.showToast({
-          title: `${res.acquiredSkill.rarityLabel}·${res.acquiredSkill.name}`,
+          title: `${res.acquiredSkill.qualityLabel}·${res.acquiredSkill.name}`,
           icon: 'success'
         });
       } else {
@@ -445,6 +457,170 @@ Page({
       console.error('[role] unequip skill failed', error);
       wx.showToast({ title: error.errMsg || '操作失败', icon: 'none' });
     }
+  },
+
+  handleSkillCardTap(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const source = typeof dataset.source === 'string' ? dataset.source : '';
+    const profile = this.data && this.data.profile ? this.data.profile : null;
+    if (!profile || !profile.skills) {
+      return;
+    }
+    const skills = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
+    const slots = Array.isArray(profile.skills.equipped) ? profile.skills.equipped : [];
+    const datasetSkillId = normalizeSkillId(dataset ? dataset.skillId : '');
+    const matchSkillId = (candidate, targetId) => {
+      if (!candidate || !targetId) return false;
+      const candidateId = normalizeSkillId(candidate.skillId);
+      return candidateId && candidateId === targetId;
+    };
+    if (source === 'equipped') {
+      const slotIndex = Number(dataset.index);
+      const slotNumber = Number(dataset.slot);
+      let slotItem = Number.isFinite(slotIndex) ? slots[slotIndex] : null;
+      if ((!slotItem || !slotItem.detail) && Number.isFinite(slotNumber)) {
+        slotItem = slots.find((entry) => entry && Number(entry.slot) === slotNumber) || null;
+      }
+      if (slotItem && slotItem.detail) {
+        const slotValue = Number(slotItem.slot);
+        const normalizedSlot = Number.isFinite(slotValue)
+          ? slotValue
+          : Number.isFinite(slotNumber)
+          ? slotNumber
+          : null;
+        const slotLabel = Number.isFinite(normalizedSlot) ? `槽位 ${normalizedSlot + 1}` : '';
+        this.openSkillModal({
+          skill: slotItem.detail,
+          source: 'equipped',
+          slotIndex: Number.isFinite(slotIndex) ? slotIndex : null,
+          slot: normalizedSlot,
+          skillId: slotItem.detail.skillId,
+          slotLabel
+        });
+      }
+      return;
+    }
+    if (source === 'inventory') {
+      const inventoryIndex = Number(dataset.index);
+      let skillItem = Number.isFinite(inventoryIndex) ? skills[inventoryIndex] : null;
+      if (!skillItem && datasetSkillId) {
+        skillItem = skills.find((item) => matchSkillId(item, datasetSkillId)) || null;
+      }
+      if (skillItem) {
+        this.openSkillModal({
+          skill: skillItem,
+          source: 'inventory',
+          inventoryIndex: Number.isFinite(inventoryIndex) ? inventoryIndex : null,
+          skillId: datasetSkillId || normalizeSkillId(skillItem && skillItem.skillId)
+        });
+      }
+    }
+  },
+
+  openSkillModal(options = {}) {
+    const skill = options && options.skill ? options.skill : null;
+    if (!skill) {
+      return;
+    }
+    const slotValue = Number(options.slot);
+    const slot = Number.isFinite(slotValue) ? slotValue : null;
+    const slotIndexValue = Number(options.slotIndex);
+    const slotIndex = Number.isFinite(slotIndexValue) ? slotIndexValue : null;
+    const inventoryIndexValue = Number(options.inventoryIndex);
+    const inventoryIndex = Number.isFinite(inventoryIndexValue) ? inventoryIndexValue : null;
+    const skillIdSource = Object.prototype.hasOwnProperty.call(options, 'skillId')
+      ? options.skillId
+      : skill.skillId;
+    const skillId = normalizeSkillId(skillIdSource);
+    const modal = {
+      visible: true,
+      source: typeof options.source === 'string' ? options.source : '',
+      slot,
+      slotIndex,
+      inventoryIndex,
+      skillId,
+      slotLabel:
+        typeof options.slotLabel === 'string' && options.slotLabel
+          ? options.slotLabel
+          : slot !== null
+          ? `槽位 ${slot + 1}`
+          : '',
+      skill: { ...skill }
+    };
+    this.setData({ skillModal: modal });
+  },
+
+  closeSkillModal() {
+    this.setData({ skillModal: null });
+  },
+
+  rebuildSkillModal(profile, modal) {
+    if (!modal || !modal.visible) {
+      return modal;
+    }
+    const skill = this.resolveSkillModalSkill(profile, modal);
+    if (!skill) {
+      return null;
+    }
+    const slotValue = Number(modal.slot);
+    const slot = Number.isFinite(slotValue) ? slotValue : null;
+    const rebuilt = {
+      ...modal,
+      slot,
+      slotLabel:
+        typeof modal.slotLabel === 'string' && modal.slotLabel
+          ? modal.slotLabel
+          : slot !== null
+          ? `槽位 ${slot + 1}`
+          : '',
+      skill
+    };
+    return rebuilt;
+  },
+
+  resolveSkillModalSkill(profile, modal) {
+    if (!profile || !profile.skills) {
+      return null;
+    }
+    const slots = Array.isArray(profile.skills.equipped) ? profile.skills.equipped : [];
+    const inventory = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
+    if (modal.source === 'equipped') {
+      const slotIndexValue = Number(modal.slotIndex);
+      const slotIndex = Number.isFinite(slotIndexValue) ? slotIndexValue : null;
+      if (slotIndex !== null && slots[slotIndex] && slots[slotIndex].detail) {
+        return { ...slots[slotIndex].detail };
+      }
+      const slotNumberValue = Number(modal.slot);
+      const slotNumber = Number.isFinite(slotNumberValue) ? slotNumberValue : null;
+      if (slotNumber !== null) {
+        const slotItem = slots.find((entry) => entry && Number(entry.slot) === slotNumber);
+        if (slotItem && slotItem.detail) {
+          return { ...slotItem.detail };
+        }
+      }
+    } else if (modal.source === 'inventory') {
+      const inventoryIndexValue = Number(modal.inventoryIndex);
+      const inventoryIndex = Number.isFinite(inventoryIndexValue) ? inventoryIndexValue : null;
+      if (inventoryIndex !== null && inventory[inventoryIndex]) {
+        return { ...inventory[inventoryIndex] };
+      }
+    }
+    const skillId = normalizeSkillId(
+      Object.prototype.hasOwnProperty.call(modal, 'skillId') ? modal.skillId : modal.skill && modal.skill.skillId
+    );
+    if (skillId) {
+      const matchInventory = inventory.find((item) => normalizeSkillId(item && item.skillId) === skillId);
+      if (matchInventory) {
+        return { ...matchInventory };
+      }
+      const matchSlot = slots
+        .map((entry) => (entry && entry.detail ? entry.detail : null))
+        .find((detail) => normalizeSkillId(detail && detail.skillId) === skillId);
+      if (matchSlot) {
+        return { ...matchSlot };
+      }
+    }
+    return null;
   },
 
   async handleEquipItem(options = {}) {

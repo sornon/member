@@ -328,20 +328,51 @@
           </view>
         </view>
         <view class="skill-slots">
-          <view class="skill-slot" wx:for="{{(profile.skills && profile.skills.equipped) || []}}" wx:key="slot">
-            <view class="slot-index">槽位 {{item.slot + 1}}</view>
-            <view wx:if="{{item.detail}}" class="skill-detail">
-              <view class="skill-name" style="color: {{item.detail.rarityColor}};">{{item.detail.name}} Lv.{{item.detail.level}}</view>
-              <view class="skill-effects">
-                <text wx:for="{{item.detail.effectsSummary || []}}" wx:key="index">{{effect}}</text>
-              </view>
+          <view
+            class="skill-slot-card {{item.detail ? '' : 'skill-slot-card--empty'}}"
+            wx:for="{{(profile.skills && profile.skills.equipped) || []}}"
+            wx:key="slot"
+            wx:for-index="slotIndex"
+          >
+            <view class="skill-slot-card__header">
+              <text class="slot-title">槽位 {{item.slot + 1}}</text>
               <button
-                class="pill-btn pill-btn--ghost"
+                wx:if="{{item.detail}}"
+                class="pill-btn pill-btn--ghost skill-slot-card__action"
                 hover-class="pill-btn--hover"
                 size="mini"
                 data-slot="{{item.slot}}"
-                bindtap="handleUnequipSkill"
+                catchtap="handleUnequipSkill"
               >卸下</button>
+            </view>
+            <view
+              wx:if="{{item.detail}}"
+              class="skill-slot-card__body"
+              data-source="equipped"
+              data-slot="{{item.slot}}"
+              data-index="{{slotIndex}}"
+              data-skill-id="{{item.detail.skillId}}"
+              hover-class="skill-card--hover"
+              bindtap="handleSkillCardTap"
+            >
+              <view class="skill-slot-card__name" style="color: {{item.detail.qualityColor}};">
+                <text class="skill-slot-card__name-text">{{item.detail.name}}</text>
+                <text class="skill-slot-card__level">Lv.{{item.detail.level}}</text>
+              </view>
+              <view class="skill-slot-card__tags">
+                <text class="skill-tag">{{item.detail.qualityLabel}}</text>
+                <text class="skill-tag">{{item.detail.typeLabel}}</text>
+                <text class="skill-tag">{{item.detail.disciplineLabel}}</text>
+                <text class="skill-tag">{{item.detail.elementLabel}}</text>
+              </view>
+              <view wx:if="{{item.detail.resourceText}}" class="skill-slot-card__meta">{{item.detail.resourceText}}</view>
+              <view wx:if="{{item.detail.imprintText}}" class="skill-slot-card__meta">{{item.detail.imprintText}}</view>
+              <view
+                wx:if="{{item.detail.highlights && item.detail.highlights.length}}"
+                class="skill-slot-card__highlights"
+              >
+                {{item.detail.highlights[0]}}
+              </view>
             </view>
             <view wx:else class="slot-empty">未装备技能</view>
           </view>
@@ -351,27 +382,49 @@
           wx:if="{{!(profile.skills && profile.skills.inventory && profile.skills.inventory.length)}}"
           class="empty-tip inventory-empty"
         >暂无技能</view>
-        <view class="skill-item" wx:for="{{(profile.skills && profile.skills.inventory) || []}}" wx:key="skillId">
-          <view class="skill-header">
-            <view class="skill-name" style="color: {{item.rarityColor}};">{{item.name}} Lv.{{item.level}}</view>
-            <view class="skill-meta">{{item.rarityLabel}}</view>
-          </view>
-          <view class="skill-desc">{{item.description}}</view>
-          <view class="skill-effects">
-            <text wx:for="{{item.effectsSummary || []}}" wx:key="index">{{effect}}</text>
-          </view>
-          <view class="skill-actions">
-            <button
-              class="pill-btn pill-btn--primary"
-              hover-class="pill-btn--primary-hover"
-              size="mini"
-              data-skill-id="{{item.skillId}}"
-              bindtap="handleEquipSkill"
-              disabled="{{item.equipped}}"
-            >
-              {{item.equipped ? '使用中' : '装备'}}
-            </button>
-            <view class="skill-time">获得于 {{item.obtainedAtText}}</view>
+        <view
+          wx:if="{{profile.skills && profile.skills.inventory && profile.skills.inventory.length}}"
+          class="skill-grid"
+        >
+          <view
+            class="skill-card"
+            wx:for="{{(profile.skills && profile.skills.inventory) || []}}"
+            wx:key="skillId"
+            wx:for-index="inventoryIndex"
+            data-source="inventory"
+            data-index="{{inventoryIndex}}"
+            data-skill-id="{{item.skillId}}"
+            hover-class="skill-card--hover"
+            bindtap="handleSkillCardTap"
+          >
+            <view wx:if="{{item.equipped}}" class="skill-card__badge">使用中</view>
+            <view class="skill-card__header">
+              <text class="skill-card__name" style="color: {{item.qualityColor}};">{{item.name}}</text>
+              <text class="skill-card__level">Lv.{{item.level}}</text>
+            </view>
+            <view class="skill-card__tags">
+              <text class="skill-tag">{{item.qualityLabel}}</text>
+              <text class="skill-tag">{{item.typeLabel}}</text>
+            </view>
+            <view class="skill-card__tags skill-card__tags--secondary">
+              <text class="skill-tag">{{item.disciplineLabel}}</text>
+              <text class="skill-tag">{{item.elementLabel}}</text>
+              <text wx:if="{{item.resourceText}}" class="skill-tag skill-tag--muted">{{item.resourceText}}</text>
+            </view>
+            <view wx:if="{{item.imprintText}}" class="skill-card__meta">{{item.imprintText}}</view>
+            <view class="skill-card__footer">
+              <button
+                class="pill-btn pill-btn--primary"
+                hover-class="pill-btn--primary-hover"
+                size="mini"
+                data-skill-id="{{item.skillId}}"
+                catchtap="handleEquipSkill"
+                disabled="{{item.equipped}}"
+              >
+                {{item.equipped ? '使用中' : '装备'}}
+              </button>
+              <text class="skill-card__time">获得于 {{item.obtainedAtText}}</text>
+            </view>
           </view>
         </view>
       </view>
@@ -456,6 +509,68 @@
         wx:if="{{equipmentTooltip.mode === 'delete' && equipmentTooltip.deleteDisabledReason}}"
         class="equipment-tooltip__hint"
       >{{equipmentTooltip.deleteDisabledReason}}</view>
+    </view>
+  </view>
+  <view wx:if="{{skillModal && skillModal.visible}}" class="skill-modal">
+    <view class="skill-modal__mask" catchtouchmove="noop" bindtap="closeSkillModal"></view>
+    <view class="skill-modal__card">
+      <view class="skill-modal__header">
+        <text
+          class="skill-modal__title"
+          style="color: {{skillModal.skill.qualityColor || '#f1f4ff'}};"
+        >{{skillModal.skill.name}}</text>
+        <text class="skill-modal__level">Lv.{{skillModal.skill.level}}</text>
+      </view>
+      <view class="skill-modal__tags">
+        <text wx:if="{{skillModal.slotLabel}}" class="skill-tag">{{skillModal.slotLabel}}</text>
+        <text wx:if="{{skillModal.skill.qualityLabel}}" class="skill-tag">{{skillModal.skill.qualityLabel}}</text>
+        <text wx:if="{{skillModal.skill.typeLabel}}" class="skill-tag">{{skillModal.skill.typeLabel}}</text>
+        <text wx:if="{{skillModal.skill.disciplineLabel}}" class="skill-tag">{{skillModal.skill.disciplineLabel}}</text>
+        <text wx:if="{{skillModal.skill.elementLabel}}" class="skill-tag">{{skillModal.skill.elementLabel}}</text>
+      </view>
+      <view wx:if="{{skillModal.skill.resourceText}}" class="skill-modal__line">{{skillModal.skill.resourceText}}</view>
+      <view wx:if="{{skillModal.skill.imprintText}}" class="skill-modal__line">{{skillModal.skill.imprintText}}</view>
+      <view wx:if="{{skillModal.skill.description}}" class="skill-modal__desc">{{skillModal.skill.description}}</view>
+      <view
+        wx:if="{{skillModal.skill.highlights && skillModal.skill.highlights.length}}"
+        class="skill-modal__highlights"
+      >
+        <text wx:for="{{skillModal.skill.highlights}}" wx:key="index">{{item}}</text>
+      </view>
+      <view
+        wx:if="{{skillModal.skill.obtainedAtText}}"
+        class="skill-modal__line skill-modal__line--muted"
+      >获得于 {{skillModal.skill.obtainedAtText}}</view>
+      <view class="skill-modal__actions">
+        <button
+          wx:if="{{skillModal.source === 'equipped' && skillModal.slot !== null}}"
+          class="pill-btn pill-btn--ghost"
+          hover-class="pill-btn--hover"
+          size="mini"
+          data-slot="{{skillModal.slot}}"
+          catchtap="handleUnequipSkill"
+        >卸下</button>
+        <button
+          wx:elif="{{!skillModal.skill.equipped}}"
+          class="pill-btn pill-btn--primary"
+          hover-class="pill-btn--primary-hover"
+          size="mini"
+          data-skill-id="{{skillModal.skill.skillId}}"
+          catchtap="handleEquipSkill"
+        >装备</button>
+        <button
+          wx:else
+          class="pill-btn pill-btn--ghost"
+          size="mini"
+          disabled="true"
+        >使用中</button>
+        <button
+          class="pill-btn pill-btn--ghost"
+          hover-class="pill-btn--hover"
+          size="mini"
+          catchtap="closeSkillModal"
+        >关闭</button>
+      </view>
     </view>
   </view>
 </view>

@@ -305,11 +305,69 @@ const REALM_BONUS_TARGETS = [
 
 let membershipLevelsCache = null;
 
-const RARITY_CONFIG = {
-  common: { key: 'common', label: '常见', color: '#9aa4b5', weight: 60 },
-  rare: { key: 'rare', label: '稀有', color: '#4ab1a7', weight: 25 },
-  epic: { key: 'epic', label: '史诗', color: '#8f65ff', weight: 10 },
-  legendary: { key: 'legendary', label: '传说', color: '#ffa940', weight: 5 }
+const SKILL_TYPES = {
+  active: { key: 'active', label: '主动技能' },
+  passive: { key: 'passive', label: '被动技能' }
+};
+
+const SKILL_DISCIPLINES = {
+  sword: { key: 'sword', label: '剑修' },
+  spell: { key: 'spell', label: '法修' },
+  body: { key: 'body', label: '体修' },
+  beast: { key: 'beast', label: '御兽' },
+  sigil: { key: 'sigil', label: '符箓' }
+};
+
+const ELEMENT_CONFIG = {
+  none: { key: 'none', label: '无属性', color: '#c4ccdd' },
+  fire: { key: 'fire', label: '火系', color: '#ff7243' },
+  lightning: { key: 'lightning', label: '雷系', color: '#8a9eff' },
+  water: { key: 'water', label: '水系', color: '#4ac6ff' },
+  wood: { key: 'wood', label: '木系', color: '#54d794' },
+  earth: { key: 'earth', label: '土系', color: '#d49a62' },
+  poison: { key: 'poison', label: '毒系', color: '#9dc35d' }
+};
+
+const SKILL_QUALITY_CONFIG = {
+  linggan: {
+    key: 'linggan',
+    label: '灵感',
+    color: '#6c8cff',
+    weight: 58,
+    maxLevel: 25,
+    imprintSlots: [{ unlockLevel: 25, count: 1 }]
+  },
+  kaipi: {
+    key: 'kaipi',
+    label: '开辟',
+    color: '#45c0a8',
+    weight: 24,
+    maxLevel: 35,
+    imprintSlots: [{ unlockLevel: 25, count: 1 }]
+  },
+  tongxuan: {
+    key: 'tongxuan',
+    label: '通玄',
+    color: '#b281ff',
+    weight: 12,
+    maxLevel: 50,
+    imprintSlots: [
+      { unlockLevel: 25, count: 1 },
+      { unlockLevel: 50, count: 2, breakthrough: true }
+    ]
+  },
+  wudao: {
+    key: 'wudao',
+    label: '悟道',
+    color: '#f2a546',
+    weight: 6,
+    maxLevel: 50,
+    imprintSlots: [
+      { unlockLevel: 25, count: 1 },
+      { unlockLevel: 40, count: 2 },
+      { unlockLevel: 50, count: 3, exclusive: true }
+    ]
+  }
 };
 
 const EQUIPMENT_SLOTS = {
@@ -1716,84 +1774,555 @@ function applyStatValue(target, key, value) {
 
 const SKILL_LIBRARY = [
   {
-    id: 'spirit_surge',
-    name: '灵息引',
-    rarity: 'common',
-    description: '调动灵息贯通四肢，提升攻击与身法。',
-    effects: { physicalAttackMultiplier: 0.12, speed: 8 },
-    levelScaling: { physicalAttackMultiplier: 0.04, speed: 2 },
-    tags: ['输出', '常驻'],
-    maxLevel: 5
+    id: 'sword_breaking_clouds',
+    name: '破云斩',
+    quality: 'linggan',
+    type: 'active',
+    discipline: 'sword',
+    element: 'none',
+    description: '以剑气撕裂前方敌人，奠定剑修入门的爆发节奏。',
+    params: { cooldown: 2, cost: 20, range: '单体' },
+    mechanics: ['造成 120% 攻击伤害，若暴击则额外造成 30% 伤害。'],
+    growth: ['每级伤害 +4%，25 级解锁 1 个印记槽。'],
+    tags: ['单体', '爆发'],
+    maxLevel: 25
   },
   {
-    id: 'stone_skin',
-    name: '磐石护体',
-    rarity: 'common',
-    description: '引山岳之力护体，提升防御并获得护盾。',
-    effects: { physicalDefenseMultiplier: 0.2, shield: 120 },
-    levelScaling: { physicalDefenseMultiplier: 0.05, shield: 40 },
-    tags: ['防御', '护盾'],
-    maxLevel: 5
+    id: 'spell_burning_burst',
+    name: '烈炽火弹',
+    quality: 'linggan',
+    type: 'active',
+    discipline: 'spell',
+    element: 'fire',
+    description: '凝聚火弹轰击目标，为法修建立起持续燃烧的基础。',
+    params: { cooldown: 3, cost: 22, range: '单体' },
+    mechanics: ['命中造成 100% 法攻，并附加 2 回合灼烧（每回合 20% 法攻）。'],
+    growth: ['每级灼烧伤害 +2%，冷却固定 3 回合。'],
+    tags: ['DOT', '火系'],
+    maxLevel: 25
   },
   {
-    id: 'aerial_step',
-    name: '凌空步',
-    rarity: 'rare',
-    description: '掌握凌空而行的诀窍，大幅提升身法与气血。',
-    effects: { agility: 8, maxHpMultiplier: 0.08 },
-    levelScaling: { agility: 3, maxHpMultiplier: 0.03 },
-    tags: ['身法', '生存'],
-    maxLevel: 5
+    id: 'spell_frost_bolt',
+    name: '凝霜矢',
+    quality: 'kaipi',
+    type: 'active',
+    discipline: 'spell',
+    element: 'water',
+    description: '由灵力凝成的寒矢，命中即可拖慢敌人的行动。',
+    params: { cooldown: 3, cost: 24, range: '单体' },
+    mechanics: ['造成 130% 法攻并减速 30% 持续 2 回合。'],
+    growth: ['每级伤害 +3%，减速 +1%。'],
+    tags: ['减速', '水系'],
+    maxLevel: 35
   },
   {
-    id: 'thunder_anthem',
-    name: '霆鸣决',
-    rarity: 'rare',
-    description: '以雷霆之势击溃敌人，攻击提升并附带雷击。',
-    effects: { physicalAttackMultiplier: 0.2, bonusDamage: 70, critRate: 0.04 },
-    levelScaling: { physicalAttackMultiplier: 0.05, bonusDamage: 25, critRate: 0.01 },
-    tags: ['输出', '爆发'],
-    maxLevel: 5
+    id: 'body_bronze_skin',
+    name: '铜皮诀',
+    quality: 'linggan',
+    type: 'passive',
+    discipline: 'body',
+    element: 'earth',
+    description: '借地气淬体，短时化身铜皮铁骨，抵御外伤。',
+    mechanics: ['受击时获得 8% 减伤，持续 1 回合，冷却 3 回合。'],
+    growth: ['每级额外减伤 +0.5%，冷却不变。'],
+    modifiers: { base: { damageReduction: 0.08 }, perLevel: { damageReduction: 0.005 } },
+    tags: ['防御', '减伤'],
+    maxLevel: 25
   },
   {
-    id: 'phoenix_flare',
-    name: '朱焰冲霄',
-    rarity: 'epic',
-    description: '化身朱焰，攻击与暴击伤害大幅提升。',
-    effects: { critDamage: 0.3, finalDamageBonus: 0.06 },
-    levelScaling: { critDamage: 0.08, finalDamageBonus: 0.02 },
-    tags: ['暴击', '高爆发'],
-    maxLevel: 5
+    id: 'body_blood_ignite',
+    name: '焚血激',
+    quality: 'kaipi',
+    type: 'active',
+    discipline: 'body',
+    element: 'fire',
+    description: '燃烧精血换取瞬间续航与反击之势。',
+    params: { cooldown: 4, cost: 18, range: '自身' },
+    mechanics: ['回复 15% 生命并获得 10% 反震，持续 2 回合。'],
+    growth: ['每级回复 +1%，反震 +1%。'],
+    tags: ['续航', '反震'],
+    maxLevel: 35
   },
   {
-    id: 'celestial_barrier',
-    name: '星幕结界',
-    rarity: 'epic',
-    description: '星光化为屏障，为自身提供护盾与暴击率。',
-    effects: { shield: 180, maxHpMultiplier: 0.12, finalDamageReduction: 0.06 },
-    levelScaling: { shield: 45, maxHpMultiplier: 0.03, finalDamageReduction: 0.015 },
-    tags: ['防御', '暴击'],
-    maxLevel: 5
+    id: 'beast_spirit_pact',
+    name: '灵契术',
+    quality: 'linggan',
+    type: 'active',
+    discipline: 'beast',
+    element: 'wood',
+    description: '与灵兽缔结短暂契约，唤醒潜藏的攻击本能。',
+    params: { cooldown: 4, cost: 20, range: '灵兽' },
+    mechanics: ['灵兽攻击力 +15%，持续 3 回合。'],
+    growth: ['每级加成 +1%，25 级解锁印记槽。'],
+    tags: ['御兽', '增益'],
+    maxLevel: 25
   },
   {
-    id: 'dragon_roar',
-    name: '龙吟破军',
-    rarity: 'legendary',
-    description: '以龙吟震慑四方，攻击暴涨并附加剧烈震荡。',
-    effects: { physicalAttackMultiplier: 0.25, critRate: 0.07, bonusDamage: 120 },
-    levelScaling: { physicalAttackMultiplier: 0.06, critRate: 0.015, bonusDamage: 45 },
-    tags: ['传说', '暴击'],
-    maxLevel: 5
+    id: 'beast_war_drum',
+    name: '兽魂鼓',
+    quality: 'kaipi',
+    type: 'passive',
+    discipline: 'beast',
+    element: 'lightning',
+    description: '灵鼓震荡心神，灵兽出手即回荡真气。',
+    mechanics: ['灵兽释放技能后，主人回复 5% 真气，冷却 2 回合。'],
+    growth: ['每级真气回复 +0.3%。'],
+    tags: ['回气', '御兽'],
+    maxLevel: 35
   },
   {
-    id: 'time_dilation',
-    name: '御时术',
-    rarity: 'legendary',
-    description: '暂借时光伟力，提升身法并大幅提高闪避概率。',
-    effects: { speedMultiplier: 0.15, dodge: 20, dodgeChance: 0.1 },
-    levelScaling: { speedMultiplier: 0.04, dodge: 6, dodgeChance: 0.025 },
-    tags: ['身法', '闪避'],
-    maxLevel: 5
+    id: 'sigil_focus_talisman',
+    name: '定神符',
+    quality: 'linggan',
+    type: 'active',
+    discipline: 'sigil',
+    element: 'lightning',
+    description: '以雷纹封锁心神，短暂夺去敌人的行动。',
+    params: { cooldown: 5, cost: 26, range: '单体' },
+    mechanics: ['80% 命中率眩晕 1 回合，未命中仍造成微量雷伤。'],
+    growth: ['每级命中率 +2%。'],
+    tags: ['眩晕', '控制'],
+    maxLevel: 25
+  },
+  {
+    id: 'sigil_corroding_mark',
+    name: '蚀骨符',
+    quality: 'kaipi',
+    type: 'active',
+    discipline: 'sigil',
+    element: 'poison',
+    description: '以腐蚀灵纹侵蚀对手筋骨，削弱其护体灵力。',
+    params: { cooldown: 4, cost: 24, range: '单体' },
+    mechanics: ['降低敌方 10% 防御并施加每回合 10% 中毒，持续 3 回合。'],
+    growth: ['每级防御降低 +0.5%。'],
+    tags: ['减防', '毒系'],
+    maxLevel: 35
+  },
+  {
+    id: 'sigil_void_respiration',
+    name: '虚神息',
+    quality: 'kaipi',
+    type: 'passive',
+    discipline: 'sigil',
+    element: 'water',
+    description: '调息真灵，扩展体内真气的循环空间。',
+    mechanics: ['真气上限 +10%，回合结束额外回复 1% 真气。'],
+    growth: ['每级真气上限 +1%。'],
+    tags: ['回气', '辅助'],
+    maxLevel: 35
+  },
+  {
+    id: 'sword_thousand_blades',
+    name: '千刃星陨',
+    quality: 'tongxuan',
+    type: 'active',
+    discipline: 'sword',
+    element: 'lightning',
+    description: '汇聚剑意，雷霆般斩击四次，立刻压制要害。',
+    params: { cooldown: 4, cost: 40, range: '单体' },
+    mechanics: ['消耗 3 层剑意连续斩击 4 次，每次 70% 攻击；击杀刷新冷却。'],
+    growth: ['每级每段伤害 +3%，剑意消耗固定。'],
+    tags: ['连击', '爆发'],
+    maxLevel: 50
+  },
+  {
+    id: 'sword_immortal_domain',
+    name: '戮仙剑域',
+    quality: 'wudao',
+    type: 'active',
+    discipline: 'sword',
+    element: 'none',
+    description: '展开三回合剑域，将普攻与技能转化为无尽剑雨。',
+    params: { cooldown: 6, cost: 55, range: '自身领域' },
+    mechanics: ['普攻与技能额外触发 50% 剑气，暴击时生成剑意。'],
+    growth: ['每级剑气伤害 +2%，专属符印提供穿透或变体效果。'],
+    tags: ['领域', '爆发'],
+    maxLevel: 50
+  },
+  {
+    id: 'spell_pyrocataclysm',
+    name: '离火焚天',
+    quality: 'tongxuan',
+    type: 'active',
+    discipline: 'spell',
+    element: 'fire',
+    description: '布设离火阵焚烧战场，叠加灼烧与易伤。',
+    params: { cooldown: 5, cost: 42, range: '大范围' },
+    mechanics: ['造成 180% 法攻并附加 15% 易伤，灼烧每回合 30% 法攻。'],
+    growth: ['每级伤害 +4%，易伤 +1%。'],
+    tags: ['AOE', '火系'],
+    maxLevel: 50
+  },
+  {
+    id: 'spell_thunder_chain',
+    name: '万雷劫链',
+    quality: 'wudao',
+    type: 'active',
+    discipline: 'spell',
+    element: 'lightning',
+    description: '雷霆链式劈落，撕裂群体并施加短暂眩晕。',
+    params: { cooldown: 6, cost: 58, range: '链式 5 体' },
+    mechanics: ['首目标 220% 法攻，最多连锁 5 名敌人，每次命中 40% 基础眩晕。'],
+    growth: ['每级伤害 +5%，眩晕概率 +3%。'],
+    tags: ['群体', '眩晕'],
+    maxLevel: 50
+  },
+  {
+    id: 'body_diamond_eternity',
+    name: '金刚不灭',
+    quality: 'tongxuan',
+    type: 'passive',
+    discipline: 'body',
+    element: 'earth',
+    description: '濒死之际金刚护体，迅速稳住血线。',
+    mechanics: ['生命低于 35% 触发 40% 减伤并每回合恢复 10% 生命，持续 3 回合，冷却 6 回合。'],
+    growth: ['每级减伤 +2%，回复 +1%。'],
+    modifiers: { base: { damageReduction: 0.1 }, perLevel: { damageReduction: 0.02 } },
+    tags: ['保命', '减伤'],
+    maxLevel: 50
+  },
+  {
+    id: 'body_furnace_of_ruin',
+    name: '焚世熔炉',
+    quality: 'wudao',
+    type: 'active',
+    discipline: 'body',
+    element: 'fire',
+    description: '化身熔炉，护盾吸收巨量伤害并反射灼烧。',
+    params: { cooldown: 6, cost: 60, range: '自身' },
+    mechanics: ['护盾吸收 40% 生命并对近战者反射 20% 真实灼烧；破裂时爆发 250% 火伤。'],
+    growth: ['每级护盾 +3%，反射 +1%。'],
+    tags: ['护盾', '反击'],
+    maxLevel: 50
+  },
+  {
+    id: 'beast_shared_heart',
+    name: '玄兽同心',
+    quality: 'tongxuan',
+    type: 'passive',
+    discipline: 'beast',
+    element: 'wood',
+    description: '主宠同心协力，持续提升攻速与回气。',
+    mechanics: ['灵兽命中给主人叠加“同心”层：攻速 +5%、真气回复 +5%，最高 5 层。'],
+    growth: ['每级加成 +0.5%，倒地后保留 1 层。'],
+    tags: ['攻速', '御兽'],
+    maxLevel: 50
+  },
+  {
+    id: 'beast_empyrial_charge',
+    name: '帝御九霄',
+    quality: 'wudao',
+    type: 'active',
+    discipline: 'beast',
+    element: 'lightning',
+    description: '统御灵兽极速协同，打造爆发回合。',
+    params: { cooldown: 6, cost: 58, range: '灵兽' },
+    mechanics: ['灵兽立即行动并获得伤害 +40%、技能冷却 -1；主人下次主动技能额外造成 100% 伤害。'],
+    growth: ['每级狂暴加成 +2%，额外伤害 +5%。'],
+    tags: ['连携', '爆发'],
+    maxLevel: 50
+  },
+  {
+    id: 'sigil_soul_bind',
+    name: '镇魂神符',
+    quality: 'tongxuan',
+    type: 'active',
+    discipline: 'sigil',
+    element: 'water',
+    description: '水灵镇压心魂，大范围沉默拖延敌阵节奏。',
+    params: { cooldown: 5, cost: 44, range: '全体' },
+    mechanics: ['沉默全体 2 回合并降低 20% 真气恢复，命中率 70%。'],
+    growth: ['每级命中 +2%，减真气 +2%。'],
+    tags: ['沉默', '群控'],
+    maxLevel: 50
+  },
+  {
+    id: 'sigil_taiyi_barrier',
+    name: '太乙护界',
+    quality: 'wudao',
+    type: 'active',
+    discipline: 'sigil',
+    element: 'earth',
+    description: '太乙护界笼罩全体，护盾与抗性同步提升。',
+    params: { cooldown: 7, cost: 60, range: '全体友方' },
+    mechanics: ['全体获得 30% 生命护盾 +20% 抗性，持续 3 回合；受控时自动净化并反射。'],
+    growth: ['每级护盾 +2%、抗性 +1%，符印可解锁群体复活。'],
+    tags: ['护盾', '净化'],
+    maxLevel: 50
+  },
+  {
+    id: 'sword_flowing_strike',
+    name: '流光剑步',
+    quality: 'kaipi',
+    type: 'active',
+    discipline: 'sword',
+    element: 'lightning',
+    description: '身影化流光，迅疾突进完成破绽打击。',
+    params: { cooldown: 4, cost: 24, range: '突进单体' },
+    mechanics: ['突进至目标身后造成 140% 攻击，自身敏捷 +12%，持续 2 回合。'],
+    growth: ['每级伤害 +3%，敏捷加成 +0.5%。'],
+    tags: ['机动', '敏捷'],
+    maxLevel: 35
+  },
+  {
+    id: 'sword_flame_wings',
+    name: '烈羽焚锋',
+    quality: 'kaipi',
+    type: 'active',
+    discipline: 'sword',
+    element: 'fire',
+    description: '炽羽化刃，扫荡前方两格敌人。',
+    params: { cooldown: 4, cost: 26, range: '前方两格' },
+    mechanics: ['对前方两格各造成 135% 攻击并附 2 回合灼烧（每回合 15% 攻击）。'],
+    growth: ['每级伤害 +3%，灼烧 +1%。'],
+    tags: ['多段', '火系'],
+    maxLevel: 35
+  },
+  {
+    id: 'spell_frost_tide',
+    name: '凌霜定潮',
+    quality: 'kaipi',
+    type: 'active',
+    discipline: 'spell',
+    element: 'water',
+    description: '唤起寒潮限制敌人攻势。',
+    params: { cooldown: 4, cost: 24, range: '小范围' },
+    mechanics: ['造成 130% 法攻并降低目标 20% 攻速，持续 2 回合。'],
+    growth: ['每级伤害 +2%，减速 +1%。'],
+    tags: ['攻速削减', '水系'],
+    maxLevel: 35
+  },
+  {
+    id: 'spell_searing_comet',
+    name: '灼脉流炬',
+    quality: 'kaipi',
+    type: 'active',
+    discipline: 'spell',
+    element: 'fire',
+    description: '火线贯穿敌阵，对灼烧目标造成额外爆裂。',
+    params: { cooldown: 4, cost: 28, range: '直线' },
+    mechanics: ['直线造成 145% 法攻，命中灼烧目标额外造成 30% 瞬时伤害。'],
+    growth: ['每级基础伤害 +3%，额外伤害 +2%。'],
+    tags: ['直线', '火系'],
+    maxLevel: 35
+  },
+  {
+    id: 'body_rockridge_guard',
+    name: '岩嵯坚体',
+    quality: 'kaipi',
+    type: 'passive',
+    discipline: 'body',
+    element: 'earth',
+    description: '遇到暴击时岩甲护体，提升坦度。',
+    mechanics: ['受到暴击触发岩甲：减伤 25% 并回复 8% 生命，持续 1 回合，冷却 3 回合。'],
+    growth: ['每级减伤 +1%，回复 +0.5%。'],
+    modifiers: { base: { damageReduction: 0.05 }, perLevel: { damageReduction: 0.01 } },
+    tags: ['减伤', '恢复'],
+    maxLevel: 35
+  },
+  {
+    id: 'body_blood_fury',
+    name: '熔血怒元',
+    quality: 'kaipi',
+    type: 'active',
+    discipline: 'body',
+    element: 'fire',
+    description: '激发熔血之力，短时间化守为攻。',
+    params: { cooldown: 4, cost: 20, range: '自身' },
+    mechanics: ['立即回复 12% 生命并获得 15% 反震，持续 2 回合；被攻击者额外承受 10% 火伤。'],
+    growth: ['每级回复 +0.8%，反震 +1%，火伤 +0.5%。'],
+    tags: ['反击', '火系'],
+    maxLevel: 35
+  },
+  {
+    id: 'beast_wood_blessing',
+    name: '木灵惠泽',
+    quality: 'kaipi',
+    type: 'active',
+    discipline: 'beast',
+    element: 'wood',
+    description: '木灵环绕，快速治愈灵兽伤势。',
+    params: { cooldown: 5, cost: 22, range: '灵兽' },
+    mechanics: ['灵兽回复 18% 生命并获得治疗量 +20%，持续 3 回合。'],
+    growth: ['每级治疗加成 +1%。'],
+    tags: ['治疗', '御兽'],
+    maxLevel: 35
+  },
+  {
+    id: 'beast_thunder_command',
+    name: '雷驭号令',
+    quality: 'kaipi',
+    type: 'passive',
+    discipline: 'beast',
+    element: 'lightning',
+    description: '雷霆号令推动主角技的节奏。',
+    mechanics: ['灵兽释放技能后使主人下次主动技能冷却 -1，冷却 3 回合。'],
+    growth: ['每级额外缩短 0.1 回合，向下取整至最多 -2。'],
+    tags: ['冷却缩减', '御兽'],
+    maxLevel: 35
+  },
+  {
+    id: 'sigil_rupture_chain',
+    name: '断厄符索',
+    quality: 'kaipi',
+    type: 'active',
+    discipline: 'sigil',
+    element: 'poison',
+    description: '符索缠绕经脉，阻断妖气流动。',
+    params: { cooldown: 4, cost: 24, range: '单体' },
+    mechanics: ['造成 120% 法攻并降低 20% 妖气回复，持续 3 回合。'],
+    growth: ['每级伤害 +2%，回复降低 +1%。'],
+    tags: ['资源压制', '毒系'],
+    maxLevel: 35
+  },
+  {
+    id: 'sigil_purified_mind',
+    name: '清魂定印',
+    quality: 'kaipi',
+    type: 'passive',
+    discipline: 'sigil',
+    element: 'water',
+    description: '心神澄净，减缓负面影响。',
+    mechanics: ['若自身未受控，回合结束回复 3% 真气并清除 1 层减益，冷却 2 回合。'],
+    growth: ['每级真气恢复 +0.2%。'],
+    tags: ['回气', '净化'],
+    maxLevel: 35
+  },
+  {
+    id: 'sword_thunder_break',
+    name: '雷霆断界',
+    quality: 'tongxuan',
+    type: 'active',
+    discipline: 'sword',
+    element: 'lightning',
+    description: '剑势化雷，兼具伤害与眩晕。',
+    params: { cooldown: 4, cost: 36, range: '单体' },
+    mechanics: ['消耗 2 层剑意连击 3 次（每次 60% 攻击），并有 50% 几率眩晕 1 回合。'],
+    growth: ['每级每段 +4%，眩晕概率 +2%。'],
+    tags: ['连击', '眩晕'],
+    maxLevel: 50
+  },
+  {
+    id: 'sword_blazing_brand',
+    name: '焚霞御剑',
+    quality: 'tongxuan',
+    type: 'passive',
+    discipline: 'sword',
+    element: 'fire',
+    description: '暴击附加剑炎标记，造成追加火伤。',
+    mechanics: ['暴击时附加剑炎，下一次受击额外承受 70% 攻击火伤，冷却 2 回合。'],
+    growth: ['每级附加伤害 +4%。'],
+    tags: ['燃烧', '爆发'],
+    maxLevel: 50
+  },
+  {
+    id: 'spell_frost_prison',
+    name: '霜渊天缚',
+    quality: 'tongxuan',
+    type: 'active',
+    discipline: 'spell',
+    element: 'water',
+    description: '冰棱阵冻结战场，解除时造成额外破冰伤。',
+    params: { cooldown: 5, cost: 40, range: '大范围' },
+    mechanics: ['造成 170% 法攻并冻结 2 回合（基础 60% 命中），破冰额外造成 40% 法攻。'],
+    growth: ['每级伤害 +4%，冻结命中 +2%。'],
+    tags: ['冻结', '控场'],
+    maxLevel: 50
+  },
+  {
+    id: 'spell_scorching_void',
+    name: '灼阳星墟',
+    quality: 'tongxuan',
+    type: 'active',
+    discipline: 'spell',
+    element: 'fire',
+    description: '引燃星火坠落，叠加自身火势层数。',
+    params: { cooldown: 4, cost: 38, range: '小范围' },
+    mechanics: ['造成 180% 法攻并附加 12% 易伤 3 回合，自身获得 1 层火势（法攻 +5%）。'],
+    growth: ['每级伤害 +4%，易伤 +1%，火势最多 3 层。'],
+    tags: ['爆发', '火势'],
+    maxLevel: 50
+  },
+  {
+    id: 'body_stone_bulwark',
+    name: '玄石擎壁',
+    quality: 'tongxuan',
+    type: 'passive',
+    discipline: 'body',
+    element: 'earth',
+    description: '生命危急时形成玄石护壁并反射伤害。',
+    mechanics: ['生命低于 50% 生成护盾吸收 30% 生命并反射 15% 土伤，持续 2 回合。'],
+    growth: ['每级护盾 +2%，反射 +1%。'],
+    tags: ['护盾', '反击'],
+    maxLevel: 50
+  },
+  {
+    id: 'body_flame_shroud',
+    name: '炎魂蔽天',
+    quality: 'tongxuan',
+    type: 'active',
+    discipline: 'body',
+    element: 'fire',
+    description: '炎魂护体，兼顾减伤与反击。',
+    params: { cooldown: 5, cost: 40, range: '自身' },
+    mechanics: ['开启 2 回合炎魂：减伤 25%，对近战者造成每回合 60% 火反击并回复 5% 生命。'],
+    growth: ['每级减伤 +1%，反击 +3%，回复 +0.5%。'],
+    tags: ['反击', '持续'],
+    maxLevel: 50
+  },
+  {
+    id: 'beast_shared_vein',
+    name: '同脉灵契',
+    quality: 'tongxuan',
+    type: 'passive',
+    discipline: 'beast',
+    element: 'wood',
+    description: '人宠同脉，分享增益与真气。',
+    mechanics: ['灵兽命中后给主人与灵兽各回复 4% 真气并延长共享增益 1 回合，冷却 3 回合。'],
+    growth: ['每级回复 +0.3%，延长最多 3 回合。'],
+    tags: ['回气', '增益延长'],
+    maxLevel: 50
+  },
+  {
+    id: 'beast_electric_assault',
+    name: '电翎急袭',
+    quality: 'tongxuan',
+    type: 'active',
+    discipline: 'beast',
+    element: 'lightning',
+    description: '命令灵兽穿梭战场，打出额外雷击。',
+    params: { cooldown: 4, cost: 34, range: '单体连锁' },
+    mechanics: ['灵兽立即行动造成两段 75% 雷击，若目标被眩晕则连锁至另一名敌人。'],
+    growth: ['每级伤害 +3%，连锁伤害完全继承。'],
+    tags: ['连携', '雷系'],
+    maxLevel: 50
+  },
+  {
+    id: 'sigil_nine_palace',
+    name: '九宫封煞',
+    quality: 'tongxuan',
+    type: 'active',
+    discipline: 'sigil',
+    element: 'earth',
+    description: '布置九宫结界限制敌军移动与防御。',
+    params: { cooldown: 5, cost: 42, range: '范围' },
+    mechanics: ['范围内敌人减速 40%、防御 -15%，持续 2 回合；首个击败目标被禁锢。'],
+    growth: ['每级减速 +1%，防御降低 +0.5%。'],
+    tags: ['减速', '禁锢'],
+    maxLevel: 50
+  },
+  {
+    id: 'sigil_heart_rot',
+    name: '灭脉蚀心',
+    quality: 'tongxuan',
+    type: 'passive',
+    discipline: 'sigil',
+    element: 'poison',
+    description: '对中毒者施加蚀心印记，压制其治疗。',
+    mechanics: ['攻击中毒目标时附加“蚀心”：受治疗 -20%，持续 2 回合，冷却 2 回合。'],
+    growth: ['每级治疗压制 +1%。'],
+    tags: ['治疗压制', '毒系'],
+    maxLevel: 50
   }
 ];
 
@@ -2265,7 +2794,7 @@ async function drawSkill(actorId) {
       createdAt: now,
       detail: {
         skillId: roll.skill.id,
-        rarity: roll.skill.rarity,
+        quality: roll.skill.quality,
         level: existing.level,
         isNew
       }
@@ -2286,9 +2815,9 @@ async function drawSkill(actorId) {
     acquiredSkill: {
       ...decoratedSkill,
       isNew,
-      rarity: roll.skill.rarity,
-      rarityLabel: resolveRarityLabel(roll.skill.rarity),
-      rarityColor: resolveRarityColor(roll.skill.rarity)
+      quality: roll.skill.quality,
+      qualityLabel: resolveSkillQualityLabel(roll.skill.quality),
+      qualityColor: resolveSkillQualityColor(roll.skill.quality)
     },
     profile: decorated
   };
@@ -3230,10 +3759,10 @@ function buildDefaultEquipment(now = new Date()) {
 }
 
 function buildDefaultSkills(now = new Date()) {
-  const defaultSkill = createSkillInventoryEntry('spirit_surge', now);
+  const defaultSkill = createSkillInventoryEntry('sword_breaking_clouds', now);
   return {
     inventory: [defaultSkill],
-    equipped: ['spirit_surge'],
+    equipped: ['sword_breaking_clouds'],
     lastDrawAt: null,
     drawCount: 0
   };
@@ -3678,7 +4207,7 @@ function normalizeSkillInventoryEntry(entry, now = new Date()) {
   const duplicates = Math.max(0, Math.floor(Number(entry.duplicates) || 0));
   return {
     skillId,
-    rarity: definition.rarity,
+    quality: definition.quality || entry.quality || entry.rarity || 'linggan',
     level,
     duplicates,
     obtainedAt: entry.obtainedAt ? new Date(entry.obtainedAt) : now,
@@ -3734,7 +4263,7 @@ function createSkillInventoryEntry(skillId, obtainedAt = new Date()) {
   }
   return {
     skillId,
-    rarity: definition.rarity,
+    quality: definition.quality || 'linggan',
     level: 1,
     duplicates: 0,
     obtainedAt,
@@ -3758,7 +4287,7 @@ function decorateProfile(member, profile) {
     enemies,
     battleHistory,
     skillHistory,
-    rarityConfig: decorateRarityConfig(),
+    skillQualityConfig: decorateSkillQualityConfig(),
     metadata: {
       maxSkillSlots: MAX_SKILL_SLOTS,
       maxLevel: attributeSummary.maxLevel || MAX_LEVEL
@@ -4331,12 +4860,32 @@ function calculateEquipmentStats(definition, refine = 0) {
 }
 
 function resolveSkillEffects(definition, level = 1) {
-  const effects = definition.effects || {};
-  const scaling = definition.levelScaling || {};
-  const maxLevel = definition.maxLevel || 5;
+  const summary = createBonusSummary();
+  if (!definition) {
+    return summary;
+  }
+  const quality = definition.quality || 'linggan';
+  const qualityConfig = SKILL_QUALITY_CONFIG[quality];
+  const defaultMaxLevel = (qualityConfig && qualityConfig.maxLevel) || 5;
+  const maxLevel = definition.maxLevel || defaultMaxLevel;
   const clampedLevel = Math.min(maxLevel, Math.max(1, level));
   const extraLevel = clampedLevel - 1;
-  const summary = createBonusSummary();
+
+  if (definition.modifiers && typeof definition.modifiers === 'object') {
+    applyModifierGroup(summary, definition.modifiers.base, 1);
+    applyModifierGroup(summary, definition.modifiers.perLevel, extraLevel);
+    applyModifierGroup(summary, definition.modifiers.multipliers, 1);
+    applyModifierGroup(summary, definition.modifiers.multipliersPerLevel, extraLevel);
+    applyModifierGroup(summary, definition.modifiers.special, 1);
+    applyModifierGroup(summary, definition.modifiers.specialPerLevel, extraLevel);
+    if (Array.isArray(definition.modifiers.notes)) {
+      summary.notes.push(...definition.modifiers.notes);
+    }
+    return summary;
+  }
+
+  const effects = definition.effects || {};
+  const scaling = definition.levelScaling || {};
 
   Object.keys(effects).forEach((key) => {
     const baseValue = effects[key] || 0;
@@ -4354,6 +4903,20 @@ function resolveSkillEffects(definition, level = 1) {
   });
 
   return summary;
+}
+
+function applyModifierGroup(summary, group, scale = 1) {
+  if (!group || typeof group !== 'object') {
+    return;
+  }
+  Object.keys(group).forEach((key) => {
+    const value = group[key];
+    if (typeof value === 'number') {
+      applyBonus(summary, key, value * scale);
+    } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+      applyModifierGroup(summary, value, scale);
+    }
+  });
 }
 
 function calculateCombatPower(stats, special = {}) {
@@ -4660,16 +5223,30 @@ function decorateSkillInventoryEntry(entry, profile) {
   }
   const effects = resolveSkillEffects(definition, entry.level || 1);
   const flattened = flattenBonusSummary(effects);
+  const quality = definition.quality || 'linggan';
+  const typeLabel = resolveSkillTypeLabel(definition.type);
+  const disciplineLabel = resolveSkillDisciplineLabel(definition.discipline);
+  const elementLabel = resolveSkillElementLabel(definition.element);
+  const resourceText = formatSkillResource(definition.params || {});
+  const imprintText = formatSkillImprintInfo(definition);
+  const highlights = buildSkillHighlights(flattened, definition);
   return {
     skillId: entry.skillId,
     name: definition.name,
-    rarity: definition.rarity,
-    rarityLabel: resolveRarityLabel(definition.rarity),
-    rarityColor: resolveRarityColor(definition.rarity),
+    quality,
+    qualityLabel: resolveSkillQualityLabel(quality),
+    qualityColor: resolveSkillQualityColor(quality),
+    typeLabel,
+    disciplineLabel,
+    elementLabel,
     description: definition.description,
     level: entry.level || 1,
     maxLevel: resolveSkillMaxLevel(entry.skillId),
     effectsSummary: formatStatsText(flattened),
+    highlights,
+    resourceText,
+    imprintText,
+    mechanics: Array.isArray(definition.mechanics) ? definition.mechanics : [],
     tags: definition.tags || [],
     obtainedAt: entry.obtainedAt,
     obtainedAtText: formatDateTime(entry.obtainedAt),
@@ -4726,13 +5303,14 @@ function decorateEnemyLoot(loot) {
     }
     if (item.type === 'skill') {
       const definition = SKILL_MAP[item.skillId];
+      const quality = definition ? definition.quality : 'linggan';
       return {
         type: 'skill',
         skillId: item.skillId,
         chance: item.chance,
         label: definition ? definition.name : '技能',
-        rarity: definition ? definition.rarity : 'common',
-        rarityLabel: definition ? resolveRarityLabel(definition.rarity) : '常见'
+        quality,
+        qualityLabel: resolveSkillQualityLabel(quality)
       };
     }
     if (item.type === 'consumable') {
@@ -4841,13 +5419,14 @@ function decorateSkillHistory(history) {
   return history.map((entry) => {
     if (entry.type === 'draw') {
       const detail = entry.detail || {};
-      const skill = SKILL_MAP[detail.skillId] || { name: '未知技能', rarity: 'common' };
+      const skill = SKILL_MAP[detail.skillId] || { name: '未知技能', quality: 'linggan' };
+      const quality = detail.quality || detail.rarity || skill.quality || 'linggan';
       return {
         type: 'draw',
         createdAt: entry.createdAt,
         createdAtText: formatDateTime(entry.createdAt),
-        summary: `${detail.isNew ? '获得' : '升阶'}：${skill.name}（${resolveRarityLabel(skill.rarity)}）`,
-        detail
+        summary: `${detail.isNew ? '获得' : '升阶'}：${skill.name}（${resolveSkillQualityLabel(quality)}）`,
+        detail: { ...detail, quality }
       };
     }
     if (entry.type === 'equip') {
@@ -4868,13 +5447,85 @@ function decorateSkillHistory(history) {
   });
 }
 
-function decorateRarityConfig() {
-  return Object.keys(RARITY_CONFIG).map((key) => ({
+function decorateSkillQualityConfig() {
+  return Object.keys(SKILL_QUALITY_CONFIG).map((key) => ({
     key,
-    label: RARITY_CONFIG[key].label,
-    color: RARITY_CONFIG[key].color,
-    weight: RARITY_CONFIG[key].weight
+    label: SKILL_QUALITY_CONFIG[key].label,
+    color: SKILL_QUALITY_CONFIG[key].color,
+    weight: SKILL_QUALITY_CONFIG[key].weight
   }));
+}
+
+function formatSkillResource(params = {}) {
+  if (!params || typeof params !== 'object') {
+    return '';
+  }
+  const parts = [];
+  if (params.cooldown != null) {
+    parts.push(`冷却${params.cooldown}回合`);
+  }
+  if (params.interval != null) {
+    parts.push(`间隔${params.interval}回合`);
+  }
+  if (params.cost != null) {
+    parts.push(`真气${params.cost}`);
+  }
+  if (params.range) {
+    parts.push(params.range);
+  }
+  if (params.target && params.target !== params.range) {
+    parts.push(params.target);
+  }
+  if (params.castTime) {
+    parts.push(params.castTime);
+  }
+  return parts.join(' · ');
+}
+
+function formatSkillImprintInfo(definition = {}) {
+  const qualityConfig = SKILL_QUALITY_CONFIG[definition.quality];
+  const slots = Array.isArray(definition.imprintSlots) && definition.imprintSlots.length
+    ? definition.imprintSlots
+    : qualityConfig && Array.isArray(qualityConfig.imprintSlots)
+    ? qualityConfig.imprintSlots
+    : [];
+  if (!slots.length) {
+    return '';
+  }
+  const parts = slots.map((slot) => {
+    const unlock = slot.unlockLevel != null ? `${slot.unlockLevel}级` : '解锁';
+    const suffix = slot.breakthrough ? '突破后' : '';
+    const slotLabel = slot.count != null ? `第${slot.count}槽` : '槽位';
+    const exclusive = slot.exclusive ? '（专属）' : '';
+    return `${unlock}${suffix}解锁${slotLabel}${exclusive}`;
+  });
+  return `印记槽：${parts.join('，')}`;
+}
+
+function buildSkillHighlights(flattened, definition = {}) {
+  const highlights = [];
+  const statsText = formatStatsText(flattened);
+  if (Array.isArray(statsText) && statsText.length) {
+    highlights.push(...statsText);
+  }
+  if (Array.isArray(definition.mechanics)) {
+    highlights.push(...definition.mechanics);
+  }
+  if (definition.growth) {
+    if (Array.isArray(definition.growth)) {
+      highlights.push(...definition.growth);
+    } else if (typeof definition.growth === 'string') {
+      highlights.push(definition.growth);
+    }
+  }
+  if (definition.synergy) {
+    if (Array.isArray(definition.synergy)) {
+      highlights.push(...definition.synergy);
+    } else if (typeof definition.synergy === 'string') {
+      highlights.push(definition.synergy);
+    }
+  }
+  return highlights.filter((text, index, list) => typeof text === 'string' && text && list.indexOf(text) === index);
 }
 
 function formatStatsText(stats) {
@@ -5330,12 +5981,13 @@ function formatBattleResult(result) {
         }
         if (item.type === 'skill') {
           const def = SKILL_MAP[item.skillId];
+          const quality = def ? def.quality : 'linggan';
           return {
             type: 'skill',
             skillId: item.skillId,
             name: def ? def.name : '技能',
-            rarity: def ? def.rarity : 'common',
-            rarityLabel: def ? resolveRarityLabel(def.rarity) : '常见'
+            quality,
+            qualityLabel: resolveSkillQualityLabel(quality)
           };
         }
         if (item.type === 'consumable') {
@@ -5356,24 +6008,24 @@ function formatBattleResult(result) {
   };
 }
 function rollSkill() {
-  const rarity = selectSkillRarity();
-  const pool = SKILL_LIBRARY.filter((skill) => skill.rarity === rarity);
-  const skill = pool[Math.floor(Math.random() * pool.length)];
-  return { rarity, skill };
+  const quality = selectSkillQuality();
+  const pool = SKILL_LIBRARY.filter((skill) => (skill.quality || 'linggan') === quality);
+  const skill = pool.length ? pool[Math.floor(Math.random() * pool.length)] : SKILL_LIBRARY[0];
+  return { quality, skill };
 }
 
-function selectSkillRarity() {
-  const weights = Object.values(RARITY_CONFIG).map((item) => item.weight || 0);
-  const total = weights.reduce((sum, value) => sum + value, 0);
+function selectSkillQuality() {
+  const weights = Object.values(SKILL_QUALITY_CONFIG).map((item) => item.weight || 0);
+  const total = weights.reduce((sum, value) => sum + value, 0) || 1;
   let roll = Math.random() * total;
-  for (const key of Object.keys(RARITY_CONFIG)) {
-    const weight = RARITY_CONFIG[key].weight || 0;
+  for (const key of Object.keys(SKILL_QUALITY_CONFIG)) {
+    const weight = SKILL_QUALITY_CONFIG[key].weight || 0;
     if (roll < weight) {
       return key;
     }
     roll -= weight;
   }
-  return 'common';
+  return Object.keys(SKILL_QUALITY_CONFIG)[0] || 'linggan';
 }
 
 function appendHistory(history, entry, maxLength) {
@@ -5547,17 +6199,39 @@ function resolveDifficultyLabel(playerPower, enemyPower) {
   return '绝境';
 }
 
-function resolveRarityColor(rarity) {
-  return (RARITY_CONFIG[rarity] && RARITY_CONFIG[rarity].color) || '#9aa4b5';
+function resolveSkillQualityColor(quality) {
+  const config = SKILL_QUALITY_CONFIG[quality];
+  return (config && config.color) || '#9aa4b5';
 }
 
-function resolveRarityLabel(rarity) {
-  return (RARITY_CONFIG[rarity] && RARITY_CONFIG[rarity].label) || '常见';
+function resolveSkillQualityLabel(quality) {
+  const config = SKILL_QUALITY_CONFIG[quality];
+  return (config && config.label) || '灵感';
+}
+
+function resolveSkillTypeLabel(type) {
+  const config = SKILL_TYPES[type];
+  return (config && config.label) || '技能';
+}
+
+function resolveSkillDisciplineLabel(key) {
+  const config = SKILL_DISCIPLINES[key];
+  return (config && config.label) || '通用';
+}
+
+function resolveSkillElementLabel(element) {
+  const config = ELEMENT_CONFIG[element];
+  return (config && config.label) || '无属性';
 }
 
 function resolveSkillMaxLevel(skillId) {
   const definition = SKILL_MAP[skillId];
-  return definition ? definition.maxLevel || 5 : 5;
+  if (!definition) {
+    return 5;
+  }
+  const qualityConfig = SKILL_QUALITY_CONFIG[definition.quality];
+  const fallback = (qualityConfig && qualityConfig.maxLevel) || 5;
+  return definition.maxLevel || fallback;
 }
 
 function createError(code, message) {
