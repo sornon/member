@@ -35,6 +35,14 @@
 - 玩家默认拥有一套入门装备，后续可通过副本掉落或运营投放获取更高品质装备；重复获取会提升“精炼等级”，放大装备基础数值。【F:cloudfunctions/pve/index.js†L1045-L1054】【F:cloudfunctions/pve/index.js†L2397-L2422】
 - 云函数在计算装备词条时支持基础属性、战斗属性与倍率类加成，并统一转化为展示用文本，便于前端直接渲染。【F:cloudfunctions/pve/index.js†L1707-L1745】【F:cloudfunctions/pve/index.js†L2083-L2108】
 
+#### 储物空间与升级限制
+
+- 储物空间以统一的品类数组定义，初始容量为 100 格，单次升级增加 20 格，并设定默认最多 10 次升级的上限。【F:cloudfunctions/pve/index.js†L18-L31】
+- 新会员建档时会调用 `buildDefaultStorage` 写入基础配置，记录当前升级层级、容量成长参数、可用升级次数与固定上限，避免出现“未初始化导致无限升级”的状态。【F:cloudfunctions/pve/index.js†L3182-L3196】
+- 旧档案在 `normalizeEquipment` 中会回填缺失字段：如果历史数据缺乏上限或剩余次数，会用默认上限推导，并在存在任何一项时把两者校正到“上限 − 已升级次数”的安全区间。【F:cloudfunctions/pve/index.js†L3520-L3565】
+- 升级接口会综合当前层数、剩余次数与上限判定：一旦当前层数达到或超过上限立即拒绝；否则扣减一次可用次数并把所有品类的升级层级同步加一，同时把上限写回档案，防止客户端伪造字段绕过校验。【F:cloudfunctions/pve/index.js†L2610-L2666】
+- 返回给前端的档案中，服务端会重新计算容量、剩余额度与 `upgradeLimit`/`upgradesRemaining` 元数据，确保可视化状态与服务端判定始终一致，供前端进行提示与二次校验。【F:cloudfunctions/pve/index.js†L4496-L4554】
+
 ### 技能体系
 
 - 技能以卡牌形式存在，按稀有度划分为常见/稀有/史诗/传说，并可通过“抽取灵技”获得。抽到重复技能会提升技能等级（上限 5 级）。【F:cloudfunctions/pve/index.js†L755-L814】【F:cloudfunctions/pve/index.js†L1756-L1779】
