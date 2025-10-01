@@ -402,9 +402,7 @@ async function deleteMember(openid, memberId) {
   if (!targetId) {
     throw new Error('缺少会员编号');
   }
-  if (targetId === admin._id) {
-    throw new Error('无法删除当前管理员账号');
-  }
+  const deletingSelf = targetId === admin._id;
   const memberDoc = await db
     .collection(COLLECTIONS.MEMBERS)
     .doc(targetId)
@@ -417,7 +415,8 @@ async function deleteMember(openid, memberId) {
   return {
     success: true,
     memberId: targetId,
-    cleanup
+    cleanup,
+    selfDeleted: deletingSelf
   };
 }
 

@@ -206,9 +206,24 @@ function formatRenameHistory(history) {
     });
 }
 
+function getCurrentAdminId() {
+  try {
+    if (typeof getApp === 'function') {
+      const app = getApp();
+      if (app && app.globalData && app.globalData.memberInfo) {
+        return app.globalData.memberInfo._id || '';
+      }
+    }
+  } catch (error) {
+    console.error('[admin:member] resolve current admin id failed', error);
+  }
+  return '';
+}
+
 Page({
   data: {
     memberId: '',
+    currentAdminId: '',
     loading: true,
     saving: false,
     deleting: false,
@@ -268,7 +283,7 @@ Page({
       wx.showToast({ title: '缺少会员编号', icon: 'none' });
       return;
     }
-    this.setData({ memberId: id });
+    this.setData({ memberId: id, currentAdminId: getCurrentAdminId() });
   },
 
   onShow() {
@@ -660,9 +675,12 @@ Page({
     if (!this.data.memberId || this.data.deleting) {
       return;
     }
+    const deletingSelf = this.data.member && this.data.member._id === this.data.currentAdminId;
     wx.showModal({
       title: '删除会员',
-      content: '删除后将无法恢复该会员及其所有相关数据，确定继续吗？',
+      content: deletingSelf
+        ? '删除后您将失去管理员权限并需要重新登录，确定删除当前账号吗？'
+        : '删除后将无法恢复该会员及其所有相关数据，确定继续吗？',
       confirmText: '删除',
       confirmColor: '#f43f5e',
       cancelText: '取消',
@@ -681,8 +699,30 @@ Page({
     this.setData({ deleting: true });
     wx.showLoading({ title: '删除中', mask: true });
     try {
-      await AdminService.deleteMember(this.data.memberId);
+      const result = await AdminService.deleteMember(this.data.memberId);
+      const selfDeleted = result && result.selfDeleted;
       wx.hideLoading();
+      if (selfDeleted) {
+        try {
+          if (typeof getApp === 'function') {
+            const app = getApp();
+            if (app && app.globalData) {
+              app.globalData.memberInfo = null;
+            }
+          }
+        } catch (error) {
+          console.error('[admin:member:self-delete] clear member info failed', error);
+        }
+        wx.showModal({
+          title: '删除成功',
+          content: '当前管理员账号已删除，请重新登录。',
+          showCancel: false,
+          success: () => {
+            wx.reLaunch({ url: '/pages/index/index' });
+          }
+        });
+        return;
+      }
       wx.showToast({ title: '删除成功', icon: 'success' });
       setTimeout(() => {
         wx.navigateBack({
