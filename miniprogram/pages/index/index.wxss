@@ -1053,10 +1053,10 @@ page {
 
 .authorization-phone__value {
   font-size: 28rpx;
+  line-height: 28rpx;
   color: #ffffff;
   letter-spacing: 2rpx;
-  display: block;
-  line-height: 88rpx;
+  height: 100%;
 }
 
 .authorization-phone__value--placeholder {
