@@ -2074,7 +2074,7 @@ async function simulateBattle(actorId, enemyId) {
 
   const now = new Date();
   const updatedProfile = applyBattleOutcome(profile, result, enemy, now, member, levels);
-  const updates = { pveProfile: updatedProfile, updatedAt: now };
+  const updates = { pveProfile: _.set(updatedProfile), updatedAt: now };
   if (result.rewards && result.rewards.stones > 0) {
     updates.stoneBalance = _.inc(result.rewards.stones);
   }
@@ -2137,7 +2137,7 @@ async function drawSkill(actorId) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2206,7 +2206,7 @@ async function equipSkill(actorId, event) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2278,7 +2278,7 @@ async function equipItem(actorId, event) {
     profile.equipment.inventory = inventory;
     await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
       data: {
-        pveProfile: profile,
+        pveProfile: _.set(profile),
         updatedAt: now
       }
     });
@@ -2343,7 +2343,7 @@ async function equipItem(actorId, event) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2372,7 +2372,7 @@ async function upgradeStorage(actorId, event = {}) {
   const now = new Date();
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2427,7 +2427,7 @@ async function allocatePoints(actorId, allocations) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2484,7 +2484,7 @@ async function resetAttributes(actorId) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2565,7 +2565,7 @@ async function grantEquipment(actorId, event = {}) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2637,7 +2637,7 @@ async function removeEquipment(actorId, event = {}) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2734,7 +2734,7 @@ async function updateEquipmentAttributes(actorId, event = {}) {
 
   await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
     data: {
-      pveProfile: profile,
+      pveProfile: _.set(profile),
       updatedAt: now
     }
   });
@@ -2817,7 +2817,7 @@ async function ensurePveProfile(actorId, member, levelCache) {
   if (changed) {
     await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
       data: {
-        pveProfile: profile,
+        pveProfile: _.set(profile),
         updatedAt: now
       }
     });
