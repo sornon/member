@@ -149,6 +149,16 @@ function buildTooltipLockKey({ source = '', slot = '', inventoryId = '', itemId 
   return [source, slot, inventoryId, itemId].join('|');
 }
 
+function normalizeSlotValue(slot) {
+  if (typeof slot === 'number' && Number.isFinite(slot)) {
+    return String(slot);
+  }
+  if (typeof slot === 'string') {
+    return slot.trim();
+  }
+  return '';
+}
+
 function normalizeTooltipMode(mode) {
   return mode === 'delete' ? 'delete' : 'default';
 }
@@ -171,6 +181,53 @@ function normalizeSkillId(value) {
     return '';
   }
   return String(value);
+}
+
+function findEquippedItemFromProfile(profile, slot, excludeItemId = '') {
+  const normalizedSlot = normalizeSlotValue(slot);
+  if (!normalizedSlot) {
+    return null;
+  }
+  const equipment = profile && profile.equipment ? profile.equipment : null;
+  const slots =
+    equipment && Array.isArray(equipment.slots)
+      ? equipment.slots
+      : [];
+  const matchedSlot = slots.find((entry) => {
+    if (!entry || !entry.item) {
+      return false;
+    }
+    return normalizeSlotValue(entry.slot) === normalizedSlot;
+  });
+  if (!matchedSlot || !matchedSlot.item) {
+    return null;
+  }
+  if (excludeItemId && matchedSlot.item.itemId === excludeItemId) {
+    return null;
+  }
+  const equippedItem = { ...matchedSlot.item };
+  if (!equippedItem.slot) {
+    equippedItem.slot = normalizedSlot;
+  }
+  if (!equippedItem.slotLabel && matchedSlot.slotLabel) {
+    equippedItem.slotLabel = matchedSlot.slotLabel;
+  }
+  return equippedItem;
+}
+
+function rebuildTooltipWithProfile(profile, tooltip) {
+  if (!tooltip || !tooltip.item) {
+    return null;
+  }
+  const normalizedSlot = normalizeSlotValue(tooltip.slot || tooltip.item.slot || '');
+  const equippedItem = findEquippedItemFromProfile(profile, normalizedSlot, tooltip.item.itemId);
+  const refreshed = { ...tooltip, item: { ...tooltip.item } };
+  if (equippedItem) {
+    refreshed.equippedItem = equippedItem;
+  } else {
+    delete refreshed.equippedItem;
+  }
+  return refreshed;
 }
 
 Page({
@@ -221,8 +278,34 @@ Page({
           }
           return item.itemId === itemId;
         });
-      if (!inSlots && !inInventory) {
+      const storage =
+        equipment &&
+        equipment.storage &&
+        typeof equipment.storage === 'object'
+          ? equipment.storage
+          : {};
+      const categories = Array.isArray(storage.categories) ? storage.categories : [];
+      const inStorage = categories.some((category) => {
+        if (!category || !Array.isArray(category.items)) {
+          return false;
+        }
+        return category.items.some((storageItem) => {
+          if (!storageItem) {
+            return false;
+          }
+          if (inventoryId) {
+            return storageItem.inventoryId === inventoryId;
+          }
+          return storageItem.itemId === itemId;
+        });
+      });
+      if (!inSlots && !inInventory && !inStorage) {
         updates.equipmentTooltip = null;
+      } else {
+        const refreshedTooltip = rebuildTooltipWithProfile(sanitizedProfile, tooltip);
+        if (refreshedTooltip) {
+          updates.equipmentTooltip = refreshedTooltip;
+        }
       }
     }
     const currentSkillModal = this.data ? this.data.skillModal : null;
@@ -933,6 +1016,8 @@ Page({
       (typeof options.inventoryId === 'string' && options.inventoryId.trim()) || rawItem.inventoryId || '';
     const slotLabel = options.slotLabel || rawItem.slotLabel || '';
     const category = typeof options.category === 'string' ? options.category : rawItem.storageCategory || '';
+    const profile = (this.data && this.data.profile) || null;
+    const equippedItem = findEquippedItemFromProfile(profile, slot || rawItem.slot || '', rawItem.itemId);
     const currentTooltip = this.data && this.data.equipmentTooltip;
     if (
       currentTooltip &&
@@ -961,6 +1046,9 @@ Page({
     const deleteState = resolveTooltipDeleteState(tooltip);
     tooltip.canDelete = deleteState.canDelete;
     tooltip.deleteDisabledReason = deleteState.reason;
+    if (equippedItem) {
+      tooltip.equippedItem = equippedItem;
+    }
     this.setData({ equipmentTooltip: tooltip });
   },
 
