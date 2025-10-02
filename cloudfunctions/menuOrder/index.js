@@ -17,6 +17,15 @@ const COLLECTIONS = {
 const ADMIN_ROLES = ['admin', 'developer', 'superadmin'];
 const EXPERIENCE_PER_YUAN = 100;
 
+function isCollectionNotFoundError(error) {
+  if (!error) return false;
+  if (error.errCode === -502005 || error.code === 'ResourceNotFound') {
+    return true;
+  }
+  const message = typeof error.message === 'string' ? error.message : '';
+  return /collection\s+not\s+exists/i.test(message) || /ResourceNotFound/i.test(message);
+}
+
 exports.main = async (event) => {
   const { OPENID } = cloud.getWXContext();
   const action = event.action || 'listMemberOrders';
@@ -68,13 +77,21 @@ async function createOrder(openid, itemsInput, remarkInput) {
 
 async function listMemberOrders(openid) {
   await ensureMember(openid);
-  const snapshot = await db
-    .collection(COLLECTIONS.MENU_ORDERS)
-    .where({ memberId: openid })
-    .orderBy('createdAt', 'desc')
-    .limit(50)
-    .get();
-  const orders = (snapshot.data || []).map((doc) => mapOrder({ _id: doc._id, ...doc }));
+  let snapshot;
+  try {
+    snapshot = await db
+      .collection(COLLECTIONS.MENU_ORDERS)
+      .where({ memberId: openid })
+      .orderBy('createdAt', 'desc')
+      .limit(50)
+      .get();
+  } catch (error) {
+    if (isCollectionNotFoundError(error)) {
+      return { orders: [] };
+    }
+    throw error;
+  }
+  const orders = (snapshot?.data || []).map((doc) => mapOrder({ _id: doc._id, ...doc }));
   return { orders };
 }
 
@@ -124,13 +141,21 @@ async function listPrepOrders(openid, status = 'submitted', pageSize = 100) {
   } else {
     statuses = ['submitted'];
   }
-  const snapshot = await db
-    .collection(COLLECTIONS.MENU_ORDERS)
-    .where({ status: _.in(statuses) })
-    .orderBy('createdAt', 'desc')
-    .limit(normalizedSize)
-    .get();
-  const orders = (snapshot.data || []).map((doc) => mapOrder({ _id: doc._id, ...doc }));
+  let snapshot;
+  try {
+    snapshot = await db
+      .collection(COLLECTIONS.MENU_ORDERS)
+      .where({ status: _.in(statuses) })
+      .orderBy('createdAt', 'desc')
+      .limit(normalizedSize)
+      .get();
+  } catch (error) {
+    if (isCollectionNotFoundError(error)) {
+      return { orders: [] };
+    }
+    throw error;
+  }
+  const orders = (snapshot?.data || []).map((doc) => mapOrder({ _id: doc._id, ...doc }));
   return { orders };
 }
 
@@ -361,10 +386,18 @@ function resolveAmountNumber(value) {
 }
 
 async function syncMemberLevel(openid) {
-  const [memberDoc, levelsSnapshot] = await Promise.all([
-    db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null),
-    db.collection(COLLECTIONS.MEMBERSHIP_LEVELS).orderBy('order', 'asc').get()
-  ]);
+  const memberPromise = db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null);
+  const levelsPromise = db
+    .collection(COLLECTIONS.MEMBERSHIP_LEVELS)
+    .orderBy('order', 'asc')
+    .get()
+    .catch((error) => {
+      if (isCollectionNotFoundError(error)) {
+        return { data: [] };
+      }
+      throw error;
+    });
+  const [memberDoc, levelsSnapshot] = await Promise.all([memberPromise, levelsPromise]);
   if (!memberDoc || !memberDoc.data) return;
   const member = memberDoc.data;
   const levels = levelsSnapshot.data || [];
@@ -399,9 +432,17 @@ function resolveLevelByExperience(exp, levels) {
 async function grantLevelRewards(openid, level) {
   const rewards = level.rewards || [];
   if (!rewards.length) return;
-  const masterSnapshot = await db.collection(COLLECTIONS.MEMBERSHIP_RIGHTS).get();
+  const masterSnapshot = await db
+    .collection(COLLECTIONS.MEMBERSHIP_RIGHTS)
+    .get()
+    .catch((error) => {
+      if (isCollectionNotFoundError(error)) {
+        return { data: [] };
+      }
+      throw error;
+    });
   const masterMap = {};
-  masterSnapshot.data.forEach((item) => {
+  (masterSnapshot.data || []).forEach((item) => {
     masterMap[item._id] = item;
   });
   const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
@@ -411,7 +452,13 @@ async function grantLevelRewards(openid, level) {
     if (!right) continue;
     const existing = await rightsCollection
       .where({ memberId: openid, rightId: reward.rightId, levelId: level._id })
-      .count();
+      .count()
+      .catch((error) => {
+        if (isCollectionNotFoundError(error)) {
+          return { total: 0 };
+        }
+        throw error;
+      });
     const quantity = reward.quantity || 1;
     if (existing.total >= quantity) continue;
     const validUntil = right.validDays
