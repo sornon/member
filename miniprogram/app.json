@@ -5,7 +5,7 @@
     "pages/rights/rights",
     "pages/tasks/tasks",
     "pages/reservation/reservation",
-    "pages/menu/order",
+    "pages/menu/order/order",
     "pages/stones/stones",
     "pages/pve/pve",
     "pages/role/index",

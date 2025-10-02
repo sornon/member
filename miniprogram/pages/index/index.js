@@ -38,7 +38,7 @@ const BASE_NAV_ITEMS = [
   { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
   { icon: '💍', label: '纳戒', url: '/pages/role/index?tab=storage' },
   { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' },
-  { icon: '🍽️', label: '点餐', url: '/pages/menu/order' },
+  { icon: '🍽️', label: '点餐', url: '/pages/menu/order/order' },
   { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
   { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
   { icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
