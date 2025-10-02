@@ -1,0 +1,107 @@
+.prep-page {
+  padding: 16px;
+  background: #070a1a;
+  min-height: 100vh;
+  color: #f5f6ff;
+}
+
+.status-tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.status-tab {
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 26rpx;
+}
+
+.status-tab--active {
+  background: linear-gradient(135deg, #6a7cff, #4b5dff);
+  color: #fff;
+  font-weight: 600;
+}
+
+.placeholder {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.6);
+  padding: 36px 0;
+  font-size: 26rpx;
+}
+
+.order-card {
+  background: rgba(16, 20, 48, 0.85);
+  border-radius: 18px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.order-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 26rpx;
+}
+
+.order-id {
+  font-weight: 600;
+  color: #a7b4ff;
+}
+
+.order-status {
+  color: #ffd166;
+}
+
+.order-meta {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 6px;
+}
+
+.order-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.order-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.line-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.line-title {
+  font-size: 26rpx;
+}
+
+.line-spec {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.line-amount {
+  font-size: 26rpx;
+  color: #e3be77;
+}
+
+.order-total {
+  font-size: 28rpx;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.action-btn {
+  margin-top: 8px;
+}

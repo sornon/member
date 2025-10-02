@@ -379,6 +379,12 @@ Page({
     }
   },
 
+  handleGoToOrder() {
+    wx.navigateTo({
+      url: '/pages/membership/order/index'
+    });
+  },
+
   formatCurrency,
   formatExperience
 });

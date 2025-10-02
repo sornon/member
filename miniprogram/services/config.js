@@ -7,7 +7,8 @@ export const CLOUD_FUNCTIONS = {
   STONES: 'stones',
   AVATAR: 'avatar',
   ADMIN: 'admin',
-  BOOTSTRAP: 'bootstrap'
+  BOOTSTRAP: 'bootstrap',
+  MENU_ORDER: 'menuOrder'
 };
 
 export const COLLECTIONS = {

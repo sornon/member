@@ -471,3 +471,41 @@ export const AdminService = {
     });
   }
 };
+
+export const MenuOrderService = {
+  async createOrder({ items = [], remark = '' } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
+      action: 'createOrder',
+      items,
+      remark
+    });
+  },
+  async listOrders() {
+    return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
+      action: 'listMemberOrders'
+    });
+  },
+  async confirmOrder(orderId) {
+    return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
+      action: 'confirmMemberOrder',
+      orderId
+    });
+  }
+};
+
+export const AdminMenuOrderService = {
+  async listPrepOrders({ status = 'submitted', pageSize = 50 } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
+      action: 'listPrepOrders',
+      status,
+      pageSize
+    });
+  },
+  async markOrderReady(orderId, remark = '') {
+    return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
+      action: 'markOrderReady',
+      orderId,
+      remark
+    });
+  }
+};

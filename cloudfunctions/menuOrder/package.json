@@ -1,0 +1,7 @@
+{
+  "name": "menu-order",
+  "version": "1.0.0",
+  "description": "Menu order cloud function",
+  "main": "index.js",
+  "dependencies": {}
+}

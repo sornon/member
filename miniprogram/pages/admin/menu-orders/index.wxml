@@ -1,0 +1,48 @@
+<custom-nav title="备餐列表" theme="dark"></custom-nav>
+<view class="prep-page">
+  <view class="status-tabs">
+    <view
+      class="status-tab {{activeStatus === tab.id ? 'status-tab--active' : ''}}"
+      wx:for="{{statusTabs}}"
+      wx:key="id"
+      wx:for-item="tab"
+      data-id="{{tab.id}}"
+      bindtap="handleStatusChange"
+    >
+      {{tab.label}}
+    </view>
+  </view>
+
+  <view class="placeholder" wx:if="{{loading}}">加载中...</view>
+  <view class="placeholder" wx:elif="{{!orders.length}}">暂无订单</view>
+
+  <view class="order-card" wx:for="{{orders}}" wx:key="_id" wx:for-item="order">
+    <view class="order-header">
+      <view class="order-id">#{{order.shortId}}</view>
+      <view class="order-status">{{order.statusLabel}}</view>
+    </view>
+    <view class="order-meta">会员：{{order.memberSnapshot && order.memberSnapshot.nickName ? order.memberSnapshot.nickName : '未知'}}</view>
+    <view class="order-meta">提交时间：{{order.createdAtLabel}}</view>
+    <view class="order-meta" wx:if="{{order.remark}}">备注：{{order.remark}}</view>
+    <view class="order-items">
+      <view class="order-line" wx:for="{{order.items}}" wx:key="{{index}}" wx:for-item="orderItem">
+        <view class="line-main">
+          <text class="line-title">{{orderItem.title}}</text>
+          <text class="line-spec">{{orderItem.spec}}{{orderItem.unit}} × {{orderItem.quantity}}</text>
+        </view>
+        <text class="line-amount">{{orderItem.amountLabel}}</text>
+      </view>
+    </view>
+    <view class="order-total">合计 {{order.totalAmountLabel}}</view>
+    <view class="order-meta" wx:if="{{order.adminConfirmedAtLabel}}">管理员确认：{{order.adminConfirmedAtLabel}}</view>
+    <view class="order-meta" wx:if="{{order.memberConfirmedAtLabel}}">会员确认：{{order.memberConfirmedAtLabel}}</view>
+    <button
+      wx:if="{{order.status === 'submitted'}}"
+      class="action-btn"
+      type="primary"
+      loading="{{processingId === order._id}}"
+      data-id="{{order._id}}"
+      bindtap="handleMarkReady"
+    >推送给会员</button>
+  </view>
+</view>
