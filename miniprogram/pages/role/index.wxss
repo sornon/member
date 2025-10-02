@@ -635,6 +635,29 @@ button.pill-btn[disabled] {
   z-index: 2;
 }
 
+.storage-slot__recommend {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 999rpx;
+  background: rgba(46, 184, 123, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6rpx 14rpx rgba(46, 184, 123, 0.38);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.storage-slot__recommend-icon {
+  font-size: 28rpx;
+  color: #f5fff8;
+  font-weight: 700;
+  transform: translateY(-2rpx);
+}
+
 .storage-slot__frame {
   position: absolute;
   inset: 12rpx;

@@ -159,6 +159,39 @@ function normalizeSlotValue(slot) {
   return '';
 }
 
+function resolveEquipmentCombatPower(item) {
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+  const candidates = [
+    item.combatPower,
+    item.power,
+    item.powerScore,
+    item.powerValue,
+    item.fightPower,
+    item.fighting,
+    item.score,
+    item.rating
+  ];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = Number(candidates[i]);
+    if (Number.isFinite(candidate)) {
+      return candidate;
+    }
+  }
+  const stats = item.stats && typeof item.stats === 'object' ? item.stats : null;
+  if (stats) {
+    const statCandidates = [stats.combatPower, stats.power, stats.powerScore, stats.rating];
+    for (let i = 0; i < statCandidates.length; i += 1) {
+      const candidate = Number(statCandidates[i]);
+      if (Number.isFinite(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return null;
+}
+
 function normalizeTooltipMode(mode) {
   return mode === 'delete' ? 'delete' : 'default';
 }
@@ -373,6 +406,25 @@ Page({
           const normalized = { ...item, storageKey };
           if (!normalized.storageCategory) {
             normalized.storageCategory = key;
+          }
+          if (key === 'equipment') {
+            const slotValue = normalizeSlotValue(normalized.slot);
+            if (slotValue) {
+              const equippedItem = findEquippedItemFromProfile(profile, slotValue, normalized.itemId);
+              const storedPower = resolveEquipmentCombatPower(normalized);
+              const equippedPower = resolveEquipmentCombatPower(equippedItem);
+              normalized.recommendedUpgrade =
+                !!(
+                  equippedItem &&
+                  storedPower !== null &&
+                  equippedPower !== null &&
+                  storedPower > equippedPower
+                );
+            } else {
+              normalized.recommendedUpgrade = false;
+            }
+          } else {
+            normalized.recommendedUpgrade = false;
           }
           return normalized;
         });
