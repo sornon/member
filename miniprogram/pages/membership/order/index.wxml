@@ -36,7 +36,7 @@
             data-item-id="{{menu.id}}"
             data-variant-index="{{variantIndex}}"
             bindtap="handleAddToCart"
-          >加入</button>
+          >+</button>
         </view>
       </view>
     </view>
