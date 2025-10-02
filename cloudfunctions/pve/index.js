@@ -2922,7 +2922,7 @@ async function equipSkill(actorId, event) {
           (id) => typeof id === 'string' && id && SKILL_MAP[id] && ownedSkillIds.has(id)
         ).length;
         if (equippedCount >= MAX_SKILL_SLOTS) {
-          throw createError('SKILL_SLOT_FULL', `最多装备 ${MAX_SKILL_SLOTS} 个技能`);
+          throw createError('SKILL_SLOT_FULL', '技能槽位已满，请选择要替换的技能');
         }
         throw createError('SKILL_SLOT_INVALID', '技能槽位数据异常，请重试');
       }
