@@ -1,0 +1,105 @@
+<custom-nav title="会员点餐" theme="dark"></custom-nav>
+<view class="meal-page">
+  <view wx:if="{{loadingMenu && loadingOrder}}" class="loading">灵力汇聚中...</view>
+
+  <view wx:if="{{order}}" class="order-card">
+    <view class="order-card__header">
+      <view class="order-card__title">最新订单</view>
+      <view class="order-card__status">{{order.statusLabel}}</view>
+    </view>
+    <view class="order-card__total">{{order.totalLabel}}</view>
+    <view class="order-card__items">
+      <view wx:for="{{order.items}}" wx:key="itemId" class="order-item">
+        <text class="order-item__name">{{item.name}}</text>
+        <text class="order-item__quantity">×{{item.quantity}}</text>
+        <text class="order-item__price">{{item.subtotalLabel}}</text>
+      </view>
+    </view>
+    <view wx:if="{{order.note}}" class="order-card__note">备注：{{order.note}}</view>
+    <view class="order-card__footer">
+      <text class="order-card__time">{{order.updatedAtLabel || order.createdAtLabel}}</text>
+      <button
+        wx:if="{{order.status === 'adminConfirmed'}}"
+        class="order-card__confirm"
+        type="primary"
+        size="mini"
+        loading="{{confirming}}"
+        disabled="{{confirming}}"
+        bindtap="handleConfirmPayment"
+      >确认扣款</button>
+    </view>
+  </view>
+  <view wx:elif="{{!loadingOrder}}" class="order-empty">暂无进行中的订单，立即点一份心仪的料理。</view>
+
+  <view class="menu-panel">
+    <scroll-view scroll-y class="category-list">
+      <view
+        wx:for="{{categories}}"
+        wx:key="id"
+        class="category-item {{item.id === activeCategoryId ? 'category-item--active' : ''}}"
+        data-id="{{item.id}}"
+        bindtap="handleCategoryTap"
+      >
+        <view class="category-item__name">{{item.name}}</view>
+        <view class="category-item__desc">{{item.description}}</view>
+      </view>
+    </scroll-view>
+    <scroll-view scroll-y class="item-list">
+      <block wx:for="{{categories}}" wx:key="id">
+        <view wx:if="{{item.id === activeCategoryId}}">
+          <view wx:for="{{item.items}}" wx:key="id" wx:for-item="menu" class="menu-item">
+            <view class="menu-item__header">
+              <view class="menu-item__title">{{menu.name}}</view>
+              <view class="menu-item__price">{{menu.priceLabel}}</view>
+            </view>
+            <view class="menu-item__desc">{{menu.description}}</view>
+            <view class="menu-item__footer">
+              <view class="menu-item__unit">{{menu.unit}}</view>
+              <view class="menu-item__actions">
+                <button
+                  class="menu-item__btn"
+                  size="mini"
+                  data-item-id="{{menu.id}}"
+                  bindtap="handleDecrease"
+                  disabled="{{!(cart[menu.id] > 0)}}"
+                >－</button>
+                <text class="menu-item__count">{{cart[menu.id] || 0}}</text>
+                <button
+                  class="menu-item__btn"
+                  size="mini"
+                  data-item-id="{{menu.id}}"
+                  bindtap="handleIncrease"
+                >＋</button>
+              </view>
+            </view>
+          </view>
+        </view>
+      </block>
+    </scroll-view>
+  </view>
+
+  <view class="note-section">
+    <view class="note-section__label">口味或配送备注</view>
+    <textarea
+      class="note-section__input"
+      value="{{note}}"
+      maxlength="200"
+      placeholder="例如：少盐、先上热菜等"
+      bindinput="handleNoteInput"
+    ></textarea>
+  </view>
+
+  <view class="cart-bar">
+    <view class="cart-bar__info">
+      <view class="cart-bar__summary">已选 {{totalQuantity}} 项</view>
+      <view class="cart-bar__amount">合计 {{cartTotalLabel}}</view>
+    </view>
+    <button
+      class="cart-bar__submit"
+      type="primary"
+      loading="{{submitting}}"
+      disabled="{{submitting || totalQuantity === 0}}"
+      bindtap="handleSubmit"
+    >提交点单</button>
+  </view>
+</view>

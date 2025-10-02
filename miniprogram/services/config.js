@@ -7,6 +7,7 @@ export const CLOUD_FUNCTIONS = {
   STONES: 'stones',
   AVATAR: 'avatar',
   ADMIN: 'admin',
+  MEAL: 'meal',
   BOOTSTRAP: 'bootstrap'
 };
 

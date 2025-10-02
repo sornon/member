@@ -270,6 +270,14 @@ async function initMember(openid, profile) {
       adminVersion: 0,
       adminSeenVersion: 0,
       pendingApprovalCount: 0
+    },
+    mealOrderBadges: {
+      memberVersion: 0,
+      memberSeenVersion: 0,
+      adminVersion: 0,
+      adminSeenVersion: 0,
+      pendingPreparationCount: 0,
+      pendingMemberConfirmationCount: 0
     }
   };
   await membersCollection.add({ data: doc });
@@ -794,6 +802,14 @@ async function ensureArchiveDefaults(member) {
   }
   member.reservationBadges = badges;
 
+  const mealBadges = normalizeMealOrderBadges(member.mealOrderBadges);
+  const originalMealBadges = member.mealOrderBadges || {};
+  const mealBadgeChanged = Object.keys(mealBadges).some((key) => !Object.is(mealBadges[key], originalMealBadges[key]));
+  if (mealBadgeChanged) {
+    updates.mealOrderBadges = mealBadges;
+  }
+  member.mealOrderBadges = mealBadges;
+
   const extras = await resolveMemberExtras(memberId);
 
   const hadAvatarUnlocksField = Object.prototype.hasOwnProperty.call(member, 'avatarUnlocks');
@@ -1054,12 +1070,14 @@ function decorateMember(member, levels) {
       .catch(() => {});
   }
   const reservationBadges = normalizeReservationBadges(member.reservationBadges);
+  const mealOrderBadges = normalizeMealOrderBadges(member.mealOrderBadges);
   const claimedLevelRewards = normalizeClaimedLevelRewards(member.claimedLevelRewards, levels);
   return {
     ...member,
     roles,
     level,
     reservationBadges,
+    mealOrderBadges,
     claimedLevelRewards
   };
 }
@@ -1071,6 +1089,36 @@ function normalizeReservationBadges(badges) {
     adminVersion: 0,
     adminSeenVersion: 0,
     pendingApprovalCount: 0
+  };
+  const normalized = { ...defaults };
+  if (badges && typeof badges === 'object') {
+    Object.keys(defaults).forEach((key) => {
+      const value = badges[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        normalized[key] = key.endsWith('Count')
+          ? Math.max(0, Math.floor(value))
+          : Math.max(0, Math.floor(value));
+      } else if (typeof value === 'string' && value) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          normalized[key] = key.endsWith('Count')
+            ? Math.max(0, Math.floor(numeric))
+            : Math.max(0, Math.floor(numeric));
+        }
+      }
+    });
+  }
+  return normalized;
+}
+
+function normalizeMealOrderBadges(badges) {
+  const defaults = {
+    memberVersion: 0,
+    memberSeenVersion: 0,
+    adminVersion: 0,
+    adminSeenVersion: 0,
+    pendingPreparationCount: 0,
+    pendingMemberConfirmationCount: 0
   };
   const normalized = { ...defaults };
   if (badges && typeof badges === 'object') {

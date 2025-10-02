@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/menu/index",
     "pages/membership/membership",
     "pages/rights/rights",
     "pages/tasks/tasks",
@@ -16,6 +17,7 @@
     "pages/admin/member-detail/index",
     "pages/admin/charge/index",
     "pages/admin/orders/index",
+    "pages/admin/meal-prep/index",
     "pages/wallet/charge-confirm/index"
   ],
   "window": {

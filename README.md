@@ -46,6 +46,7 @@
    - `coupons`
    - `couponRecords`
    - `reservations`
+   - `mealOrders`
    - `rooms`
    - `walletTransactions`
    - `stoneTransactions`
@@ -175,6 +176,10 @@ cd cloudfunctions/member && npm install && cd -
 ### rooms / reservations
 
 房间及预约订单，支持在线预订、权益抵扣、支付状态追踪。
+
+### mealOrders
+
+会员点餐订单，记录菜品、数量、备注、状态流转以及管理员与会员的确认时间，支持钱包余额扣款确认流程。
 
 ### walletTransactions
 

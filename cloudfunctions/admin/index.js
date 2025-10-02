@@ -20,7 +20,8 @@ const COLLECTIONS = {
   TASK_RECORDS: 'taskRecords',
   COUPON_RECORDS: 'couponRecords',
   STONE_TRANSACTIONS: 'stoneTransactions',
-  ERROR_LOGS: 'errorlogs'
+  ERROR_LOGS: 'errorlogs',
+  MEAL_ORDERS: 'mealOrders'
 };
 
 const EXPERIENCE_PER_YUAN = 100;
@@ -46,6 +47,9 @@ const ACTIONS = {
   REJECT_RESERVATION: 'rejectReservation',
   CANCEL_RESERVATION: 'cancelReservation',
   MARK_RESERVATION_READ: 'markReservationRead',
+  LIST_MEAL_ORDERS: 'listMealOrders',
+  CONFIRM_MEAL_ORDER: 'confirmMealOrder',
+  MARK_MEAL_ORDERS_READ: 'markMealOrdersRead',
   LIST_EQUIPMENT_CATALOG: 'listEquipmentCatalog',
   GRANT_EQUIPMENT: 'grantEquipment',
   REMOVE_EQUIPMENT: 'removeEquipment',
@@ -68,6 +72,9 @@ const ACTION_ALIASES = {
   rejectreservation: ACTIONS.REJECT_RESERVATION,
   cancelreservation: ACTIONS.CANCEL_RESERVATION,
   markreservationread: ACTIONS.MARK_RESERVATION_READ,
+  listmealorders: ACTIONS.LIST_MEAL_ORDERS,
+  confirmmealorder: ACTIONS.CONFIRM_MEAL_ORDER,
+  markmealordersread: ACTIONS.MARK_MEAL_ORDERS_READ,
   listequipmentcatalog: ACTIONS.LIST_EQUIPMENT_CATALOG,
   grantequipment: ACTIONS.GRANT_EQUIPMENT,
   removeequipment: ACTIONS.REMOVE_EQUIPMENT,
@@ -112,6 +119,14 @@ const ACTION_HANDLERS = {
   [ACTIONS.REJECT_RESERVATION]: (openid, event) => rejectReservation(openid, event.reservationId, event.reason || ''),
   [ACTIONS.CANCEL_RESERVATION]: (openid, event) => cancelReservation(openid, event.reservationId, event.reason || ''),
   [ACTIONS.MARK_RESERVATION_READ]: (openid) => markReservationRead(openid),
+  [ACTIONS.LIST_MEAL_ORDERS]: (openid, event) =>
+    listMealOrders(openid, {
+      status: event.status || 'submitted',
+      page: event.page || 1,
+      pageSize: event.pageSize || 20
+    }),
+  [ACTIONS.CONFIRM_MEAL_ORDER]: (openid, event) => confirmMealOrder(openid, event.orderId),
+  [ACTIONS.MARK_MEAL_ORDERS_READ]: (openid) => markMealOrdersRead(openid),
   [ACTIONS.LIST_EQUIPMENT_CATALOG]: (openid) => listEquipmentCatalog(openid),
   [ACTIONS.GRANT_EQUIPMENT]: (openid, event) => grantEquipment(openid, event.memberId, event.itemId),
   [ACTIONS.REMOVE_EQUIPMENT]: (openid, event) =>
@@ -906,6 +921,134 @@ async function markReservationRead(openid) {
     .catch(() => {});
   const updatedBadges = { ...badges, adminSeenVersion: badges.adminVersion };
   return { success: true, reservationBadges: updatedBadges };
+}
+
+async function listMealOrders(openid, { status = 'submitted', page = 1, pageSize = 20 } = {}) {
+  await ensureAdmin(openid);
+  const normalizedStatus = normalizeMealOrderStatus(status);
+  const limit = Math.min(Math.max(pageSize, 1), 50);
+  const skip = Math.max(page - 1, 0) * limit;
+
+  const query = db.collection(COLLECTIONS.MEAL_ORDERS).where({ status: normalizedStatus });
+  const [snapshot, countResult, adminDoc] = await Promise.all([
+    query
+      .orderBy('createdAt', 'desc')
+      .skip(skip)
+      .limit(limit)
+      .get()
+      .catch(() => ({ data: [] })),
+    query.count().catch(() => ({ total: 0 })),
+    db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(openid)
+      .get()
+      .catch(() => null)
+  ]);
+
+  const orders = Array.isArray(snapshot.data) ? snapshot.data : [];
+  const memberIds = Array.from(
+    new Set(
+      orders
+        .map((order) => (order && order.memberId ? order.memberId : ''))
+        .filter((id) => typeof id === 'string' && id)
+    )
+  );
+  const memberMap = await loadMembersMap(memberIds);
+
+  const decorated = orders.map((order) => decorateMealOrder(order, memberMap[order.memberId]));
+  const total = countResult && Number.isFinite(countResult.total) ? countResult.total : decorated.length;
+  const adminBadges = normalizeMealOrderBadges(adminDoc && adminDoc.data ? adminDoc.data.mealOrderBadges : null);
+
+  return {
+    orders: decorated,
+    pagination: {
+      page: Math.max(1, Number(page) || 1),
+      pageSize: limit,
+      total
+    },
+    mealOrderBadges: adminBadges
+  };
+}
+
+async function confirmMealOrder(openid, orderId) {
+  await ensureAdmin(openid);
+  if (!orderId) {
+    throw new Error('缺少点餐订单编号');
+  }
+  let memberId = '';
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction
+      .collection(COLLECTIONS.MEAL_ORDERS)
+      .doc(orderId)
+      .get()
+      .catch(() => null);
+    if (!snapshot || !snapshot.data) {
+      throw new Error('点餐订单不存在');
+    }
+    const order = snapshot.data;
+    if (order.status === 'memberConfirmed') {
+      memberId = order.memberId || '';
+      return;
+    }
+    if (order.status !== 'submitted') {
+      throw new Error('订单状态已更新，请刷新后重试');
+    }
+    memberId = order.memberId || '';
+    const now = new Date();
+    const historyEntry = {
+      status: 'adminConfirmed',
+      changedAt: now,
+      changedBy: openid
+    };
+    const updateData = {
+      status: 'adminConfirmed',
+      adminConfirmedAt: now,
+      updatedAt: now,
+      statusHistory: Array.isArray(order.statusHistory) ? _.push(historyEntry) : [historyEntry]
+    };
+    await transaction.collection(COLLECTIONS.MEAL_ORDERS).doc(orderId).update({
+      data: updateData
+    });
+  });
+
+  if (memberId) {
+    await updateMemberMealBadges(memberId, { incrementVersion: true });
+  }
+  await updateAdminMealBadges({ incrementVersion: false });
+
+  const [orderDoc, memberMap] = await Promise.all([
+    db
+      .collection(COLLECTIONS.MEAL_ORDERS)
+      .doc(orderId)
+      .get()
+      .catch(() => null),
+    loadMembersMap(memberId ? [memberId] : [])
+  ]);
+  const order = orderDoc && orderDoc.data ? { _id: orderId, ...orderDoc.data } : null;
+  return {
+    success: true,
+    order: decorateMealOrder(order, memberMap[memberId] || null)
+  };
+}
+
+async function markMealOrdersRead(openid) {
+  const member = await ensureAdmin(openid);
+  const badges = normalizeMealOrderBadges(member.mealOrderBadges);
+  if (badges.adminSeenVersion >= badges.adminVersion) {
+    return { success: true, mealOrderBadges: badges };
+  }
+  await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(member._id)
+    .update({
+      data: {
+        'mealOrderBadges.adminSeenVersion': badges.adminVersion,
+        updatedAt: new Date()
+      }
+    })
+    .catch(() => {});
+  const updatedBadges = { ...badges, adminSeenVersion: badges.adminVersion };
+  return { success: true, mealOrderBadges: updatedBadges };
 }
 
 async function getReservationRecord(reservationId) {
@@ -2043,6 +2186,189 @@ function formatFenToYuan(value) {
     return '0.00';
   }
   return (numeric / 100).toFixed(2);
+}
+
+function formatCurrencyLabel(value) {
+  return `¥${formatFenToYuan(value)}`;
+}
+
+function normalizeMealOrderStatus(status) {
+  if (!status) {
+    return 'submitted';
+  }
+  const normalized = String(status).trim();
+  if (!normalized) {
+    return 'submitted';
+  }
+  if (normalized === 'adminConfirmed' || normalized === 'memberConfirmed') {
+    return normalized;
+  }
+  return 'submitted';
+}
+
+function describeMealOrderStatus(status) {
+  const normalized = normalizeMealOrderStatus(status);
+  switch (normalized) {
+    case 'adminConfirmed':
+      return '待会员确认扣款';
+    case 'memberConfirmed':
+      return '已完成';
+    default:
+      return '待备餐';
+  }
+}
+
+function normalizeMealQuantity(quantity) {
+  const numeric = Number(quantity);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(numeric));
+}
+
+function decorateMealOrder(order, member) {
+  if (!order) {
+    return null;
+  }
+  const normalizedStatus = normalizeMealOrderStatus(order.status);
+  const items = Array.isArray(order.items)
+    ? order.items.map((item) => {
+        const quantity = normalizeMealQuantity(item.quantity || 0);
+        const price = Number(item.price) || 0;
+        const subtotal = Number(item.subtotal) || price * quantity;
+        return {
+          itemId: item.itemId || item.id || '',
+          name: item.name || '',
+          unit: item.unit || '',
+          quantity,
+          price,
+          priceLabel: formatCurrencyLabel(price),
+          subtotal,
+          subtotalLabel: formatCurrencyLabel(subtotal)
+        };
+      })
+    : [];
+  const totalAmount = Number(order.totalAmount) || items.reduce((sum, item) => sum + item.subtotal, 0);
+  return {
+    _id: order._id || order.id || '',
+    memberId: order.memberId || '',
+    memberName: member ? member.nickName || '' : '',
+    memberMobile: member ? member.mobile || '' : '',
+    status: normalizedStatus,
+    statusLabel: describeMealOrderStatus(normalizedStatus),
+    totalAmount,
+    totalLabel: formatCurrencyLabel(totalAmount),
+    items,
+    note: order.note || '',
+    createdAt: order.createdAt || null,
+    createdAtLabel: formatDate(order.createdAt),
+    updatedAt: order.updatedAt || null,
+    updatedAtLabel: formatDate(order.updatedAt),
+    adminConfirmedAt: order.adminConfirmedAt || null,
+    adminConfirmedAtLabel: formatDate(order.adminConfirmedAt),
+    memberConfirmedAt: order.memberConfirmedAt || null,
+    memberConfirmedAtLabel: formatDate(order.memberConfirmedAt)
+  };
+}
+
+function normalizeMealOrderBadges(badges) {
+  const defaults = {
+    memberVersion: 0,
+    memberSeenVersion: 0,
+    adminVersion: 0,
+    adminSeenVersion: 0,
+    pendingPreparationCount: 0,
+    pendingMemberConfirmationCount: 0
+  };
+  const normalized = { ...defaults };
+  if (badges && typeof badges === 'object') {
+    Object.keys(defaults).forEach((key) => {
+      const value = badges[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        normalized[key] = key.endsWith('Count')
+          ? Math.max(0, Math.floor(value))
+          : Math.max(0, Math.floor(value));
+      } else if (typeof value === 'string' && value) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          normalized[key] = key.endsWith('Count')
+            ? Math.max(0, Math.floor(numeric))
+            : Math.max(0, Math.floor(numeric));
+        }
+      }
+    });
+  }
+  return normalized;
+}
+
+async function updateMemberMealBadges(memberId, { incrementVersion = false } = {}) {
+  if (!memberId) {
+    return 0;
+  }
+  try {
+    const pendingResult = await db
+      .collection(COLLECTIONS.MEAL_ORDERS)
+      .where({ memberId, status: 'adminConfirmed' })
+      .count()
+      .catch(() => ({ total: 0 }));
+    const pendingCount = pendingResult && Number.isFinite(pendingResult.total) ? pendingResult.total : 0;
+    const updateData = {
+      'mealOrderBadges.pendingMemberConfirmationCount': pendingCount,
+      updatedAt: new Date()
+    };
+    if (incrementVersion) {
+      updateData['mealOrderBadges.memberVersion'] = _.inc(1);
+    }
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(memberId)
+      .update({
+        data: updateData
+      })
+      .catch(() => {});
+    return pendingCount;
+  } catch (error) {
+    console.error('[admin] update member meal badges failed', error);
+    return 0;
+  }
+}
+
+async function updateAdminMealBadges({ incrementVersion = false } = {}) {
+  try {
+    const [pendingResult, adminSnapshot] = await Promise.all([
+      db
+        .collection(COLLECTIONS.MEAL_ORDERS)
+        .where({ status: 'submitted' })
+        .count()
+        .catch(() => ({ total: 0 })),
+      db
+        .collection(COLLECTIONS.MEMBERS)
+        .where({ roles: _.in(ADMIN_ROLES) })
+        .get()
+        .catch(() => ({ data: [] }))
+    ]);
+    const pendingCount = pendingResult && Number.isFinite(pendingResult.total) ? pendingResult.total : 0;
+    const admins = Array.isArray(adminSnapshot.data) ? adminSnapshot.data : [];
+    await Promise.all(
+      admins.map((admin) =>
+        db
+          .collection(COLLECTIONS.MEMBERS)
+          .doc(admin._id)
+          .update({
+            data: {
+              'mealOrderBadges.pendingPreparationCount': pendingCount,
+              ...(incrementVersion ? { 'mealOrderBadges.adminVersion': _.inc(1) } : {}),
+              updatedAt: new Date()
+            }
+          })
+          .catch(() => {})
+      )
+    );
+    return pendingCount;
+  } catch (error) {
+    console.error('[admin] update meal order badges failed', error);
+    return 0;
+  }
 }
 
 function formatStoneLabel(value) {

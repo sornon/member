@@ -1,0 +1,40 @@
+<custom-nav title="备餐列表" theme="dark"></custom-nav>
+<view class="meal-prep-page">
+  <view class="toolbar">
+    <button size="mini" bindtap="handleRefresh" loading="{{refreshing}}">刷新</button>
+  </view>
+
+  <view wx:if="{{loading}}" class="loading">备餐单加载中...</view>
+  <view wx:elif="{{!orders.length}}" class="empty">暂无待备餐订单，敬请期待会员新点单。</view>
+  <view wx:else class="order-list">
+    <view wx:for="{{orders}}" wx:key="_id" class="order-card">
+      <view class="order-header">
+        <view class="order-member">
+          <view class="order-member__name">{{item.memberName}}</view>
+          <view class="order-member__contact" wx:if="{{item.memberMobile}}">{{item.memberMobile}}</view>
+        </view>
+        <view class="order-total">{{item.totalLabel}}</view>
+      </view>
+      <view class="order-body">
+        <view wx:for="{{item.items}}" wx:key="itemId" wx:for-item="dish" class="order-item">
+          <text class="order-item__name">{{dish.name}}</text>
+          <text class="order-item__quantity">×{{dish.quantity}}</text>
+          <text class="order-item__price">{{dish.subtotalLabel}}</text>
+        </view>
+      </view>
+      <view wx:if="{{item.note}}" class="order-note">备注：{{item.note}}</view>
+      <view class="order-footer">
+        <text class="order-time">{{item.createdAtLabel}}</text>
+        <button
+          type="primary"
+          size="mini"
+          class="order-confirm"
+          data-id="{{item._id}}"
+          loading="{{confirmingId === item._id}}"
+          disabled="{{confirmingId === item._id}}"
+          bindtap="handleConfirm"
+        >确认备餐</button>
+      </view>
+    </view>
+  </view>
+</view>

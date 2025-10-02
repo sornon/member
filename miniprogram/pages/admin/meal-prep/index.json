@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "备餐列表",
+  "usingComponents": {
+    "custom-nav": "/components/custom-nav/index"
+  }
+}

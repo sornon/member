@@ -241,12 +241,16 @@ export const WalletService = {
       transactionId
     });
   },
-  async payWithBalance(orderId, amount) {
-    return callCloud(CLOUD_FUNCTIONS.WALLET, {
+  async payWithBalance(orderId, amount, options = {}) {
+    const payload = {
       action: 'balancePay',
       orderId,
       amount
-    });
+    };
+    if (options && typeof options.orderType === 'string' && options.orderType.trim()) {
+      payload.orderType = options.orderType.trim();
+    }
+    return callCloud(CLOUD_FUNCTIONS.WALLET, payload);
   },
   async loadChargeOrder(orderId) {
     return callCloud(CLOUD_FUNCTIONS.WALLET, {
@@ -325,6 +329,24 @@ export const PveService = {
 export const StoneService = {
   async summary() {
     return callCloud(CLOUD_FUNCTIONS.STONES, { action: 'summary' });
+  }
+};
+
+export const MealService = {
+  async getMenu() {
+    return callCloud(CLOUD_FUNCTIONS.MEAL, { action: 'menu' });
+  },
+  async submitOrder(order) {
+    return callCloud(CLOUD_FUNCTIONS.MEAL, {
+      action: 'submitOrder',
+      order
+    });
+  },
+  async getLatestOrder() {
+    return callCloud(CLOUD_FUNCTIONS.MEAL, { action: 'latestOrder' });
+  },
+  async markMemberSeen() {
+    return callCloud(CLOUD_FUNCTIONS.MEAL, { action: 'markMemberSeen' });
   }
 };
 
@@ -468,6 +490,25 @@ export const AdminService = {
   async markReservationRead() {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'markReservationRead'
+    });
+  },
+  async listMealOrders({ status = 'submitted', page = 1, pageSize = 20 } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'listMealOrders',
+      status,
+      page,
+      pageSize
+    });
+  },
+  async confirmMealOrder(orderId) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'confirmMealOrder',
+      orderId
+    });
+  },
+  async markMealOrdersRead() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'markMealOrdersRead'
     });
   }
 };

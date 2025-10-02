@@ -39,6 +39,7 @@ const BASE_NAV_ITEMS = [
   { icon: '💍', label: '纳戒', url: '/pages/role/index?tab=storage' },
   { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' },
   { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
+  { icon: '🍽️', label: '点餐', url: '/pages/menu/index' },
   { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
   { icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
@@ -228,8 +229,48 @@ function normalizeReservationBadges(badges) {
   return normalized;
 }
 
+function normalizeMealOrderBadges(badges) {
+  const defaults = {
+    memberVersion: 0,
+    memberSeenVersion: 0,
+    adminVersion: 0,
+    adminSeenVersion: 0,
+    pendingPreparationCount: 0,
+    pendingMemberConfirmationCount: 0
+  };
+  const normalized = { ...defaults };
+  if (badges && typeof badges === 'object') {
+    Object.keys(defaults).forEach((key) => {
+      const value = badges[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        normalized[key] = key.endsWith('Count')
+          ? Math.max(0, Math.floor(value))
+          : Math.max(0, Math.floor(value));
+      } else if (typeof value === 'string' && value) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          normalized[key] = key.endsWith('Count')
+            ? Math.max(0, Math.floor(numeric))
+            : Math.max(0, Math.floor(numeric));
+        }
+      }
+    });
+  }
+  return normalized;
+}
+
 function shouldShowReservationDot(badges) {
   return badges.memberVersion > badges.memberSeenVersion;
+}
+
+function shouldShowMealDot(badges) {
+  if (!badges) {
+    return false;
+  }
+  if (badges.memberVersion > badges.memberSeenVersion) {
+    return true;
+  }
+  return badges.pendingMemberConfirmationCount > 0;
 }
 
 function shouldShowAdminDot(badges) {
@@ -519,9 +560,13 @@ function deriveMemberStats(member) {
 function resolveNavItems(member) {
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
   const badges = normalizeReservationBadges(member && member.reservationBadges);
+  const mealBadges = normalizeMealOrderBadges(member && member.mealOrderBadges);
   const navItems = BASE_NAV_ITEMS.map((item) => {
     if (item.label === '预订') {
       return { ...item, showDot: shouldShowReservationDot(badges) };
+    }
+    if (item.label === '点餐') {
+      return { ...item, showDot: shouldShowMealDot(mealBadges) };
     }
     return { ...item };
   });
@@ -530,7 +575,7 @@ function resolveNavItems(member) {
       icon: '🛡️',
       label: '管理员',
       url: '/pages/admin/index',
-      showDot: shouldShowAdminDot(badges)
+      showDot: shouldShowAdminDot(badges) || shouldShowMealDot(mealBadges)
     });
   }
   return navItems;

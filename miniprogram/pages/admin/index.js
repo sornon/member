@@ -20,6 +20,12 @@ const BASE_ACTIONS = [
     url: '/pages/admin/orders/index'
   },
   {
+    icon: '🍲',
+    label: '备餐列表',
+    description: '确认会员点单并通知扣款',
+    url: '/pages/admin/meal-prep/index'
+  },
+  {
     icon: '🏠',
     label: '预约审核',
     description: '查看并审核包房预约申请',
@@ -58,14 +64,50 @@ function normalizeReservationBadges(badges) {
 
 function buildQuickActions(member) {
   const badges = normalizeReservationBadges(member && member.reservationBadges);
+  const mealBadges = normalizeMealOrderBadges(member && member.mealOrderBadges);
   return BASE_ACTIONS.map((action) => {
     if (action.url === '/pages/admin/reservations/index') {
       const showDot = badges.adminVersion > badges.adminSeenVersion;
       const badgeText = badges.pendingApprovalCount > 0 ? `${badges.pendingApprovalCount}` : '';
       return { ...action, showDot, badgeText };
     }
+    if (action.url === '/pages/admin/meal-prep/index') {
+      const showDot = mealBadges.adminVersion > mealBadges.adminSeenVersion || mealBadges.pendingPreparationCount > 0;
+      const badgeText = mealBadges.pendingPreparationCount > 0 ? `${mealBadges.pendingPreparationCount}` : '';
+      return { ...action, showDot, badgeText };
+    }
     return { ...action };
   });
+}
+
+function normalizeMealOrderBadges(badges) {
+  const defaults = {
+    memberVersion: 0,
+    memberSeenVersion: 0,
+    adminVersion: 0,
+    adminSeenVersion: 0,
+    pendingPreparationCount: 0,
+    pendingMemberConfirmationCount: 0
+  };
+  const normalized = { ...defaults };
+  if (badges && typeof badges === 'object') {
+    Object.keys(defaults).forEach((key) => {
+      const value = badges[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        normalized[key] = key.endsWith('Count')
+          ? Math.max(0, Math.floor(value))
+          : Math.max(0, Math.floor(value));
+      } else if (typeof value === 'string' && value) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          normalized[key] = key.endsWith('Count')
+            ? Math.max(0, Math.floor(numeric))
+            : Math.max(0, Math.floor(numeric));
+        }
+      }
+    });
+  }
+  return normalized;
 }
 
 Page({

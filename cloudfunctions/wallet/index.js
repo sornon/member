@@ -13,7 +13,8 @@ const COLLECTIONS = {
   MEMBERSHIP_LEVELS: 'membershipLevels',
   MEMBERSHIP_RIGHTS: 'membershipRights',
   CHARGE_ORDERS: 'chargeOrders',
-  STONE_TRANSACTIONS: 'stoneTransactions'
+  STONE_TRANSACTIONS: 'stoneTransactions',
+  MEAL_ORDERS: 'mealOrders'
 };
 
 const EXPERIENCE_PER_YUAN = 100;
@@ -31,7 +32,7 @@ exports.main = async (event, context) => {
     case 'completeRecharge':
       return completeRecharge(OPENID, event.transactionId);
     case 'balancePay':
-      return payWithBalance(OPENID, event.orderId, event.amount);
+      return payWithBalance(OPENID, event.orderId, event.amount, event);
     case 'loadChargeOrder':
       return loadChargeOrder(OPENID, event.orderId);
     case 'confirmChargeOrder':
@@ -290,11 +291,14 @@ async function completeRecharge(openid, transactionId) {
   return result;
 }
 
-async function payWithBalance(openid, orderId, amount) {
+async function payWithBalance(openid, orderId, amount, options = {}) {
   const normalizedAmount = Number(amount);
   if (!normalizedAmount || !Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
     throw new Error('扣款金额无效');
   }
+  const orderOptions = options && typeof options === 'object' ? options : {};
+  const rawOrderType = typeof orderOptions.orderType === 'string' ? orderOptions.orderType.trim() : '';
+  const orderType = rawOrderType || 'reservation';
   let experienceGain = 0;
   await db.runTransaction(async (transaction) => {
     const memberDoc = await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).get();
@@ -302,6 +306,28 @@ async function payWithBalance(openid, orderId, amount) {
     const currentBalance = resolveCashBalance(member);
     if (!member || currentBalance < normalizedAmount) {
       throw new Error('余额不足');
+    }
+    let mealOrder = null;
+    if (orderId && orderType === 'meal') {
+      const mealDoc = await transaction
+        .collection(COLLECTIONS.MEAL_ORDERS)
+        .doc(orderId)
+        .get()
+        .catch(() => null);
+      if (!mealDoc || !mealDoc.data) {
+        throw new Error('点餐订单不存在');
+      }
+      mealOrder = mealDoc.data;
+      if (mealOrder.memberId !== openid) {
+        throw new Error('无权支付该订单');
+      }
+      if (mealOrder.status !== 'adminConfirmed') {
+        throw new Error('订单尚未确认，请等待管理员处理');
+      }
+      const orderAmount = resolveAmountNumber(mealOrder.totalAmount);
+      if (orderAmount > 0 && orderAmount !== normalizedAmount) {
+        throw new Error('订单金额已更新，请刷新后重试');
+      }
     }
     experienceGain = calculateExperienceGain(normalizedAmount);
     await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).update({
@@ -324,14 +350,39 @@ async function payWithBalance(openid, orderId, amount) {
       }
     });
     if (orderId) {
-      await transaction.collection(COLLECTIONS.RESERVATIONS).doc(orderId).update({
-        data: {
-          status: 'confirmed',
-          paidAt: new Date()
-        }
-      });
+      if (orderType === 'meal') {
+        const now = new Date();
+        const historyEntry = {
+          status: 'memberConfirmed',
+          changedAt: now,
+          changedBy: openid
+        };
+        const statusHistory = mealOrder && Array.isArray(mealOrder.statusHistory)
+          ? _.push(historyEntry)
+          : [historyEntry];
+        await transaction.collection(COLLECTIONS.MEAL_ORDERS).doc(orderId).update({
+          data: {
+            status: 'memberConfirmed',
+            memberConfirmedAt: now,
+            paidAt: now,
+            updatedAt: now,
+            statusHistory
+          }
+        });
+      } else {
+        await transaction.collection(COLLECTIONS.RESERVATIONS).doc(orderId).update({
+          data: {
+            status: 'confirmed',
+            paidAt: new Date()
+          }
+        });
+      }
     }
   });
+
+  if (orderId && orderType === 'meal') {
+    await updateMemberMealBadges(openid, { incrementVersion: false });
+  }
 
   if (experienceGain > 0) {
     await syncMemberLevel(openid);
@@ -539,6 +590,38 @@ function resolveCashBalance(member) {
     }
   }
   return 0;
+}
+
+async function updateMemberMealBadges(memberId, { incrementVersion = false } = {}) {
+  if (!memberId) {
+    return 0;
+  }
+  try {
+    const pendingResult = await db
+      .collection(COLLECTIONS.MEAL_ORDERS)
+      .where({ memberId, status: 'adminConfirmed' })
+      .count()
+      .catch(() => ({ total: 0 }));
+    const pendingCount = pendingResult && Number.isFinite(pendingResult.total) ? pendingResult.total : 0;
+    const updateData = {
+      'mealOrderBadges.pendingMemberConfirmationCount': pendingCount,
+      updatedAt: new Date()
+    };
+    if (incrementVersion) {
+      updateData['mealOrderBadges.memberVersion'] = _.inc(1);
+    }
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(memberId)
+      .update({
+        data: updateData
+      })
+      .catch(() => {});
+    return pendingCount;
+  } catch (error) {
+    console.error('[wallet] update meal badges failed', error);
+    return 0;
+  }
 }
 
 function resolveAmountNumber(value) {
