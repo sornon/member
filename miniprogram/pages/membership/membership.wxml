@@ -22,9 +22,6 @@
         <text class="milestone-tag">境界大奖</text>
         <text class="milestone-text">冲刺至 {{upcomingMilestone.displayName}} 可得 {{upcomingMilestone.milestoneReward}}</text>
       </view>
-      <view class="member-actions">
-        <button class="member-order-button" type="default" size="mini" bindtap="handleGoToOrder">会员点餐</button>
-      </view>
     </view>
 
     <view class="card realm-card" wx:if="{{visibleRealms.length}}">

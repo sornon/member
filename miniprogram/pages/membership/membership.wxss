@@ -78,20 +78,6 @@
   line-height: 1.5;
 }
 
-.member-actions {
-  margin-top: 24rpx;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.member-order-button {
-  background: rgba(13, 20, 52, 0.65);
-  color: #fff7d6;
-  border: 1rpx solid rgba(255, 229, 127, 0.5);
-  border-radius: 999rpx;
-  padding: 0 32rpx;
-}
-
 .realm-card {
   margin-top: 24rpx;
 }
