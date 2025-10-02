@@ -67,9 +67,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.04);
+  padding: 0;
 }
 
 .variant-info {
@@ -100,15 +98,15 @@
 }
 
 .variant-add {
-  width: 72rpx;
-  height: 72rpx;
+  width: 56rpx;
+  height: 56rpx;
   min-width: 0;
   padding: 0;
-  border-radius: 12rpx;
+  border-radius: 10rpx;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36rpx;
+  font-size: 32rpx;
 }
 
 .empty-hint {
