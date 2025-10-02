@@ -635,6 +635,29 @@ button.pill-btn[disabled] {
   z-index: 2;
 }
 
+.storage-slot__recommend {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 999rpx;
+  background: rgba(46, 184, 123, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6rpx 14rpx rgba(46, 184, 123, 0.38);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.storage-slot__recommend-icon {
+  font-size: 28rpx;
+  color: #f5fff8;
+  font-weight: 700;
+  transform: translateY(-2rpx);
+}
+
 .storage-slot__frame {
   position: absolute;
   inset: 12rpx;
@@ -849,10 +872,19 @@ button.pill-btn[disabled] {
   background: rgba(5, 9, 28, 0.72);
 }
 
-.equipment-tooltip__card {
+.equipment-tooltip__container {
   position: relative;
   max-width: 640rpx;
   width: calc(100% - 120rpx);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 24rpx;
+}
+
+.equipment-tooltip__card {
+  position: relative;
+  width: 100%;
   padding: 24rpx 36rpx 36rpx;
   border-radius: 28rpx;
   background: rgba(18, 30, 74, 0.92);
@@ -915,8 +947,14 @@ button.pill-btn[disabled] {
   color: rgba(195, 206, 255, 0.78);
 }
 
-.equipment-tooltip__equipped {
-  font-size: 22rpx;
+.equipment-tooltip__card--secondary {
+  background: rgba(18, 30, 74, 0.88);
+  border-color: rgba(102, 130, 238, 0.32);
+  box-shadow: 0 16rpx 36rpx rgba(6, 10, 32, 0.45);
+}
+
+.equipment-tooltip__compare-title {
+  font-size: 24rpx;
   color: rgba(195, 206, 255, 0.82);
 }
 

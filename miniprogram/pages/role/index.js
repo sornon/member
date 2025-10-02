@@ -149,6 +149,49 @@ function buildTooltipLockKey({ source = '', slot = '', inventoryId = '', itemId 
   return [source, slot, inventoryId, itemId].join('|');
 }
 
+function normalizeSlotValue(slot) {
+  if (typeof slot === 'number' && Number.isFinite(slot)) {
+    return String(slot);
+  }
+  if (typeof slot === 'string') {
+    return slot.trim();
+  }
+  return '';
+}
+
+function resolveEquipmentCombatPower(item) {
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+  const candidates = [
+    item.combatPower,
+    item.power,
+    item.powerScore,
+    item.powerValue,
+    item.fightPower,
+    item.fighting,
+    item.score,
+    item.rating
+  ];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = Number(candidates[i]);
+    if (Number.isFinite(candidate)) {
+      return candidate;
+    }
+  }
+  const stats = item.stats && typeof item.stats === 'object' ? item.stats : null;
+  if (stats) {
+    const statCandidates = [stats.combatPower, stats.power, stats.powerScore, stats.rating];
+    for (let i = 0; i < statCandidates.length; i += 1) {
+      const candidate = Number(statCandidates[i]);
+      if (Number.isFinite(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  return null;
+}
+
 function normalizeTooltipMode(mode) {
   return mode === 'delete' ? 'delete' : 'default';
 }
@@ -171,6 +214,53 @@ function normalizeSkillId(value) {
     return '';
   }
   return String(value);
+}
+
+function findEquippedItemFromProfile(profile, slot, excludeItemId = '') {
+  const normalizedSlot = normalizeSlotValue(slot);
+  if (!normalizedSlot) {
+    return null;
+  }
+  const equipment = profile && profile.equipment ? profile.equipment : null;
+  const slots =
+    equipment && Array.isArray(equipment.slots)
+      ? equipment.slots
+      : [];
+  const matchedSlot = slots.find((entry) => {
+    if (!entry || !entry.item) {
+      return false;
+    }
+    return normalizeSlotValue(entry.slot) === normalizedSlot;
+  });
+  if (!matchedSlot || !matchedSlot.item) {
+    return null;
+  }
+  if (excludeItemId && matchedSlot.item.itemId === excludeItemId) {
+    return null;
+  }
+  const equippedItem = { ...matchedSlot.item };
+  if (!equippedItem.slot) {
+    equippedItem.slot = normalizedSlot;
+  }
+  if (!equippedItem.slotLabel && matchedSlot.slotLabel) {
+    equippedItem.slotLabel = matchedSlot.slotLabel;
+  }
+  return equippedItem;
+}
+
+function rebuildTooltipWithProfile(profile, tooltip) {
+  if (!tooltip || !tooltip.item) {
+    return null;
+  }
+  const normalizedSlot = normalizeSlotValue(tooltip.slot || tooltip.item.slot || '');
+  const equippedItem = findEquippedItemFromProfile(profile, normalizedSlot, tooltip.item.itemId);
+  const refreshed = { ...tooltip, item: { ...tooltip.item } };
+  if (equippedItem) {
+    refreshed.equippedItem = equippedItem;
+  } else {
+    delete refreshed.equippedItem;
+  }
+  return refreshed;
 }
 
 Page({
@@ -221,8 +311,34 @@ Page({
           }
           return item.itemId === itemId;
         });
-      if (!inSlots && !inInventory) {
+      const storage =
+        equipment &&
+        equipment.storage &&
+        typeof equipment.storage === 'object'
+          ? equipment.storage
+          : {};
+      const categories = Array.isArray(storage.categories) ? storage.categories : [];
+      const inStorage = categories.some((category) => {
+        if (!category || !Array.isArray(category.items)) {
+          return false;
+        }
+        return category.items.some((storageItem) => {
+          if (!storageItem) {
+            return false;
+          }
+          if (inventoryId) {
+            return storageItem.inventoryId === inventoryId;
+          }
+          return storageItem.itemId === itemId;
+        });
+      });
+      if (!inSlots && !inInventory && !inStorage) {
         updates.equipmentTooltip = null;
+      } else {
+        const refreshedTooltip = rebuildTooltipWithProfile(sanitizedProfile, tooltip);
+        if (refreshedTooltip) {
+          updates.equipmentTooltip = refreshedTooltip;
+        }
       }
     }
     const currentSkillModal = this.data ? this.data.skillModal : null;
@@ -290,6 +406,25 @@ Page({
           const normalized = { ...item, storageKey };
           if (!normalized.storageCategory) {
             normalized.storageCategory = key;
+          }
+          if (key === 'equipment') {
+            const slotValue = normalizeSlotValue(normalized.slot);
+            if (slotValue) {
+              const equippedItem = findEquippedItemFromProfile(profile, slotValue, normalized.itemId);
+              const storedPower = resolveEquipmentCombatPower(normalized);
+              const equippedPower = resolveEquipmentCombatPower(equippedItem);
+              normalized.recommendedUpgrade =
+                !!(
+                  equippedItem &&
+                  storedPower !== null &&
+                  equippedPower !== null &&
+                  storedPower > equippedPower
+                );
+            } else {
+              normalized.recommendedUpgrade = false;
+            }
+          } else {
+            normalized.recommendedUpgrade = false;
           }
           return normalized;
         });
@@ -933,6 +1068,8 @@ Page({
       (typeof options.inventoryId === 'string' && options.inventoryId.trim()) || rawItem.inventoryId || '';
     const slotLabel = options.slotLabel || rawItem.slotLabel || '';
     const category = typeof options.category === 'string' ? options.category : rawItem.storageCategory || '';
+    const profile = (this.data && this.data.profile) || null;
+    const equippedItem = findEquippedItemFromProfile(profile, slot || rawItem.slot || '', rawItem.itemId);
     const currentTooltip = this.data && this.data.equipmentTooltip;
     if (
       currentTooltip &&
@@ -961,6 +1098,9 @@ Page({
     const deleteState = resolveTooltipDeleteState(tooltip);
     tooltip.canDelete = deleteState.canDelete;
     tooltip.deleteDisabledReason = deleteState.reason;
+    if (equippedItem) {
+      tooltip.equippedItem = equippedItem;
+    }
     this.setData({ equipmentTooltip: tooltip });
   },
 

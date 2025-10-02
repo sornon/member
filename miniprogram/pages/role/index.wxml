@@ -206,6 +206,9 @@
                   data-inventory-id="{{item.inventoryId || ''}}"
                   data-category="{{item.storageCategory || activeStorageCategory}}"
                 >
+                  <view wx:if="{{item.recommendedUpgrade}}" class="storage-slot__recommend">
+                    <text class="storage-slot__recommend-icon">↑</text>
+                  </view>
                   <view
                     class="storage-slot__icon {{item.iconUrl ? 'storage-slot__icon--image' : ''}}"
                     style="{{item.iconUrl ? '' : 'border-color: ' + item.qualityColor + ';'}}"
@@ -498,11 +501,12 @@
 
   <view wx:if="{{equipmentTooltip && equipmentTooltip.visible}}" class="equipment-tooltip">
     <view class="equipment-tooltip__mask" catchtouchmove="noop" bindtap="closeEquipmentTooltip"></view>
-    <view class="equipment-tooltip__card">
-      <view class="equipment-tooltip__header">
-        <text
-          class="equipment-tooltip__name"
-          style="color: {{equipmentTooltip.item.qualityColor}};"
+    <view class="equipment-tooltip__container">
+      <view class="equipment-tooltip__card">
+        <view class="equipment-tooltip__header">
+          <text
+            class="equipment-tooltip__name"
+            style="color: {{equipmentTooltip.item.qualityColor}};"
         >{{equipmentTooltip.item.name}}</text>
         <text class="equipment-tooltip__quality">{{equipmentTooltip.item.qualityLabel}}</text>
       </view>
@@ -532,7 +536,7 @@
         bindtap="handleUnequipFromTooltip"
       >卸下</button>
       <button
-        wx:elif="{{equipmentTooltip.mode !== 'delete' && equipmentTooltip.source === 'inventory'}}"
+        wx:elif="{{equipmentTooltip.mode !== 'delete' && (equipmentTooltip.source === 'inventory' || equipmentTooltip.source === 'storage')}}"
         class="equipment-tooltip__equip pill-btn pill-btn--primary"
         hover-class="pill-btn--primary-hover"
         size="mini"
@@ -551,6 +555,37 @@
         wx:if="{{equipmentTooltip.mode === 'delete' && equipmentTooltip.deleteDisabledReason}}"
         class="equipment-tooltip__hint"
       >{{equipmentTooltip.deleteDisabledReason}}</view>
+      </view>
+      <view
+        wx:if="{{equipmentTooltip.equippedItem}}"
+        class="equipment-tooltip__card equipment-tooltip__card--secondary"
+      >
+        <view class="equipment-tooltip__compare-title">当前已穿戴</view>
+        <view class="equipment-tooltip__header">
+          <text
+            class="equipment-tooltip__name"
+            style="color: {{equipmentTooltip.equippedItem.qualityColor}};"
+          >{{equipmentTooltip.equippedItem.name}}</text>
+          <text class="equipment-tooltip__quality">{{equipmentTooltip.equippedItem.qualityLabel}}</text>
+        </view>
+        <view class="equipment-tooltip__meta">
+          <text wx:if="{{equipmentTooltip.equippedItem.slotLabel}}">槽位：{{equipmentTooltip.equippedItem.slotLabel}}</text>
+          <text wx:if="{{equipmentTooltip.equippedItem.refineLabel}}">{{equipmentTooltip.equippedItem.refineLabel}}</text>
+          <text wx:elif="{{equipmentTooltip.equippedItem.refine != null}}">精炼 {{equipmentTooltip.equippedItem.refine}}</text>
+        </view>
+        <view
+          class="equipment-tooltip__stats"
+          wx:if="{{equipmentTooltip.equippedItem.statsText && equipmentTooltip.equippedItem.statsText.length}}"
+        >
+          <text wx:for="{{equipmentTooltip.equippedItem.statsText}}" wx:key="index">{{item}}</text>
+        </view>
+        <view
+          class="equipment-tooltip__notes"
+          wx:if="{{equipmentTooltip.equippedItem.notes && equipmentTooltip.equippedItem.notes.length}}"
+        >
+          <text wx:for="{{equipmentTooltip.equippedItem.notes}}" wx:key="index">{{item}}</text>
+        </view>
+      </view>
     </view>
   </view>
   <view wx:if="{{skillModal && skillModal.visible}}" class="skill-modal">
