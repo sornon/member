@@ -2862,6 +2862,13 @@ async function equipSkill(actorId, event) {
   const inventory = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
   const equipped = Array.isArray(profile.skills.equipped) ? [...profile.skills.equipped] : [];
 
+  for (let i = 0; i < equipped.length; i += 1) {
+    const id = equipped[i];
+    if (!(typeof id === 'string' && id && SKILL_MAP[id])) {
+      equipped[i] = '';
+    }
+  }
+
   if (skillId) {
     const hasSkill = inventory.some((entry) => entry.skillId === skillId);
     if (!hasSkill) {
@@ -2877,10 +2884,16 @@ async function equipSkill(actorId, event) {
     }
   } else if (skillId) {
     if (!equipped.includes(skillId)) {
-      if (equipped.length >= MAX_SKILL_SLOTS) {
-        throw createError('SKILL_SLOT_FULL', `最多装备 ${MAX_SKILL_SLOTS} 个技能`);
+      const emptySlotIndex = equipped.findIndex((id) => !id);
+      if (emptySlotIndex >= 0) {
+        equipped[emptySlotIndex] = skillId;
+      } else {
+        const equippedCount = equipped.filter((id) => typeof id === 'string' && id && SKILL_MAP[id]).length;
+        if (equippedCount >= MAX_SKILL_SLOTS) {
+          throw createError('SKILL_SLOT_FULL', `最多装备 ${MAX_SKILL_SLOTS} 个技能`);
+        }
+        equipped.push(skillId);
       }
-      equipped.push(skillId);
     }
   }
 
