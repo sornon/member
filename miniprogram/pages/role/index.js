@@ -445,6 +445,10 @@ Page({
       this.applyProfile(res.profile);
       wx.showToast({ title: '已装备', icon: 'success', duration: 1200 });
     } catch (error) {
+      const handled = await this.tryResolveSkillSlotFull(skillId, error);
+      if (handled) {
+        return;
+      }
       console.error('[role] equip skill failed', error);
       wx.showToast({ title: error.errMsg || '操作失败', icon: 'none' });
     }
@@ -518,6 +522,107 @@ Page({
         });
       }
     }
+  },
+
+  async tryResolveSkillSlotFull(skillId, error) {
+    if (!skillId) {
+      return false;
+    }
+    const errorCode = error && (error.code || error.errCode || '');
+    const errorMessage = (error && error.errMsg) || '';
+    const isSlotFull =
+      errorCode === 'SKILL_SLOT_FULL' || errorMessage.indexOf('技能槽位已满') >= 0 || errorMessage.indexOf('最多装备') >= 0;
+    if (!isSlotFull) {
+      return false;
+    }
+    const options = this.buildEquippedSkillOptions();
+    if (!options.length) {
+      return true;
+    }
+    if (typeof wx.hideToast === 'function') {
+      try {
+        wx.hideToast();
+      } catch (hideError) {
+        console.warn('[role] hide toast failed', hideError);
+      }
+    }
+    let tapIndex;
+    try {
+      tapIndex = await this.showSkillSlotActionSheet(options.map((option) => option.label));
+    } catch (sheetError) {
+      if (sheetError && typeof sheetError.errMsg === 'string' && sheetError.errMsg.indexOf('cancel') >= 0) {
+        return true;
+      }
+      console.error('[role] choose skill slot failed', sheetError);
+      wx.showToast({ title: (sheetError && sheetError.errMsg) || '操作失败', icon: 'none' });
+      return true;
+    }
+    if (!Number.isFinite(tapIndex) || tapIndex < 0 || tapIndex >= options.length) {
+      return true;
+    }
+    const target = options[tapIndex];
+    if (!target || !Number.isFinite(target.slot)) {
+      return true;
+    }
+    try {
+      const res = await PveService.equipSkill({ skillId, slot: target.slot });
+      this.applyProfile(res.profile);
+      this.closeSkillModal();
+      wx.showToast({ title: '已替换', icon: 'success', duration: 1200 });
+    } catch (replaceError) {
+      console.error('[role] replace skill failed', replaceError);
+      wx.showToast({ title: replaceError.errMsg || '操作失败', icon: 'none' });
+    }
+    return true;
+  },
+
+  buildEquippedSkillOptions() {
+    const profile = (this.data && this.data.profile) || null;
+    if (!profile || !profile.skills) {
+      return [];
+    }
+    const slots = Array.isArray(profile.skills.equipped) ? profile.skills.equipped : [];
+    const inventory = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
+    const inventoryMap = inventory.reduce((acc, item) => {
+      if (!item) {
+        return acc;
+      }
+      const id = normalizeSkillId(item.skillId);
+      if (id) {
+        acc[id] = item;
+      }
+      return acc;
+    }, {});
+    return slots
+      .map((entry, index) => {
+        if (!entry) {
+          return null;
+        }
+        const slotIndex = Number.isFinite(entry.slot) ? entry.slot : index;
+        const id = normalizeSkillId(entry.skillId);
+        if (!id) {
+          return null;
+        }
+        const detail = entry.detail || inventoryMap[id] || null;
+        const name = detail && detail.name ? detail.name : id;
+        const label = `槽位 ${slotIndex + 1} · ${name}`;
+        return { slot: slotIndex, skillId: id, label };
+      })
+      .filter((item) => !!item);
+  },
+
+  showSkillSlotActionSheet(itemList = []) {
+    return new Promise((resolve, reject) => {
+      if (!itemList.length) {
+        resolve(null);
+        return;
+      }
+      wx.showActionSheet({
+        itemList,
+        success: (res) => resolve(res.tapIndex),
+        fail: (err) => reject(err)
+      });
+    });
   },
 
   openSkillModal(options = {}) {
