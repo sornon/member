@@ -362,29 +362,43 @@ button.pill-btn[disabled] {
   height: 128rpx;
   border: 4rpx solid rgba(113, 140, 255, 0.6);
   border-radius: 20rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: rgba(12, 20, 52, 0.9);
   color: #f5f8ff;
-  padding: 0 10rpx;
+  position: relative;
+  overflow: hidden;
   box-sizing: border-box;
 }
 
-.slot-card__icon-name {
-  max-width: 100%;
+.slot-card__icon-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.slot-card__icon-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10rpx;
   font-size: 18rpx;
   font-weight: 600;
   text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
+  color: #f5f8ff;
+  background: linear-gradient(180deg, rgba(10, 16, 40, 0) 0%, rgba(10, 16, 40, 0.88) 100%);
+  box-sizing: border-box;
+  z-index: 1;
+}
+
+.slot-card__icon-placeholder {
+  width: 100%;
+  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
-  height: 100%;
-  line-height: 1.2;
+  font-size: 18rpx;
+  font-weight: 600;
 }
 
 .inventory-title {
@@ -448,30 +462,33 @@ button.pill-btn[disabled] {
   height: 100%;
   border: 4rpx solid rgba(120, 146, 255, 0.62);
   border-radius: 16rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: rgba(8, 14, 40, 0.9);
   color: #f5f8ff;
-  padding: 0 10rpx;
   box-sizing: border-box;
   position: relative;
+  overflow: hidden;
 }
 
-.inventory-card__icon-name {
-  max-width: 100%;
+.inventory-card__icon-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.inventory-card__icon-label {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10rpx;
   font-size: 18rpx;
   font-weight: 600;
   text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  line-height: 1.2;
+  line-height: 1.3;
+  color: #f5f8ff;
+  background: linear-gradient(180deg, rgba(6, 12, 32, 0) 0%, rgba(6, 12, 32, 0.92) 100%);
+  box-sizing: border-box;
+  z-index: 1;
 }
 
 .inventory-card__status {
@@ -488,6 +505,7 @@ button.pill-btn[disabled] {
   justify-content: center;
   line-height: 1;
   font-weight: 600;
+  z-index: 2;
 }
 
 .inventory-card--equipped {
@@ -590,6 +608,12 @@ button.pill-btn[disabled] {
   border: 1rpx solid rgba(86, 116, 210, 0.34);
   box-sizing: border-box;
   min-height: 0;
+  overflow: hidden;
+}
+
+.storage-slot--has-icon {
+  background: transparent;
+  border: none;
 }
 
 .storage-slot::before {
@@ -620,9 +644,15 @@ button.pill-btn[disabled] {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 12rpx;
   box-sizing: border-box;
   transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+.storage-slot__frame--icon {
+  inset: 0;
+  border: none;
+  background: transparent;
+  border-radius: 20rpx;
 }
 
 .storage-slot__frame--hover {
@@ -638,10 +668,27 @@ button.pill-btn[disabled] {
 
 .storage-slot__icon {
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 100%;
+  border: 4rpx solid rgba(118, 146, 250, 0.58);
+  border-radius: 16rpx;
+  background: rgba(12, 18, 40, 0.9);
   color: #f4f6ff;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.storage-slot__icon--image {
+  border: none;
+  background: transparent;
+  border-radius: 20rpx;
+}
+
+.storage-slot__icon-image {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: inherit;
 }
 
 .storage-slot__name {
@@ -651,7 +698,26 @@ button.pill-btn[disabled] {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.storage-slot__name--overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10rpx;
+  color: #f4f6ff;
+  background: linear-gradient(180deg, rgba(8, 14, 34, 0) 0%, rgba(8, 14, 34, 0.92) 100%);
+  box-sizing: border-box;
+  z-index: 1;
+}
+
+.storage-slot__name--placeholder {
   width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .storage-slot__placeholder {

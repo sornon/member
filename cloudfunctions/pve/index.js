@@ -507,6 +507,23 @@ function isIgnoredEquipmentSlot(slot) {
   return typeof slot === 'string' && IGNORED_EQUIPMENT_SLOTS.has(slot);
 }
 
+const EQUIPMENT_QUALITY_ORDER = [
+  'mortal',
+  'inferior',
+  'standard',
+  'superior',
+  'excellent',
+  'immortal',
+  'perfect',
+  'primordial',
+  'relic'
+];
+
+const EQUIPMENT_QUALITY_RANK_MAP = EQUIPMENT_QUALITY_ORDER.reduce((map, key, index) => {
+  map[key] = index + 1;
+  return map;
+}, {});
+
 const EQUIPMENT_QUALITY_CONFIG = {
   mortal: { key: 'mortal', label: '凡品', color: '#8d9099', mainCoefficient: 0.8, subCount: 0, subTierRange: ['common'], dropWeight: 42 },
   inferior: { key: 'inferior', label: '下品', color: '#63a86c', mainCoefficient: 1, subCount: 0, subTierRange: ['common'], dropWeight: 34 },
@@ -1669,6 +1686,16 @@ const EQUIPMENT_LIBRARY = [
   }
 ];
 
+const EQUIPMENT_QUALITY_ICON_COUNTER = {};
+EQUIPMENT_LIBRARY.forEach((item) => {
+  const qualityKey = typeof item.quality === 'string' ? item.quality : '';
+  const rank = EQUIPMENT_QUALITY_RANK_MAP[qualityKey] || 1;
+  const iconId = (EQUIPMENT_QUALITY_ICON_COUNTER[qualityKey] || 0) + 1;
+  EQUIPMENT_QUALITY_ICON_COUNTER[qualityKey] = iconId;
+  item.qualityRank = rank;
+  item.iconId = iconId;
+});
+
 function resolveEquipmentQualityConfig(quality) {
   return EQUIPMENT_QUALITY_CONFIG[quality] || EQUIPMENT_QUALITY_CONFIG.inferior;
 }
@@ -1679,6 +1706,11 @@ function resolveEquipmentQualityLabel(quality) {
 
 function resolveEquipmentQualityColor(quality) {
   return resolveEquipmentQualityConfig(quality).color;
+}
+
+function resolveEquipmentQualityRank(quality) {
+  const key = typeof quality === 'string' ? quality : '';
+  return EQUIPMENT_QUALITY_RANK_MAP[key] || 1;
 }
 
 function resolveEquipmentSlotConfig(slot) {
@@ -3338,6 +3370,8 @@ async function listEquipmentCatalog(actorId) {
     quality: item.quality,
     qualityLabel: resolveEquipmentQualityLabel(item.quality),
     qualityColor: resolveEquipmentQualityColor(item.quality),
+    qualityRank: item.qualityRank || resolveEquipmentQualityRank(item.quality),
+    iconId: item.iconId || 0,
     levelRequirement: item.levelRequirement || 1,
     tags: item.tags || []
   }));
@@ -5164,6 +5198,8 @@ function decorateEquipmentInventoryEntry(entry, options = {}) {
     quality: definition.quality,
     qualityLabel: resolveEquipmentQualityLabel(definition.quality),
     qualityColor: resolveEquipmentQualityColor(definition.quality),
+    qualityRank: definition.qualityRank || resolveEquipmentQualityRank(definition.quality),
+    iconId: definition.iconId || 0,
     description: definition.description,
     slot: definition.slot,
     slotLabel: EQUIPMENT_SLOT_LABELS[definition.slot] || '装备',
