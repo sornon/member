@@ -2860,6 +2860,11 @@ async function equipSkill(actorId, event) {
   const member = await ensureMember(actorId);
   const profile = await ensurePveProfile(actorId, member);
   const inventory = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
+  const ownedSkillIds = new Set(
+    inventory
+      .map((entry) => (entry && typeof entry.skillId === 'string' ? entry.skillId.trim() : ''))
+      .filter((id) => !!id)
+  );
   const rawEquipped = Array.isArray(profile.skills.equipped) ? profile.skills.equipped : [];
   const normalizedSkillId = typeof skillId === 'string' ? skillId.trim() : '';
   const equipped = new Array(MAX_SKILL_SLOTS).fill('');
@@ -2867,7 +2872,7 @@ async function equipSkill(actorId, event) {
 
   for (let i = 0; i < MAX_SKILL_SLOTS; i += 1) {
     const id = rawEquipped[i];
-    if (typeof id === 'string' && id && SKILL_MAP[id] && !seen.has(id)) {
+    if (typeof id === 'string' && id && SKILL_MAP[id] && ownedSkillIds.has(id) && !seen.has(id)) {
       equipped[i] = id;
       seen.add(id);
     }
@@ -2875,7 +2880,7 @@ async function equipSkill(actorId, event) {
 
   for (let i = MAX_SKILL_SLOTS; i < rawEquipped.length; i += 1) {
     const id = rawEquipped[i];
-    if (typeof id !== 'string' || !id || !SKILL_MAP[id] || seen.has(id)) {
+    if (typeof id !== 'string' || !id || !SKILL_MAP[id] || !ownedSkillIds.has(id) || seen.has(id)) {
       continue;
     }
     const emptyIndex = equipped.findIndex((slotId) => !slotId);
@@ -2886,7 +2891,7 @@ async function equipSkill(actorId, event) {
   }
 
   if (normalizedSkillId) {
-    const hasSkill = inventory.some((entry) => entry.skillId === normalizedSkillId);
+    const hasSkill = ownedSkillIds.has(normalizedSkillId);
     if (!hasSkill) {
       throw createError('SKILL_NOT_OWNED', '尚未拥有该技能，无法装备');
     }
@@ -2913,7 +2918,9 @@ async function equipSkill(actorId, event) {
         equipped[emptySlotIndex] = normalizedSkillId;
         resolvedSlot = emptySlotIndex;
       } else {
-        const equippedCount = equipped.filter((id) => typeof id === 'string' && id && SKILL_MAP[id]).length;
+        const equippedCount = equipped.filter(
+          (id) => typeof id === 'string' && id && SKILL_MAP[id] && ownedSkillIds.has(id)
+        ).length;
         if (equippedCount >= MAX_SKILL_SLOTS) {
           throw createError('SKILL_SLOT_FULL', `最多装备 ${MAX_SKILL_SLOTS} 个技能`);
         }
@@ -2924,7 +2931,9 @@ async function equipSkill(actorId, event) {
     }
   }
 
-  const normalizedEquipped = equipped.map((id) => (typeof id === 'string' && id && SKILL_MAP[id] ? id : ''));
+  const normalizedEquipped = equipped.map((id) =>
+    typeof id === 'string' && id && SKILL_MAP[id] && ownedSkillIds.has(id) ? id : ''
+  );
   for (let i = 0; i < MAX_SKILL_SLOTS; i += 1) {
     const id = normalizedEquipped[i];
     if (!id) {
