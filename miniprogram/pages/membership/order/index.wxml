@@ -25,7 +25,7 @@
           <view class="variant-info">
             <text class="variant-label" wx:if="{{variant.displayLabel}}">{{variant.displayLabel}}</text>
             <view class="variant-price">
-              <text class="variant-price-value">{{formatCurrency(variant.price)}}</text>
+              <text class="variant-price-value">{{variant.priceLabel}}</text>
               <text class="variant-price-unit" wx:if="{{variant.unit}}">{{variant.unit}}</text>
             </view>
           </view>
