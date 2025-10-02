@@ -4,6 +4,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { listAvatarIds } = require('./avatar-catalog.js');
 const { normalizeAvatarFrameValue } = require('./avatar-frames.js');
+const { findMenuItemById } = require('./menu.js');
 const {
   normalizeBackgroundId,
   getDefaultBackgroundId,
@@ -22,7 +23,18 @@ const COLLECTIONS = {
   RIGHTS_MASTER: 'membershipRights',
   MEMBER_RIGHTS: 'memberRights',
   MEMBER_EXTRAS: 'memberExtras',
-  MEMBER_TIMELINE: 'memberTimeline'
+  MEMBER_TIMELINE: 'memberTimeline',
+  MEAL_ORDERS: 'mealOrders',
+  WALLET_TRANSACTIONS: 'walletTransactions'
+};
+
+const EXPERIENCE_PER_YUAN = 100;
+
+const MEAL_ORDER_STATUS_LABELS = {
+  pendingAdmin: '等待备餐',
+  pendingMember: '待会员确认',
+  completed: '已完成',
+  cancelled: '已取消'
 };
 
 const GENDER_OPTIONS = ['unknown', 'male', 'female'];
@@ -226,6 +238,12 @@ exports.main = async (event, context) => {
       return updateArchive(OPENID, event.updates || {});
     case 'redeemRenameCard':
       return redeemRenameCard(OPENID, event.count || 1);
+    case 'createMealOrder':
+      return createMealOrder(OPENID, event || {});
+    case 'listMealOrders':
+      return listMealOrdersForMember(OPENID, event || {});
+    case 'confirmMealOrder':
+      return confirmMealOrder(OPENID, event.orderId);
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -1223,6 +1241,393 @@ function normalizeAssetFields(member) {
       .catch(() => {});
   }
   return normalized;
+}
+
+async function createMealOrder(openid, payload = {}) {
+  if (!openid) {
+    throw new Error('未获取到会员身份');
+  }
+
+  const memberDoc = await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(openid)
+    .get()
+    .catch(() => null);
+  if (!memberDoc || !memberDoc.data) {
+    throw new Error('会员不存在');
+  }
+
+  const member = normalizeAssetFields(memberDoc.data);
+  const aggregatedItems = aggregateMealItems(Array.isArray(payload.items) ? payload.items : []);
+  const itemIds = Object.keys(aggregatedItems);
+
+  if (!itemIds.length) {
+    throw createError('NO_ITEMS', '请至少选择一道菜品');
+  }
+
+  let subtotal = 0;
+  let totalQuantity = 0;
+  const sanitizedItems = [];
+
+  itemIds.forEach((itemId) => {
+    const menuItem = findMenuItemById(itemId);
+    if (!menuItem) {
+      throw createError('INVALID_ITEM', '存在未识别的菜品');
+    }
+    const quantity = Math.max(1, Math.min(aggregatedItems[itemId], 60));
+    totalQuantity += quantity;
+    const price = Math.max(0, Math.round(Number(menuItem.price) || 0));
+    const lineTotal = Math.max(0, price * quantity);
+    subtotal += lineTotal;
+    sanitizedItems.push({
+      itemId,
+      menuId: itemId,
+      categoryId: menuItem.categoryId || '',
+      name: menuItem.name || '',
+      price,
+      quantity,
+      total: lineTotal
+    });
+  });
+
+  if (totalQuantity > 120) {
+    throw createError('TOO_MANY_ITEMS', '单次下单菜品总数请控制在 120 份以内');
+  }
+
+  const levels = await loadLevels();
+  const currentLevel = levels.find((lvl) => lvl._id === member.levelId) || null;
+  const discountRate = resolveMealOrderDiscount(currentLevel);
+  let discountAmount = Math.round(subtotal * Math.max(0, 1 - discountRate));
+  if (!Number.isFinite(discountAmount) || discountAmount < 0) {
+    discountAmount = 0;
+  }
+  if (discountAmount > subtotal) {
+    discountAmount = subtotal;
+  }
+  const total = Math.max(0, subtotal - discountAmount);
+  const note = sanitizeOrderNote(payload.note || payload.remark || payload.comment || '');
+  const now = new Date();
+
+  const orderData = {
+    memberId: openid,
+    memberName: member.nickName || '',
+    memberMobile: member.mobile || '',
+    levelId: member.levelId || '',
+    discountRate,
+    discountAmount,
+    subtotal,
+    total,
+    status: 'pendingAdmin',
+    items: sanitizedItems,
+    memberNote: note,
+    createdAt: now,
+    updatedAt: now
+  };
+
+  const addResult = await db.collection(COLLECTIONS.MEAL_ORDERS).add({ data: orderData });
+  const orderId = addResult._id;
+
+  await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(openid)
+    .update({
+      data: {
+        latestMealOrderAt: now,
+        updatedAt: new Date()
+      }
+    })
+    .catch(() => {});
+
+  return decorateMealOrderForMember({ ...orderData, _id: orderId });
+}
+
+async function listMealOrdersForMember(openid, options = {}) {
+  await ensureMemberExists(openid);
+  const status = typeof options.status === 'string' ? options.status.trim() : '';
+  const page = Math.max(1, Math.floor(options.page || 1));
+  const pageSize = Math.min(50, Math.max(5, Math.floor(options.pageSize || 20)));
+  const skip = (page - 1) * pageSize;
+
+  const where = { memberId: openid };
+  if (status && status !== 'all') {
+    where.status = status;
+  }
+
+  const collection = db.collection(COLLECTIONS.MEAL_ORDERS);
+  const query = collection.where(where);
+
+  const [snapshot, countResult, pendingResult] = await Promise.all([
+    query
+      .orderBy('createdAt', 'desc')
+      .skip(skip)
+      .limit(pageSize)
+      .get(),
+    query.count(),
+    collection
+      .where({ memberId: openid, status: 'pendingMember' })
+      .count()
+      .catch(() => ({ total: 0 }))
+  ]);
+
+  const orders = (snapshot.data || []).map((doc) => decorateMealOrderForMember({ ...doc, _id: doc._id }));
+
+  return {
+    orders,
+    total: countResult.total || 0,
+    page,
+    pageSize,
+    pendingMemberCount: pendingResult.total || 0
+  };
+}
+
+async function confirmMealOrder(openid, orderId) {
+  if (!orderId) {
+    throw createError('MISSING_ORDER', '缺少订单编号');
+  }
+
+  let experienceGain = 0;
+
+  await db.runTransaction(async (transaction) => {
+    const orderSnapshot = await transaction.collection(COLLECTIONS.MEAL_ORDERS).doc(orderId).get();
+    const order = orderSnapshot.data;
+
+    if (!order || order.memberId !== openid) {
+      throw createError('ORDER_NOT_FOUND', '未找到对应订单');
+    }
+
+    if (order.status !== 'pendingMember') {
+      throw createError('ORDER_STATUS_INVALID', '订单状态已更新，请刷新后重试');
+    }
+
+    const totalAmount = Math.max(0, Math.round(Number(order.total) || 0));
+    if (!totalAmount) {
+      throw createError('ORDER_AMOUNT_INVALID', '订单金额异常');
+    }
+
+    const memberSnapshot = await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).get();
+    const member = memberSnapshot.data;
+    const currentBalance = resolveCashBalance(member);
+
+    if (currentBalance < totalAmount) {
+      throw createError('INSUFFICIENT_BALANCE', '钱包余额不足');
+    }
+
+    experienceGain = calculateExperienceGain(totalAmount);
+
+    await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).update({
+      data: {
+        cashBalance: _.inc(-totalAmount),
+        totalSpend: _.inc(totalAmount),
+        updatedAt: new Date(),
+        ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
+      }
+    });
+
+    await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
+      data: {
+        memberId: openid,
+        amount: -totalAmount,
+        type: 'spend',
+        status: 'success',
+        source: 'mealOrder',
+        orderId,
+        remark: '会员点餐扣费',
+        createdAt: new Date()
+      }
+    });
+
+    await transaction.collection(COLLECTIONS.MEAL_ORDERS).doc(orderId).update({
+      data: {
+        status: 'completed',
+        memberConfirmedAt: new Date(),
+        paidAt: new Date(),
+        updatedAt: new Date()
+      }
+    });
+  });
+
+  if (experienceGain > 0) {
+    const [levels, memberDoc] = await Promise.all([
+      loadLevels(),
+      db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null)
+    ]);
+    if (memberDoc && memberDoc.data) {
+      await ensureLevelSync(memberDoc.data, levels);
+    }
+  }
+
+  const latest = await db
+    .collection(COLLECTIONS.MEAL_ORDERS)
+    .doc(orderId)
+    .get()
+    .catch(() => null);
+
+  if (!latest || !latest.data) {
+    throw createError('ORDER_NOT_FOUND', '订单不存在');
+  }
+
+  return decorateMealOrderForMember({ ...latest.data, _id: orderId });
+}
+
+async function ensureMemberExists(openid) {
+  const doc = await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(openid)
+    .get()
+    .catch(() => null);
+  if (!doc || !doc.data) {
+    throw new Error('会员不存在');
+  }
+  return doc.data;
+}
+
+function sanitizeOrderNote(note) {
+  if (typeof note !== 'string') {
+    return '';
+  }
+  const replaced = note.replace(/[\r\n]+/g, ' ').trim();
+  if (!replaced) {
+    return '';
+  }
+  return replaced.slice(0, 140);
+}
+
+function aggregateMealItems(rawItems) {
+  const aggregated = {};
+  rawItems.forEach((item) => {
+    if (!item) {
+      return;
+    }
+    const id = String(item.itemId || item.menuId || item.id || '').trim();
+    if (!id) {
+      return;
+    }
+    const rawQuantity = Number(item.quantity ?? item.qty ?? item.count ?? 0);
+    if (!Number.isFinite(rawQuantity)) {
+      return;
+    }
+    const quantity = Math.max(0, Math.min(60, Math.floor(rawQuantity)));
+    if (!quantity) {
+      return;
+    }
+    aggregated[id] = (aggregated[id] || 0) + quantity;
+  });
+  return aggregated;
+}
+
+function resolveMealOrderDiscount(level) {
+  if (!level || typeof level.discount === 'undefined') {
+    return 1;
+  }
+  const numeric = Number(level.discount);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 1;
+  }
+  if (numeric > 1 && numeric <= 100) {
+    return Math.min(1, Math.max(numeric / 100, 0.5));
+  }
+  return Math.min(1, Math.max(numeric, 0.5));
+}
+
+function decorateMealOrderForMember(order) {
+  if (!order) {
+    return null;
+  }
+  const subtotal = Math.max(0, Math.round(Number(order.subtotal) || 0));
+  const discountAmount = Math.max(0, Math.round(Number(order.discountAmount) || 0));
+  const total = Math.max(0, Math.round(Number(order.total) || subtotal));
+  const discountRate = Number(order.discountRate);
+  const normalizedRate = Number.isFinite(discountRate) ? Math.min(1, Math.max(discountRate, 0.01)) : 1;
+  const status = order.status || 'pendingAdmin';
+
+  return {
+    _id: order._id || order.id || '',
+    status,
+    statusLabel: MEAL_ORDER_STATUS_LABELS[status] || '处理中',
+    subtotal,
+    subtotalLabel: formatCurrency(subtotal),
+    discountAmount,
+    discountLabel: discountAmount > 0 ? `- ${formatCurrency(discountAmount)}` : '',
+    total,
+    totalLabel: formatCurrency(total),
+    discountRate: normalizedRate,
+    discountRateLabel: normalizedRate < 1 ? `${(normalizedRate * 100).toFixed(0)}%` : '',
+    items: Array.isArray(order.items)
+      ? order.items.map((item) => formatMealOrderItem(item))
+      : [],
+    createdAt: order.createdAt || order.created_time || null,
+    createdAtLabel: formatDateTime(order.createdAt || order.created_time),
+    adminConfirmedAt: order.adminConfirmedAt || null,
+    adminConfirmedAtLabel: formatDateTime(order.adminConfirmedAt),
+    memberConfirmedAt: order.memberConfirmedAt || null,
+    memberConfirmedAtLabel: formatDateTime(order.memberConfirmedAt),
+    memberNote: order.memberNote || '',
+    adminNote: order.adminNote || '',
+    canConfirm: status === 'pendingMember',
+    canCancel: status === 'pendingAdmin'
+  };
+}
+
+function formatMealOrderItem(item) {
+  if (!item) {
+    return null;
+  }
+  const price = Math.max(0, Math.round(Number(item.price) || 0));
+  const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0));
+  const total = Math.max(0, Math.round(Number(item.total) || price * quantity));
+  return {
+    itemId: item.itemId || item.menuId || item.id || '',
+    name: item.name || '',
+    categoryId: item.categoryId || '',
+    price,
+    priceLabel: formatCurrency(price),
+    quantity,
+    total,
+    totalLabel: formatCurrency(total)
+  };
+}
+
+function formatCurrency(amount) {
+  const numeric = Number(amount);
+  if (!Number.isFinite(numeric)) {
+    return '¥0.00';
+  }
+  return `¥${(numeric / 100).toFixed(2)}`;
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return '';
+  }
+  const date = typeof value === 'string' ? new Date(value) : value;
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  const hours = `${date.getHours()}`.padStart(2, '0');
+  const minutes = `${date.getMinutes()}`.padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+function calculateExperienceGain(amount) {
+  const numeric = resolveAmountNumber(amount);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 0;
+  }
+  return Math.floor(numeric / EXPERIENCE_PER_YUAN);
+}
+
+function resolveCashBalance(member) {
+  if (!member) {
+    return 0;
+  }
+  const balance = resolveAmountNumber(member.cashBalance ?? member.balance ?? 0);
+  if (!Number.isFinite(balance)) {
+    return 0;
+  }
+  return Math.max(0, Math.round(balance));
 }
 
 function coerceAmountValue(value, fallback = 0) {

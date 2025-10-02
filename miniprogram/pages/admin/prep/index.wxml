@@ -1,0 +1,60 @@
+<custom-nav title="备餐列表" theme="dark"></custom-nav>
+<view class="prep-page">
+  <view class="status-tabs">
+    <view
+      class="status-tab {{currentStatus === item.value ? 'status-tab--active' : ''}}"
+      wx:for="{{statusOptions}}"
+      wx:key="value"
+      data-value="{{item.value}}"
+      bindtap="handleStatusChange"
+    >
+      {{item.label}}
+    </view>
+  </view>
+
+  <view class="summary">
+    待备餐 <text class="summary__highlight">{{pendingAdminCount}}</text> 单
+    <button class="reload-btn" size="mini" loading="{{loading}}" bindtap="handleReload">刷新</button>
+  </view>
+
+  <scroll-view scroll-y="true" class="orders-scroll">
+    <view class="empty" wx:if="{{!loading && !orders.length}}">暂无相关订单</view>
+    <view class="loading" wx:if="{{loading && !orders.length}}">加载中...</view>
+    <block wx:for="{{orders}}" wx:key="_id">
+      <view class="order-card">
+        <view class="order-card__header">
+          <view class="order-card__status status-{{item.status}}">{{item.statusLabel}}</view>
+          <view class="order-card__total">{{item.totalLabel}}</view>
+        </view>
+        <view class="order-card__meta">
+          <text>会员：{{item.memberName || '—'}}{{item.memberMobile ? ' · ' + item.memberMobile : ''}}</text>
+          <text>ID：{{item.memberId || '—'}}</text>
+          <text>下单：{{item.createdAtLabel || '—'}}</text>
+          <text wx:if="{{item.adminConfirmedAtLabel}}">确认：{{item.adminConfirmedAtLabel}}</text>
+        </view>
+        <view class="order-card__items">
+          <block wx:for="{{item.items}}" wx:key="itemId">
+            <view class="order-item">
+              <view class="order-item__name">{{dish.name}}</view>
+              <view class="order-item__qty">x{{dish.quantity}}</view>
+              <view class="order-item__amount">{{dish.totalLabel}}</view>
+            </view>
+          </block>
+        </view>
+        <view class="order-card__extra" wx:if="{{item.discountLabel}}">折扣：{{item.discountLabel}}</view>
+        <view class="order-card__extra" wx:if="{{item.memberNote}}">会员备注：{{item.memberNote}}</view>
+        <view class="order-card__extra" wx:if="{{item.adminNote}}">备餐提示：{{item.adminNote}}</view>
+        <button
+          wx:if="{{item.canConfirm}}"
+          class="confirm-btn"
+          type="primary"
+          size="mini"
+          data-id="{{item._id}}"
+          bindtap="handleConfirm"
+          loading="{{confirmingId === item._id}}"
+          disabled="{{confirmingId === item._id}}"
+        >确认备餐完成</button>
+      </view>
+    </block>
+  </scroll-view>
+</view>

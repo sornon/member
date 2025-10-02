@@ -12,6 +12,7 @@ const COLLECTIONS = {
   LEVELS: 'membershipLevels',
   CHARGE_ORDERS: 'chargeOrders',
   WALLET_TRANSACTIONS: 'walletTransactions',
+  MEAL_ORDERS: 'mealOrders',
   RESERVATIONS: 'reservations',
   ROOMS: 'rooms',
   MEMBER_RIGHTS: 'memberRights',
@@ -31,6 +32,13 @@ const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
 
 const STORAGE_UPGRADE_LIMIT_KEYS = ['upgradeLimit', 'maxUpgrades', 'limit'];
 
+const MEAL_ORDER_STATUS_LABELS = {
+  pendingAdmin: '等待备餐',
+  pendingMember: '待会员确认',
+  completed: '已完成',
+  cancelled: '已取消'
+};
+
 const ACTIONS = {
   LIST_MEMBERS: 'listMembers',
   GET_MEMBER_DETAIL: 'getMemberDetail',
@@ -49,7 +57,9 @@ const ACTIONS = {
   LIST_EQUIPMENT_CATALOG: 'listEquipmentCatalog',
   GRANT_EQUIPMENT: 'grantEquipment',
   REMOVE_EQUIPMENT: 'removeEquipment',
-  UPDATE_EQUIPMENT_ATTRIBUTES: 'updateEquipmentAttributes'
+  UPDATE_EQUIPMENT_ATTRIBUTES: 'updateEquipmentAttributes',
+  LIST_MEAL_ORDERS: 'listMealOrders',
+  CONFIRM_MEAL_ORDER: 'confirmMealOrder'
 };
 
 const ACTION_ALIASES = {
@@ -71,7 +81,9 @@ const ACTION_ALIASES = {
   listequipmentcatalog: ACTIONS.LIST_EQUIPMENT_CATALOG,
   grantequipment: ACTIONS.GRANT_EQUIPMENT,
   removeequipment: ACTIONS.REMOVE_EQUIPMENT,
-  updateequipmentattributes: ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES
+  updateequipmentattributes: ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES,
+  listmealorders: ACTIONS.LIST_MEAL_ORDERS,
+  confirmmealorder: ACTIONS.CONFIRM_MEAL_ORDER
 };
 
 function normalizeAction(action) {
@@ -117,7 +129,15 @@ const ACTION_HANDLERS = {
   [ACTIONS.REMOVE_EQUIPMENT]: (openid, event) =>
     removeEquipment(openid, event.memberId, event.itemId, event.inventoryId),
   [ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES]: (openid, event) =>
-    updateEquipmentAttributes(openid, event.memberId, event.itemId, event.attributes || {}, event)
+    updateEquipmentAttributes(openid, event.memberId, event.itemId, event.attributes || {}, event),
+  [ACTIONS.LIST_MEAL_ORDERS]: (openid, event) =>
+    listMealOrders(openid, {
+      status: event.status || 'pendingAdmin',
+      page: event.page || 1,
+      pageSize: event.pageSize || 20
+    }),
+  [ACTIONS.CONFIRM_MEAL_ORDER]: (openid, event) =>
+    confirmMealOrder(openid, event.orderId, event.adminNote || event.kitchenNote || '')
 };
 
 async function resolveMemberExtras(memberId) {
@@ -507,6 +527,94 @@ async function updateEquipmentAttributes(openid, memberId, itemId, attributes = 
     throw new Error(error && error.errMsg ? error.errMsg : '修改装备失败');
   });
   return result || {};
+}
+
+async function listMealOrders(openid, options = {}) {
+  await ensureAdmin(openid);
+  const status = typeof options.status === 'string' ? options.status.trim() : '';
+  const page = Math.max(1, Math.floor(options.page || 1));
+  const pageSize = Math.min(50, Math.max(5, Math.floor(options.pageSize || 20)));
+  const skip = (page - 1) * pageSize;
+
+  const collection = db.collection(COLLECTIONS.MEAL_ORDERS);
+  const where = {};
+  if (status && status !== 'all') {
+    if (status === 'active') {
+      where.status = _.in(['pendingAdmin', 'pendingMember']);
+    } else {
+      where.status = status;
+    }
+  }
+
+  const query = Object.keys(where).length ? collection.where(where) : collection;
+
+  const [snapshot, countResult, pendingCountResult] = await Promise.all([
+    query
+      .orderBy('createdAt', 'desc')
+      .skip(skip)
+      .limit(pageSize)
+      .get(),
+    query.count(),
+    collection
+      .where({ status: 'pendingAdmin' })
+      .count()
+      .catch(() => ({ total: 0 }))
+  ]);
+
+  const orders = (snapshot.data || []).map((doc) => decorateMealOrderForAdmin({ ...doc, _id: doc._id }));
+
+  return {
+    orders,
+    total: countResult.total || 0,
+    page,
+    pageSize,
+    pendingAdminCount: pendingCountResult.total || 0
+  };
+}
+
+async function confirmMealOrder(openid, orderId, adminNote) {
+  const admin = await ensureAdmin(openid);
+  if (!orderId) {
+    throw new Error('缺少订单编号');
+  }
+
+  const note = sanitizeAdminMealNote(adminNote);
+
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.collection(COLLECTIONS.MEAL_ORDERS).doc(orderId).get();
+    const order = snapshot.data;
+
+    if (!order) {
+      throw new Error('订单不存在');
+    }
+
+    if (order.status !== 'pendingAdmin') {
+      throw new Error('当前状态不可确认');
+    }
+
+    await transaction.collection(COLLECTIONS.MEAL_ORDERS).doc(orderId).update({
+      data: {
+        status: 'pendingMember',
+        adminId: admin._id,
+        adminName: admin.nickName || '',
+        adminNote: note,
+        adminConfirmedAt: new Date(),
+        updatedAt: new Date()
+      }
+    });
+  });
+
+  const latest = await db
+    .collection(COLLECTIONS.MEAL_ORDERS)
+    .doc(orderId)
+    .get()
+    .catch(() => null);
+
+  if (!latest || !latest.data) {
+    throw new Error('订单不存在');
+  }
+
+  return decorateMealOrderForAdmin({ ...latest.data, _id: orderId });
 }
 
 async function createChargeOrder(openid, items) {
@@ -1671,6 +1779,103 @@ function formatRenameHistory(history) {
       source: (item && item.source) || 'manual'
     };
   });
+}
+
+function decorateMealOrderForAdmin(order) {
+  if (!order) {
+    return null;
+  }
+  const subtotal = Math.max(0, Math.round(Number(order.subtotal) || 0));
+  const discountAmount = Math.max(0, Math.round(Number(order.discountAmount) || 0));
+  const total = Math.max(0, Math.round(Number(order.total) || subtotal));
+  const discountRate = Number(order.discountRate);
+  const normalizedRate = Number.isFinite(discountRate) ? Math.min(1, Math.max(discountRate, 0.01)) : 1;
+  const status = order.status || 'pendingAdmin';
+
+  return {
+    _id: order._id || order.id || '',
+    status,
+    statusLabel: MEAL_ORDER_STATUS_LABELS[status] || '处理中',
+    subtotal,
+    subtotalLabel: formatCurrency(subtotal),
+    discountAmount,
+    discountLabel: discountAmount > 0 ? `- ${formatCurrency(discountAmount)}` : '',
+    total,
+    totalLabel: formatCurrency(total),
+    discountRate: normalizedRate,
+    discountRateLabel: normalizedRate < 1 ? `${(normalizedRate * 100).toFixed(0)}%` : '',
+    items: Array.isArray(order.items)
+      ? order.items.map((item) => formatMealOrderItem(item))
+      : [],
+    memberId: order.memberId || '',
+    memberName: order.memberName || '',
+    memberMobile: order.memberMobile || '',
+    memberNote: order.memberNote || '',
+    adminNote: order.adminNote || '',
+    adminName: order.adminName || '',
+    adminId: order.adminId || '',
+    createdAt: order.createdAt || null,
+    createdAtLabel: formatDateTime(order.createdAt),
+    adminConfirmedAt: order.adminConfirmedAt || null,
+    adminConfirmedAtLabel: formatDateTime(order.adminConfirmedAt),
+    memberConfirmedAt: order.memberConfirmedAt || null,
+    memberConfirmedAtLabel: formatDateTime(order.memberConfirmedAt),
+    canConfirm: status === 'pendingAdmin'
+  };
+}
+
+function formatMealOrderItem(item) {
+  if (!item) {
+    return null;
+  }
+  const price = Math.max(0, Math.round(Number(item.price) || 0));
+  const quantity = Math.max(0, Math.floor(Number(item.quantity) || 0));
+  const total = Math.max(0, Math.round(Number(item.total) || price * quantity));
+  return {
+    itemId: item.itemId || item.menuId || item.id || '',
+    name: item.name || '',
+    categoryId: item.categoryId || '',
+    price,
+    priceLabel: formatCurrency(price),
+    quantity,
+    total,
+    totalLabel: formatCurrency(total)
+  };
+}
+
+function sanitizeAdminMealNote(note) {
+  if (typeof note !== 'string') {
+    return '';
+  }
+  const sanitized = note.replace(/[\r\n]+/g, ' ').trim();
+  if (!sanitized) {
+    return '';
+  }
+  return sanitized.slice(0, 160);
+}
+
+function formatCurrency(amount) {
+  const numeric = Number(amount);
+  if (!Number.isFinite(numeric)) {
+    return '¥0.00';
+  }
+  return `¥${(numeric / 100).toFixed(2)}`;
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return '';
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, '0');
+  const d = `${date.getDate()}`.padStart(2, '0');
+  const hh = `${date.getHours()}`.padStart(2, '0');
+  const mm = `${date.getMinutes()}`.padStart(2, '0');
+  return `${y}-${m}-${d} ${hh}:${mm}`;
 }
 
 function normalizeChargeItems(items) {

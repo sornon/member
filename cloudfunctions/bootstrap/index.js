@@ -7,6 +7,7 @@ const db = cloud.database();
 exports.main = async () => {
   await Promise.all([
     ensureCollection('chargeOrders'),
+    ensureCollection('mealOrders'),
     ensureCollection('errorlogs'),
     ensureCollection('memberExtras'),
     ensureCollection('memberTimeline')

@@ -20,6 +20,12 @@ const BASE_ACTIONS = [
     url: '/pages/admin/orders/index'
   },
   {
+    icon: '🍲',
+    label: '备餐列表',
+    description: '审核会员点餐并确认扣费',
+    url: '/pages/admin/prep/index'
+  },
+  {
     icon: '🏠',
     label: '预约审核',
     description: '查看并审核包房预约申请',

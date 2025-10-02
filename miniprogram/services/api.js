@@ -181,6 +181,27 @@ export const MemberService = {
       action: 'redeemRenameCard',
       count
     });
+  },
+  async createMealOrder({ items = [], note = '' } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, {
+      action: 'createMealOrder',
+      items,
+      note
+    });
+  },
+  async listMealOrders({ status = 'all', page = 1, pageSize = 20 } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, {
+      action: 'listMealOrders',
+      status,
+      page,
+      pageSize
+    });
+  },
+  async confirmMealOrder(orderId) {
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, {
+      action: 'confirmMealOrder',
+      orderId
+    });
   }
 };
 
@@ -468,6 +489,21 @@ export const AdminService = {
   async markReservationRead() {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'markReservationRead'
+    });
+  },
+  async listMealOrders({ status = 'pendingAdmin', page = 1, pageSize = 20 } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'listMealOrders',
+      status,
+      page,
+      pageSize
+    });
+  },
+  async confirmMealOrder(orderId, adminNote = '') {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'confirmMealOrder',
+      orderId,
+      adminNote
     });
   }
 };
