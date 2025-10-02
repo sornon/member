@@ -7,15 +7,19 @@ function normalizeVariant(variant) {
     return null;
   }
   const label = typeof variant.label === 'string' ? variant.label.trim() : '';
-  const unit = typeof variant.unit === 'string' ? variant.unit : '';
+  const unit = typeof variant.unit === 'string' ? variant.unit.trim() : '';
   const price = Number(variant.price || 0);
   if (!label || !Number.isFinite(price) || price <= 0) {
     return null;
   }
+  const comparableUnit = unit.replace(/^[^\w\u4e00-\u9fa5]+/, '');
+  const displayLabel = label && label !== comparableUnit ? label : '';
   return {
     label,
     unit,
-    price
+    price,
+    priceLabel: formatCurrency(price),
+    displayLabel
   };
 }
 

@@ -78,11 +78,24 @@
 
 .variant-label {
   font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .variant-price {
+  display: flex;
+  align-items: baseline;
   font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 4rpx;
+}
+
+.variant-price-value {
   color: #e3be77;
+  font-weight: 600;
+}
+
+.variant-price-unit {
+  margin-left: 4rpx;
 }
 
 .variant-add {
