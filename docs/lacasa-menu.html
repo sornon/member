@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="format-detection" content="telephone=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="La Casa 菜单">
+<meta name="theme-color" content="#111">
+<title>La Casa 电子菜单</title>
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+  :root{
+    --bg:#0f0f12; --panel:#14141a; --ink:#f1f1f3; --muted:#b6b8c0;
+    --accent:#e3be77; --accent-2:#a88146; --border:rgba(255,255,255,.12);
+    --fs-base:20px; --fs-h1:30px; --fs-sub:18px; --fs-tab:20px;
+    --fs-name:22px; --fs-desc:18px; --fs-price:22px; --fs-btn:20px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;overscroll-behavior-y:none;}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Noto Sans CJK SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+       -webkit-text-size-adjust:100%; font-size:var(--fs-base); line-height:1.6; letter-spacing:.2px;
+       -webkit-user-select:none;user-select:none;
+       -webkit-touch-callout:none;
+       -webkit-tap-highlight-color:transparent;
+       touch-action:manipulation;}
+  body.standalone header{ padding-top: calc(constant(safe-area-inset-top) + 6px); padding-top: calc(env(safe-area-inset-top) + 6px); }
+  header{position:sticky;top:0;z-index:100;background:linear-gradient(180deg, rgba(15,15,18,.98), rgba(15,15,18,.88) 70%, rgba(15,15,18,0));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-bottom:1px solid var(--border); padding-top: max(0px, constant(safe-area-inset-top)); padding-top: max(0px, env(safe-area-inset-top));}
+  .wrap{max-width:1200px;margin:0 auto;padding:12px 16px}
+  h1{font-size:var(--fs-h1);margin:2px 0 6px}
+  .sub{color:var(--muted);font-size:var(--fs-sub);margin:0 0 10px}
+  .toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between}
+  .btn{background:#23232b;color:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 14px;font-weight:800;font-size:var(--fs-btn);min-height:44px;transition:.2s;white-space:nowrap}
+  .btn[disabled]{opacity:.45}
+  .btn.primary{background:var(--accent-2);border-color:transparent}
+  .btn.small{font-size:18px;padding:10px 12px}
+  .tabs{display:flex;gap:12px;overflow:auto;padding:14px 16px;background:var(--panel);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{white-space:nowrap;padding:14px 20px;border-radius:999px;background:#1b1b23;color:#fff;border:1px solid var(--border);font-weight:800;font-size:var(--fs-tab)}
+  .tab[aria-selected="true"]{background:var(--accent-2);border-color:transparent}
+  main{max-width:1200px;margin:0 auto;padding:16px 0 128px}
+  .carousel{position:relative;margin:12px 16px 0;border-radius:18px;overflow:hidden;background:#0c0c0f;border:1px solid var(--border)}
+  .track{display:flex;gap:16px;padding:16px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth}
+  .slide{position:relative;flex:0 0 92%;max-width:92%;height:72vw;max-height:660px;scroll-snap-align:center;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,#23232b 0%,#1a1a21 100%);border:1px solid var(--border)}
+  @media (min-width:1024px){ .slide{flex-basis:48%;max-width:48%;height:520px} }
+  @media (orientation: landscape) and (max-height: 744px){
+    .wrap {padding: 0 16px;}
+    h1{font-size:14px; float: left;margin: 0;}
+    .sub{font-size:12px; float: left; margin: 1px 10px;}
+    .cart-fab{bottom:auto!important;top:200px;}
+    main{padding-bottom: 0px;}
+  }
+  .imgph{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#80838f;font-size:18px;background:repeating-linear-gradient(45deg,#202028,#202028 12px,#1a1a21 12px,#1a1a21 24px)}
+  .soft-list{list-style:none;margin:0;padding:16px;font-size:var(--fs-name);line-height:1.8}
+  .soft-item{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .soft-item .actions{display:flex;align-items:center;gap:12px;}
+  .soft-item .price{color:var(--accent);font-weight:900;font-size:var(--fs-price);}
+  .slide>img,
+  .thumb img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+  }
+  .overlay{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,transparent,rgba(0,0,0,.55) 30%,rgba(0,0,0,.75) 78%);color:#fff;padding:16px 16px 14px}
+  .overlay .name{font-size:var(--fs-name);font-weight:800;line-height:1.25;margin:0 0 6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .overlay .desc{font-size:var(--fs-desc);color:#e9e9ee;line-height:1.5;margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .overlay .row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:10px;flex-wrap:wrap}
+  .overlay .price{color:var(--accent);font-weight:900;font-size:var(--fs-price);white-space:nowrap}
+  .overlay .actions{display:flex;gap:10px;flex-wrap:wrap}
+  .variant{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .chip{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 10px;font-size:16px;white-space:nowrap;cursor:pointer}
+  .chip.active{background:var(--accent-2);border-color:transparent;color:#fff}
+  .nav{position:absolute;inset:0;display:flex;justify-content:space-between;align-items:center;pointer-events:none}
+  .arrow{pointer-events:auto;border:none;width:56px;height:56px;border-radius:50%;background:rgba(0,0,0,.42);color:#fff;font-size:28px;display:grid;place-items:center;margin:0 8px;border:1px solid rgba(255,255,255,.24);transition:.2s}
+  .arrow[disabled]{opacity:.35}
+  /* Cart Drawer + Backdrop */
+  .cart-fab{position:fixed;right:22px;bottom:24px;z-index:1;border-radius:999px;padding:20px 26px;font-size:22px;background:var(--accent-2);color:#fff;border:none;box-shadow:0 10px 20px rgba(0,0,0,.35)}
+  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);-webkit-backdrop-filter:blur(1px);backdrop-filter:blur(1px);opacity:0;pointer-events:none;transition:.25s;z-index:10000}
+  .backdrop.show{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;right:0;top:0;height:100%;width:min(560px,94vw);z-index:10001;transform:translateX(100%);transition:.35s ease;background:var(--panel);border-left:1px solid var(--border);display:flex;flex-direction:column;box-shadow:-20px 0 40px rgba(0,0,0,.45)}
+  .drawer.open{transform:translateX(0)}
+  .drawer header{background:#111117;border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1;padding-top:max(0px, constant(safe-area-inset-top)); padding-top:max(0px, env(safe-area-inset-top))}
+  .drawer .items{flex:1;overflow:auto;padding:16px}
+  .item{display:grid;grid-template-columns:80px 1fr auto;gap:14px;padding:14px 10px;border-bottom:1px dashed rgba(255,255,255,.1)}
+  .thumb{width:80px;height:80px;border-radius:12px;background:#222;display:flex;align-items:center;justify-content:center;font-size:14px;color:#777}
+  .item-title{font-size:20px;margin:0 0 4px;word-break:break-word}
+  .muted{color:var(--muted);font-size:16px}
+  .qty{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:nowrap}
+  .qty button{background:#2b2b33;border:1px solid var(--border);color:#fff;min-width:42px;height:42px;border-radius:10px;font-size:26px;white-space:nowrap}
+  .qty .remove-btn{margin-left:8px}
+  .line-total{font-weight:900;color:var(--accent);align-self:center;font-size:22px;white-space:nowrap}
+  .drawer .footer{padding:16px;border-top:1px solid var(--border);background:#111117}
+  .summary{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:22px}
+  .checkout{display:flex;gap:10px;flex-wrap:wrap}
+  .nowrap{white-space:nowrap}
+  /* highlight new line */
+  @keyframes flash{0%{background:rgba(227,190,119,.25)}100%{background:transparent}}
+  .flash{animation:flash 1.2s ease-out 1}
+  /* Orders Page */
+  .page{position:fixed;inset:0;background:var(--bg);display:none;flex-direction:column;z-index:10010}
+  .page.show{display:flex}
+  .page header{background:#111117;border-bottom:1px solid var(--border);padding-top:max(0px, constant(safe-area-inset-top)); padding-top:max(0px, env(safe-area-inset-top))}
+  .order-list{flex:1;overflow:auto;padding:16px 20px}
+  .order-card{background:#17171d;border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px}
+  .order-card h3{margin:0 0 8px;font-size:22px}
+  .order-items{color:#dcdde4;font-size:18px;line-height:1.6;white-space:pre-wrap}
+  .order-meta{display:flex;justify-content:space-between;align-items:center;margin-top:10px;color:var(--muted);font-size:16px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="toolbar">
+      <div>
+        <h1>La Casa 专属隐藏款 · Hidden Treasures</h1>
+        <p class="sub">酒隐之茄专为雪茄客打造的雪茄配饮，经过了反复的测评，能够带来非凡的品茄体验。不同类型的酒，在灰茄前、茄中、茄后兼容性不同。</p>
+      </div>
+    </div>
+  </div>
+  <nav class="tabs" id="tabs" aria-label="分类切换"></nav>
+</header>
+
+<main id="menuMain">
+  <section class="carousel" aria-label="商品轮播">
+    <div class="track" id="track"></div>
+    <div class="nav" aria-hidden="true">
+      <button class="arrow" id="prev" aria-label="上一屏">‹</button>
+      <button class="arrow" id="next" aria-label="下一屏">›</button>
+    </div>
+  </section>
+</main>
+
+<div class="backdrop" id="backdrop"></div>
+
+<!-- Cart -->
+<button class="cart-fab" id="cartBtn" aria-label="查看购物车">购物车 · 0</button>
+<aside class="drawer" id="drawer" aria-label="购物车" aria-hidden="true">
+  <header>
+    <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-weight:800;font-size:22px">我的购物车</div>
+      <button class="btn small" id="closeDrawer">关闭</button>
+    </div>
+  </header>
+  <div class="items" id="cartItems"></div>
+  <div class="footer">
+    <div class="summary"><span class="t">合计</span><strong id="cartTotal">¥0</strong></div>
+    <div class="checkout">
+      <button class="btn" id="clearCart">清空</button>
+      <button class="btn primary" id="placeOrder">生成订单并查看</button>
+      <button class="btn" id="viewOrders">查看订单</button>
+    </div>
+  </div>
+</aside>
+
+<!-- Orders Page -->
+<section class="page" id="ordersPage" aria-label="订单列表页面">
+  <header>
+    <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;">
+      <div style="font-weight:800;font-size:22px">订单列表</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn small" id="backToMenu">返回菜单</button>
+      </div>
+    </div>
+  </header>
+  <div class="order-list" id="ordersList"></div>
+</section>
+
+<script>
+// iOS PWA 独立模式检测，给 body 增加 safe-area 顶部内边距
+(function(){
+  const isStandalone = (window.navigator.standalone === true) || window.matchMedia('(display-mode: standalone)').matches;
+  if(isStandalone){ document.body.classList.add('standalone'); }
+})();
+
+document.addEventListener('gesturestart', e=>e.preventDefault());
+
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e => {
+  const now = Date.now();
+  if (now - lastTouchEnd <= 300) {
+    e.preventDefault();
+  }
+  lastTouchEnd = now;
+}, {passive:false});
+document.addEventListener('dblclick', e=>e.preventDefault(), {passive:false});
+document.addEventListener('contextmenu', e=>e.preventDefault());
+
+let startY = 0, startX = 0;
+document.addEventListener('touchstart', e=>{
+  const t = e.touches[0];
+  startY = t.clientY;
+  startX = t.clientX;
+}, {passive:false});
+document.addEventListener('touchmove', e=>{
+  const t = e.touches[0];
+  const deltaY = t.clientY - startY;
+  const deltaX = t.clientX - startX;
+  // 仅在垂直滑动时阻止顶/底部回弹，保留横向滑动能力
+  if (Math.abs(deltaY) > Math.abs(deltaX)) {
+    const atTop = window.scrollY === 0;
+    const atBottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight;
+    if ((atTop && deltaY > 0) || (atBottom && deltaY < 0)) {
+      e.preventDefault();
+    }
+  }
+}, {passive:false});
+
+// 分类与菜单（支持多规格）
+const CATS=[
+  {id:'coffee',name:'精品咖啡 Coffee'},
+  {id:'rum',name:'古巴朗姆 Rum for Cigar'},
+  {id:'soft',name:'软饮 Soft Drinks'},
+  {id:'white',name:'白葡萄酒 White Wine'},
+  {id:'rose',name:'桃红起泡酒 Rosé'},
+  {id:'ws',name:'威士忌 Whisky'},
+  {id:'rare',name:'小众烈酒 Rare Spirits'},
+  {id:'red',name:'红葡萄酒 Red Wine'},
+  {id:'sig',name:'La Casa 特调 Signature Cocktails'},
+  {id:'snack',name:'茄客小食'},
+  {id:'easter',name:'La Casa 小彩蛋'}
+];
+const MENU=[
+  // 咖啡（单规格：杯）
+  {id:'ice-1',cat:'coffee',title:'极品冰滴｜淡雅芳香系（百搭雪茄）',desc:'0℃冰水滴滤 1 天，发酵 3–7 天，口感清冽冰爽。',variants:[{label:'杯', unit:'/杯', price:11900}],img:'images/ice-1.jpg'},
+  {id:'ice-2',cat:'coffee',title:'极品冰滴｜果香红茶系（提升风味）',desc:'果香跳跃、红茶感明显，激发雪茄香气。',variants:[{label:'杯', unit:'/杯', price:11900}],img:'images/ice-1.jpg'},
+  {id:'ice-3',cat:'coffee',title:'极品冰滴｜浆果活泼系（适配强度）',desc:'更有劲道的风味线，适配高强度雪茄。',variants:[{label:'杯', unit:'/杯', price:11900}],img:'images/ice-1.jpg'},
+  {id:'hot-1',cat:'coffee',title:'精品手冲｜万花',desc:'参赛级参数调校，层次丰富。',variants:[{label:'杯', unit:'/杯', price:7900}],img:'images/hot-1.jpg'},
+  {id:'hot-2',cat:'coffee',title:'精品手冲｜耶加莱德',desc:'花果香突出，酸甜平衡。',variants:[{label:'杯', unit:'/杯', price:7900}],img:'images/hot-1.jpg'},
+  {id:'hot-3',cat:'coffee',title:'精品手冲｜桃莓优格',desc:'桃与莓果气息，酸乳感顺滑。',variants:[{label:'杯', unit:'/杯', price:7900}],img:'images/hot-1.jpg'},
+  // 朗姆（多规格：杯/瓶）
+  {id:'cubaney-10',cat:'rum',title:'古巴邑 10 年',desc:'顺喉易饮，入门之选。',variants:[{label:'杯',unit:'/杯',price:6900},{label:'瓶',unit:'/瓶',price:98000}],img:'images/cubaney-10.jpg'},
+  {id:'cubaney-20',cat:'rum',title:'古巴邑 20 年',desc:'陈年香气浓郁，回味悠长。',variants:[{label:'瓶',unit:'/瓶',price:339600}],img:'images/cubaney-20.jpg'},
+  {id:'santiago-20',cat:'rum',title:'圣地亚哥 20 年（绝版）',desc:'加勒比热辣与陈年复杂度的平衡。',variants:[{label:'瓶',unit:'/瓶',price:655900}],img:'images/santiago-20.jpg'},
+  {id:'treasure',cat:'rum',title:'金银岛宝藏（国礼）',desc:'收藏级古巴朗姆，气派之选。',variants:[{label:'瓶',unit:'/瓶',price:1799900}],img:'images/treasure.jpg'},
+  // 白葡萄酒
+  {id:'ww-1',cat:'white',title:'南十字星 马尔堡 长相思 干白 2021',desc:'单宁近零，激发味蕾，适合灰茄前/中。',variants:[{label:'杯',unit:'/杯',price:6900},{label:'瓶',unit:'/瓶',price:32800}],img:'images/ww-1.jpg'},
+  {id:'ww-2',cat:'white',title:'勃艮第 法拉利酒庄 小夏布利 村庄 干白 2023',desc:'矿物感清晰，酸度爽脆。',variants:[{label:'瓶',unit:'/瓶',price:68800}],img:'images/ww-2.jpg'},
+  {id:'ww-3',cat:'white',title:'法国 杜索 传统佳酿 香槟',desc:'气泡细腻，活力十足。',variants:[{label:'瓶',unit:'/瓶',price:98900}],img:'images/ww-3.jpg'},
+  {id:'ww-4',cat:'white',title:'泰雷斯庄园 马儿伯勒 长相思 干白',desc:'风味复杂，百香果突出。',variants:[{label:'瓶',unit:'/瓶',price:68800}],img:'images/ww-4.jpg'},
+  // 红葡萄酒
+  {id:'rw-1',cat:'red',title:'摩尔多瓦 梅洛 干红 2012',desc:'适合灰茄后饮用。',variants:[{label:'杯',unit:'/杯',price:6900},{label:'瓶',unit:'/瓶',price:32800}],img:'images/rw-1.jpg'},
+  {id:'rw-2',cat:'red',title:'法芭雅 蒙特布查诺 红 2022',desc:'成熟红果与香料气息。',variants:[{label:'瓶',unit:'/瓶',price:32800}],img:'images/rw-3.jpg'},
+  {id:'rw-3',cat:'red',title:'曼都利亚 利嘉 红 2021',desc:'饱满酒体，余味绵长。',variants:[{label:'瓶',unit:'/瓶',price:49800}],img:'images/rw-2.jpg'},
+  {id:'rw-4',cat:'red',title:'格兰吉雅 经典 阿玛罗尼 红 2022',desc:'力度与甜美并存。',variants:[{label:'瓶',unit:'/瓶',price:98900}],img:'images/rw-4.jpg'},
+  // 桃红
+  {id:'rose-1',cat:'rose',title:'特莎蒂洛 蓝布鲁斯科 桃红起泡 NV',desc:'全程兼容雪茄，轻松畅饮。',variants:[{label:'瓶',unit:'/瓶',price:32800}],img:'images/rose-1.jpg'},
+  {id:'rose-2',cat:'rose',title:'时尚控 桃红起泡',desc:'派对气质，愉悦开胃。',variants:[{label:'瓶',unit:'/瓶',price:32800}],img:'images/rose-2.jpg'},
+  // 威士忌
+  {id:'ws-1',cat:'ws',title:'阿贝 5年',desc:'不如古巴朗姆配雪茄，你想喝我也没办法',variants:[{label:'瓶',unit:'/瓶',price:98000}],img:'images/ws-1.jpg'},
+  {id:'ws-2',cat:'ws',title:'百富 双桶 12年',desc:'不如古巴朗姆配雪茄，你想喝我也没办法',variants:[{label:'瓶',unit:'/瓶',price:98000}],img:'images/ws-2.jpg'},
+  {id:'ws-3',cat:'ws',title:'麦卡伦 雪莉桶 12年',desc:'不如古巴朗姆配雪茄，你想喝我也没办法',variants:[{label:'瓶',unit:'/瓶',price:138000}],img:'images/ws-3.jpg'},
+  {id:'ws-4',cat:'ws',title:'大摩 15年',desc:'不如古巴朗姆配雪茄，你想喝我也没办法',variants:[{label:'瓶',unit:'/瓶',price:138000}],img:'images/ws-4.jpg'},
+  {id:'ws-5',cat:'ws',title:'山崎 12年',desc:'不如古巴朗姆配雪茄，你想喝我也没办法',variants:[{label:'瓶',unit:'/瓶',price:238000}],img:'images/ws-5.jpg'},
+  // 小众烈酒
+  {id:'rare-1',cat:'rare',title:'狂爱芒果甜性烈酒',desc:'水果炸弹，甜度很高。',variants:[{label:'瓶',unit:'/瓶',price:32800}],img:'images/rare-1.jpg'},
+  {id:'rare-2',cat:'rare',title:'狂爱椰子甜性烈酒',desc:'水果炸弹，甜度很高。',variants:[{label:'瓶',unit:'/瓶',price:32800}],img:'images/rare-2.jpg'},
+  {id:'rare-3',cat:'rare',title:'狂爱甜瓜甜性烈酒',desc:'水果炸弹，甜度很高。',variants:[{label:'瓶',unit:'/瓶',price:32800}],img:'images/rare-3.jpg'},
+  {id:'rare-4',cat:'rare',title:'狂爱石榴甜性烈酒',desc:'水果炸弹，甜度很高。',variants:[{label:'瓶',unit:'/瓶',price:32800}],img:'images/rare-4.jpg'},
+  {id:'rare-5',cat:'rare',title:'拉达米尔 白兰地',desc:'适合灰茄中/后。',variants:[{label:'杯',unit:'/杯',price:6900},{label:'瓶',unit:'/瓶',price:48000}],img:'images/rare-5.jpg'},
+  {id:'rare-6',cat:'rare',title:'梅斯赫蒂 五年 白兰地',desc:'顺滑果干风味。',variants:[{label:'杯',unit:'/杯',price:6900},{label:'瓶',unit:'/瓶',price:48000}],img:'images/rare-6.jpg'},
+  // 特调
+  {id:'mojito',cat:'sig',title:'比那尔德里奥的莫吉托',desc:'Pinar del Río Mojito · 与雪茄全程兼容。',variants:[{label:'杯',unit:'/杯',price:9800}],img:'images/sig-1.jpg'},
+  {id:'cubalibre',cat:'sig',title:'自由古巴之烟草时光',desc:'Cigar Time of Cuba Libre · 经典新演绎。',variants:[{label:'杯',unit:'/杯',price:9800}],img:''},
+  {id:'castle',cat:'sig',title:'夜之古堡',desc:'Castle in the Night · 夜色与余味。',variants:[{label:'杯',unit:'/杯',price:9800}],img:''},
+  // 小彩蛋 & 小食（单规格）
+  {id:'snack-1',cat:'snack',title:'坚果拼盘',desc:'小胡桃、松子、杏仁、腰果等随机拼盘。',variants:[{label:'盘',unit:'/盘',price:8800}],img:'images/snack-1.jpg'},
+  {id:'snack-2',cat:'snack',title:'伊比利亚火腿',desc:'咸香与脂香，雪茄绝配。',variants:[{label:'盘',unit:'/盘',price:19800}],img:'images/snack-2.jpg'},
+  {id:'snack-3',cat:'snack',title:'黑松露饼干',desc:'幽微松露香气，酥脆可口。',variants:[{label:'盘',unit:'/盘',price:4900}],img:'images/snack-3.jpg'},
+  {id:'bucket-1',cat:'easter',title:'好彩头冰桶｜好运杯',desc:'含可饮白桦树汁，可冰镇任意酒水，会发光。',variants:[{label:'桶',unit:'/桶',price:5900}],img:'images/ice-1.jpg'},
+  {id:'bucket-2',cat:'easter',title:'好彩头冰桶｜招财杯',desc:'同款彩光冰桶。',variants:[{label:'桶',unit:'/桶',price:5900}],img:'images/ice-1.jpg'},
+  {id:'bucket-3',cat:'easter',title:'好彩头冰桶｜吉祥杯',desc:'同款彩光冰桶。',variants:[{label:'桶',unit:'/桶',price:5900}],img:'images/ice-1.jpg'},
+  {id:'bucket-4',cat:'easter',title:'好彩头冰桶｜平安杯',desc:'同款彩光冰桶。',variants:[{label:'桶',unit:'/桶',price:5900}],img:'images/ice-1.jpg'}
+];
+
+const SOFT_DRINKS=[
+  {id:'soft-coke',title:'可乐',variants:[{label:'瓶',unit:'/瓶',price:3000}]},
+  {id:'soft-soda',title:'苏打水',variants:[{label:'瓶',unit:'/瓶',price:3000}]},
+  {id:'soft-baihua',title:'白桦树汁',variants:[{label:'瓶',unit:'/瓶',price:4900}]},
+  {id:'soft-xiguazhi',title:'鲜榨西瓜汁',variants:[{label:'瓶',unit:'/瓶',price:5900}]}
+];
+
+const fmtY = n => '¥' + (n/100).toLocaleString('zh-CN',{minimumFractionDigits:0});
+function el(tag, attrs={}, ...children){
+  const node = document.createElement(tag);
+  for(const [k,v] of Object.entries(attrs||{})){
+    if(k==='class') node.className=v;
+    else if(k.startsWith('on') && typeof v==='function') node.addEventListener(k.slice(2), v);
+    else if(k==='html') node.innerHTML=v;
+    else node.setAttribute(k,v);
+  }
+  for(const c of children.flat()){
+    if(c==null) continue;
+    node.appendChild(typeof c==='string' ? document.createTextNode(c) : c);
+  }
+  return node;
+}
+
+// Tabs + Carousel
+const tabs = document.getElementById('tabs');
+let activeCat = CATS[0].id;
+CATS.forEach(cat=>{
+  const b = el('button',{class:'tab', 'aria-selected': cat.id===activeCat?'true':'false', onclick:()=>{
+    activeCat = cat.id;
+    [...tabs.children].forEach(x=>x.setAttribute('aria-selected','false'));
+    b.setAttribute('aria-selected','true');
+    drawCarousel(true);
+  }}, cat.name);
+  tabs.appendChild(b);
+});
+
+const track = document.getElementById('track');
+const prevBtn=document.getElementById('prev'); const nextBtn=document.getElementById('next');
+const canSmoothScroll = CSS && CSS.supports && CSS.supports('scroll-behavior','smooth');
+function smoothScrollTo(el, left){
+  if(canSmoothScroll){
+    el.scrollTo({left, behavior:'smooth'});
+  }else{
+    const start = el.scrollLeft;
+    const change = left - start;
+    const duration = 300;
+    const startTime = performance.now();
+    function step(now){
+      const progress = Math.min((now - startTime)/duration,1);
+      el.scrollLeft = start + change*progress;
+      if(progress<1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+}
+
+function slideCard(m){
+  const slide = el('div',{class:'slide'});
+  if(m.img){
+    slide.appendChild(el('img',{src:m.img, alt:m.title}));
+  }else{
+    slide.appendChild(el('div',{class:'imgph'}, '图片占位'));
+  }
+  const ov = el('div',{class:'overlay'});
+  ov.appendChild(el('div',{class:'name'}, m.title));
+  ov.appendChild(el('div',{class:'desc'}, m.desc||''));
+
+  // 规格选择（若多规格则显示 chips）
+  let chosen = m.variants[0];
+  let chips = null;
+  if(m.variants.length>1){
+    chips = el('div',{class:'variant'},
+      ...m.variants.map((v,idx)=>{
+        const c = el('button',{class:'chip'+(idx===0?' active':''), onclick:()=>{
+          chosen = v;
+          [...chips.children].forEach(x=>x.classList.remove('active'));
+          c.classList.add('active');
+          priceEl.textContent = fmtY(v.price) + v.unit;
+        }}, `${v.label}`);
+        return c;
+      })
+    );
+    ov.appendChild(chips);
+  }
+  const priceEl = el('div',{class:'price'}, fmtY(chosen.price)+chosen.unit);
+  const row = el('div',{class:'row'},
+    priceEl,
+    el('div',{class:'actions'},
+      el('button',{class:'btn small primary', onclick:()=>addToCart(m, chosen)}, '加入购物车')
+    )
+  );
+  ov.appendChild(row);
+  slide.appendChild(ov);
+  return slide;
+}
+
+function softListSlide(){
+  return el('div',{class:'slide'},
+    el('ul',{class:'soft-list'},
+      ...SOFT_DRINKS.map(m=>{
+        const v = m.variants[0];
+        return el('li',{class:'soft-item'},
+          el('span',{}, m.title),
+          el('div',{class:'actions'},
+            el('span',{class:'price'}, fmtY(v.price)),
+            el('button',{class:'btn small primary', onclick:()=>addToCart(m, v)}, '加入购物车')
+          )
+        );
+      })
+    )
+  );
+}
+
+function drawCarousel(reset=false){
+  track.innerHTML='';
+  if(activeCat==='soft'){
+    track.appendChild(softListSlide());
+  }else{
+    MENU.filter(m=>m.cat===activeCat).forEach(m=> track.appendChild(slideCard(m)));
+  }
+  if(reset){ track.scrollTo({left:0, top:0, behavior:'auto'}); }
+  // Immediately update arrows then defer another update so Safari
+  // has a chance to finalize layout/scroll metrics.
+  updateArrows();
+  requestAnimationFrame(()=> requestAnimationFrame(updateArrows));
+}
+drawCarousel(true);
+
+function updateArrows(){
+  const maxLeft = Math.max(0, track.scrollWidth - track.clientWidth);
+  const atStart = track.scrollLeft <= 1;
+  const atEnd = track.scrollLeft >= maxLeft - 1;
+  prevBtn.disabled = atStart; nextBtn.disabled = atEnd;
+  prevBtn.style.visibility = atStart ? 'hidden' : 'visible';
+  prevBtn.style.pointerEvents = atStart ? 'none' : 'auto';
+  nextBtn.style.visibility = atEnd ? 'hidden' : 'visible';
+  nextBtn.style.pointerEvents = atEnd ? 'none' : 'auto';
+}
+let arrowRaf;
+let arrowTimeout;
+track.addEventListener('scroll', () => {
+  cancelAnimationFrame(arrowRaf);
+  arrowRaf = requestAnimationFrame(updateArrows);
+  clearTimeout(arrowTimeout);
+  arrowTimeout = setTimeout(updateArrows, 100);
+});
+track.addEventListener('scrollend', updateArrows);
+window.addEventListener('resize', updateArrows);
+
+prevBtn.addEventListener('click', ()=>{
+  if(prevBtn.disabled) return;
+  const step = Math.round(track.clientWidth*0.9);
+  const target = Math.max(0, track.scrollLeft - step);
+  smoothScrollTo(track, target);
+});
+
+nextBtn.addEventListener('click', ()=>{
+  if(nextBtn.disabled) return;
+  const step = Math.round(track.clientWidth*0.9);
+  const maxLeft = track.scrollWidth - track.clientWidth;
+  const target = Math.min(maxLeft, track.scrollLeft + step);
+  smoothScrollTo(track, target);
+});
+
+// Cart + Orders
+let CART = JSON.parse(localStorage.getItem('LC_CART_TAB_V9')||'[]'); // 新 key，避免旧数据结构冲突
+let ORDERS = JSON.parse(localStorage.getItem('LC_ORDERS')||'[]');
+const drawer = document.getElementById('drawer');
+const backdrop = document.getElementById('backdrop');
+const cartBtn = document.getElementById('cartBtn');
+const cartItems = document.getElementById('cartItems');
+const cartTotal = document.getElementById('cartTotal');
+const ordersPage = document.getElementById('ordersPage');
+const ordersList = document.getElementById('ordersList');
+
+function persistCart(){ localStorage.setItem('LC_CART_TAB_V9', JSON.stringify(CART)); }
+function persistOrders(){ localStorage.setItem('LC_ORDERS', JSON.stringify(ORDERS)); }
+function cartCount(){ return CART.reduce((a,b)=>a+b.qty,0); }
+function cartSum(){ return CART.reduce((a,b)=>a+b.qty*b.price,0); }
+function syncBtn(){ cartBtn.textContent = '购物车 · ' + cartCount(); }
+
+function addToCart(m, chosen){
+  const label = (chosen && chosen.label) ? chosen.label : m.variants[0].label;
+  const unit = (chosen && chosen.unit) ? chosen.unit : m.variants[0].unit;
+  const price = (chosen && chosen.price) ? chosen.price : m.variants[0].price;
+  const key = m.id + '|' + label;
+  const ex = CART.find(x=>x._key===key);
+  if(ex){
+    ex.qty += 1;
+  }else{
+    CART.push({_key:key, id:m.id, title:m.title, img:m.img, spec:label, unit:'', price:price, qty:1});
+  }
+  persistCart(); renderCart(); openDrawer();
+  cartItems.scrollTop = cartItems.scrollHeight;
+  const last = cartItems.lastElementChild; if(last){ last.classList.add('flash'); setTimeout(()=>last.classList.remove('flash'), 1200); }
+}
+function removeLine(key){ CART = CART.filter(x=>x._key!==key); persistCart(); renderCart(); }
+function changeQty(key, delta){
+  const ex = CART.find(x=>x._key===key); if(!ex) return;
+  ex.qty += delta; if(ex.qty<=0){ removeLine(key); } else { persistCart(); renderCart(); }
+}
+
+function renderCart(){
+  cartItems.innerHTML='';
+  if(CART.length===0){ cartItems.appendChild(el('div',{class:'muted', style:'padding:24px; text-align:center'}, '购物车是空的。')); }
+  CART.forEach(line=>{
+    cartItems.appendChild(el('div',{class:'item'},
+      el('div',{class:'thumb'}, line.img ? el('img',{src:line.img, alt:''}) : '图片'),
+      el('div',{},
+        el('div',{class:'item-title'}, line.title),
+        el('div',{class:'muted'}, `${line.spec}${line.unit}`),
+        el('div',{class:'qty'},
+          el('button',{onclick:()=>changeQty(line._key,-1)},'−'),
+          el('span',{}, String(line.qty)),
+          el('button',{onclick:()=>changeQty(line._key,1)},'+'),
+          el('button',{class:'btn small remove-btn nowrap', onclick:()=>removeLine(line._key)},'移除')
+        )
+      ),
+      el('div',{class:'line-total'}, fmtY(line.price*line.qty))
+    ));
+  });
+  cartTotal.textContent = fmtY(cartSum());
+  syncBtn();
+}
+renderCart();
+function openDrawer(){ drawer.classList.add('open'); drawer.setAttribute('aria-hidden','false'); backdrop.classList.add('show'); }
+function closeDrawer(){ drawer.classList.remove('open'); drawer.setAttribute('aria-hidden','true'); backdrop.classList.remove('show'); }
+document.getElementById('closeDrawer').addEventListener('click', closeDrawer);
+backdrop.addEventListener('click', closeDrawer);
+cartBtn.addEventListener('click', ()=> drawer.classList.contains('open') ? closeDrawer() : openDrawer());
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && drawer.classList.contains('open')) closeDrawer(); });
+document.getElementById('clearCart').addEventListener('click', ()=>{ CART=[]; persistCart(); renderCart(); });
+
+// 订单页
+function showOrders(){ renderOrders(); ordersPage.classList.add('show'); window.scrollTo(0,0); }
+function hideOrders(){ ordersPage.classList.remove('show'); }
+document.getElementById('backToMenu').addEventListener('click', hideOrders);
+document.getElementById('viewOrders').addEventListener('click', showOrders);
+
+function renderOrders(){
+  ordersList.innerHTML='';
+  if(!ORDERS.length){
+    ordersList.appendChild(el('div',{class:'muted',style:'padding:24px;text-align:center'},'暂无订单。'));
+    return;
+  }
+  [...ORDERS].slice().reverse().forEach(o=>{
+    const itemsText = o.items.map(l=>`• ${l.title}（${l.spec}${l.unit}） × ${l.qty}   ${fmtY(l.qty*l.price)}`).join('\n');
+    const card = el('div',{class:'order-card'},
+      el('h3',{}, `订单 ${o.id}`),
+      el('div',{class:'order-items'}, itemsText),
+      el('div',{class:'order-meta'},
+        el('span',{}, new Date(o.created_at).toLocaleString('zh-CN')),
+        el('strong',{}, fmtY(o.total))
+      )
+    );
+    ordersList.appendChild(card);
+  });
+}
+
+document.getElementById('placeOrder').addEventListener('click', ()=>{
+  if(!CART.length){ alert('您的购物车是空的'); return; }
+  const order = {
+    id: 'LC' + Date.now().toString().slice(-8),
+    items: CART.map(l=>({title:l.title, spec:l.spec, unit:l.unit, qty:l.qty, price:l.price})),
+    total: cartSum(),
+    created_at: Date.now()
+  };
+  ORDERS.push(order); persistOrders();
+  CART=[]; persistCart(); renderCart(); closeDrawer();
+  showOrders();
+});
+
+// 绘制环形文字（按字符宽度分配角度；带 30° 间隔；中心“茄”）
+function drawRingText(ctx, text, radius, startAngle, spacingPx){
+  ctx.save(); ctx.rotate(startAngle);
+  const chars=[...text];
+  for(let i=0;i<chars.length;i++){
+    const ch=chars[i];
+    const w=ctx.measureText(ch).width + spacingPx;
+    const ang = w / radius;
+    ctx.rotate(ang/2);
+    ctx.save(); ctx.translate(0,-radius); ctx.rotate(Math.PI/2);
+    ctx.fillText(ch, -ctx.measureText(ch).width/2, 0);
+    ctx.restore();
+    ctx.rotate(ang/2);
+  }
+  ctx.restore();
+}
+</script>
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js');
+    });
+  }
+</script>
+</body>
+</html>
