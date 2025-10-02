@@ -16,6 +16,7 @@ const COLLECTIONS = {
 
 const ADMIN_ROLES = ['admin', 'developer', 'superadmin'];
 const EXPERIENCE_PER_YUAN = 100;
+const ensuredCollections = new Set();
 
 function isCollectionNotFoundError(error) {
   if (!error) return false;
@@ -24,6 +25,45 @@ function isCollectionNotFoundError(error) {
   }
   const message = typeof error.message === 'string' ? error.message : '';
   return /collection\s+not\s+exists/i.test(message) || /ResourceNotFound/i.test(message);
+}
+
+function isCollectionAlreadyExistsError(error) {
+  if (!error) return false;
+  if (error.errCode === -502006 || error.code === 'ResourceExists') {
+    return true;
+  }
+  const message = typeof error.message === 'string' ? error.message : '';
+  return /already\s+exists/i.test(message);
+}
+
+async function ensureCollection(name) {
+  if (!name || ensuredCollections.has(name)) {
+    return;
+  }
+  try {
+    await db
+      .collection(name)
+      .limit(1)
+      .get();
+    ensuredCollections.add(name);
+  } catch (error) {
+    if (!isCollectionNotFoundError(error)) {
+      throw error;
+    }
+    if (typeof db.createCollection !== 'function') {
+      throw error;
+    }
+    try {
+      await db.createCollection(name);
+      ensuredCollections.add(name);
+    } catch (createError) {
+      if (isCollectionAlreadyExistsError(createError)) {
+        ensuredCollections.add(name);
+        return;
+      }
+      throw createError;
+    }
+  }
 }
 
 exports.main = async (event) => {
@@ -71,12 +111,21 @@ async function createOrder(openid, itemsInput, remarkInput) {
     createdAt: now,
     updatedAt: now
   };
+  await ensureCollection(COLLECTIONS.MENU_ORDERS);
   const result = await db.collection(COLLECTIONS.MENU_ORDERS).add({ data: orderData });
   return { order: mapOrder({ _id: result._id, ...orderData }) };
 }
 
 async function listMemberOrders(openid) {
   await ensureMember(openid);
+  try {
+    await ensureCollection(COLLECTIONS.MENU_ORDERS);
+  } catch (error) {
+    if (isCollectionNotFoundError(error)) {
+      return { orders: [] };
+    }
+    throw error;
+  }
   let snapshot;
   try {
     snapshot = await db
@@ -103,6 +152,7 @@ async function markOrderReady(openid, orderId, remarkInput) {
   const remark = normalizeRemark(remarkInput, 200);
   const now = new Date();
   let updatedOrder = null;
+  await ensureCollection(COLLECTIONS.MENU_ORDERS);
   await db.runTransaction(async (transaction) => {
     const orderRef = transaction.collection(COLLECTIONS.MENU_ORDERS).doc(orderId);
     const snapshot = await orderRef.get().catch(() => null);
@@ -141,6 +191,14 @@ async function listPrepOrders(openid, status = 'submitted', pageSize = 100) {
   } else {
     statuses = ['submitted'];
   }
+  try {
+    await ensureCollection(COLLECTIONS.MENU_ORDERS);
+  } catch (error) {
+    if (isCollectionNotFoundError(error)) {
+      return { orders: [] };
+    }
+    throw error;
+  }
   let snapshot;
   try {
     snapshot = await db
@@ -165,6 +223,8 @@ async function confirmMemberOrder(openid, orderId) {
   }
   let experienceGain = 0;
   let orderSnapshot = null;
+  await ensureCollection(COLLECTIONS.MENU_ORDERS);
+  await ensureCollection(COLLECTIONS.WALLET_TRANSACTIONS);
   await db.runTransaction(async (transaction) => {
     const orderRef = transaction.collection(COLLECTIONS.MENU_ORDERS).doc(orderId);
     const snapshot = await orderRef.get().catch(() => null);
