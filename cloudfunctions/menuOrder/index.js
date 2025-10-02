@@ -18,6 +18,10 @@ const ADMIN_ROLES = ['admin', 'developer', 'superadmin'];
 const EXPERIENCE_PER_YUAN = 100;
 const ensuredCollections = new Set();
 
+const ERROR_CODES = {
+  INSUFFICIENT_FUNDS: 'INSUFFICIENT_FUNDS'
+};
+
 function isCollectionNotFoundError(error) {
   if (!error) return false;
   if (error.errCode === -502005 || error.code === 'ResourceNotFound') {
@@ -34,6 +38,20 @@ function isCollectionAlreadyExistsError(error) {
   }
   const message = typeof error.message === 'string' ? error.message : '';
   return /already\s+exists/i.test(message);
+}
+
+function createCustomError(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  error.errCode = code;
+  return error;
+}
+
+function isCustomError(error, code) {
+  if (!error || !code) {
+    return false;
+  }
+  return error.code === code || error.errCode === code;
 }
 
 async function ensureCollection(name) {
@@ -225,64 +243,74 @@ async function confirmMemberOrder(openid, orderId) {
   let orderSnapshot = null;
   await ensureCollection(COLLECTIONS.MENU_ORDERS);
   await ensureCollection(COLLECTIONS.WALLET_TRANSACTIONS);
-  await db.runTransaction(async (transaction) => {
-    const orderRef = transaction.collection(COLLECTIONS.MENU_ORDERS).doc(orderId);
-    const snapshot = await orderRef.get().catch(() => null);
-    if (!snapshot || !snapshot.data) {
-      throw new Error('订单不存在');
-    }
-    const order = snapshot.data;
-    if (order.memberId !== openid) {
-      throw new Error('无法操作该订单');
-    }
-    if (order.status !== 'pendingMember') {
-      throw new Error('订单当前不可确认');
-    }
-    const amount = Number(order.totalAmount || 0);
-    if (!amount || amount <= 0) {
-      throw new Error('订单金额无效');
-    }
-    const memberRef = transaction.collection(COLLECTIONS.MEMBERS).doc(openid);
-    const memberDoc = await memberRef.get().catch(() => null);
-    if (!memberDoc || !memberDoc.data) {
-      throw new Error('会员不存在');
-    }
-    const balance = resolveCashBalance(memberDoc.data);
-    if (balance < amount) {
-      throw new Error('余额不足，请先充值');
-    }
-    const now = new Date();
-    experienceGain = calculateExperienceGain(amount);
-    await memberRef.update({
-      data: {
-        cashBalance: _.inc(-amount),
-        totalSpend: _.inc(amount),
-        updatedAt: now,
-        ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
+  try {
+    await db.runTransaction(async (transaction) => {
+      const orderRef = transaction.collection(COLLECTIONS.MENU_ORDERS).doc(orderId);
+      const snapshot = await orderRef.get().catch(() => null);
+      if (!snapshot || !snapshot.data) {
+        throw new Error('订单不存在');
       }
-    });
-    await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
-      data: {
-        memberId: openid,
-        amount: -amount,
-        type: 'spend',
-        status: 'success',
-        source: 'menuOrder',
-        orderId,
-        remark: '菜单消费',
-        createdAt: now,
-        updatedAt: now
+      const order = snapshot.data;
+      if (order.memberId !== openid) {
+        throw new Error('无法操作该订单');
       }
-    });
-    await orderRef.update({
-      data: {
-        status: 'paid',
-        memberConfirmedAt: now,
-        updatedAt: now
+      if (order.status !== 'pendingMember') {
+        throw new Error('订单当前不可确认');
       }
+      const amount = Number(order.totalAmount || 0);
+      if (!amount || amount <= 0) {
+        throw new Error('订单金额无效');
+      }
+      const memberRef = transaction.collection(COLLECTIONS.MEMBERS).doc(openid);
+      const memberDoc = await memberRef.get().catch(() => null);
+      if (!memberDoc || !memberDoc.data) {
+        throw new Error('会员不存在');
+      }
+      const balance = resolveCashBalance(memberDoc.data);
+      if (balance < amount) {
+        throw createCustomError(ERROR_CODES.INSUFFICIENT_FUNDS, '余额不足，请先充值');
+      }
+      const now = new Date();
+      experienceGain = calculateExperienceGain(amount);
+      await memberRef.update({
+        data: {
+          cashBalance: _.inc(-amount),
+          totalSpend: _.inc(amount),
+          updatedAt: now,
+          ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
+        }
+      });
+      await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
+        data: {
+          memberId: openid,
+          amount: -amount,
+          type: 'spend',
+          status: 'success',
+          source: 'menuOrder',
+          orderId,
+          remark: '菜单消费',
+          createdAt: now,
+          updatedAt: now
+        }
+      });
+      await orderRef.update({
+        data: {
+          status: 'paid',
+          memberConfirmedAt: now,
+          updatedAt: now
+        }
+      });
+      orderSnapshot = mapOrder({ _id: orderId, ...order, status: 'paid', memberConfirmedAt: now, updatedAt: now });
     });
-    orderSnapshot = mapOrder({ _id: orderId, ...order, status: 'paid', memberConfirmedAt: now, updatedAt: now });
-  });
+  } catch (error) {
+    if (isCustomError(error, ERROR_CODES.INSUFFICIENT_FUNDS)) {
+      return {
+        errorCode: ERROR_CODES.INSUFFICIENT_FUNDS,
+        message: '余额不足，请先充值'
+      };
+    }
+    throw error;
+  }
   if (experienceGain > 0) {
     await syncMemberLevel(openid);
   }

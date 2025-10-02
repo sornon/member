@@ -486,10 +486,16 @@ export const MenuOrderService = {
     });
   },
   async confirmOrder(orderId) {
-    return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
+    const result = await callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
       action: 'confirmMemberOrder',
       orderId
     });
+    if (result && result.errorCode) {
+      const error = new Error(result.message || '扣费失败');
+      error.code = result.errorCode;
+      throw error;
+    }
+    return result;
   }
 };
 
