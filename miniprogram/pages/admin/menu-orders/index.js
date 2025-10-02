@@ -54,7 +54,8 @@ function decorateOrder(order) {
           price,
           quantity,
           amount,
-          amountLabel: formatCurrency(amount)
+          amountLabel: formatCurrency(amount),
+          priceLabel: formatCurrency(price)
         };
       })
     : [];

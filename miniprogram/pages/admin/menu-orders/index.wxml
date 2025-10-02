@@ -28,7 +28,12 @@
       <view class="order-line" wx:for="{{order.items}}" wx:key="{{index}}" wx:for-item="orderItem">
         <view class="line-main">
           <text class="line-title">{{orderItem.title}}</text>
-          <text class="line-spec">{{orderItem.spec}}{{orderItem.unit}} × {{orderItem.quantity}}</text>
+          <view class="line-meta">
+            <text wx:if="{{orderItem.spec}}" class="line-spec-label">{{orderItem.spec}}</text>
+            <text wx:if="{{orderItem.spec && orderItem.unit}}" class="line-spec-separator">·</text>
+            <text class="line-spec-price">{{orderItem.priceLabel}}{{orderItem.unit}}</text>
+            <text class="line-spec-quantity"> × {{orderItem.quantity}}</text>
+          </view>
         </view>
         <text class="line-amount">{{orderItem.amountLabel}}</text>
       </view>

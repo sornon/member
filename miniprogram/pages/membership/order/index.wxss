@@ -158,6 +158,23 @@
 .cart-spec {
   font-size: 24rpx;
   color: rgba(255, 255, 255, 0.65);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6rpx;
+}
+
+.cart-spec-label {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.cart-spec-separator {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.cart-spec-price {
+  color: #e3be77;
+  font-weight: 600;
 }
 
 .cart-qty {
@@ -269,8 +286,29 @@
   font-size: 26rpx;
 }
 
-.line-spec {
+.line-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
   font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.6);
+  gap: 6rpx;
+}
+
+.line-spec-label {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.line-spec-separator {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.line-spec-price {
+  color: #e3be77;
+  font-weight: 600;
+}
+
+.line-spec-quantity {
   color: rgba(255, 255, 255, 0.6);
 }
 
