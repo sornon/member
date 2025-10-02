@@ -181,6 +181,21 @@ export const MemberService = {
       action: 'redeemRenameCard',
       count
     });
+  },
+  async listMealMenu() {
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'listMealMenu' });
+  },
+  async createMealOrder(order = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, {
+      action: 'createMealOrder',
+      order
+    });
+  },
+  async listMealOrders(options = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, {
+      action: 'listMealOrders',
+      options
+    });
   }
 };
 
@@ -257,6 +272,12 @@ export const WalletService = {
   async confirmChargeOrder(orderId) {
     return callCloud(CLOUD_FUNCTIONS.WALLET, {
       action: 'confirmChargeOrder',
+      orderId
+    });
+  },
+  async payMealOrder(orderId) {
+    return callCloud(CLOUD_FUNCTIONS.WALLET, {
+      action: 'payMealOrder',
       orderId
     });
   }
@@ -468,6 +489,28 @@ export const AdminService = {
   async markReservationRead() {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'markReservationRead'
+    });
+  },
+  async listMealOrders({ status = 'pending', page = 1, pageSize = 20 } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'listMealOrders',
+      status,
+      page,
+      pageSize
+    });
+  },
+  async markMealOrderPreparing(orderId, note = '') {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'markMealOrderPreparing',
+      orderId,
+      note
+    });
+  },
+  async requestMealOrderPayment(orderId, note = '') {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'requestMealOrderPayment',
+      orderId,
+      note
     });
   }
 };

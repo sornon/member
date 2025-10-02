@@ -13,7 +13,8 @@ const COLLECTIONS = {
   MEMBERSHIP_LEVELS: 'membershipLevels',
   MEMBERSHIP_RIGHTS: 'membershipRights',
   CHARGE_ORDERS: 'chargeOrders',
-  STONE_TRANSACTIONS: 'stoneTransactions'
+  STONE_TRANSACTIONS: 'stoneTransactions',
+  MEAL_ORDERS: 'mealOrders'
 };
 
 const EXPERIENCE_PER_YUAN = 100;
@@ -36,6 +37,8 @@ exports.main = async (event, context) => {
       return loadChargeOrder(OPENID, event.orderId);
     case 'confirmChargeOrder':
       return confirmChargeOrder(OPENID, event.orderId);
+    case 'payMealOrder':
+      return payMealOrder(OPENID, event.orderId);
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -338,6 +341,93 @@ async function payWithBalance(openid, orderId, amount) {
   }
 
   return { success: true, message: '支付成功', experienceGain };
+}
+
+async function payMealOrder(openid, orderId) {
+  if (!orderId) {
+    throw new Error('订单不存在');
+  }
+
+  let experienceGain = 0;
+  await db.runTransaction(async (transaction) => {
+    const orderRef = transaction.collection(COLLECTIONS.MEAL_ORDERS).doc(orderId);
+    const orderDoc = await orderRef.get().catch(() => null);
+    if (!orderDoc || !orderDoc.data) {
+      throw new Error('订单不存在');
+    }
+    const order = orderDoc.data;
+    if (order.memberId !== openid) {
+      throw new Error('无权操作该订单');
+    }
+    const currentStatus = order.status || 'pending';
+    if (currentStatus !== 'awaitingMember') {
+      throw new Error('当前订单不需确认支付');
+    }
+    const amount = Number(order.totalAmount || 0);
+    if (!amount || !Number.isFinite(amount) || amount <= 0) {
+      throw new Error('订单金额无效');
+    }
+    const memberDoc = await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).get();
+    const member = memberDoc.data;
+    const balance = resolveCashBalance(member);
+    if (!member || balance < amount) {
+      throw new Error('余额不足');
+    }
+
+    experienceGain = calculateExperienceGain(amount);
+    const now = new Date();
+
+    const walletRecord = await transaction.collection(COLLECTIONS.TRANSACTIONS).add({
+      data: {
+        memberId: openid,
+        amount: -amount,
+        type: 'spend',
+        status: 'success',
+        orderId,
+        source: 'mealOrder',
+        remark: '餐饮消费',
+        createdAt: now
+      }
+    });
+
+    const history = Array.isArray(order.history) ? order.history.slice(-49) : [];
+    history.push({
+      type: 'status',
+      from: currentStatus,
+      status: 'paid',
+      actor: 'member',
+      actorId: openid,
+      actorName: member.nickName || '',
+      note: '会员确认扣款',
+      walletTransactionId: walletRecord._id || walletRecord.id || '',
+      createdAt: now
+    });
+
+    await orderRef.update({
+      data: {
+        status: 'paid',
+        memberConfirmedAt: now,
+        paidAt: now,
+        updatedAt: now,
+        history
+      }
+    });
+
+    await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).update({
+      data: {
+        cashBalance: _.inc(-amount),
+        totalSpend: _.inc(amount),
+        updatedAt: now,
+        ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
+      }
+    });
+  });
+
+  if (experienceGain > 0) {
+    await syncMemberLevel(openid);
+  }
+
+  return { success: true, message: '扣款成功', experienceGain };
 }
 
 async function loadChargeOrder(openid, orderId) {

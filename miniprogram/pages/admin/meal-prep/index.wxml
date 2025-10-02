@@ -1,0 +1,61 @@
+<view class="prep-page">
+  <view class="status-tabs">
+    <view
+      wx:for="{{statusTabs}}"
+      wx:key="id"
+      class="status-tab {{activeStatus === item.id ? 'status-tab--active' : ''}}"
+      data-id="{{item.id}}"
+      bindtap="handleStatusTap"
+    >
+      <text>{{item.label}}</text>
+      <text wx:if="{{typeof item.count === 'number'}}" class="status-count">{{item.count}}</text>
+    </view>
+  </view>
+
+  <view class="content">
+    <view wx:if="{{loading}}" class="state">加载中...</view>
+    <view wx:elif="{{!orders.length}}" class="state">暂无相关订单</view>
+    <block wx:else wx:for="{{orders}}" wx:key="_id">
+      <view class="order-card">
+        <view class="order-card__header">
+          <view class="order-card__member">
+            <text class="order-card__name">{{item.memberName || '匿名会员'}}</text>
+            <text class="order-card__time">{{item.createdAtLabel}}</text>
+          </view>
+          <view class="order-card__status {{'status-' + (item.status || 'pending')}}">{{item.statusLabel}}</view>
+        </view>
+        <view class="order-card__amount">{{item.totalAmountLabel}}</view>
+        <view class="order-card__items">
+          <view class="order-item" wx:for="{{item.items}}" wx:key="itemId">
+            <view class="order-item__name">{{item.name}}</view>
+            <view class="order-item__qty">×{{item.quantity}}</view>
+            <view class="order-item__amount">{{item.amountLabel}}</view>
+          </view>
+        </view>
+        <view wx:if="{{item.memberNote}}" class="order-card__note">会员备注：{{item.memberNote}}</view>
+        <view wx:if="{{item.kitchenNote}}" class="order-card__note">备餐提示：{{item.kitchenNote}}</view>
+        <view wx:if="{{item.paymentNote}}" class="order-card__note">付款提示：{{item.paymentNote}}</view>
+        <view class="order-card__actions">
+          <button
+            wx:if="{{item.status === 'pending'}}"
+            class="action-btn action-btn--secondary"
+            size="mini"
+            loading="{{actionLoading === item._id}}"
+            data-id="{{item._id}}"
+            bindtap="handleStartPrep"
+          >标记备餐</button>
+          <button
+            wx:if="{{item.status === 'pending' || item.status === 'preparing'}}"
+            class="action-btn"
+            type="primary"
+            size="mini"
+            loading="{{actionLoading === item._id}}"
+            data-id="{{item._id}}"
+            bindtap="handleRequestPayment"
+          >通知会员确认</button>
+          <view wx:if="{{item.status === 'awaitingMember'}}" class="order-card__hint">等待会员确认扣款...</view>
+        </view>
+      </view>
+    </block>
+  </view>
+</view>

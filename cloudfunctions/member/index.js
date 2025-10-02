@@ -12,6 +12,7 @@ const {
   resolveBackgroundByRealmName,
   resolveBackgroundById
 } = require('./shared/backgrounds.js');
+const { getMenuCatalog, getMenuItemById } = require('../shared/menu-data.js');
 
 const db = cloud.database();
 const _ = db.command;
@@ -22,7 +23,8 @@ const COLLECTIONS = {
   RIGHTS_MASTER: 'membershipRights',
   MEMBER_RIGHTS: 'memberRights',
   MEMBER_EXTRAS: 'memberExtras',
-  MEMBER_TIMELINE: 'memberTimeline'
+  MEMBER_TIMELINE: 'memberTimeline',
+  MEAL_ORDERS: 'mealOrders'
 };
 
 const GENDER_OPTIONS = ['unknown', 'male', 'female'];
@@ -226,10 +228,243 @@ exports.main = async (event, context) => {
       return updateArchive(OPENID, event.updates || {});
     case 'redeemRenameCard':
       return redeemRenameCard(OPENID, event.count || 1);
+    case 'listMealMenu':
+      return listMealMenu(OPENID);
+    case 'createMealOrder':
+      return createMealOrder(OPENID, event.order || {});
+    case 'listMealOrders':
+      return listMealOrders(OPENID, event.options || {});
     default:
       throw new Error(`Unknown action: ${action}`);
   }
 };
+
+function formatFenToYuan(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '0.00';
+  }
+  return (numeric / 100).toFixed(2);
+}
+
+async function ensureMemberExists(openid) {
+  if (!openid) {
+    throw new Error('缺少会员身份');
+  }
+  const doc = await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(openid)
+    .get()
+    .catch(() => null);
+  if (!doc || !doc.data) {
+    throw new Error('会员信息不存在');
+  }
+  return doc.data;
+}
+
+function normalizeOrderItems(rawItems) {
+  if (!Array.isArray(rawItems) || !rawItems.length) {
+    return [];
+  }
+  const aggregated = new Map();
+  rawItems.forEach((item) => {
+    if (!item) {
+      return;
+    }
+    const id = typeof item.itemId === 'string' && item.itemId.trim()
+      ? item.itemId.trim()
+      : typeof item.id === 'string' && item.id.trim()
+      ? item.id.trim()
+      : '';
+    if (!id) {
+      return;
+    }
+    const quantityValue = Number(item.quantity);
+    if (!Number.isFinite(quantityValue) || quantityValue <= 0) {
+      return;
+    }
+    const quantity = Math.max(1, Math.floor(quantityValue));
+    const existing = aggregated.get(id);
+    if (existing) {
+      existing.quantity += quantity;
+    } else {
+      aggregated.set(id, { itemId: id, quantity });
+    }
+  });
+  return Array.from(aggregated.values());
+}
+
+function resolveDate(value) {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  if (value && typeof value.toDate === 'function') {
+    try {
+      return value.toDate();
+    } catch (error) {
+      return null;
+    }
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatDateTime(value) {
+  const date = resolveDate(value);
+  if (!date) {
+    return '';
+  }
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, '0');
+  const d = `${date.getDate()}`.padStart(2, '0');
+  const h = `${date.getHours()}`.padStart(2, '0');
+  const mm = `${date.getMinutes()}`.padStart(2, '0');
+  return `${y}-${m}-${d} ${h}:${mm}`;
+}
+
+function decorateMealOrder(order) {
+  if (!order) {
+    return null;
+  }
+  const items = Array.isArray(order.items)
+    ? order.items.map((item) => ({
+        ...item,
+        amount: Number(item.amount || item.price * item.quantity || 0),
+        amountLabel: `¥${formatFenToYuan(item.amount || item.price * item.quantity || 0)}`
+      }))
+    : [];
+  const totalAmount = Number(order.totalAmount || 0);
+  const totalQuantity = Number(order.totalQuantity || items.reduce((sum, item) => sum + (item.quantity || 0), 0));
+  const createdAt = resolveDate(order.createdAt || order.submittedAt || order.createdAtLabel || null) || new Date();
+  const updatedAt = resolveDate(order.updatedAt || createdAt) || createdAt;
+  return {
+    ...order,
+    items,
+    totalAmount,
+    totalQuantity,
+    totalAmountLabel: `¥${formatFenToYuan(totalAmount)}`,
+    createdAt,
+    createdAtLabel: formatDateTime(createdAt),
+    updatedAt,
+    updatedAtLabel: formatDateTime(updatedAt)
+  };
+}
+
+async function listMealMenu(openid) {
+  await ensureMemberExists(openid);
+  return {
+    categories: getMenuCatalog()
+  };
+}
+
+async function createMealOrder(openid, payload = {}) {
+  const member = await ensureMemberExists(openid);
+  if (!member) {
+    throw new Error('会员不存在');
+  }
+  const normalizedItems = normalizeOrderItems(payload.items);
+  if (!normalizedItems.length) {
+    throw new Error('请先选择菜品');
+  }
+
+  const orderItems = [];
+  let totalAmount = 0;
+  let totalQuantity = 0;
+
+  normalizedItems.forEach((entry) => {
+    const menuItem = getMenuItemById(entry.itemId);
+    if (!menuItem) {
+      throw new Error('菜品信息已更新，请刷新菜单');
+    }
+    const quantity = Math.max(1, Math.floor(entry.quantity));
+    const price = Number(menuItem.price || 0);
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new Error('菜品价格无效');
+    }
+    const amount = price * quantity;
+    totalAmount += amount;
+    totalQuantity += quantity;
+    orderItems.push({
+      itemId: menuItem.id,
+      name: menuItem.name,
+      price,
+      quantity,
+      amount,
+      unit: menuItem.unit || '',
+      categoryId: menuItem.categoryId,
+      categoryName: menuItem.categoryName
+    });
+  });
+
+  if (!totalAmount || !Number.isFinite(totalAmount) || totalAmount <= 0) {
+    throw new Error('订单金额无效');
+  }
+
+  const memberNote = typeof payload.note === 'string' ? payload.note.trim().slice(0, 200) : '';
+  const now = new Date();
+  const history = [
+    {
+      type: 'status',
+      status: 'pending',
+      createdAt: now,
+      actor: 'member',
+      actorId: openid,
+      actorName: member.nickName || '',
+      note: memberNote || '会员提交订单'
+    }
+  ];
+
+  const result = await db.collection(COLLECTIONS.MEAL_ORDERS).add({
+    data: {
+      memberId: openid,
+      status: 'pending',
+      totalAmount,
+      totalQuantity,
+      items: orderItems,
+      memberNote,
+      kitchenNote: '',
+      paymentNote: '',
+      createdAt: now,
+      updatedAt: now,
+      history
+    }
+  });
+
+  return {
+    success: true,
+    orderId: result._id,
+    totalAmount,
+    totalQuantity
+  };
+}
+
+async function listMealOrders(openid, options = {}) {
+  await ensureMemberExists(openid);
+  const page = Number(options.page) || 1;
+  const pageSize = Math.min(Math.max(Number(options.pageSize) || 20, 1), 50);
+  const skip = Math.max(page - 1, 0) * pageSize;
+
+  const baseCollection = db.collection(COLLECTIONS.MEAL_ORDERS).where({ memberId: openid });
+  const [snapshot, countResult] = await Promise.all([
+    baseCollection
+      .orderBy('createdAt', 'desc')
+      .skip(skip)
+      .limit(pageSize)
+      .get(),
+    baseCollection.count()
+  ]);
+
+  const orders = snapshot.data.map((order) => decorateMealOrder(order));
+  return {
+    orders,
+    page,
+    pageSize,
+    total: countResult.total || orders.length
+  };
+}
 
 async function initMember(openid, profile) {
   const membersCollection = db.collection(COLLECTIONS.MEMBERS);

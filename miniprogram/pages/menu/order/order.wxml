@@ -1,0 +1,121 @@
+<view class="order-page">
+  <view class="tabs">
+    <view
+      class="tab {{currentTab === 'menu' ? 'tab--active' : ''}}"
+      data-tab="menu"
+      bindtap="handleTabChange"
+    >点餐</view>
+    <view
+      class="tab {{currentTab === 'orders' ? 'tab--active' : ''}}"
+      data-tab="orders"
+      bindtap="handleTabChange"
+    >我的订单</view>
+  </view>
+
+  <view wx:if="{{currentTab === 'menu'}}" class="menu-tab">
+    <view wx:if="{{menuLoading}}" class="loading">菜单载入中...</view>
+    <view wx:elif="{{!categories.length}}" class="empty">暂未配置菜单，请稍后再试</view>
+    <scroll-view
+      wx:else
+      scroll-y
+      class="category-scroll"
+    >
+      <block wx:for="{{categories}}" wx:key="id">
+        <view class="category-section">
+          <view class="category-header">
+            <view class="category-name">{{item.name}}</view>
+            <view wx:if="{{item.description}}" class="category-desc">{{item.description}}</view>
+          </view>
+          <view class="menu-item" wx:for="{{item.items}}" wx:key="id">
+            <view class="menu-item__body">
+              <view class="menu-item__header">
+                <view class="menu-item__name">{{item.name}}</view>
+                <view class="menu-item__price">{{item.priceLabel}}</view>
+              </view>
+              <view wx:if="{{item.description}}" class="menu-item__desc">{{item.description}}</view>
+              <view wx:if="{{item.tags.length}}" class="menu-item__tags">
+                <text class="menu-item__tag" wx:for="{{item.tags}}" wx:key="*this">{{item}}</text>
+              </view>
+            </view>
+            <view class="menu-item__actions">
+              <view class="quantity-control">
+                <button
+                  class="quantity-btn"
+                  data-id="{{item.id}}"
+                  bindtap="handleDecrease"
+                  size="mini"
+                >-</button>
+                <text class="quantity-value">{{cart[item.id] ? cart[item.id].quantity : 0}}</text>
+                <button
+                  class="quantity-btn"
+                  data-id="{{item.id}}"
+                  bindtap="handleIncrease"
+                  size="mini"
+                >+</button>
+              </view>
+            </view>
+          </view>
+        </view>
+      </block>
+    </scroll-view>
+
+    <view class="note-section">
+      <textarea
+        class="note-input"
+        placeholder="口味偏好、过敏原等备注"
+        maxlength="200"
+        value="{{note}}"
+        bindinput="handleNoteInput"
+      ></textarea>
+    </view>
+
+    <view class="cart-summary">
+      <view class="cart-info">
+        <text class="cart-count">共 {{totalQuantity}} 份</text>
+        <text class="cart-amount">{{totalAmountLabel}}</text>
+      </view>
+      <button
+        class="submit-btn"
+        type="primary"
+        loading="{{orderSubmitting}}"
+        disabled="{{orderSubmitting || totalQuantity === 0}}"
+        bindtap="handleSubmitOrder"
+      >提交订单</button>
+    </view>
+  </view>
+
+  <view wx:if="{{currentTab === 'orders'}}" class="orders-tab">
+    <view wx:if="{{ordersLoading}}" class="loading">订单加载中...</view>
+    <view wx:elif="{{!orders.length}}" class="empty">暂无历史订单</view>
+    <block wx:else wx:for="{{orders}}" wx:key="_id">
+      <view class="order-card">
+        <view class="order-card__header">
+          <view class="order-card__status {{'status--' + (item.status || 'pending')}}">{{item.statusLabel}}</view>
+          <view class="order-card__time">{{item.createdAtLabel}}</view>
+        </view>
+        <view class="order-card__body">
+          <view class="order-card__amount">总计 {{item.totalAmountLabel}}</view>
+          <view class="order-card__items">
+            <view class="order-line" wx:for="{{item.items}}" wx:key="itemId">
+              <view class="order-line__name">{{item.name}}</view>
+              <view class="order-line__qty">×{{item.quantity}}</view>
+              <view class="order-line__amount">{{item.amountLabel}}</view>
+            </view>
+          </view>
+          <view wx:if="{{item.memberNote}}" class="order-card__note">备注：{{item.memberNote}}</view>
+          <view wx:if="{{item.kitchenNote}}" class="order-card__note">备餐提示：{{item.kitchenNote}}</view>
+          <view wx:if="{{item.paymentNote}}" class="order-card__note">付款提示：{{item.paymentNote}}</view>
+        </view>
+        <button
+          wx:if="{{item.canConfirm}}"
+          class="confirm-btn"
+          type="primary"
+          size="mini"
+          loading="{{payingOrderId === item._id || payingOrderId === item.id}}"
+          data-id="{{item._id || item.id}}"
+          bindtap="handleConfirmPayment"
+        >确认扣款</button>
+      </view>
+    </block>
+  </view>
+</view>

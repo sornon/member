@@ -5,6 +5,7 @@
     "pages/rights/rights",
     "pages/tasks/tasks",
     "pages/reservation/reservation",
+    "pages/menu/order",
     "pages/stones/stones",
     "pages/pve/pve",
     "pages/role/index",
@@ -15,6 +16,7 @@
     "pages/admin/members/index",
     "pages/admin/member-detail/index",
     "pages/admin/charge/index",
+    "pages/admin/meal-prep/index",
     "pages/admin/orders/index",
     "pages/wallet/charge-confirm/index"
   ],
