@@ -20,7 +20,8 @@ const COLLECTIONS = {
   TASK_RECORDS: 'taskRecords',
   COUPON_RECORDS: 'couponRecords',
   STONE_TRANSACTIONS: 'stoneTransactions',
-  ERROR_LOGS: 'errorlogs'
+  ERROR_LOGS: 'errorlogs',
+  MEAL_ORDERS: 'mealOrders'
 };
 
 const EXPERIENCE_PER_YUAN = 100;
@@ -49,7 +50,9 @@ const ACTIONS = {
   LIST_EQUIPMENT_CATALOG: 'listEquipmentCatalog',
   GRANT_EQUIPMENT: 'grantEquipment',
   REMOVE_EQUIPMENT: 'removeEquipment',
-  UPDATE_EQUIPMENT_ATTRIBUTES: 'updateEquipmentAttributes'
+  UPDATE_EQUIPMENT_ATTRIBUTES: 'updateEquipmentAttributes',
+  LIST_MEAL_ORDERS: 'listMealOrders',
+  CONFIRM_MEAL_ORDER: 'confirmMealOrder'
 };
 
 const ACTION_ALIASES = {
@@ -71,7 +74,9 @@ const ACTION_ALIASES = {
   listequipmentcatalog: ACTIONS.LIST_EQUIPMENT_CATALOG,
   grantequipment: ACTIONS.GRANT_EQUIPMENT,
   removeequipment: ACTIONS.REMOVE_EQUIPMENT,
-  updateequipmentattributes: ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES
+  updateequipmentattributes: ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES,
+  listmealorders: ACTIONS.LIST_MEAL_ORDERS,
+  confirmmealorder: ACTIONS.CONFIRM_MEAL_ORDER
 };
 
 function normalizeAction(action) {
@@ -117,7 +122,15 @@ const ACTION_HANDLERS = {
   [ACTIONS.REMOVE_EQUIPMENT]: (openid, event) =>
     removeEquipment(openid, event.memberId, event.itemId, event.inventoryId),
   [ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES]: (openid, event) =>
-    updateEquipmentAttributes(openid, event.memberId, event.itemId, event.attributes || {}, event)
+    updateEquipmentAttributes(openid, event.memberId, event.itemId, event.attributes || {}, event),
+  [ACTIONS.LIST_MEAL_ORDERS]: (openid, event) =>
+    listMealOrders(openid, {
+      status: event.status || 'pendingAdmin',
+      page: event.page || 1,
+      pageSize: event.pageSize || 20
+    }),
+  [ACTIONS.CONFIRM_MEAL_ORDER]: (openid, event) =>
+    confirmMealOrder(openid, event.orderId, event.adminNotes || '')
 };
 
 async function resolveMemberExtras(memberId) {
@@ -906,6 +919,157 @@ async function markReservationRead(openid) {
     .catch(() => {});
   const updatedBadges = { ...badges, adminSeenVersion: badges.adminVersion };
   return { success: true, reservationBadges: updatedBadges };
+}
+
+async function listMealOrders(openid, { status = 'pendingAdmin', page = 1, pageSize = 20 } = {}) {
+  await ensureAdmin(openid);
+  const limit = Math.min(Math.max(pageSize, 1), 50);
+  const skip = Math.max(page - 1, 0) * limit;
+  const statusFilter = normalizeMealOrderStatusFilter(status);
+
+  let query = db.collection(COLLECTIONS.MEAL_ORDERS);
+  if (Array.isArray(statusFilter) && statusFilter.length) {
+    query = query.where({ status: _.in(statusFilter) });
+  } else if (statusFilter) {
+    query = query.where({ status: statusFilter });
+  }
+
+  const [snapshot, countResult] = await Promise.all([
+    query
+      .orderBy('createdAt', 'desc')
+      .skip(skip)
+      .limit(limit)
+      .get()
+      .catch(() => ({ data: [] })),
+    query.count().catch(() => ({ total: 0 }))
+  ]);
+
+  const rawOrders = snapshot.data || [];
+  const memberIds = Array.from(
+    new Set(
+      rawOrders
+        .map((order) => order.memberId)
+        .filter((id) => typeof id === 'string' && id)
+    )
+  );
+  const memberMap = await loadMembersMap(memberIds);
+
+  const orders = rawOrders.map((order) =>
+    decorateMealOrderRecord(
+      {
+        _id: order._id,
+        ...order
+      },
+      memberMap[order.memberId]
+    )
+  );
+
+  return {
+    orders,
+    page,
+    pageSize: limit,
+    total: countResult.total || 0,
+    status: status || 'pendingAdmin'
+  };
+}
+
+async function confirmMealOrder(openid, orderId, adminNotes = '') {
+  const admin = await ensureAdmin(openid);
+  if (!orderId) {
+    throw new Error('缺少订单编号');
+  }
+  const normalizedOrderId = typeof orderId === 'string' ? orderId.trim() : '';
+  if (!normalizedOrderId) {
+    throw new Error('缺少订单编号');
+  }
+
+  const sanitizedNotes = sanitizeMealNotes(adminNotes);
+  let updatedOrder = null;
+  const now = new Date();
+
+  await db.runTransaction(async (transaction) => {
+    const orderRef = transaction.collection(COLLECTIONS.MEAL_ORDERS).doc(normalizedOrderId);
+    const orderDoc = await orderRef.get().catch(() => null);
+    if (!orderDoc || !orderDoc.data) {
+      throw new Error('订单不存在');
+    }
+    const order = orderDoc.data;
+    const statusValue = normalizeMealOrderStatus(order.status);
+    if (statusValue !== 'pendingAdmin') {
+      throw new Error('订单已处理或状态异常');
+    }
+    const memberId = order.memberId;
+    if (!memberId) {
+      throw new Error('订单缺少会员信息');
+    }
+    const memberRef = transaction.collection(COLLECTIONS.MEMBERS).doc(memberId);
+    const memberDoc = await memberRef.get().catch(() => null);
+    if (!memberDoc || !memberDoc.data) {
+      throw new Error('会员不存在');
+    }
+    const badges = normalizeMealOrderBadges(memberDoc.data.mealOrderBadges);
+    badges.memberVersion += 1;
+    badges.awaitingMemberCount += 1;
+    badges.memberSeenVersion = Math.min(badges.memberSeenVersion, badges.memberVersion);
+
+    const history = Array.isArray(order.history) ? order.history.slice(-20) : [];
+    history.push({
+      action: 'adminConfirmed',
+      actorId: admin._id,
+      remark: sanitizedNotes,
+      at: now
+    });
+
+    await orderRef.update({
+      data: {
+        status: 'awaitingMember',
+        adminNotes: sanitizedNotes,
+        confirmedAt: now,
+        confirmedBy: admin._id,
+        updatedAt: now,
+        history
+      }
+    });
+
+    await memberRef.update({
+      data: {
+        mealOrderBadges: badges,
+        updatedAt: now
+      }
+    });
+
+    updatedOrder = {
+      ...order,
+      status: 'awaitingMember',
+      adminNotes: sanitizedNotes,
+      confirmedAt: now,
+      confirmedBy: admin._id,
+      updatedAt: now,
+      history
+    };
+  });
+
+  if (!updatedOrder) {
+    const fallback = await db
+      .collection(COLLECTIONS.MEAL_ORDERS)
+      .doc(normalizedOrderId)
+      .get()
+      .catch(() => null);
+    if (fallback && fallback.data) {
+      updatedOrder = { _id: fallback.data._id || normalizedOrderId, ...fallback.data };
+    }
+  }
+
+  const memberSnapshot =
+    updatedOrder && updatedOrder.memberId ? await fetchMemberDetail(updatedOrder.memberId, admin._id) : null;
+
+  return decorateMealOrderRecord(
+    {
+      _id: normalizedOrderId,
+      ...(updatedOrder || {})
+    },
+    memberSnapshot ? memberSnapshot.member : null
+  );
 }
 
 async function getReservationRecord(reservationId) {
@@ -1946,6 +2110,144 @@ function decorateChargeOrderRecord(order, member) {
     memberName: member ? member.nickName || '' : '',
     memberMobile: member ? member.mobile || '' : ''
   };
+}
+
+function decorateMealOrderRecord(order, member) {
+  if (!order) {
+    return null;
+  }
+  const status = normalizeMealOrderStatus(order.status);
+  const createdAt = order.createdAt instanceof Date ? order.createdAt : new Date(order.createdAt || Date.now());
+  const confirmedAt = order.confirmedAt || order.adminConfirmedAt;
+  const memberConfirmedAt = order.memberConfirmedAt;
+  const snapshot = order.memberSnapshot || {};
+  const memberInfo = member && member.member ? member.member : member || snapshot;
+  const items = Array.isArray(order.items)
+    ? order.items.map((item) => {
+        const quantity = Math.max(1, Math.floor(Number(item.quantity || item.count || 0) || 0));
+        const price = Math.max(0, Math.round(Number(item.price || 0)));
+        const totalPrice = Math.max(0, Math.round(Number(item.totalPrice || price * quantity)));
+        return {
+          itemId: item.itemId || item.id || '',
+          name: item.name || '',
+          quantity,
+          unit: item.unit || '',
+          price,
+          totalPrice,
+          categoryId: item.categoryId || '',
+          categoryName: item.categoryName || ''
+        };
+      })
+    : [];
+  return {
+    _id: order._id || order.id || '',
+    memberId: order.memberId || '',
+    memberName: memberInfo ? memberInfo.nickName || memberInfo.name || '' : '',
+    memberMobile: memberInfo ? memberInfo.mobile || '' : '',
+    status,
+    statusLabel: resolveMealOrderStatusLabel(status),
+    totalAmount: Math.max(0, Math.round(Number(order.totalAmount || 0))),
+    totalQuantity: Math.max(0, Math.floor(Number(order.totalQuantity || items.reduce((sum, item) => sum + item.quantity, 0)) || 0)),
+    memberNotes: order.memberNotes || '',
+    adminNotes: order.adminNotes || '',
+    menuVersion: order.menuVersion || '',
+    createdAt,
+    createdAtLabel: formatDate(createdAt),
+    confirmedAt,
+    confirmedAtLabel: formatDate(confirmedAt),
+    memberConfirmedAt,
+    memberConfirmedAtLabel: formatDate(memberConfirmedAt),
+    updatedAt: order.updatedAt || null,
+    updatedAtLabel: formatDate(order.updatedAt),
+    items
+  };
+}
+
+function normalizeMealOrderStatusFilter(status) {
+  if (!status || status === 'all') {
+    return '';
+  }
+  const normalized = typeof status === 'string' ? status.trim().toLowerCase() : '';
+  if (!normalized) {
+    return '';
+  }
+  if (normalized === 'active') {
+    return ['pendingAdmin', 'awaitingMember'];
+  }
+  return normalizeMealOrderStatus(normalized);
+}
+
+function normalizeMealOrderStatus(status) {
+  if (typeof status !== 'string') {
+    return 'pendingAdmin';
+  }
+  const trimmed = status.trim().toLowerCase();
+  if (!trimmed) {
+    return 'pendingAdmin';
+  }
+  if (trimmed === 'pending' || trimmed === 'pendingadmin') {
+    return 'pendingAdmin';
+  }
+  if (trimmed === 'awaitingmember' || trimmed === 'awaiting') {
+    return 'awaitingMember';
+  }
+  if (trimmed === 'completed' || trimmed === 'complete' || trimmed === 'done') {
+    return 'completed';
+  }
+  if (trimmed === 'cancelled' || trimmed === 'canceled') {
+    return 'cancelled';
+  }
+  return 'pendingAdmin';
+}
+
+function resolveMealOrderStatusLabel(status) {
+  const map = {
+    pendingAdmin: '待备餐',
+    awaitingMember: '待会员确认',
+    completed: '已完成',
+    cancelled: '已取消'
+  };
+  return map[status] || map.pendingAdmin;
+}
+
+function sanitizeMealNotes(notes) {
+  if (typeof notes !== 'string') {
+    return '';
+  }
+  const trimmed = notes.trim();
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed.slice(0, 120);
+}
+
+function normalizeMealOrderBadges(badges) {
+  const defaults = {
+    memberVersion: 0,
+    memberSeenVersion: 0,
+    awaitingMemberCount: 0
+  };
+  const normalized = { ...defaults };
+  if (badges && typeof badges === 'object') {
+    Object.keys(defaults).forEach((key) => {
+      const value = badges[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        normalized[key] = Math.max(0, Math.floor(value));
+      } else if (typeof value === 'string' && value) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          normalized[key] = Math.max(0, Math.floor(numeric));
+        }
+      }
+    });
+  }
+  if (normalized.memberSeenVersion > normalized.memberVersion) {
+    normalized.memberSeenVersion = normalized.memberVersion;
+  }
+  if (normalized.awaitingMemberCount < 0) {
+    normalized.awaitingMemberCount = 0;
+  }
+  return normalized;
 }
 
 function describeChargeOrderStatus(status) {

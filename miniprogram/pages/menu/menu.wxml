@@ -1,0 +1,108 @@
+<custom-nav title="仙膳点餐" theme="dark"></custom-nav>
+<view class="meal-page" style="padding-top: {{navHeight}}px;">
+  <view class="menu-body">
+    <scroll-view class="category-panel" scroll-y>
+      <view
+        wx:for="{{categories}}"
+        wx:key="id"
+        class="category-item {{activeCategoryId === item.id ? 'category-item--active' : ''}}"
+        data-id="{{item.id}}"
+        bindtap="handleCategoryTap"
+      >
+        <view class="category-name">{{item.name}}</view>
+        <view wx:if="{{item.description}}" class="category-desc">{{item.description}}</view>
+      </view>
+    </scroll-view>
+
+    <scroll-view class="menu-panel" scroll-y>
+      <view wx:if="{{menuLoading}}" class="loading">灵力汇聚中...</view>
+      <view wx:elif="{{!visibleItems.length}}" class="empty">该分类暂无菜品</view>
+      <view wx:else class="dish-list">
+        <view class="dish-card" wx:for="{{visibleItems}}" wx:key="id">
+          <view class="dish-info">
+            <view class="dish-name">{{item.name}}</view>
+            <view wx:if="{{item.description}}" class="dish-desc">{{item.description}}</view>
+            <view class="dish-meta">
+              <text class="dish-price">{{item.priceLabel}}</text>
+              <text wx:if="{{item.unit}}" class="dish-unit">/{{item.unit}}</text>
+              <text wx:if="{{item.spicy}}" class="dish-tag dish-tag--spicy">辣度 {{item.spicy}}</text>
+              <text wx:for="{{item.tags}}" wx:key="*this" class="dish-tag">{{item}}</text>
+            </view>
+          </view>
+          <view class="dish-actions">
+            <view class="quantity-control">
+              <button
+                class="quantity-btn quantity-btn--minus"
+                data-item-id="{{item.id}}"
+                disabled="{{!(cart.items[item.id] && cart.items[item.id].quantity)}}"
+                bindtap="handleDecreaseItem"
+              >-</button>
+              <text class="quantity-value">{{cart.items[item.id] ? cart.items[item.id].quantity : 0}}</text>
+              <button class="quantity-btn quantity-btn--plus" data-item-id="{{item.id}}" bindtap="handleAddItem">+</button>
+            </view>
+          </view>
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <view class="notes-section">
+    <view class="notes-title">口味备注</view>
+    <textarea
+      class="notes-input"
+      placeholder="如有口味偏好或过敏，请告知后厨"
+      maxlength="120"
+      value="{{notes}}"
+      bindinput="handleNotesInput"
+    ></textarea>
+  </view>
+
+  <view class="cart-bar">
+    <view class="cart-summary">
+      <view class="cart-count">已选 {{cart.totalQuantity}} 道菜</view>
+      <view class="cart-total">{{cart.totalAmountLabel}}</view>
+    </view>
+    <button
+      class="cart-submit"
+      type="primary"
+      size="mini"
+      loading="{{submitting}}"
+      disabled="{{submitting || cart.totalQuantity === 0}}"
+      bindtap="handleSubmitOrder"
+    >提交下单</button>
+  </view>
+
+  <view class="orders-section">
+    <view class="section-header">
+      <view class="section-title">近期订单</view>
+      <button class="refresh-btn" size="mini" loading="{{ordersLoading}}" bindtap="handleRefreshOrders">刷新</button>
+    </view>
+    <view wx:if="{{ordersLoading && !orders.length}}" class="loading">订单加载中...</view>
+    <view wx:elif="{{!orders.length}}" class="empty">暂无订单记录</view>
+    <view wx:else>
+      <view class="order-card" wx:for="{{orders}}" wx:key="id">
+        <view class="order-header">
+          <view class="order-status">{{item.statusLabel}}</view>
+          <view class="order-time">{{item.displayTime}}</view>
+        </view>
+        <view class="order-body">
+          <view class="order-amount">{{item.totalAmountLabel}}</view>
+          <view class="order-items">{{item.itemSummary}}</view>
+          <view wx:if="{{item.memberNotes}}" class="order-note">备注：{{item.memberNotes}}</view>
+          <view wx:if="{{item.adminNotes}}" class="order-note order-note--admin">后厨留言：{{item.adminNotes}}</view>
+        </view>
+        <view class="order-actions">
+          <button
+            wx:if="{{item.canConfirm}}"
+            class="order-confirm"
+            type="primary"
+            size="mini"
+            loading="{{confirmProcessing === item.id}}"
+            data-order-id="{{item.id}}"
+            bindtap="handleConfirmOrder"
+          >确认扣费</button>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

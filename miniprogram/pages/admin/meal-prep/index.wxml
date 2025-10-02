@@ -1,0 +1,66 @@
+<custom-nav title="备餐列表" theme="dark"></custom-nav>
+<view class="prep-page" style="padding-top: {{navHeight}}px;">
+  <scroll-view class="prep-scroll" scroll-y>
+    <view class="section">
+      <view class="section-header">
+        <view class="section-title">待备餐</view>
+        <view class="section-meta">{{pendingOrders.length}} 单</view>
+      </view>
+      <view wx:if="{{listLoading && !pendingOrders.length}}" class="loading">加载中...</view>
+      <view wx:elif="{{!pendingOrders.length}}" class="empty">暂无待处理订单</view>
+      <view wx:else>
+        <view class="order-card" wx:for="{{pendingOrders}}" wx:key="id">
+          <view class="order-header">
+            <view class="order-member">
+              <view class="order-member-name">{{item.memberName}}</view>
+              <view wx:if="{{item.memberMobile}}" class="order-member-mobile">{{item.memberMobile}}</view>
+            </view>
+            <view class="order-time">{{item.createdAtLabel}}</view>
+          </view>
+          <view class="order-body">
+            <view class="order-amount">{{item.totalAmountLabel}}</view>
+            <view class="order-items" wx:if="{{item.itemSummary}}">{{item.itemSummary}}</view>
+            <view wx:if="{{item.memberNotes}}" class="order-note">会员备注：{{item.memberNotes}}</view>
+          </view>
+          <view class="order-footer">
+            <button
+              class="order-action"
+              type="primary"
+              size="mini"
+              loading="{{confirmProcessing === item.id}}"
+              data-order-id="{{item.id}}"
+              bindtap="handleConfirmTap"
+            >推送会员确认</button>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="section">
+      <view class="section-header">
+        <view class="section-title">待会员确认</view>
+        <view class="section-meta">{{awaitingOrders.length}} 单</view>
+      </view>
+      <view wx:if="{{listLoading && !awaitingOrders.length}}" class="loading">加载中...</view>
+      <view wx:elif="{{!awaitingOrders.length}}" class="empty">暂无待会员确认订单</view>
+      <view wx:else>
+        <view class="order-card order-card--readonly" wx:for="{{awaitingOrders}}" wx:key="id">
+          <view class="order-header">
+            <view class="order-member">
+              <view class="order-member-name">{{item.memberName}}</view>
+              <view wx:if="{{item.memberMobile}}" class="order-member-mobile">{{item.memberMobile}}</view>
+            </view>
+            <view class="order-time">{{item.createdAtLabel}}</view>
+          </view>
+          <view class="order-body">
+            <view class="order-amount">{{item.totalAmountLabel}}</view>
+            <view class="order-items" wx:if="{{item.itemSummary}}">{{item.itemSummary}}</view>
+            <view wx:if="{{item.memberNotes}}" class="order-note">会员备注：{{item.memberNotes}}</view>
+            <view wx:if="{{item.adminNotes}}" class="order-note order-note--admin">后厨备注：{{item.adminNotes}}</view>
+            <view wx:if="{{item.memberConfirmedAtLabel}}" class="order-note">会员确认时间：{{item.memberConfirmedAtLabel}}</view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+</view>

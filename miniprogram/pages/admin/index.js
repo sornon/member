@@ -24,6 +24,12 @@ const BASE_ACTIONS = [
     label: '预约审核',
     description: '查看并审核包房预约申请',
     url: '/pages/admin/reservations/index'
+  },
+  {
+    icon: '🍱',
+    label: '备餐列表',
+    description: '查看会员点餐并推送确认',
+    url: '/pages/admin/meal-prep/index'
   }
 ];
 

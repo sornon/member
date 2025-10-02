@@ -39,6 +39,7 @@ const BASE_NAV_ITEMS = [
   { icon: '💍', label: '纳戒', url: '/pages/role/index?tab=storage' },
   { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' },
   { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
+  { icon: '🍽️', label: '点餐', url: '/pages/menu/menu' },
   { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
   { icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
@@ -234,6 +235,45 @@ function shouldShowReservationDot(badges) {
 
 function shouldShowAdminDot(badges) {
   return badges.adminVersion > badges.adminSeenVersion;
+}
+
+function normalizeMealOrderBadges(badges) {
+  const defaults = {
+    memberVersion: 0,
+    memberSeenVersion: 0,
+    awaitingMemberCount: 0
+  };
+  const normalized = { ...defaults };
+  if (badges && typeof badges === 'object') {
+    Object.keys(defaults).forEach((key) => {
+      const value = badges[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        normalized[key] = Math.max(0, Math.floor(value));
+      } else if (typeof value === 'string' && value) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          normalized[key] = Math.max(0, Math.floor(numeric));
+        }
+      }
+    });
+  }
+  if (normalized.memberSeenVersion > normalized.memberVersion) {
+    normalized.memberSeenVersion = normalized.memberVersion;
+  }
+  if (normalized.awaitingMemberCount < 0) {
+    normalized.awaitingMemberCount = 0;
+  }
+  return normalized;
+}
+
+function shouldShowMealOrderDot(badges) {
+  if (!badges) {
+    return false;
+  }
+  if (badges.awaitingMemberCount > 0) {
+    return true;
+  }
+  return badges.memberVersion > badges.memberSeenVersion;
 }
 
 function extractDocIdFromChange(change) {
@@ -519,9 +559,13 @@ function deriveMemberStats(member) {
 function resolveNavItems(member) {
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
   const badges = normalizeReservationBadges(member && member.reservationBadges);
+  const mealBadges = normalizeMealOrderBadges(member && member.mealOrderBadges);
   const navItems = BASE_NAV_ITEMS.map((item) => {
     if (item.label === '预订') {
       return { ...item, showDot: shouldShowReservationDot(badges) };
+    }
+    if (item.label === '点餐') {
+      return { ...item, showDot: shouldShowMealOrderDot(mealBadges) };
     }
     return { ...item };
   });

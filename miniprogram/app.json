@@ -4,6 +4,7 @@
     "pages/membership/membership",
     "pages/rights/rights",
     "pages/tasks/tasks",
+    "pages/menu/menu",
     "pages/reservation/reservation",
     "pages/stones/stones",
     "pages/pve/pve",
@@ -16,6 +17,7 @@
     "pages/admin/member-detail/index",
     "pages/admin/charge/index",
     "pages/admin/orders/index",
+    "pages/admin/meal-prep/index",
     "pages/wallet/charge-confirm/index"
   ],
   "window": {

@@ -4,6 +4,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { listAvatarIds } = require('./avatar-catalog.js');
 const { normalizeAvatarFrameValue } = require('./avatar-frames.js');
+const { MENU_VERSION, listMenuCatalog, getMenuItem, normalizeSelection } = require('./menu-catalog.js');
 const {
   normalizeBackgroundId,
   getDefaultBackgroundId,
@@ -22,8 +23,12 @@ const COLLECTIONS = {
   RIGHTS_MASTER: 'membershipRights',
   MEMBER_RIGHTS: 'memberRights',
   MEMBER_EXTRAS: 'memberExtras',
-  MEMBER_TIMELINE: 'memberTimeline'
+  MEMBER_TIMELINE: 'memberTimeline',
+  MEAL_ORDERS: 'mealOrders',
+  WALLET_TRANSACTIONS: 'walletTransactions'
 };
+
+const EXPERIENCE_PER_YUAN = 100;
 
 const GENDER_OPTIONS = ['unknown', 'male', 'female'];
 const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
@@ -226,6 +231,18 @@ exports.main = async (event, context) => {
       return updateArchive(OPENID, event.updates || {});
     case 'redeemRenameCard':
       return redeemRenameCard(OPENID, event.count || 1);
+    case 'listMealMenu':
+      return listMealMenu(OPENID);
+    case 'createMealOrder':
+      return createMealOrder(OPENID, event.items || [], event.notes || '');
+    case 'listMealOrders':
+      return listMealOrders(OPENID, {
+        page: event.page || 1,
+        pageSize: event.pageSize || 20,
+        markSeen: !!event.markSeen
+      });
+    case 'confirmMealOrder':
+      return confirmMealOrder(OPENID, event.orderId);
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -270,6 +287,11 @@ async function initMember(openid, profile) {
       adminVersion: 0,
       adminSeenVersion: 0,
       pendingApprovalCount: 0
+    },
+    mealOrderBadges: {
+      memberVersion: 0,
+      memberSeenVersion: 0,
+      awaitingMemberCount: 0
     }
   };
   await membersCollection.add({ data: doc });
@@ -794,6 +816,14 @@ async function ensureArchiveDefaults(member) {
   }
   member.reservationBadges = badges;
 
+  const mealBadges = normalizeMealOrderBadges(member.mealOrderBadges);
+  const originalMealBadges = member.mealOrderBadges || {};
+  const mealBadgeChanged = Object.keys(mealBadges).some((key) => !Object.is(mealBadges[key], originalMealBadges[key]));
+  if (mealBadgeChanged) {
+    updates.mealOrderBadges = mealBadges;
+  }
+  member.mealOrderBadges = mealBadges;
+
   const extras = await resolveMemberExtras(memberId);
 
   const hadAvatarUnlocksField = Object.prototype.hasOwnProperty.call(member, 'avatarUnlocks');
@@ -975,6 +1005,477 @@ async function redeemRenameCard(openid, count = 1) {
   return getProfile(openid);
 }
 
+async function listMealMenu(openid) {
+  if (!openid) {
+    throw createError('UNAUTHORIZED', '请先登录');
+  }
+  const membersCollection = db.collection(COLLECTIONS.MEMBERS);
+  const existing = await membersCollection.doc(openid).get().catch(() => null);
+  if (!existing || !existing.data) {
+    await initMember(openid, {});
+  }
+  const categories = listMenuCatalog().map((category) => ({
+    id: category.id,
+    name: category.name,
+    description: category.description || '',
+    order: category.order || 0,
+    items: (Array.isArray(category.items) ? category.items : []).map((item) => ({
+      id: item.id,
+      categoryId: item.categoryId,
+      name: item.name,
+      description: item.description || '',
+      price: Math.max(0, Math.round(Number(item.price || 0))),
+      unit: item.unit || '',
+      spicy: Number.isFinite(item.spicy) ? Math.max(0, Math.floor(item.spicy)) : 0,
+      tags: Array.isArray(item.tags) ? item.tags : []
+    }))
+  }));
+  return {
+    version: MENU_VERSION,
+    categories
+  };
+}
+
+async function createMealOrder(openid, rawItems = [], notes = '') {
+  if (!openid) {
+    throw createError('UNAUTHORIZED', '请先登录');
+  }
+  const selection = normalizeSelection(rawItems);
+  if (!selection.length) {
+    throw createError('MEAL_ORDER_EMPTY', '请先选择菜品');
+  }
+  const membersCollection = db.collection(COLLECTIONS.MEMBERS);
+  const memberDoc = await membersCollection.doc(openid).get().catch(() => null);
+  if (!memberDoc || !memberDoc.data) {
+    await initMember(openid, {});
+    return createMealOrder(openid, rawItems, notes);
+  }
+  const member = normalizeAssetFields(memberDoc.data);
+  const categoryMap = listMenuCatalog().reduce((acc, category) => {
+    acc[category.id] = category;
+    return acc;
+  }, {});
+  const items = selection.map(({ itemId, quantity }) => {
+    const menuItem = getMenuItem(itemId);
+    if (!menuItem) {
+      throw createError('MEAL_ITEM_NOT_FOUND', '存在已下架菜品');
+    }
+    return buildMealOrderItem(menuItem, quantity, categoryMap);
+  });
+  const normalizedItems = items.filter((item) => item.quantity > 0 && item.price >= 0);
+  if (!normalizedItems.length) {
+    throw createError('MEAL_ORDER_INVALID', '请选择有效的菜品');
+  }
+  const totalAmount = normalizedItems.reduce((sum, item) => sum + item.totalPrice, 0);
+  if (!totalAmount || totalAmount <= 0) {
+    throw createError('MEAL_ORDER_INVALID_AMOUNT', '订单金额无效');
+  }
+  const sanitizedNotes = sanitizeMealNotes(notes);
+  const now = new Date();
+  const history = [
+    {
+      action: 'created',
+      actorId: openid,
+      remark: sanitizedNotes,
+      at: now
+    }
+  ];
+  const memberBadges = normalizeMealOrderBadges(member.mealOrderBadges);
+  const orderData = {
+    memberId: openid,
+    status: 'pendingAdmin',
+    items: normalizedItems,
+    totalAmount: Math.round(totalAmount),
+    totalQuantity: normalizedItems.reduce((sum, item) => sum + item.quantity, 0),
+    memberNotes: sanitizedNotes,
+    adminNotes: '',
+    menuVersion: MENU_VERSION,
+    memberSnapshot: {
+      nickName: member.nickName || '',
+      mobile: member.mobile || '',
+      gender: normalizeGender(member.gender)
+    },
+    createdAt: now,
+    updatedAt: now,
+    history
+  };
+  const result = await db.collection(COLLECTIONS.MEAL_ORDERS).add({
+    data: orderData
+  });
+  return {
+    order: mapMealOrderForMember({ _id: result._id, ...orderData }),
+    badges: memberBadges
+  };
+}
+
+async function listMealOrders(openid, { page = 1, pageSize = 20, markSeen = false } = {}) {
+  if (!openid) {
+    throw createError('UNAUTHORIZED', '请先登录');
+  }
+  const membersCollection = db.collection(COLLECTIONS.MEMBERS);
+  const memberDoc = await membersCollection.doc(openid).get().catch(() => null);
+  if (!memberDoc || !memberDoc.data) {
+    await initMember(openid, {});
+    return listMealOrders(openid, { page, pageSize, markSeen });
+  }
+  const member = normalizeAssetFields(memberDoc.data);
+  const badges = normalizeMealOrderBadges(member.mealOrderBadges);
+  const limit = Math.min(Math.max(pageSize, 1), 50);
+  const skip = Math.max(page - 1, 0) * limit;
+  const snapshot = await db
+    .collection(COLLECTIONS.MEAL_ORDERS)
+    .where({ memberId: openid })
+    .orderBy('createdAt', 'desc')
+    .skip(skip)
+    .limit(limit)
+    .get()
+    .catch(() => ({ data: [] }));
+  const orders = (snapshot.data || [])
+    .map((order) => mapMealOrderForMember({ _id: order._id, ...order }))
+    .filter(Boolean);
+  let updatedBadges = badges;
+  if (markSeen && (badges.memberSeenVersion < badges.memberVersion || badges.awaitingMemberCount > 0)) {
+    updatedBadges = {
+      ...badges,
+      memberSeenVersion: badges.memberVersion,
+      awaitingMemberCount: Math.max(0, badges.awaitingMemberCount)
+    };
+    await membersCollection.doc(openid).update({
+      data: {
+        mealOrderBadges: updatedBadges,
+        updatedAt: new Date()
+      }
+    });
+  }
+  return {
+    orders,
+    page,
+    pageSize: limit,
+    total: orders.length,
+    badges: updatedBadges
+  };
+}
+
+async function confirmMealOrder(openid, orderId) {
+  if (!openid) {
+    throw createError('UNAUTHORIZED', '请先登录');
+  }
+  if (!orderId || typeof orderId !== 'string') {
+    throw createError('MEAL_ORDER_REQUIRED', '缺少订单编号');
+  }
+  const normalizedOrderId = orderId.trim();
+  if (!normalizedOrderId) {
+    throw createError('MEAL_ORDER_REQUIRED', '缺少订单编号');
+  }
+  let updatedOrder = null;
+  let updatedBadges = null;
+  let experienceGain = 0;
+  const now = new Date();
+  await db.runTransaction(async (transaction) => {
+    const orderRef = transaction.collection(COLLECTIONS.MEAL_ORDERS).doc(normalizedOrderId);
+    const orderDoc = await orderRef.get().catch(() => null);
+    if (!orderDoc || !orderDoc.data) {
+      throw createError('MEAL_ORDER_NOT_FOUND', '订单不存在');
+    }
+    const order = orderDoc.data;
+    if (order.memberId !== openid) {
+      throw createError('MEAL_ORDER_FORBIDDEN', '无权处理该订单');
+    }
+    const status = normalizeMealOrderStatus(order.status);
+    if (status === 'completed') {
+      updatedOrder = order;
+      return;
+    }
+    if (status !== 'awaitingMember') {
+      throw createError('MEAL_ORDER_NOT_READY', '订单尚未准备完成');
+    }
+    const totalAmount = Math.max(0, Math.round(Number(order.totalAmount || 0)));
+    if (!totalAmount) {
+      throw createError('MEAL_ORDER_INVALID_AMOUNT', '订单金额无效');
+    }
+    const memberRef = transaction.collection(COLLECTIONS.MEMBERS).doc(openid);
+    const memberDoc = await memberRef.get().catch(() => null);
+    if (!memberDoc || !memberDoc.data) {
+      throw createError('MEMBER_NOT_FOUND', '会员不存在');
+    }
+    const member = normalizeAssetFields(memberDoc.data);
+    const currentBalance = Math.max(0, Math.round(Number(member.cashBalance || 0)));
+    if (currentBalance < totalAmount) {
+      throw createError('MEAL_ORDER_BALANCE_INSUFFICIENT', '余额不足，请先充值');
+    }
+    experienceGain = calculateExperienceGain(totalAmount);
+    const badges = normalizeMealOrderBadges(member.mealOrderBadges);
+    badges.awaitingMemberCount = Math.max(0, badges.awaitingMemberCount - 1);
+    badges.memberSeenVersion = Math.max(badges.memberVersion, badges.memberSeenVersion);
+    const history = Array.isArray(order.history) ? order.history.slice(-20) : [];
+    history.push({
+      action: 'memberConfirmed',
+      actorId: openid,
+      remark: '',
+      at: now
+    });
+    await memberRef.update({
+      data: {
+        cashBalance: _.inc(-totalAmount),
+        totalSpend: _.inc(totalAmount),
+        updatedAt: now,
+        mealOrderBadges: badges,
+        ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
+      }
+    });
+    await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
+      data: {
+        memberId: openid,
+        amount: -totalAmount,
+        type: 'spend',
+        status: 'success',
+        source: 'mealOrder',
+        orderId: normalizedOrderId,
+        remark: '餐饮扣款',
+        createdAt: now,
+        updatedAt: now
+      }
+    });
+    await orderRef.update({
+      data: {
+        status: 'completed',
+        memberConfirmedAt: now,
+        paidAt: now,
+        completedAt: now,
+        updatedAt: now,
+        history
+      }
+    });
+    updatedOrder = {
+      ...order,
+      status: 'completed',
+      memberConfirmedAt: now,
+      paidAt: now,
+      completedAt: now,
+      updatedAt: now,
+      history
+    };
+    updatedBadges = badges;
+  });
+
+  if (!updatedOrder) {
+    const doc = await db
+      .collection(COLLECTIONS.MEAL_ORDERS)
+      .doc(normalizedOrderId)
+      .get()
+      .catch(() => null);
+    if (doc && doc.data) {
+      updatedOrder = { _id: doc.data._id || normalizedOrderId, ...doc.data };
+    }
+  }
+
+  if (experienceGain > 0) {
+    await syncMemberLevelAfterMeal(openid);
+  }
+
+  return {
+    order: mapMealOrderForMember({ _id: normalizedOrderId, ...(updatedOrder || {}) }),
+    badges: updatedBadges ? normalizeMealOrderBadges(updatedBadges) : undefined,
+    experienceGain
+  };
+}
+
+function buildMealOrderItem(menuItem, quantity, categoryMap = {}) {
+  const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 0));
+  const unitPrice = Math.max(0, Math.round(Number(menuItem.price || 0)));
+  const totalPrice = unitPrice * safeQuantity;
+  const category = categoryMap[menuItem.categoryId] || null;
+  return {
+    itemId: menuItem.id,
+    name: menuItem.name || '',
+    quantity: safeQuantity,
+    unit: menuItem.unit || '',
+    price: unitPrice,
+    totalPrice,
+    categoryId: menuItem.categoryId || '',
+    categoryName: category && category.name ? category.name : '',
+    tags: Array.isArray(menuItem.tags) ? menuItem.tags : [],
+    spicy: Number.isFinite(menuItem.spicy) ? Math.max(0, Math.floor(menuItem.spicy)) : 0
+  };
+}
+
+function sanitizeMealNotes(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed.slice(0, 120);
+}
+
+function normalizeMealOrderStatus(status) {
+  if (typeof status !== 'string') {
+    return 'pendingAdmin';
+  }
+  const trimmed = status.trim();
+  if (!trimmed) {
+    return 'pendingAdmin';
+  }
+  const normalized = trimmed.replace(/[\s_-]+/g, '').toLowerCase();
+  if (normalized === 'pending' || normalized === 'pendingadmin') {
+    return 'pendingAdmin';
+  }
+  if (normalized === 'awaitingmember' || normalized === 'awaiting') {
+    return 'awaitingMember';
+  }
+  if (normalized === 'completed' || normalized === 'complete' || normalized === 'done') {
+    return 'completed';
+  }
+  if (normalized === 'cancelled' || normalized === 'canceled') {
+    return 'cancelled';
+  }
+  return 'pendingAdmin';
+}
+
+function resolveMealOrderStatusLabel(status) {
+  const labels = {
+    pendingAdmin: '待备餐',
+    awaitingMember: '待确认扣费',
+    completed: '已完成',
+    cancelled: '已取消'
+  };
+  return labels[status] || labels.pendingAdmin;
+}
+
+function mapMealOrderForMember(order) {
+  if (!order) {
+    return null;
+  }
+  const status = normalizeMealOrderStatus(order.status);
+  const createdAt = resolveDateValue(order.createdAt) || new Date();
+  const updatedAt = resolveDateValue(order.updatedAt);
+  const confirmedAt = resolveDateValue(order.memberConfirmedAt || order.confirmedAt);
+  const items = Array.isArray(order.items)
+    ? order.items.map((item) => {
+        const quantity = Math.max(1, Math.floor(Number(item.quantity || item.count || 0) || 0));
+        const price = Math.max(0, Math.round(Number(item.price || 0)));
+        const totalPrice = Math.max(0, Math.round(Number(item.totalPrice || price * quantity)));
+        return {
+          itemId: item.itemId || item.id || '',
+          name: item.name || '',
+          quantity,
+          unit: item.unit || '',
+          price,
+          totalPrice,
+          categoryId: item.categoryId || '',
+          categoryName: item.categoryName || '',
+          tags: Array.isArray(item.tags) ? item.tags : [],
+          spicy: Number.isFinite(item.spicy) ? Math.max(0, Math.floor(item.spicy)) : 0
+        };
+      })
+    : [];
+  const totalAmount = Math.max(0, Math.round(Number(order.totalAmount || 0)));
+  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+  return {
+    _id: order._id || order.id || '',
+    orderId: order._id || order.id || '',
+    status,
+    statusLabel: resolveMealOrderStatusLabel(status),
+    totalAmount,
+    totalQuantity,
+    memberNotes: order.memberNotes || '',
+    adminNotes: order.adminNotes || '',
+    menuVersion: order.menuVersion || '',
+    createdAt: createdAt.toISOString(),
+    createdAtTs: createdAt.getTime(),
+    displayTime: formatDateTime(createdAt),
+    updatedAt: updatedAt ? updatedAt.toISOString() : '',
+    confirmedAt: confirmedAt ? confirmedAt.toISOString() : '',
+    items,
+    canConfirm: status === 'awaitingMember'
+  };
+}
+
+function normalizeMealOrderBadges(badges) {
+  const defaults = {
+    memberVersion: 0,
+    memberSeenVersion: 0,
+    awaitingMemberCount: 0
+  };
+  const normalized = { ...defaults };
+  if (badges && typeof badges === 'object') {
+    Object.keys(defaults).forEach((key) => {
+      const value = badges[key];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        normalized[key] = Math.max(0, Math.floor(value));
+      } else if (typeof value === 'string' && value) {
+        const numeric = Number(value);
+        if (Number.isFinite(numeric)) {
+          normalized[key] = Math.max(0, Math.floor(numeric));
+        }
+      }
+    });
+  }
+  if (normalized.memberSeenVersion > normalized.memberVersion) {
+    normalized.memberSeenVersion = normalized.memberVersion;
+  }
+  if (normalized.awaitingMemberCount < 0) {
+    normalized.awaitingMemberCount = 0;
+  }
+  return normalized;
+}
+
+async function syncMemberLevelAfterMeal(openid) {
+  const [levels, memberDoc] = await Promise.all([
+    loadLevels(),
+    db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(openid)
+      .get()
+      .catch(() => null)
+  ]);
+  if (!memberDoc || !memberDoc.data || !levels.length) {
+    return;
+  }
+  const normalized = normalizeAssetFields(memberDoc.data);
+  const { member: withDefaults } = await ensureArchiveDefaults(normalized);
+  await ensureLevelSync(withDefaults, levels);
+}
+
+function calculateExperienceGain(amountFen) {
+  const numeric = Number(amountFen);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return 0;
+  }
+  const amountYuan = numeric / 100;
+  return Math.max(0, Math.round(amountYuan * EXPERIENCE_PER_YUAN));
+}
+
+function resolveDateValue(value) {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function padNumber(value) {
+  return `${value}`.padStart(2, '0');
+}
+
+function formatDateTime(date) {
+  const safe = date instanceof Date ? date : resolveDateValue(date);
+  if (!safe) {
+    return '';
+  }
+  const year = safe.getFullYear();
+  const month = padNumber(safe.getMonth() + 1);
+  const day = padNumber(safe.getDate());
+  const hour = padNumber(safe.getHours());
+  const minute = padNumber(safe.getMinutes());
+  return `${year}-${month}-${day} ${hour}:${minute}`;
+}
+
 async function claimLevelReward(openid, levelId) {
   if (typeof levelId !== 'string' || !levelId.trim()) {
     throw createError('INVALID_LEVEL', '无效的等级');
@@ -1054,12 +1555,14 @@ function decorateMember(member, levels) {
       .catch(() => {});
   }
   const reservationBadges = normalizeReservationBadges(member.reservationBadges);
+  const mealOrderBadges = normalizeMealOrderBadges(member.mealOrderBadges);
   const claimedLevelRewards = normalizeClaimedLevelRewards(member.claimedLevelRewards, levels);
   return {
     ...member,
     roles,
     level,
     reservationBadges,
+    mealOrderBadges,
     claimedLevelRewards
   };
 }

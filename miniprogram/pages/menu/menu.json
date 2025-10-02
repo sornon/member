@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "仙膳点餐",
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "custom-nav": "/components/custom-nav/custom-nav"
+  }
+}
