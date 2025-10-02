@@ -23,8 +23,8 @@
       <view class="menu-variants">
         <view class="variant-row" wx:for="{{menu.variants}}" wx:key="label" wx:for-item="variant" wx:for-index="variantIndex">
           <view class="variant-info">
-            <text class="variant-label">{{variant.label}}{{variant.unit}}</text>
-            <text class="variant-price">{{formatCurrency(variant.price)}}</text>
+            <text class="variant-label">{{variant.label}}</text>
+            <text class="variant-price">{{formatCurrency(variant.price)}}{{variant.unit}}</text>
           </view>
           <button
             class="variant-add"
