@@ -2860,48 +2860,79 @@ async function equipSkill(actorId, event) {
   const member = await ensureMember(actorId);
   const profile = await ensurePveProfile(actorId, member);
   const inventory = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
-  const equipped = Array.isArray(profile.skills.equipped) ? [...profile.skills.equipped] : [];
+  const rawEquipped = Array.isArray(profile.skills.equipped) ? profile.skills.equipped : [];
+  const normalizedSkillId = typeof skillId === 'string' ? skillId.trim() : '';
+  const equipped = new Array(MAX_SKILL_SLOTS).fill('');
+  const seen = new Set();
 
-  for (let i = 0; i < equipped.length; i += 1) {
-    const id = equipped[i];
-    if (!(typeof id === 'string' && id && SKILL_MAP[id])) {
-      equipped[i] = '';
+  for (let i = 0; i < MAX_SKILL_SLOTS; i += 1) {
+    const id = rawEquipped[i];
+    if (typeof id === 'string' && id && SKILL_MAP[id] && !seen.has(id)) {
+      equipped[i] = id;
+      seen.add(id);
     }
   }
 
-  if (skillId) {
-    const hasSkill = inventory.some((entry) => entry.skillId === skillId);
+  for (let i = MAX_SKILL_SLOTS; i < rawEquipped.length; i += 1) {
+    const id = rawEquipped[i];
+    if (typeof id !== 'string' || !id || !SKILL_MAP[id] || seen.has(id)) {
+      continue;
+    }
+    const emptyIndex = equipped.findIndex((slotId) => !slotId);
+    if (emptyIndex >= 0) {
+      equipped[emptyIndex] = id;
+      seen.add(id);
+    }
+  }
+
+  if (normalizedSkillId) {
+    const hasSkill = inventory.some((entry) => entry.skillId === normalizedSkillId);
     if (!hasSkill) {
       throw createError('SKILL_NOT_OWNED', '尚未拥有该技能，无法装备');
     }
   }
 
-  if (typeof slot === 'number' && slot >= 0 && slot < MAX_SKILL_SLOTS) {
-    if (skillId) {
-      equipped[slot] = skillId;
+  let resolvedSlot = typeof slot === 'number' && slot >= 0 && slot < MAX_SKILL_SLOTS ? slot : null;
+
+  if (resolvedSlot !== null) {
+    if (normalizedSkillId) {
+      for (let i = 0; i < MAX_SKILL_SLOTS; i += 1) {
+        if (i !== resolvedSlot && equipped[i] === normalizedSkillId) {
+          equipped[i] = '';
+        }
+      }
+      equipped[resolvedSlot] = normalizedSkillId;
     } else {
-      equipped[slot] = '';
+      equipped[resolvedSlot] = '';
     }
-  } else if (skillId) {
-    if (!equipped.includes(skillId)) {
+  } else if (normalizedSkillId) {
+    const alreadyEquipped = equipped.includes(normalizedSkillId);
+    if (!alreadyEquipped) {
       const emptySlotIndex = equipped.findIndex((id) => !id);
       if (emptySlotIndex >= 0) {
-        equipped[emptySlotIndex] = skillId;
+        equipped[emptySlotIndex] = normalizedSkillId;
+        resolvedSlot = emptySlotIndex;
       } else {
         const equippedCount = equipped.filter((id) => typeof id === 'string' && id && SKILL_MAP[id]).length;
         if (equippedCount >= MAX_SKILL_SLOTS) {
           throw createError('SKILL_SLOT_FULL', `最多装备 ${MAX_SKILL_SLOTS} 个技能`);
         }
-        equipped.push(skillId);
+        throw createError('SKILL_SLOT_INVALID', '技能槽位数据异常，请重试');
       }
+    } else {
+      resolvedSlot = equipped.indexOf(normalizedSkillId);
     }
   }
 
-  const normalizedEquipped = equipped
-    .filter((id, index) => typeof id === 'string' && id && equipped.indexOf(id) === index && SKILL_MAP[id])
-    .slice(0, MAX_SKILL_SLOTS);
-  while (normalizedEquipped.length < MAX_SKILL_SLOTS) {
-    normalizedEquipped.push('');
+  const normalizedEquipped = equipped.map((id) => (typeof id === 'string' && id && SKILL_MAP[id] ? id : ''));
+  for (let i = 0; i < MAX_SKILL_SLOTS; i += 1) {
+    const id = normalizedEquipped[i];
+    if (!id) {
+      continue;
+    }
+    if (normalizedEquipped.indexOf(id) !== i) {
+      normalizedEquipped[i] = '';
+    }
   }
 
   profile.skills.equipped = normalizedEquipped;
@@ -2911,7 +2942,7 @@ async function equipSkill(actorId, event) {
     {
       type: 'equip',
       createdAt: now,
-      detail: { skillId, slot: typeof slot === 'number' ? slot : null }
+      detail: { skillId: normalizedSkillId, slot: resolvedSlot }
     },
     MAX_SKILL_HISTORY
   );
