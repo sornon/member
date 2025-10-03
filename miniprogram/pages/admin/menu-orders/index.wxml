@@ -54,23 +54,28 @@
     </view>
     <view class="order-meta" wx:if="{{order.adminConfirmedAtLabel}}">管理员确认：{{order.adminConfirmedAtLabel}}</view>
     <view class="order-meta" wx:if="{{order.memberConfirmedAtLabel}}">会员确认：{{order.memberConfirmedAtLabel}}</view>
-    <button
-      wx:if="{{order.status === 'submitted'}}"
-      class="action-btn"
-      type="primary"
-      loading="{{processingId === order._id && processingAction === 'ready'}}"
-      disabled="{{!!processingId && processingId !== order._id}}"
-      data-id="{{order._id}}"
-      bindtap="handleMarkReady"
-    >推送给会员</button>
-    <button
-      wx:if="{{order.canCancel}}"
-      class="action-btn action-btn--cancel"
-      type="default"
-      loading="{{processingId === order._id && processingAction === 'cancel'}}"
-      disabled="{{!!processingId && processingId !== order._id}}"
-      data-id="{{order._id}}"
-      bindtap="handleCancelOrder"
-    >取消订单</button>
+    <view
+      class="action-buttons"
+      wx:if="{{order.status === 'submitted' || order.canCancel}}"
+    >
+      <button
+        wx:if="{{order.status === 'submitted'}}"
+        class="action-btn"
+        type="primary"
+        loading="{{processingId === order._id && processingAction === 'ready'}}"
+        disabled="{{!!processingId && processingId !== order._id}}"
+        data-id="{{order._id}}"
+        bindtap="handleMarkReady"
+      >推送给会员</button>
+      <button
+        wx:if="{{order.canCancel}}"
+        class="action-btn action-btn--cancel"
+        type="default"
+        loading="{{processingId === order._id && processingAction === 'cancel'}}"
+        disabled="{{!!processingId && processingId !== order._id}}"
+        data-id="{{order._id}}"
+        bindtap="handleCancelOrder"
+      >取消订单</button>
+    </view>
   </view>
 </view>

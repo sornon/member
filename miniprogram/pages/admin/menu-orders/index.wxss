@@ -130,8 +130,14 @@
   text-decoration: line-through;
 }
 
+.action-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
 .action-btn {
-  margin-top: 8px;
+  flex: 1;
 }
 
 .action-btn--cancel {
