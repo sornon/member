@@ -122,8 +122,8 @@ page {
 
 .mall-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 20rpx;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28rpx;
 }
 
 .mall-slot {
@@ -157,7 +157,7 @@ page {
 
 .mall-slot__frame {
   position: absolute;
-  inset: 12rpx;
+  inset: 8rpx;
   border-radius: 18rpx;
   border: 4rpx solid rgba(118, 146, 250, 0.58);
   background: rgba(10, 18, 48, 0.9);
