@@ -822,6 +822,20 @@ export const menuData = {
         }
       ],
       "img": ""
+    },
+    {
+      "id": "bbq-monry",
+      "cat": "bbq",
+      "title": "烤串钱",
+      "desc": "海捕大虾腌制后炭烤，蒜香浓郁。",
+      "variants": [
+        {
+          "label": "串",
+          "unit": "/串",
+          "price": 100
+        }
+      ],
+      "img": ""
     }
   ],
   "generatedAt": "2025-10-02T16:06:51.230Z"
