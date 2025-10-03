@@ -44,6 +44,9 @@ const BASE_NAV_ITEMS = [
     //{ icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
 
+const MORE_NAV_ITEM = { icon: '⋯', label: '更多', more: true };
+const NAV_EXPANSION_STORAGE_KEY = 'home-nav-expanded';
+
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
 
 const AVATAR_FRAME_OPTIONS = buildAvatarFrameOptionList();
@@ -517,7 +520,33 @@ function deriveMemberStats(member) {
   };
 }
 
-function resolveNavItems(member) {
+function readNavExpansionPreference() {
+  try {
+    const stored = wx.getStorageSync(NAV_EXPANSION_STORAGE_KEY);
+    if (typeof stored === 'boolean') {
+      return stored;
+    }
+    if (typeof stored === 'string') {
+      return stored === 'true';
+    }
+    if (typeof stored === 'number') {
+      return stored === 1;
+    }
+  } catch (error) {
+    console.warn('Failed to read nav expansion state', error);
+  }
+  return false;
+}
+
+function persistNavExpansionPreference(expanded) {
+  try {
+    wx.setStorageSync(NAV_EXPANSION_STORAGE_KEY, !!expanded);
+  } catch (error) {
+    console.warn('Failed to persist nav expansion state', error);
+  }
+}
+
+function resolveNavItems(member, navExpanded = true) {
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
   const badges = normalizeReservationBadges(member && member.reservationBadges);
   const navItems = BASE_NAV_ITEMS.map((item) => {
@@ -534,7 +563,14 @@ function resolveNavItems(member) {
       showDot: shouldShowAdminDot(badges)
     });
   }
-  return navItems;
+  if (navExpanded) {
+    return navItems;
+  }
+  const collapsedItems = navItems.slice(0, 3);
+  if (navItems.length > collapsedItems.length) {
+    collapsedItems.push({ ...MORE_NAV_ITEM });
+  }
+  return collapsedItems;
 }
 
 Page({
@@ -551,6 +587,7 @@ Page({
     dynamicBackgroundEnabled: false,
     navHeight: 88,
     today: '',
+    navExpanded: false,
     showProfile: false,
     showOnboarding: false,
     onboardingSubmitting: false,
@@ -572,7 +609,7 @@ Page({
       { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
       { icon: '🔥', label: '比武' }
     ],
-    navItems: [...BASE_NAV_ITEMS],
+    navItems: resolveNavItems(null, false),
     memberStats: { ...EMPTY_MEMBER_STATS },
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
@@ -608,6 +645,7 @@ Page({
     this.hasBootstrapped = false;
     this.ensureNavMetrics();
     this.updateToday();
+    this.restoreNavExpansionState();
   },
 
   onShow() {
@@ -618,6 +656,16 @@ Page({
   },
 
   onReady() {},
+
+  restoreNavExpansionState() {
+    const expanded = readNavExpansionPreference();
+    if (expanded !== this.data.navExpanded) {
+      this.setData({
+        navExpanded: expanded,
+        navItems: resolveNavItems(this.data.member, expanded)
+      });
+    }
+  },
 
   onHide() {
     this.detachMemberRealtime();
@@ -745,7 +793,7 @@ Page({
         tasks: tasks.slice(0, 3),
         loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),
-        navItems: resolveNavItems(sanitizedMember),
+        navItems: resolveNavItems(sanitizedMember, this.data.navExpanded),
         memberStats: deriveMemberStats(sanitizedMember),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
@@ -1171,7 +1219,7 @@ Page({
     this.setData({
       member: sanitizedMember,
       memberStats: deriveMemberStats(sanitizedMember),
-      navItems: resolveNavItems(sanitizedMember),
+      navItems: resolveNavItems(sanitizedMember, this.data.navExpanded),
       heroImage: resolveCharacterImage(sanitizedMember),
       'profileEditor.nickName': sanitizedMember.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
@@ -1348,8 +1396,25 @@ Page({
     });
   },
 
+  expandBottomNav() {
+    if (this.data.navExpanded) {
+      return;
+    }
+    this.setData({
+      navExpanded: true,
+      navItems: resolveNavItems(this.data.member, true)
+    });
+    persistNavExpansionPreference(true);
+  },
+
   handleNavTap(event) {
-    const { url } = event.currentTarget.dataset;
-    wx.navigateTo({ url });
+    const { url, more } = event.currentTarget.dataset;
+    if (more) {
+      this.expandBottomNav();
+      return;
+    }
+    if (url) {
+      wx.navigateTo({ url });
+    }
   }
 });
