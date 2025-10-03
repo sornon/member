@@ -575,6 +575,7 @@ Page({
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
     activityIcons: [
+      { icon: '🏪', label: '商城', url: '/pages/mall/index' },
       { icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
       { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
       { icon: '🔥', label: '比武' }

@@ -118,6 +118,12 @@ page {
   align-items: flex-start;
 }
 
+.top-bar__actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 24rpx;
+}
+
 .profile-card {
   display: flex;
   align-items: center;
