@@ -58,10 +58,12 @@
         </view>
       </view>
 
-      <view class="activity-panel">
-        <view class="activity-item" wx:for="{{activityIcons}}" wx:key="label" data-url="{{item.url}}" data-label="{{item.label}}" bindtap="handleActivityTap">
-          <view class="activity-icon">{{item.icon}}</view>
-          <view class="activity-label">{{item.label}}</view>
+      <view class="top-bar__actions">
+        <view class="activity-panel">
+          <view class="activity-item" wx:for="{{activityIcons}}" wx:key="label" data-url="{{item.url}}" data-label="{{item.label}}" bindtap="handleActivityTap">
+            <view class="activity-icon">{{item.icon}}</view>
+            <view class="activity-label">{{item.label}}</view>
+          </view>
         </view>
       </view>
     </view>
