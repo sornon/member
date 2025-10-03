@@ -66,7 +66,7 @@ export const formatStones = (value = 0) => {
     return '0';
   }
   const normalized = Math.max(0, Math.floor(numeric));
-  return normalized.toLocaleString('zh-CN');
+  return normalized.toString();
 };
 
 export const formatStoneChange = (value = 0) => {

@@ -225,9 +225,20 @@
   align-items: center;
 }
 
+.summary-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
 .summary-amount {
   font-size: 30rpx;
   font-weight: 600;
+}
+
+.summary-stones {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .submit-btn {
@@ -331,10 +342,21 @@
   color: rgba(255, 255, 255, 0.75);
 }
 
+.order-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  margin-bottom: 8px;
+}
+
 .order-total {
   font-size: 28rpx;
   font-weight: 600;
-  margin-bottom: 8px;
+}
+
+.order-stones {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .confirm-btn {

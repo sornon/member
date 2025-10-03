@@ -87,7 +87,10 @@
       bindinput="handleRemarkInput"
     ></textarea>
     <view class="cart-summary">
-      <view class="summary-amount">合计 {{cartTotalLabel}}</view>
+      <view class="summary-info">
+        <view class="summary-amount">合计 {{cartTotalLabel}}</view>
+        <view class="summary-stones">送 {{cartStoneRewardLabel}} 灵石</view>
+      </view>
       <button class="submit-btn" type="primary" loading="{{submitting}}" bindtap="handleSubmitOrder">提交订单</button>
     </view>
   </view>
@@ -114,7 +117,10 @@
         </view>
       </view>
       <view class="order-remark" wx:if="{{order.remark}}">备注：{{order.remark}}</view>
-      <view class="order-total">合计 {{order.totalAmountLabel}}</view>
+      <view class="order-summary">
+        <view class="order-total">合计 {{order.totalAmountLabel}}</view>
+        <view class="order-stones">送 {{order.stoneRewardLabel}} 灵石</view>
+      </view>
       <button
         wx:if="{{order.status === 'pendingMember'}}"
         class="confirm-btn"
