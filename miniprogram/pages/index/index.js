@@ -33,6 +33,9 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 
 const app = getApp();
 
+const NAV_EXPANDED_STORAGE_KEY = 'member.home.nav.expanded';
+const NAV_COLLAPSED_VISIBLE_COUNT = 3;
+
 const BASE_NAV_ITEMS = [
     { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
     { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index' },
@@ -537,6 +540,24 @@ function resolveNavItems(member) {
   return navItems;
 }
 
+function buildNavDisplayItems(navItems, expanded) {
+  const safeItems = Array.isArray(navItems) ? navItems : [];
+  if (expanded) {
+    return safeItems.map((item) => ({ ...item }));
+  }
+  const collapsedItems = safeItems
+    .slice(0, NAV_COLLAPSED_VISIBLE_COUNT)
+    .map((item) => ({ ...item }));
+  if (safeItems.length > NAV_COLLAPSED_VISIBLE_COUNT) {
+    collapsedItems.push({
+      icon: '⋯',
+      label: '更多',
+      action: 'expand'
+    });
+  }
+  return collapsedItems;
+}
+
 Page({
   data: {
     member: null,
@@ -573,6 +594,8 @@ Page({
       { icon: '🔥', label: '比武' }
     ],
     navItems: [...BASE_NAV_ITEMS],
+    navDisplayItems: buildNavDisplayItems(BASE_NAV_ITEMS, false),
+    navExpanded: false,
     memberStats: { ...EMPTY_MEMBER_STATS },
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
@@ -608,6 +631,13 @@ Page({
     this.hasBootstrapped = false;
     this.ensureNavMetrics();
     this.updateToday();
+    let navExpanded = false;
+    try {
+      navExpanded = !!wx.getStorageSync(NAV_EXPANDED_STORAGE_KEY);
+    } catch (error) {
+      navExpanded = false;
+    }
+    this.setNavExpanded(navExpanded, { persist: false });
   },
 
   onShow() {
@@ -739,13 +769,14 @@ Page({
       const needsProfile = !sanitizedMember || !sanitizedMember.nickName || !sanitizedMember.mobile;
       const profileAuthorized = !!(sanitizedMember && sanitizedMember.nickName);
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
+      const navItems = resolveNavItems(sanitizedMember);
+      this.updateNavItems(navItems);
       this.setData({
         member: sanitizedMember,
         progress,
         tasks: tasks.slice(0, 3),
         loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),
-        navItems: resolveNavItems(sanitizedMember),
         memberStats: deriveMemberStats(sanitizedMember),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
@@ -1168,10 +1199,11 @@ Page({
       return;
     }
     const renameHistory = formatHistoryList(member.renameHistory);
+    const navItems = resolveNavItems(sanitizedMember);
+    this.updateNavItems(navItems);
     this.setData({
       member: sanitizedMember,
       memberStats: deriveMemberStats(sanitizedMember),
-      navItems: resolveNavItems(sanitizedMember),
       heroImage: resolveCharacterImage(sanitizedMember),
       'profileEditor.nickName': sanitizedMember.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
@@ -1349,7 +1381,49 @@ Page({
   },
 
   handleNavTap(event) {
-    const { url } = event.currentTarget.dataset;
+    const { url, action } = event.currentTarget.dataset;
+    if (action === 'expand') {
+      this.expandNav();
+      return;
+    }
+    if (!url) {
+      return;
+    }
     wx.navigateTo({ url });
+  },
+
+  expandNav() {
+    if (this.data.navExpanded) {
+      return;
+    }
+    this.setNavExpanded(true);
+  },
+
+  setNavExpanded(expanded, options = {}) {
+    const persist = options.persist !== false;
+    const navItems = options.navItems || this.data.navItems;
+    const changed = expanded !== this.data.navExpanded;
+    const nextState = {
+      navDisplayItems: buildNavDisplayItems(navItems, expanded)
+    };
+    if (changed) {
+      nextState.navExpanded = expanded;
+    }
+    this.setData(nextState);
+    if (persist && changed) {
+      try {
+        wx.setStorageSync(NAV_EXPANDED_STORAGE_KEY, expanded);
+      } catch (error) {
+        // ignore storage errors
+      }
+    }
+  },
+
+  updateNavItems(navItems) {
+    const items = Array.isArray(navItems) ? navItems : [];
+    this.setData({
+      navItems: items,
+      navDisplayItems: buildNavDisplayItems(items, this.data.navExpanded)
+    });
   }
 });

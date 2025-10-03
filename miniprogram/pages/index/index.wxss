@@ -336,13 +336,88 @@ page {
   border: 1rpx solid rgba(119, 138, 230, 0.35);
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18rpx 24rpx;
   box-shadow: 0 18rpx 36rpx rgba(16, 13, 55, 0.45);
+  overflow: hidden;
+  transition: max-height 0.35s ease, padding 0.35s ease, background 0.35s ease;
+}
+
+.bottom-nav--collapsed {
+  max-height: 168rpx;
+}
+
+.bottom-nav--expanded {
+  max-height: 520rpx;
+  padding-bottom: 32rpx;
+  animation: bottom-nav-expand 0.35s ease;
+}
+
+.bottom-nav--expanded .nav-item {
+  animation: bottom-nav-item 0.3s ease both;
+}
+
+.bottom-nav--expanded .nav-item:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.bottom-nav--expanded .nav-item:nth-child(2) {
+  animation-delay: 0.04s;
+}
+
+.bottom-nav--expanded .nav-item:nth-child(3) {
+  animation-delay: 0.08s;
+}
+
+.bottom-nav--expanded .nav-item:nth-child(4) {
+  animation-delay: 0.12s;
+}
+
+.bottom-nav--expanded .nav-item:nth-child(5) {
+  animation-delay: 0.16s;
+}
+
+.bottom-nav--expanded .nav-item:nth-child(6) {
+  animation-delay: 0.2s;
+}
+
+.bottom-nav--expanded .nav-item:nth-child(7) {
+  animation-delay: 0.24s;
+}
+
+.bottom-nav--expanded .nav-item:nth-child(8) {
+  animation-delay: 0.28s;
+}
+
+@keyframes bottom-nav-expand {
+  0% {
+    transform: translateY(36rpx);
+    opacity: 0.45;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes bottom-nav-item {
+  0% {
+    transform: translateY(24rpx) scale(0.92);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
 }
 
 .nav-item {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  flex: 1 1 25%;
+  min-width: 22%;
   gap: 8rpx;
   color: rgba(227, 233, 255, 0.95);
 }
