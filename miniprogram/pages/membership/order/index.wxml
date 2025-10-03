@@ -1,5 +1,18 @@
 <custom-nav title="会员点餐" theme="dark"></custom-nav>
 <view class="order-page">
+  <view class="menu-tabs" wx:if="{{tabs.length}}">
+    <view
+      class="menu-tab {{activeTab === tab.id ? 'menu-tab--active' : ''}}"
+      wx:for="{{tabs}}"
+      wx:key="id"
+      wx:for-item="tab"
+      data-id="{{tab.id}}"
+      bindtap="handleSelectTab"
+    >
+      {{tab.title}}
+    </view>
+  </view>
+
   <view class="category-bar" wx:if="{{categories.length}}">
     <scroll-view scroll-x scroll-with-animation>
       <view class="category-track">
@@ -49,34 +62,39 @@
       <button class="cart-clear" size="mini" type="default" bindtap="handleClearCart">清空</button>
     </view>
     <view class="cart-list">
-      <view class="cart-item" wx:for="{{cart}}" wx:key="key" wx:for-item="cartItem">
-        <view class="cart-main">
-          <view class="cart-name">{{cartItem.title}}</view>
-          <view class="cart-spec">
-            <text class="cart-spec-price">{{cartItem.priceLabel}}{{cartItem.unit}}</text>
+      <block wx:for="{{cartGroups}}" wx:key="section" wx:for-item="group">
+        <view class="cart-group">
+          <view class="cart-group-title">{{group.title}}</view>
+          <view class="cart-item" wx:for="{{group.items}}" wx:key="key" wx:for-item="cartItem">
+            <view class="cart-main">
+              <view class="cart-name">{{cartItem.title}}</view>
+              <view class="cart-spec">
+                <text class="cart-spec-price">{{cartItem.priceLabel}}{{cartItem.unit}}</text>
+              </view>
+            </view>
+            <view class="cart-qty">
+              <button
+                class="qty-btn"
+                size="mini"
+                type="default"
+                data-key="{{cartItem.key}}"
+                data-delta="-1"
+                bindtap="handleAdjustQuantity"
+              >-</button>
+              <text class="qty-value">{{cartItem.quantity}}</text>
+              <button
+                class="qty-btn"
+                size="mini"
+                type="default"
+                data-key="{{cartItem.key}}"
+                data-delta="1"
+                bindtap="handleAdjustQuantity"
+              >+</button>
+            </view>
+            <view class="cart-amount">{{cartItem.amountLabel}}</view>
           </view>
         </view>
-        <view class="cart-qty">
-          <button
-            class="qty-btn"
-            size="mini"
-            type="default"
-            data-key="{{cartItem.key}}"
-            data-delta="-1"
-            bindtap="handleAdjustQuantity"
-          >-</button>
-          <text class="qty-value">{{cartItem.quantity}}</text>
-          <button
-            class="qty-btn"
-            size="mini"
-            type="default"
-            data-key="{{cartItem.key}}"
-            data-delta="1"
-            bindtap="handleAdjustQuantity"
-          >+</button>
-        </view>
-        <view class="cart-amount">{{cartItem.amountLabel}}</view>
-      </view>
+      </block>
     </view>
     <textarea
       class="remark-input"
@@ -105,16 +123,21 @@
         <view class="order-time">{{order.createdAtLabel}}</view>
       </view>
       <view class="order-items">
-        <view class="order-line" wx:for="{{order.items}}" wx:key="{{index}}" wx:for-item="orderLine">
-          <view class="line-main">
-            <text class="line-title">{{orderLine.title}}</text>
-            <view class="line-meta">
-              <text class="line-spec-price">{{orderLine.priceLabel}}{{orderLine.unit}}</text>
-              <text class="line-spec-quantity"> × {{orderLine.quantity}}</text>
+        <block wx:for="{{order.groupedItems}}" wx:key="section" wx:for-item="group">
+          <view class="order-group">
+            <view class="order-group-title">{{group.title}}</view>
+            <view class="order-line" wx:for="{{group.items}}" wx:key="{{index}}" wx:for-item="orderLine">
+              <view class="line-main">
+                <text class="line-title">{{orderLine.title}}</text>
+                <view class="line-meta">
+                  <text class="line-spec-price">{{orderLine.priceLabel}}{{orderLine.unit}}</text>
+                  <text class="line-spec-quantity"> × {{orderLine.quantity}}</text>
+                </view>
+              </view>
+              <text class="line-amount">{{orderLine.amountLabel}}</text>
             </view>
           </view>
-          <text class="line-amount">{{orderLine.amountLabel}}</text>
-        </view>
+        </block>
       </view>
       <view class="order-remark" wx:if="{{order.remark}}">备注：{{order.remark}}</view>
       <view class="order-summary">
