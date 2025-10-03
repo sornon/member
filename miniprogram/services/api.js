@@ -527,6 +527,15 @@ export const AdminService = {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'markReservationRead'
     });
+  },
+  async getFinanceReport({ month = '' } = {}) {
+    const payload = {
+      action: 'getFinanceReport'
+    };
+    if (month) {
+      payload.month = month;
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   }
 };
 
