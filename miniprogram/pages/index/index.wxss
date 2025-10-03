@@ -339,14 +339,12 @@ page {
   gap: 16rpx;
   box-shadow: 0 18rpx 36rpx rgba(16, 13, 55, 0.45);
   overflow: hidden;
-  width: 100%;
-  max-width: 100%;
   transition: max-width 280ms ease, padding-right 280ms ease, padding-left 280ms ease;
   transform-origin: left center;
 }
 
 .bottom-nav--collapsed {
-  max-width: 520rpx;
+  max-width: 320rpx;
   padding-right: 20rpx;
 }
 
