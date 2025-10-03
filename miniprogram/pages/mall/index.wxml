@@ -1,0 +1,41 @@
+<custom-nav title="灵石商城" theme="dark"></custom-nav>
+<view class="mall-page">
+  <view class="mall-balance-card">
+    <view class="mall-balance-card__label">当前灵石</view>
+    <view class="mall-balance-card__value">{{stoneBalanceText}} 枚</view>
+    <view class="mall-balance-card__hint">可用于兑换虚拟道具，无法折现。</view>
+  </view>
+
+  <view wx:if="{{error}}" class="mall-error">{{error}}</view>
+  <view wx:elif="{{loading}}" class="mall-loading">灵石气息汇聚中...</view>
+  <block wx:else>
+    <view class="mall-item-list" wx:if="{{items.length}}">
+      <view
+        class="mall-item-card"
+        wx:for="{{items}}"
+        wx:key="id"
+        data-id="{{item.id}}"
+      >
+        <view class="mall-item-card__icon">{{item.icon}}</view>
+        <view class="mall-item-card__body">
+          <view class="mall-item-card__header">
+            <text class="mall-item-card__name">{{item.name}}</text>
+            <text class="mall-item-card__price">{{item.price}} 灵石</text>
+          </view>
+          <view class="mall-item-card__desc">{{item.description}}</view>
+          <view class="mall-item-card__meta" wx:if="{{item.effectLabel}}">{{item.effectLabel}}</view>
+          <button
+            class="mall-item-card__action"
+            type="primary"
+            size="mini"
+            data-id="{{item.id}}"
+            loading="{{submittingId === item.id}}"
+            disabled="{{submittingId === item.id}}"
+            bindtap="handlePurchase"
+          >兑换</button>
+        </view>
+      </view>
+    </view>
+    <view wx:if="{{!items.length}}" class="mall-empty">商城暂未上架可兑换的道具，敬请期待。</view>
+  </block>
+</view>

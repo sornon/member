@@ -869,6 +869,10 @@ Page({
     wx.navigateTo({ url: '/pages/stones/stones' });
   },
 
+  handleMallTap() {
+    wx.navigateTo({ url: '/pages/mall/index' });
+  },
+
   handleLevelTap() {
     wx.navigateTo({ url: '/pages/membership/membership' });
   },
