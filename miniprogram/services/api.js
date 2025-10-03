@@ -322,6 +322,46 @@ export const PveService = {
   }
 };
 
+export const PvpService = {
+  async profile() {
+    return callCloud(CLOUD_FUNCTIONS.PVP, { action: 'profile' });
+  },
+  async matchRandom(options = {}) {
+    const payload = { action: 'matchRandom' };
+    if (options && typeof options.seed === 'string' && options.seed) {
+      payload.seed = options.seed;
+    }
+    return callCloud(CLOUD_FUNCTIONS.PVP, payload);
+  },
+  async matchFriend(targetId, options = {}) {
+    const normalized = typeof targetId === 'string' ? targetId.trim() : '';
+    const payload = { action: 'matchFriend', targetId: normalized };
+    if (options && typeof options.seed === 'string' && options.seed) {
+      payload.seed = options.seed;
+    }
+    return callCloud(CLOUD_FUNCTIONS.PVP, payload);
+  },
+  async battleReplay(matchId) {
+    return callCloud(CLOUD_FUNCTIONS.PVP, { action: 'battleReplay', matchId });
+  },
+  async leaderboard({ type = 'season', limit = 100, seasonId = '' } = {}) {
+    const payload = { action: 'getLeaderboard', type, limit };
+    if (seasonId) {
+      payload.seasonId = seasonId;
+    }
+    return callCloud(CLOUD_FUNCTIONS.PVP, payload);
+  },
+  async claimSeasonReward(seasonId) {
+    return callCloud(CLOUD_FUNCTIONS.PVP, { action: 'claimSeasonReward', seasonId });
+  },
+  async sendInvite(channel = 'friend') {
+    return callCloud(CLOUD_FUNCTIONS.PVP, { action: 'sendInvite', channel });
+  },
+  async acceptInvite(inviteId) {
+    return callCloud(CLOUD_FUNCTIONS.PVP, { action: 'acceptInvite', inviteId });
+  }
+};
+
 export const StoneService = {
   async summary() {
     return callCloud(CLOUD_FUNCTIONS.STONES, { action: 'summary' });

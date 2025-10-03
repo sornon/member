@@ -1,0 +1,7 @@
+{
+  "usingComponents": {
+    "custom-nav": "/components/custom-nav/custom-nav"
+  },
+  "navigationBarTitleText": "战报回放",
+  "enablePullDownRefresh": true
+}

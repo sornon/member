@@ -1,0 +1,86 @@
+.battle-page {
+  display: flex;
+  flex-direction: column;
+  row-gap: 24rpx;
+  color: #e7ecff;
+}
+
+.battle-page > .card {
+  margin-bottom: 0;
+}
+
+.battle-state {
+  text-align: center;
+  color: rgba(231, 236, 255, 0.85);
+  font-size: 26rpx;
+}
+
+.battle-header {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.battle-result {
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.battle-meta {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 8rpx;
+}
+
+.battle-summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16rpx;
+}
+
+.battle-summary__item {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 20rpx;
+  padding: 20rpx;
+  text-align: center;
+}
+
+.battle-summary__label {
+  font-size: 24rpx;
+  opacity: 0.7;
+}
+
+.battle-summary__value {
+  margin-top: 8rpx;
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.battle-rounds {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.round-item {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20rpx;
+  padding: 20rpx;
+}
+
+.round-title {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.round-description {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+}
+
+.round-meta {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.6);
+}

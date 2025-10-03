@@ -1,0 +1,46 @@
+<custom-nav title="比武榜" theme="dark"></custom-nav>
+<view class="container pvp-board">
+  <view wx:if="{{loading}}" class="card board-state">榜单整理中...</view>
+  <block wx:elif="{{entries.length}}">
+    <view class="card board-card">
+      <view class="board-header">
+        <view class="board-season">{{season ? season.name : '当前赛季'}}</view>
+        <view class="board-updated">更新：{{updatedAt || '刚刚'}}</view>
+      </view>
+      <block wx:for="{{entries}}" wx:key="memberId">
+        <view class="board-item">
+          <view class="board-rank">{{item.rank}}</view>
+          <image
+            wx:if="{{item.avatarUrl}}"
+            class="board-avatar"
+            src="{{item.avatarUrl}}"
+            mode="aspectFill"
+          ></image>
+          <view wx:else class="board-avatar board-avatar--placeholder">{{item.nickName ? item.nickName.slice(0, 1) : '仙'}}</view>
+          <view class="board-info">
+            <view class="board-name">{{item.nickName || '神秘仙友'}}</view>
+            <view class="board-meta">{{item.tierName}} · {{item.points}} 分 · {{item.wins}}胜{{item.losses}}负</view>
+          </view>
+          <view class="board-actions">
+            <button
+              class="board-action"
+              size="mini"
+              loading="{{matchLoadingId === item.memberId}}"
+              data-id="{{item.memberId}}"
+              data-name="{{item.nickName}}"
+              bindtap="handleChallenge"
+            >挑战</button>
+            <button
+              class="board-action board-action--ghost"
+              size="mini"
+              data-id="{{item.memberId}}"
+              data-name="{{item.nickName}}"
+              bindtap="handleShare"
+            >邀战</button>
+          </view>
+        </view>
+      </block>
+    </view>
+  </block>
+  <view wx:else class="card board-state">暂无榜单数据</view>
+</view>
