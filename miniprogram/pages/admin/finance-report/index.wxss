@@ -8,13 +8,19 @@
 
 .filters {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 12px;
   margin-bottom: 18px;
 }
 
-.month-picker {
+.month-selector {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.year-picker {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -29,10 +35,38 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   padding: 14px 18px;
   border-radius: 14px;
   background: rgba(16, 20, 48, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.month-grid {
+  display: flex;
+  flex-wrap: wrap;
+  margin: -8rpx;
+}
+
+.month-item {
+  flex: 0 0 calc(25% - 16rpx);
+  margin: 8rpx;
+  padding: 16rpx 0;
+  border-radius: 12px;
+  box-sizing: border-box;
+  text-align: center;
+  background: rgba(16, 20, 48, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.75);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.month-item--active {
+  background: linear-gradient(140deg, rgba(70, 111, 255, 0.9), rgba(118, 146, 255, 0.95));
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
 }
 
 .picker-value {

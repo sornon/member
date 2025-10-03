@@ -77,6 +77,52 @@ function clampMonthKey(value, min, max) {
   return result;
 }
 
+function getYearFromMonthKey(monthKey) {
+  const date = parseMonthValue(monthKey);
+  if (!date) {
+    return '';
+  }
+  return `${date.getFullYear()}`;
+}
+
+function buildYearMonthOptions(minMonthKey, maxMonthKey) {
+  const startDate = parseMonthValue(minMonthKey);
+  const endDate = parseMonthValue(maxMonthKey);
+  if (!startDate || !endDate || startDate.getTime() > endDate.getTime()) {
+    return { years: [], monthsByYear: {} };
+  }
+  const monthsByYear = {};
+  let cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  while (cursor.getTime() <= endDate.getTime()) {
+    const yearValue = `${cursor.getFullYear()}`;
+    if (!monthsByYear[yearValue]) {
+      monthsByYear[yearValue] = [];
+    }
+    monthsByYear[yearValue].push({
+      key: formatMonthKey(cursor),
+      label: `${`${cursor.getMonth() + 1}`.padStart(2, '0')}月`
+    });
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+  }
+  const years = Object.keys(monthsByYear)
+    .map((value) => Number(value))
+    .sort((a, b) => b - a)
+    .map((year) => ({
+      value: `${year}`,
+      label: `${year}年`
+    }));
+  return { years, monthsByYear };
+}
+
+function buildVisibleMonths(monthsByYear, selectedYearValue, selectedMonthKey) {
+  const months = (monthsByYear && monthsByYear[selectedYearValue]) || [];
+  return months.map((item) => ({
+    key: item.key,
+    label: item.label,
+    active: item.key === selectedMonthKey
+  }));
+}
+
 function parseDateValue(value) {
   if (!value) {
     return null;
@@ -211,9 +257,15 @@ Page({
   data: {
     loading: false,
     monthValue: '',
-    displayMonthLabel: '',
+    displayMonthLabel: '—',
     startMonth: MIN_REPORT_MONTH,
     endMonth: getCurrentMonthKey(),
+    yearOptions: [],
+    selectedYearIndex: 0,
+    selectedYearValue: '',
+    selectedYearLabel: '—',
+    monthsByYear: {},
+    visibleMonths: [],
     metrics: [],
     report: {
       monthLabel: '',
@@ -229,12 +281,7 @@ Page({
 
   onLoad() {
     const currentMonth = getCurrentMonthKey();
-    const initialMonth = clampMonthKey(currentMonth, MIN_REPORT_MONTH, currentMonth);
-    this.setData({
-      monthValue: initialMonth,
-      displayMonthLabel: formatMonthLabel(initialMonth) || '—',
-      endMonth: currentMonth
-    });
+    const initialMonth = this.updateMonthOptions(MIN_REPORT_MONTH, currentMonth, currentMonth);
     this.loadReport(initialMonth);
   },
 
@@ -243,15 +290,148 @@ Page({
     this.loadReport(month);
   },
 
-  handleMonthChange(event) {
-    const rawValue = event && event.detail ? event.detail.value : '';
-    const { startMonth, endMonth } = this.data;
-    const normalized = clampMonthKey(rawValue, startMonth, endMonth);
+  handleYearChange(event) {
+    const indexValue = event && event.detail ? Number(event.detail.value) : 0;
+    const { yearOptions, monthsByYear, monthValue } = this.data;
+    if (!Array.isArray(yearOptions) || !yearOptions.length) {
+      return;
+    }
+    const safeIndex = Number.isInteger(indexValue) && indexValue >= 0 && indexValue < yearOptions.length ? indexValue : 0;
+    const selectedOption = yearOptions[safeIndex];
+    const yearValue = selectedOption.value;
+    const yearLabel = selectedOption.label;
+    const months = (monthsByYear && monthsByYear[yearValue]) || [];
+    let nextMonth = monthValue && months.some((item) => item.key === monthValue) ? monthValue : '';
+    if (!nextMonth && months.length) {
+      nextMonth = months[months.length - 1].key;
+    }
+    const visibleMonths = buildVisibleMonths(monthsByYear, yearValue, nextMonth);
+    const updates = {
+      selectedYearIndex: safeIndex,
+      selectedYearValue: yearValue,
+      selectedYearLabel: yearLabel,
+      visibleMonths
+    };
+    const shouldLoad = !!nextMonth && nextMonth !== monthValue;
+    if (nextMonth) {
+      updates.monthValue = nextMonth;
+      updates.displayMonthLabel = formatMonthLabel(nextMonth) || '—';
+    } else if (!months.length) {
+      updates.monthValue = '';
+      updates.displayMonthLabel = '—';
+    }
+    this.setData(updates);
+    if (shouldLoad) {
+      this.loadReport(nextMonth);
+    }
+  },
+
+  handleMonthTap(event) {
+    const dataset = event && event.currentTarget ? event.currentTarget.dataset : null;
+    const rawMonth = dataset ? dataset.month : '';
+    const { startMonth, endMonth, monthValue, yearOptions, monthsByYear, selectedYearValue } = this.data;
+    const normalized = clampMonthKey(rawMonth, startMonth, endMonth);
+    if (!normalized) {
+      return;
+    }
+    let yearValue = getYearFromMonthKey(normalized) || selectedYearValue;
+    let yearIndex = Array.isArray(yearOptions)
+      ? yearOptions.findIndex((item) => item.value === yearValue)
+      : -1;
+    if (yearIndex < 0 && Array.isArray(yearOptions) && yearOptions.length) {
+      yearIndex = yearOptions.findIndex((item) => item.value === selectedYearValue);
+      yearValue = yearOptions[yearIndex] ? yearOptions[yearIndex].value : yearValue;
+    }
+    if (yearIndex < 0 && Array.isArray(yearOptions) && yearOptions.length) {
+      yearIndex = 0;
+      yearValue = yearOptions[0].value;
+    }
+    const visibleMonths = buildVisibleMonths(monthsByYear, yearValue, normalized);
+    if (normalized === monthValue) {
+      this.setData({
+        visibleMonths,
+        selectedYearIndex: yearIndex >= 0 ? yearIndex : this.data.selectedYearIndex,
+        selectedYearValue: yearValue,
+        selectedYearLabel:
+          yearOptions && yearIndex >= 0 && yearOptions[yearIndex]
+            ? yearOptions[yearIndex].label
+            : this.data.selectedYearLabel,
+        displayMonthLabel: formatMonthLabel(normalized) || '—'
+      });
+      return;
+    }
     this.setData({
       monthValue: normalized,
-      displayMonthLabel: formatMonthLabel(normalized) || '—'
+      displayMonthLabel: formatMonthLabel(normalized) || '—',
+      selectedYearIndex: yearIndex >= 0 ? yearIndex : this.data.selectedYearIndex,
+      selectedYearValue: yearValue,
+      selectedYearLabel:
+        yearOptions && yearIndex >= 0 && yearOptions[yearIndex]
+          ? yearOptions[yearIndex].label
+          : this.data.selectedYearLabel,
+      visibleMonths
     });
     this.loadReport(normalized);
+  },
+
+  updateMonthOptions(minMonthKey, maxMonthKey, preferredMonthKey) {
+    let normalizedMin = normalizeMonthKey(minMonthKey);
+    let normalizedMax = normalizeMonthKey(maxMonthKey);
+    const fallbackMin = normalizeMonthKey(MIN_REPORT_MONTH);
+    const fallbackMax = getCurrentMonthKey();
+    if (!normalizedMin && normalizedMax) {
+      normalizedMin = normalizedMax;
+    }
+    if (!normalizedMax && normalizedMin) {
+      normalizedMax = normalizedMin;
+    }
+    if (!normalizedMin) {
+      normalizedMin = fallbackMin;
+    }
+    if (!normalizedMax) {
+      normalizedMax = fallbackMax;
+    }
+    if (normalizedMin && normalizedMax && monthScore(normalizedMin) > monthScore(normalizedMax)) {
+      const temp = normalizedMin;
+      normalizedMin = normalizedMax;
+      normalizedMax = temp;
+    }
+    const { years, monthsByYear } = buildYearMonthOptions(normalizedMin, normalizedMax);
+    let resolvedMonth = clampMonthKey(preferredMonthKey, normalizedMin, normalizedMax);
+    if (!resolvedMonth && years.length) {
+      const initialYearValue = years[0].value;
+      const yearMonths = monthsByYear[initialYearValue] || [];
+      if (yearMonths.length) {
+        resolvedMonth = yearMonths[yearMonths.length - 1].key;
+      }
+    }
+    if (!resolvedMonth) {
+      resolvedMonth = normalizedMax || normalizedMin || '';
+    }
+    let selectedYearValue = getYearFromMonthKey(resolvedMonth);
+    if (!selectedYearValue && years.length) {
+      selectedYearValue = years[0].value;
+    }
+    let selectedYearIndex = years.findIndex((item) => item.value === selectedYearValue);
+    if (selectedYearIndex < 0) {
+      selectedYearIndex = years.length ? 0 : 0;
+      selectedYearValue = years[selectedYearIndex] ? years[selectedYearIndex].value : '';
+    }
+    const visibleMonths = buildVisibleMonths(monthsByYear, selectedYearValue, resolvedMonth);
+    const selectedYear = years[selectedYearIndex] || { value: selectedYearValue, label: '—' };
+    this.setData({
+      startMonth: normalizedMin,
+      endMonth: normalizedMax,
+      monthValue: resolvedMonth,
+      displayMonthLabel: formatMonthLabel(resolvedMonth) || '—',
+      yearOptions: years,
+      selectedYearIndex,
+      selectedYearValue: selectedYear.value,
+      selectedYearLabel: selectedYear.label || '—',
+      visibleMonths,
+      monthsByYear
+    });
+    return resolvedMonth;
   },
 
   handleRefresh() {
@@ -269,14 +449,13 @@ Page({
       const maxMonth = constraints.maxMonth || getCurrentMonthKey();
       const normalizedMonth =
         clampMonthKey(result && result.month, minMonth, maxMonth) ||
-        clampMonthKey(targetMonth, minMonth, maxMonth);
-      const reportState = buildReportState(result, normalizedMonth);
+        clampMonthKey(targetMonth, minMonth, maxMonth) ||
+        normalizeMonthKey(maxMonth) ||
+        normalizeMonthKey(minMonth);
+      const resolvedMonth = this.updateMonthOptions(minMonth, maxMonth, normalizedMonth);
+      const reportState = buildReportState(result, resolvedMonth);
       this.setData({
         loading: false,
-        startMonth: minMonth,
-        endMonth: maxMonth,
-        monthValue: normalizedMonth,
-        displayMonthLabel: formatMonthLabel(normalizedMonth) || '—',
         metrics: reportState.metrics,
         report: {
           monthLabel: reportState.monthLabel,

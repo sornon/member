@@ -1,21 +1,34 @@
 <custom-nav title="财务报表" theme="dark"></custom-nav>
 <view class="report-page">
   <view class="filters">
-    <view class="month-picker">
-      <view class="picker-label">统计月份</view>
-      <picker
-        mode="date"
-        fields="month"
-        value="{{monthValue}}"
-        start="{{startMonth}}"
-        end="{{endMonth}}"
-        bindchange="handleMonthChange"
-      >
-        <view class="picker-trigger">
-          <text class="picker-value">{{report.monthLabel || displayMonthLabel}}</text>
-          <text class="picker-arrow">▾</text>
-        </view>
-      </picker>
+    <view class="month-selector">
+      <view class="year-picker">
+        <view class="picker-label">统计年份</view>
+        <picker
+          mode="selector"
+          range="{{yearOptions}}"
+          range-key="label"
+          value="{{selectedYearIndex}}"
+          disabled="{{!yearOptions.length}}"
+          bindchange="handleYearChange"
+        >
+          <view class="picker-trigger">
+            <text class="picker-value">{{selectedYearLabel || '—'}}</text>
+            <text class="picker-arrow">▾</text>
+          </view>
+        </picker>
+      </view>
+      <view class="month-grid" wx:if="{{visibleMonths.length}}">
+        <block wx:for="{{visibleMonths}}" wx:key="key">
+          <view
+            class="month-item {{item.active ? 'month-item--active' : ''}}"
+            data-month="{{item.key}}"
+            bindtap="handleMonthTap"
+          >
+            {{item.label}}
+          </view>
+        </block>
+      </view>
     </view>
     <button
       class="refresh-btn"
