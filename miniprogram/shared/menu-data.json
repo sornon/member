@@ -2,39 +2,39 @@
   "categories": [
     {
       "id": "coffee",
-      "name": "精品咖啡 Coffee"
+      "name": "精品咖啡"
     },
     {
       "id": "rum",
-      "name": "古巴朗姆 Rum for Cigar"
+      "name": "古巴朗姆"
     },
     {
       "id": "soft",
-      "name": "软饮 Soft Drinks"
+      "name": "软饮"
     },
     {
       "id": "white",
-      "name": "白葡萄酒 White Wine"
+      "name": "白葡萄酒"
     },
     {
       "id": "rose",
-      "name": "桃红起泡酒 Rosé"
+      "name": "桃红起泡酒"
     },
     {
       "id": "ws",
-      "name": "威士忌 Whisky"
+      "name": "威士忌"
     },
     {
       "id": "rare",
-      "name": "小众烈酒 Rare Spirits"
+      "name": "小众烈酒"
     },
     {
       "id": "red",
-      "name": "红葡萄酒 Red Wine"
+      "name": "红葡萄酒"
     },
     {
       "id": "sig",
-      "name": "La Casa 特调 Signature Cocktails"
+      "name": "特调"
     },
     {
       "id": "snack",
@@ -42,7 +42,7 @@
     },
     {
       "id": "easter",
-      "name": "La Casa 小彩蛋"
+      "name": "小彩蛋"
     }
   ],
   "items": [

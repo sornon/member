@@ -18,6 +18,7 @@ const COLLECTIONS = {
 
 const ADMIN_ROLES = ['admin', 'developer', 'superadmin'];
 const EXPERIENCE_PER_YUAN = 100;
+const CATEGORY_TYPES = ['drinks', 'dining'];
 const ensuredCollections = new Set();
 
 const ERROR_CODES = {
@@ -92,7 +93,12 @@ exports.main = async (event) => {
 
   switch (action) {
     case 'createOrder':
-      return createOrder(OPENID, event.items || [], event.remark || '');
+      return createOrder(
+        OPENID,
+        event.items || [],
+        event.remark || '',
+        event.categoryTotals || {}
+      );
     case 'listMemberOrders':
       return listMemberOrders(OPENID);
     case 'confirmMemberOrder':
@@ -106,7 +112,7 @@ exports.main = async (event) => {
   }
 };
 
-async function createOrder(openid, itemsInput, remarkInput) {
+async function createOrder(openid, itemsInput, remarkInput, categoryTotalsInput = {}) {
   const member = await ensureMember(openid);
   const items = normalizeItems(itemsInput);
   if (!items.length) {
@@ -116,6 +122,7 @@ async function createOrder(openid, itemsInput, remarkInput) {
   if (!totalAmount || totalAmount <= 0) {
     throw new Error('订单金额无效');
   }
+  const categoryTotals = normalizeCategoryTotals(categoryTotalsInput);
   const now = new Date();
   const orderData = {
     memberId: openid,
@@ -126,6 +133,7 @@ async function createOrder(openid, itemsInput, remarkInput) {
     },
     items,
     totalAmount,
+    categoryTotals,
     remark: normalizeRemark(remarkInput),
     status: 'submitted',
     createdAt: now,
@@ -469,6 +477,30 @@ function normalizeRemark(value, limit = 140) {
   return text.slice(0, limit);
 }
 
+function normalizeCategoryType(value) {
+  if (typeof value === 'string') {
+    const normalized = value.toLowerCase();
+    if (CATEGORY_TYPES.includes(normalized)) {
+      return normalized;
+    }
+  }
+  return 'drinks';
+}
+
+function normalizeCategoryTotals(input) {
+  const totals = {};
+  CATEGORY_TYPES.forEach((type) => {
+    totals[type] = 0;
+  });
+  if (input && typeof input === 'object') {
+    CATEGORY_TYPES.forEach((type) => {
+      const value = Math.round(Number(input[type] || 0));
+      totals[type] = Number.isFinite(value) && value > 0 ? value : 0;
+    });
+  }
+  return totals;
+}
+
 function normalizeItems(items) {
   if (!Array.isArray(items)) {
     return [];
@@ -486,6 +518,7 @@ function normalizeItems(items) {
       continue;
     }
     const amount = price * quantity;
+    const categoryType = normalizeCategoryType(item.categoryType);
     result.push({
       menuId,
       title,
@@ -493,7 +526,8 @@ function normalizeItems(items) {
       unit,
       price,
       quantity,
-      amount
+      amount,
+      categoryType
     });
     if (result.length >= 50) {
       break;
@@ -514,7 +548,8 @@ function mapOrder(doc) {
         unit: item.unit || '',
         price: Number(item.price || 0),
         quantity: Number(item.quantity || 0),
-        amount: Number(item.amount || 0)
+        amount: Number(item.amount || 0),
+        categoryType: normalizeCategoryType(item.categoryType)
       }))
     : [];
   return {
@@ -522,6 +557,7 @@ function mapOrder(doc) {
     status: doc.status || 'submitted',
     items,
     totalAmount: Number(doc.totalAmount || 0),
+    categoryTotals: normalizeCategoryTotals(doc.categoryTotals),
     remark: doc.remark || '',
     adminRemark: doc.adminRemark || '',
     memberId: doc.memberId || '',

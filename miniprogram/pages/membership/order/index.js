@@ -1,6 +1,47 @@
 import { MenuOrderService } from '../../../services/api';
 import { formatCurrency, formatStones } from '../../../utils/format';
-import { categories as rawCategories, items as rawItems, softDrinks } from '../../../shared/menu-data';
+import {
+  categories as rawDrinkCategories,
+  items as rawDrinkItems,
+  softDrinks,
+  diningCategories as rawDiningCategories,
+  diningItems as rawDiningItems
+} from '../../../shared/menu-data';
+
+const SECTION_META = {
+  drinks: { id: 'drinks', title: '酒水' },
+  dining: { id: 'dining', title: '用餐' }
+};
+
+const SECTION_ORDER = ['drinks', 'dining'];
+
+function normalizeSection(value) {
+  if (typeof value === 'string') {
+    const key = value.toLowerCase();
+    if (SECTION_META[key]) {
+      return key;
+    }
+  }
+  return SECTION_ORDER[0];
+}
+
+function createEmptyCategoryTotals() {
+  return SECTION_ORDER.reduce((acc, section) => {
+    acc[section] = 0;
+    return acc;
+  }, {});
+}
+
+function normalizeCategoryTotals(input) {
+  const totals = createEmptyCategoryTotals();
+  if (input && typeof input === 'object') {
+    SECTION_ORDER.forEach((section) => {
+      const value = Number(input[section] || 0);
+      totals[section] = Number.isFinite(value) && value > 0 ? value : 0;
+    });
+  }
+  return totals;
+}
 
 function normalizeVariant(variant) {
   if (!variant) {
@@ -34,13 +75,15 @@ function normalizeItem(item, overrides = {}) {
   if (!variants.length) {
     return null;
   }
-  const category = overrides.cat || item.cat;
+  const category = (overrides.cat || item.cat || '').trim();
   if (!category) {
     return null;
   }
+  const section = normalizeSection(overrides.section || item.section);
   return {
     id: item.id,
     cat: category,
+    section,
     title: typeof item.title === 'string' ? item.title : '',
     desc: typeof item.desc === 'string' ? item.desc : '',
     img: typeof item.img === 'string' ? item.img : '',
@@ -48,46 +91,165 @@ function normalizeItem(item, overrides = {}) {
   };
 }
 
-function buildMenuItems() {
-  const list = [];
-  rawItems.forEach((item) => {
-    const normalized = normalizeItem(item);
-    if (normalized) {
-      list.push(normalized);
-    }
-  });
-  if (Array.isArray(softDrinks)) {
-    softDrinks.forEach((item) => {
-      const normalized = normalizeItem(
-        {
-          ...item,
-          desc: item.desc || '',
-          img: item.img || ''
-        },
-        { cat: 'soft' }
-      );
-      if (normalized) {
-        list.push(normalized);
-      }
-    });
+function pushNormalizedItem(target, item, overrides = {}) {
+  const normalized = normalizeItem(item, overrides);
+  if (normalized) {
+    target.push(normalized);
   }
-  return list;
 }
 
-const MENU_ITEMS = buildMenuItems();
-const ITEM_MAP = MENU_ITEMS.reduce((acc, item) => {
-  acc[item.id] = item;
-  return acc;
-}, {});
-const CATEGORY_ITEMS = MENU_ITEMS.reduce((acc, item) => {
-  if (!acc[item.cat]) {
-    acc[item.cat] = [];
+function buildSection(sectionId, categories, baseItems, options = {}) {
+  const items = [];
+  const extras = Array.isArray(options.extras) ? options.extras : [];
+  const primaryItems = Array.isArray(baseItems) ? baseItems : [];
+  const sectionMeta = SECTION_META[sectionId] || { title: '' };
+  primaryItems.forEach((item) => {
+    pushNormalizedItem(items, item, { section: sectionId });
+  });
+  extras.forEach((extra) => {
+    if (!extra) {
+      return;
+    }
+    const { item, overrides = {} } = extra;
+    if (item) {
+      pushNormalizedItem(items, item, { section: sectionId, ...overrides });
+    } else {
+      pushNormalizedItem(items, extra, { section: sectionId });
+    }
+  });
+  const itemMap = {};
+  const categoryItems = {};
+  items.forEach((menuItem) => {
+    itemMap[menuItem.id] = menuItem;
+    if (!categoryItems[menuItem.cat]) {
+      categoryItems[menuItem.cat] = [];
+    }
+    categoryItems[menuItem.cat].push(menuItem);
+  });
+  const filteredCategories = Array.isArray(categories)
+    ? categories.filter((cat) => categoryItems[cat.id] && categoryItems[cat.id].length)
+    : [];
+  const defaultCategoryId = filteredCategories.length ? filteredCategories[0].id : '';
+  return {
+    id: sectionId,
+    title: sectionMeta.title,
+    categories: filteredCategories,
+    categoryItems,
+    items,
+    itemMap,
+    defaultCategoryId
+  };
+}
+
+function getDrinkCategoryOrder(now = new Date()) {
+  const hour = now.getHours();
+  const dayOrder = [
+    'coffee',
+    'snack',
+    'ws',
+    'sig',
+    'soft',
+    'rose',
+    'white',
+    'red',
+    'rum',
+    'rare',
+    'easter'
+  ];
+  const nightOrder = [
+    'ws',
+    'sig',
+    'rum',
+    'snack',
+    'white',
+    'red',
+    'rose',
+    'rare',
+    'soft',
+    'coffee',
+    'easter'
+  ];
+  return hour >= 9 && hour < 17 ? dayOrder : nightOrder;
+}
+
+function sortDrinkCategories(categories, now = new Date()) {
+  if (!Array.isArray(categories)) {
+    return [];
   }
-  acc[item.cat].push(item);
+  const order = getDrinkCategoryOrder(now);
+  const position = order.reduce((acc, id, index) => {
+    acc[id] = index;
+    return acc;
+  }, {});
+  return [...categories].sort((a, b) => {
+    const indexA = position[a.id];
+    const indexB = position[b.id];
+    if (typeof indexA === 'number' && typeof indexB === 'number') {
+      return indexA - indexB;
+    }
+    if (typeof indexA === 'number') {
+      return -1;
+    }
+    if (typeof indexB === 'number') {
+      return 1;
+    }
+    return 0;
+  });
+}
+
+function buildMenuSections(now = new Date()) {
+  const sections = [];
+  const softDrinkExtras = Array.isArray(softDrinks)
+    ? softDrinks.map((drink) => ({
+        item: {
+          ...drink,
+          desc: drink.desc || '',
+          img: drink.img || ''
+        },
+        overrides: { cat: 'soft' }
+      }))
+    : [];
+  const builders = {
+    drinks: () =>
+      buildSection('drinks', sortDrinkCategories(rawDrinkCategories, now), rawDrinkItems, {
+        extras: softDrinkExtras
+      }),
+    dining: () => buildSection('dining', rawDiningCategories, rawDiningItems)
+  };
+  SECTION_ORDER.forEach((sectionId) => {
+    if (!SECTION_META[sectionId]) {
+      return;
+    }
+    const builder = builders[sectionId];
+    if (typeof builder === 'function') {
+      sections.push(builder());
+    }
+  });
+  return sections;
+}
+
+const MENU_SECTIONS = buildMenuSections();
+const SECTION_MAP = MENU_SECTIONS.reduce((acc, section) => {
+  if (section && section.id) {
+    acc[section.id] = section;
+  }
   return acc;
 }, {});
-const CATEGORIES = rawCategories.filter((cat) => CATEGORY_ITEMS[cat.id] && CATEGORY_ITEMS[cat.id].length);
-const DEFAULT_CATEGORY_ID = CATEGORIES.length ? CATEGORIES[0].id : '';
+const ITEM_MAP = MENU_SECTIONS.reduce((acc, section) => {
+  if (section && Array.isArray(section.items)) {
+    section.items.forEach((item) => {
+      acc[item.id] = item;
+    });
+  }
+  return acc;
+}, {});
+const TABS = MENU_SECTIONS.map((section) => ({ id: section.id, title: section.title }));
+const DEFAULT_TAB_ID = TABS.length ? TABS[0].id : '';
+const DEFAULT_SECTION = DEFAULT_TAB_ID ? SECTION_MAP[DEFAULT_TAB_ID] : null;
+const DEFAULT_CATEGORY_ID = DEFAULT_SECTION ? DEFAULT_SECTION.defaultCategoryId : '';
+const DEFAULT_CATEGORIES = DEFAULT_SECTION ? DEFAULT_SECTION.categories : [];
+const DEFAULT_VISIBLE_ITEMS =
+  DEFAULT_SECTION && DEFAULT_CATEGORY_ID ? DEFAULT_SECTION.categoryItems[DEFAULT_CATEGORY_ID] || [] : [];
 
 function formatDateTime(value) {
   if (!value) return '';
@@ -131,8 +293,12 @@ function decorateOrder(order) {
         const price = Number(item.price || 0);
         const quantity = Math.max(1, Number(item.quantity || 0));
         const amount = Number.isFinite(item.amount) ? Number(item.amount) : price * quantity;
+        const fallbackMenu = item.menuId && ITEM_MAP[item.menuId] ? ITEM_MAP[item.menuId] : null;
+        const section = normalizeSection(item.categoryType || (fallbackMenu ? fallbackMenu.section : ''));
         return {
           ...item,
+          section,
+          sectionTitle: SECTION_META[section].title,
           price,
           quantity,
           amount,
@@ -141,7 +307,17 @@ function decorateOrder(order) {
         };
       })
     : [];
+  const groupedItems = groupLinesBySection(items);
   const totalAmount = Number(order.totalAmount || 0);
+  const categoryTotals = normalizeCategoryTotals(order.categoryTotals);
+  if (items.length) {
+    const computedTotals = calculateSectionTotals(items);
+    SECTION_ORDER.forEach((section) => {
+      if (!categoryTotals[section] && computedTotals[section]) {
+        categoryTotals[section] = computedTotals[section];
+      }
+    });
+  }
   const stoneRewardRaw = Number(
     Object.prototype.hasOwnProperty.call(order, 'stoneReward') ? order.stoneReward : order.totalAmount
   );
@@ -150,6 +326,8 @@ function decorateOrder(order) {
     ...order,
     _id: id,
     items,
+    groupedItems,
+    categoryTotals,
     totalAmount,
     totalAmountLabel: formatCurrency(totalAmount),
     stoneReward,
@@ -177,13 +355,18 @@ function showConfirmDialog(options) {
 function decorateCart(cart) {
   return cart.map((line) => {
     const quantity = Math.max(1, Number(line.quantity || 1));
-    const amount = line.price * quantity;
+    const price = Number(line.price || 0);
+    const amount = price * quantity;
+    const section = normalizeSection(line.section);
     return {
       ...line,
+      section,
+      sectionTitle: SECTION_META[section].title,
+      price,
       quantity,
       amount,
       amountLabel: formatCurrency(amount),
-      priceLabel: formatCurrency(line.price)
+      priceLabel: formatCurrency(price)
     };
   });
 }
@@ -192,12 +375,43 @@ function computeCartTotal(cart) {
   return cart.reduce((sum, line) => sum + line.price * line.quantity, 0);
 }
 
+function groupLinesBySection(lines) {
+  return SECTION_ORDER.map((section) => {
+    const sectionLines = lines.filter((line) => normalizeSection(line.section) === section);
+    if (!sectionLines.length) {
+      return null;
+    }
+    return {
+      section,
+      title: SECTION_META[section].title,
+      items: sectionLines
+    };
+  }).filter(Boolean);
+}
+
+function calculateSectionTotals(lines) {
+  const totals = createEmptyCategoryTotals();
+  lines.forEach((line) => {
+    const amount = Number(line.amount);
+    const resolvedAmount = Number.isFinite(amount) ? amount : Number(line.price || 0) * Number(line.quantity || 0);
+    const section = normalizeSection(line.section);
+    if (resolvedAmount > 0) {
+      totals[section] += resolvedAmount;
+    }
+  });
+  return totals;
+}
+
 Page({
   data: {
-    categories: CATEGORIES,
+    tabs: TABS,
+    activeTab: DEFAULT_TAB_ID,
+    categories: DEFAULT_CATEGORIES,
     activeCategory: DEFAULT_CATEGORY_ID,
-    visibleItems: DEFAULT_CATEGORY_ID ? CATEGORY_ITEMS[DEFAULT_CATEGORY_ID] || [] : [],
+    visibleItems: DEFAULT_VISIBLE_ITEMS,
     cart: [],
+    cartGroups: [],
+    cartSectionTotals: createEmptyCategoryTotals(),
     cartTotal: 0,
     cartTotalLabel: formatCurrency(0),
     cartStoneReward: 0,
@@ -217,14 +431,62 @@ Page({
     this.loadOrders().finally(() => wx.stopPullDownRefresh());
   },
 
+  applySectionState(sectionId, categoryId) {
+    const section = SECTION_MAP[sectionId];
+    if (!section) {
+      this.setData({
+        categories: [],
+        activeCategory: '',
+        visibleItems: []
+      });
+      return;
+    }
+    const nextCategory = categoryId && section.categoryItems[categoryId] ? categoryId : section.defaultCategoryId;
+    this.setData({
+      categories: section.categories,
+      activeCategory: nextCategory,
+      visibleItems: nextCategory ? section.categoryItems[nextCategory] || [] : []
+    });
+  },
+
+  handleSelectTab(event) {
+    const { id } = event.currentTarget.dataset || {};
+    const tabId = typeof id === 'string' ? id : '';
+    if (!tabId || tabId === this.data.activeTab) {
+      return;
+    }
+    this.setData({ activeTab: tabId });
+    this.applySectionState(tabId);
+  },
+
   handleSelectCategory(event) {
     const { id } = event.currentTarget.dataset || {};
     if (!id || id === this.data.activeCategory) {
       return;
     }
+    const section = SECTION_MAP[this.data.activeTab];
+    if (!section || !section.categoryItems[id]) {
+      return;
+    }
     this.setData({
       activeCategory: id,
-      visibleItems: CATEGORY_ITEMS[id] || []
+      visibleItems: section.categoryItems[id] || []
+    });
+  },
+
+  updateCartState(nextCart) {
+    const decorated = decorateCart(nextCart);
+    const total = computeCartTotal(decorated);
+    const sectionTotals = calculateSectionTotals(decorated);
+    const stoneReward = Math.max(0, Math.floor(total));
+    this.setData({
+      cart: decorated,
+      cartGroups: groupLinesBySection(decorated),
+      cartSectionTotals: sectionTotals,
+      cartTotal: total,
+      cartTotalLabel: formatCurrency(total),
+      cartStoneReward: stoneReward,
+      cartStoneRewardLabel: formatStones(stoneReward)
     });
   },
 
@@ -242,7 +504,7 @@ Page({
       return;
     }
     const key = `${item.id}|${variant.label}`;
-    const cart = [...this.data.cart];
+    const cart = this.data.cart.map((line) => ({ ...line }));
     const existingIndex = cart.findIndex((line) => line.key === key);
     if (existingIndex >= 0) {
       cart[existingIndex] = {
@@ -257,19 +519,11 @@ Page({
         spec: variant.label,
         unit: variant.unit || '',
         price: variant.price,
-        quantity: 1
+        quantity: 1,
+        section: item.section
       });
     }
-    const decorated = decorateCart(cart);
-    const total = computeCartTotal(decorated);
-    const stoneReward = Math.max(0, Math.floor(total));
-    this.setData({
-      cart: decorated,
-      cartTotal: total,
-      cartTotalLabel: formatCurrency(total),
-      cartStoneReward: stoneReward,
-      cartStoneRewardLabel: formatStones(stoneReward)
-    });
+    this.updateCartState(cart);
   },
 
   handleAdjustQuantity(event) {
@@ -289,26 +543,11 @@ Page({
     } else {
       cart[index].quantity = nextQuantity;
     }
-    const decorated = decorateCart(cart);
-    const total = computeCartTotal(decorated);
-    const stoneReward = Math.max(0, Math.floor(total));
-    this.setData({
-      cart: decorated,
-      cartTotal: total,
-      cartTotalLabel: formatCurrency(total),
-      cartStoneReward: stoneReward,
-      cartStoneRewardLabel: formatStones(stoneReward)
-    });
+    this.updateCartState(cart);
   },
 
   handleClearCart() {
-    this.setData({
-      cart: [],
-      cartTotal: 0,
-      cartTotalLabel: formatCurrency(0),
-      cartStoneReward: 0,
-      cartStoneRewardLabel: formatStones(0)
-    });
+    this.updateCartState([]);
   },
 
   handleRemarkInput(event) {
@@ -327,22 +566,18 @@ Page({
       spec: line.spec,
       unit: line.unit,
       price: line.price,
-      quantity: line.quantity
+      quantity: line.quantity,
+      categoryType: line.section
     }));
     try {
       await MenuOrderService.createOrder({
         items,
-        remark: this.data.remark
+        remark: this.data.remark,
+        categoryTotals: this.data.cartSectionTotals
       });
       wx.showToast({ title: '订单已提交', icon: 'success' });
-      this.setData({
-        cart: [],
-        cartTotal: 0,
-        cartTotalLabel: formatCurrency(0),
-        cartStoneReward: 0,
-        cartStoneRewardLabel: formatStones(0),
-        remark: ''
-      });
+      this.updateCartState([]);
+      this.setData({ remark: '' });
       await this.loadOrders();
     } catch (error) {
       const message =
