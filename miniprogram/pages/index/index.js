@@ -33,6 +33,9 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 
 const app = getApp();
 
+const COLLAPSED_NAV_LIMIT = 3;
+const NAV_EXPANDED_STORAGE_KEY = 'home_nav_expanded';
+
 const BASE_NAV_ITEMS = [
     { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
     { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index' },
@@ -43,6 +46,8 @@ const BASE_NAV_ITEMS = [
     { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' }
     //{ icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
+
+const INITIAL_NAV_VISIBLE_ITEMS = BASE_NAV_ITEMS.slice(0, COLLAPSED_NAV_LIMIT);
 
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
 
@@ -517,6 +522,29 @@ function deriveMemberStats(member) {
   };
 }
 
+function computeVisibleNavItems(navItems, expanded) {
+  if (!Array.isArray(navItems)) {
+    return [];
+  }
+  if (expanded) {
+    return [...navItems];
+  }
+  return navItems.slice(0, COLLAPSED_NAV_LIMIT);
+}
+
+function coerceStoredBoolean(value) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return value === 'true' || value === '1';
+  }
+  if (typeof value === 'number') {
+    return value !== 0;
+  }
+  return false;
+}
+
 function resolveNavItems(member) {
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
   const badges = normalizeReservationBadges(member && member.reservationBadges);
@@ -573,6 +601,9 @@ Page({
       { icon: '🔥', label: '比武' }
     ],
     navItems: [...BASE_NAV_ITEMS],
+    navVisibleItems: [...INITIAL_NAV_VISIBLE_ITEMS],
+    navExpanded: false,
+    showNavMore: BASE_NAV_ITEMS.length > COLLAPSED_NAV_LIMIT,
     memberStats: { ...EMPTY_MEMBER_STATS },
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
@@ -608,6 +639,7 @@ Page({
     this.hasBootstrapped = false;
     this.ensureNavMetrics();
     this.updateToday();
+    this.restoreNavExpandedState();
   },
 
   onShow() {
@@ -735,17 +767,18 @@ Page({
         TaskService.list()
       ]);
       const sanitizedMember = buildSanitizedMember(member);
+      const navItems = resolveNavItems(sanitizedMember);
       const width = normalizePercentage(progress);
       const needsProfile = !sanitizedMember || !sanitizedMember.nickName || !sanitizedMember.mobile;
       const profileAuthorized = !!(sanitizedMember && sanitizedMember.nickName);
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
+      this.updateNavDisplay(navItems);
       this.setData({
         member: sanitizedMember,
         progress,
         tasks: tasks.slice(0, 3),
         loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),
-        navItems: resolveNavItems(sanitizedMember),
         memberStats: deriveMemberStats(sanitizedMember),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
@@ -803,6 +836,32 @@ Page({
       this.bootstrapPending = false;
       this.bootstrap({ showLoading: false });
     }
+  },
+
+  restoreNavExpandedState() {
+    let storedExpanded = false;
+    try {
+      const storedValue = wx.getStorageSync(NAV_EXPANDED_STORAGE_KEY);
+      storedExpanded = coerceStoredBoolean(storedValue);
+    } catch (error) {
+      storedExpanded = false;
+    }
+    const navItems = this.data.navItems;
+    this.setData({
+      navExpanded: storedExpanded,
+      navVisibleItems: computeVisibleNavItems(navItems, storedExpanded),
+      showNavMore: !storedExpanded && navItems.length > COLLAPSED_NAV_LIMIT
+    });
+  },
+
+  updateNavDisplay(navItems) {
+    const normalizedItems = Array.isArray(navItems) ? navItems : [];
+    const navExpanded = this.data.navExpanded;
+    this.setData({
+      navItems: normalizedItems,
+      navVisibleItems: computeVisibleNavItems(normalizedItems, navExpanded),
+      showNavMore: !navExpanded && normalizedItems.length > COLLAPSED_NAV_LIMIT
+    });
   },
 
   updateToday() {
@@ -1168,10 +1227,10 @@ Page({
       return;
     }
     const renameHistory = formatHistoryList(member.renameHistory);
+    const navItems = resolveNavItems(sanitizedMember);
     this.setData({
       member: sanitizedMember,
       memberStats: deriveMemberStats(sanitizedMember),
-      navItems: resolveNavItems(sanitizedMember),
       heroImage: resolveCharacterImage(sanitizedMember),
       'profileEditor.nickName': sanitizedMember.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
@@ -1192,6 +1251,7 @@ Page({
       'profileEditor.renameUsed': sanitizedMember.renameUsed || 0,
       'profileEditor.renameHistory': renameHistory
     });
+    this.updateNavDisplay(navItems);
     this.updateBackgroundDisplay(sanitizedMember, { resetError: true });
     if (this.data.showAvatarPicker) {
       this.refreshAvatarPickerOptions();
@@ -1351,5 +1411,22 @@ Page({
   handleNavTap(event) {
     const { url } = event.currentTarget.dataset;
     wx.navigateTo({ url });
+  },
+
+  handleNavExpandTap() {
+    if (this.data.navExpanded) {
+      return;
+    }
+    const expandedItems = computeVisibleNavItems(this.data.navItems, true);
+    this.setData({
+      navExpanded: true,
+      navVisibleItems: expandedItems,
+      showNavMore: false
+    });
+    try {
+      wx.setStorageSync(NAV_EXPANDED_STORAGE_KEY, true);
+    } catch (error) {
+      // ignore storage failures
+    }
   }
 });
