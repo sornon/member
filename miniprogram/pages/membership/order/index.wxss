@@ -98,8 +98,6 @@
 }
 
 .variant-add {
-  width: 56rpx;
-  height: 56rpx;
   min-width: 0;
   padding: 0;
   border-radius: 10rpx;
@@ -107,6 +105,7 @@
   align-items: center;
   justify-content: center;
   font-size: 32rpx;
+  margin-right: 0;
 }
 
 .empty-hint {
@@ -192,7 +191,6 @@
 
 .qty-btn {
   width: 52rpx;
-  height: 52rpx;
   padding: 0;
   border-radius: 8px;
   display: flex;
@@ -270,7 +268,7 @@
 }
 
 .order-status {
-  color: #ffd166;
+  color: #fff;
 }
 
 .order-items {

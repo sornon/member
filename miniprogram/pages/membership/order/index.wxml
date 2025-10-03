@@ -53,8 +53,6 @@
         <view class="cart-main">
           <view class="cart-name">{{cartItem.title}}</view>
           <view class="cart-spec">
-            <text wx:if="{{cartItem.spec}}" class="cart-spec-label">{{cartItem.spec}}</text>
-            <text wx:if="{{cartItem.spec && cartItem.unit}}" class="cart-spec-separator">·</text>
             <text class="cart-spec-price">{{cartItem.priceLabel}}{{cartItem.unit}}</text>
           </view>
         </view>
@@ -108,8 +106,6 @@
           <view class="line-main">
             <text class="line-title">{{orderLine.title}}</text>
             <view class="line-meta">
-              <text wx:if="{{orderLine.spec}}" class="line-spec-label">{{orderLine.spec}}</text>
-              <text wx:if="{{orderLine.spec && orderLine.unit}}" class="line-spec-separator">·</text>
               <text class="line-spec-price">{{orderLine.priceLabel}}{{orderLine.unit}}</text>
               <text class="line-spec-quantity"> × {{orderLine.quantity}}</text>
             </view>
