@@ -405,14 +405,9 @@
   margin-top: 8px;
 }
 
-.view-more-btn {
-  min-width: 0;
-  padding: 0 28rpx;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #a2a9ff;
-  border: 1px solid rgba(162, 169, 255, 0.4);
+.view-more-link {
   font-size: 26rpx;
+  color: #a2a9ff;
 }
 
 .order-summary {

@@ -157,8 +157,8 @@
       </view>
       <view class="order-meta" wx:if="{{order.memberConfirmedAtLabel}}">会员确认：{{order.memberConfirmedAtLabel}}</view>
     </view>
-    <view class="orders-footer" wx:if="{{hasMoreOrders}}">
-      <button class="view-more-btn" type="default" size="mini" bindtap="handleShowMoreOrders">查看更多</button>
+    <view class="orders-footer" wx:if="{{hasMoreOrders}}" bindtap="handleShowMoreOrders">
+      <text class="view-more-link">查看更多</text>
     </view>
   </view>
 </view>
