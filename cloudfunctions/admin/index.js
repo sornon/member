@@ -692,16 +692,6 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '' } 
     if (status === 'cancelled') {
       throw new Error('订单已取消');
     }
-    const expireAt = order.expireAt ? new Date(order.expireAt) : null;
-    if (expireAt && !Number.isNaN(expireAt.getTime()) && expireAt.getTime() <= now.getTime()) {
-      await orderRef.update({
-        data: {
-          status: 'expired',
-          updatedAt: now
-        }
-      }).catch(() => null);
-      throw new Error('订单已过期');
-    }
     targetMemberId = order.memberId || (typeof memberId === 'string' ? memberId.trim() : '');
     if (!targetMemberId) {
       throw new Error('请先关联会员');
