@@ -520,6 +520,9 @@ page {
 
 .price-dialog__input {
   font-size: 28rpx;
+  height: 88rpx;
+  padding: 28rpx 24rpx;
+  line-height: 32rpx;
 }
 
 .price-dialog__textarea {
