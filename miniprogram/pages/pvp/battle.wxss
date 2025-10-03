@@ -1,0 +1,82 @@
+.battle-page {
+  min-height: 100vh;
+  padding: 24rpx 32rpx 64rpx;
+  background: linear-gradient(180deg, #050921 0%, #12163d 80%, #0a0f2c 100%);
+  color: #fff;
+}
+
+.battle-loading,
+.battle-empty {
+  margin-top: 120rpx;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.battle-header {
+  text-align: center;
+  margin-bottom: 24rpx;
+}
+
+.battle-result {
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.battle-meta {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 8rpx;
+}
+
+.battle-summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16rpx;
+  margin-bottom: 24rpx;
+}
+
+.battle-summary__item {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 20rpx;
+  padding: 20rpx;
+  text-align: center;
+}
+
+.battle-summary__label {
+  font-size: 24rpx;
+  opacity: 0.7;
+}
+
+.battle-summary__value {
+  margin-top: 8rpx;
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.battle-rounds {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.round-item {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 20rpx;
+  padding: 20rpx;
+}
+
+.round-title {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.round-description {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+}
+
+.round-meta {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.6);
+}

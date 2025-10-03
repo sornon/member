@@ -36,14 +36,15 @@ const app = getApp();
 const NAV_EXPANDED_STORAGE_KEY = 'home-nav-expanded';
 
 const BASE_NAV_ITEMS = [
-    { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
-    { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index' },
-    { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
-    { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
-    { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
-    { icon: '💍', label: '纳戒', url: '/pages/role/index?tab=storage' },
-    { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' }
-    //{ icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
+  { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
+  { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index' },
+  { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
+  { icon: '⚔️', label: '比武', url: '/pages/pvp/index' },
+  { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
+  { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
+  { icon: '💍', label: '纳戒', url: '/pages/role/index?tab=storage' },
+  { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' }
+  //{ icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
 
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
@@ -578,7 +579,7 @@ Page({
       { icon: '🏪', label: '商城', url: '/pages/mall/index' },
       { icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
       { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
-      { icon: '🔥', label: '比武' }
+      { icon: '🥊', label: '比武', url: '/pages/pvp/index' }
     ],
     navItems: [...BASE_NAV_ITEMS],
     collapsedNavItems: buildCollapsedNavItems(BASE_NAV_ITEMS),
