@@ -59,14 +59,6 @@
       </view>
 
       <view class="top-bar__actions">
-        <view class="mall-entry" bindtap="handleMallTap">
-          <view class="mall-entry__icon">🏪</view>
-          <view class="mall-entry__info">
-            <view class="mall-entry__label">灵石商城</view>
-            <view class="mall-entry__hint">兑换虚拟道具</view>
-          </view>
-        </view>
-
         <view class="activity-panel">
           <view class="activity-item" wx:for="{{activityIcons}}" wx:key="label" data-url="{{item.url}}" data-label="{{item.label}}" bindtap="handleActivityTap">
             <view class="activity-icon">{{item.icon}}</view>
