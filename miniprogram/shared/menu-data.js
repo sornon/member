@@ -2,39 +2,39 @@ export const menuData = {
   "categories": [
     {
       "id": "coffee",
-      "name": "精品咖啡 Coffee"
+      "name": "精品咖啡"
     },
     {
       "id": "rum",
-      "name": "古巴朗姆 Rum for Cigar"
+      "name": "古巴朗姆"
     },
     {
       "id": "soft",
-      "name": "软饮 Soft Drinks"
+      "name": "软饮"
     },
     {
       "id": "white",
-      "name": "白葡萄酒 White Wine"
+      "name": "白葡萄酒"
     },
     {
       "id": "rose",
-      "name": "桃红起泡酒 Rosé"
+      "name": "桃红起泡酒"
     },
     {
       "id": "ws",
-      "name": "威士忌 Whisky"
+      "name": "威士忌"
     },
     {
       "id": "rare",
-      "name": "小众烈酒 Rare Spirits"
+      "name": "小众烈酒"
     },
     {
       "id": "red",
-      "name": "红葡萄酒 Red Wine"
+      "name": "红葡萄酒"
     },
     {
       "id": "sig",
-      "name": "La Casa 特调 Signature Cocktails"
+      "name": "特调"
     },
     {
       "id": "snack",
@@ -42,7 +42,7 @@ export const menuData = {
     },
     {
       "id": "easter",
-      "name": "La Casa 小彩蛋"
+      "name": "小彩蛋"
     }
   ],
   "items": [
@@ -692,9 +692,143 @@ export const menuData = {
       ]
     }
   ],
+  "diningCategories": [
+    {
+      "id": "pairing",
+      "name": "下酒菜"
+    },
+    {
+      "id": "cold",
+      "name": "凉菜"
+    },
+    {
+      "id": "staple",
+      "name": "主食"
+    },
+    {
+      "id": "bbq",
+      "name": "烤串"
+    }
+  ],
+  "diningItems": [
+    {
+      "id": "pairing-nuts",
+      "cat": "pairing",
+      "title": "秘制坚果拼盘",
+      "desc": "每日烘焙腰果、扁桃仁与碧根果，佐以少量干果点缀。",
+      "variants": [
+        {
+          "label": "份",
+          "unit": "/份",
+          "price": 5900
+        }
+      ],
+      "img": ""
+    },
+    {
+      "id": "pairing-olive",
+      "cat": "pairing",
+      "title": "香草橄榄",
+      "desc": "西班牙青橄榄搭配初榨橄榄油与迷迭香。",
+      "variants": [
+        {
+          "label": "份",
+          "unit": "/份",
+          "price": 4900
+        }
+      ],
+      "img": ""
+    },
+    {
+      "id": "cold-beef",
+      "cat": "cold",
+      "title": "酱香牛肉",
+      "desc": "精选前腿肉低温卤制，入口软糯回甜。",
+      "variants": [
+        {
+          "label": "份",
+          "unit": "/份",
+          "price": 8900
+        }
+      ],
+      "img": ""
+    },
+    {
+      "id": "cold-salad",
+      "cat": "cold",
+      "title": "芝麻菠菜",
+      "desc": "冷拌芝麻酱菠菜，清爽解腻。",
+      "variants": [
+        {
+          "label": "份",
+          "unit": "/份",
+          "price": 5900
+        }
+      ],
+      "img": ""
+    },
+    {
+      "id": "staple-noodle",
+      "cat": "staple",
+      "title": "葱油拌面",
+      "desc": "手工面条佐以葱油与秘制酱油。",
+      "variants": [
+        {
+          "label": "份",
+          "unit": "/份",
+          "price": 7900
+        }
+      ],
+      "img": ""
+    },
+    {
+      "id": "staple-friedrice",
+      "cat": "staple",
+      "title": "松露牛油炒饭",
+      "desc": "日本越光米搭配松露酱与牛油快炒。",
+      "variants": [
+        {
+          "label": "份",
+          "unit": "/份",
+          "price": 11900
+        }
+      ],
+      "img": ""
+    },
+    {
+      "id": "bbq-lamb",
+      "cat": "bbq",
+      "title": "香料烤羊排",
+      "desc": "小羔羊排刷以孜然与迷迭香，现烤上桌。",
+      "variants": [
+        {
+          "label": "份",
+          "unit": "/份",
+          "price": 15900
+        }
+      ],
+      "img": ""
+    },
+    {
+      "id": "bbq-shrimp",
+      "cat": "bbq",
+      "title": "蒜香烤虾串",
+      "desc": "海捕大虾腌制后炭烤，蒜香浓郁。",
+      "variants": [
+        {
+          "label": "串",
+          "unit": "/串",
+          "price": 6900
+        }
+      ],
+      "img": ""
+    }
+  ],
   "generatedAt": "2025-10-02T16:06:51.230Z"
 };
 export const categories = menuData.categories;
 export const items = menuData.items;
 export const softDrinks = menuData.softDrinks;
+export const diningCategories = menuData.diningCategories || [];
+export const diningItems = menuData.diningItems || [];
 export default menuData;

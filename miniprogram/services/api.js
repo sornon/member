@@ -531,11 +531,12 @@ export const AdminService = {
 };
 
 export const MenuOrderService = {
-  async createOrder({ items = [], remark = '' } = {}) {
+  async createOrder({ items = [], remark = '', categoryTotals = {} } = {}) {
     return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
       action: 'createOrder',
       items,
-      remark
+      remark,
+      categoryTotals
     });
   },
   async listOrders() {
