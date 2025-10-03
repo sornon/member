@@ -49,13 +49,31 @@
           <text class="meta-text" wx:if="{{item.memberMobile}}">手机：{{item.memberMobile}}</text>
         </view>
         <view class="order-amount">
-          <text class="amount">{{item.totalAmountLabel}}</text>
+          <view class="amount-wrap">
+            <text class="amount" wx:if="{{!item.priceAdjusted}}">{{item.totalAmountLabel}}</text>
+            <view class="amount-adjusted" wx:else>
+              <text class="amount amount-new">{{item.totalAmountLabel}}</text>
+              <text class="amount-original">原价 {{item.originalTotalAmountLabel}}</text>
+            </view>
+          </view>
           <text class="reward">赠送 {{item.stoneRewardLabel}}</text>
+        </view>
+        <view class="order-adjust-remark" wx:if="{{item.priceAdjustmentRemark}}">
+          改价说明：{{item.priceAdjustmentRemark}}
+          <text wx:if="{{item.priceAdjustmentUpdatedAtLabel}}">（{{item.priceAdjustmentUpdatedAtLabel}}）</text>
         </view>
         <view
           class="order-actions"
           wx:if="{{item.status === 'pending' || item.status === 'created'}}"
         >
+          <button
+            class="adjust-btn"
+            size="mini"
+            data-id="{{item._id}}"
+            loading="{{priceAdjustingId === item._id}}"
+            disabled="{{priceAdjustingId === item._id || forceChargingId === item._id}}"
+            bindtap="handleOpenPriceAdjustDialog"
+          >改价</button>
           <button
             class="force-btn"
             size="mini"
@@ -90,45 +108,70 @@
     <view class="force-dialog">
       <view class="force-dialog__title">关联会员</view>
       <view class="force-dialog__body">
-        <view class="force-dialog__search">
-          <input
-            class="force-dialog__input"
-            placeholder="输入昵称 / 手机号 / 编号"
-            value="{{forceChargeDialog.keyword}}"
-            confirm-type="search"
-            bindinput="handleForceChargeMemberInput"
-            bindconfirm="handleForceChargeMemberSearch"
-          />
-          <button class="force-dialog__search-btn" size="mini" bindtap="handleForceChargeMemberSearch">
-            搜索
-          </button>
-        </view>
-        <view class="force-dialog__error" wx:if="{{forceChargeDialog.error}}">{{forceChargeDialog.error}}</view>
-        <view class="force-dialog__results">
-          <view class="force-dialog__loading" wx:if="{{forceChargeDialog.loading}}">搜索中...</view>
-          <view
-            class="force-dialog__empty"
-            wx:elif="{{!forceChargeDialog.loading && (!forceChargeDialog.results.length)}}"
-          >
-            请输入关键词搜索会员
+        <block wx:if="{{!forceChargeDialog.memberLocked}}">
+          <view class="force-dialog__search">
+            <input
+              class="force-dialog__input"
+              placeholder="输入昵称 / 手机号 / 编号"
+              value="{{forceChargeDialog.keyword}}"
+              confirm-type="search"
+              bindinput="handleForceChargeMemberInput"
+              bindconfirm="handleForceChargeMemberSearch"
+            />
+            <button class="force-dialog__search-btn" size="mini" bindtap="handleForceChargeMemberSearch">
+              搜索
+            </button>
           </view>
-          <block wx:else>
+          <view class="force-dialog__error" wx:if="{{forceChargeDialog.error}}">{{forceChargeDialog.error}}</view>
+          <view class="force-dialog__results">
+            <view class="force-dialog__loading" wx:if="{{forceChargeDialog.loading}}">搜索中...</view>
             <view
-              class="force-dialog__member {{forceChargeDialog.selectedMemberId === member._id ? 'is-active' : ''}}"
-              wx:for="{{forceChargeDialog.results}}"
-              wx:for-item="member"
-              wx:key="_id"
-              data-id="{{member._id}}"
-              bindtap="handleSelectForceChargeMember"
+              class="force-dialog__empty"
+              wx:elif="{{!forceChargeDialog.loading && (!forceChargeDialog.results.length)}}"
             >
-              <view class="member-name">{{member.nickName || '未命名'}}</view>
-              <view class="member-meta">
-                <text wx:if="{{member.mobile}}">{{member.mobile}}</text>
-                <text wx:if="{{member.levelName}}">{{member.levelName}}</text>
-                <text>余额：{{member.balanceLabel}}</text>
-              </view>
+              请输入关键词搜索会员
             </view>
-          </block>
+            <block wx:else>
+              <view
+                class="force-dialog__member {{forceChargeDialog.selectedMemberId === member._id ? 'is-active' : ''}}"
+                wx:for="{{forceChargeDialog.results}}"
+                wx:for-item="member"
+                wx:key="_id"
+                data-id="{{member._id}}"
+                bindtap="handleSelectForceChargeMember"
+              >
+                <view class="member-name">{{member.nickName || '未命名'}}</view>
+                <view class="member-meta">
+                  <text wx:if="{{member.mobile}}">{{member.mobile}}</text>
+                  <text wx:if="{{member.levelName}}">{{member.levelName}}</text>
+                  <text>余额：{{member.balanceLabel}}</text>
+                </view>
+              </view>
+            </block>
+          </view>
+        </block>
+        <block wx:else>
+          <view class="force-dialog__locked">
+            <view class="member-name">{{(forceChargeDialog.memberInfo && forceChargeDialog.memberInfo.nickName) || '未命名'}}</view>
+            <view class="member-meta">
+              <text wx:if="{{forceChargeDialog.memberInfo && forceChargeDialog.memberInfo.mobile}}">{{forceChargeDialog.memberInfo.mobile}}</text>
+              <text wx:if="{{forceChargeDialog.memberInfo && forceChargeDialog.memberInfo.levelName}}">{{forceChargeDialog.memberInfo.levelName}}</text>
+              <text wx:if="{{forceChargeDialog.memberInfo && forceChargeDialog.memberInfo.balanceLabel}}">
+                余额：{{forceChargeDialog.memberInfo.balanceLabel}}
+              </text>
+            </view>
+            <view class="force-dialog__hint">将对以上会员扣除订单金额</view>
+          </view>
+        </block>
+        <view class="force-dialog__remark">
+          <textarea
+            class="force-dialog__remark-input"
+            placeholder="扣款备注（可选，会员可见）"
+            maxlength="140"
+            value="{{forceChargeDialog.remark}}"
+            bindinput="handleForceChargeRemarkInput"
+          ></textarea>
+          <view class="force-dialog__remark-hint">备注将展示在会员消费记录中，亦可说明改价原因</view>
         </view>
       </view>
       <view class="force-dialog__footer">
@@ -138,9 +181,53 @@
           size="mini"
           type="primary"
           loading="{{forceChargingId && forceChargeDialog.orderId === forceChargingId}}"
-          disabled="{{!forceChargeDialog.selectedMemberId || forceChargingId}}"
+          disabled="{{( !forceChargeDialog.memberLocked && !forceChargeDialog.selectedMemberId) || forceChargingId}}"
           bindtap="handleConfirmForceChargeWithMember"
         >确认扣款</button>
+      </view>
+    </view>
+  </view>
+
+  <view class="price-dialog-mask" wx:if="{{priceAdjustDialog.visible}}">
+    <view class="price-dialog">
+      <view class="price-dialog__title">改价</view>
+      <view class="price-dialog__body">
+        <view class="price-dialog__summary">
+          <text>当前金额：{{priceAdjustDialog.currentAmountLabel}}</text>
+          <text wx:if="{{priceAdjustDialog.originalAmountLabel}}">原价：{{priceAdjustDialog.originalAmountLabel}}</text>
+        </view>
+        <view class="price-dialog__field">
+          <text class="price-dialog__label">改后金额（元）</text>
+          <input
+            class="price-dialog__input"
+            type="digit"
+            placeholder="请输入改后金额"
+            value="{{priceAdjustDialog.amountInput}}"
+            bindinput="handlePriceAdjustAmountInput"
+          />
+        </view>
+        <view class="price-dialog__field">
+          <text class="price-dialog__label">备注（会员可见）</text>
+          <textarea
+            class="price-dialog__textarea"
+            placeholder="填写改价原因，可选"
+            maxlength="140"
+            value="{{priceAdjustDialog.remark}}"
+            bindinput="handlePriceAdjustRemarkInput"
+          ></textarea>
+        </view>
+        <view class="price-dialog__error" wx:if="{{priceAdjustDialog.error}}">{{priceAdjustDialog.error}}</view>
+      </view>
+      <view class="price-dialog__footer">
+        <button class="price-dialog__btn" size="mini" bindtap="closePriceAdjustDialog">取消</button>
+        <button
+          class="price-dialog__btn primary"
+          size="mini"
+          type="primary"
+          loading="{{priceAdjustingId === priceAdjustDialog.orderId}}"
+          disabled="{{priceAdjustingId === priceAdjustDialog.orderId}}"
+          bindtap="handleConfirmPriceAdjust"
+        >确认改价</button>
       </view>
     </view>
   </view>

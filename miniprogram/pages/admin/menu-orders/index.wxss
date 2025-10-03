@@ -123,6 +123,32 @@
   margin-bottom: 8px;
 }
 
+.order-total-original {
+  margin-left: 8rpx;
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.55);
+  text-decoration: line-through;
+}
+
 .action-btn {
   margin-top: 8px;
+}
+
+.action-btn--cancel {
+  color: #ffb6b6;
+  border: 1px solid rgba(255, 182, 182, 0.4);
+}
+
+.order-meta--cancel {
+  color: rgba(255, 150, 150, 0.8);
+}
+
+.order-meta--adjust {
+  color: rgba(162, 169, 255, 0.85);
+}
+
+.order-meta--adjust text {
+  margin-left: 6rpx;
+  font-size: 22rpx;
+  color: rgba(162, 169, 255, 0.7);
 }

@@ -159,6 +159,28 @@ page {
   align-items: baseline;
 }
 
+.order-amount .amount-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.amount-adjusted {
+  display: flex;
+  align-items: baseline;
+  gap: 12rpx;
+}
+
+.amount-adjusted .amount-new {
+  color: #fbbf24;
+}
+
+.amount-original {
+  font-size: 24rpx;
+  color: rgba(148, 163, 184, 0.75);
+  text-decoration: line-through;
+}
+
 .order-amount .amount {
   font-size: 36rpx;
   font-weight: 600;
@@ -167,6 +189,21 @@ page {
 
 .order-amount .reward {
   font-size: 24rpx;
+  color: rgba(148, 163, 184, 0.8);
+}
+
+.order-adjust-remark {
+  font-size: 24rpx;
+  color: rgba(226, 232, 240, 0.82);
+  background: rgba(30, 41, 59, 0.6);
+  padding: 12rpx 16rpx;
+  border-radius: 12rpx;
+  line-height: 1.5;
+}
+
+.order-adjust-remark text {
+  margin-left: 8rpx;
+  font-size: 22rpx;
   color: rgba(148, 163, 184, 0.8);
 }
 
@@ -209,6 +246,20 @@ page {
 .order-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 16rpx;
+}
+
+.adjust-btn {
+  background: rgba(30, 41, 59, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  color: #cbd5f5;
+  padding: 10rpx 32rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+}
+
+.adjust-btn::after {
+  display: none;
 }
 
 .force-btn {
@@ -301,6 +352,21 @@ page {
   gap: 16rpx;
 }
 
+.force-dialog__locked {
+  background: rgba(30, 41, 59, 0.6);
+  border-radius: 18rpx;
+  padding: 24rpx 28rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.force-dialog__hint {
+  font-size: 22rpx;
+  color: rgba(148, 163, 184, 0.85);
+}
+
 .force-dialog__loading,
 .force-dialog__empty {
   text-align: center;
@@ -338,6 +404,27 @@ page {
   color: rgba(203, 213, 225, 0.85);
 }
 
+.force-dialog__remark {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.force-dialog__remark-input {
+  min-height: 120rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 16rpx;
+  background: rgba(15, 23, 42, 0.6);
+  color: #f8fafc;
+  font-size: 24rpx;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.force-dialog__remark-hint {
+  font-size: 22rpx;
+  color: rgba(148, 163, 184, 0.75);
+}
+
 .force-dialog__footer {
   padding: 20rpx 32rpx 28rpx;
   display: flex;
@@ -361,4 +448,113 @@ page {
   background: linear-gradient(135deg, #2563eb, #3b82f6);
   color: #fff;
   border: none;
+}
+
+.price-dialog-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx;
+  box-sizing: border-box;
+  z-index: 998;
+}
+
+.price-dialog {
+  width: 100%;
+  max-width: 560rpx;
+  background: rgba(15, 23, 42, 0.95);
+  border-radius: 24rpx;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 24rpx 48rpx rgba(2, 6, 23, 0.65);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.price-dialog__title {
+  padding: 28rpx 32rpx 12rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.price-dialog__body {
+  padding: 0 32rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.price-dialog__summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  font-size: 24rpx;
+  color: rgba(226, 232, 240, 0.9);
+}
+
+.price-dialog__field {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.price-dialog__label {
+  font-size: 24rpx;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.price-dialog__input,
+.price-dialog__textarea {
+  width: 100%;
+  background: rgba(30, 41, 59, 0.75);
+  border-radius: 14rpx;
+  padding: 20rpx 24rpx;
+  color: #f8fafc;
+  font-size: 26rpx;
+  box-sizing: border-box;
+}
+
+.price-dialog__input {
+  font-size: 28rpx;
+}
+
+.price-dialog__textarea {
+  min-height: 160rpx;
+}
+
+.price-dialog__error {
+  font-size: 24rpx;
+  color: #f87171;
+}
+
+.price-dialog__footer {
+  padding: 16rpx 32rpx 28rpx;
+  display: flex;
+  justify-content: flex-end;
+  gap: 16rpx;
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.price-dialog__btn {
+  min-width: 160rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  padding: 10rpx 24rpx;
+  color: #e2e8f0;
+  background: rgba(30, 41, 59, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.32);
+}
+
+.price-dialog__btn.primary {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: none;
+  color: #fff;
+}
+
+.price-dialog__btn::after {
+  display: none;
 }

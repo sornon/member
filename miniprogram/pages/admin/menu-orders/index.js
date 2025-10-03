@@ -39,6 +39,26 @@ function formatDateTime(value) {
   return `${y}-${m}-${d} ${h}:${mm}`;
 }
 
+function normalizePriceAdjustmentInfo(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const previousAmount = Number(record.previousAmount || record.previous || 0);
+  const newAmount = Number(record.newAmount || record.amount || 0);
+  if (!Number.isFinite(newAmount) || newAmount <= 0) {
+    return null;
+  }
+  const remark = typeof record.remark === 'string' ? record.remark : '';
+  const adjustedAt = record.adjustedAt || record.updatedAt || null;
+  return {
+    previousAmount,
+    newAmount,
+    remark,
+    adjustedAt,
+    adjustedAtLabel: formatDateTime(adjustedAt)
+  };
+}
+
 function decorateOrder(order) {
   if (!order) {
     return null;
@@ -61,17 +81,49 @@ function decorateOrder(order) {
     : [];
   const totalAmount = Number(order.totalAmount || 0);
   const shortId = id ? id.slice(-6).toUpperCase() : '';
+  const adminRemark = typeof order.adminRemark === 'string' ? order.adminRemark : '';
+  const priceAdjustment = normalizePriceAdjustmentInfo(order.adminPriceAdjustment);
+  const originalTotalAmount = Number(order.originalTotalAmount || 0) ||
+    (priceAdjustment ? Number(priceAdjustment.previousAmount || 0) : 0);
+  const priceAdjusted = !!priceAdjustment &&
+    ((Number.isFinite(priceAdjustment.previousAmount) && priceAdjustment.previousAmount !== priceAdjustment.newAmount) ||
+      (Number.isFinite(originalTotalAmount) && originalTotalAmount > 0 && originalTotalAmount !== totalAmount));
+  const priceAdjustmentRemark = priceAdjustment
+    ? priceAdjustment.remark
+    : typeof order.priceAdjustmentRemark === 'string'
+    ? order.priceAdjustmentRemark
+    : '';
+  const cancelRemark = typeof order.cancelRemark === 'string' ? order.cancelRemark : '';
+  const cancelledAtLabel = formatDateTime(order.cancelledAt);
+  const cancelledByRole = typeof order.cancelledByRole === 'string' ? order.cancelledByRole : '';
+  let cancelledByLabel = '';
+  if (cancelledByRole === 'admin') {
+    cancelledByLabel = '管理员';
+  } else if (cancelledByRole === 'member') {
+    cancelledByLabel = '会员';
+  }
+  const canCancel = order.status === 'submitted' || order.status === 'pendingMember';
   return {
     ...order,
     _id: id,
     items,
     totalAmount,
     totalAmountLabel: formatCurrency(totalAmount),
+    originalTotalAmount,
+    originalTotalAmountLabel: originalTotalAmount ? formatCurrency(originalTotalAmount) : '',
+    priceAdjusted,
+    priceAdjustmentRemark,
+    priceAdjustmentUpdatedAtLabel: priceAdjustment ? priceAdjustment.adjustedAtLabel : '',
     statusLabel: STATUS_LABELS[order.status] || '处理中',
     createdAtLabel: formatDateTime(order.createdAt),
     adminConfirmedAtLabel: formatDateTime(order.adminConfirmedAt),
     memberConfirmedAtLabel: formatDateTime(order.memberConfirmedAt),
-    shortId
+    cancelledAtLabel,
+    cancelledByLabel,
+    adminRemark,
+    cancelRemark,
+    shortId,
+    canCancel
   };
 }
 
@@ -94,7 +146,8 @@ Page({
     activeStatus: STATUS_TABS[0].id,
     orders: [],
     loading: false,
-    processingId: ''
+    processingId: '',
+    processingAction: ''
   },
 
   onShow() {
@@ -155,7 +208,7 @@ Page({
     if (!confirm.confirm) {
       return;
     }
-    this.setData({ processingId: id });
+    this.setData({ processingId: id, processingAction: 'ready' });
     try {
       await AdminMenuOrderService.markOrderReady(id, '管理员确认备餐');
       wx.showToast({ title: '已推送', icon: 'success' });
@@ -170,7 +223,42 @@ Page({
         icon: 'none'
       });
     } finally {
-      this.setData({ processingId: '' });
+      this.setData({ processingId: '', processingAction: '' });
+    }
+  },
+
+  async handleCancelOrder(event) {
+    const { id } = event.currentTarget.dataset || {};
+    if (!id || (this.data.processingId && this.data.processingId !== id)) {
+      return;
+    }
+    if (this.data.processingId === id && this.data.processingAction === 'cancel') {
+      return;
+    }
+    const confirm = await showConfirmDialog({
+      title: '取消订单',
+      content: '确认取消该订单吗？',
+      confirmText: '确认取消'
+    });
+    if (!confirm.confirm) {
+      return;
+    }
+    this.setData({ processingId: id, processingAction: 'cancel' });
+    try {
+      await AdminMenuOrderService.cancelOrder(id, '管理员取消订单');
+      wx.showToast({ title: '已取消', icon: 'success' });
+      await this.loadOrders();
+    } catch (error) {
+      const message =
+        (error && (error.errMsg || error.message))
+          ? String(error.errMsg || error.message)
+          : '操作失败';
+      wx.showToast({
+        title: message.length > 14 ? `${message.slice(0, 13)}…` : message,
+        icon: 'none'
+      });
+    } finally {
+      this.setData({ processingId: '', processingAction: '' });
     }
   },
 
