@@ -2,6 +2,7 @@ export const CLOUD_FUNCTIONS = {
   MEMBER: 'member',
   TASKS: 'tasks',
   PVE: 'pve',
+  PVP: 'pvp',
   RESERVATION: 'reservation',
   WALLET: 'wallet',
   STONES: 'stones',

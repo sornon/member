@@ -1,0 +1,7 @@
+{
+  "usingComponents": {
+    "custom-nav": "/components/custom-nav/custom-nav"
+  },
+  "navigationBarTitleText": "竞技场",
+  "enablePullDownRefresh": true
+}

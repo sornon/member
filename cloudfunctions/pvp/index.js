@@ -1,0 +1,1450 @@
+const cloud = require('wx-server-sdk');
+const crypto = require('crypto');
+
+cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+
+const db = cloud.database();
+const _ = db.command;
+
+const COLLECTIONS = {
+  MEMBERS: 'members',
+  PVP_PROFILES: 'pvpProfiles',
+  PVP_SEASONS: 'pvpSeasons',
+  PVP_MATCHES: 'pvpMatches',
+  PVP_LEADERBOARD: 'pvpLeaderboard',
+  PVP_INVITES: 'pvpInvites'
+};
+
+const DEFAULT_SEASON_LENGTH_DAYS = 56;
+const MATCH_ROUND_LIMIT = 15;
+const LEADERBOARD_CACHE_SIZE = 100;
+const RECENT_MATCH_LIMIT = 10;
+const DEFAULT_RATING = 1200;
+
+const PVP_TIERS = [
+  { id: 'bronze', name: '青铜', min: 0, max: 999, color: '#c4723a', rewardKey: 'bronze' },
+  { id: 'silver', name: '白银', min: 1000, max: 1499, color: '#c0c0c0', rewardKey: 'silver' },
+  { id: 'gold', name: '黄金', min: 1500, max: 1999, color: '#d4af37', rewardKey: 'gold' },
+  { id: 'platinum', name: '白金', min: 2000, max: 2399, color: '#e5f0ff', rewardKey: 'platinum' },
+  { id: 'diamond', name: '钻石', min: 2400, max: 2799, color: '#7dd3fc', rewardKey: 'diamond' },
+  { id: 'master', name: '宗师', min: 2800, max: Infinity, color: '#f472b6', rewardKey: 'master' }
+];
+
+const TIER_REWARD_MAP = {
+  bronze: { stones: 50, title: '青铜试剑者', coupon: null },
+  silver: { stones: 80, title: '白银破阵者', coupon: 'coupon_pvp_silver' },
+  gold: { stones: 120, title: '黄金斗剑士', coupon: 'coupon_pvp_gold' },
+  platinum: { stones: 160, title: '白金灵刃', coupon: 'coupon_pvp_platinum' },
+  diamond: { stones: 220, title: '钻石星耀者', coupon: 'coupon_pvp_diamond' },
+  master: { stones: 320, title: '宗师武曲星', coupon: 'coupon_pvp_master' }
+};
+
+const tierMap = PVP_TIERS.reduce((acc, tier) => {
+  acc[tier.id] = tier;
+  return acc;
+}, {});
+
+const REQUIRED_PVP_COLLECTIONS = [
+  COLLECTIONS.PVP_PROFILES,
+  COLLECTIONS.PVP_SEASONS,
+  COLLECTIONS.PVP_MATCHES,
+  COLLECTIONS.PVP_LEADERBOARD,
+  COLLECTIONS.PVP_INVITES
+];
+
+let collectionsReady = false;
+let ensuringCollectionsPromise = null;
+
+exports.main = async (event = {}) => {
+  const { OPENID } = cloud.getWXContext();
+  const action = typeof event.action === 'string' ? event.action.trim() : 'profile';
+  const actorId = resolveActorId(OPENID, event);
+
+  await ensurePvpCollections();
+
+  switch (action) {
+    case 'profile':
+      return loadProfile(actorId);
+    case 'matchRandom':
+      return matchRandom(actorId, event);
+    case 'matchFriend':
+      return matchFriend(actorId, event);
+    case 'battleReplay':
+      return loadBattleReplay(actorId, event);
+    case 'getLeaderboard':
+      return getLeaderboard(actorId, event);
+    case 'claimSeasonReward':
+      return claimSeasonReward(actorId, event);
+    case 'sendInvite':
+      return sendInvite(actorId, event);
+    case 'acceptInvite':
+      return acceptInvite(actorId, event);
+    default:
+      throw createError('UNKNOWN_ACTION', `未知操作：${action}`);
+  }
+};
+
+async function ensurePvpCollections() {
+  if (collectionsReady) {
+    return;
+  }
+
+  if (ensuringCollectionsPromise) {
+    return ensuringCollectionsPromise;
+  }
+
+  ensuringCollectionsPromise = (async () => {
+    try {
+      await Promise.all(
+        REQUIRED_PVP_COLLECTIONS.map(async (name) => {
+          const exists = await db
+            .collection(name)
+            .limit(1)
+            .get()
+            .then(() => true)
+            .catch((error) => {
+              if (isCollectionMissingError(error)) {
+                return false;
+              }
+              throw error;
+            });
+
+          if (!exists) {
+            await db.createCollection(name).catch((error) => {
+              if (isCollectionAlreadyExistsError(error)) {
+                return;
+              }
+              throw error;
+            });
+          }
+        })
+      );
+      collectionsReady = true;
+    } catch (error) {
+      const wrapped = isCollectionMissingError(error)
+        ? createError('COLLECTIONS_NOT_INITIALIZED', 'PVP 数据集合未初始化，请按照部署文档创建云数据库集合')
+        : error;
+      throw wrapped;
+    } finally {
+      ensuringCollectionsPromise = null;
+    }
+  })();
+
+  return ensuringCollectionsPromise;
+}
+
+async function loadProfile(memberId) {
+  const season = await ensureActiveSeason();
+  const member = await ensureMember(memberId);
+  const profile = await ensurePvpProfile(memberId, member, season);
+  const [recentMatches, leaderboard] = await Promise.all([
+    loadRecentMatches(memberId, season._id),
+    loadLeaderboardSnapshot(season._id, { limit: 10 })
+  ]);
+  return {
+    season: buildSeasonPayload(season),
+    profile: decorateProfileForClient(profile, member, season),
+    history: (profile.seasonHistory || []).map(formatSeasonHistoryEntry),
+    recentMatches: recentMatches.map((match) => decorateMatchSummary(match, memberId)),
+    leaderboardPreview: leaderboard.entries || [],
+    leaderboardUpdatedAt: leaderboard.updatedAt || null
+  };
+}
+
+async function matchRandom(memberId, event = {}) {
+  const season = await ensureActiveSeason();
+  const member = await ensureMember(memberId);
+  const profile = await ensurePvpProfile(memberId, member, season);
+  const seed = normalizeSeed(event.seed) || buildMatchSeed(memberId, season._id);
+  const opponent = await findRandomOpponent(memberId, season, profile);
+  const battle = await resolveBattle(memberId, member, profile, opponent, season, { seed });
+  await updateLeaderboardCache(season._id);
+  const refreshedProfile = await ensurePvpProfile(memberId, member, season);
+  const [recentMatches, leaderboard] = await Promise.all([
+    loadRecentMatches(memberId, season._id),
+    loadLeaderboardSnapshot(season._id, { limit: 10 })
+  ]);
+  return {
+    season: buildSeasonPayload(season),
+    profile: decorateProfileForClient(refreshedProfile, member, season),
+    opponent: battle.opponentPreview,
+    battle: battle.result,
+    recentMatches: recentMatches.map((match) => decorateMatchSummary(match, memberId)),
+    leaderboardPreview: leaderboard.entries || [],
+    leaderboardUpdatedAt: leaderboard.updatedAt || null
+  };
+}
+
+async function matchFriend(memberId, event = {}) {
+  const targetId = normalizeMemberId(event.targetId);
+  if (!targetId) {
+    throw createError('TARGET_REQUIRED', '请选择要挑战的好友');
+  }
+  if (targetId === memberId) {
+    throw createError('SELF_MATCH_FORBIDDEN', '无法挑战自己');
+  }
+  const season = await ensureActiveSeason();
+  const [member, opponentMember] = await Promise.all([ensureMember(memberId), ensureMember(targetId)]);
+  const [profile, opponentProfile] = await Promise.all([
+    ensurePvpProfile(memberId, member, season),
+    ensurePvpProfile(targetId, opponentMember, season)
+  ]);
+  const seed = normalizeSeed(event.seed) || buildMatchSeed(`${memberId}:${targetId}`, season._id);
+  const opponent = {
+    isBot: false,
+    member,
+    profile: opponentProfile
+  };
+  const battle = await resolveBattle(memberId, member, profile, opponent, season, { seed, friendMatch: true });
+  await updateLeaderboardCache(season._id);
+  const refreshedProfile = await ensurePvpProfile(memberId, member, season);
+  const [recentMatches, leaderboard] = await Promise.all([
+    loadRecentMatches(memberId, season._id),
+    loadLeaderboardSnapshot(season._id, { limit: 10 })
+  ]);
+  return {
+    season: buildSeasonPayload(season),
+    profile: decorateProfileForClient(refreshedProfile, member, season),
+    opponent: battle.opponentPreview,
+    battle: battle.result,
+    recentMatches: recentMatches.map((match) => decorateMatchSummary(match, memberId)),
+    leaderboardPreview: leaderboard.entries || [],
+    leaderboardUpdatedAt: leaderboard.updatedAt || null
+  };
+}
+
+async function loadBattleReplay(memberId, event = {}) {
+  const matchId = normalizeId(event.matchId);
+  if (!matchId) {
+    throw createError('MATCH_REQUIRED', '缺少战报编号');
+  }
+  const snapshot = await db
+    .collection(COLLECTIONS.PVP_MATCHES)
+    .doc(matchId)
+    .get()
+    .catch(() => null);
+  if (!snapshot || !snapshot.data) {
+    throw createError('MATCH_NOT_FOUND', '战报不存在或已过期');
+  }
+  const match = snapshot.data;
+  if (match.player && match.opponent) {
+    const participantIds = [match.player.memberId, match.opponent.memberId];
+    if (!participantIds.includes(memberId)) {
+      throw createError('FORBIDDEN', '仅参战成员可查看战报');
+    }
+  }
+  return decorateMatchReplay(match);
+}
+
+async function getLeaderboard(memberId, event = {}) {
+  const type = typeof event.type === 'string' && event.type ? event.type : 'season';
+  const limit = Number.isFinite(event.limit) ? Math.max(10, Math.min(Number(event.limit), 200)) : 100;
+  const seasonId = normalizeId(event.seasonId);
+  const season = seasonId ? await loadSeasonById(seasonId) : await ensureActiveSeason();
+  if (!season) {
+    throw createError('SEASON_NOT_FOUND', '未找到对应赛季');
+  }
+  const snapshot = await loadLeaderboardSnapshot(season._id, { limit, type });
+  const entries = (snapshot.entries || []).slice(0, limit);
+  const rankIndex = entries.findIndex((entry) => entry.memberId === memberId);
+  return {
+    season: buildSeasonPayload(season),
+    type,
+    entries,
+    updatedAt: snapshot.updatedAt || null,
+    myRank: rankIndex >= 0 ? rankIndex + 1 : null
+  };
+}
+
+async function claimSeasonReward(memberId, event = {}) {
+  const seasonId = normalizeId(event.seasonId);
+  if (!seasonId) {
+    throw createError('SEASON_REQUIRED', '缺少赛季编号');
+  }
+  const season = await loadSeasonById(seasonId);
+  if (!season) {
+    throw createError('SEASON_NOT_FOUND', '赛季不存在');
+  }
+  if (!isSeasonEnded(season)) {
+    throw createError('SEASON_NOT_FINISHED', '赛季尚未结束，无法领取奖励');
+  }
+  const profileDoc = await db
+    .collection(COLLECTIONS.PVP_PROFILES)
+    .doc(memberId)
+    .get()
+    .catch(() => null);
+  if (!profileDoc || !profileDoc.data) {
+    throw createError('PROFILE_NOT_FOUND', '没有找到对应的竞技数据');
+  }
+  const profile = profileDoc.data;
+  let targetEntry = null;
+  let entryIndex = -1;
+  if (profile.seasonId === seasonId) {
+    targetEntry = profile;
+  }
+  if (!targetEntry && Array.isArray(profile.seasonHistory)) {
+    entryIndex = profile.seasonHistory.findIndex((item) => item.seasonId === seasonId);
+    if (entryIndex >= 0) {
+      targetEntry = profile.seasonHistory[entryIndex];
+    }
+  }
+  if (!targetEntry) {
+    throw createError('PROFILE_NOT_FOUND', '未找到赛季结算记录');
+  }
+  if (targetEntry.claimedSeasonReward) {
+    throw createError('REWARD_ALREADY_CLAIMED', '本赛季奖励已领取');
+  }
+  const tier = resolveTierByPoints(targetEntry.points || DEFAULT_RATING);
+  const reward = resolveSeasonReward(tier.id);
+  const now = new Date();
+  if (targetEntry === profile) {
+    await db
+      .collection(COLLECTIONS.PVP_PROFILES)
+      .doc(memberId)
+      .update({
+        data: {
+          claimedSeasonReward: true,
+          updatedAt: now
+        }
+      })
+      .catch(() => {});
+  } else if (entryIndex >= 0) {
+    const history = Array.isArray(profile.seasonHistory) ? [...profile.seasonHistory] : [];
+    history[entryIndex] = { ...history[entryIndex], claimedSeasonReward: true, claimedAt: now };
+    await db
+      .collection(COLLECTIONS.PVP_PROFILES)
+      .doc(memberId)
+      .update({
+        data: {
+          seasonHistory: history,
+          updatedAt: now
+        }
+      })
+      .catch(() => {});
+  }
+  return {
+    season: buildSeasonPayload(season),
+    reward,
+    tier: tierPayload(tier),
+    claimedAt: now
+  };
+}
+
+async function sendInvite(memberId, event = {}) {
+  const season = await ensureActiveSeason();
+  const member = await ensureMember(memberId);
+  const profile = await ensurePvpProfile(memberId, member, season);
+  const channel = typeof event.channel === 'string' && event.channel ? event.channel : 'friend';
+  const seed = normalizeSeed(event.seed) || buildMatchSeed(`${memberId}:invite`, season._id);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+  const inviteRecord = {
+    inviterId: memberId,
+    seasonId: season._id,
+    seasonName: season.name,
+    channel,
+    seed,
+    status: 'pending',
+    createdAt: now,
+    updatedAt: now,
+    expiresAt,
+    tierId: profile.tierId,
+    tierName: profile.tierName,
+    inviterSnapshot: buildMemberSnapshot(member)
+  };
+  const collection = db.collection(COLLECTIONS.PVP_INVITES);
+  const { _id } = await collection.add({ data: inviteRecord });
+  const inviteId = _id;
+  await collection
+    .doc(inviteId)
+    .update({ data: { inviteId } })
+    .catch(() => {});
+  return {
+    inviteId,
+    seed,
+    expiresAt,
+    channel,
+    season: buildSeasonPayload(season),
+    tier: tierPayload(resolveTierByPoints(profile.points)),
+    signature: signBattlePayload({
+      seasonId: season._id,
+      seed,
+      inviterId: memberId,
+      inviteId
+    })
+  };
+}
+
+async function acceptInvite(memberId, event = {}) {
+  const inviteId = normalizeId(event.inviteId);
+  if (!inviteId) {
+    throw createError('INVITE_REQUIRED', '缺少邀战编号');
+  }
+  const season = await ensureActiveSeason();
+  const inviteSnapshot = await db
+    .collection(COLLECTIONS.PVP_INVITES)
+    .doc(inviteId)
+    .get()
+    .catch(() => null);
+  if (!inviteSnapshot || !inviteSnapshot.data) {
+    throw createError('INVITE_NOT_FOUND', '挑战邀请不存在或已失效');
+  }
+  const invite = inviteSnapshot.data;
+  if (invite.status !== 'pending') {
+    throw createError('INVITE_FINISHED', '该邀请已被处理');
+  }
+  if (invite.expiresAt) {
+    const expiresAt = new Date(invite.expiresAt);
+    if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+      throw createError('INVITE_EXPIRED', '该邀请已过期');
+    }
+  }
+  const inviterId = invite.inviterId;
+  if (!inviterId) {
+    throw createError('INVITER_MISSING', '邀请缺少发起人信息');
+  }
+  if (inviterId === memberId) {
+    throw createError('SELF_MATCH_FORBIDDEN', '不可接受自己的邀请');
+  }
+  const [member, inviterMember] = await Promise.all([ensureMember(memberId), ensureMember(inviterId)]);
+  const [profile, inviterProfile] = await Promise.all([
+    ensurePvpProfile(memberId, member, season),
+    ensurePvpProfile(inviterId, inviterMember, season)
+  ]);
+  const seed = invite.seed || buildMatchSeed(`${inviterId}:${memberId}`, season._id);
+  const opponent = {
+    isBot: false,
+    member: inviterMember,
+    profile: inviterProfile
+  };
+  const battle = await resolveBattle(memberId, member, profile, opponent, season, {
+    seed,
+    inviteId,
+    friendMatch: true,
+    inviteMatch: true
+  });
+  await db
+    .collection(COLLECTIONS.PVP_INVITES)
+    .doc(inviteId)
+    .update({
+      data: {
+        status: 'completed',
+        opponentId: memberId,
+        matchId: battle.result.matchId,
+        acceptedAt: new Date(),
+        updatedAt: new Date()
+      }
+    })
+    .catch(() => {});
+  await updateLeaderboardCache(season._id);
+  const refreshedProfile = await ensurePvpProfile(memberId, member, season);
+  const [recentMatches, leaderboard] = await Promise.all([
+    loadRecentMatches(memberId, season._id),
+    loadLeaderboardSnapshot(season._id, { limit: 10 })
+  ]);
+  return {
+    season: buildSeasonPayload(season),
+    profile: decorateProfileForClient(refreshedProfile, member, season),
+    opponent: battle.opponentPreview,
+    battle: battle.result,
+    recentMatches: recentMatches.map((match) => decorateMatchSummary(match, memberId)),
+    leaderboardPreview: leaderboard.entries || [],
+    leaderboardUpdatedAt: leaderboard.updatedAt || null
+  };
+}
+
+async function resolveBattle(memberId, member, profile, opponentDescriptor, season, options = {}) {
+  const opponent = opponentDescriptor.isBot
+    ? opponentDescriptor
+    : {
+        ...opponentDescriptor,
+        member: opponentDescriptor.member,
+        profile: opponentDescriptor.profile
+      };
+  const opponentMember = opponent.isBot ? null : opponent.member;
+  const opponentProfile = opponent.isBot ? buildBotProfile(profile, season, opponentDescriptor.seed) : opponent.profile;
+  const seed = normalizeSeed(options.seed) || buildMatchSeed(`${memberId}:${Date.now()}`, season._id);
+  const playerCombat = profile.combatSnapshot || buildCombatSnapshot(member);
+  const opponentCombat = opponentProfile.combatSnapshot || buildCombatSnapshot(opponentMember || member);
+  const playerEntry = buildBattleActor({
+    memberId,
+    member,
+    profile,
+    combat: playerCombat
+  });
+  const opponentEntry = buildBattleActor({
+    memberId: opponent.isBot ? opponentProfile.memberId : opponentProfile.memberId || opponentMember._id,
+    member: opponentMember,
+    profile: opponentProfile,
+    combat: opponentCombat,
+    isBot: opponent.isBot
+  });
+
+  const simulation = simulateBattle(playerEntry, opponentEntry, seed);
+  const resultPayload = await persistBattleResult({
+    season,
+    player: playerEntry,
+    opponent: opponentEntry,
+    profile,
+    opponentProfile,
+    simulation,
+    options
+  });
+  const opponentPreview = {
+    memberId: opponentEntry.memberId,
+    isBot: !!opponentEntry.isBot,
+    nickName: opponentEntry.displayName,
+    tierId: opponentProfile.tierId,
+    tierName: opponentProfile.tierName,
+    points: opponentProfile.points,
+    avatarUrl: opponentMember ? opponentMember.avatarUrl || '' : '',
+    summary: {
+      wins: opponentProfile.wins,
+      losses: opponentProfile.losses,
+      draws: opponentProfile.draws
+    }
+  };
+  return { result: resultPayload, opponentPreview };
+}
+
+function simulateBattle(player, opponent, seed) {
+  const rng = createRandomGenerator(seed);
+  const playerState = buildActorState(player);
+  const opponentState = buildActorState(opponent);
+  const timeline = [];
+  const participants = [playerState, opponentState];
+  const firstIndex = playerState.stats.speed >= opponentState.stats.speed ? 0 : 1;
+  for (let round = 1; round <= MATCH_ROUND_LIMIT; round += 1) {
+    for (let turn = 0; turn < participants.length; turn += 1) {
+      const attacker = participants[(firstIndex + turn + round - 1) % participants.length];
+      const defender = attacker === playerState ? opponentState : playerState;
+      if (attacker.hp <= 0 || defender.hp <= 0) {
+        continue;
+      }
+      const log = resolveAttack(attacker, defender, rng, round);
+      timeline.push(log);
+      if (defender.hp <= 0) {
+        defender.hp = 0;
+        attacker.roundsWon += 1;
+        break;
+      }
+    }
+    if (playerState.hp <= 0 || opponentState.hp <= 0) {
+      break;
+    }
+  }
+  const draw = playerState.hp > 0 && opponentState.hp > 0;
+  let winnerId = null;
+  let loserId = null;
+  if (!draw) {
+    if (playerState.hp > opponentState.hp) {
+      winnerId = player.memberId;
+      loserId = opponent.memberId;
+    } else {
+      winnerId = opponent.memberId;
+      loserId = player.memberId;
+    }
+  }
+  return {
+    seed,
+    rounds: timeline,
+    player: summarizeActor(playerState),
+    opponent: summarizeActor(opponentState),
+    draw,
+    winnerId,
+    loserId
+  };
+}
+
+async function persistBattleResult({ season, player, opponent, profile, opponentProfile, simulation, options }) {
+  const now = new Date();
+  const result = determineOutcome(simulation, player.memberId);
+  const playerUpdate = applyMatchOutcome({
+    season,
+    profile,
+    opponentProfile,
+    outcome: result.player,
+    isBot: opponent.isBot,
+    options
+  });
+  let opponentUpdate = null;
+  if (!opponent.isBot) {
+    opponentUpdate = applyMatchOutcome({
+      season,
+      profile: opponentProfile,
+      opponentProfile: profile,
+      outcome: result.opponent,
+      isBot: false,
+      options: { ...options, reversed: true }
+    });
+  }
+  await Promise.all([
+    saveProfile(playerUpdate, profile.memberId || player.memberId),
+    opponentUpdate ? saveProfile(opponentUpdate, opponentProfile.memberId) : Promise.resolve()
+  ]);
+  const matchRecord = {
+    seasonId: season._id,
+    seasonName: season.name,
+    seed: simulation.seed,
+    result: {
+      winnerId: simulation.winnerId,
+      loserId: simulation.loserId,
+      draw: simulation.draw
+    },
+    player: buildParticipantSnapshot(playerUpdate.after, playerUpdate.delta, player),
+    opponent: opponent.isBot
+      ? buildParticipantSnapshot(opponentUpdate ? opponentUpdate.after : opponentProfile, opponentUpdate ? opponentUpdate.delta : { points: 0 }, opponent)
+      : buildParticipantSnapshot(opponentUpdate.after, opponentUpdate.delta, opponent),
+    rounds: simulation.rounds,
+    signature: signBattlePayload({
+      seasonId: season._id,
+      seed: simulation.seed,
+      winnerId: simulation.winnerId,
+      loserId: simulation.loserId,
+      draw: simulation.draw,
+      player: player.memberId,
+      opponent: opponent.memberId
+    }),
+    createdAt: now,
+    updatedAt: now,
+    options: {
+      isBot: opponent.isBot || false,
+      friendMatch: !!options.friendMatch,
+      inviteMatch: !!options.inviteMatch
+    }
+  };
+  const collection = db.collection(COLLECTIONS.PVP_MATCHES);
+  const { _id } = await collection.add({ data: matchRecord });
+  const matchId = _id;
+  await collection
+    .doc(matchId)
+    .update({ data: { matchId } })
+    .catch(() => {});
+  return {
+    matchId,
+    seasonId: season._id,
+    winnerId: simulation.winnerId,
+    loserId: simulation.loserId,
+    draw: simulation.draw,
+    rounds: simulation.rounds,
+    signature: matchRecord.signature,
+    player: matchRecord.player,
+    opponent: matchRecord.opponent
+  };
+}
+
+function buildParticipantSnapshot(profile, delta, actor) {
+  return {
+    memberId: actor.memberId,
+    displayName: actor.displayName,
+    tierId: profile.tierId,
+    tierName: profile.tierName,
+    pointsBefore: profile.points - delta.points,
+    pointsAfter: profile.points,
+    pointsDelta: delta.points,
+    wins: profile.wins,
+    losses: profile.losses,
+    draws: profile.draws,
+    streak: profile.currentStreak,
+    longestStreak: profile.longestStreak,
+    isBot: !!actor.isBot
+  };
+}
+
+function determineOutcome(simulation, memberId) {
+  const draw = simulation.draw;
+  const isPlayerWinner = !draw && simulation.winnerId === memberId;
+  const isPlayerLoser = !draw && simulation.loserId === memberId;
+  return {
+    player: {
+      result: draw ? 'draw' : isPlayerWinner ? 'win' : 'loss',
+      draw
+    },
+    opponent: {
+      result: draw ? 'draw' : isPlayerLoser ? 'win' : 'loss',
+      draw
+    }
+  };
+}
+
+async function saveProfile(profile, memberId) {
+  const collection = db.collection(COLLECTIONS.PVP_PROFILES);
+  await collection
+    .doc(memberId)
+    .set({ data: profile })
+    .catch(async (error) => {
+      if (error && /exists/i.test(error.errMsg || '')) {
+        await collection.doc(memberId).update({ data: { ...profile, updatedAt: new Date() } }).catch(() => {});
+      } else {
+        throw error;
+      }
+    });
+}
+
+function applyMatchOutcome({ season, profile, opponentProfile, outcome, isBot, options = {} }) {
+  const now = new Date();
+  const delta = computeRatingDelta({
+    profile,
+    opponentProfile,
+    outcome,
+    isBot,
+    options
+  });
+  const tier = resolveTierByPoints(profile.points + delta.points);
+  const updated = {
+    ...profile,
+    points: Math.max(tier.min, profile.points + delta.points),
+    tierId: tier.id,
+    tierName: tier.name,
+    seasonId: season._id,
+    seasonName: season.name,
+    memberId: profile.memberId || profile._id,
+    wins: profile.wins + (outcome.result === 'win' ? 1 : 0),
+    losses: profile.losses + (outcome.result === 'loss' ? 1 : 0),
+    draws: profile.draws + (outcome.result === 'draw' ? 1 : 0),
+    currentStreak:
+      outcome.result === 'win' ? (profile.currentStreak || 0) + 1 : outcome.result === 'loss' ? 0 : profile.currentStreak || 0,
+    longestStreak:
+      outcome.result === 'win'
+        ? Math.max((profile.longestStreak || 0), (profile.currentStreak || 0) + 1)
+        : profile.longestStreak || 0,
+    bestPoints: Math.max(profile.bestPoints || profile.points, profile.points + delta.points),
+    lastMatchedAt: now,
+    lastResultAt: now,
+    updatedAt: now,
+    claimedSeasonReward: profile.claimedSeasonReward || false,
+    memberSnapshot: profile.memberSnapshot,
+    combatSnapshot: profile.combatSnapshot,
+    seasonHistory: normalizeSeasonHistory(profile.seasonHistory)
+  };
+  return { after: updated, delta };
+}
+
+function computeRatingDelta({ profile, opponentProfile, outcome, isBot, options }) {
+  const baseWin = options.inviteMatch ? 26 : 30;
+  const baseLoss = options.inviteMatch ? -18 : -22;
+  const baseDraw = 8;
+  const opponentPoints = opponentProfile ? opponentProfile.points || DEFAULT_RATING : profile.points;
+  const diff = opponentPoints - profile.points;
+  const diffFactor = clamp(diff / 400, -1.5, 1.5);
+  let delta = 0;
+  if (outcome.result === 'win') {
+    const streakBonus = Math.min(profile.currentStreak || 0, 5) * 2;
+    delta = Math.round(baseWin + diffFactor * 12 + streakBonus);
+  } else if (outcome.result === 'loss') {
+    delta = Math.round(baseLoss + diffFactor * 10);
+  } else {
+    delta = Math.round(baseDraw + diffFactor * 6);
+  }
+  if (isBot) {
+    delta = outcome.result === 'win' ? Math.min(delta, 20) : Math.max(delta, -10);
+  }
+  return { points: delta };
+}
+
+async function findRandomOpponent(memberId, season, profile) {
+  const collection = db.collection(COLLECTIONS.PVP_PROFILES);
+  const range = Math.max(150, Math.round(profile.points * 0.1));
+  const minPoints = Math.max(0, profile.points - range);
+  const snapshot = await collection
+    .where({
+      seasonId: season._id,
+      memberId: _.neq(memberId),
+      points: _.gte(minPoints)
+    })
+    .orderBy('lastMatchedAt', 'asc')
+    .limit(30)
+    .get()
+    .catch(() => ({ data: [] }));
+  const candidates = (snapshot.data || []).filter((item) => item.points <= profile.points + range);
+  if (candidates.length === 0) {
+    return {
+      isBot: true,
+      profile: buildBotProfile(profile, season)
+    };
+  }
+  const pick = candidates[Math.floor(Math.random() * candidates.length)];
+  const pickMemberId = pick.memberId || pick._id;
+  const memberSnapshot = await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(pickMemberId)
+    .get()
+    .catch(() => null);
+  const opponentMember = memberSnapshot && memberSnapshot.data ? memberSnapshot.data : null;
+  return {
+    isBot: false,
+    member: opponentMember,
+    profile: { ...pick, memberId: pickMemberId }
+  };
+}
+
+function buildBotProfile(profile, season, seed) {
+  const rng = createRandomGenerator(seed || buildMatchSeed('bot', season._id));
+  const variance = 0.9 + rng() * 0.2;
+  const basePoints = Math.round(profile.points * variance);
+  const tier = resolveTierByPoints(basePoints);
+  return {
+    memberId: `bot_${season._id}_${Math.floor(rng() * 100000)}`,
+    points: basePoints,
+    wins: Math.floor((profile.wins || 0) * variance),
+    losses: Math.floor((profile.losses || 0) * (2 - variance)),
+    draws: Math.floor(profile.draws || 0),
+    tierId: tier.id,
+    tierName: tier.name,
+    currentStreak: Math.floor((profile.currentStreak || 0) * variance),
+    longestStreak: Math.floor((profile.longestStreak || 0) * variance),
+    claimedSeasonReward: false,
+    combatSnapshot: profile.combatSnapshot || {},
+    memberSnapshot: {
+      nickName: '擂台傀儡',
+      avatarUrl: '',
+      levelName: '傀儡守卫'
+    },
+    seasonId: season._id,
+    seasonName: season.name
+  };
+}
+
+async function ensurePvpProfile(memberId, member, season) {
+  const collection = db.collection(COLLECTIONS.PVP_PROFILES);
+  const snapshot = await collection
+    .doc(memberId)
+    .get()
+    .catch(() => null);
+  const now = new Date();
+  const combatSnapshot = buildCombatSnapshot(member);
+  if (!snapshot || !snapshot.data) {
+    const tier = resolveTierByPoints(DEFAULT_RATING);
+    const baseProfile = {
+      memberId,
+      seasonId: season._id,
+      seasonName: season.name,
+      tierId: tier.id,
+      tierName: tier.name,
+      points: DEFAULT_RATING,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      currentStreak: 0,
+      longestStreak: 0,
+      bestPoints: DEFAULT_RATING,
+      claimedSeasonReward: false,
+      lastMatchedAt: null,
+      lastResultAt: null,
+      createdAt: now,
+      updatedAt: now,
+      memberSnapshot: buildMemberSnapshot(member),
+      combatSnapshot,
+      seasonHistory: []
+    };
+    await collection.doc(memberId).set({ data: baseProfile }).catch(() => {});
+    return baseProfile;
+  }
+  let profile = { ...snapshot.data, memberId };
+  if (profile.seasonId !== season._id) {
+    const history = Array.isArray(profile.seasonHistory) ? [...profile.seasonHistory] : [];
+    const historyEntry = buildSeasonHistoryEntry(profile);
+    if (historyEntry) {
+      history.unshift(historyEntry);
+    }
+    const tier = resolveTierByPoints(DEFAULT_RATING);
+    profile = {
+      memberId,
+      seasonId: season._id,
+      seasonName: season.name,
+      tierId: tier.id,
+      tierName: tier.name,
+      points: DEFAULT_RATING,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      currentStreak: 0,
+      longestStreak: 0,
+      bestPoints: DEFAULT_RATING,
+      claimedSeasonReward: false,
+      lastMatchedAt: null,
+      lastResultAt: null,
+      createdAt: snapshot.data.createdAt || now,
+      updatedAt: now,
+      memberSnapshot: buildMemberSnapshot(member),
+      combatSnapshot,
+      seasonHistory: normalizeSeasonHistory(history)
+    };
+    await collection.doc(memberId).set({ data: profile }).catch(() => {});
+    return profile;
+  }
+  const updatedProfile = {
+    ...profile,
+    combatSnapshot,
+    memberSnapshot: buildMemberSnapshot(member),
+    updatedAt: now
+  };
+  await collection
+    .doc(memberId)
+    .update({
+      data: {
+        combatSnapshot,
+        memberSnapshot: updatedProfile.memberSnapshot,
+        updatedAt: now
+      }
+    })
+    .catch(() => {});
+  return updatedProfile;
+}
+
+function buildSeasonHistoryEntry(profile) {
+  if (!profile || !profile.seasonId) {
+    return null;
+  }
+  return {
+    seasonId: profile.seasonId,
+    seasonName: profile.seasonName || '',
+    points: profile.points || DEFAULT_RATING,
+    tierId: profile.tierId,
+    tierName: profile.tierName,
+    wins: profile.wins || 0,
+    losses: profile.losses || 0,
+    draws: profile.draws || 0,
+    longestStreak: profile.longestStreak || 0,
+    bestPoints: profile.bestPoints || profile.points || DEFAULT_RATING,
+    claimedSeasonReward: !!profile.claimedSeasonReward,
+    finishedAt: profile.lastResultAt || new Date()
+  };
+}
+
+function normalizeSeasonHistory(history) {
+  if (!Array.isArray(history)) {
+    return [];
+  }
+  return history.slice(0, 10);
+}
+
+function decorateProfileForClient(profile, member, season) {
+  const tier = resolveTierByPoints(profile.points);
+  return {
+    memberId: profile.memberId,
+    nickName: profile.memberSnapshot ? profile.memberSnapshot.nickName : member.nickName || '无名仙友',
+    avatarUrl: profile.memberSnapshot ? profile.memberSnapshot.avatarUrl : member.avatarUrl || '',
+    tier: tierPayload(tier),
+    points: profile.points,
+    wins: profile.wins,
+    losses: profile.losses,
+    draws: profile.draws,
+    currentStreak: profile.currentStreak || 0,
+    longestStreak: profile.longestStreak || 0,
+    bestPoints: profile.bestPoints || profile.points,
+    claimedSeasonReward: !!profile.claimedSeasonReward,
+    lastMatchedAt: profile.lastMatchedAt || null,
+    lastResultAt: profile.lastResultAt || null,
+    seasonId: profile.seasonId,
+    seasonName: profile.seasonName || season.name,
+    combatSnapshot: profile.combatSnapshot,
+    memberSnapshot: profile.memberSnapshot
+  };
+}
+
+function tierPayload(tier) {
+  return {
+    id: tier.id,
+    name: tier.name,
+    min: tier.min,
+    max: Number.isFinite(tier.max) ? tier.max : null,
+    color: tier.color
+  };
+}
+
+function formatSeasonHistoryEntry(entry) {
+  const tier = tierMap[entry.tierId] || resolveTierByPoints(entry.points || DEFAULT_RATING);
+  return {
+    seasonId: entry.seasonId,
+    seasonName: entry.seasonName,
+    tier: tierPayload(tier),
+    points: entry.points,
+    wins: entry.wins,
+    losses: entry.losses,
+    draws: entry.draws,
+    longestStreak: entry.longestStreak,
+    bestPoints: entry.bestPoints,
+    claimedSeasonReward: !!entry.claimedSeasonReward,
+    finishedAt: entry.finishedAt || null
+  };
+}
+
+function decorateMatchSummary(match, memberId) {
+  const opponent = match.player.memberId === memberId ? match.opponent : match.player;
+  const self = match.player.memberId === memberId ? match.player : match.opponent;
+  return {
+    matchId: match.matchId || match._id,
+    opponent: {
+      memberId: opponent.memberId,
+      displayName: opponent.displayName,
+      tierId: opponent.tierId,
+      tierName: opponent.tierName,
+      pointsAfter: opponent.pointsAfter
+    },
+    result: match.result,
+    self,
+    createdAt: match.createdAt || null
+  };
+}
+
+function decorateMatchReplay(match) {
+  return {
+    matchId: match.matchId || match._id,
+    seasonId: match.seasonId,
+    seed: match.seed,
+    rounds: match.rounds || [],
+    result: match.result || {},
+    player: match.player,
+    opponent: match.opponent,
+    signature: match.signature,
+    createdAt: match.createdAt || null
+  };
+}
+
+async function ensureActiveSeason() {
+  const collection = db.collection(COLLECTIONS.PVP_SEASONS);
+  const snapshot = await collection
+    .where({ status: 'active' })
+    .orderBy('startAt', 'desc')
+    .limit(1)
+    .get()
+    .catch(() => ({ data: [] }));
+  const now = new Date();
+  if (snapshot.data && snapshot.data.length) {
+    const active = snapshot.data[0];
+    if (!isSeasonEnded(active)) {
+      return active;
+    }
+    await collection
+      .doc(active._id)
+      .update({ data: { status: 'ended', endedAt: now, updatedAt: now } })
+      .catch(() => {});
+  }
+  const latestSnapshot = await collection
+    .orderBy('startAt', 'desc')
+    .limit(1)
+    .get()
+    .catch(() => ({ data: [] }));
+  const latest = latestSnapshot.data && latestSnapshot.data.length ? latestSnapshot.data[0] : null;
+  const nextIndex = latest ? (latest.index || 0) + 1 : 1;
+  const startAt = now;
+  const endAt = new Date(startAt.getTime() + DEFAULT_SEASON_LENGTH_DAYS * 24 * 60 * 60 * 1000);
+  const season = {
+    index: nextIndex,
+    name: `第${nextIndex}赛季`,
+    status: 'active',
+    startAt,
+    endAt,
+    createdAt: now,
+    updatedAt: now,
+    baseRating: DEFAULT_RATING,
+    ratingFloor: 0
+  };
+  const { _id } = await collection.add({ data: season });
+  season._id = _id;
+  await collection
+    .doc(_id)
+    .update({ data: { seasonId: _id } })
+    .catch(() => {});
+  return season;
+}
+
+async function loadSeasonById(seasonId) {
+  const snapshot = await db
+    .collection(COLLECTIONS.PVP_SEASONS)
+    .doc(seasonId)
+    .get()
+    .catch(() => null);
+  return snapshot && snapshot.data ? snapshot.data : null;
+}
+
+async function loadRecentMatches(memberId, seasonId) {
+  const collection = db.collection(COLLECTIONS.PVP_MATCHES);
+  const snapshot = await collection
+    .where(
+      _.or([
+        { seasonId, 'player.memberId': memberId },
+        { seasonId, 'opponent.memberId': memberId }
+      ])
+    )
+    .orderBy('createdAt', 'desc')
+    .limit(RECENT_MATCH_LIMIT)
+    .get()
+    .catch(() => ({ data: [] }));
+  return snapshot.data || [];
+}
+
+async function loadLeaderboardSnapshot(seasonId, { limit = LEADERBOARD_CACHE_SIZE, type = 'season' } = {}) {
+  const docId = `${seasonId}_${type}`;
+  const snapshot = await db
+    .collection(COLLECTIONS.PVP_LEADERBOARD)
+    .doc(docId)
+    .get()
+    .catch(() => null);
+  if (snapshot && snapshot.data) {
+    return snapshot.data;
+  }
+  await updateLeaderboardCache(seasonId, { type, limit });
+  const refreshed = await db
+    .collection(COLLECTIONS.PVP_LEADERBOARD)
+    .doc(docId)
+    .get()
+    .catch(() => null);
+  return refreshed && refreshed.data ? refreshed.data : { entries: [], updatedAt: null };
+}
+
+async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADERBOARD_CACHE_SIZE } = {}) {
+  const collection = db.collection(COLLECTIONS.PVP_PROFILES);
+  const snapshot = await collection
+    .where({ seasonId })
+    .orderBy('points', 'desc')
+    .orderBy('wins', 'desc')
+    .orderBy('losses', 'asc')
+    .limit(limit)
+    .get()
+    .catch(() => ({ data: [] }));
+  const entries = (snapshot.data || []).map((item, index) => ({
+    rank: index + 1,
+    memberId: item.memberId,
+    nickName: item.memberSnapshot ? item.memberSnapshot.nickName : '',
+    avatarUrl: item.memberSnapshot ? item.memberSnapshot.avatarUrl : '',
+    tierId: item.tierId,
+    tierName: item.tierName,
+    points: item.points,
+    wins: item.wins,
+    losses: item.losses,
+    draws: item.draws,
+    streak: item.currentStreak || 0
+  }));
+  const payload = {
+    seasonId,
+    type,
+    entries,
+    updatedAt: new Date()
+  };
+  const docId = `${seasonId}_${type}`;
+  await db
+    .collection(COLLECTIONS.PVP_LEADERBOARD)
+    .doc(docId)
+    .set({ data: payload })
+    .catch(async (error) => {
+      if (error && /exists/i.test(error.errMsg || '')) {
+        await db
+          .collection(COLLECTIONS.PVP_LEADERBOARD)
+          .doc(docId)
+          .update({ data: { ...payload } })
+          .catch(() => {});
+      } else {
+        throw error;
+      }
+    });
+}
+
+function buildSeasonPayload(season) {
+  return {
+    seasonId: season._id,
+    name: season.name,
+    status: season.status,
+    startAt: season.startAt,
+    endAt: season.endAt,
+    index: season.index
+  };
+}
+
+function resolveTierByPoints(points) {
+  const value = Number.isFinite(points) ? points : DEFAULT_RATING;
+  for (let i = 0; i < PVP_TIERS.length; i += 1) {
+    const tier = PVP_TIERS[i];
+    if (value >= tier.min && value <= tier.max) {
+      return tier;
+    }
+  }
+  return PVP_TIERS[PVP_TIERS.length - 1];
+}
+
+function resolveSeasonReward(tierId) {
+  return TIER_REWARD_MAP[tierId] || TIER_REWARD_MAP.bronze;
+}
+
+function isSeasonEnded(season) {
+  if (!season || !season.endAt) {
+    return false;
+  }
+  const endAt = new Date(season.endAt);
+  return !Number.isNaN(endAt.getTime()) && endAt.getTime() < Date.now();
+}
+
+function buildMemberSnapshot(member) {
+  if (!member) {
+    return {
+      nickName: '无名仙友',
+      avatarUrl: '',
+      levelName: '',
+      memberId: ''
+    };
+  }
+  const level = member.level || {};
+  return {
+    memberId: member._id || member.memberId || '',
+    nickName: member.nickName || member.name || '无名仙友',
+    avatarUrl: member.avatarUrl || '',
+    levelName: level.name || level.label || ''
+  };
+}
+
+function buildCombatSnapshot(member) {
+  if (!member || !member.pveProfile) {
+    return defaultCombatSnapshot();
+  }
+  const profile = member.pveProfile;
+  const attributeSummary = profile.attributeSummary || profile.attributes || {};
+  const finalStats =
+    attributeSummary.finalStats ||
+    profile.finalStats ||
+    (profile.derivedSummary && profile.derivedSummary.finalStats) ||
+    {};
+  const combatStatsArray = Array.isArray(profile.combatStats) ? profile.combatStats : attributeSummary.combatStats;
+  const resolved = { ...finalStats };
+  if (Array.isArray(combatStatsArray)) {
+    combatStatsArray.forEach((entry) => {
+      if (!entry || !entry.key) return;
+      resolved[entry.key] = typeof entry.value === 'number' ? entry.value : entry.base || 0;
+    });
+  }
+  const get = (keys, fallback) => {
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      if (typeof resolved[key] === 'number') {
+        return resolved[key];
+      }
+    }
+    return fallback;
+  };
+  return {
+    combatPower: profile.combatPower || attributeSummary.combatPower || 0,
+    maxHp: get(['maxHp', 'hp', 'health'], 4500),
+    physicalAttack: get(['physicalAttack', 'attack'], 320),
+    magicAttack: get(['magicAttack', 'spellAttack'], 320),
+    physicalDefense: get(['physicalDefense', 'defense'], 160),
+    magicDefense: get(['magicDefense', 'resistance'], 160),
+    speed: get(['speed'], 120),
+    accuracy: get(['accuracy', 'hitRate'], 100),
+    dodge: get(['dodge', 'evasion'], 90),
+    critRate: get(['critRate', 'criticalRate'], 5),
+    critDamage: get(['critDamage', 'criticalDamage'], 50),
+    damageReduction: get(['damageReduction', 'finalDamageReduction'], 0.1),
+    armorPenetration: get(['armorPenetration', 'physicalPenetration'], 0),
+    magicPenetration: get(['magicPenetration', 'spellPenetration'], 0)
+  };
+}
+
+function defaultCombatSnapshot() {
+  return {
+    combatPower: 0,
+    maxHp: 4200,
+    physicalAttack: 300,
+    magicAttack: 300,
+    physicalDefense: 150,
+    magicDefense: 150,
+    speed: 120,
+    accuracy: 95,
+    dodge: 85,
+    critRate: 5,
+    critDamage: 50,
+    damageReduction: 0.08,
+    armorPenetration: 0,
+    magicPenetration: 0
+  };
+}
+
+function buildBattleActor({ memberId, member, profile, combat, isBot }) {
+  const tier = resolveTierByPoints(profile.points);
+  return {
+    memberId: memberId || profile.memberId,
+    displayName: profile.memberSnapshot && profile.memberSnapshot.nickName ? profile.memberSnapshot.nickName : member ? member.nickName || '无名仙友' : '神秘对手',
+    tierId: profile.tierId || tier.id,
+    tierName: profile.tierName || tier.name,
+    points: profile.points,
+    stats: combat || defaultCombatSnapshot(),
+    isBot: !!isBot
+  };
+}
+
+function buildActorState(actor) {
+  return {
+    memberId: actor.memberId,
+    displayName: actor.displayName,
+    stats: actor.stats,
+    tierId: actor.tierId,
+    tierName: actor.tierName,
+    maxHp: Math.max(1, Math.round(actor.stats.maxHp || 4200)),
+    hp: Math.max(1, Math.round(actor.stats.maxHp || 4200)),
+    damageDealt: 0,
+    damageTaken: 0,
+    roundsWon: 0,
+    isBot: actor.isBot
+  };
+}
+
+function summarizeActor(state) {
+  return {
+    memberId: state.memberId,
+    displayName: state.displayName,
+    tierId: state.tierId,
+    tierName: state.tierName,
+    remainingHp: Math.max(0, Math.round(state.hp)),
+    maxHp: state.maxHp,
+    damageDealt: Math.round(state.damageDealt),
+    damageTaken: Math.round(state.damageTaken),
+    roundsWon: state.roundsWon
+  };
+}
+
+function resolveAttack(attacker, defender, rng, round) {
+  const attackStats = attacker.stats;
+  const defenseStats = defender.stats;
+  const accuracy = attackStats.accuracy || 100;
+  const dodge = defenseStats.dodge || 90;
+  const hitChance = clamp(0.6 + (accuracy - dodge) * 0.005, 0.25, 0.98);
+  const hitRoll = rng();
+  let dodged = hitRoll > hitChance;
+  let damage = 0;
+  let crit = false;
+  if (!dodged) {
+    const physicalAttack = attackStats.physicalAttack || 0;
+    const magicAttack = attackStats.magicAttack || 0;
+    const usePhysical = physicalAttack >= magicAttack;
+    const attackValue = usePhysical ? physicalAttack : magicAttack;
+    const defenseValue = usePhysical ? defenseStats.physicalDefense || 0 : defenseStats.magicDefense || 0;
+    const penetration = usePhysical ? attackStats.armorPenetration || 0 : attackStats.magicPenetration || 0;
+    const effectiveDefense = Math.max(defenseValue * (1 - penetration), defenseValue * 0.4);
+    const baseDamage = Math.max(attackValue * 0.35, attackValue - effectiveDefense);
+    const variance = 0.9 + rng() * 0.2;
+    damage = baseDamage * variance;
+    const critRate = clamp(((attackStats.critRate || 5) - (defenseStats.critResist || 0)) / 100, 0.05, 0.75);
+    if (rng() < critRate) {
+      crit = true;
+      const critMultiplier = 1.5 + (attackStats.critDamage || 50) / 100;
+      damage *= critMultiplier;
+    }
+    const reduction = clamp(defenseStats.damageReduction || 0, 0, 0.7);
+    damage *= 1 - reduction;
+    damage = Math.max(1, Math.round(damage));
+    defender.hp = Math.max(0, defender.hp - damage);
+    attacker.damageDealt += damage;
+    defender.damageTaken += damage;
+  }
+  return {
+    round,
+    actorId: attacker.memberId,
+    targetId: defender.memberId,
+    damage,
+    dodged,
+    crit,
+    targetRemainingHp: Math.max(0, Math.round(defender.hp))
+  };
+}
+
+async function ensureMember(memberId) {
+  const normalizedId = normalizeMemberId(memberId);
+  const snapshot = await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(normalizedId)
+    .get()
+    .catch(() => null);
+  if (!snapshot || !snapshot.data) {
+    throw createError('MEMBER_NOT_FOUND', '会员信息不存在，请先完成注册');
+  }
+  return snapshot.data;
+}
+
+function createRandomGenerator(seed) {
+  const hashedSeed = hashSeed(String(seed || Date.now()));
+  let state = hashedSeed;
+  const generator = () => {
+    state |= 0;
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  generator.seedValue = hashedSeed;
+  return generator;
+}
+
+function hashSeed(seed) {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i += 1) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function buildMatchSeed(key, seasonId) {
+  return `${seasonId}:${key}:${Date.now()}`;
+}
+
+function normalizeSeed(seed) {
+  if (typeof seed === 'string' && seed.trim()) {
+    return seed.trim();
+  }
+  return '';
+}
+
+function normalizeMemberId(memberId) {
+  if (typeof memberId === 'string' && memberId.trim()) {
+    return memberId.trim();
+  }
+  return '';
+}
+
+function normalizeId(value) {
+  if (typeof value === 'string' && value.trim()) {
+    return value.trim();
+  }
+  return '';
+}
+
+function isCollectionMissingError(error) {
+  if (!error) {
+    return false;
+  }
+  const code = typeof error.errCode === 'number' ? error.errCode : error.code;
+  return code === -502005 || code === 'ResourceNotFound';
+}
+
+function isCollectionAlreadyExistsError(error) {
+  if (!error) {
+    return false;
+  }
+  const code = typeof error.errCode === 'number' ? error.errCode : error.code;
+  return code === -502003 || code === 'AlreadyExists';
+}
+
+function resolveActorId(openid, event = {}) {
+  const fromEvent = normalizeMemberId(event.actorId);
+  const fromContext = normalizeMemberId(openid);
+  const resolved = fromEvent || fromContext;
+  if (!resolved) {
+    throw createError('UNAUTHENTICATED', '缺少身份信息，请重新登录');
+  }
+  return resolved;
+}
+
+function signBattlePayload(payload) {
+  const serialized = JSON.stringify(payload);
+  return crypto.createHash('md5').update(serialized).digest('hex');
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function createError(code, message) {
+  const error = new Error(message || '发生未知错误');
+  error.code = code;
+  error.errCode = code;
+  return error;
+}
