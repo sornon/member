@@ -342,7 +342,7 @@ page {
   transition: max-width 280ms ease, padding-right 280ms ease, padding-left 280ms ease;
   transform-origin: left center;
   width: 100%;
-  max-width: calc(100% - 48rpx);
+  max-width: 100%;
   margin-left: 0;
   margin-right: auto;
   box-sizing: border-box;
