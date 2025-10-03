@@ -33,6 +33,8 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 
 const app = getApp();
 
+const NAV_EXPANDED_STORAGE_KEY = 'home-nav-expanded';
+
 const BASE_NAV_ITEMS = [
     { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
     { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index' },
@@ -45,6 +47,11 @@ const BASE_NAV_ITEMS = [
 ];
 
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
+
+function buildCollapsedNavItems(navItems) {
+  const source = Array.isArray(navItems) && navItems.length ? navItems : BASE_NAV_ITEMS;
+  return source.slice(0, 3);
+}
 
 const AVATAR_FRAME_OPTIONS = buildAvatarFrameOptionList();
 
@@ -573,6 +580,8 @@ Page({
       { icon: '🔥', label: '比武' }
     ],
     navItems: [...BASE_NAV_ITEMS],
+    collapsedNavItems: buildCollapsedNavItems(BASE_NAV_ITEMS),
+    navExpanded: false,
     memberStats: { ...EMPTY_MEMBER_STATS },
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
@@ -608,6 +617,7 @@ Page({
     this.hasBootstrapped = false;
     this.ensureNavMetrics();
     this.updateToday();
+    this.restoreNavExpansionState();
   },
 
   onShow() {
@@ -739,13 +749,16 @@ Page({
       const needsProfile = !sanitizedMember || !sanitizedMember.nickName || !sanitizedMember.mobile;
       const profileAuthorized = !!(sanitizedMember && sanitizedMember.nickName);
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
+      const navItems = resolveNavItems(sanitizedMember);
+      const collapsedNavItems = buildCollapsedNavItems(navItems);
       this.setData({
         member: sanitizedMember,
         progress,
         tasks: tasks.slice(0, 3),
         loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),
-        navItems: resolveNavItems(sanitizedMember),
+        navItems,
+        collapsedNavItems,
         memberStats: deriveMemberStats(sanitizedMember),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
@@ -813,8 +826,36 @@ Page({
     });
   },
 
+  restoreNavExpansionState() {
+    try {
+      const stored = wx.getStorageSync(NAV_EXPANDED_STORAGE_KEY);
+      if (stored && !this.data.navExpanded) {
+        this.setData({ navExpanded: true });
+      }
+    } catch (err) {
+      // Ignore storage errors and keep the default collapsed state.
+    }
+  },
+
+  persistNavExpansionState() {
+    try {
+      wx.setStorageSync(NAV_EXPANDED_STORAGE_KEY, true);
+    } catch (err) {
+      // Ignore storage errors because persistence is a best-effort enhancement.
+    }
+  },
+
   formatCurrency,
   formatExperience,
+
+  handleExpandNav() {
+    if (this.data.navExpanded) {
+      return;
+    }
+    this.setData({ navExpanded: true }, () => {
+      this.persistNavExpansionState();
+    });
+  },
 
   handleProfileTap() {
     this.openArchiveEditor();
@@ -1168,10 +1209,13 @@ Page({
       return;
     }
     const renameHistory = formatHistoryList(member.renameHistory);
+    const navItems = resolveNavItems(sanitizedMember);
+    const collapsedNavItems = buildCollapsedNavItems(navItems);
     this.setData({
       member: sanitizedMember,
       memberStats: deriveMemberStats(sanitizedMember),
-      navItems: resolveNavItems(sanitizedMember),
+      navItems,
+      collapsedNavItems,
       heroImage: resolveCharacterImage(sanitizedMember),
       'profileEditor.nickName': sanitizedMember.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
