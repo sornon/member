@@ -205,3 +205,160 @@ page {
   font-size: 26rpx;
   color: rgba(148, 163, 184, 0.7);
 }
+
+.order-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.force-btn {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: none;
+  color: #fff;
+  padding: 10rpx 32rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+}
+
+.force-btn::after {
+  display: none;
+}
+
+.force-dialog-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx;
+  box-sizing: border-box;
+  z-index: 999;
+}
+
+.force-dialog {
+  width: 100%;
+  max-width: 640rpx;
+  background: rgba(15, 23, 42, 0.95);
+  border-radius: 24rpx;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 24rpx 48rpx rgba(2, 6, 23, 0.65);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.force-dialog__title {
+  padding: 28rpx 32rpx 12rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.force-dialog__body {
+  padding: 0 32rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.force-dialog__search {
+  display: flex;
+  gap: 16rpx;
+}
+
+.force-dialog__input {
+  flex: 1;
+  background: rgba(30, 41, 59, 0.75);
+  border-radius: 14rpx;
+  padding: 20rpx 24rpx;
+  color: #f1f5f9;
+  font-size: 26rpx;
+}
+
+.force-dialog__search-btn {
+  background: #3b82f6;
+  color: #fff;
+  border-radius: 12rpx;
+  padding: 0 24rpx;
+  font-size: 24rpx;
+}
+
+.force-dialog__search-btn::after {
+  display: none;
+}
+
+.force-dialog__error {
+  color: #fca5a5;
+  font-size: 24rpx;
+}
+
+.force-dialog__results {
+  max-height: 460rpx;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.force-dialog__loading,
+.force-dialog__empty {
+  text-align: center;
+  color: rgba(148, 163, 184, 0.8);
+  font-size: 24rpx;
+  padding: 24rpx 0;
+}
+
+.force-dialog__member {
+  background: rgba(30, 41, 59, 0.65);
+  border-radius: 16rpx;
+  padding: 20rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  border: 1px solid transparent;
+}
+
+.force-dialog__member.is-active {
+  border-color: rgba(96, 165, 250, 0.9);
+  background: rgba(37, 99, 235, 0.2);
+}
+
+.force-dialog__member .member-name {
+  font-size: 26rpx;
+  color: #f8fafc;
+  font-weight: 500;
+}
+
+.force-dialog__member .member-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx 20rpx;
+  font-size: 22rpx;
+  color: rgba(203, 213, 225, 0.85);
+}
+
+.force-dialog__footer {
+  padding: 20rpx 32rpx 28rpx;
+  display: flex;
+  justify-content: flex-end;
+  gap: 20rpx;
+}
+
+.force-dialog__btn {
+  padding: 0 32rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  background: rgba(30, 41, 59, 0.75);
+  color: #e2e8f0;
+}
+
+.force-dialog__btn::after {
+  display: none;
+}
+
+.force-dialog__btn.primary {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  border: none;
+}

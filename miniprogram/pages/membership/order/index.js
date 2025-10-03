@@ -378,8 +378,10 @@ Page({
     }
     this.setData({ confirmingId: id });
     try {
-      await MenuOrderService.confirmOrder(id);
-      wx.showToast({ title: '扣费成功', icon: 'success' });
+      const result = await MenuOrderService.confirmOrder(id);
+      const stoneReward = Number(result && result.stoneReward ? result.stoneReward : 0);
+      const message = stoneReward > 0 ? `扣费成功，灵石+${Math.floor(stoneReward)}` : '扣费成功';
+      wx.showToast({ title: message, icon: 'success' });
       await this.loadOrders();
     } catch (error) {
       const message =

@@ -78,7 +78,17 @@ Page({
     page: 1,
     pageSize: 20,
     total: 0,
-    refreshing: false
+    refreshing: false,
+    forceChargingId: '',
+    forceChargeDialog: {
+      visible: false,
+      orderId: '',
+      keyword: '',
+      results: [],
+      loading: false,
+      selectedMemberId: '',
+      error: ''
+    }
   },
 
   onShow() {
@@ -124,6 +134,160 @@ Page({
       this.setData({ loading: false, refreshing: false });
     } finally {
       wx.stopPullDownRefresh();
+    }
+  },
+
+  async handleForceChargeTap(event) {
+    const { id } = event.currentTarget.dataset || {};
+    if (!id || this.data.forceChargingId) {
+      return;
+    }
+    const targetOrder = this.data.orders.find((item) => item && item._id === id);
+    if (!targetOrder) {
+      return;
+    }
+    if (targetOrder.memberId) {
+      wx.showModal({
+        title: '强制扣款',
+        content: '确认立即扣除该订单金额并发放灵石吗？',
+        confirmText: '确认扣款',
+        cancelText: '取消',
+        success: (res) => {
+          if (res && res.confirm) {
+            this.forceChargeOrder(id, targetOrder.memberId);
+          }
+        }
+      });
+      return;
+    }
+    this.openForceChargeDialog(id);
+  },
+
+  openForceChargeDialog(orderId) {
+    this.setData({
+      forceChargeDialog: {
+        visible: true,
+        orderId,
+        keyword: '',
+        results: [],
+        loading: false,
+        selectedMemberId: '',
+        error: ''
+      }
+    });
+  },
+
+  closeForceChargeDialog() {
+    if (!this.data.forceChargeDialog.visible) {
+      return;
+    }
+    this.setData({
+      forceChargeDialog: {
+        visible: false,
+        orderId: '',
+        keyword: '',
+        results: [],
+        loading: false,
+        selectedMemberId: '',
+        error: ''
+      }
+    });
+  },
+
+  handleForceChargeMemberInput(event) {
+    this.setData({
+      'forceChargeDialog.keyword': event.detail.value || ''
+    });
+  },
+
+  handleForceChargeMemberSearch() {
+    this.fetchForceChargeMembers();
+  },
+
+  handleSelectForceChargeMember(event) {
+    const { id } = event.currentTarget.dataset || {};
+    if (!id) {
+      return;
+    }
+    this.setData({ 'forceChargeDialog.selectedMemberId': id });
+  },
+
+  handleConfirmForceChargeWithMember() {
+    const { orderId, selectedMemberId } = this.data.forceChargeDialog;
+    if (!orderId || !selectedMemberId) {
+      wx.showToast({ title: '请先选择会员', icon: 'none' });
+      return;
+    }
+    this.forceChargeOrder(orderId, selectedMemberId);
+  },
+
+  async fetchForceChargeMembers() {
+    const keyword = (this.data.forceChargeDialog.keyword || '').trim();
+    const orderId = this.data.forceChargeDialog.orderId;
+    if (!orderId) {
+      return;
+    }
+    this.setData({
+      'forceChargeDialog.loading': true,
+      'forceChargeDialog.error': ''
+    });
+    try {
+      const response = await AdminService.listMembers({ keyword, page: 1, pageSize: 20 });
+      const results = Array.isArray(response.members)
+        ? response.members.map((member) => ({
+            _id: member._id,
+            nickName: member.nickName || '',
+            mobile: member.mobile || '',
+            levelName: member.levelName || '',
+            balanceLabel: formatCurrency(member.cashBalance)
+          }))
+        : [];
+      const currentSelected = this.data.forceChargeDialog.selectedMemberId || '';
+      const stillExists = currentSelected && results.some((member) => member._id === currentSelected);
+      this.setData({
+        'forceChargeDialog.results': results,
+        'forceChargeDialog.loading': false,
+        'forceChargeDialog.selectedMemberId': stillExists ? currentSelected : ''
+      });
+    } catch (error) {
+      const message =
+        (error && (error.errMsg || error.message))
+          ? String(error.errMsg || error.message)
+          : '搜索失败';
+      this.setData({
+        'forceChargeDialog.loading': false,
+        'forceChargeDialog.error': message
+      });
+      wx.showToast({
+        title: message.length > 14 ? `${message.slice(0, 13)}…` : message,
+        icon: 'none'
+      });
+    }
+  },
+
+  async forceChargeOrder(orderId, memberId = '', remark = '') {
+    if (!orderId || this.data.forceChargingId === orderId) {
+      return;
+    }
+    this.setData({ forceChargingId: orderId });
+    try {
+      const result = await AdminService.forceChargeOrder(orderId, { memberId, remark });
+      const stoneReward = Number(result && result.stoneReward ? result.stoneReward : 0);
+      const message = stoneReward > 0 ? `扣款成功，灵石+${Math.floor(stoneReward)}` : '扣款成功';
+      wx.showToast({ title: message, icon: 'success' });
+      this.closeForceChargeDialog();
+      await this.loadOrders({ reset: true });
+    } catch (error) {
+      const message =
+        (error && (error.errMsg || error.message))
+          ? String(error.errMsg || error.message)
+          : '扣款失败';
+      wx.showToast({
+        title: message.length > 14 ? `${message.slice(0, 13)}…` : message,
+        icon: 'none'
+      });
+    } finally {
+      this.setData({ forceChargingId: '' });
     }
   },
 

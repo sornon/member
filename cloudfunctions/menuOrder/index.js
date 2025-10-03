@@ -11,7 +11,9 @@ const COLLECTIONS = {
   WALLET_TRANSACTIONS: 'walletTransactions',
   MEMBERSHIP_LEVELS: 'membershipLevels',
   MEMBERSHIP_RIGHTS: 'membershipRights',
-  MEMBER_RIGHTS: 'memberRights'
+  MEMBER_RIGHTS: 'memberRights',
+  CHARGE_ORDERS: 'chargeOrders',
+  STONE_TRANSACTIONS: 'stoneTransactions'
 };
 
 const ADMIN_ROLES = ['admin', 'developer', 'superadmin'];
@@ -162,6 +164,62 @@ async function listMemberOrders(openid) {
   return { orders };
 }
 
+async function ensureChargeOrderForMenuOrder(transaction, orderId, order, adminId, now) {
+  const items = buildChargeItemsFromMenuOrder(order);
+  const totalAmount = Number(order.totalAmount || 0);
+  if (!totalAmount || totalAmount <= 0) {
+    throw new Error('订单金额无效');
+  }
+  const baseStoneReward = totalAmount;
+  const remark = typeof order.remark === 'string' ? order.remark : '';
+  const memberId = typeof order.memberId === 'string' ? order.memberId : '';
+  const memberSnapshot = buildMemberSnapshot(order.memberSnapshot);
+  const existingId = typeof order.chargeOrderId === 'string' ? order.chargeOrderId.trim() : '';
+  if (existingId) {
+    const chargeOrderRef = transaction.collection(COLLECTIONS.CHARGE_ORDERS).doc(existingId);
+    const chargeSnapshot = await chargeOrderRef.get().catch(() => null);
+    if (chargeSnapshot && chargeSnapshot.data) {
+      const current = chargeSnapshot.data;
+      const updates = {
+        items,
+        totalAmount,
+        updatedAt: now,
+        memberId,
+        memberSnapshot,
+        menuOrderId: orderId,
+        source: 'menuOrder',
+        remark
+      };
+      if (!Number(current.stoneReward)) {
+        updates.stoneReward = baseStoneReward;
+      }
+      if (!current.createdBy && adminId) {
+        updates.createdBy = adminId;
+      }
+      await chargeOrderRef.update({ data: updates }).catch(() => null);
+      return { id: existingId, order: { _id: existingId, ...current, ...updates } };
+    }
+  }
+  const chargeOrderData = {
+    status: 'pending',
+    items,
+    totalAmount,
+    stoneReward: baseStoneReward,
+    createdBy: adminId || '',
+    createdAt: now,
+    updatedAt: now,
+    memberId,
+    memberSnapshot,
+    menuOrderId: orderId,
+    source: 'menuOrder',
+    remark
+  };
+  const result = await transaction.collection(COLLECTIONS.CHARGE_ORDERS).add({
+    data: chargeOrderData
+  });
+  return { id: result._id, order: { _id: result._id, ...chargeOrderData } };
+}
+
 async function markOrderReady(openid, orderId, remarkInput) {
   const admin = await ensureAdmin(openid);
   if (!orderId) {
@@ -169,8 +227,12 @@ async function markOrderReady(openid, orderId, remarkInput) {
   }
   const remark = normalizeRemark(remarkInput, 200);
   const now = new Date();
+  const adminId = admin._id || openid;
   let updatedOrder = null;
-  await ensureCollection(COLLECTIONS.MENU_ORDERS);
+  await Promise.all([
+    ensureCollection(COLLECTIONS.MENU_ORDERS),
+    ensureCollection(COLLECTIONS.CHARGE_ORDERS)
+  ]);
   await db.runTransaction(async (transaction) => {
     const orderRef = transaction.collection(COLLECTIONS.MENU_ORDERS).doc(orderId);
     const snapshot = await orderRef.get().catch(() => null);
@@ -181,16 +243,24 @@ async function markOrderReady(openid, orderId, remarkInput) {
     if (order.status !== 'submitted') {
       throw new Error('订单已处理');
     }
+    const { id: chargeOrderId } = await ensureChargeOrderForMenuOrder(
+      transaction,
+      orderId,
+      order,
+      adminId,
+      now
+    );
     const updates = {
       status: 'pendingMember',
-      adminId: admin._id,
+      adminId: adminId,
       adminSnapshot: {
         nickName: admin.nickName || '',
         roles: Array.isArray(admin.roles) ? admin.roles : []
       },
       adminRemark: remark,
       adminConfirmedAt: now,
-      updatedAt: now
+      updatedAt: now,
+      chargeOrderId
     };
     await orderRef.update({ data: updates });
     updatedOrder = mapOrder({ _id: orderId, ...order, ...updates });
@@ -240,9 +310,14 @@ async function confirmMemberOrder(openid, orderId) {
     throw new Error('缺少订单编号');
   }
   let experienceGain = 0;
+  let stoneReward = 0;
   let orderSnapshot = null;
-  await ensureCollection(COLLECTIONS.MENU_ORDERS);
-  await ensureCollection(COLLECTIONS.WALLET_TRANSACTIONS);
+  await Promise.all([
+    ensureCollection(COLLECTIONS.MENU_ORDERS),
+    ensureCollection(COLLECTIONS.WALLET_TRANSACTIONS),
+    ensureCollection(COLLECTIONS.CHARGE_ORDERS),
+    ensureCollection(COLLECTIONS.STONE_TRANSACTIONS)
+  ]);
   try {
     await db.runTransaction(async (transaction) => {
       const orderRef = transaction.collection(COLLECTIONS.MENU_ORDERS).doc(orderId);
@@ -261,6 +336,14 @@ async function confirmMemberOrder(openid, orderId) {
       if (!amount || amount <= 0) {
         throw new Error('订单金额无效');
       }
+      const now = new Date();
+      const { id: chargeOrderId, order: chargeOrderDoc } = await ensureChargeOrderForMenuOrder(
+        transaction,
+        orderId,
+        order,
+        order.adminId || openid,
+        now
+      );
       const memberRef = transaction.collection(COLLECTIONS.MEMBERS).doc(openid);
       const memberDoc = await memberRef.get().catch(() => null);
       if (!memberDoc || !memberDoc.data) {
@@ -270,12 +353,14 @@ async function confirmMemberOrder(openid, orderId) {
       if (balance < amount) {
         throw createCustomError(ERROR_CODES.INSUFFICIENT_FUNDS, '余额不足，请先充值');
       }
-      const now = new Date();
+      const memberSnapshot = buildMemberSnapshot(memberDoc.data);
+      stoneReward = resolveChargeStoneReward(chargeOrderDoc, amount);
       experienceGain = calculateExperienceGain(amount);
       await memberRef.update({
         data: {
           cashBalance: _.inc(-amount),
           totalSpend: _.inc(amount),
+          stoneBalance: _.inc(stoneReward),
           updatedAt: now,
           ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
         }
@@ -293,14 +378,49 @@ async function confirmMemberOrder(openid, orderId) {
           updatedAt: now
         }
       });
+      await transaction.collection(COLLECTIONS.STONE_TRANSACTIONS).add({
+        data: {
+          memberId: openid,
+          amount: stoneReward,
+          type: 'earn',
+          source: 'menuOrder',
+          description: '菜单消费赠送灵石',
+          createdAt: now,
+          meta: {
+            orderId,
+            chargeOrderId
+          }
+        }
+      });
+      await transaction.collection(COLLECTIONS.CHARGE_ORDERS).doc(chargeOrderId).update({
+        data: {
+          status: 'paid',
+          memberId: openid,
+          memberSnapshot,
+          confirmedAt: now,
+          stoneReward,
+          updatedAt: now,
+          menuOrderId: orderId
+        }
+      });
       await orderRef.update({
         data: {
           status: 'paid',
           memberConfirmedAt: now,
-          updatedAt: now
+          updatedAt: now,
+          chargeOrderId,
+          memberSnapshot
         }
       });
-      orderSnapshot = mapOrder({ _id: orderId, ...order, status: 'paid', memberConfirmedAt: now, updatedAt: now });
+      orderSnapshot = mapOrder({
+        _id: orderId,
+        ...order,
+        status: 'paid',
+        memberConfirmedAt: now,
+        updatedAt: now,
+        chargeOrderId,
+        memberSnapshot
+      });
     });
   } catch (error) {
     if (isCustomError(error, ERROR_CODES.INSUFFICIENT_FUNDS)) {
@@ -314,7 +434,7 @@ async function confirmMemberOrder(openid, orderId) {
   if (experienceGain > 0) {
     await syncMemberLevel(openid);
   }
-  return { order: orderSnapshot, experienceGain };
+  return { order: orderSnapshot, experienceGain, stoneReward };
 }
 
 async function ensureMember(openid) {
@@ -325,7 +445,7 @@ async function ensureMember(openid) {
   if (!snapshot || !snapshot.data) {
     throw new Error('会员不存在');
   }
-  return snapshot.data;
+  return { _id: openid, ...snapshot.data };
 }
 
 async function ensureAdmin(openid) {
@@ -410,7 +530,8 @@ function mapOrder(doc) {
     createdAt: doc.createdAt || null,
     updatedAt: doc.updatedAt || null,
     adminConfirmedAt: doc.adminConfirmedAt || null,
-    memberConfirmedAt: doc.memberConfirmedAt || null
+    memberConfirmedAt: doc.memberConfirmedAt || null,
+    chargeOrderId: doc.chargeOrderId || ''
   };
 }
 
@@ -419,6 +540,88 @@ function calculateExperienceGain(amountFen) {
     return 0;
   }
   return Math.max(0, Math.round((amountFen * EXPERIENCE_PER_YUAN) / 100));
+}
+
+function buildChargeItemsFromMenuOrder(order) {
+  if (!order || !Array.isArray(order.items)) {
+    const fallback = Number(order && order.totalAmount ? order.totalAmount : 0);
+    return fallback > 0
+      ? [
+          {
+            name: '菜单消费',
+            price: fallback,
+            quantity: 1,
+            amount: fallback
+          }
+        ]
+      : [];
+  }
+  const result = order.items
+    .map((item) => {
+      if (!item) return null;
+      const title = typeof item.title === 'string' ? item.title.trim() : '';
+      const spec = typeof item.spec === 'string' ? item.spec.trim() : '';
+      const quantity = Math.max(1, Math.floor(Number(item.quantity || 0)));
+      const price = Number(item.price || 0);
+      const amount = Number.isFinite(item.amount) ? Number(item.amount) : price * quantity;
+      const nameParts = [title];
+      if (spec) {
+        nameParts.push(spec);
+      }
+      const name = nameParts.filter(Boolean).join(' - ') || title;
+      if (!name || !Number.isFinite(price) || price <= 0 || !Number.isFinite(quantity) || quantity <= 0) {
+        return null;
+      }
+      const resolvedAmount = Number.isFinite(amount) && amount > 0 ? amount : price * quantity;
+      if (!resolvedAmount || resolvedAmount <= 0) {
+        return null;
+      }
+      return {
+        name,
+        price,
+        quantity,
+        amount: resolvedAmount
+      };
+    })
+    .filter(Boolean);
+  if (!result.length) {
+    const fallback = Number(order.totalAmount || 0);
+    if (fallback > 0) {
+      result.push({
+        name: '菜单消费',
+        price: fallback,
+        quantity: 1,
+        amount: fallback
+      });
+    }
+  }
+  return result;
+}
+
+function buildMemberSnapshot(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      nickName: '',
+      mobile: '',
+      levelId: ''
+    };
+  }
+  return {
+    nickName: typeof raw.nickName === 'string' ? raw.nickName : '',
+    mobile: typeof raw.mobile === 'string' ? raw.mobile : '',
+    levelId: typeof raw.levelId === 'string' ? raw.levelId : ''
+  };
+}
+
+function resolveChargeStoneReward(chargeOrder, fallbackAmount) {
+  if (chargeOrder && Number(chargeOrder.stoneReward) > 0) {
+    return Number(chargeOrder.stoneReward);
+  }
+  if (chargeOrder && Number(chargeOrder.totalAmount) > 0) {
+    return Number(chargeOrder.totalAmount);
+  }
+  const amount = Number(fallbackAmount || 0);
+  return amount > 0 ? amount : 0;
 }
 
 function resolveCashBalance(member) {
