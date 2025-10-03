@@ -89,19 +89,48 @@
     </view>
 
     <view class="bottom-nav {{navExpanded ? 'bottom-nav--expanded' : 'bottom-nav--collapsed'}}">
-      <view
-        class="nav-item"
-        wx:for="{{navDisplayItems}}"
-        wx:key="label"
-        data-url="{{item.url}}"
-        data-action="{{item.action}}"
-        bindtap="handleNavTap"
-      >
-        <view class="nav-icon-wrapper">
-          <text class="nav-icon">{{item.icon}}</text>
-          <view wx:if="{{item.showDot}}" class="nav-item__dot"></view>
+      <view class="bottom-nav__primary">
+        <view
+          class="nav-item"
+          wx:for="{{navPrimaryItems}}"
+          wx:key="label"
+          data-url="{{item.url}}"
+          bindtap="handleNavTap"
+        >
+          <view class="nav-icon-wrapper">
+            <text class="nav-icon">{{item.icon}}</text>
+            <view wx:if="{{item.showDot}}" class="nav-item__dot"></view>
+          </view>
+          <view class="nav-label">{{item.label}}</view>
         </view>
-        <view class="nav-label">{{item.label}}</view>
+        <view wx:if="{{navHasMore}}" class="bottom-nav__more">
+          <view
+            wx:if="{{!navExpanded}}"
+            class="nav-item nav-item--more"
+            bindtap="handleNavMoreTap"
+          >
+            <view class="nav-icon-wrapper">
+              <text class="nav-icon">⋯</text>
+            </view>
+            <view class="nav-label">更多</view>
+          </view>
+          <view wx:else class="nav-item nav-item--placeholder"></view>
+          <view class="bottom-nav__drawer {{navExpanded ? 'bottom-nav__drawer--open' : ''}}">
+            <view
+              class="nav-item"
+              wx:for="{{navSecondaryItems}}"
+              wx:key="label"
+              data-url="{{item.url}}"
+              bindtap="handleNavTap"
+            >
+              <view class="nav-icon-wrapper">
+                <text class="nav-icon">{{item.icon}}</text>
+                <view wx:if="{{item.showDot}}" class="nav-item__dot"></view>
+              </view>
+              <view class="nav-label">{{item.label}}</view>
+            </view>
+          </view>
+        </view>
       </view>
     </view>
   </view>

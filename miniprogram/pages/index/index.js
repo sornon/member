@@ -540,23 +540,23 @@ function resolveNavItems(member) {
   return navItems;
 }
 
-function buildNavDisplayItems(navItems, expanded) {
-  const safeItems = Array.isArray(navItems) ? navItems : [];
-  if (expanded) {
-    return safeItems.map((item) => ({ ...item }));
-  }
-  const collapsedItems = safeItems
-    .slice(0, NAV_COLLAPSED_VISIBLE_COUNT)
-    .map((item) => ({ ...item }));
-  if (safeItems.length > NAV_COLLAPSED_VISIBLE_COUNT) {
-    collapsedItems.push({
-      icon: '⋯',
-      label: '更多',
-      action: 'expand'
-    });
-  }
-  return collapsedItems;
+function deriveNavState(navItems, expanded) {
+  const safeItems = Array.isArray(navItems) ? navItems.filter(Boolean) : [];
+  const normalizedItems = safeItems.map((item) => ({ ...item }));
+  const primaryItems = normalizedItems.slice(0, NAV_COLLAPSED_VISIBLE_COUNT);
+  const secondaryItems = normalizedItems.slice(NAV_COLLAPSED_VISIBLE_COUNT);
+  const hasMore = secondaryItems.length > 0;
+  const nextExpanded = hasMore && !!expanded;
+  return {
+    navItems: normalizedItems,
+    navPrimaryItems: primaryItems,
+    navSecondaryItems: secondaryItems,
+    navHasMore: hasMore,
+    navExpanded: nextExpanded
+  };
 }
+
+const INITIAL_NAV_STATE = deriveNavState(BASE_NAV_ITEMS, false);
 
 Page({
   data: {
@@ -593,9 +593,11 @@ Page({
       { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
       { icon: '🔥', label: '比武' }
     ],
-    navItems: [...BASE_NAV_ITEMS],
-    navDisplayItems: buildNavDisplayItems(BASE_NAV_ITEMS, false),
-    navExpanded: false,
+    navItems: INITIAL_NAV_STATE.navItems,
+    navPrimaryItems: INITIAL_NAV_STATE.navPrimaryItems,
+    navSecondaryItems: INITIAL_NAV_STATE.navSecondaryItems,
+    navHasMore: INITIAL_NAV_STATE.navHasMore,
+    navExpanded: INITIAL_NAV_STATE.navExpanded,
     memberStats: { ...EMPTY_MEMBER_STATS },
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
@@ -1381,19 +1383,19 @@ Page({
   },
 
   handleNavTap(event) {
-    const { url, action } = event.currentTarget.dataset;
-    if (action === 'expand') {
-      this.expandNav();
-      return;
-    }
+    const { url } = event.currentTarget.dataset;
     if (!url) {
       return;
     }
     wx.navigateTo({ url });
   },
 
+  handleNavMoreTap() {
+    this.expandNav();
+  },
+
   expandNav() {
-    if (this.data.navExpanded) {
+    if (this.data.navExpanded || !this.data.navHasMore) {
       return;
     }
     this.setNavExpanded(true);
@@ -1401,29 +1403,42 @@ Page({
 
   setNavExpanded(expanded, options = {}) {
     const persist = options.persist !== false;
-    const navItems = options.navItems || this.data.navItems;
-    const changed = expanded !== this.data.navExpanded;
-    const nextState = {
-      navDisplayItems: buildNavDisplayItems(navItems, expanded)
-    };
-    if (changed) {
-      nextState.navExpanded = expanded;
-    }
-    this.setData(nextState);
-    if (persist && changed) {
-      try {
-        wx.setStorageSync(NAV_EXPANDED_STORAGE_KEY, expanded);
-      } catch (error) {
-        // ignore storage errors
-      }
+    const navItems = Array.isArray(options.navItems) ? options.navItems : this.data.navItems;
+    const previousExpanded = this.data.navExpanded;
+    const navState = deriveNavState(navItems, expanded);
+    this.setData({
+      navItems: navState.navItems,
+      navPrimaryItems: navState.navPrimaryItems,
+      navSecondaryItems: navState.navSecondaryItems,
+      navHasMore: navState.navHasMore,
+      navExpanded: navState.navExpanded
+    });
+    if (persist && navState.navExpanded !== previousExpanded) {
+      this.persistNavExpanded(navState.navExpanded);
     }
   },
 
   updateNavItems(navItems) {
     const items = Array.isArray(navItems) ? navItems : [];
+    const previousExpanded = this.data.navExpanded;
+    const navState = deriveNavState(items, this.data.navExpanded);
     this.setData({
-      navItems: items,
-      navDisplayItems: buildNavDisplayItems(items, this.data.navExpanded)
+      navItems: navState.navItems,
+      navPrimaryItems: navState.navPrimaryItems,
+      navSecondaryItems: navState.navSecondaryItems,
+      navHasMore: navState.navHasMore,
+      navExpanded: navState.navExpanded
     });
+    if (navState.navExpanded !== previousExpanded) {
+      this.persistNavExpanded(navState.navExpanded);
+    }
+  },
+
+  persistNavExpanded(expanded) {
+    try {
+      wx.setStorageSync(NAV_EXPANDED_STORAGE_KEY, expanded);
+    } catch (error) {
+      // ignore storage errors
+    }
   }
 });
