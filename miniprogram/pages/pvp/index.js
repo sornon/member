@@ -16,6 +16,8 @@ function formatDateTime(date) {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
+const SHARE_COVER_IMAGE_URL = 'cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/background/share_cover_1000x800.png';
+
 Page({
   data: {
     loading: true,
@@ -239,12 +241,14 @@ Page({
         ? `${profile.memberSnapshot.nickName || '神秘仙友'}向你发起比武` : '竞技场邀战令';
       return {
         title,
-        path: `/pages/pvp/index?inviteId=${shareInvite.inviteId}`
+        path: `/pages/pvp/index?inviteId=${shareInvite.inviteId}`,
+        imageUrl: SHARE_COVER_IMAGE_URL
       };
     }
     return {
       title: '酒隐之茄 · 仙界比武场',
-      path: '/pages/pvp/index'
+      path: '/pages/pvp/index',
+      imageUrl: SHARE_COVER_IMAGE_URL
     };
   },
 
