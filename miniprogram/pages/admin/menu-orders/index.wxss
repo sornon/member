@@ -130,8 +130,19 @@
   text-decoration: line-through;
 }
 
+.action-btn-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
 .action-btn {
-  margin-top: 8px;
+  flex: 1;
+  margin-top: 0;
+  height: 80rpx;
+  line-height: 80rpx;
+  font-size: 26rpx;
+  border-radius: 12px;
 }
 
 .action-btn--cancel {
