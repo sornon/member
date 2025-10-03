@@ -445,11 +445,10 @@
       </radio-group>
     </scroll-view>
     <view class="equipment-dialog__actions">
-      <button size="mini" class="dialog-btn" bindtap="hideEquipmentGrantDialog">取消</button>
+      <button size="mini" class="equipment-dialog__btn" bindtap="hideEquipmentGrantDialog">取消</button>
       <button
         size="mini"
-        class="dialog-btn primary"
-        type="primary"
+        class="equipment-dialog__btn equipment-dialog__btn--primary"
         loading="{{grantingEquipment}}"
         disabled="{{!equipmentSelectionId}}"
         bindtap="handleEquipmentGrantConfirm"

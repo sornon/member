@@ -648,10 +648,7 @@ Page({
       wx.showToast({ title: '请选择装备', icon: 'none' });
       return;
     }
-    const success = await this.grantEquipmentToMember(itemId);
-    if (success) {
-      this.hideEquipmentGrantDialog();
-    }
+    await this.grantEquipmentToMember(itemId);
   },
 
   async grantEquipmentToMember(itemId) {

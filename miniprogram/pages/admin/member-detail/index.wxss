@@ -480,6 +480,22 @@ page {
   gap: 24rpx;
 }
 
+.equipment-dialog__btn {
+  border: none;
+  border-radius: 24rpx;
+  padding: 16rpx 32rpx;
+  background: rgba(148, 163, 184, 0.16);
+  color: #d0deff;
+  font-size: 26rpx;
+}
+
+.equipment-dialog__btn--primary {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: #f8fafc;
+  font-weight: 600;
+  box-shadow: 0 10rpx 28rpx rgba(79, 70, 229, 0.32);
+}
+
 .equipment-dialog__empty {
   padding: 48rpx 0;
   text-align: center;
