@@ -44,9 +44,57 @@ const BASE_NAV_ITEMS = [
     //{ icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
 
+const NAV_COLLAPSED_LIMIT = 3;
+const NAV_STATE_STORAGE_KEY = 'home_nav_expanded';
+
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
 
 const AVATAR_FRAME_OPTIONS = buildAvatarFrameOptionList();
+
+function buildDisplayNavItems(navItems, expanded) {
+  const normalized = Array.isArray(navItems) ? navItems.filter(Boolean).map((item) => ({ ...item })) : [];
+  if (!normalized.length) {
+    return [];
+  }
+  if (expanded || normalized.length <= NAV_COLLAPSED_LIMIT) {
+    return normalized;
+  }
+  const visible = normalized.slice(0, NAV_COLLAPSED_LIMIT);
+  visible.push({ icon: '➕', label: '更多', action: 'expand' });
+  return visible;
+}
+
+function readNavExpandedState() {
+  if (typeof wx === 'undefined' || !wx || typeof wx.getStorageSync !== 'function') {
+    return false;
+  }
+  try {
+    const stored = wx.getStorageSync(NAV_STATE_STORAGE_KEY);
+    if (typeof stored === 'boolean') {
+      return stored;
+    }
+    if (typeof stored === 'number') {
+      return stored === 1;
+    }
+    if (typeof stored === 'string') {
+      return stored === 'true';
+    }
+  } catch (error) {
+    console.warn('Failed to read nav expanded state', error);
+  }
+  return false;
+}
+
+function persistNavExpandedState(expanded) {
+  if (typeof wx === 'undefined' || !wx || typeof wx.setStorageSync !== 'function') {
+    return;
+  }
+  try {
+    wx.setStorageSync(NAV_STATE_STORAGE_KEY, !!expanded);
+  } catch (error) {
+    console.warn('Failed to persist nav expanded state', error);
+  }
+}
 
 function resolveRealmOrderFromLevel(level) {
   if (!level) {
@@ -572,7 +620,8 @@ Page({
       { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
       { icon: '🔥', label: '比武' }
     ],
-    navItems: [...BASE_NAV_ITEMS],
+    navItems: buildDisplayNavItems([...BASE_NAV_ITEMS], false),
+    navExpanded: false,
     memberStats: { ...EMPTY_MEMBER_STATS },
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
@@ -606,7 +655,9 @@ Page({
 
   onLoad() {
     this.hasBootstrapped = false;
+    this.fullNavItems = [...BASE_NAV_ITEMS];
     this.ensureNavMetrics();
+    this.initializeNavState();
     this.updateToday();
   },
 
@@ -618,6 +669,17 @@ Page({
   },
 
   onReady() {},
+
+  initializeNavState() {
+    const expanded = readNavExpandedState();
+    if (!Array.isArray(this.fullNavItems) || !this.fullNavItems.length) {
+      this.fullNavItems = [...BASE_NAV_ITEMS];
+    }
+    this.setData({
+      navExpanded: expanded,
+      navItems: buildDisplayNavItems(this.fullNavItems, expanded)
+    });
+  },
 
   onHide() {
     this.detachMemberRealtime();
@@ -739,13 +801,17 @@ Page({
       const needsProfile = !sanitizedMember || !sanitizedMember.nickName || !sanitizedMember.mobile;
       const profileAuthorized = !!(sanitizedMember && sanitizedMember.nickName);
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
+      const resolvedNavItems = resolveNavItems(sanitizedMember);
+      const navExpanded = this.data.navExpanded;
+      const displayNavItems = buildDisplayNavItems(resolvedNavItems, navExpanded);
+      this.fullNavItems = resolvedNavItems;
       this.setData({
         member: sanitizedMember,
         progress,
         tasks: tasks.slice(0, 3),
         loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),
-        navItems: resolveNavItems(sanitizedMember),
+        navItems: displayNavItems,
         memberStats: deriveMemberStats(sanitizedMember),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
@@ -792,6 +858,12 @@ Page({
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
         heroImage: resolveCharacterImage(this.data.member)
+      });
+      const fallbackNavItems = Array.isArray(this.fullNavItems) && this.fullNavItems.length
+        ? this.fullNavItems
+        : [...BASE_NAV_ITEMS];
+      this.setData({
+        navItems: buildDisplayNavItems(fallbackNavItems, this.data.navExpanded)
       });
       this.updateBackgroundDisplay(this.data.member, {});
     }
@@ -1348,8 +1420,33 @@ Page({
     });
   },
 
+  expandNav() {
+    if (this.data.navExpanded) {
+      return;
+    }
+    if (!Array.isArray(this.fullNavItems) || !this.fullNavItems.length) {
+      this.fullNavItems = [...BASE_NAV_ITEMS];
+    }
+    persistNavExpandedState(true);
+    this.setData({
+      navExpanded: true,
+      navItems: buildDisplayNavItems(this.fullNavItems, true)
+    });
+  },
+
   handleNavTap(event) {
-    const { url } = event.currentTarget.dataset;
-    wx.navigateTo({ url });
+    const { url, action } = event.currentTarget.dataset;
+    if (action === 'expand') {
+      this.expandNav();
+      return;
+    }
+    if (url) {
+      wx.navigateTo({ url });
+      return;
+    }
+    wx.showToast({
+      title: '功能建设中',
+      icon: 'none'
+    });
   }
 });
