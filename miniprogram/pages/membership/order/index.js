@@ -142,12 +142,18 @@ function decorateOrder(order) {
       })
     : [];
   const totalAmount = Number(order.totalAmount || 0);
+  const stoneRewardRaw = Number(
+    Object.prototype.hasOwnProperty.call(order, 'stoneReward') ? order.stoneReward : order.totalAmount
+  );
+  const stoneReward = Math.max(0, Math.floor(stoneRewardRaw));
   return {
     ...order,
     _id: id,
     items,
     totalAmount,
     totalAmountLabel: formatCurrency(totalAmount),
+    stoneReward,
+    stoneRewardLabel: formatStones(stoneReward),
     statusLabel: STATUS_LABELS[order.status] || '处理中',
     createdAtLabel: formatDateTime(order.createdAt),
     adminConfirmedAtLabel: formatDateTime(order.adminConfirmedAt),

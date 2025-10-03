@@ -117,7 +117,10 @@
         </view>
       </view>
       <view class="order-remark" wx:if="{{order.remark}}">备注：{{order.remark}}</view>
-      <view class="order-total">合计 {{order.totalAmountLabel}}</view>
+      <view class="order-summary">
+        <view class="order-total">合计 {{order.totalAmountLabel}}</view>
+        <view class="order-stones">送 {{order.stoneRewardLabel}} 灵石</view>
+      </view>
       <button
         wx:if="{{order.status === 'pendingMember'}}"
         class="confirm-btn"
