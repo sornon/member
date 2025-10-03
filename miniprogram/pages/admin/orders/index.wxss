@@ -301,6 +301,21 @@ page {
   gap: 16rpx;
 }
 
+.force-dialog__locked {
+  background: rgba(30, 41, 59, 0.6);
+  border-radius: 18rpx;
+  padding: 24rpx 28rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.force-dialog__hint {
+  font-size: 22rpx;
+  color: rgba(148, 163, 184, 0.85);
+}
+
 .force-dialog__loading,
 .force-dialog__empty {
   text-align: center;
@@ -336,6 +351,27 @@ page {
   gap: 12rpx 20rpx;
   font-size: 22rpx;
   color: rgba(203, 213, 225, 0.85);
+}
+
+.force-dialog__remark {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.force-dialog__remark-input {
+  min-height: 120rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 16rpx;
+  background: rgba(15, 23, 42, 0.6);
+  color: #f8fafc;
+  font-size: 24rpx;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+
+.force-dialog__remark-hint {
+  font-size: 22rpx;
+  color: rgba(148, 163, 184, 0.75);
 }
 
 .force-dialog__footer {

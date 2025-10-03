@@ -87,7 +87,10 @@ Page({
       results: [],
       loading: false,
       selectedMemberId: '',
-      error: ''
+      error: '',
+      memberLocked: false,
+      memberInfo: null,
+      remark: ''
     }
   },
 
@@ -147,23 +150,25 @@ Page({
       return;
     }
     if (targetOrder.memberId) {
-      wx.showModal({
-        title: '强制扣款',
-        content: '确认立即扣除该订单金额并发放灵石吗？',
-        confirmText: '确认扣款',
-        cancelText: '取消',
-        success: (res) => {
-          if (res && res.confirm) {
-            this.forceChargeOrder(id, targetOrder.memberId);
-          }
-        }
+      const memberSnapshot = targetOrder.memberSnapshot || {};
+      const memberInfo = {
+        _id: targetOrder.memberId,
+        nickName: targetOrder.memberName || memberSnapshot.nickName || '',
+        mobile: targetOrder.memberMobile || memberSnapshot.mobile || '',
+        levelName: targetOrder.memberLevelName || '',
+        balanceLabel: targetOrder.memberBalanceLabel || ''
+      };
+      this.openForceChargeDialog(id, {
+        selectedMemberId: targetOrder.memberId,
+        memberLocked: true,
+        memberInfo
       });
       return;
     }
     this.openForceChargeDialog(id);
   },
 
-  openForceChargeDialog(orderId) {
+  openForceChargeDialog(orderId, options = {}) {
     this.setData({
       forceChargeDialog: {
         visible: true,
@@ -171,8 +176,11 @@ Page({
         keyword: '',
         results: [],
         loading: false,
-        selectedMemberId: '',
-        error: ''
+        selectedMemberId: options.selectedMemberId || '',
+        error: '',
+        memberLocked: !!options.memberLocked,
+        memberInfo: options.memberInfo || null,
+        remark: options.remark || ''
       }
     });
   },
@@ -189,18 +197,27 @@ Page({
         results: [],
         loading: false,
         selectedMemberId: '',
-        error: ''
+        error: '',
+        memberLocked: false,
+        memberInfo: null,
+        remark: ''
       }
     });
   },
 
   handleForceChargeMemberInput(event) {
+    if (this.data.forceChargeDialog.memberLocked) {
+      return;
+    }
     this.setData({
       'forceChargeDialog.keyword': event.detail.value || ''
     });
   },
 
   handleForceChargeMemberSearch() {
+    if (this.data.forceChargeDialog.memberLocked) {
+      return;
+    }
     this.fetchForceChargeMembers();
   },
 
@@ -213,15 +230,22 @@ Page({
   },
 
   handleConfirmForceChargeWithMember() {
-    const { orderId, selectedMemberId } = this.data.forceChargeDialog;
-    if (!orderId || !selectedMemberId) {
+    const { orderId, selectedMemberId, memberLocked, memberInfo, remark } = this.data.forceChargeDialog;
+    if (!orderId) {
+      return;
+    }
+    const targetMemberId = memberLocked && memberInfo ? memberInfo._id : selectedMemberId;
+    if (!targetMemberId) {
       wx.showToast({ title: '请先选择会员', icon: 'none' });
       return;
     }
-    this.forceChargeOrder(orderId, selectedMemberId);
+    this.forceChargeOrder(orderId, targetMemberId, remark);
   },
 
   async fetchForceChargeMembers() {
+    if (this.data.forceChargeDialog.memberLocked) {
+      return;
+    }
     const keyword = (this.data.forceChargeDialog.keyword || '').trim();
     const orderId = this.data.forceChargeDialog.orderId;
     if (!orderId) {
@@ -265,13 +289,18 @@ Page({
     }
   },
 
+  handleForceChargeRemarkInput(event) {
+    this.setData({ 'forceChargeDialog.remark': event.detail.value || '' });
+  },
+
   async forceChargeOrder(orderId, memberId = '', remark = '') {
     if (!orderId || this.data.forceChargingId === orderId) {
       return;
     }
     this.setData({ forceChargingId: orderId });
     try {
-      const result = await AdminService.forceChargeOrder(orderId, { memberId, remark });
+      const normalizedRemark = typeof remark === 'string' ? remark.trim() : '';
+      const result = await AdminService.forceChargeOrder(orderId, { memberId, remark: normalizedRemark });
       const stoneReward = Number(result && result.stoneReward ? result.stoneReward : 0);
       const message = stoneReward > 0 ? `扣款成功，灵石+${Math.floor(stoneReward)}` : '扣款成功';
       wx.showToast({ title: message, icon: 'success' });

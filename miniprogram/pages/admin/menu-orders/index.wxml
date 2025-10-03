@@ -24,6 +24,10 @@
     <view class="order-meta">会员：{{order.memberSnapshot && order.memberSnapshot.nickName ? order.memberSnapshot.nickName : '未知'}}</view>
     <view class="order-meta">提交时间：{{order.createdAtLabel}}</view>
     <view class="order-meta" wx:if="{{order.remark}}">备注：{{order.remark}}</view>
+    <view class="order-meta" wx:if="{{order.adminRemark}}">管理员备注：{{order.adminRemark}}</view>
+    <view class="order-meta order-meta--cancel" wx:if="{{order.status === 'cancelled' && order.cancelRemark}}">取消说明：{{order.cancelRemark}}</view>
+    <view class="order-meta order-meta--cancel" wx:if="{{order.status === 'cancelled' && order.cancelledAtLabel}}">取消时间：{{order.cancelledAtLabel}}</view>
+    <view class="order-meta order-meta--cancel" wx:if="{{order.status === 'cancelled' && order.cancelledByLabel}}">取消方：{{order.cancelledByLabel}}</view>
     <view class="order-items">
       <view class="order-line" wx:for="{{order.items}}" wx:key="{{index}}" wx:for-item="orderItem">
         <view class="line-main">
@@ -45,9 +49,19 @@
       wx:if="{{order.status === 'submitted'}}"
       class="action-btn"
       type="primary"
-      loading="{{processingId === order._id}}"
+      loading="{{processingId === order._id && processingAction === 'ready'}}"
+      disabled="{{!!processingId && processingId !== order._id}}"
       data-id="{{order._id}}"
       bindtap="handleMarkReady"
     >推送给会员</button>
+    <button
+      wx:if="{{order.canCancel}}"
+      class="action-btn action-btn--cancel"
+      type="default"
+      loading="{{processingId === order._id && processingAction === 'cancel'}}"
+      disabled="{{!!processingId && processingId !== order._id}}"
+      data-id="{{order._id}}"
+      bindtap="handleCancelOrder"
+    >取消订单</button>
   </view>
 </view>

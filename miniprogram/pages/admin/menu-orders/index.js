@@ -61,6 +61,17 @@ function decorateOrder(order) {
     : [];
   const totalAmount = Number(order.totalAmount || 0);
   const shortId = id ? id.slice(-6).toUpperCase() : '';
+  const adminRemark = typeof order.adminRemark === 'string' ? order.adminRemark : '';
+  const cancelRemark = typeof order.cancelRemark === 'string' ? order.cancelRemark : '';
+  const cancelledAtLabel = formatDateTime(order.cancelledAt);
+  const cancelledByRole = typeof order.cancelledByRole === 'string' ? order.cancelledByRole : '';
+  let cancelledByLabel = '';
+  if (cancelledByRole === 'admin') {
+    cancelledByLabel = '管理员';
+  } else if (cancelledByRole === 'member') {
+    cancelledByLabel = '会员';
+  }
+  const canCancel = order.status === 'submitted' || order.status === 'pendingMember';
   return {
     ...order,
     _id: id,
@@ -71,7 +82,12 @@ function decorateOrder(order) {
     createdAtLabel: formatDateTime(order.createdAt),
     adminConfirmedAtLabel: formatDateTime(order.adminConfirmedAt),
     memberConfirmedAtLabel: formatDateTime(order.memberConfirmedAt),
-    shortId
+    cancelledAtLabel,
+    cancelledByLabel,
+    adminRemark,
+    cancelRemark,
+    shortId,
+    canCancel
   };
 }
 
@@ -94,7 +110,8 @@ Page({
     activeStatus: STATUS_TABS[0].id,
     orders: [],
     loading: false,
-    processingId: ''
+    processingId: '',
+    processingAction: ''
   },
 
   onShow() {
@@ -155,7 +172,7 @@ Page({
     if (!confirm.confirm) {
       return;
     }
-    this.setData({ processingId: id });
+    this.setData({ processingId: id, processingAction: 'ready' });
     try {
       await AdminMenuOrderService.markOrderReady(id, '管理员确认备餐');
       wx.showToast({ title: '已推送', icon: 'success' });
@@ -170,7 +187,42 @@ Page({
         icon: 'none'
       });
     } finally {
-      this.setData({ processingId: '' });
+      this.setData({ processingId: '', processingAction: '' });
+    }
+  },
+
+  async handleCancelOrder(event) {
+    const { id } = event.currentTarget.dataset || {};
+    if (!id || (this.data.processingId && this.data.processingId !== id)) {
+      return;
+    }
+    if (this.data.processingId === id && this.data.processingAction === 'cancel') {
+      return;
+    }
+    const confirm = await showConfirmDialog({
+      title: '取消订单',
+      content: '确认取消该订单吗？',
+      confirmText: '确认取消'
+    });
+    if (!confirm.confirm) {
+      return;
+    }
+    this.setData({ processingId: id, processingAction: 'cancel' });
+    try {
+      await AdminMenuOrderService.cancelOrder(id, '管理员取消订单');
+      wx.showToast({ title: '已取消', icon: 'success' });
+      await this.loadOrders();
+    } catch (error) {
+      const message =
+        (error && (error.errMsg || error.message))
+          ? String(error.errMsg || error.message)
+          : '操作失败';
+      wx.showToast({
+        title: message.length > 14 ? `${message.slice(0, 13)}…` : message,
+        icon: 'none'
+      });
+    } finally {
+      this.setData({ processingId: '', processingAction: '' });
     }
   },
 

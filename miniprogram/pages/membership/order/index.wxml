@@ -140,18 +140,38 @@
         </block>
       </view>
       <view class="order-remark" wx:if="{{order.remark}}">备注：{{order.remark}}</view>
+      <view class="order-remark admin" wx:if="{{order.adminRemark}}">管理员备注：{{order.adminRemark}}</view>
+      <view class="order-meta order-meta--cancel" wx:if="{{order.status === 'cancelled' && order.cancelRemark}}">
+        取消说明：{{order.cancelRemark}}
+      </view>
+      <view class="order-meta order-meta--cancel" wx:if="{{order.status === 'cancelled' && order.cancelledAtLabel}}">
+        取消时间：{{order.cancelledAtLabel}}
+      </view>
+      <view class="order-meta order-meta--cancel" wx:if="{{order.status === 'cancelled' && order.cancelledByLabel}}">
+        取消方：{{order.cancelledByLabel}}
+      </view>
       <view class="order-summary">
         <view class="order-total">合计 {{order.totalAmountLabel}}</view>
         <view class="order-stones">送 {{order.stoneRewardLabel}} 灵石</view>
       </view>
       <button
-        wx:if="{{order.status === 'pendingMember'}}"
+        wx:if="{{order.canConfirm}}"
         class="confirm-btn"
         type="primary"
         loading="{{confirmingId === order._id}}"
+        disabled="{{(!!cancellingId && cancellingId !== order._id)}}"
         data-id="{{order._id}}"
         bindtap="handleConfirmOrder"
       >确认扣费</button>
+      <button
+        wx:if="{{order.canCancel}}"
+        class="cancel-btn"
+        type="default"
+        loading="{{cancellingId === order._id}}"
+        disabled="{{(!!confirmingId && confirmingId !== order._id)}}"
+        data-id="{{order._id}}"
+        bindtap="handleCancelOrder"
+      >取消订单</button>
       <view class="order-meta" wx:if="{{order.adminConfirmedAtLabel && order.status !== 'submitted'}}">
         管理员已确认：{{order.adminConfirmedAtLabel}}
       </view>

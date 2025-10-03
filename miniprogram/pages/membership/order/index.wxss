@@ -399,6 +399,10 @@
   color: rgba(255, 255, 255, 0.75);
 }
 
+.order-remark.admin {
+  color: rgba(255, 231, 188, 0.9);
+}
+
 .orders-footer {
   display: flex;
   justify-content: center;
@@ -431,8 +435,18 @@
   margin-top: 8px;
 }
 
+.cancel-btn {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
 .order-meta {
   font-size: 22rpx;
   color: rgba(255, 255, 255, 0.55);
   margin-top: 4px;
+}
+
+.order-meta--cancel {
+  color: rgba(255, 160, 160, 0.85);
 }

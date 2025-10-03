@@ -126,3 +126,12 @@
 .action-btn {
   margin-top: 8px;
 }
+
+.action-btn--cancel {
+  color: #ffb6b6;
+  border: 1px solid rgba(255, 182, 182, 0.4);
+}
+
+.order-meta--cancel {
+  color: rgba(255, 150, 150, 0.8);
+}
