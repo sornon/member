@@ -325,6 +325,16 @@ export const PveService = {
 export const StoneService = {
   async summary() {
     return callCloud(CLOUD_FUNCTIONS.STONES, { action: 'summary' });
+  },
+  async catalog() {
+    return callCloud(CLOUD_FUNCTIONS.STONES, { action: 'catalog' });
+  },
+  async purchase(itemId, quantity = 1) {
+    return callCloud(CLOUD_FUNCTIONS.STONES, {
+      action: 'purchase',
+      itemId,
+      quantity
+    });
   }
 };
 

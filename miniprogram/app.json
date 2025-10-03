@@ -7,6 +7,7 @@
     "pages/tasks/tasks",
     "pages/reservation/reservation",
     "pages/stones/stones",
+    "pages/mall/index",
     "pages/pve/pve",
     "pages/role/index",
     "pages/wallet/wallet",
