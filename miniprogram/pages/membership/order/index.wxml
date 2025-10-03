@@ -171,24 +171,26 @@
         </view>
         <view class="order-stones">送 {{order.stoneRewardLabel}} 灵石</view>
       </view>
-      <button
-        wx:if="{{order.canConfirm}}"
-        class="confirm-btn"
-        type="primary"
-        loading="{{confirmingId === order._id}}"
-        disabled="{{(!!cancellingId && cancellingId !== order._id)}}"
-        data-id="{{order._id}}"
-        bindtap="handleConfirmOrder"
-      >确认扣费</button>
-      <button
-        wx:if="{{order.canCancel}}"
-        class="cancel-btn"
-        type="default"
-        loading="{{cancellingId === order._id}}"
-        disabled="{{(!!confirmingId && confirmingId !== order._id)}}"
-        data-id="{{order._id}}"
-        bindtap="handleCancelOrder"
-      >取消订单</button>
+      <view class="order-action-btn-group" wx:if="{{order.canConfirm || order.canCancel}}">
+        <button
+          wx:if="{{order.canConfirm}}"
+          class="order-action-btn order-action-btn--confirm"
+          type="primary"
+          loading="{{confirmingId === order._id}}"
+          disabled="{{(!!cancellingId && cancellingId !== order._id)}}"
+          data-id="{{order._id}}"
+          bindtap="handleConfirmOrder"
+        >确认扣费</button>
+        <button
+          wx:if="{{order.canCancel}}"
+          class="order-action-btn order-action-btn--cancel"
+          type="default"
+          loading="{{cancellingId === order._id}}"
+          disabled="{{(!!confirmingId && confirmingId !== order._id)}}"
+          data-id="{{order._id}}"
+          bindtap="handleCancelOrder"
+        >取消订单</button>
+      </view>
       <view class="order-meta" wx:if="{{order.adminConfirmedAtLabel && order.status !== 'submitted'}}">
         管理员已确认：{{order.adminConfirmedAtLabel}}
       </view>
