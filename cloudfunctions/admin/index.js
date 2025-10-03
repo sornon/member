@@ -6,6 +6,7 @@ const { listAvatarIds } = require('./avatar-catalog.js');
 
 const db = cloud.database();
 const _ = db.command;
+const $ = db.command.aggregate;
 
 const COLLECTIONS = {
   MEMBERS: 'members',
@@ -27,6 +28,8 @@ const COLLECTIONS = {
 const EXPERIENCE_PER_YUAN = 100;
 
 const ADMIN_ROLES = ['admin', 'developer'];
+const EXCLUDED_TRANSACTION_STATUSES = ['pending', 'processing', 'failed', 'cancelled', 'refunded', 'closed'];
+const MIN_REPORT_MONTH = new Date(2025, 8, 1);
 const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
 const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
 
@@ -51,7 +54,8 @@ const ACTIONS = {
   LIST_EQUIPMENT_CATALOG: 'listEquipmentCatalog',
   GRANT_EQUIPMENT: 'grantEquipment',
   REMOVE_EQUIPMENT: 'removeEquipment',
-  UPDATE_EQUIPMENT_ATTRIBUTES: 'updateEquipmentAttributes'
+  UPDATE_EQUIPMENT_ATTRIBUTES: 'updateEquipmentAttributes',
+  GET_FINANCE_REPORT: 'getFinanceReport'
 };
 
 const ACTION_ALIASES = {
@@ -74,7 +78,9 @@ const ACTION_ALIASES = {
   listequipmentcatalog: ACTIONS.LIST_EQUIPMENT_CATALOG,
   grantequipment: ACTIONS.GRANT_EQUIPMENT,
   removeequipment: ACTIONS.REMOVE_EQUIPMENT,
-  updateequipmentattributes: ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES
+  updateequipmentattributes: ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES,
+  getfinancereport: ACTIONS.GET_FINANCE_REPORT,
+  financereport: ACTIONS.GET_FINANCE_REPORT
 };
 
 function normalizeAction(action) {
@@ -125,7 +131,8 @@ const ACTION_HANDLERS = {
   [ACTIONS.REMOVE_EQUIPMENT]: (openid, event) =>
     removeEquipment(openid, event.memberId, event.itemId, event.inventoryId),
   [ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES]: (openid, event) =>
-    updateEquipmentAttributes(openid, event.memberId, event.itemId, event.attributes || {}, event)
+    updateEquipmentAttributes(openid, event.memberId, event.itemId, event.attributes || {}, event),
+  [ACTIONS.GET_FINANCE_REPORT]: (openid, event) => getFinanceReport(openid, event.month || event.targetMonth || '')
 };
 
 async function resolveMemberExtras(memberId) {
@@ -2268,4 +2275,359 @@ function resolveLevelByExperience(exp, levels) {
     }
   });
   return target;
+}
+
+async function getFinanceReport(openid, monthInput) {
+  await ensureAdmin(openid);
+  const range = resolveFinanceReportRange(monthInput);
+  const adminMemberIds = await loadAdminMemberIds();
+  const walletMatch = buildWalletMatch(range, adminMemberIds);
+  const menuOrderMatch = buildMenuOrderMatch(range, adminMemberIds);
+  const [walletTotals, diningTotals] = await Promise.all([
+    aggregateWalletTotals(walletMatch),
+    aggregateDiningTotals(menuOrderMatch, range)
+  ]);
+  const totalIncome = Math.max(0, normalizeAmountValue(walletTotals.totalIncome));
+  const totalSpend = Math.max(0, normalizeAmountValue(walletTotals.totalSpend));
+  const diningSpendRaw = Math.max(0, normalizeAmountValue(diningTotals.diningTotal));
+  const diningSpend = Math.min(totalSpend, diningSpendRaw);
+  const now = new Date();
+  return {
+    month: range.month,
+    monthLabel: range.monthLabel,
+    range: {
+      start: range.start.toISOString(),
+      end: range.end.toISOString()
+    },
+    rangeLabel: range.rangeLabel,
+    totals: {
+      totalIncome,
+      totalSpend,
+      diningSpend
+    },
+    generatedAt: now.toISOString(),
+    constraints: range.constraints
+  };
+}
+
+function resolveFinanceReportRange(input) {
+  const now = new Date();
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const maxMonthStart = currentMonthStart < MIN_REPORT_MONTH ? new Date(MIN_REPORT_MONTH.getTime()) : currentMonthStart;
+  let monthStart = parseMonthInput(input) || currentMonthStart;
+  if (monthStart < MIN_REPORT_MONTH) {
+    monthStart = new Date(MIN_REPORT_MONTH.getTime());
+  }
+  if (monthStart > maxMonthStart) {
+    monthStart = new Date(maxMonthStart.getTime());
+  }
+  const start = new Date(monthStart.getFullYear(), monthStart.getMonth(), 1);
+  const end = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 1);
+  return {
+    month: formatMonthKey(start),
+    monthLabel: formatMonthLabel(start),
+    start,
+    end,
+    rangeLabel: `${formatDateLabel(start)} 至 ${formatDateLabel(new Date(end.getFullYear(), end.getMonth(), 0))}`,
+    constraints: {
+      minMonth: formatMonthKey(MIN_REPORT_MONTH),
+      maxMonth: formatMonthKey(maxMonthStart)
+    }
+  };
+}
+
+function parseMonthInput(value) {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    const match = /^([0-9]{4})-([0-9]{2})$/.exec(trimmed);
+    if (match) {
+      const year = Number(match[1]);
+      const month = Number(match[2]);
+      if (
+        Number.isInteger(year) &&
+        Number.isInteger(month) &&
+        month >= 1 &&
+        month <= 12 &&
+        year >= 2000 &&
+        year <= 9999
+      ) {
+        return new Date(year, month - 1, 1);
+      }
+    }
+  }
+  return null;
+}
+
+function formatMonthKey(date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+function formatMonthLabel(date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.toString().padStart(2, '0');
+  return `${year}年${month}月`;
+}
+
+function formatDateLabel(date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function buildWalletMatch(range, excludedMemberIds = []) {
+  const match = {
+    createdAt: _.gte(range.start).and(_.lt(range.end)),
+    status: _.nin(EXCLUDED_TRANSACTION_STATUSES)
+  };
+  if (Array.isArray(excludedMemberIds) && excludedMemberIds.length) {
+    match.memberId = _.nin(excludedMemberIds);
+  }
+  return match;
+}
+
+async function aggregateWalletTotals(match) {
+  try {
+    const snapshot = await db
+      .collection(COLLECTIONS.WALLET_TRANSACTIONS)
+      .aggregate()
+      .match(match)
+      .group({
+        _id: null,
+        totalIncome: $.sum(
+          $.cond({
+            if: $.gt(['$amount', 0]),
+            then: '$amount',
+            else: 0
+          })
+        ),
+        totalSpend: $.sum(
+          $.cond({
+            if: $.lt(['$amount', 0]),
+            then: $.abs('$amount'),
+            else: 0
+          })
+        )
+      })
+      .end();
+    if (snapshot && Array.isArray(snapshot.list) && snapshot.list.length) {
+      const doc = snapshot.list[0] || {};
+      return {
+        totalIncome: normalizeAmountValue(doc.totalIncome),
+        totalSpend: normalizeAmountValue(doc.totalSpend)
+      };
+    }
+  } catch (error) {
+    console.error('[admin] aggregate wallet totals failed', error);
+  }
+  return fallbackAggregateWalletTotals(match);
+}
+
+async function fallbackAggregateWalletTotals(match) {
+  const limit = 200;
+  let offset = 0;
+  let guard = 0;
+  let totalIncome = 0;
+  let totalSpend = 0;
+  let hasMore = true;
+  while (hasMore && guard < 50) {
+    const snapshot = await db
+      .collection(COLLECTIONS.WALLET_TRANSACTIONS)
+      .where(match)
+      .orderBy('createdAt', 'desc')
+      .skip(offset)
+      .limit(limit)
+      .field({ amount: 1, status: 1 })
+      .get()
+      .catch(() => null);
+    const batch = (snapshot && snapshot.data) || [];
+    if (!batch.length) {
+      break;
+    }
+    batch.forEach((doc) => {
+      if (!doc) {
+        return;
+      }
+      const status = normalizeStatus(doc.status);
+      if (status && EXCLUDED_TRANSACTION_STATUSES.includes(status)) {
+        return;
+      }
+      const amount = Number(doc.amount || 0);
+      if (!Number.isFinite(amount) || amount === 0) {
+        return;
+      }
+      if (amount > 0) {
+        totalIncome += amount;
+      } else if (amount < 0) {
+        totalSpend += Math.abs(amount);
+      }
+    });
+    if (batch.length < limit) {
+      hasMore = false;
+    } else {
+      offset += limit;
+    }
+    guard += 1;
+  }
+  return { totalIncome: Math.round(totalIncome), totalSpend: Math.round(totalSpend) };
+}
+
+function normalizeAmountValue(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.round(numeric);
+}
+
+async function loadAdminMemberIds() {
+  const ids = new Set();
+  const limit = 100;
+  let offset = 0;
+  let guard = 0;
+  let hasMore = true;
+  while (hasMore && guard < 40) {
+    const snapshot = await db
+      .collection(COLLECTIONS.MEMBERS)
+      .where({ roles: _.in(ADMIN_ROLES) })
+      .skip(offset)
+      .limit(limit)
+      .field({ _id: 1 })
+      .get()
+      .catch(() => null);
+    const batch = (snapshot && snapshot.data) || [];
+    if (!batch.length) {
+      break;
+    }
+    batch.forEach((doc) => {
+      if (doc && typeof doc._id === 'string' && doc._id) {
+        ids.add(doc._id);
+      }
+    });
+    if (batch.length < limit) {
+      hasMore = false;
+    } else {
+      offset += limit;
+    }
+    guard += 1;
+  }
+  return Array.from(ids);
+}
+
+function normalizeStatus(status) {
+  if (typeof status === 'string') {
+    return status.trim().toLowerCase();
+  }
+  return '';
+}
+
+function buildMenuOrderMatch(range, excludedMemberIds = []) {
+  const match = {
+    status: 'paid',
+    memberConfirmedAt: _.gte(range.start).and(_.lt(range.end))
+  };
+  if (Array.isArray(excludedMemberIds) && excludedMemberIds.length) {
+    match.memberId = _.nin(excludedMemberIds);
+  }
+  return match;
+}
+
+async function aggregateDiningTotals(match, range) {
+  try {
+    const snapshot = await db
+      .collection(COLLECTIONS.MENU_ORDERS)
+      .aggregate()
+      .match(match)
+      .group({
+        _id: null,
+        diningTotal: $.sum($.ifNull(['$categoryTotals.dining', 0]))
+      })
+      .end();
+    if (snapshot && Array.isArray(snapshot.list) && snapshot.list.length) {
+      const doc = snapshot.list[0] || {};
+      return { diningTotal: normalizeAmountValue(doc.diningTotal) };
+    }
+  } catch (error) {
+    console.error('[admin] aggregate dining totals failed', error);
+  }
+  return fallbackAggregateDiningTotals(match, range);
+}
+
+async function fallbackAggregateDiningTotals(match, range) {
+  const limit = 200;
+  let offset = 0;
+  let guard = 0;
+  let total = 0;
+  let hasMore = true;
+  while (hasMore && guard < 50) {
+    const snapshot = await db
+      .collection(COLLECTIONS.MENU_ORDERS)
+      .where(match)
+      .orderBy('memberConfirmedAt', 'desc')
+      .skip(offset)
+      .limit(limit)
+      .field({ categoryTotals: 1, memberConfirmedAt: 1 })
+      .get()
+      .catch(() => null);
+    const batch = (snapshot && snapshot.data) || [];
+    if (!batch.length) {
+      break;
+    }
+    batch.forEach((doc) => {
+      if (!doc) {
+        return;
+      }
+      const confirmedAt = resolveDateValue(doc.memberConfirmedAt);
+      if (!confirmedAt || confirmedAt < range.start || confirmedAt >= range.end) {
+        return;
+      }
+      const dining = doc.categoryTotals ? Number(doc.categoryTotals.dining || 0) : 0;
+      if (Number.isFinite(dining) && dining > 0) {
+        total += dining;
+      }
+    });
+    if (batch.length < limit) {
+      hasMore = false;
+    } else {
+      offset += limit;
+    }
+    guard += 1;
+  }
+  return { diningTotal: Math.round(total) };
+}
+
+function resolveDateValue(value) {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  if (typeof value === 'number') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (typeof value === 'string') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (value && typeof value.toDate === 'function') {
+    try {
+      const date = value.toDate();
+      return date instanceof Date && !Number.isNaN(date.getTime()) ? date : null;
+    } catch (error) {
+      return null;
+    }
+  }
+  if (value && typeof value === 'object') {
+    if (value.$date) {
+      return resolveDateValue(value.$date);
+    }
+    if (value.time) {
+      return resolveDateValue(value.time);
+    }
+  }
+  return null;
 }

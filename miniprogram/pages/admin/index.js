@@ -26,6 +26,12 @@ const BASE_ACTIONS = [
     url: '/pages/admin/orders/index'
   },
   {
+    icon: '💹',
+    label: '财务报表',
+    description: '查看月度收入与消费统计',
+    url: '/pages/admin/finance-report/index'
+  },
+  {
     icon: '🏠',
     label: '预约审核',
     description: '查看并审核包房预约申请',

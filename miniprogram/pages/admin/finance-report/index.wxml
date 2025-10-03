@@ -1,0 +1,55 @@
+<custom-nav title="财务报表" theme="dark"></custom-nav>
+<view class="report-page">
+  <view class="filters">
+    <view class="month-picker">
+      <view class="picker-label">统计月份</view>
+      <picker
+        mode="date"
+        fields="month"
+        value="{{monthValue}}"
+        start="{{startMonth}}"
+        end="{{endMonth}}"
+        bindchange="handleMonthChange"
+      >
+        <view class="picker-trigger">
+          <text class="picker-value">{{report.monthLabel || displayMonthLabel}}</text>
+          <text class="picker-arrow">▾</text>
+        </view>
+      </picker>
+    </view>
+    <button
+      class="refresh-btn"
+      size="mini"
+      type="primary"
+      loading="{{loading}}"
+      bindtap="handleRefresh"
+    >刷新</button>
+  </view>
+
+  <view class="summary-card">
+    <view class="summary-month">{{report.monthLabel || displayMonthLabel}}</view>
+    <view class="summary-range" wx:if="{{report.rangeLabel}}">{{report.rangeLabel}}</view>
+    <view class="summary-updated" wx:if="{{report.generatedAtLabel}}">更新于 {{report.generatedAtLabel}}</view>
+  </view>
+
+  <view class="loading" wx:if="{{loading}}">报表加载中...</view>
+
+  <view class="metrics" wx:if="{{!loading && metrics.length}}">
+    <block wx:for="{{metrics}}" wx:key="id">
+      <view class="metric-card">
+        <view class="metric-label">{{item.label}}</view>
+        <view class="metric-value">{{item.valueLabel}}</view>
+        <view class="metric-desc" wx:if="{{item.description}}">{{item.description}}</view>
+      </view>
+    </block>
+  </view>
+
+  <view class="empty" wx:if="{{!loading && !metrics.length}}">
+    暂无数据
+  </view>
+
+  <view class="notes">
+    <view class="note-line">报表仅统计会员钱包交易，已过滤管理员账号的数据。</view>
+    <view class="note-line">用餐费用来自点餐中“用餐”分类的实际扣费。</view>
+  </view>
+</view>
