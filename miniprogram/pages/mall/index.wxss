@@ -119,6 +119,7 @@ page {
   border-color: rgba(126, 152, 240, 0.4);
 }
 
+
 .mall-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -130,18 +131,28 @@ page {
   border-radius: 22rpx;
   border: 1rpx solid rgba(86, 116, 210, 0.34);
   background: rgba(16, 28, 70, 0.85);
-  overflow: hidden;
-}
-
-.mall-slot::before {
-  content: '';
-  display: block;
-  padding-top: 100%;
+  padding: 12rpx 12rpx 28rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 18rpx;
+  align-items: stretch;
 }
 
 .mall-slot--has-icon {
   border: none;
   background: transparent;
+  padding: 0 0 28rpx;
+}
+
+.mall-slot__frame-container {
+  position: relative;
+}
+
+.mall-slot__frame-container::before {
+  content: '';
+  display: block;
+  padding-top: 100%;
 }
 
 .mall-slot__frame {
@@ -163,6 +174,10 @@ page {
   border: none;
   background: transparent;
   border-radius: 22rpx;
+}
+
+.mall-slot__frame-container--image .mall-slot__frame {
+  inset: 0;
 }
 
 .mall-slot--hover .mall-slot__frame {
@@ -190,16 +205,38 @@ page {
 }
 
 .mall-slot__price {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 12rpx;
-  font-size: 22rpx;
-  text-align: center;
-  color: #f7f9ff;
-  background: linear-gradient(180deg, rgba(8, 14, 34, 0) 0%, rgba(8, 14, 34, 0.92) 100%);
-  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+}
+
+.mall-slot__price-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10rpx;
+  padding: 12rpx 20rpx;
+  border-radius: 999rpx;
+  background: rgba(8, 14, 34, 0.92);
+  border: 1rpx solid rgba(118, 146, 250, 0.45);
+  box-shadow: 0 6rpx 14rpx rgba(10, 20, 60, 0.45);
+  font-size: 24rpx;
+  color: #f8faff;
+  font-weight: 600;
+}
+
+.mall-slot--has-icon .mall-slot__price-chip {
+  background: rgba(6, 12, 32, 0.92);
+}
+
+.mall-slot__price-icon {
+  width: 28rpx;
+  height: 28rpx;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #ffe37a 0%, #ffc14d 55%, #ff924b 100%);
+  box-shadow: 0 2rpx 6rpx rgba(255, 152, 56, 0.45);
+}
+
+.mall-slot__price-amount {
+  letter-spacing: 1rpx;
 }
 
 .mall-empty {
