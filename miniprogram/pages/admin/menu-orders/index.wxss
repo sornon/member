@@ -130,8 +130,22 @@
   text-decoration: line-through;
 }
 
+.action-btn-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+}
+
 .action-btn {
-  margin-top: 8px;
+  flex: 1;
+  margin-top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 80rpx;
+  padding: 0;
+  font-size: 26rpx;
+  border-radius: 12px;
 }
 
 .action-btn--cancel {
