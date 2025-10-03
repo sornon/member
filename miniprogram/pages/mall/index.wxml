@@ -34,13 +34,20 @@
             bindtap="handleItemTap"
             hover-class="mall-slot--hover"
           >
-            <view class="mall-slot__frame {{item.iconUrl ? 'mall-slot__frame--image' : ''}}">
-              <block wx:if="{{item.iconUrl}}">
-                <image class="mall-slot__image" src="{{item.iconUrl}}" mode="aspectFill" lazy-load="true" />
-              </block>
-              <view wx:elif="{{item.icon}}" class="mall-slot__emoji">{{item.icon}}</view>
-              <view wx:else class="mall-slot__placeholder">{{item.iconText || item.name}}</view>
-              <view class="mall-slot__price">{{item.price}} 灵石</view>
+            <view class="mall-slot__frame-container {{item.iconUrl ? 'mall-slot__frame-container--image' : ''}}">
+              <view class="mall-slot__frame {{item.iconUrl ? 'mall-slot__frame--image' : ''}}">
+                <block wx:if="{{item.iconUrl}}">
+                  <image class="mall-slot__image" src="{{item.iconUrl}}" mode="aspectFill" lazy-load="true" />
+                </block>
+                <view wx:elif="{{item.icon}}" class="mall-slot__emoji">{{item.icon}}</view>
+                <view wx:else class="mall-slot__placeholder">{{item.iconText || item.name}}</view>
+              </view>
+            </view>
+            <view class="mall-slot__price">
+              <view class="mall-slot__price-chip">
+                <view class="mall-slot__price-icon"></view>
+                <text class="mall-slot__price-amount">{{item.price}}</text>
+              </view>
             </view>
           </view>
         </block>
