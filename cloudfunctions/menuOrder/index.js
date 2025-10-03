@@ -103,10 +103,14 @@ exports.main = async (event) => {
       return listMemberOrders(OPENID);
     case 'confirmMemberOrder':
       return confirmMemberOrder(OPENID, event.orderId);
+    case 'cancelMemberOrder':
+      return cancelMemberOrder(OPENID, event.orderId, event.remark || event.reason || '');
     case 'listPrepOrders':
       return listPrepOrders(OPENID, event.status || 'submitted', event.pageSize || 100);
     case 'markOrderReady':
       return markOrderReady(OPENID, event.orderId, event.remark || '');
+    case 'cancelOrder':
+      return cancelOrder(OPENID, event.orderId, event.remark || event.reason || '');
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -188,6 +192,11 @@ async function ensureChargeOrderForMenuOrder(transaction, orderId, order, adminI
     const chargeSnapshot = await chargeOrderRef.get().catch(() => null);
     if (chargeSnapshot && chargeSnapshot.data) {
       const current = chargeSnapshot.data;
+      const adminAdjustment = normalizeAdminPriceAdjustment(order.adminPriceAdjustment);
+      const adjustmentHistory = normalizeAdminPriceAdjustmentHistory(
+        order.adminPriceAdjustmentHistory,
+        order.adminPriceAdjustment
+      );
       const updates = {
         items,
         totalAmount,
@@ -196,7 +205,17 @@ async function ensureChargeOrderForMenuOrder(transaction, orderId, order, adminI
         memberSnapshot,
         menuOrderId: orderId,
         source: 'menuOrder',
-        remark
+        remark,
+        ...(adminAdjustment
+          ? {
+              priceAdjustment: adminAdjustment,
+              priceAdjustmentHistory: adjustmentHistory,
+              originalTotalAmount:
+                Number(order.originalTotalAmount || 0) > 0
+                  ? Number(order.originalTotalAmount)
+                  : Number(adminAdjustment.previousAmount || 0) || totalAmount
+            }
+          : {})
       };
       if (!Number(current.stoneReward)) {
         updates.stoneReward = baseStoneReward;
@@ -220,7 +239,20 @@ async function ensureChargeOrderForMenuOrder(transaction, orderId, order, adminI
     memberSnapshot,
     menuOrderId: orderId,
     source: 'menuOrder',
-    remark
+    remark,
+    ...(order.adminPriceAdjustment
+      ? {
+          priceAdjustment: normalizeAdminPriceAdjustment(order.adminPriceAdjustment),
+          priceAdjustmentHistory: normalizeAdminPriceAdjustmentHistory(
+            order.adminPriceAdjustmentHistory,
+            order.adminPriceAdjustment
+          ),
+          originalTotalAmount:
+            Number(order.originalTotalAmount || 0) > 0
+              ? Number(order.originalTotalAmount)
+              : Number(order.adminPriceAdjustment.previousAmount || 0) || totalAmount
+        }
+      : {})
   };
   const result = await transaction.collection(COLLECTIONS.CHARGE_ORDERS).add({
     data: chargeOrderData
@@ -281,7 +313,7 @@ async function listPrepOrders(openid, status = 'submitted', pageSize = 100) {
   const normalizedSize = Math.min(Math.max(Number(pageSize) || 20, 1), 200);
   let statuses;
   if (status === 'all') {
-    statuses = ['submitted', 'pendingMember'];
+    statuses = ['submitted', 'pendingMember', 'cancelled'];
   } else if (status === 'pendingMember') {
     statuses = ['pendingMember'];
   } else {
@@ -445,6 +477,86 @@ async function confirmMemberOrder(openid, orderId) {
   return { order: orderSnapshot, experienceGain, stoneReward };
 }
 
+async function cancelOrder(openid, orderId, remarkInput = '') {
+  await ensureAdmin(openid);
+  return cancelMenuOrder(openid, orderId, remarkInput, { role: 'admin' });
+}
+
+async function cancelMemberOrder(openid, orderId, remarkInput = '') {
+  return cancelMenuOrder(openid, orderId, remarkInput, { role: 'member' });
+}
+
+async function cancelMenuOrder(actorId, orderId, remarkInput = '', { role } = {}) {
+  if (!orderId) {
+    throw new Error('缺少订单编号');
+  }
+  const normalizedRole = role === 'admin' ? 'admin' : 'member';
+  const remark = normalizeRemark(remarkInput, 200);
+  const now = new Date();
+  let orderSnapshot = null;
+  await Promise.all([
+    ensureCollection(COLLECTIONS.MENU_ORDERS),
+    ensureCollection(COLLECTIONS.CHARGE_ORDERS)
+  ]);
+  await db.runTransaction(async (transaction) => {
+    const orderRef = transaction.collection(COLLECTIONS.MENU_ORDERS).doc(orderId);
+    const snapshot = await orderRef.get().catch(() => null);
+    if (!snapshot || !snapshot.data) {
+      throw new Error('订单不存在');
+    }
+    const order = snapshot.data;
+    if (order.status === 'paid') {
+      throw new Error('订单已完成，无法取消');
+    }
+    if (order.status === 'cancelled') {
+      orderSnapshot = mapOrder({ _id: orderId, ...order });
+      return;
+    }
+    if (normalizedRole === 'member') {
+      if (order.memberId !== actorId) {
+        throw new Error('无法操作该订单');
+      }
+      if (order.status !== 'pendingMember') {
+        throw new Error('订单当前不可取消');
+      }
+    } else if (!['submitted', 'pendingMember'].includes(order.status)) {
+      throw new Error('订单当前不可取消');
+    }
+    const cancelRemark = remark || (normalizedRole === 'admin' ? '管理员取消订单' : '会员取消订单');
+    const cancelReason = normalizedRole === 'admin' ? 'adminCancelled' : 'memberCancelled';
+    const updates = {
+      status: 'cancelled',
+      cancelledAt: now,
+      cancelledBy: actorId,
+      cancelledByRole: normalizedRole,
+      cancelRemark,
+      cancelReason,
+      updatedAt: now
+    };
+    await orderRef.update({ data: updates });
+    const chargeOrderId = typeof order.chargeOrderId === 'string' ? order.chargeOrderId.trim() : '';
+    if (chargeOrderId) {
+      const chargeOrderRef = transaction.collection(COLLECTIONS.CHARGE_ORDERS).doc(chargeOrderId);
+      const chargeSnapshot = await chargeOrderRef.get().catch(() => null);
+      if (chargeSnapshot && chargeSnapshot.data) {
+        await chargeOrderRef
+          .update({
+            data: {
+              status: 'cancelled',
+              updatedAt: now,
+              cancelRemark,
+              cancelledBy: actorId,
+              cancelledByRole: normalizedRole
+            }
+          })
+          .catch(() => null);
+      }
+    }
+    orderSnapshot = mapOrder({ _id: orderId, ...order, ...updates });
+  });
+  return { order: orderSnapshot };
+}
+
 async function ensureMember(openid) {
   if (!openid) {
     throw new Error('未获取到用户身份');
@@ -499,6 +611,43 @@ function normalizeCategoryTotals(input) {
     });
   }
   return totals;
+}
+
+function normalizeAdminPriceAdjustment(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const previousAmount = Number(record.previousAmount || record.previous || 0);
+  const newAmount = Number(record.newAmount || record.current || record.amount || 0);
+  if (!newAmount || newAmount <= 0) {
+    return null;
+  }
+  const remark = typeof record.remark === 'string' ? record.remark : '';
+  const adjustedAt = record.adjustedAt || record.updatedAt || record.createdAt || null;
+  const adjustedBy = typeof record.adjustedBy === 'string' ? record.adjustedBy : '';
+  return {
+    previousAmount,
+    newAmount,
+    remark,
+    adjustedAt,
+    adjustedBy,
+    adjustedByName: typeof record.adjustedByName === 'string' ? record.adjustedByName : ''
+  };
+}
+
+function normalizeAdminPriceAdjustmentHistory(history, latestRaw) {
+  const latest = normalizeAdminPriceAdjustment(latestRaw);
+  if (!Array.isArray(history)) {
+    return latest ? [latest] : [];
+  }
+  const normalized = history.map((entry) => normalizeAdminPriceAdjustment(entry)).filter(Boolean);
+  if (latest) {
+    const [first] = normalized;
+    if (!first || first.adjustedAt !== latest.adjustedAt || first.newAmount !== latest.newAmount) {
+      normalized.unshift(latest);
+    }
+  }
+  return normalized;
 }
 
 function normalizeItems(items) {
@@ -557,9 +706,15 @@ function mapOrder(doc) {
     status: doc.status || 'submitted',
     items,
     totalAmount: Number(doc.totalAmount || 0),
+    originalTotalAmount: Number(doc.originalTotalAmount || 0),
     categoryTotals: normalizeCategoryTotals(doc.categoryTotals),
     remark: doc.remark || '',
     adminRemark: doc.adminRemark || '',
+    adminPriceAdjustment: normalizeAdminPriceAdjustment(doc.adminPriceAdjustment),
+    adminPriceAdjustmentHistory: normalizeAdminPriceAdjustmentHistory(
+      doc.adminPriceAdjustmentHistory,
+      doc.adminPriceAdjustment
+    ),
     memberId: doc.memberId || '',
     memberSnapshot: doc.memberSnapshot || {},
     adminSnapshot: doc.adminSnapshot || {},
@@ -567,7 +722,12 @@ function mapOrder(doc) {
     updatedAt: doc.updatedAt || null,
     adminConfirmedAt: doc.adminConfirmedAt || null,
     memberConfirmedAt: doc.memberConfirmedAt || null,
-    chargeOrderId: doc.chargeOrderId || ''
+    chargeOrderId: doc.chargeOrderId || '',
+    cancelRemark: doc.cancelRemark || '',
+    cancelReason: doc.cancelReason || '',
+    cancelledAt: doc.cancelledAt || null,
+    cancelledBy: doc.cancelledBy || '',
+    cancelledByRole: doc.cancelledByRole || ''
   };
 }
 
@@ -579,6 +739,20 @@ function calculateExperienceGain(amountFen) {
 }
 
 function buildChargeItemsFromMenuOrder(order) {
+  const adjustment = normalizeAdminPriceAdjustment(order && order.adminPriceAdjustment);
+  if (adjustment) {
+    const amount = Number(adjustment.newAmount || adjustment.amount || 0);
+    if (Number.isFinite(amount) && amount > 0) {
+      return [
+        {
+          name: '菜单消费（改价）',
+          price: amount,
+          quantity: 1,
+          amount
+        }
+      ];
+    }
+  }
   if (!order || !Array.isArray(order.items)) {
     const fallback = Number(order && order.totalAmount ? order.totalAmount : 0);
     return fallback > 0

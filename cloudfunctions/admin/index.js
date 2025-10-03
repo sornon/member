@@ -45,6 +45,7 @@ const ACTIONS = {
   LIST_CHARGE_ORDERS: 'listChargeOrders',
   GET_CHARGE_ORDER_QR_CODE: 'getChargeOrderQrCode',
   FORCE_CHARGE_ORDER: 'forceChargeOrder',
+  ADJUST_CHARGE_ORDER: 'adjustChargeOrder',
   RECHARGE_MEMBER: 'rechargeMember',
   LIST_RESERVATIONS: 'listReservations',
   APPROVE_RESERVATION: 'approveReservation',
@@ -69,6 +70,7 @@ const ACTION_ALIASES = {
   listchargeorders: ACTIONS.LIST_CHARGE_ORDERS,
   listchargeorder: ACTIONS.LIST_CHARGE_ORDERS,
   forcechargeorder: ACTIONS.FORCE_CHARGE_ORDER,
+  adjustchargeorder: ACTIONS.ADJUST_CHARGE_ORDER,
   rechargemember: ACTIONS.RECHARGE_MEMBER,
   listreservations: ACTIONS.LIST_RESERVATIONS,
   approvereservation: ACTIONS.APPROVE_RESERVATION,
@@ -113,6 +115,11 @@ const ACTION_HANDLERS = {
   [ACTIONS.FORCE_CHARGE_ORDER]: (openid, event) =>
     forceChargeOrder(openid, event.orderId, {
       memberId: event.memberId || '',
+      remark: event.remark || ''
+    }),
+  [ACTIONS.ADJUST_CHARGE_ORDER]: (openid, event) =>
+    adjustChargeOrderAmount(openid, event.orderId, {
+      amount: event.amount,
       remark: event.remark || ''
     }),
   [ACTIONS.RECHARGE_MEMBER]: (openid, event) => rechargeMember(openid, event.memberId, event.amount),
@@ -797,6 +804,92 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '' } 
     experienceGain,
     memberId: targetMemberId
   };
+}
+
+async function adjustChargeOrderAmount(openid, orderId, { amount, remark = '' } = {}) {
+  await ensureAdmin(openid);
+  if (!orderId) {
+    throw new Error('缺少订单编号');
+  }
+  const normalizedAmount = normalizeAmountFen(amount);
+  if (!normalizedAmount || normalizedAmount <= 0) {
+    throw new Error('改价金额无效');
+  }
+  const normalizedRemark = typeof remark === 'string' ? remark.trim() : '';
+  let updatedOrder = null;
+  await db.runTransaction(async (transaction) => {
+    const orderRef = transaction.collection(COLLECTIONS.CHARGE_ORDERS).doc(orderId);
+    const orderSnapshot = await orderRef.get().catch(() => null);
+    if (!orderSnapshot || !orderSnapshot.data) {
+      throw new Error('订单不存在');
+    }
+    const order = orderSnapshot.data;
+    if (order.status === 'paid') {
+      throw new Error('订单已完成，无法改价');
+    }
+    if (order.status === 'cancelled') {
+      throw new Error('订单已取消，无法改价');
+    }
+    const previousAmount = Number(order.totalAmount || 0);
+    if (!previousAmount || previousAmount <= 0) {
+      throw new Error('订单金额无效');
+    }
+    const existingAdjustmentRemark =
+      order.priceAdjustment && typeof order.priceAdjustment.remark === 'string'
+        ? order.priceAdjustment.remark
+        : '';
+    if (previousAmount === normalizedAmount && normalizedRemark === existingAdjustmentRemark) {
+      throw new Error('改价金额未变化');
+    }
+    const now = new Date();
+    const adjustmentEntry = {
+      previousAmount,
+      newAmount: normalizedAmount,
+      remark: normalizedRemark,
+      adjustedAt: now,
+      adjustedBy: openid
+    };
+    const history = Array.isArray(order.priceAdjustmentHistory)
+      ? [adjustmentEntry, ...order.priceAdjustmentHistory].slice(0, 10)
+      : [adjustmentEntry];
+    const chargeUpdates = {
+      totalAmount: normalizedAmount,
+      stoneReward: normalizedAmount,
+      updatedAt: now,
+      priceAdjustment: adjustmentEntry,
+      priceAdjustmentHistory: history,
+      originalTotalAmount:
+        Number(order.originalTotalAmount || 0) > 0
+          ? Number(order.originalTotalAmount)
+          : previousAmount
+    };
+    await orderRef.update({ data: chargeUpdates });
+
+    if (order.menuOrderId) {
+      const menuOrderRef = transaction.collection(COLLECTIONS.MENU_ORDERS).doc(order.menuOrderId);
+      const menuSnapshot = await menuOrderRef.get().catch(() => null);
+      if (menuSnapshot && menuSnapshot.data) {
+        const menuOrder = menuSnapshot.data;
+        const menuPreviousAmount = Number(menuOrder.totalAmount || 0);
+        const menuHistory = Array.isArray(menuOrder.adminPriceAdjustmentHistory)
+          ? [adjustmentEntry, ...menuOrder.adminPriceAdjustmentHistory].slice(0, 10)
+          : [adjustmentEntry];
+        const menuUpdates = {
+          totalAmount: normalizedAmount,
+          updatedAt: now,
+          adminPriceAdjustment: adjustmentEntry,
+          adminPriceAdjustmentHistory: menuHistory,
+          originalTotalAmount:
+            Number(menuOrder.originalTotalAmount || 0) > 0
+              ? Number(menuOrder.originalTotalAmount)
+              : menuPreviousAmount || previousAmount
+        };
+        await menuOrderRef.update({ data: menuUpdates });
+      }
+    }
+    updatedOrder = { ...order, ...chargeUpdates };
+  });
+  return { order: mapChargeOrder(updatedOrder) };
 }
 
 async function rechargeMember(openid, memberId, amount) {
@@ -1839,6 +1932,7 @@ function normalizeChargeItems(items) {
 function mapChargeOrder(order) {
   if (!order) return null;
   const totalAmount = Number(order.totalAmount || 0);
+  const priceAdjustment = normalizePriceAdjustmentRecord(order.priceAdjustment);
   return {
     _id: order._id,
     status: order.status || 'pending',
@@ -1856,8 +1950,49 @@ function mapChargeOrder(order) {
     memberId: order.memberId || '',
     confirmedAt: order.confirmedAt || null,
     qrPayload: buildChargeOrderPayload(order._id),
-    miniProgramScene: buildChargeOrderScene(order._id)
+    miniProgramScene: buildChargeOrderScene(order._id),
+    originalTotalAmount: Number(order.originalTotalAmount || 0),
+    priceAdjustment,
+    priceAdjustmentHistory: normalizePriceAdjustmentHistory(order.priceAdjustmentHistory, priceAdjustment)
   };
+}
+
+function normalizePriceAdjustmentRecord(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const previousAmount = Number(record.previousAmount || record.previous || 0);
+  const newAmount = Number(record.newAmount || record.current || record.amount || 0);
+  if (!newAmount || newAmount <= 0) {
+    return null;
+  }
+  const remark = typeof record.remark === 'string' ? record.remark : '';
+  const adjustedAt = record.adjustedAt || record.updatedAt || record.createdAt || null;
+  const adjustedBy = typeof record.adjustedBy === 'string' ? record.adjustedBy : '';
+  return {
+    previousAmount,
+    newAmount,
+    remark,
+    adjustedAt,
+    adjustedBy,
+    adjustedByName: typeof record.adjustedByName === 'string' ? record.adjustedByName : ''
+  };
+}
+
+function normalizePriceAdjustmentHistory(history, latest) {
+  if (!Array.isArray(history)) {
+    return latest ? [latest] : [];
+  }
+  const normalized = history
+    .map((entry) => normalizePriceAdjustmentRecord(entry))
+    .filter(Boolean);
+  if (latest) {
+    const [first] = normalized;
+    if (!first || first.adjustedAt !== latest.adjustedAt || first.newAmount !== latest.newAmount) {
+      normalized.unshift(latest);
+    }
+  }
+  return normalized;
 }
 
 function buildChargeOrderPayload(orderId) {
@@ -2073,6 +2208,12 @@ function getConfiguredEnvVersion() {
 
 function decorateChargeOrderRecord(order, member) {
   if (!order) return null;
+  const originalAmount = Number(
+    order.originalTotalAmount || (order.priceAdjustment ? order.priceAdjustment.previousAmount : 0)
+  );
+  const priceAdjusted = Number.isFinite(originalAmount) && originalAmount > 0 && originalAmount !== order.totalAmount;
+  const priceAdjustmentRemark = order.priceAdjustment ? order.priceAdjustment.remark || '' : '';
+  const priceAdjustmentAdjustedAtLabel = order.priceAdjustment ? formatDate(order.priceAdjustment.adjustedAt) : '';
   return {
     ...order,
     totalAmountLabel: `¥${formatFenToYuan(order.totalAmount)}`,
@@ -2083,7 +2224,12 @@ function decorateChargeOrderRecord(order, member) {
     statusLabel: describeChargeOrderStatus(order.status),
     memberId: order.memberId || '',
     memberName: member ? member.nickName || '' : '',
-    memberMobile: member ? member.mobile || '' : ''
+    memberMobile: member ? member.mobile || '' : '',
+    originalTotalAmount: originalAmount,
+    originalTotalAmountLabel: originalAmount ? `¥${formatFenToYuan(originalAmount)}` : '',
+    priceAdjusted,
+    priceAdjustmentRemark,
+    priceAdjustmentAdjustedAtLabel
   };
 }
 

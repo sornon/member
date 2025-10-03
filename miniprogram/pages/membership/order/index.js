@@ -302,6 +302,26 @@ const STATUS_LABELS = {
   cancelled: '已取消'
 };
 
+function normalizePriceAdjustmentInfo(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const previousAmount = Number(record.previousAmount || record.previous || 0);
+  const newAmount = Number(record.newAmount || record.amount || 0);
+  if (!Number.isFinite(newAmount) || newAmount <= 0) {
+    return null;
+  }
+  const remark = typeof record.remark === 'string' ? record.remark : '';
+  const adjustedAt = record.adjustedAt || record.updatedAt || null;
+  return {
+    previousAmount,
+    newAmount,
+    remark,
+    adjustedAt,
+    adjustedAtLabel: formatDateTime(adjustedAt)
+  };
+}
+
 function decorateOrder(order) {
   if (!order) {
     return null;
@@ -342,6 +362,30 @@ function decorateOrder(order) {
   );
   const stoneReward = Math.max(0, Math.floor(stoneRewardRaw));
   const createdAtTimestamp = resolveTimestamp(order.createdAt);
+  const adminRemark = typeof order.adminRemark === 'string' ? order.adminRemark : '';
+  const priceAdjustment = normalizePriceAdjustmentInfo(order.adminPriceAdjustment || order.priceAdjustment);
+  const originalTotalAmount = Number(order.originalTotalAmount || 0) ||
+    (priceAdjustment ? Number(priceAdjustment.previousAmount || 0) : 0);
+  const priceAdjusted = !!priceAdjustment &&
+    ((Number.isFinite(priceAdjustment.previousAmount) && priceAdjustment.previousAmount !== priceAdjustment.newAmount) ||
+      (Number.isFinite(originalTotalAmount) && originalTotalAmount > 0 && originalTotalAmount !== totalAmount));
+  const priceAdjustmentRemark = priceAdjustment
+    ? priceAdjustment.remark
+    : typeof order.priceAdjustmentRemark === 'string'
+    ? order.priceAdjustmentRemark
+    : '';
+  const priceAdjustmentVisible = priceAdjusted || !!priceAdjustmentRemark;
+  const cancelRemark = typeof order.cancelRemark === 'string' ? order.cancelRemark : '';
+  const cancelledAtLabel = formatDateTime(order.cancelledAt);
+  const cancelledByRole = typeof order.cancelledByRole === 'string' ? order.cancelledByRole : '';
+  let cancelledByLabel = '';
+  if (cancelledByRole === 'admin') {
+    cancelledByLabel = '管理员';
+  } else if (cancelledByRole === 'member') {
+    cancelledByLabel = '会员';
+  }
+  const canConfirm = order.status === 'pendingMember';
+  const canCancel = order.status === 'pendingMember';
   return {
     ...order,
     _id: id,
@@ -350,13 +394,25 @@ function decorateOrder(order) {
     categoryTotals,
     totalAmount,
     totalAmountLabel: formatCurrency(totalAmount),
+    originalTotalAmount,
+    originalTotalAmountLabel: originalTotalAmount ? formatCurrency(originalTotalAmount) : '',
+    priceAdjusted,
+    priceAdjustmentRemark,
+    priceAdjustmentUpdatedAtLabel: priceAdjustment ? priceAdjustment.adjustedAtLabel : '',
+    priceAdjustmentVisible,
     stoneReward,
     stoneRewardLabel: formatStones(stoneReward),
     statusLabel: STATUS_LABELS[order.status] || '处理中',
     createdAtLabel: formatDateTime(order.createdAt),
     adminConfirmedAtLabel: formatDateTime(order.adminConfirmedAt),
     memberConfirmedAtLabel: formatDateTime(order.memberConfirmedAt),
-    createdAtTimestamp
+    cancelledAtLabel,
+    cancelledByLabel,
+    adminRemark,
+    cancelRemark,
+    createdAtTimestamp,
+    canConfirm,
+    canCancel
   };
 }
 
@@ -444,7 +500,8 @@ Page({
     displayOrders: [],
     hasMoreOrders: false,
     showingAllOrders: false,
-    confirmingId: ''
+    confirmingId: '',
+    cancellingId: ''
   },
 
   onLoad() {
@@ -705,6 +762,38 @@ Page({
       });
     } finally {
       this.setData({ confirmingId: '' });
+    }
+  },
+
+  async handleCancelOrder(event) {
+    const { id } = event.currentTarget.dataset || {};
+    if (!id || this.data.cancellingId === id) {
+      return;
+    }
+    const result = await showConfirmDialog({
+      title: '取消订单',
+      content: '确定取消本次消费吗？',
+      confirmText: '确认取消'
+    });
+    if (!result.confirm) {
+      return;
+    }
+    this.setData({ cancellingId: id });
+    try {
+      await MenuOrderService.cancelOrder(id);
+      wx.showToast({ title: '订单已取消', icon: 'success' });
+      await this.loadOrders();
+    } catch (error) {
+      const message =
+        (error && (error.errMsg || error.message))
+          ? String(error.errMsg || error.message)
+          : '取消失败';
+      wx.showToast({
+        title: message.length > 14 ? `${message.slice(0, 13)}…` : message,
+        icon: 'none'
+      });
+    } finally {
+      this.setData({ cancellingId: '' });
     }
   },
 

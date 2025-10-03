@@ -488,6 +488,14 @@ export const AdminService = {
       remark
     });
   },
+  async adjustChargeOrder(orderId, { amount, remark = '' } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'adjustChargeOrder',
+      orderId,
+      amount,
+      remark
+    });
+  },
   async rechargeMember(memberId, amount) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'rechargeMember',
@@ -564,6 +572,13 @@ export const MenuOrderService = {
       throw error;
     }
     return result;
+  },
+  async cancelOrder(orderId, remark = '') {
+    return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
+      action: 'cancelMemberOrder',
+      orderId,
+      remark
+    });
   }
 };
 
@@ -578,6 +593,13 @@ export const AdminMenuOrderService = {
   async markOrderReady(orderId, remark = '') {
     return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
       action: 'markOrderReady',
+      orderId,
+      remark
+    });
+  },
+  async cancelOrder(orderId, remark = '') {
+    return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
+      action: 'cancelOrder',
       orderId,
       remark
     });

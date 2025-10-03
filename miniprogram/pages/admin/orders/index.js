@@ -39,9 +39,66 @@ function describeStatus(status) {
   }
 }
 
+function normalizePriceAdjustmentInfo(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const previousAmount = Number(record.previousAmount || 0);
+  const newAmount = Number(record.newAmount || record.amount || 0);
+  if (!Number.isFinite(newAmount) || newAmount <= 0) {
+    return null;
+  }
+  const remark = typeof record.remark === 'string' ? record.remark : '';
+  const adjustedAt = record.adjustedAt || record.updatedAt || null;
+  return {
+    previousAmount,
+    newAmount,
+    remark,
+    adjustedAt,
+    adjustedAtLabel: formatDateTime(adjustedAt)
+  };
+}
+
+function parseAmountInputToFen(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.round(value * 100);
+  }
+  if (typeof value !== 'string') {
+    return 0;
+  }
+  const sanitized = value.replace(/[^0-9.,-]/g, '').replace(/,/g, '');
+  if (!sanitized) {
+    return 0;
+  }
+  const numeric = Number(sanitized);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.round(numeric * 100);
+}
+
+function formatAmountInputFromFen(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '';
+  }
+  return (numeric / 100).toFixed(2);
+}
+
 function decorateOrder(order) {
   if (!order) return null;
   const totalAmount = Number(order.totalAmount || 0);
+  const priceAdjustment = normalizePriceAdjustmentInfo(order.priceAdjustment);
+  const originalTotalAmount = Number(order.originalTotalAmount || 0) ||
+    (priceAdjustment ? Number(priceAdjustment.previousAmount || 0) : 0);
+  const priceAdjusted = !!priceAdjustment &&
+    ((Number.isFinite(priceAdjustment.previousAmount) && priceAdjustment.previousAmount !== priceAdjustment.newAmount) ||
+      (Number.isFinite(originalTotalAmount) && originalTotalAmount > 0 && originalTotalAmount !== totalAmount));
+  const priceAdjustmentRemark = priceAdjustment
+    ? priceAdjustment.remark
+    : typeof order.priceAdjustmentRemark === 'string'
+    ? order.priceAdjustmentRemark
+    : '';
   const stoneReward = Number(order.stoneReward || 0);
   const items = Array.isArray(order.items)
     ? order.items.map((item) => {
@@ -63,6 +120,11 @@ function decorateOrder(order) {
     stoneReward,
     totalAmountLabel: formatCurrency(totalAmount),
     stoneRewardLabel,
+    originalTotalAmount,
+    originalTotalAmountLabel: originalTotalAmount ? formatCurrency(originalTotalAmount) : '',
+    priceAdjusted,
+    priceAdjustmentRemark,
+    priceAdjustmentUpdatedAtLabel: priceAdjustment ? priceAdjustment.adjustedAtLabel : '',
     statusLabel: order.statusLabel || describeStatus(order.status),
     createdAtLabel: order.createdAtLabel || formatDateTime(order.createdAt),
     updatedAtLabel: order.updatedAtLabel || formatDateTime(order.updatedAt),
@@ -87,7 +149,20 @@ Page({
       results: [],
       loading: false,
       selectedMemberId: '',
-      error: ''
+      error: '',
+      memberLocked: false,
+      memberInfo: null,
+      remark: ''
+    },
+    priceAdjustingId: '',
+    priceAdjustDialog: {
+      visible: false,
+      orderId: '',
+      amountInput: '',
+      remark: '',
+      error: '',
+      originalAmountLabel: '',
+      currentAmountLabel: ''
     }
   },
 
@@ -147,23 +222,110 @@ Page({
       return;
     }
     if (targetOrder.memberId) {
-      wx.showModal({
-        title: '强制扣款',
-        content: '确认立即扣除该订单金额并发放灵石吗？',
-        confirmText: '确认扣款',
-        cancelText: '取消',
-        success: (res) => {
-          if (res && res.confirm) {
-            this.forceChargeOrder(id, targetOrder.memberId);
-          }
-        }
+      const memberSnapshot = targetOrder.memberSnapshot || {};
+      const memberInfo = {
+        _id: targetOrder.memberId,
+        nickName: targetOrder.memberName || memberSnapshot.nickName || '',
+        mobile: targetOrder.memberMobile || memberSnapshot.mobile || '',
+        levelName: targetOrder.memberLevelName || '',
+        balanceLabel: targetOrder.memberBalanceLabel || ''
+      };
+      this.openForceChargeDialog(id, {
+        selectedMemberId: targetOrder.memberId,
+        memberLocked: true,
+        memberInfo
       });
       return;
     }
     this.openForceChargeDialog(id);
   },
 
-  openForceChargeDialog(orderId) {
+  handleOpenPriceAdjustDialog(event) {
+    const { id } = event.currentTarget.dataset || {};
+    if (!id) {
+      return;
+    }
+    const targetOrder = this.data.orders.find((item) => item && item._id === id);
+    if (!targetOrder) {
+      return;
+    }
+    const amountInput = formatAmountInputFromFen(targetOrder.totalAmount);
+    const originalAmount = targetOrder.originalTotalAmount || targetOrder.totalAmount;
+    const originalAmountLabel = formatCurrency(originalAmount || targetOrder.totalAmount);
+    const currentAmountLabel = formatCurrency(targetOrder.totalAmount || 0);
+    this.setData({
+      priceAdjustDialog: {
+        visible: true,
+        orderId: id,
+        amountInput,
+        remark: targetOrder.priceAdjustmentRemark || '',
+        error: '',
+        originalAmountLabel,
+        currentAmountLabel
+      }
+    });
+  },
+
+  closePriceAdjustDialog() {
+    if (!this.data.priceAdjustDialog.visible) {
+      return;
+    }
+    this.setData({
+      priceAdjustDialog: {
+        visible: false,
+        orderId: '',
+        amountInput: '',
+        remark: '',
+        error: '',
+        originalAmountLabel: '',
+        currentAmountLabel: ''
+      }
+    });
+  },
+
+  handlePriceAdjustAmountInput(event) {
+    this.setData({
+      'priceAdjustDialog.amountInput': event.detail && typeof event.detail.value === 'string' ? event.detail.value : ''
+    });
+  },
+
+  handlePriceAdjustRemarkInput(event) {
+    this.setData({
+      'priceAdjustDialog.remark': event.detail && typeof event.detail.value === 'string' ? event.detail.value : ''
+    });
+  },
+
+  async handleConfirmPriceAdjust() {
+    if (this.data.priceAdjustingId) {
+      return;
+    }
+    const { orderId, amountInput, remark } = this.data.priceAdjustDialog;
+    if (!orderId) {
+      return;
+    }
+    const amount = parseAmountInputToFen(amountInput);
+    if (!amount || amount <= 0) {
+      this.setData({ 'priceAdjustDialog.error': '请输入有效金额' });
+      return;
+    }
+    this.setData({ priceAdjustingId: orderId, 'priceAdjustDialog.error': '' });
+    try {
+      await AdminService.adjustChargeOrder(orderId, { amount, remark: (remark || '').trim() });
+      wx.showToast({ title: '改价成功', icon: 'success' });
+      this.closePriceAdjustDialog();
+      await this.loadOrders({ reset: true });
+    } catch (error) {
+      const message =
+        (error && (error.errMsg || error.message)) ? String(error.errMsg || error.message) : '改价失败';
+      const shortMessage = message.length > 14 ? `${message.slice(0, 13)}…` : message;
+      this.setData({ 'priceAdjustDialog.error': shortMessage });
+      wx.showToast({ title: shortMessage, icon: 'none' });
+    } finally {
+      this.setData({ priceAdjustingId: '' });
+    }
+  },
+
+  openForceChargeDialog(orderId, options = {}) {
     this.setData({
       forceChargeDialog: {
         visible: true,
@@ -171,8 +333,11 @@ Page({
         keyword: '',
         results: [],
         loading: false,
-        selectedMemberId: '',
-        error: ''
+        selectedMemberId: options.selectedMemberId || '',
+        error: '',
+        memberLocked: !!options.memberLocked,
+        memberInfo: options.memberInfo || null,
+        remark: options.remark || ''
       }
     });
   },
@@ -189,18 +354,27 @@ Page({
         results: [],
         loading: false,
         selectedMemberId: '',
-        error: ''
+        error: '',
+        memberLocked: false,
+        memberInfo: null,
+        remark: ''
       }
     });
   },
 
   handleForceChargeMemberInput(event) {
+    if (this.data.forceChargeDialog.memberLocked) {
+      return;
+    }
     this.setData({
       'forceChargeDialog.keyword': event.detail.value || ''
     });
   },
 
   handleForceChargeMemberSearch() {
+    if (this.data.forceChargeDialog.memberLocked) {
+      return;
+    }
     this.fetchForceChargeMembers();
   },
 
@@ -213,15 +387,22 @@ Page({
   },
 
   handleConfirmForceChargeWithMember() {
-    const { orderId, selectedMemberId } = this.data.forceChargeDialog;
-    if (!orderId || !selectedMemberId) {
+    const { orderId, selectedMemberId, memberLocked, memberInfo, remark } = this.data.forceChargeDialog;
+    if (!orderId) {
+      return;
+    }
+    const targetMemberId = memberLocked && memberInfo ? memberInfo._id : selectedMemberId;
+    if (!targetMemberId) {
       wx.showToast({ title: '请先选择会员', icon: 'none' });
       return;
     }
-    this.forceChargeOrder(orderId, selectedMemberId);
+    this.forceChargeOrder(orderId, targetMemberId, remark);
   },
 
   async fetchForceChargeMembers() {
+    if (this.data.forceChargeDialog.memberLocked) {
+      return;
+    }
     const keyword = (this.data.forceChargeDialog.keyword || '').trim();
     const orderId = this.data.forceChargeDialog.orderId;
     if (!orderId) {
@@ -265,13 +446,18 @@ Page({
     }
   },
 
+  handleForceChargeRemarkInput(event) {
+    this.setData({ 'forceChargeDialog.remark': event.detail.value || '' });
+  },
+
   async forceChargeOrder(orderId, memberId = '', remark = '') {
     if (!orderId || this.data.forceChargingId === orderId) {
       return;
     }
     this.setData({ forceChargingId: orderId });
     try {
-      const result = await AdminService.forceChargeOrder(orderId, { memberId, remark });
+      const normalizedRemark = typeof remark === 'string' ? remark.trim() : '';
+      const result = await AdminService.forceChargeOrder(orderId, { memberId, remark: normalizedRemark });
       const stoneReward = Number(result && result.stoneReward ? result.stoneReward : 0);
       const message = stoneReward > 0 ? `扣款成功，灵石+${Math.floor(stoneReward)}` : '扣款成功';
       wx.showToast({ title: message, icon: 'success' });
