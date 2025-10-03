@@ -117,7 +117,7 @@
     <view class="section-title">最近订单</view>
     <view class="orders-placeholder" wx:if="{{loadingOrders}}">加载中...</view>
     <view class="orders-placeholder" wx:elif="{{!orders.length}}">暂无订单记录</view>
-    <view class="order-card" wx:for="{{orders}}" wx:key="_id" wx:for-item="order">
+    <view class="order-card" wx:for="{{displayOrders}}" wx:key="_id" wx:for-item="order">
       <view class="order-header">
         <view class="order-status">{{order.statusLabel}}</view>
         <view class="order-time">{{order.createdAtLabel}}</view>
@@ -156,6 +156,9 @@
         管理员已确认：{{order.adminConfirmedAtLabel}}
       </view>
       <view class="order-meta" wx:if="{{order.memberConfirmedAtLabel}}">会员确认：{{order.memberConfirmedAtLabel}}</view>
+    </view>
+    <view class="orders-footer" wx:if="{{hasMoreOrders}}" bindtap="handleShowMoreOrders">
+      <text class="view-more-link">查看更多</text>
     </view>
   </view>
 </view>

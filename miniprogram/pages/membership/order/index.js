@@ -14,6 +14,7 @@ const SECTION_META = {
 };
 
 const SECTION_ORDER = ['drinks', 'dining'];
+const TWELVE_HOURS_IN_MS = 12 * 60 * 60 * 1000;
 
 function normalizeSection(value) {
   if (typeof value === 'string') {
@@ -251,23 +252,41 @@ const DEFAULT_CATEGORIES = DEFAULT_SECTION ? DEFAULT_SECTION.categories : [];
 const DEFAULT_VISIBLE_ITEMS =
   DEFAULT_SECTION && DEFAULT_CATEGORY_ID ? DEFAULT_SECTION.categoryItems[DEFAULT_CATEGORY_ID] || [] : [];
 
-function formatDateTime(value) {
-  if (!value) return '';
-  let date = null;
+function resolveTimestamp(value) {
+  if (!value) {
+    return NaN;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : NaN;
+  }
   if (value instanceof Date) {
-    date = value;
-  } else if (typeof value === 'string' || typeof value === 'number') {
-    date = new Date(value);
-  } else if (value && typeof value.toDate === 'function') {
+    const time = value.getTime();
+    return Number.isNaN(time) ? NaN : time;
+  }
+  if (typeof value === 'string') {
+    const time = Date.parse(value);
+    return Number.isNaN(time) ? NaN : time;
+  }
+  if (value && typeof value.toDate === 'function') {
     try {
-      date = value.toDate();
+      const date = value.toDate();
+      if (date instanceof Date) {
+        const time = date.getTime();
+        return Number.isNaN(time) ? NaN : time;
+      }
     } catch (error) {
-      date = null;
+      return NaN;
     }
   }
-  if (!date || Number.isNaN(date.getTime())) {
+  return NaN;
+}
+
+function formatDateTime(value) {
+  const timestamp = resolveTimestamp(value);
+  if (!Number.isFinite(timestamp)) {
     return '';
   }
+  const date = new Date(timestamp);
   const y = date.getFullYear();
   const m = `${date.getMonth() + 1}`.padStart(2, '0');
   const d = `${date.getDate()}`.padStart(2, '0');
@@ -322,6 +341,7 @@ function decorateOrder(order) {
     Object.prototype.hasOwnProperty.call(order, 'stoneReward') ? order.stoneReward : order.totalAmount
   );
   const stoneReward = Math.max(0, Math.floor(stoneRewardRaw));
+  const createdAtTimestamp = resolveTimestamp(order.createdAt);
   return {
     ...order,
     _id: id,
@@ -335,7 +355,8 @@ function decorateOrder(order) {
     statusLabel: STATUS_LABELS[order.status] || '处理中',
     createdAtLabel: formatDateTime(order.createdAt),
     adminConfirmedAtLabel: formatDateTime(order.adminConfirmedAt),
-    memberConfirmedAtLabel: formatDateTime(order.memberConfirmedAt)
+    memberConfirmedAtLabel: formatDateTime(order.memberConfirmedAt),
+    createdAtTimestamp
   };
 }
 
@@ -420,6 +441,9 @@ Page({
     submitting: false,
     loadingOrders: false,
     orders: [],
+    displayOrders: [],
+    hasMoreOrders: false,
+    showingAllOrders: false,
     confirmingId: ''
   },
 
@@ -601,7 +625,29 @@ Page({
     try {
       const response = await MenuOrderService.listOrders();
       const orders = Array.isArray(response.orders) ? response.orders.map(decorateOrder).filter(Boolean) : [];
-      this.setData({ orders });
+      const sortedOrders = orders
+        .slice()
+        .sort((a, b) => {
+          const timeA = Number.isFinite(a.createdAtTimestamp) ? a.createdAtTimestamp : 0;
+          const timeB = Number.isFinite(b.createdAtTimestamp) ? b.createdAtTimestamp : 0;
+          return timeB - timeA;
+        });
+      const now = Date.now();
+      const threshold = now - TWELVE_HOURS_IN_MS;
+      const recentOrders = sortedOrders.filter((order) => {
+        const timestamp = order.createdAtTimestamp;
+        return Number.isFinite(timestamp) && timestamp >= threshold;
+      });
+      const fallbackOrders = recentOrders.length ? recentOrders : sortedOrders.slice(0, 1);
+      const showingAllOrders = this.data.showingAllOrders && sortedOrders.length > 0;
+      const displayOrders = showingAllOrders ? sortedOrders : fallbackOrders;
+      const hasMoreOrders = !showingAllOrders && sortedOrders.length > displayOrders.length;
+      this.setData({
+        orders: sortedOrders,
+        displayOrders,
+        hasMoreOrders,
+        showingAllOrders
+      });
     } catch (error) {
       const message =
         (error && (error.errMsg || error.message))
@@ -614,6 +660,18 @@ Page({
     } finally {
       this.setData({ loadingOrders: false });
     }
+  },
+
+  handleShowMoreOrders() {
+    if (!this.data.hasMoreOrders || this.data.showingAllOrders) {
+      return;
+    }
+    const allOrders = Array.isArray(this.data.orders) ? this.data.orders.slice() : [];
+    this.setData({
+      showingAllOrders: true,
+      displayOrders: allOrders,
+      hasMoreOrders: false
+    });
   },
 
   async handleConfirmOrder(event) {

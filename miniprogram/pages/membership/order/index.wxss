@@ -399,6 +399,17 @@
   color: rgba(255, 255, 255, 0.75);
 }
 
+.orders-footer {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+
+.view-more-link {
+  font-size: 26rpx;
+  color: #a2a9ff;
+}
+
 .order-summary {
   display: flex;
   flex-direction: column;
