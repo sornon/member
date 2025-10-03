@@ -2,7 +2,8 @@ App({
   globalData: {
     env: 'cloud1-8gyoxq651fcc92c2',
     memberInfo: null,
-    ready: false
+    ready: false,
+    lastPvpBattle: null
   },
 
   onLaunch() {

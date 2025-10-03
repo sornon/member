@@ -1,0 +1,30 @@
+<view class="battle-page">
+  <view wx:if="{{loading}}" class="battle-loading">战报加载中...</view>
+  <block wx:elif="{{battle}}">
+    <view class="battle-header">
+      <view class="battle-result">{{battle.result.draw ? '平局' : battle.result.winnerId === battle.player.memberId ? '主角胜利' : '对手胜利'}}</view>
+      <view class="battle-meta">{{battle.player.displayName}} VS {{battle.opponent.displayName}}</view>
+      <view class="battle-meta">{{battle.createdAtText}}</view>
+    </view>
+    <view class="battle-summary">
+      <view class="battle-summary__item">
+        <text class="battle-summary__label">我方积分</text>
+        <text class="battle-summary__value">{{battle.player.pointsAfter}}（{{battle.player.pointsDelta >= 0 ? '+' : ''}}{{battle.player.pointsDelta}}）</text>
+      </view>
+      <view class="battle-summary__item">
+        <text class="battle-summary__label">对手积分</text>
+        <text class="battle-summary__value">{{battle.opponent.pointsAfter}}（{{battle.opponent.pointsDelta >= 0 ? '+' : ''}}{{battle.opponent.pointsDelta}}）</text>
+      </view>
+    </view>
+    <view class="battle-rounds">
+      <block wx:for="{{rounds}}" wx:key="index">
+        <view class="round-item">
+          <view class="round-title">第 {{item.round}} 回合</view>
+          <view class="round-description">{{item.description}}</view>
+          <view class="round-meta">对手剩余血量：{{item.targetRemainingHp}}</view>
+        </view>
+      </block>
+    </view>
+  </block>
+  <view wx:else class="battle-empty">未找到战报</view>
+</view>
