@@ -341,10 +341,15 @@ page {
   overflow: hidden;
   transition: max-width 280ms ease, padding-right 280ms ease, padding-left 280ms ease;
   transform-origin: left center;
+  width: 100%;
+  max-width: calc(100% - 48rpx);
+  margin-left: 0;
+  margin-right: auto;
+  box-sizing: border-box;
 }
 
 .bottom-nav--collapsed {
-  max-width: 320rpx;
+  max-width: 366rpx;
   padding-right: 20rpx;
 }
 
