@@ -87,7 +87,10 @@
       bindinput="handleRemarkInput"
     ></textarea>
     <view class="cart-summary">
-      <view class="summary-amount">合计 {{cartTotalLabel}}</view>
+      <view class="summary-info">
+        <view class="summary-amount">合计 {{cartTotalLabel}}</view>
+        <view class="summary-stones">送 {{cartStoneRewardLabel}} 灵石</view>
+      </view>
       <button class="submit-btn" type="primary" loading="{{submitting}}" bindtap="handleSubmitOrder">提交订单</button>
     </view>
   </view>

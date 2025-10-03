@@ -1,5 +1,5 @@
 import { MenuOrderService } from '../../../services/api';
-import { formatCurrency } from '../../../utils/format';
+import { formatCurrency, formatStones } from '../../../utils/format';
 import { categories as rawCategories, items as rawItems, softDrinks } from '../../../shared/menu-data';
 
 function normalizeVariant(variant) {
@@ -194,6 +194,8 @@ Page({
     cart: [],
     cartTotal: 0,
     cartTotalLabel: formatCurrency(0),
+    cartStoneReward: 0,
+    cartStoneRewardLabel: formatStones(0),
     remark: '',
     submitting: false,
     loadingOrders: false,
@@ -254,10 +256,13 @@ Page({
     }
     const decorated = decorateCart(cart);
     const total = computeCartTotal(decorated);
+    const stoneReward = Math.max(0, Math.floor(total));
     this.setData({
       cart: decorated,
       cartTotal: total,
-      cartTotalLabel: formatCurrency(total)
+      cartTotalLabel: formatCurrency(total),
+      cartStoneReward: stoneReward,
+      cartStoneRewardLabel: formatStones(stoneReward)
     });
   },
 
@@ -280,10 +285,13 @@ Page({
     }
     const decorated = decorateCart(cart);
     const total = computeCartTotal(decorated);
+    const stoneReward = Math.max(0, Math.floor(total));
     this.setData({
       cart: decorated,
       cartTotal: total,
-      cartTotalLabel: formatCurrency(total)
+      cartTotalLabel: formatCurrency(total),
+      cartStoneReward: stoneReward,
+      cartStoneRewardLabel: formatStones(stoneReward)
     });
   },
 
@@ -291,7 +299,9 @@ Page({
     this.setData({
       cart: [],
       cartTotal: 0,
-      cartTotalLabel: formatCurrency(0)
+      cartTotalLabel: formatCurrency(0),
+      cartStoneReward: 0,
+      cartStoneRewardLabel: formatStones(0)
     });
   },
 
@@ -323,6 +333,8 @@ Page({
         cart: [],
         cartTotal: 0,
         cartTotalLabel: formatCurrency(0),
+        cartStoneReward: 0,
+        cartStoneRewardLabel: formatStones(0),
         remark: ''
       });
       await this.loadOrders();
