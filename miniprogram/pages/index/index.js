@@ -34,19 +34,61 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const app = getApp();
 
 const BASE_NAV_ITEMS = [
-    { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
-    { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index' },
-    { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
-    { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
-    { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
-    { icon: '💍', label: '纳戒', url: '/pages/role/index?tab=storage' },
-    { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' }
-    //{ icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
+  { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
+  { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index' },
+  { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
+  { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
+  { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
+  { icon: '💍', label: '纳戒', url: '/pages/role/index?tab=storage' },
+  { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' }
+  //{ icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
+
+const NAV_EXPANDED_STORAGE_KEY = 'home_nav_expanded';
+const NAV_COLLAPSED_VISIBLE_COUNT = 3;
+const MORE_NAV_ITEM = { icon: '➕', label: '更多', action: 'expand' };
 
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
 
 const AVATAR_FRAME_OPTIONS = buildAvatarFrameOptionList();
+
+function buildVisibleNavItems(navItems, expanded) {
+  if (expanded) {
+    return navItems;
+  }
+  const primaryNavItems = navItems.slice(0, NAV_COLLAPSED_VISIBLE_COUNT);
+  if (navItems.length <= NAV_COLLAPSED_VISIBLE_COUNT) {
+    return primaryNavItems;
+  }
+  return [...primaryNavItems, { ...MORE_NAV_ITEM }];
+}
+
+function readNavExpandedState() {
+  try {
+    const storedValue = wx.getStorageSync(NAV_EXPANDED_STORAGE_KEY);
+    if (typeof storedValue === 'boolean') {
+      return storedValue;
+    }
+    if (storedValue === 'true') {
+      return true;
+    }
+    return false;
+  } catch (err) {
+    return false;
+  }
+}
+
+function persistNavExpandedState(expanded) {
+  try {
+    if (expanded) {
+      wx.setStorageSync(NAV_EXPANDED_STORAGE_KEY, true);
+    } else {
+      wx.removeStorageSync(NAV_EXPANDED_STORAGE_KEY);
+    }
+  } catch (err) {
+    // ignore storage errors
+  }
+}
 
 function resolveRealmOrderFromLevel(level) {
   if (!level) {
@@ -573,6 +615,8 @@ Page({
       { icon: '🔥', label: '比武' }
     ],
     navItems: [...BASE_NAV_ITEMS],
+    visibleNavItems: buildVisibleNavItems([...BASE_NAV_ITEMS], false),
+    navExpanded: false,
     memberStats: { ...EMPTY_MEMBER_STATS },
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
@@ -608,6 +652,7 @@ Page({
     this.hasBootstrapped = false;
     this.ensureNavMetrics();
     this.updateToday();
+    this.initializeNavExpansionState();
   },
 
   onShow() {
@@ -625,6 +670,16 @@ Page({
 
   onUnload() {
     this.detachMemberRealtime();
+  },
+
+  initializeNavExpansionState() {
+    const expanded = readNavExpandedState();
+    if (expanded !== this.data.navExpanded) {
+      this.setData({
+        navExpanded: expanded,
+        visibleNavItems: buildVisibleNavItems(this.data.navItems, expanded)
+      });
+    }
   },
 
   ensureNavMetrics() {
@@ -739,13 +794,16 @@ Page({
       const needsProfile = !sanitizedMember || !sanitizedMember.nickName || !sanitizedMember.mobile;
       const profileAuthorized = !!(sanitizedMember && sanitizedMember.nickName);
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
+      const navItems = resolveNavItems(sanitizedMember);
+      const navExpanded = this.data.navExpanded;
       this.setData({
         member: sanitizedMember,
         progress,
         tasks: tasks.slice(0, 3),
         loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),
-        navItems: resolveNavItems(sanitizedMember),
+        navItems,
+        visibleNavItems: buildVisibleNavItems(navItems, navExpanded),
         memberStats: deriveMemberStats(sanitizedMember),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
@@ -1168,10 +1226,13 @@ Page({
       return;
     }
     const renameHistory = formatHistoryList(member.renameHistory);
+    const navItems = resolveNavItems(sanitizedMember);
+    const navExpanded = this.data.navExpanded;
     this.setData({
       member: sanitizedMember,
       memberStats: deriveMemberStats(sanitizedMember),
-      navItems: resolveNavItems(sanitizedMember),
+      navItems,
+      visibleNavItems: buildVisibleNavItems(navItems, navExpanded),
       heroImage: resolveCharacterImage(sanitizedMember),
       'profileEditor.nickName': sanitizedMember.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
@@ -1349,7 +1410,25 @@ Page({
   },
 
   handleNavTap(event) {
-    const { url } = event.currentTarget.dataset;
+    const { url, action } = event.currentTarget.dataset;
+    if (action === 'expand') {
+      this.expandNavItems();
+      return;
+    }
+    if (!url) {
+      return;
+    }
     wx.navigateTo({ url });
+  },
+
+  expandNavItems() {
+    if (this.data.navExpanded) {
+      return;
+    }
+    this.setData({
+      navExpanded: true,
+      visibleNavItems: buildVisibleNavItems(this.data.navItems, true)
+    });
+    persistNavExpandedState(true);
   }
 });
