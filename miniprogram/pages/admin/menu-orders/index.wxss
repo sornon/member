@@ -54,7 +54,7 @@
 }
 
 .order-status {
-  color: #ffd166;
+  color: #fff;
 }
 
 .order-meta {

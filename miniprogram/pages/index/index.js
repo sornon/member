@@ -34,14 +34,14 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const app = getApp();
 
 const BASE_NAV_ITEMS = [
-  { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
-  { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
-  { icon: '💍', label: '纳戒', url: '/pages/role/index?tab=storage' },
-  { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' },
-  { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
-  { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index' },
-  { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
-  { icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
+    { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
+    { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index' },
+    { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
+    { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
+    { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
+    { icon: '💍', label: '纳戒', url: '/pages/role/index?tab=storage' },
+    { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' },
+    { icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
 
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
