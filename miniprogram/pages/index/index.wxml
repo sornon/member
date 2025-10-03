@@ -88,13 +88,22 @@
       </view>
     </view>
 
-    <view class="bottom-nav">
-      <view class="nav-item" wx:for="{{navItems}}" wx:key="label" data-url="{{item.url}}" bindtap="handleNavTap">
-        <view class="nav-icon-wrapper">
-          <text class="nav-icon">{{item.icon}}</text>
-          <view wx:if="{{item.showDot}}" class="nav-item__dot"></view>
+    <view class="bottom-nav {{navExpanded ? 'bottom-nav--expanded' : ''}}">
+      <view class="bottom-nav__items {{navExpanded ? 'bottom-nav__items--expanded' : ''}}">
+        <view
+          class="nav-item {{item.action === 'expand' ? 'nav-item--expand' : ''}}"
+          wx:for="{{navItems}}"
+          wx:key="label"
+          data-url="{{item.url}}"
+          data-action="{{item.action}}"
+          bindtap="handleNavTap"
+        >
+          <view class="nav-icon-wrapper">
+            <text class="nav-icon">{{item.icon}}</text>
+            <view wx:if="{{item.showDot}}" class="nav-item__dot"></view>
+          </view>
+          <view class="nav-label">{{item.label}}</view>
         </view>
-        <view class="nav-label">{{item.label}}</view>
       </view>
     </view>
   </view>

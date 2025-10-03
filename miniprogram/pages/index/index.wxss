@@ -334,17 +334,61 @@ page {
   border-radius: 36rpx;
   background: rgba(21, 32, 84, 0.85);
   border: 1rpx solid rgba(119, 138, 230, 0.35);
-  display: flex;
-  justify-content: space-between;
   box-shadow: 0 18rpx 36rpx rgba(16, 13, 55, 0.45);
+  overflow: hidden;
+  max-height: 188rpx;
+  transition: max-height 260ms ease, padding 260ms ease, background 260ms ease, box-shadow 260ms ease;
+}
+
+.bottom-nav--expanded {
+  max-height: 360rpx;
+  padding: 24rpx 28rpx 28rpx;
+  background: rgba(21, 32, 84, 0.95);
+  box-shadow: 0 22rpx 44rpx rgba(16, 13, 55, 0.55);
+}
+
+.bottom-nav__items {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  column-gap: 32rpx;
+  row-gap: 28rpx;
+  align-items: stretch;
+  justify-items: center;
+  transition: transform 260ms ease, opacity 260ms ease;
+}
+
+.bottom-nav:not(.bottom-nav--expanded) .bottom-nav__items {
+  transform: translateY(8rpx);
+  opacity: 0.92;
+}
+
+.bottom-nav__items--expanded {
+  transform: translateY(0);
+  opacity: 1;
 }
 
 .nav-item {
+  width: 100%;
+  min-height: 120rpx;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 8rpx;
   color: rgba(227, 233, 255, 0.95);
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.nav-item:active {
+  transform: scale(0.96);
+}
+
+.nav-item--expand .nav-icon {
+  font-size: 44rpx;
+}
+
+.nav-item--expand .nav-label {
+  letter-spacing: 2rpx;
 }
 
 .nav-icon-wrapper {

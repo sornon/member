@@ -34,15 +34,61 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const app = getApp();
 
 const BASE_NAV_ITEMS = [
-    { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
-    { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index' },
-    { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
-    { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
-    { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
-    { icon: '💍', label: '纳戒', url: '/pages/role/index?tab=storage' },
-    { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' }
-    //{ icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
+  { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
+  { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index' },
+  { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
+  { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
+  { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
+  { icon: '💍', label: '纳戒', url: '/pages/role/index?tab=storage' },
+  { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' }
+  //{ icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
+
+const NAV_EXPANDED_STORAGE_KEY = 'home-nav-expanded';
+const NAV_DEFAULT_VISIBLE_COUNT = 3;
+
+function buildExpandNavItem() {
+  return { icon: '⋯', label: '更多', action: 'expand' };
+}
+
+function buildDisplayNavItems(allNavItems = [], expanded = false) {
+  if (expanded) {
+    return allNavItems.map((item) => ({ ...item }));
+  }
+  const visible = allNavItems.slice(0, NAV_DEFAULT_VISIBLE_COUNT).map((item) => ({ ...item }));
+  if (allNavItems.length > NAV_DEFAULT_VISIBLE_COUNT) {
+    visible.push(buildExpandNavItem());
+  }
+  return visible;
+}
+
+function readNavExpandedPreference() {
+  try {
+    const stored = wx.getStorageSync(NAV_EXPANDED_STORAGE_KEY);
+    if (typeof stored === 'boolean') {
+      return stored;
+    }
+    if (typeof stored === 'string') {
+      if (stored === 'true') {
+        return true;
+      }
+      if (stored === 'false') {
+        return false;
+      }
+    }
+  } catch (error) {
+    // ignore storage errors
+  }
+  return false;
+}
+
+function persistNavExpandedPreference(expanded) {
+  try {
+    wx.setStorageSync(NAV_EXPANDED_STORAGE_KEY, !!expanded);
+  } catch (error) {
+    // ignore storage errors
+  }
+}
 
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
 
@@ -537,6 +583,9 @@ function resolveNavItems(member) {
   return navItems;
 }
 
+const DEFAULT_NAV_ITEMS = resolveNavItems(null);
+const DEFAULT_DISPLAY_NAV_ITEMS = buildDisplayNavItems(DEFAULT_NAV_ITEMS, false);
+
 Page({
   data: {
     member: null,
@@ -572,7 +621,9 @@ Page({
       { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
       { icon: '🔥', label: '比武' }
     ],
-    navItems: [...BASE_NAV_ITEMS],
+    navExpanded: false,
+    fullNavItems: DEFAULT_NAV_ITEMS,
+    navItems: DEFAULT_DISPLAY_NAV_ITEMS,
     memberStats: { ...EMPTY_MEMBER_STATS },
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
@@ -608,6 +659,7 @@ Page({
     this.hasBootstrapped = false;
     this.ensureNavMetrics();
     this.updateToday();
+    this.restoreNavExpansion();
   },
 
   onShow() {
@@ -633,6 +685,28 @@ Page({
     if (navHeight !== this.data.navHeight) {
       this.setData({ navHeight });
     }
+  },
+
+  restoreNavExpansion() {
+    const expanded = readNavExpandedPreference();
+    if (expanded !== this.data.navExpanded) {
+      this.setData({
+        navExpanded: expanded,
+        navItems: buildDisplayNavItems(this.data.fullNavItems, expanded)
+      });
+    }
+  },
+
+  expandNavItems() {
+    if (this.data.navExpanded) {
+      return;
+    }
+    const expanded = true;
+    this.setData({
+      navExpanded: expanded,
+      navItems: buildDisplayNavItems(this.data.fullNavItems, expanded)
+    });
+    persistNavExpandedPreference(expanded);
   },
 
   updateBackgroundDisplay(member, options = {}) {
@@ -739,13 +813,15 @@ Page({
       const needsProfile = !sanitizedMember || !sanitizedMember.nickName || !sanitizedMember.mobile;
       const profileAuthorized = !!(sanitizedMember && sanitizedMember.nickName);
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
+      const resolvedNavItems = resolveNavItems(sanitizedMember);
       this.setData({
         member: sanitizedMember,
         progress,
         tasks: tasks.slice(0, 3),
         loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),
-        navItems: resolveNavItems(sanitizedMember),
+        fullNavItems: resolvedNavItems,
+        navItems: buildDisplayNavItems(resolvedNavItems, this.data.navExpanded),
         memberStats: deriveMemberStats(sanitizedMember),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
@@ -1168,10 +1244,12 @@ Page({
       return;
     }
     const renameHistory = formatHistoryList(member.renameHistory);
+    const resolvedNavItems = resolveNavItems(sanitizedMember);
     this.setData({
       member: sanitizedMember,
       memberStats: deriveMemberStats(sanitizedMember),
-      navItems: resolveNavItems(sanitizedMember),
+      fullNavItems: resolvedNavItems,
+      navItems: buildDisplayNavItems(resolvedNavItems, this.data.navExpanded),
       heroImage: resolveCharacterImage(sanitizedMember),
       'profileEditor.nickName': sanitizedMember.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
@@ -1349,7 +1427,14 @@ Page({
   },
 
   handleNavTap(event) {
-    const { url } = event.currentTarget.dataset;
-    wx.navigateTo({ url });
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const { url, action } = dataset;
+    if (action === 'expand') {
+      this.expandNavItems();
+      return;
+    }
+    if (url) {
+      wx.navigateTo({ url });
+    }
   }
 });
