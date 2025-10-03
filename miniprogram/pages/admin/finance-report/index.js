@@ -434,11 +434,6 @@ Page({
     return resolvedMonth;
   },
 
-  handleRefresh() {
-    const month = this.data.monthValue || getCurrentMonthKey();
-    this.loadReport(month);
-  },
-
   async loadReport(month) {
     const targetMonth = month || getCurrentMonthKey();
     this.setData({ loading: true });

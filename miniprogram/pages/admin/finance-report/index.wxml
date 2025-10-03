@@ -30,13 +30,6 @@
         </block>
       </view>
     </view>
-    <button
-      class="refresh-btn"
-      size="mini"
-      type="primary"
-      loading="{{loading}}"
-      bindtap="handleRefresh"
-    >刷新</button>
   </view>
 
   <view class="summary-card">
