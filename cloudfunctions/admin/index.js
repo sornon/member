@@ -13,6 +13,7 @@ const COLLECTIONS = {
   CHARGE_ORDERS: 'chargeOrders',
   WALLET_TRANSACTIONS: 'walletTransactions',
   RESERVATIONS: 'reservations',
+  MENU_ORDERS: 'menuOrders',
   ROOMS: 'rooms',
   MEMBER_RIGHTS: 'memberRights',
   MEMBER_EXTRAS: 'memberExtras',
@@ -40,6 +41,7 @@ const ACTIONS = {
   GET_CHARGE_ORDER: 'getChargeOrder',
   LIST_CHARGE_ORDERS: 'listChargeOrders',
   GET_CHARGE_ORDER_QR_CODE: 'getChargeOrderQrCode',
+  FORCE_CHARGE_ORDER: 'forceChargeOrder',
   RECHARGE_MEMBER: 'rechargeMember',
   LIST_RESERVATIONS: 'listReservations',
   APPROVE_RESERVATION: 'approveReservation',
@@ -62,6 +64,7 @@ const ACTION_ALIASES = {
   getchargeorderqrcode: ACTIONS.GET_CHARGE_ORDER_QR_CODE,
   listchargeorders: ACTIONS.LIST_CHARGE_ORDERS,
   listchargeorder: ACTIONS.LIST_CHARGE_ORDERS,
+  forcechargeorder: ACTIONS.FORCE_CHARGE_ORDER,
   rechargemember: ACTIONS.RECHARGE_MEMBER,
   listreservations: ACTIONS.LIST_RESERVATIONS,
   approvereservation: ACTIONS.APPROVE_RESERVATION,
@@ -100,6 +103,11 @@ const ACTION_HANDLERS = {
       pageSize: event.pageSize || 20,
       memberId: event.memberId || '',
       keyword: event.keyword || ''
+    }),
+  [ACTIONS.FORCE_CHARGE_ORDER]: (openid, event) =>
+    forceChargeOrder(openid, event.orderId, {
+      memberId: event.memberId || '',
+      remark: event.remark || ''
     }),
   [ACTIONS.RECHARGE_MEMBER]: (openid, event) => rechargeMember(openid, event.memberId, event.amount),
   [ACTIONS.LIST_RESERVATIONS]: (openid, event) =>
@@ -657,6 +665,130 @@ async function listChargeOrders(openid, { page = 1, pageSize = 20, memberId = ''
     total: countResult.total,
     page,
     pageSize: limit
+  };
+}
+
+async function forceChargeOrder(openid, orderId, { memberId = '', remark = '' } = {}) {
+  await ensureAdmin(openid);
+  if (!orderId) {
+    throw new Error('缺少订单编号');
+  }
+  const normalizedRemark = typeof remark === 'string' ? remark.trim() : '';
+  let targetMemberId = '';
+  let stoneReward = 0;
+  let experienceGain = 0;
+  const now = new Date();
+  await db.runTransaction(async (transaction) => {
+    const orderRef = transaction.collection(COLLECTIONS.CHARGE_ORDERS).doc(orderId);
+    const orderDoc = await orderRef.get().catch(() => null);
+    if (!orderDoc || !orderDoc.data) {
+      throw new Error('订单不存在');
+    }
+    const order = orderDoc.data;
+    const status = order.status || 'pending';
+    if (status === 'paid') {
+      throw new Error('订单已完成');
+    }
+    if (status === 'cancelled') {
+      throw new Error('订单已取消');
+    }
+    targetMemberId = order.memberId || (typeof memberId === 'string' ? memberId.trim() : '');
+    if (!targetMemberId) {
+      throw new Error('请先关联会员');
+    }
+    const memberRef = transaction.collection(COLLECTIONS.MEMBERS).doc(targetMemberId);
+    const memberDoc = await memberRef.get().catch(() => null);
+    if (!memberDoc || !memberDoc.data) {
+      throw new Error('会员不存在');
+    }
+    const amount = Number(order.totalAmount || 0);
+    if (!amount || amount <= 0) {
+      throw new Error('订单金额无效');
+    }
+    const balance = resolveCashBalance(memberDoc.data);
+    if (balance < amount) {
+      throw new Error('会员余额不足');
+    }
+    const memberSnapshot = buildMemberSnapshot(memberDoc.data);
+    stoneReward = Number(order.stoneReward || amount || 0);
+    if (!stoneReward || stoneReward <= 0) {
+      stoneReward = amount;
+    }
+    experienceGain = calculateExperienceGain(amount);
+    await memberRef.update({
+      data: {
+        cashBalance: _.inc(-amount),
+        totalSpend: _.inc(amount),
+        stoneBalance: _.inc(stoneReward),
+        updatedAt: now,
+        ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
+      }
+    });
+    const walletRemark = normalizedRemark ? `管理员扣款(${normalizedRemark})` : '管理员扣款';
+    await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
+      data: {
+        memberId: targetMemberId,
+        amount: -amount,
+        type: 'spend',
+        status: 'success',
+        source: 'menuOrder',
+        orderId,
+        remark: walletRemark,
+        createdAt: now,
+        updatedAt: now
+      }
+    });
+    await transaction.collection(COLLECTIONS.STONE_TRANSACTIONS).add({
+      data: {
+        memberId: targetMemberId,
+        amount: stoneReward,
+        type: 'earn',
+        source: 'menuOrder',
+        description: '菜单消费赠送灵石',
+        createdAt: now,
+        meta: {
+          orderId,
+          forcedBy: openid
+        }
+      }
+    });
+    await orderRef.update({
+      data: {
+        status: 'paid',
+        memberId: targetMemberId,
+        memberSnapshot,
+        confirmedAt: now,
+        stoneReward,
+        updatedAt: now
+      }
+    });
+    if (order.menuOrderId) {
+      const menuOrderRef = transaction.collection(COLLECTIONS.MENU_ORDERS).doc(order.menuOrderId);
+      const menuOrderDoc = await menuOrderRef.get().catch(() => null);
+      if (menuOrderDoc && menuOrderDoc.data) {
+        await menuOrderRef.update({
+          data: {
+            status: 'paid',
+            memberId: targetMemberId,
+            memberSnapshot,
+            memberConfirmedAt: now,
+            updatedAt: now,
+            chargeOrderId: orderId,
+            forceChargedBy: openid,
+            forceChargedAt: now
+          }
+        });
+      }
+    }
+  });
+  if (experienceGain > 0 && targetMemberId) {
+    await syncMemberLevel(targetMemberId);
+  }
+  return {
+    success: true,
+    stoneReward,
+    experienceGain,
+    memberId: targetMemberId
   };
 }
 
@@ -1959,6 +2091,21 @@ function describeChargeOrderStatus(status) {
     default:
       return '待支付';
   }
+}
+
+function buildMemberSnapshot(member) {
+  if (!member || typeof member !== 'object') {
+    return {
+      nickName: '',
+      mobile: '',
+      levelId: ''
+    };
+  }
+  return {
+    nickName: typeof member.nickName === 'string' ? member.nickName : '',
+    mobile: typeof member.mobile === 'string' ? member.mobile : '',
+    levelId: typeof member.levelId === 'string' ? member.levelId : ''
+  };
 }
 
 async function loadMembersMap(memberIds) {

@@ -52,6 +52,19 @@
           <text class="amount">{{item.totalAmountLabel}}</text>
           <text class="reward">赠送 {{item.stoneRewardLabel}}</text>
         </view>
+        <view
+          class="order-actions"
+          wx:if="{{item.status === 'pending' || item.status === 'created'}}"
+        >
+          <button
+            class="force-btn"
+            size="mini"
+            type="primary"
+            loading="{{forceChargingId === item._id}}"
+            data-id="{{item._id}}"
+            bindtap="handleForceChargeTap"
+          >强制扣款</button>
+        </view>
         <view class="order-items" wx:if="{{item.items && item.items.length}}">
           <view
             class="order-item"
@@ -71,5 +84,64 @@
 
     <view class="loading" wx:if="{{loading && orders.length}}">加载中...</view>
     <view class="no-more" wx:elif="{{orders.length >= total && total > 0}}">没有更多订单</view>
+  </view>
+
+  <view class="force-dialog-mask" wx:if="{{forceChargeDialog.visible}}">
+    <view class="force-dialog">
+      <view class="force-dialog__title">关联会员</view>
+      <view class="force-dialog__body">
+        <view class="force-dialog__search">
+          <input
+            class="force-dialog__input"
+            placeholder="输入昵称 / 手机号 / 编号"
+            value="{{forceChargeDialog.keyword}}"
+            confirm-type="search"
+            bindinput="handleForceChargeMemberInput"
+            bindconfirm="handleForceChargeMemberSearch"
+          />
+          <button class="force-dialog__search-btn" size="mini" bindtap="handleForceChargeMemberSearch">
+            搜索
+          </button>
+        </view>
+        <view class="force-dialog__error" wx:if="{{forceChargeDialog.error}}">{{forceChargeDialog.error}}</view>
+        <view class="force-dialog__results">
+          <view class="force-dialog__loading" wx:if="{{forceChargeDialog.loading}}">搜索中...</view>
+          <view
+            class="force-dialog__empty"
+            wx:elif="{{!forceChargeDialog.loading && (!forceChargeDialog.results.length)}}"
+          >
+            请输入关键词搜索会员
+          </view>
+          <block wx:else>
+            <view
+              class="force-dialog__member {{forceChargeDialog.selectedMemberId === member._id ? 'is-active' : ''}}"
+              wx:for="{{forceChargeDialog.results}}"
+              wx:for-item="member"
+              wx:key="_id"
+              data-id="{{member._id}}"
+              bindtap="handleSelectForceChargeMember"
+            >
+              <view class="member-name">{{member.nickName || '未命名'}}</view>
+              <view class="member-meta">
+                <text wx:if="{{member.mobile}}">{{member.mobile}}</text>
+                <text wx:if="{{member.levelName}}">{{member.levelName}}</text>
+                <text>余额：{{member.balanceLabel}}</text>
+              </view>
+            </view>
+          </block>
+        </view>
+      </view>
+      <view class="force-dialog__footer">
+        <button class="force-dialog__btn" size="mini" bindtap="closeForceChargeDialog">取消</button>
+        <button
+          class="force-dialog__btn primary"
+          size="mini"
+          type="primary"
+          loading="{{forceChargingId && forceChargeDialog.orderId === forceChargingId}}"
+          disabled="{{!forceChargeDialog.selectedMemberId || forceChargingId}}"
+          bindtap="handleConfirmForceChargeWithMember"
+        >确认扣款</button>
+      </view>
+    </view>
   </view>
 </view>

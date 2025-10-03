@@ -430,6 +430,14 @@ export const AdminService = {
       keyword
     });
   },
+  async forceChargeOrder(orderId, { memberId = '', remark = '' } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'forceChargeOrder',
+      orderId,
+      memberId,
+      remark
+    });
+  },
   async rechargeMember(memberId, amount) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'rechargeMember',
