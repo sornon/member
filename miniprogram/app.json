@@ -2,6 +2,7 @@
   "pages": [
     "pages/index/index",
     "pages/membership/membership",
+    "pages/membership/order/index",
     "pages/rights/rights",
     "pages/tasks/tasks",
     "pages/reservation/reservation",
@@ -16,6 +17,7 @@
     "pages/admin/member-detail/index",
     "pages/admin/charge/index",
     "pages/admin/orders/index",
+    "pages/admin/menu-orders/index",
     "pages/wallet/charge-confirm/index"
   ],
   "window": {

@@ -14,6 +14,12 @@ const BASE_ACTIONS = [
     url: '/pages/admin/charge/index'
   },
   {
+    icon: '🍽️',
+    label: '备餐列表',
+    description: '查看会员点餐并推送扣费',
+    url: '/pages/admin/menu-orders/index'
+  },
+  {
     icon: '📊',
     label: '订单查询',
     description: '按会员查看扣费订单记录',

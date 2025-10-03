@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "会员点餐",
+  "usingComponents": {
+    "custom-nav": "/components/custom-nav/custom-nav"
+  }
+}

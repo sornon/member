@@ -471,3 +471,47 @@ export const AdminService = {
     });
   }
 };
+
+export const MenuOrderService = {
+  async createOrder({ items = [], remark = '' } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
+      action: 'createOrder',
+      items,
+      remark
+    });
+  },
+  async listOrders() {
+    return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
+      action: 'listMemberOrders'
+    });
+  },
+  async confirmOrder(orderId) {
+    const result = await callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
+      action: 'confirmMemberOrder',
+      orderId
+    });
+    if (result && result.errorCode) {
+      const error = new Error(result.message || '扣费失败');
+      error.code = result.errorCode;
+      throw error;
+    }
+    return result;
+  }
+};
+
+export const AdminMenuOrderService = {
+  async listPrepOrders({ status = 'submitted', pageSize = 50 } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
+      action: 'listPrepOrders',
+      status,
+      pageSize
+    });
+  },
+  async markOrderReady(orderId, remark = '') {
+    return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
+      action: 'markOrderReady',
+      orderId,
+      remark
+    });
+  }
+};

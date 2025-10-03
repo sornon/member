@@ -1,0 +1,132 @@
+<custom-nav title="会员点餐" theme="dark"></custom-nav>
+<view class="order-page">
+  <view class="category-bar" wx:if="{{categories.length}}">
+    <scroll-view scroll-x scroll-with-animation>
+      <view class="category-track">
+        <view
+          class="category-pill {{activeCategory === item.id ? 'category-pill--active' : ''}}"
+          wx:for="{{categories}}"
+          wx:key="id"
+          data-id="{{item.id}}"
+          bindtap="handleSelectCategory"
+        >
+          {{item.name}}
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <view class="menu-section" wx:if="{{visibleItems.length}}">
+    <view class="menu-card" wx:for="{{visibleItems}}" wx:key="id" wx:for-item="menu">
+      <view class="menu-title">{{menu.title}}</view>
+      <view class="menu-desc" wx:if="{{menu.desc}}">{{menu.desc}}</view>
+      <view class="menu-variants">
+        <view class="variant-row" wx:for="{{menu.variants}}" wx:key="label" wx:for-item="variant" wx:for-index="variantIndex">
+          <view class="variant-info">
+            <text class="variant-label" wx:if="{{variant.displayLabel}}">{{variant.displayLabel}}</text>
+            <view class="variant-price">
+              <text class="variant-price-value">{{variant.priceLabel}}</text>
+              <text class="variant-price-unit" wx:if="{{variant.unit}}">{{variant.unit}}</text>
+            </view>
+          </view>
+          <button
+            class="variant-add"
+            size="mini"
+            type="primary"
+            data-item-id="{{menu.id}}"
+            data-variant-index="{{variantIndex}}"
+            bindtap="handleAddToCart"
+          >+</button>
+        </view>
+      </view>
+    </view>
+  </view>
+  <view class="empty-hint" wx:if="{{!visibleItems.length}}">该分类暂无商品。</view>
+
+  <view class="cart-panel" wx:if="{{cart.length}}">
+    <view class="cart-header">
+      <text>已选商品</text>
+      <button class="cart-clear" size="mini" type="default" bindtap="handleClearCart">清空</button>
+    </view>
+    <view class="cart-list">
+      <view class="cart-item" wx:for="{{cart}}" wx:key="key" wx:for-item="cartItem">
+        <view class="cart-main">
+          <view class="cart-name">{{cartItem.title}}</view>
+          <view class="cart-spec">
+            <text class="cart-spec-price">{{cartItem.priceLabel}}{{cartItem.unit}}</text>
+          </view>
+        </view>
+        <view class="cart-qty">
+          <button
+            class="qty-btn"
+            size="mini"
+            type="default"
+            data-key="{{cartItem.key}}"
+            data-delta="-1"
+            bindtap="handleAdjustQuantity"
+          >-</button>
+          <text class="qty-value">{{cartItem.quantity}}</text>
+          <button
+            class="qty-btn"
+            size="mini"
+            type="default"
+            data-key="{{cartItem.key}}"
+            data-delta="1"
+            bindtap="handleAdjustQuantity"
+          >+</button>
+        </view>
+        <view class="cart-amount">{{cartItem.amountLabel}}</view>
+      </view>
+    </view>
+    <textarea
+      class="remark-input"
+      placeholder="备注（可选）"
+      value="{{remark}}"
+      maxlength="140"
+      auto-height
+      bindinput="handleRemarkInput"
+    ></textarea>
+    <view class="cart-summary">
+      <view class="summary-amount">合计 {{cartTotalLabel}}</view>
+      <button class="submit-btn" type="primary" loading="{{submitting}}" bindtap="handleSubmitOrder">提交订单</button>
+    </view>
+  </view>
+
+  <view class="orders-section">
+    <view class="section-title">最近订单</view>
+    <view class="orders-placeholder" wx:if="{{loadingOrders}}">加载中...</view>
+    <view class="orders-placeholder" wx:elif="{{!orders.length}}">暂无订单记录</view>
+    <view class="order-card" wx:for="{{orders}}" wx:key="_id" wx:for-item="order">
+      <view class="order-header">
+        <view class="order-status">{{order.statusLabel}}</view>
+        <view class="order-time">{{order.createdAtLabel}}</view>
+      </view>
+      <view class="order-items">
+        <view class="order-line" wx:for="{{order.items}}" wx:key="{{index}}" wx:for-item="orderLine">
+          <view class="line-main">
+            <text class="line-title">{{orderLine.title}}</text>
+            <view class="line-meta">
+              <text class="line-spec-price">{{orderLine.priceLabel}}{{orderLine.unit}}</text>
+              <text class="line-spec-quantity"> × {{orderLine.quantity}}</text>
+            </view>
+          </view>
+          <text class="line-amount">{{orderLine.amountLabel}}</text>
+        </view>
+      </view>
+      <view class="order-remark" wx:if="{{order.remark}}">备注：{{order.remark}}</view>
+      <view class="order-total">合计 {{order.totalAmountLabel}}</view>
+      <button
+        wx:if="{{order.status === 'pendingMember'}}"
+        class="confirm-btn"
+        type="primary"
+        loading="{{confirmingId === order._id}}"
+        data-id="{{order._id}}"
+        bindtap="handleConfirmOrder"
+      >确认扣费</button>
+      <view class="order-meta" wx:if="{{order.adminConfirmedAtLabel && order.status !== 'submitted'}}">
+        管理员已确认：{{order.adminConfirmedAtLabel}}
+      </view>
+      <view class="order-meta" wx:if="{{order.memberConfirmedAtLabel}}">会员确认：{{order.memberConfirmedAtLabel}}</view>
+    </view>
+  </view>
+</view>
