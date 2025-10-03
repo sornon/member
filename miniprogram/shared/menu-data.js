@@ -822,6 +822,20 @@ export const menuData = {
         }
       ],
       "img": ""
+    },
+    {
+      "id": "bbq-money",
+      "cat": "bbq",
+      "title": "烤串钱",
+      "desc": "补差价用",
+      "variants": [
+        {
+          "label": "元",
+          "unit": "元",
+          "price": 100
+        }
+      ],
+      "img": ""
     }
   ],
   "generatedAt": "2025-10-02T16:06:51.230Z"
