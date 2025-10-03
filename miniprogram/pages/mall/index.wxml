@@ -1,0 +1,93 @@
+<custom-nav title="灵石商城" theme="dark"></custom-nav>
+<view class="mall-page">
+  <view class="section-card mall-balance-card">
+    <view class="mall-balance-card__label">当前灵石</view>
+    <view class="mall-balance-card__value">{{stoneBalanceText}} 枚</view>
+    <view class="mall-balance-card__hint">可用于兑换虚拟道具，无法折现。</view>
+  </view>
+
+  <view wx:if="{{error}}" class="section-card mall-message mall-message--error">{{error}}</view>
+  <view wx:elif="{{loading}}" class="section-card mall-message">灵石气息汇聚中...</view>
+  <block wx:else>
+    <view wx:if="{{categories.length}}" class="section-card mall-catalog">
+      <view class="section-header">
+        <view class="section-title">灵石兑换</view>
+        <view class="section-subtitle">按类型挑选心仪道具</view>
+      </view>
+      <view wx:if="{{categories.length > 1}}" class="mall-tabs">
+        <view
+          wx:for="{{categories}}"
+          wx:key="key"
+          class="mall-tab {{activeCategoryKey === item.key ? 'mall-tab--active' : ''}}"
+          data-key="{{item.key}}"
+          bindtap="handleCategoryChange"
+          hover-class="mall-tab--hover"
+        >
+          <text class="mall-tab__label">{{item.label}}</text>
+        </view>
+      </view>
+      <view wx:if="{{activeCategory && activeCategory.items.length}}" class="mall-grid">
+        <block wx:for="{{activeCategory.items}}" wx:key="id">
+          <view
+            class="mall-slot {{item.iconUrl ? 'mall-slot--has-icon' : ''}}"
+            data-id="{{item.id}}"
+            bindtap="handleItemTap"
+            hover-class="mall-slot--hover"
+          >
+            <view class="mall-slot__frame {{item.iconUrl ? 'mall-slot__frame--image' : ''}}">
+              <block wx:if="{{item.iconUrl}}">
+                <image class="mall-slot__image" src="{{item.iconUrl}}" mode="aspectFill" lazy-load="true" />
+              </block>
+              <view wx:elif="{{item.icon}}" class="mall-slot__emoji">{{item.icon}}</view>
+              <view wx:else class="mall-slot__placeholder">{{item.iconText || item.name}}</view>
+              <view class="mall-slot__price">{{item.price}} 灵石</view>
+            </view>
+          </view>
+        </block>
+      </view>
+      <view wx:elif="{{activeCategory}}" class="mall-empty">该类别暂未上架道具</view>
+    </view>
+    <view wx:else class="section-card mall-empty-card">
+      <view class="mall-empty">商城暂未上架可兑换的道具，敬请期待。</view>
+    </view>
+  </block>
+</view>
+
+<view wx:if="{{showDetail && detailItem}}" class="mall-modal" catchtouchmove="noop">
+  <view class="mall-modal__mask" bindtap="handleModalClose"></view>
+  <view class="mall-modal__panel">
+    <view class="mall-modal__icon-wrapper">
+      <view class="mall-modal__icon-frame {{detailItem.iconUrl ? 'mall-modal__icon-frame--image' : ''}}">
+        <block wx:if="{{detailItem.iconUrl}}">
+          <image class="mall-modal__icon-image" src="{{detailItem.iconUrl}}" mode="aspectFill" lazy-load="true" />
+        </block>
+        <view wx:elif="{{detailItem.icon}}" class="mall-modal__icon-emoji">{{detailItem.icon}}</view>
+        <view wx:else class="mall-modal__icon-placeholder">{{detailItem.iconText || detailItem.name}}</view>
+      </view>
+    </view>
+    <view class="mall-modal__header">
+      <view class="mall-modal__title">{{detailItem.name}}</view>
+      <view class="mall-modal__price">{{detailItem.price}} 灵石</view>
+    </view>
+    <view class="mall-modal__body">
+      <view wx:if="{{detailItem.categoryLabel}}" class="mall-modal__tag">{{detailItem.categoryLabel}}</view>
+      <view wx:if="{{detailItem.effectLabel}}" class="mall-modal__highlight">{{detailItem.effectLabel}}</view>
+      <view class="mall-modal__desc">{{detailItem.description || '暂无道具描述'}}</view>
+    </view>
+    <view class="mall-modal__actions">
+      <button
+        class="mall-modal__button mall-modal__button--ghost"
+        hover-class="mall-modal__button--ghost-hover"
+        bindtap="handleModalClose"
+      >稍后再看</button>
+      <button
+        class="mall-modal__button mall-modal__button--primary"
+        hover-class="mall-modal__button--primary-hover"
+        data-id="{{detailItem.id}}"
+        loading="{{submittingId === detailItem.id}}"
+        disabled="{{submittingId === detailItem.id}}"
+        bindtap="handleModalPurchase"
+      >兑换</button>
+    </view>
+  </view>
+</view>
