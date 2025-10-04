@@ -9,7 +9,7 @@ const {
   subLevelLabels,
   realmConfigs,
   membershipRights
-} = require('./level-config');
+} = require('level-config');
 
 exports.main = async () => {
   await Promise.all([

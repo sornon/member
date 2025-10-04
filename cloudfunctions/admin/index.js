@@ -3,7 +3,7 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { listAvatarIds } = require('./avatar-catalog.js');
-const { EXPERIENCE_PER_YUAN } = require('../bootstrap/level-config');
+const { EXPERIENCE_PER_YUAN } = require('level-config');
 
 const db = cloud.database();
 const _ = db.command;

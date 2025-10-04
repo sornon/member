@@ -1,5 +1,5 @@
 const cloud = require('wx-server-sdk');
-const { EXPERIENCE_PER_YUAN } = require('../bootstrap/level-config');
+const { EXPERIENCE_PER_YUAN } = require('level-config');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
