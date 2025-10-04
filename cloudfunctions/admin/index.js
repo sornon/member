@@ -3,7 +3,7 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { listAvatarIds } = require('./avatar-catalog.js');
-const { EXPERIENCE_PER_YUAN } = require('level-config');
+const { EXPERIENCE_PER_YUAN } = require('level-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/level-config
 
 const db = cloud.database();
 const _ = db.command;
