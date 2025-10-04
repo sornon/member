@@ -1,4 +1,5 @@
 const cloud = require('wx-server-sdk');
+const { EXPERIENCE_PER_YUAN } = require('../bootstrap/level-config');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -17,7 +18,6 @@ const COLLECTIONS = {
   MEMBER_EXTRAS: 'memberExtras'
 };
 
-const EXPERIENCE_PER_YUAN = 100;
 const EXCLUDED_TRANSACTION_STATUSES = ['pending', 'processing', 'failed', 'cancelled', 'refunded', 'closed'];
 
 function normalizeWineStorageEntries(list = []) {
