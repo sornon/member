@@ -584,7 +584,11 @@ function drawWith2dContext({ canvas, modules, size, background, foreground }) {
   if (!ctx) {
     return Promise.resolve();
   }
-  const dpr = wx.getSystemInfoSync ? wx.getSystemInfoSync().pixelRatio || 1 : 1;
+  const dpr = wx.getWindowInfo
+    ? wx.getWindowInfo().pixelRatio || 1
+    : wx.getSystemInfoSync
+      ? wx.getSystemInfoSync().pixelRatio || 1
+      : 1;
   if (typeof canvas.width === 'number') {
     canvas.width = size * dpr;
   }

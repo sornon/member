@@ -34,7 +34,9 @@ App({
 
   setupSystemMetrics() {
     try {
-      const systemInfo = wx.getSystemInfoSync();
+      const systemInfo = wx.getWindowInfo
+        ? wx.getWindowInfo()
+        : wx.getSystemInfoSync();
       const menuButtonRect = wx.getMenuButtonBoundingClientRect
         ? wx.getMenuButtonBoundingClientRect()
         : null;
