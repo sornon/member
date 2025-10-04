@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "存酒管理",
+  "usingComponents": {
+    "custom-nav": "/components/custom-nav/custom-nav"
+  }
+}

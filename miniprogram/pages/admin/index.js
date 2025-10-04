@@ -8,6 +8,12 @@ const BASE_ACTIONS = [
     url: '/pages/admin/members/index'
   },
   {
+    icon: '🍷',
+    label: '存酒管理',
+    description: '为会员登记和管理存酒',
+    url: '/pages/admin/wine-storage/index'
+  },
+  {
     icon: '🧾',
     label: '创建扣费单',
     description: '录入商品生成扫码扣费单',

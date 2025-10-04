@@ -18,6 +18,7 @@
     "pages/admin/index",
     "pages/admin/reservations/index",
     "pages/admin/members/index",
+    "pages/admin/wine-storage/index",
     "pages/admin/member-detail/index",
     "pages/admin/charge/index",
     "pages/admin/orders/index",

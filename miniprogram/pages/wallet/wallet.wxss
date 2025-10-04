@@ -10,6 +10,44 @@
   color: rgba(198, 208, 255, 0.78);
 }
 
+.wine-total {
+  font-size: 28rpx;
+  color: #f6f8ff;
+  margin-bottom: 16rpx;
+}
+
+.wine-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.wine-item {
+  padding: 20rpx 24rpx;
+  border-radius: 16rpx;
+  background: rgba(10, 20, 64, 0.6);
+  border: 1rpx solid rgba(122, 144, 228, 0.32);
+}
+
+.wine-name {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #f8f9ff;
+}
+
+.wine-meta {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: rgba(200, 210, 255, 0.72);
+}
+
+.wine-empty {
+  padding: 24rpx 0;
+  text-align: center;
+  font-size: 24rpx;
+  color: rgba(190, 200, 240, 0.75);
+}
+
 .scan {
   margin-top: 20rpx;
   background: rgba(86, 108, 255, 0.24);

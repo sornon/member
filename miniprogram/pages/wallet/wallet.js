@@ -64,6 +64,28 @@ function decorateTransaction(txn) {
   };
 }
 
+function decorateWineEntry(entry, index) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const name = typeof entry.name === 'string' ? entry.name.trim() : '';
+  if (!name) {
+    return null;
+  }
+  const rawQuantity = Number(entry.quantity || 0);
+  const quantity = Number.isFinite(rawQuantity) ? Math.max(0, Math.floor(rawQuantity)) : 0;
+  const expiresAtDate = entry.expiresAt ? new Date(entry.expiresAt) : null;
+  const expiresAtValid = expiresAtDate && !Number.isNaN(expiresAtDate.getTime()) ? expiresAtDate : null;
+  return {
+    id: typeof entry.id === 'string' && entry.id ? entry.id : `wine_${index}`,
+    name,
+    quantity,
+    expiresAt: expiresAtValid ? expiresAtValid.toISOString() : '',
+    expiresAtText: expiresAtValid ? formatDate(expiresAtValid) : '—',
+    sortKey: expiresAtValid ? expiresAtValid.getTime() : Number.POSITIVE_INFINITY
+  };
+}
+
 function decorateSummary(summary) {
   if (!summary || typeof summary !== 'object') {
     return {
@@ -74,7 +96,9 @@ function decorateSummary(summary) {
       cashBalanceText: formatCurrency(0),
       totalRechargeText: formatCurrency(0),
       totalSpendText: formatCurrency(0),
-      transactions: []
+      transactions: [],
+      wineStorage: [],
+      totalWineQuantity: 0
     };
   }
 
@@ -85,6 +109,18 @@ function decorateSummary(summary) {
   const transactions = Array.isArray(summary.transactions)
     ? summary.transactions.map((txn) => decorateTransaction(txn))
     : [];
+  const wineEntriesRaw = Array.isArray(summary.wineStorage) ? summary.wineStorage : [];
+  const wineEntriesDecorated = wineEntriesRaw
+    .map((entry, index) => decorateWineEntry(entry, index))
+    .filter((entry) => !!entry);
+  wineEntriesDecorated.sort((a, b) => a.sortKey - b.sortKey);
+  const wineStorage = wineEntriesDecorated.map((entry) => {
+    const { sortKey, ...rest } = entry;
+    return rest;
+  });
+  const totalWineQuantity = Number.isFinite(summary.wineStorageTotal)
+    ? Math.max(0, Math.floor(summary.wineStorageTotal))
+    : wineStorage.reduce((sum, entry) => sum + (Number.isFinite(entry.quantity) ? entry.quantity : 0), 0);
 
   return {
     ...summary,
@@ -95,7 +131,9 @@ function decorateSummary(summary) {
     cashBalanceText: formatCurrency(cashBalance),
     totalRechargeText: formatCurrency(totalRecharge),
     totalSpendText: formatCurrency(totalSpend),
-    transactions
+    transactions,
+    wineStorage,
+    totalWineQuantity
   };
 }
 

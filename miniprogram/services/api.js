@@ -524,6 +524,28 @@ export const AdminService = {
       reason
     });
   },
+  async listWineStorage(memberId) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'listWineStorage',
+      memberId
+    });
+  },
+  async addWineStorage(memberId, { name = '', quantity = 0, expiryOption = '' } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'addWineStorage',
+      memberId,
+      name,
+      quantity,
+      expiryOption
+    });
+  },
+  async removeWineStorage(memberId, entryId) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'removeWineStorage',
+      memberId,
+      entryId
+    });
+  },
   async cancelReservation(reservationId, reason = '') {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'cancelReservation',
