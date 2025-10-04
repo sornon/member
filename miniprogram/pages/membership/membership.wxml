@@ -27,7 +27,7 @@
     <view class="card realm-card" wx:if="{{visibleRealms.length}}">
       <view class="section-title">主境界进阶</view>
       <view class="realm-grid">
-        <view class="realm-item" wx:for="{{visibleRealms}}" wx:key="{{item.realmKey || item.realm}}">
+        <view class="realm-item" wx:for="{{visibleRealms}}" wx:key="realmKey">
           <view class="realm-header">
             <text class="realm-name">{{item.realm}}</text>
             <text class="realm-range">{{formatCurrency(item.start)}} ~ {{formatCurrency(item.end)}}</text>
@@ -63,7 +63,7 @@
           <view class="level-virtual" wx:if="{{item.virtualRewards && item.virtualRewards.length}}">
             <text class="reward-label">常规奖励：</text>
             <view class="reward-list">
-              <text class="reward-text" wx:for="{{item.virtualRewards}}" wx:key="{{index}}">{{item}}</text>
+              <text class="reward-text" wx:for="{{item.virtualRewards}}" wx:key="index">{{item}}</text>
             </view>
           </view>
           <view class="level-milestone" wx:if="{{item.milestoneReward}}">
@@ -73,7 +73,7 @@
           </view>
           <view class="level-bonus" wx:if="{{item.rewards && item.rewards.length}}">
             <text class="reward-label">实体权益：</text>
-            <text class="reward-text" wx:for="{{item.rewards}}" wx:key="{{index}}">{{item}}</text>
+            <text class="reward-text" wx:for="{{item.rewards}}" wx:key="index">{{item}}</text>
           </view>
           <view class="level-actions-row" wx:if="{{item.hasRewards}}">
             <button
