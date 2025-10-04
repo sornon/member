@@ -33,25 +33,39 @@ App({
   },
 
   setupSystemMetrics() {
-    try {
-      const systemInfo = wx.getWindowInfo
-        ? wx.getWindowInfo()
-        : wx.getSystemInfoSync();
-      const menuButtonRect = wx.getMenuButtonBoundingClientRect
-        ? wx.getMenuButtonBoundingClientRect()
-        : null;
+    const menuButtonRect = wx.getMenuButtonBoundingClientRect
+      ? wx.getMenuButtonBoundingClientRect()
+      : null;
 
-      const statusBarHeight = systemInfo.statusBarHeight || 0;
+    this.globalData.customNav = {
+      statusBarHeight: 0,
+      navHeight: 64,
+      menuButtonRect
+    };
+
+    this.globalData.safeArea = {
+      top: 0,
+      bottom: 0
+    };
+
+    const applyMetrics = (info) => {
+      if (!info) {
+        return;
+      }
+
+      const statusBarHeight = info.statusBarHeight || 0;
       let navHeight = statusBarHeight + 44;
 
-      if (menuButtonRect) {
+      if (menuButtonRect && typeof menuButtonRect.top === 'number') {
         const gap = menuButtonRect.top - statusBarHeight;
         const navBarHeight = menuButtonRect.height + Math.max(gap, 0) * 2;
         navHeight = statusBarHeight + navBarHeight;
       }
 
-      const bottomInset = systemInfo.safeArea
-        ? Math.max(systemInfo.screenHeight - systemInfo.safeArea.bottom, 0)
+      const screenHeight = info.screenHeight || info.windowHeight || 0;
+      const safeArea = info.safeArea || null;
+      const bottomInset = safeArea && screenHeight
+        ? Math.max(screenHeight - safeArea.bottom, 0)
         : 0;
 
       this.globalData.customNav = {
@@ -64,16 +78,24 @@ App({
         top: statusBarHeight,
         bottom: bottomInset
       };
-    } catch (error) {
-      this.globalData.customNav = {
-        statusBarHeight: 0,
-        navHeight: 64,
-        menuButtonRect: null
-      };
-      this.globalData.safeArea = {
-        top: 0,
-        bottom: 0
-      };
+    };
+
+    const windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : null;
+    if (windowInfo) {
+      applyMetrics(windowInfo);
+      return;
+    }
+
+    const deviceInfo = wx.getDeviceInfo ? wx.getDeviceInfo() : null;
+    if (deviceInfo) {
+      applyMetrics(deviceInfo);
+      return;
+    }
+
+    if (wx.getSystemInfo) {
+      wx.getSystemInfo({
+        success: applyMetrics
+      });
     }
   }
 });

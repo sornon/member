@@ -584,11 +584,28 @@ function drawWith2dContext({ canvas, modules, size, background, foreground }) {
   if (!ctx) {
     return Promise.resolve();
   }
-  const dpr = wx.getWindowInfo
-    ? wx.getWindowInfo().pixelRatio || 1
-    : wx.getSystemInfoSync
-      ? wx.getSystemInfoSync().pixelRatio || 1
-      : 1;
+  const getPixelRatio = () => {
+    if (wx.getWindowInfo) {
+      const { pixelRatio } = wx.getWindowInfo();
+      if (pixelRatio) {
+        return pixelRatio;
+      }
+    }
+
+    if (wx.getDeviceInfo) {
+      const deviceInfo = wx.getDeviceInfo();
+      if (deviceInfo.pixelRatio) {
+        return deviceInfo.pixelRatio;
+      }
+      if (deviceInfo.devicePixelRatio) {
+        return deviceInfo.devicePixelRatio;
+      }
+    }
+
+    return 1;
+  };
+
+  const dpr = getPixelRatio();
   if (typeof canvas.width === 'number') {
     canvas.width = size * dpr;
   }
