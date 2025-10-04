@@ -3,6 +3,7 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { listAvatarIds } = require('./avatar-catalog.js');
+const { EXPERIENCE_PER_YUAN } = require('../bootstrap/level-config');
 
 const db = cloud.database();
 const _ = db.command;
@@ -24,8 +25,6 @@ const COLLECTIONS = {
   STONE_TRANSACTIONS: 'stoneTransactions',
   ERROR_LOGS: 'errorlogs'
 };
-
-const EXPERIENCE_PER_YUAN = 100;
 
 const ADMIN_ROLES = ['admin', 'developer'];
 const EXCLUDED_TRANSACTION_STATUSES = ['pending', 'processing', 'failed', 'cancelled', 'refunded', 'closed'];

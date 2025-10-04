@@ -89,7 +89,7 @@
 - 建立预算与预警机制，当某一段用户激增导致成本偏高时，及时调整升级门槛或改为等值虚拟奖励。
 
 ## 系统实现要点
-- `cloudfunctions/bootstrap/index.js` 中的 `realmConfigs`、`membershipLevels` 与 `membershipRights` 统一配置 10 个境界、100 个等级的阈值与奖励，可在此按需调整数值与文案。
+- `cloudfunctions/bootstrap/level-config.js` 中集中维护 `realmConfigs`、`membershipRights`、`EXPERIENCE_PER_YUAN` 等纯数据，`index.js` 通过 `buildMembershipLevels()` 自动生成等级并注入云端集合，运营人员调整配置后重新执行引导脚本即可生效。
 - `cloudfunctions/member/index.js` 扩展等级接口，返回境界描述、常规奖励与里程碑奖励，便于前端呈现完整信息。
 - `miniprogram/pages/membership` 页面新增“主境界进阶”与“等级列表”展示，结合 `formatDiscount`、`levelBadgeColor` 等工具函数，可视化成长进度与奖励结构。
 
