@@ -42,6 +42,16 @@
       />
     </view>
     <view class="form-item">
+      <view class="form-label">真实姓名</view>
+      <input
+        class="form-input"
+        value="{{form.realName}}"
+        placeholder="请输入真实姓名"
+        data-field="realName"
+        bindinput="handleInputChange"
+      />
+    </view>
+    <view class="form-item">
       <view class="form-label">剩余改名次数</view>
       <input
         class="form-input"

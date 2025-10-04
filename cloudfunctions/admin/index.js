@@ -1489,6 +1489,7 @@ function decorateMemberRecord(member, levelMap) {
   return {
     _id: member._id,
     nickName: member.nickName || '',
+    realName: typeof member.realName === 'string' ? member.realName : '',
     avatarUrl: member.avatarUrl || '',
     mobile: member.mobile || '',
     balance: cashBalance,
@@ -1977,6 +1978,9 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
 
   if (Object.prototype.hasOwnProperty.call(updates, 'mobile')) {
     memberUpdates.mobile = updates.mobile || '';
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'realName')) {
+    memberUpdates.realName = typeof updates.realName === 'string' ? updates.realName.trim() : '';
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'levelId')) {
     memberUpdates.levelId = updates.levelId || '';
