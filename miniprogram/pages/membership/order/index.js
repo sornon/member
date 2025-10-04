@@ -71,7 +71,16 @@ function normalizeItem(item, overrides = {}) {
   }
   const variantsSource = Array.isArray(item.variants) ? item.variants : [];
   const variants = variantsSource
-    .map(normalizeVariant)
+    .map((variant) => {
+      const normalized = normalizeVariant(variant);
+      if (!normalized) {
+        return null;
+      }
+      return {
+        ...normalized,
+        key: `${item.id}|${normalized.label}`
+      };
+    })
     .filter(Boolean);
   if (!variants.length) {
     return null;
@@ -488,6 +497,7 @@ Page({
     visibleItems: DEFAULT_VISIBLE_ITEMS,
     cart: [],
     cartGroups: [],
+    cartQuantityMap: {},
     cartSectionTotals: createEmptyCategoryTotals(),
     cartTotal: 0,
     cartTotalLabel: formatCurrency(0),
@@ -560,9 +570,14 @@ Page({
     const total = computeCartTotal(decorated);
     const sectionTotals = calculateSectionTotals(decorated);
     const stoneReward = Math.max(0, Math.floor(total));
+    const quantityMap = decorated.reduce((acc, line) => {
+      acc[line.key] = line.quantity;
+      return acc;
+    }, {});
     this.setData({
       cart: decorated,
       cartGroups: groupLinesBySection(decorated),
+      cartQuantityMap: quantityMap,
       cartSectionTotals: sectionTotals,
       cartTotal: total,
       cartTotalLabel: formatCurrency(total),
@@ -584,7 +599,7 @@ Page({
     if (!variant) {
       return;
     }
-    const key = `${item.id}|${variant.label}`;
+    const key = variant.key || `${item.id}|${variant.label}`;
     const cart = this.data.cart.map((line) => ({ ...line }));
     const existingIndex = cart.findIndex((line) => line.key === key);
     if (existingIndex >= 0) {

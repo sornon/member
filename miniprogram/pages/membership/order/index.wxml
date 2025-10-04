@@ -42,14 +42,26 @@
               <text class="variant-price-unit" wx:if="{{variant.unit}}">{{variant.unit}}</text>
             </view>
           </view>
-          <button
-            class="variant-add"
-            size="mini"
-            type="primary"
-            data-item-id="{{menu.id}}"
-            data-variant-index="{{variantIndex}}"
-            bindtap="handleAddToCart"
-          >+</button>
+          <view class="variant-actions">
+            <button
+              class="variant-btn variant-btn--minus"
+              size="mini"
+              type="default"
+              data-key="{{variant.key}}"
+              data-delta="-1"
+              bindtap="handleAdjustQuantity"
+              wx:if="{{cartQuantityMap[variant.key]}}"
+            >-</button>
+            <text class="variant-qty" wx:if="{{cartQuantityMap[variant.key]}}">{{cartQuantityMap[variant.key]}}</text>
+            <button
+              class="variant-btn variant-btn--add"
+              size="mini"
+              type="primary"
+              data-item-id="{{menu.id}}"
+              data-variant-index="{{variantIndex}}"
+              bindtap="handleAddToCart"
+            >+</button>
+          </view>
         </view>
       </view>
     </view>
