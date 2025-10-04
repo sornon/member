@@ -13,11 +13,71 @@ const COLLECTIONS = {
   MEMBERSHIP_LEVELS: 'membershipLevels',
   MEMBERSHIP_RIGHTS: 'membershipRights',
   CHARGE_ORDERS: 'chargeOrders',
-  STONE_TRANSACTIONS: 'stoneTransactions'
+  STONE_TRANSACTIONS: 'stoneTransactions',
+  MEMBER_EXTRAS: 'memberExtras'
 };
 
 const EXPERIENCE_PER_YUAN = 100;
 const EXCLUDED_TRANSACTION_STATUSES = ['pending', 'processing', 'failed', 'cancelled', 'refunded', 'closed'];
+
+function normalizeWineStorageEntries(list = []) {
+  const normalized = [];
+  (Array.isArray(list) ? list : []).forEach((entry, index) => {
+    if (!entry || typeof entry !== 'object') {
+      return;
+    }
+    const name = typeof entry.name === 'string' ? entry.name.trim() : '';
+    if (!name) {
+      return;
+    }
+    const rawQuantity = Number(entry.quantity || 0);
+    const quantity = Number.isFinite(rawQuantity) ? Math.max(0, Math.floor(rawQuantity)) : 0;
+    const id = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : `wine_${index}_${Date.now()}`;
+    const expiresAtCandidate = entry.expiresAt ? new Date(entry.expiresAt) : null;
+    const createdAtCandidate = entry.createdAt ? new Date(entry.createdAt) : null;
+    const expiresAt =
+      expiresAtCandidate && !Number.isNaN(expiresAtCandidate.getTime()) ? expiresAtCandidate : null;
+    const createdAt =
+      createdAtCandidate && !Number.isNaN(createdAtCandidate.getTime()) ? createdAtCandidate : null;
+    normalized.push({
+      id,
+      name,
+      quantity,
+      expiresAt,
+      createdAt
+    });
+  });
+  return normalized.sort((a, b) => {
+    const aExpiry = a.expiresAt ? a.expiresAt.getTime() : Number.POSITIVE_INFINITY;
+    const bExpiry = b.expiresAt ? b.expiresAt.getTime() : Number.POSITIVE_INFINITY;
+    if (aExpiry !== bExpiry) {
+      return aExpiry - bExpiry;
+    }
+    const aCreated = a.createdAt ? a.createdAt.getTime() : 0;
+    const bCreated = b.createdAt ? b.createdAt.getTime() : 0;
+    return aCreated - bCreated;
+  });
+}
+
+function serializeWineStorageEntry(entry) {
+  if (!entry) {
+    return { id: '', name: '', quantity: 0, expiresAt: '', createdAt: '' };
+  }
+  return {
+    id: entry.id || '',
+    name: entry.name || '',
+    quantity: Number.isFinite(entry.quantity) ? entry.quantity : 0,
+    expiresAt: entry.expiresAt instanceof Date && !Number.isNaN(entry.expiresAt.getTime()) ? entry.expiresAt.toISOString() : '',
+    createdAt: entry.createdAt instanceof Date && !Number.isNaN(entry.createdAt.getTime()) ? entry.createdAt.toISOString() : ''
+  };
+}
+
+function calculateWineStorageTotal(entries = []) {
+  return entries.reduce((sum, entry) => {
+    const qty = Number.isFinite(entry.quantity) ? entry.quantity : 0;
+    return sum + Math.max(0, qty);
+  }, 0);
+}
 
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext();
@@ -44,18 +104,20 @@ exports.main = async (event, context) => {
 async function getSummary(openid) {
   const transactionsCollection = db.collection(COLLECTIONS.TRANSACTIONS);
   const totalsPromise = resolveEffectiveTotals(transactionsCollection, openid);
-  const [memberDoc, transactionsSnapshot, totals] = await Promise.all([
+  const [memberDoc, transactionsSnapshot, totals, extrasDoc] = await Promise.all([
     db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null),
     transactionsCollection
       .where({ memberId: openid })
       .orderBy('createdAt', 'desc')
       .limit(20)
       .get(),
-    totalsPromise
+    totalsPromise,
+    db.collection(COLLECTIONS.MEMBER_EXTRAS).doc(openid).get().catch(() => null)
   ]);
 
   const member = memberDoc && memberDoc.data ? memberDoc.data : { cashBalance: 0 };
   const transactions = transactionsSnapshot.data || [];
+  const extras = extrasDoc && extrasDoc.data ? extrasDoc.data : {};
   const resolvedCashBalance = resolveCashBalance(member);
   const storedRecharge = resolveAmountNumber(member.totalRecharge);
   const storedSpend = resolveAmountNumber(member.totalSpend);
@@ -72,11 +134,16 @@ async function getSummary(openid) {
 
   await persistMemberTotalsIfNeeded(openid, member, normalizedTotals);
 
+  const wineStorageEntries = normalizeWineStorageEntries(extras.wineStorage);
+  const wineStorageTotal = calculateWineStorageTotal(wineStorageEntries);
+
   return {
     cashBalance: resolvedCashBalance,
     balance: resolvedCashBalance,
     totalRecharge: normalizedTotals.totalRecharge,
     totalSpend: normalizedTotals.totalSpend,
+    wineStorage: wineStorageEntries.map((entry) => serializeWineStorageEntry(entry)),
+    wineStorageTotal,
     transactions: transactions.map((txn) => {
       const amount = resolveAmountNumber(txn.amount);
       const status = normalizeTransactionStatus(txn.status);

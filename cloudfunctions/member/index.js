@@ -46,12 +46,16 @@ async function resolveMemberExtras(memberId) {
     if (!Array.isArray(extras.claimedLevelRewards)) {
       extras.claimedLevelRewards = [];
     }
+    if (!Array.isArray(extras.wineStorage)) {
+      extras.wineStorage = [];
+    }
     return extras;
   }
   const now = new Date();
   const data = {
     avatarUnlocks: [],
     claimedLevelRewards: [],
+    wineStorage: [],
     createdAt: now,
     updatedAt: now
   };
@@ -75,7 +79,15 @@ async function updateMemberExtras(memberId, updates = {}) {
       if (error && /not exist/i.test(error.errMsg || '')) {
         await collection
           .doc(memberId)
-          .set({ data: { ...payload, createdAt: new Date() } })
+          .set({
+            data: {
+              ...payload,
+              createdAt: new Date(),
+              avatarUnlocks: [],
+              claimedLevelRewards: [],
+              wineStorage: []
+            }
+          })
           .catch(() => {});
       }
     });

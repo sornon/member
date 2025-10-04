@@ -11,6 +11,21 @@
   </view>
 
   <view class="card">
+    <view class="section-title">存酒概览</view>
+    <view wx:if="{{loading}}">加载中...</view>
+    <view wx:elif="{{summary}}">
+      <view class="wine-total">当前存酒 {{summary.totalWineQuantity}} 瓶</view>
+      <view wx:if="{{summary.wineStorage.length}}" class="wine-list">
+        <view class="wine-item" wx:for="{{summary.wineStorage}}" wx:key="id">
+          <view class="wine-name">{{item.name}}</view>
+          <view class="wine-meta">数量：{{item.quantity}} 瓶 · 到期：{{item.expiresAtText}}</view>
+        </view>
+      </view>
+      <view wx:else class="wine-empty">暂无存酒记录</view>
+    </view>
+  </view>
+
+  <view class="card">
     <view class="section-title">快捷充值</view>
     <view class="presets">
       <view class="preset {{amount === item ? 'active' : ''}}" wx:for="{{presets}}" wx:key="value" data-value="{{item}}" bindtap="handlePresetTap">¥{{item}}</view>

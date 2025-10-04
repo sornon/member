@@ -35,6 +35,14 @@ const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
 
 const STORAGE_UPGRADE_LIMIT_KEYS = ['upgradeLimit', 'maxUpgrades', 'limit'];
 
+const WINE_EXPIRY_PRESETS = {
+  '7d': { days: 7 },
+  '3m': { months: 3 },
+  '1y': { years: 1 }
+};
+
+const DEFAULT_WINE_EXPIRY = '3m';
+
 const ACTIONS = {
   LIST_MEMBERS: 'listMembers',
   GET_MEMBER_DETAIL: 'getMemberDetail',
@@ -56,7 +64,10 @@ const ACTIONS = {
   GRANT_EQUIPMENT: 'grantEquipment',
   REMOVE_EQUIPMENT: 'removeEquipment',
   UPDATE_EQUIPMENT_ATTRIBUTES: 'updateEquipmentAttributes',
-  GET_FINANCE_REPORT: 'getFinanceReport'
+  GET_FINANCE_REPORT: 'getFinanceReport',
+  LIST_WINE_STORAGE: 'listWineStorage',
+  ADD_WINE_STORAGE: 'addWineStorage',
+  REMOVE_WINE_STORAGE: 'removeWineStorage'
 };
 
 const ACTION_ALIASES = {
@@ -82,7 +93,10 @@ const ACTION_ALIASES = {
   removeequipment: ACTIONS.REMOVE_EQUIPMENT,
   updateequipmentattributes: ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES,
   getfinancereport: ACTIONS.GET_FINANCE_REPORT,
-  financereport: ACTIONS.GET_FINANCE_REPORT
+  financereport: ACTIONS.GET_FINANCE_REPORT,
+  listwinestorage: ACTIONS.LIST_WINE_STORAGE,
+  addwinestorage: ACTIONS.ADD_WINE_STORAGE,
+  removewinestorage: ACTIONS.REMOVE_WINE_STORAGE
 };
 
 function normalizeAction(action) {
@@ -139,7 +153,16 @@ const ACTION_HANDLERS = {
     removeEquipment(openid, event.memberId, event.itemId, event.inventoryId),
   [ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES]: (openid, event) =>
     updateEquipmentAttributes(openid, event.memberId, event.itemId, event.attributes || {}, event),
-  [ACTIONS.GET_FINANCE_REPORT]: (openid, event) => getFinanceReport(openid, event.month || event.targetMonth || '')
+  [ACTIONS.GET_FINANCE_REPORT]: (openid, event) => getFinanceReport(openid, event.month || event.targetMonth || ''),
+  [ACTIONS.LIST_WINE_STORAGE]: (openid, event) => listWineStorage(openid, event.memberId),
+  [ACTIONS.ADD_WINE_STORAGE]: (openid, event) =>
+    addWineStorage(openid, event.memberId, {
+      name: event.name,
+      quantity: event.quantity,
+      expiryOption: event.expiryOption || event.expireOption || event.expiry || ''
+    }),
+  [ACTIONS.REMOVE_WINE_STORAGE]: (openid, event) =>
+    removeWineStorage(openid, event.memberId, event.entryId || event.storageId || '')
 };
 
 async function resolveMemberExtras(memberId) {
@@ -159,12 +182,16 @@ async function resolveMemberExtras(memberId) {
     if (!Array.isArray(extras.claimedLevelRewards)) {
       extras.claimedLevelRewards = [];
     }
+    if (!Array.isArray(extras.wineStorage)) {
+      extras.wineStorage = [];
+    }
     return extras;
   }
   const now = new Date();
   const data = {
     avatarUnlocks: [],
     claimedLevelRewards: [],
+    wineStorage: [],
     createdAt: now,
     updatedAt: now
   };
@@ -188,7 +215,14 @@ async function updateMemberExtras(memberId, updates = {}) {
       if (error && /not exist/i.test(error.errMsg || '')) {
         await collection
           .doc(memberId)
-          .set({ data: { ...payload, avatarUnlocks: [], createdAt: new Date() } })
+          .set({
+            data: {
+              ...payload,
+              avatarUnlocks: [],
+              wineStorage: [],
+              createdAt: new Date()
+            }
+          })
           .catch(() => {});
       }
     });
@@ -208,6 +242,121 @@ function arraysEqual(a, b) {
     }
   }
   return true;
+}
+
+function generateWineStorageId() {
+  return `wine_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function sortWineStorageEntries(entries = []) {
+  return entries
+    .slice()
+    .sort((a, b) => {
+      const aExpiry = a && a.expiresAt instanceof Date && !Number.isNaN(a.expiresAt.getTime())
+        ? a.expiresAt.getTime()
+        : Number.POSITIVE_INFINITY;
+      const bExpiry = b && b.expiresAt instanceof Date && !Number.isNaN(b.expiresAt.getTime())
+        ? b.expiresAt.getTime()
+        : Number.POSITIVE_INFINITY;
+      if (aExpiry !== bExpiry) {
+        return aExpiry - bExpiry;
+      }
+      const aCreated = a && a.createdAt instanceof Date && !Number.isNaN(a.createdAt.getTime())
+        ? a.createdAt.getTime()
+        : 0;
+      const bCreated = b && b.createdAt instanceof Date && !Number.isNaN(b.createdAt.getTime())
+        ? b.createdAt.getTime()
+        : 0;
+      return aCreated - bCreated;
+    });
+}
+
+function normalizeWineStorageEntries(list = []) {
+  const normalized = [];
+  (Array.isArray(list) ? list : []).forEach((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return;
+    }
+    const name = typeof entry.name === 'string' ? entry.name.trim() : '';
+    if (!name) {
+      return;
+    }
+    const rawQuantity = Number(entry.quantity || 0);
+    const quantity = Number.isFinite(rawQuantity) ? Math.max(0, Math.floor(rawQuantity)) : 0;
+    const id = typeof entry.id === 'string' && entry.id.trim() ? entry.id.trim() : '';
+    const createdAtCandidate = entry.createdAt ? new Date(entry.createdAt) : null;
+    const expiresAtCandidate = entry.expiresAt ? new Date(entry.expiresAt) : null;
+    const createdAt =
+      createdAtCandidate && !Number.isNaN(createdAtCandidate.getTime())
+        ? createdAtCandidate
+        : new Date();
+    const expiresAt =
+      expiresAtCandidate && !Number.isNaN(expiresAtCandidate.getTime()) ? expiresAtCandidate : null;
+    normalized.push({
+      id: id || generateWineStorageId(),
+      name,
+      quantity,
+      createdAt,
+      expiresAt
+    });
+  });
+  return sortWineStorageEntries(normalized);
+}
+
+function serializeWineStorageEntry(entry) {
+  if (!entry) {
+    return { id: '', name: '', quantity: 0, expiresAt: '', createdAt: '' };
+  }
+  return {
+    id: entry.id || '',
+    name: entry.name || '',
+    quantity: Number.isFinite(entry.quantity) ? entry.quantity : 0,
+    expiresAt:
+      entry.expiresAt instanceof Date && !Number.isNaN(entry.expiresAt.getTime())
+        ? entry.expiresAt.toISOString()
+        : '',
+    createdAt:
+      entry.createdAt instanceof Date && !Number.isNaN(entry.createdAt.getTime())
+        ? entry.createdAt.toISOString()
+        : ''
+  };
+}
+
+function prepareWineStorageForSave(entries = []) {
+  return entries.map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    quantity: Number.isFinite(entry.quantity) ? entry.quantity : 0,
+    expiresAt:
+      entry.expiresAt instanceof Date && !Number.isNaN(entry.expiresAt.getTime()) ? entry.expiresAt : null,
+    createdAt:
+      entry.createdAt instanceof Date && !Number.isNaN(entry.createdAt.getTime()) ? entry.createdAt : new Date()
+  }));
+}
+
+function resolveWineStorageExpiry(optionKey) {
+  const key = typeof optionKey === 'string' ? optionKey.trim().toLowerCase() : '';
+  const preset = WINE_EXPIRY_PRESETS[key] || WINE_EXPIRY_PRESETS[DEFAULT_WINE_EXPIRY];
+  const now = new Date();
+  const expiresAt = new Date(now.getTime());
+  if (preset.days) {
+    expiresAt.setDate(expiresAt.getDate() + preset.days);
+  }
+  if (preset.months) {
+    const originalDate = expiresAt.getDate();
+    expiresAt.setMonth(expiresAt.getMonth() + preset.months, originalDate);
+  }
+  if (preset.years) {
+    expiresAt.setFullYear(expiresAt.getFullYear() + preset.years);
+  }
+  return expiresAt;
+}
+
+function calculateWineStorageTotal(entries = []) {
+  return entries.reduce((sum, entry) => {
+    const qty = Number.isFinite(entry.quantity) ? entry.quantity : 0;
+    return sum + Math.max(0, qty);
+  }, 0);
 }
 
 function buildRenameTraceId(entry) {
@@ -418,6 +567,74 @@ async function updateMember(openid, memberId, updates) {
     await Promise.all(tasks);
   }
   return fetchMemberDetail(memberId, openid);
+}
+
+async function listWineStorage(openid, memberId) {
+  await ensureAdmin(openid);
+  if (!memberId) {
+    throw new Error('缺少会员编号');
+  }
+  const extras = await resolveMemberExtras(memberId);
+  const entries = normalizeWineStorageEntries(extras.wineStorage);
+  return {
+    entries: entries.map((entry) => serializeWineStorageEntry(entry)),
+    totalQuantity: calculateWineStorageTotal(entries)
+  };
+}
+
+async function addWineStorage(openid, memberId, payload = {}) {
+  await ensureAdmin(openid);
+  if (!memberId) {
+    throw new Error('缺少会员编号');
+  }
+  const name = typeof payload.name === 'string' ? payload.name.trim() : '';
+  if (!name) {
+    throw new Error('请输入存酒名称');
+  }
+  const rawQuantity = Number(payload.quantity || 0);
+  const quantity = Number.isFinite(rawQuantity) ? Math.max(1, Math.floor(rawQuantity)) : 0;
+  if (!quantity) {
+    throw new Error('请输入有效的存酒数量');
+  }
+  const extras = await resolveMemberExtras(memberId);
+  const entries = normalizeWineStorageEntries(extras.wineStorage);
+  const entry = {
+    id: generateWineStorageId(),
+    name,
+    quantity,
+    createdAt: new Date(),
+    expiresAt: resolveWineStorageExpiry(payload.expiryOption)
+  };
+  const updatedEntries = sortWineStorageEntries([...entries, entry]);
+  await updateMemberExtras(memberId, { wineStorage: prepareWineStorageForSave(updatedEntries) });
+  return {
+    entry: serializeWineStorageEntry(entry),
+    entries: updatedEntries.map((item) => serializeWineStorageEntry(item)),
+    totalQuantity: calculateWineStorageTotal(updatedEntries)
+  };
+}
+
+async function removeWineStorage(openid, memberId, entryId) {
+  await ensureAdmin(openid);
+  if (!memberId) {
+    throw new Error('缺少会员编号');
+  }
+  const targetId = typeof entryId === 'string' ? entryId.trim() : '';
+  if (!targetId) {
+    throw new Error('缺少存酒编号');
+  }
+  const extras = await resolveMemberExtras(memberId);
+  const entries = normalizeWineStorageEntries(extras.wineStorage);
+  const filtered = entries.filter((entry) => entry.id !== targetId);
+  if (filtered.length === entries.length) {
+    throw new Error('存酒记录不存在');
+  }
+  await updateMemberExtras(memberId, { wineStorage: prepareWineStorageForSave(filtered) });
+  return {
+    removedId: targetId,
+    entries: filtered.map((entry) => serializeWineStorageEntry(entry)),
+    totalQuantity: calculateWineStorageTotal(filtered)
+  };
 }
 
 async function deleteMember(openid, memberId) {

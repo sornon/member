@@ -1,0 +1,114 @@
+<custom-nav title="存酒管理" theme="dark"></custom-nav>
+<view class="wine-storage-page">
+  <view class="section-card">
+    <view class="section-title">会员搜索</view>
+    <view class="search-bar">
+      <input
+        class="search-input"
+        value="{{keyword}}"
+        placeholder="请输入昵称 / 手机 / ID"
+        confirm-type="search"
+        bindinput="handleKeywordInput"
+        bindconfirm="handleSearch"
+      />
+      <button class="search-button" bindtap="handleSearch">搜索</button>
+    </view>
+    <view class="search-hint">点击列表中的会员以管理存酒记录</view>
+    <view wx:if="{{loadingMembers}}" class="loading">正在加载会员...</view>
+    <view wx:elif="{{!members.length}}" class="empty">请输入关键词搜索会员</view>
+    <view wx:else class="member-list">
+      <view
+        wx:for="{{members}}"
+        wx:key="_id"
+        class="member-item {{selectedMemberId === item._id ? 'member-item--active' : ''}}"
+        data-id="{{item._id}}"
+        bindtap="handleSelectMember"
+      >
+        <view class="member-name">{{item.nickName || '未命名会员'}}</view>
+        <view class="member-meta">ID：{{item._id}}<text wx:if="{{item.mobile}}"> · 手机：{{item.mobile}}</text></view>
+        <view class="member-extra">余额：¥{{item.cashBalanceYuan}} · 灵石：{{item.stoneBalanceLabel}}</view>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{selectedMember}}" class="content-blocks">
+    <view class="section-card">
+      <view class="section-header">
+        <view class="section-title">已选会员</view>
+        <button class="ghost-button" size="mini" bindtap="handleResetSelection">更换会员</button>
+      </view>
+      <view class="selected-member">
+        <view class="selected-name">{{selectedMember.nickName || '未命名会员'}}</view>
+        <view class="selected-meta">ID：{{selectedMember._id}}</view>
+        <view class="selected-meta" wx:if="{{selectedMember.mobile}}">手机：{{selectedMember.mobile}}</view>
+      </view>
+    </view>
+
+    <view class="section-card">
+      <view class="section-title">新增存酒</view>
+      <view class="form-grid">
+        <view class="form-item">
+          <view class="form-label">存酒名称</view>
+          <input
+            class="form-input"
+            placeholder="请输入存酒名称"
+            value="{{form.name}}"
+            bindinput="handleNameInput"
+          />
+        </view>
+        <view class="form-item">
+          <view class="form-label">数量（瓶）</view>
+          <input
+            class="form-input"
+            type="number"
+            placeholder="请输入数量"
+            value="{{form.quantity}}"
+            bindinput="handleQuantityInput"
+          />
+        </view>
+        <view class="form-item">
+          <view class="form-label">过期时间</view>
+          <radio-group class="expiry-group" bindchange="handleExpiryChange">
+            <label wx:for="{{expiryOptions}}" wx:key="value" class="expiry-option">
+              <radio value="{{item.value}}" checked="{{form.expiryOption === item.value}}" />
+              <text class="expiry-label">{{item.label}}</text>
+            </label>
+          </radio-group>
+        </view>
+      </view>
+      <button
+        class="primary-button"
+        type="primary"
+        loading="{{submitting}}"
+        disabled="{{submitting}}"
+        bindtap="handleAddStorage"
+      >添加存酒</button>
+    </view>
+
+    <view class="section-card">
+      <view class="section-header">
+        <view class="section-title">存酒记录</view>
+        <view class="storage-total">当前共 {{storageTotal}} 瓶</view>
+      </view>
+      <view wx:if="{{storageLoading}}" class="loading">加载存酒数据...</view>
+      <view wx:elif="{{!storageEntries.length}}" class="empty">暂未添加存酒记录</view>
+      <view wx:else class="storage-list">
+        <view wx:for="{{storageEntries}}" wx:key="id" class="storage-item">
+          <view class="storage-info">
+            <view class="storage-name">{{item.name}}</view>
+            <view class="storage-meta">数量：{{item.quantity}} 瓶 · 到期：{{item.expiresAtText}}</view>
+          </view>
+          <button
+            class="remove-button"
+            size="mini"
+            type="warn"
+            data-id="{{item.id}}"
+            loading="{{removingId === item.id}}"
+            disabled="{{removingId && removingId !== item.id}}"
+            bindtap="handleRemoveEntry"
+          >删除</button>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
