@@ -126,7 +126,7 @@
         <block wx:for="{{order.groupedItems}}" wx:key="section" wx:for-item="group">
           <view class="order-group">
             <view class="order-group-title">{{group.title}}</view>
-            <view class="order-line" wx:for="{{group.items}}" wx:key="{{index}}" wx:for-item="orderLine">
+            <view class="order-line" wx:for="{{group.items}}" wx:key="index" wx:for-item="orderLine">
               <view class="line-main">
                 <text class="line-title">{{orderLine.title}}</text>
                 <view class="line-meta">
