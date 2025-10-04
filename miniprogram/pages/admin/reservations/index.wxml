@@ -23,7 +23,7 @@
     </view>
     <view class="item-time">{{item.date}} {{item.startTime}} - {{item.endTime}}</view>
     <view class="item-member">
-      申请人：{{item.memberName || item.memberId}}
+      申请人：{{item.memberDisplayName || item.memberId}}
       <text wx:if="{{item.memberMobile}}"> · {{item.memberMobile}}</text>
     </view>
     <view class="item-meta" wx:if="{{item.usageCredits}}">占用使用次数：{{item.usageCredits}}</view>

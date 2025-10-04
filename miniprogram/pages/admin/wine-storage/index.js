@@ -1,5 +1,5 @@
 import { AdminService } from '../../../services/api';
-import { formatDate } from '../../../utils/format';
+import { formatDate, formatMemberDisplayName } from '../../../utils/format';
 
 const EXPIRY_OPTIONS = [
   { value: '7d', label: '7天' },
@@ -92,7 +92,12 @@ Page({
     this.setData({ loadingMembers: true });
     try {
       const result = await AdminService.listMembers({ keyword, page: 1, pageSize: 20 });
-      const members = Array.isArray(result.members) ? result.members : [];
+      const members = Array.isArray(result.members)
+        ? result.members.map((member) => ({
+            ...member,
+            displayName: formatMemberDisplayName(member.nickName, member.realName, '未命名会员')
+          }))
+        : [];
       this.setData({ members, loadingMembers: false });
     } catch (error) {
       console.error('[wine-storage] load members failed', error);

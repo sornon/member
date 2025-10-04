@@ -1,4 +1,5 @@
 import { AdminService } from '../../../services/api';
+import { formatMemberDisplayName } from '../../../utils/format';
 
 const STATUS_OPTIONS = [
   { value: 'pendingApproval', label: '待审核' },
@@ -95,9 +96,15 @@ Page({
     if (!item || typeof item !== 'object') {
       return item;
     }
+    const memberDisplayName = formatMemberDisplayName(
+      item.memberName,
+      item.memberRealName,
+      item.memberName || item.memberId || ''
+    );
     return {
       ...item,
-      canCancel: CANCELABLE_STATUSES.includes(item.status)
+      canCancel: CANCELABLE_STATUSES.includes(item.status),
+      memberDisplayName
     };
   },
 

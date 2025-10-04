@@ -247,6 +247,7 @@ Page({
     avatarOptionGroups: buildAvatarOptionGroups([]),
     form: {
       nickName: '',
+      realName: '',
       mobile: '',
       experience: '',
       cashBalance: '',
@@ -407,6 +408,7 @@ Page({
       loading: false,
       form: {
         nickName: member.nickName || '',
+        realName: member.realName || '',
         mobile: member.mobile || '',
         experience: String(member.experience ?? 0),
         cashBalance: this.formatYuan(member.cashBalance ?? member.balance ?? 0),
@@ -735,6 +737,7 @@ Page({
     try {
       const payload = {
         nickName: (this.data.form.nickName || '').trim(),
+        realName: (this.data.form.realName || '').trim(),
         mobile: (this.data.form.mobile || '').trim(),
         experience: Number(this.data.form.experience || 0),
         cashBalance: this.parseYuanToFen(this.data.form.cashBalance),

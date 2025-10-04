@@ -1489,6 +1489,7 @@ function decorateMemberRecord(member, levelMap) {
   return {
     _id: member._id,
     nickName: member.nickName || '',
+    realName: typeof member.realName === 'string' ? member.realName : '',
     avatarUrl: member.avatarUrl || '',
     mobile: member.mobile || '',
     balance: cashBalance,
@@ -1520,6 +1521,7 @@ function decorateReservationRecord(reservation, member, room) {
     _id: reservation._id,
     memberId: reservation.memberId || '',
     memberName: member ? member.nickName || member.name || '' : '',
+    memberRealName: member ? member.realName || '' : '',
     memberMobile: member ? member.mobile || '' : '',
     roomId: reservation.roomId || '',
     roomName: room ? room.name || '' : '',
@@ -1977,6 +1979,9 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
 
   if (Object.prototype.hasOwnProperty.call(updates, 'mobile')) {
     memberUpdates.mobile = updates.mobile || '';
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'realName')) {
+    memberUpdates.realName = typeof updates.realName === 'string' ? updates.realName.trim() : '';
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'levelId')) {
     memberUpdates.levelId = updates.levelId || '';
@@ -2441,6 +2446,7 @@ function decorateChargeOrderRecord(order, member) {
     statusLabel: describeChargeOrderStatus(order.status),
     memberId: order.memberId || '',
     memberName: member ? member.nickName || '' : '',
+    memberRealName: member ? member.realName || '' : '',
     memberMobile: member ? member.mobile || '' : '',
     originalTotalAmount: originalAmount,
     originalTotalAmountLabel: originalAmount ? `¥${formatFenToYuan(originalAmount)}` : '',
@@ -2467,12 +2473,14 @@ function buildMemberSnapshot(member) {
   if (!member || typeof member !== 'object') {
     return {
       nickName: '',
+      realName: '',
       mobile: '',
       levelId: ''
     };
   }
   return {
     nickName: typeof member.nickName === 'string' ? member.nickName : '',
+    realName: typeof member.realName === 'string' ? member.realName : '',
     mobile: typeof member.mobile === 'string' ? member.mobile : '',
     levelId: typeof member.levelId === 'string' ? member.levelId : ''
   };

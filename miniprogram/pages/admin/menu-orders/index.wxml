@@ -21,7 +21,7 @@
       <view class="order-id">#{{order.shortId}}</view>
       <view class="order-status">{{order.statusLabel}}</view>
     </view>
-    <view class="order-meta">会员：{{order.memberSnapshot && order.memberSnapshot.nickName ? order.memberSnapshot.nickName : '未知'}}</view>
+    <view class="order-meta">会员：{{order.memberDisplayName || '未知'}}</view>
     <view class="order-meta">提交时间：{{order.createdAtLabel}}</view>
     <view class="order-meta" wx:if="{{order.remark}}">备注：{{order.remark}}</view>
     <view class="order-meta" wx:if="{{order.adminRemark}}">管理员备注：{{order.adminRemark}}</view>
