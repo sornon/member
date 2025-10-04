@@ -695,7 +695,7 @@ export const menuData = {
   "diningCategories": [
     {
       "id": "pairing",
-      "name": "酒菜"
+      "name": "下酒菜"
     },
     {
       "id": "cold",
