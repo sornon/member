@@ -694,6 +694,26 @@ export const menuData = {
   ],
   "diningCategories": [
     {
+      "id": "bbq",
+      "name": "牛羊肉串"
+    },
+    {
+      "id": "bbq-chicken",
+      "name": "鸡肉串"
+    },
+    {
+      "id": "bbq-pig",
+      "name": "猪肉串"
+    },
+    {
+      "id": "bbq-seafood",
+      "name": "烤海鲜"
+    },
+    {
+      "id": "bbq-shucai",
+      "name": "烤蔬菜"
+    },
+    {
       "id": "pairing",
       "name": "下酒菜"
     },
@@ -704,10 +724,6 @@ export const menuData = {
     {
       "id": "staple",
       "name": "主食"
-    },
-    {
-      "id": "bbq",
-      "name": "烤串"
     }
   ],
   "diningItems": [
@@ -797,7 +813,7 @@ export const menuData = {
     },
     {
       "id": "cold-laohucai",
-      "cat": "cold",
+      "cat": "pairing",
       "title": "老虎菜",
       "desc": "",
       "variants": [
@@ -853,7 +869,7 @@ export const menuData = {
     },
     {
       "id": "cold-zhahuashengmi",
-      "cat": "cold",
+      "cat": "pairing",
       "title": "炸花生米",
       "desc": "",
       "variants": [
@@ -867,7 +883,7 @@ export const menuData = {
     },
     {
       "id": "cold-paihuanggua",
-      "cat": "cold",
+      "cat": "pairing",
       "title": "拍黄瓜",
       "desc": "",
       "variants": [
@@ -923,7 +939,7 @@ export const menuData = {
     },
     {
       "id": "cold-huamaopin",
-      "cat": "cold",
+      "cat": "pairing",
       "title": "花毛拼",
       "desc": "",
       "variants": [
@@ -1021,7 +1037,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaoshenghao",
-      "cat": "bbq",
+      "cat": "bbq-seafood",
       "title": "烤生蚝",
       "desc": "",
       "variants": [
@@ -1035,7 +1051,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaoshanbei",
-      "cat": "bbq",
+      "cat": "bbq-seafood",
       "title": "烤扇贝",
       "desc": "",
       "variants": [
@@ -1049,7 +1065,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaodayouyu",
-      "cat": "bbq",
+      "cat": "bbq-seafood",
       "title": "烤大鱿鱼",
       "desc": "",
       "variants": [
@@ -1063,7 +1079,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaoxiaohuangyu",
-      "cat": "bbq",
+      "cat": "bbq-seafood",
       "title": "烤小黄鱼（3条）",
       "desc": "",
       "variants": [
@@ -1077,7 +1093,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaojizhua",
-      "cat": "bbq",
+      "cat": "bbq-chicken",
       "title": "烤鸡爪（3个）",
       "desc": "",
       "variants": [
@@ -1085,20 +1101,6 @@ export const menuData = {
           "label": "份",
           "unit": "/份",
           "price": 1500
-        }
-      ],
-      "img": ""
-    },
-    {
-      "id": "bbq-canyong",
-      "cat": "bbq",
-      "title": "蚕蛹",
-      "desc": "",
-      "variants": [
-        {
-          "label": "串",
-          "unit": "/串",
-          "price": 800
         }
       ],
       "img": ""
@@ -1189,7 +1191,7 @@ export const menuData = {
     },
     {
       "id": "bbq-zhucuigu",
-      "cat": "bbq",
+      "cat": "bbq-pig",
       "title": "猪脆骨（5串起）",
       "desc": "",
       "variants": [
@@ -1203,7 +1205,7 @@ export const menuData = {
     },
     {
       "id": "bbq-btljichi",
-      "cat": "bbq",
+      "cat": "bbq-chicken",
       "title": "BT辣鸡翅",
       "desc": "",
       "variants": [
@@ -1217,8 +1219,8 @@ export const menuData = {
     },
     {
       "id": "bbq-lueweijichi",
-      "cat": "bbq",
-      "title": "掠味鸡翅",
+      "cat": "bbq-chicken",
+      "title": "原味鸡翅",
       "desc": "",
       "variants": [
         {
@@ -1231,7 +1233,7 @@ export const menuData = {
     },
     {
       "id": "bbq-mizhijichi",
-      "cat": "bbq",
+      "cat": "bbq-chicken",
       "title": "蜜汁鸡翅",
       "desc": "",
       "variants": [
@@ -1245,7 +1247,7 @@ export const menuData = {
     },
     {
       "id": "bbq-malajichi",
-      "cat": "bbq",
+      "cat": "bbq-chicken",
       "title": "麻辣鸡翅",
       "desc": "",
       "variants": [
@@ -1259,7 +1261,7 @@ export const menuData = {
     },
     {
       "id": "bbq-heijiaojichi",
-      "cat": "bbq",
+      "cat": "bbq-chicken",
       "title": "黑椒鸡翅",
       "desc": "",
       "variants": [
@@ -1273,7 +1275,7 @@ export const menuData = {
     },
     {
       "id": "bbq-youdoufuchuan",
-      "cat": "bbq",
+      "cat": "bbq-seafood",
       "title": "鱼豆腐（3串起）",
       "desc": "",
       "variants": [
@@ -1287,7 +1289,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaohaixia",
-      "cat": "bbq",
+      "cat": "bbq-seafood",
       "title": "烤海虾（3串起）",
       "desc": "",
       "variants": [
@@ -1301,7 +1303,7 @@ export const menuData = {
     },
     {
       "id": "bbq-jixin",
-      "cat": "bbq",
+      "cat": "bbq-chicken",
       "title": "鸡心（5串起）",
       "desc": "",
       "variants": [
@@ -1315,7 +1317,7 @@ export const menuData = {
     },
     {
       "id": "bbq-jizhen",
-      "cat": "bbq",
+      "cat": "bbq-chicken",
       "title": "鸡胗（5串起）",
       "desc": "",
       "variants": [
@@ -1329,7 +1331,7 @@ export const menuData = {
     },
     {
       "id": "bbq-zhangzhongbao",
-      "cat": "bbq",
+      "cat": "bbq-chicken",
       "title": "掌中宝（5串起）",
       "desc": "",
       "variants": [
@@ -1343,7 +1345,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaoshidan",
-      "cat": "bbq",
+      "cat": "bbq-pig",
       "title": "烤实蛋",
       "desc": "",
       "variants": [
@@ -1357,7 +1359,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaohuotuichang",
-      "cat": "bbq",
+      "cat": "bbq-pig",
       "title": "烤火腿肠",
       "desc": "",
       "variants": [
@@ -1371,7 +1373,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaojirouchang",
-      "cat": "bbq",
+      "cat": "bbq-chicken",
       "title": "烤鸡肉肠",
       "desc": "",
       "variants": [
@@ -1385,7 +1387,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaocaijuan",
-      "cat": "bbq",
+      "cat": "bbq-shucai",
       "title": "烤菜卷",
       "desc": "",
       "variants": [
@@ -1399,7 +1401,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaojianjiao",
-      "cat": "bbq",
+      "cat": "bbq-shucai",
       "title": "烤尖椒",
       "desc": "",
       "variants": [
@@ -1413,7 +1415,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaodasuang",
-      "cat": "bbq",
+      "cat": "bbq-shucai",
       "title": "烤大蒜",
       "desc": "",
       "variants": [
@@ -1427,7 +1429,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaoyumi",
-      "cat": "bbq",
+      "cat": "staple",
       "title": "烤玉米",
       "desc": "",
       "variants": [
@@ -1441,7 +1443,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaomantoupian",
-      "cat": "bbq",
+      "cat": "staple",
       "title": "烤馒头片",
       "desc": "",
       "variants": [
@@ -1455,7 +1457,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaomianbaopian",
-      "cat": "bbq",
+      "cat": "staple",
       "title": "烤面包片",
       "desc": "",
       "variants": [
@@ -1469,7 +1471,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaojiucai",
-      "cat": "bbq",
+      "cat": "bbq-shucai",
       "title": "烤韭菜",
       "desc": "",
       "variants": [
@@ -1483,7 +1485,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaotudoupian",
-      "cat": "bbq",
+      "cat": "bbq-shucai",
       "title": "烤土豆片",
       "desc": "",
       "variants": [
@@ -1497,7 +1499,7 @@ export const menuData = {
     },
     {
       "id": "bbq-kaoqiezi",
-      "cat": "bbq",
+      "cat": "bbq-shucai",
       "title": "烤茄子",
       "desc": "",
       "variants": [
@@ -1505,6 +1507,20 @@ export const menuData = {
           "label": "份",
           "unit": "/份",
           "price": 1800
+        }
+      ],
+      "img": ""
+    },
+    {
+      "id": "bbq-canyong",
+      "cat": "bbq-pig",
+      "title": "蚕蛹",
+      "desc": "",
+      "variants": [
+        {
+          "label": "串",
+          "unit": "/串",
+          "price": 800
         }
       ],
       "img": ""
