@@ -1,5 +1,5 @@
 import { AdminMenuOrderService } from '../../../services/api';
-import { formatCurrency } from '../../../utils/format';
+import { formatCurrency, formatMemberDisplayName } from '../../../utils/format';
 
 const STATUS_TABS = [
   { id: 'submitted', label: '待备餐' },
@@ -103,6 +103,20 @@ function decorateOrder(order) {
     cancelledByLabel = '会员';
   }
   const canCancel = order.status === 'submitted' || order.status === 'pendingMember';
+  const memberSnapshot = order.memberSnapshot || {};
+  const memberDisplayName = formatMemberDisplayName(
+    typeof memberSnapshot.nickName === 'string' && memberSnapshot.nickName
+      ? memberSnapshot.nickName
+      : typeof order.memberName === 'string'
+      ? order.memberName
+      : '',
+    typeof memberSnapshot.realName === 'string' && memberSnapshot.realName
+      ? memberSnapshot.realName
+      : typeof order.memberRealName === 'string'
+      ? order.memberRealName
+      : '',
+    ''
+  );
   return {
     ...order,
     _id: id,
@@ -120,6 +134,7 @@ function decorateOrder(order) {
     memberConfirmedAtLabel: formatDateTime(order.memberConfirmedAt),
     cancelledAtLabel,
     cancelledByLabel,
+    memberDisplayName,
     adminRemark,
     cancelRemark,
     shortId,

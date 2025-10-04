@@ -1,5 +1,5 @@
 import { AdminService } from '../../../services/api';
-import { formatCurrency } from '../../../utils/format';
+import { formatCurrency, formatMemberDisplayName } from '../../../utils/format';
 
 function formatDateTime(value) {
   if (!value) return '';
@@ -113,6 +113,11 @@ function decorateOrder(order) {
       })
     : [];
   const stoneRewardLabel = `${Math.max(0, Math.floor(stoneReward))} 枚`;
+  const memberDisplayName = formatMemberDisplayName(
+    typeof order.memberName === 'string' ? order.memberName : '',
+    typeof order.memberRealName === 'string' ? order.memberRealName : '',
+    typeof order.memberName === 'string' && order.memberName ? order.memberName : ''
+  );
   return {
     ...order,
     items,
@@ -128,7 +133,8 @@ function decorateOrder(order) {
     statusLabel: order.statusLabel || describeStatus(order.status),
     createdAtLabel: order.createdAtLabel || formatDateTime(order.createdAt),
     updatedAtLabel: order.updatedAtLabel || formatDateTime(order.updatedAt),
-    confirmedAtLabel: order.confirmedAtLabel || formatDateTime(order.confirmedAt)
+    confirmedAtLabel: order.confirmedAtLabel || formatDateTime(order.confirmedAt),
+    memberDisplayName
   };
 }
 
@@ -226,6 +232,12 @@ Page({
       const memberInfo = {
         _id: targetOrder.memberId,
         nickName: targetOrder.memberName || memberSnapshot.nickName || '',
+        realName: targetOrder.memberRealName || memberSnapshot.realName || '',
+        displayName: formatMemberDisplayName(
+          targetOrder.memberName || memberSnapshot.nickName || '',
+          targetOrder.memberRealName || memberSnapshot.realName || '',
+          targetOrder.memberName || memberSnapshot.nickName || ''
+        ),
         mobile: targetOrder.memberMobile || memberSnapshot.mobile || '',
         levelName: targetOrder.memberLevelName || '',
         balanceLabel: targetOrder.memberBalanceLabel || ''
@@ -418,6 +430,8 @@ Page({
         ? response.members.map((member) => ({
             _id: member._id,
             nickName: member.nickName || '',
+            realName: member.realName || '',
+            displayName: formatMemberDisplayName(member.nickName, member.realName, '未命名'),
             mobile: member.mobile || '',
             levelName: member.levelName || '',
             balanceLabel: formatCurrency(member.cashBalance)

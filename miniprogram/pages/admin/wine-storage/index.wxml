@@ -24,7 +24,7 @@
         data-id="{{item._id}}"
         bindtap="handleSelectMember"
       >
-        <view class="member-name">{{item.nickName || '未命名会员'}}</view>
+        <view class="member-name">{{item.displayName || '未命名会员'}}</view>
         <view class="member-meta">ID：{{item._id}}<text wx:if="{{item.mobile}}"> · 手机：{{item.mobile}}</text></view>
         <view class="member-extra">余额：¥{{item.cashBalanceYuan}} · 灵石：{{item.stoneBalanceLabel}}</view>
       </view>
@@ -38,7 +38,7 @@
         <button class="ghost-button" size="mini" bindtap="handleResetSelection">更换会员</button>
       </view>
       <view class="selected-member">
-        <view class="selected-name">{{selectedMember.nickName || '未命名会员'}}</view>
+        <view class="selected-name">{{selectedMember.displayName || '未命名会员'}}</view>
         <view class="selected-meta">ID：{{selectedMember._id}}</view>
         <view class="selected-meta" wx:if="{{selectedMember.mobile}}">手机：{{selectedMember.mobile}}</view>
       </view>

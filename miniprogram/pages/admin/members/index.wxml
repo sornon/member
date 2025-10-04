@@ -25,7 +25,7 @@
     >
       <image class="member-avatar" src="{{item.avatarUrl || defaultAvatar}}" mode="aspectFill"></image>
       <view class="member-info">
-        <view class="member-name">{{item.nickName || '未命名会员'}}</view>
+        <view class="member-name">{{item.displayName || '未命名会员'}}</view>
         <view class="member-meta">
           <text>ID：{{item._id}}</text>
           <text wx:if="{{item.mobile}}"> · 手机：{{item.mobile}}</text>

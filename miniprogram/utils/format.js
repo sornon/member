@@ -92,3 +92,18 @@ export const levelBadgeColor = (order = 1) => {
   const index = Math.max((order || 1) - 1, 0) % colors.length;
   return colors[index];
 };
+
+export const formatMemberDisplayName = (nickName, realName, fallback = '') => {
+  const primary = typeof nickName === 'string' ? nickName.trim() : '';
+  const secondary = typeof realName === 'string' ? realName.trim() : '';
+  if (primary && secondary) {
+    return `${primary}（${secondary}）`;
+  }
+  if (primary) {
+    return primary;
+  }
+  if (secondary) {
+    return secondary;
+  }
+  return fallback;
+};

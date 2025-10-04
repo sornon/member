@@ -1,4 +1,5 @@
 import { AdminService } from '../../../services/api';
+import { formatMemberDisplayName } from '../../../utils/format';
 
 const PAGE_SIZE = 20;
 const DEFAULT_AVATAR =
@@ -58,7 +59,10 @@ Page({
         page: nextPage,
         pageSize: this.data.pageSize
       });
-      const incoming = response.members || [];
+      const incoming = (response.members || []).map((member) => ({
+        ...member,
+        displayName: formatMemberDisplayName(member.nickName, member.realName, '未命名会员')
+      }));
       const merged = reset ? incoming : [...this.data.members, ...incoming];
       const total = response.total || merged.length;
       const finished = merged.length >= total || incoming.length < this.data.pageSize;

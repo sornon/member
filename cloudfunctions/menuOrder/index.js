@@ -812,12 +812,14 @@ function buildMemberSnapshot(raw) {
   if (!raw || typeof raw !== 'object') {
     return {
       nickName: '',
+      realName: '',
       mobile: '',
       levelId: ''
     };
   }
   return {
     nickName: typeof raw.nickName === 'string' ? raw.nickName : '',
+    realName: typeof raw.realName === 'string' ? raw.realName : '',
     mobile: typeof raw.mobile === 'string' ? raw.mobile : '',
     levelId: typeof raw.levelId === 'string' ? raw.levelId : ''
   };
