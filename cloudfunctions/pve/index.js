@@ -2,7 +2,7 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
-const { COLLECTIONS } = require('common-config');
+const { COLLECTIONS, realmConfigs, subLevelLabels } = require('common-config');
 const {
   DEFAULT_COMBAT_STATS,
   clamp,
@@ -56,6 +56,353 @@ const ENEMY_COMBAT_DEFAULTS = {
   critRate: 0.05,
   critDamage: 1.5
 };
+
+const SECRET_REALM_BASE_STATS = {
+  maxHp: 920,
+  physicalAttack: 120,
+  magicAttack: 120,
+  physicalDefense: 68,
+  magicDefense: 65,
+  speed: 82,
+  accuracy: 118,
+  dodge: 88,
+  critRate: 0.06,
+  critDamage: 1.52,
+  finalDamageBonus: 0.025,
+  finalDamageReduction: 0.035,
+  lifeSteal: 0.015,
+  controlHit: 26,
+  controlResist: 18,
+  physicalPenetration: 9,
+  magicPenetration: 9
+};
+
+const SECRET_REALM_TUNING = {
+  baseMultiplier: 1,
+  floorGrowth: 0.08,
+  realmGrowth: 0.34,
+  normal: {
+    base: 1,
+    primary: 1.35,
+    secondary: 1.15,
+    off: 0.98,
+    weak: 0.85
+  },
+  boss: {
+    base: 1.22,
+    primary: 1.68,
+    secondary: 1.34,
+    tertiary: 1.15,
+    off: 1,
+    weak: 0.88
+  },
+  special: {
+    base: 1,
+    growth: 0.07,
+    boss: 1.5
+  },
+  limits: {
+    critRate: 0.45,
+    critDamage: 2.15,
+    finalDamageBonus: 0.4,
+    finalDamageReduction: 0.55,
+    lifeSteal: 0.18,
+    accuracy: 520,
+    dodge: 420
+  }
+};
+
+const SECRET_REALM_ARCHETYPES = [
+  {
+    key: 'vitality_guardian',
+    title: '灵木护卫',
+    description: '借灵木之躯抵挡伤害，考验修士的持续输出。',
+    primary: 'maxHp',
+    secondary: ['physicalDefense', 'lifeSteal'],
+    weak: ['speed'],
+    damageType: 'physical',
+    special: { shield: 48, bonusDamage: 12 }
+  },
+  {
+    key: 'stone_monk',
+    title: '破岩武僧',
+    description: '以巨力碾碎护体真气，近战压迫极强。',
+    primary: 'physicalAttack',
+    secondary: ['physicalPenetration', 'finalDamageBonus'],
+    weak: ['magicDefense'],
+    damageType: 'physical',
+    special: { bonusDamage: 32 }
+  },
+  {
+    key: 'frost_magus',
+    title: '凝霜术士',
+    description: '汇聚寒霜之力，远程术法尖锐。',
+    primary: 'magicAttack',
+    secondary: ['magicPenetration', 'controlHit'],
+    weak: ['physicalDefense'],
+    damageType: 'magic',
+    special: { bonusDamage: 28 }
+  },
+  {
+    key: 'golden_defender',
+    title: '金甲守军',
+    description: '金甲不坏，重甲推进迫使修士寻找破绽。',
+    primary: 'physicalDefense',
+    secondary: ['maxHp', 'finalDamageReduction'],
+    weak: ['dodge'],
+    damageType: 'physical',
+    special: { shield: 60 }
+  },
+  {
+    key: 'spirit_warden',
+    title: '灵盾护法',
+    description: '灵盾庇护术法，擅长抵御元素冲击。',
+    primary: 'magicDefense',
+    secondary: ['controlResist', 'finalDamageReduction'],
+    weak: ['physicalAttack'],
+    damageType: 'magic',
+    special: { shield: 72 }
+  },
+  {
+    key: 'shadow_runner',
+    title: '疾影游侠',
+    description: '身法如电，抢占先机发动连击。',
+    primary: 'speed',
+    secondary: ['dodge'],
+    weak: ['maxHp'],
+    damageType: 'physical',
+    special: { bonusDamage: 24, dodgeChance: 0.06 }
+  },
+  {
+    key: 'sky_sharpshooter',
+    title: '天眼射手',
+    description: '洞察弱点百步穿杨，命中与暴击惊人。',
+    primary: 'accuracy',
+    secondary: ['critRate', 'critDamage'],
+    weak: ['physicalDefense'],
+    damageType: 'physical',
+    special: { bonusDamage: 30 }
+  },
+  {
+    key: 'phantom_trickster',
+    title: '迷踪幻徒',
+    description: '游走于虚实之间，靠高闪避消耗对手。',
+    primary: 'dodge',
+    secondary: ['speed', 'lifeSteal'],
+    weak: ['physicalDefense'],
+    damageType: 'magic',
+    special: { dodgeChance: 0.1 }
+  },
+  {
+    key: 'mind_binder',
+    title: '心魄缚者',
+    description: '以神识压制修士，控制命中惊人。',
+    primary: 'controlHit',
+    secondary: ['magicAttack', 'controlResist'],
+    weak: ['speed'],
+    damageType: 'magic',
+    special: { bonusDamage: 26 }
+  }
+];
+
+const SECRET_REALM_BOSS_ARCHETYPE = {
+  key: 'realm_overseer',
+  title: '镇境首领',
+  description: '统御本境的强者，同时兼具爆发、守御与先手能力。',
+  primary: ['maxHp', 'physicalAttack', 'magicAttack'],
+  secondary: ['physicalDefense', 'magicDefense'],
+  tertiary: ['speed'],
+  damageType: 'hybrid',
+  special: { shield: 140, bonusDamage: 60, dodgeChance: 0.08 }
+};
+
+function buildSecretRealmLibrary() {
+  if (!Array.isArray(realmConfigs) || !realmConfigs.length) {
+    return [];
+  }
+  const perRealm = Array.isArray(subLevelLabels) && subLevelLabels.length ? subLevelLabels.length : 10;
+  const labels = Array.isArray(subLevelLabels) && subLevelLabels.length ? subLevelLabels : new Array(perRealm).fill('一层').map((_, idx) => `${idx + 1}`);
+  const floors = [];
+
+  realmConfigs.forEach((realm, realmIndex) => {
+    labels.forEach((label, subIndex) => {
+      const type = subIndex === labels.length - 1 ? 'boss' : 'normal';
+      const archetype =
+        type === 'boss'
+          ? SECRET_REALM_BOSS_ARCHETYPE
+          : SECRET_REALM_ARCHETYPES[subIndex % SECRET_REALM_ARCHETYPES.length];
+      floors.push(
+        createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, archetype, perRealm })
+      );
+    });
+  });
+
+  return floors;
+}
+
+function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, archetype, perRealm }) {
+  const floorNumber = realmIndex * perRealm + subIndex + 1;
+  const floorCode = subIndex + 1;
+  const stageName = `${realm.name} · ${label}`;
+  const scaling = resolveSecretRealmScaling({ realmIndex, subIndex, perRealm, type });
+  const stats = generateSecretRealmStats(archetype, scaling, type);
+  const special = generateSecretRealmSpecial(archetype, scaling, type);
+  const rewards = resolveSecretRealmRewards({ floorNumber, type, scaling });
+  const normalizedRealmId = realm.id || realm.realmId || `realm_${realmIndex + 1}`;
+  const id = `secret_${normalizedRealmId}_${String(floorCode).padStart(2, '0')}`;
+  const description = `${archetype.description}（${stageName}）`;
+
+  return {
+    id,
+    category: 'secretRealm',
+    archetype: archetype.key,
+    type,
+    floor: floorNumber,
+    floorLabel: `第${floorNumber}层`,
+    stageName,
+    stageLabel: label,
+    realmId: normalizedRealmId,
+    realmName: realm.name,
+    realmShort: realm.shortName,
+    realmOrder: realmIndex + 1,
+    level: floorNumber,
+    name: `${stageName} · ${archetype.title}`,
+    description,
+    stats,
+    special,
+    rewards,
+    loot: [],
+    meta: {
+      scaling,
+      suggestedRewards: rewards && rewards._model ? rewards._model : null
+    }
+  };
+}
+
+function resolveSecretRealmScaling({ realmIndex, subIndex, perRealm, type }) {
+  const floorIndex = realmIndex * perRealm + subIndex;
+  const floorMultiplier = Math.pow(1 + SECRET_REALM_TUNING.floorGrowth, floorIndex);
+  const realmMultiplier = Math.pow(1 + SECRET_REALM_TUNING.realmGrowth, realmIndex);
+  const typeBase = type === 'boss' ? SECRET_REALM_TUNING.boss.base : SECRET_REALM_TUNING.normal.base;
+  const stat = SECRET_REALM_TUNING.baseMultiplier * floorMultiplier * realmMultiplier * typeBase;
+  const special =
+    SECRET_REALM_TUNING.special.base *
+    Math.pow(1 + SECRET_REALM_TUNING.special.growth, floorIndex) *
+    realmMultiplier *
+    (type === 'boss' ? SECRET_REALM_TUNING.special.boss : 1);
+  return { stat, special, floorIndex };
+}
+
+function generateSecretRealmStats(archetype, scaling, type) {
+  const stats = {};
+  const primary = Array.isArray(archetype.primary) ? archetype.primary : [archetype.primary];
+  const secondary = Array.isArray(archetype.secondary) ? archetype.secondary : archetype.secondary ? [archetype.secondary] : [];
+  const tertiary = Array.isArray(archetype.tertiary) ? archetype.tertiary : archetype.tertiary ? [archetype.tertiary] : [];
+  const weak = Array.isArray(archetype.weak) ? archetype.weak : archetype.weak ? [archetype.weak] : [];
+  const tuning = type === 'boss' ? SECRET_REALM_TUNING.boss : SECRET_REALM_TUNING.normal;
+
+  Object.keys(SECRET_REALM_BASE_STATS).forEach((key) => {
+    const baseValue = SECRET_REALM_BASE_STATS[key];
+    let value = baseValue * scaling.stat;
+    if (primary.includes(key)) {
+      value *= tuning.primary;
+    } else if (secondary.includes(key)) {
+      value *= tuning.secondary;
+    } else if (tertiary.includes(key) && type === 'boss') {
+      value *= SECRET_REALM_TUNING.boss.tertiary;
+    } else if (weak.includes(key)) {
+      value *= tuning.weak;
+    } else {
+      value *= tuning.off;
+    }
+
+    if (archetype.damageType === 'physical' && key === 'magicAttack') {
+      value *= 0.72;
+    }
+    if (archetype.damageType === 'physical' && key === 'magicPenetration') {
+      value *= 0.7;
+    }
+    if (archetype.damageType === 'magic' && key === 'physicalAttack') {
+      value *= 0.72;
+    }
+    if (archetype.damageType === 'magic' && key === 'physicalPenetration') {
+      value *= 0.7;
+    }
+    if (archetype.damageType === 'hybrid' && (key === 'physicalAttack' || key === 'magicAttack')) {
+      value *= 1.08;
+    }
+
+    if (key === 'critRate') {
+      value = Math.min(SECRET_REALM_TUNING.limits.critRate, value);
+      stats[key] = Number(value.toFixed(4));
+    } else if (key === 'critDamage') {
+      value = Math.min(SECRET_REALM_TUNING.limits.critDamage, value);
+      stats[key] = Number(value.toFixed(2));
+    } else if (key === 'finalDamageBonus' || key === 'finalDamageReduction' || key === 'lifeSteal') {
+      const limitKey = key;
+      const limit = SECRET_REALM_TUNING.limits[limitKey];
+      if (limit) {
+        value = Math.min(limit, value);
+      }
+      stats[key] = Number(value.toFixed(4));
+    } else {
+      let rounded = Math.round(value);
+      if (key === 'accuracy' && SECRET_REALM_TUNING.limits.accuracy) {
+        rounded = Math.min(SECRET_REALM_TUNING.limits.accuracy, rounded);
+      }
+      if (key === 'dodge' && SECRET_REALM_TUNING.limits.dodge) {
+        rounded = Math.min(SECRET_REALM_TUNING.limits.dodge, rounded);
+      }
+      stats[key] = Math.max(0, rounded);
+    }
+  });
+
+  if (!stats.maxHp || stats.maxHp < 1) {
+    stats.maxHp = Math.max(600, Math.round(SECRET_REALM_BASE_STATS.maxHp * scaling.stat));
+  }
+  if (!stats.accuracy || stats.accuracy < 100) {
+    stats.accuracy = 100;
+  }
+  if (!stats.dodge || stats.dodge < 60) {
+    stats.dodge = 60;
+  }
+
+  return stats;
+}
+
+function generateSecretRealmSpecial(archetype, scaling, type) {
+  const special = {};
+  const payload = archetype.special || {};
+  Object.keys(payload).forEach((key) => {
+    const base = payload[key];
+    if (typeof base !== 'number') {
+      return;
+    }
+    const value = base * scaling.special;
+    if (key === 'dodgeChance') {
+      special[key] = Math.min(0.4, Number(value.toFixed(4)));
+    } else {
+      special[key] = Math.round(value);
+    }
+  });
+
+  if (type === 'boss') {
+    special.bonusDamage = Math.max(special.bonusDamage || 0, Math.round(45 * scaling.special));
+  }
+
+  return special;
+}
+
+function resolveSecretRealmRewards({ floorNumber, type, scaling }) {
+  const baseStones = 0;
+  const attributePoints = 0;
+  const suggested = {
+    baseStones: Math.round(24 + floorNumber * 2.5),
+    typeMultiplier: type === 'boss' ? 2 : 1,
+    scaling: Number(scaling && scaling.stat ? scaling.stat.toFixed(3) : 1)
+  };
+  return { stones: baseStones, attributePoints, _model: suggested };
+}
 
 const STORAGE_BASE_CAPACITY = 100;
 const STORAGE_PER_UPGRADE = 20;
@@ -1756,139 +2103,14 @@ const CONSUMABLE_LIBRARY = [
   }
 ];
 
-const ENEMY_LIBRARY = [
-  {
-    id: 'spirit_sprout',
-    name: '灵芽傀儡',
-    level: 1,
-    description: '由木灵催生的守园傀儡，行动迟缓但防御扎实。',
-    stats: {
-      maxHp: 900,
-      physicalAttack: 110,
-      magicAttack: 60,
-      physicalDefense: 70,
-      magicDefense: 55,
-      speed: 45,
-      accuracy: 105,
-      dodge: 90,
-      critRate: 0.05,
-      critDamage: 1.4,
-      finalDamageBonus: 0,
-      finalDamageReduction: 0.05,
-      lifeSteal: 0,
-      controlHit: 20,
-      controlResist: 10,
-      physicalPenetration: 6,
-      magicPenetration: 0
-    },
-    special: { shield: 30, bonusDamage: 12, dodgeChance: 0.02 },
-    rewards: { stones: 18, attributePoints: 0 },
-    loot: [
-      { type: 'equipment', itemId: 'starsea_mail', chance: 0.08 },
-      { type: 'skill', skillId: 'aerial_step', chance: 0.06 }
-    ]
-  },
-  {
-    id: 'ember_wraith',
-    name: '炽火幽灵',
-    level: 7,
-    description: '灵火凝聚的亡魂，速度极快且攻击灼热。',
-    stats: {
-      maxHp: 1150,
-      physicalAttack: 135,
-      magicAttack: 160,
-      physicalDefense: 82,
-      magicDefense: 70,
-      speed: 90,
-      accuracy: 120,
-      dodge: 120,
-      critRate: 0.08,
-      critDamage: 1.55,
-      finalDamageBonus: 0.08,
-      finalDamageReduction: 0.04,
-      lifeSteal: 0.05,
-      controlHit: 35,
-      controlResist: 20,
-      physicalPenetration: 12,
-      magicPenetration: 18
-    },
-    special: { shield: 20, bonusDamage: 40, dodgeChance: 0.04 },
-    rewards: { stones: 32, attributePoints: 1 },
-    loot: [
-      { type: 'equipment', itemId: 'spirit_blade', chance: 0.12 },
-      { type: 'skill', skillId: 'phoenix_flare', chance: 0.05 },
-      { type: 'consumable', consumableId: 'respec_talisman', chance: 0.08 }
-    ]
-  },
-  {
-    id: 'abyssal_titan',
-    name: '渊狱巨灵',
-    level: 15,
-    description: '行走于渊狱的巨灵，攻击沉重无比，防御如壁。',
-    stats: {
-      maxHp: 1800,
-      physicalAttack: 220,
-      magicAttack: 110,
-      physicalDefense: 150,
-      magicDefense: 120,
-      speed: 65,
-      accuracy: 125,
-      dodge: 110,
-      critRate: 0.1,
-      critDamage: 1.6,
-      finalDamageBonus: 0.05,
-      finalDamageReduction: 0.12,
-      lifeSteal: 0.03,
-      controlHit: 40,
-      controlResist: 40,
-      physicalPenetration: 20,
-      magicPenetration: 8
-    },
-    special: { shield: 120, bonusDamage: 55, dodgeChance: 0.03 },
-    rewards: { stones: 48, attributePoints: 2 },
-    loot: [
-      { type: 'equipment', itemId: 'dragonbone_sabre', chance: 0.08 },
-      { type: 'equipment', itemId: 'void_silk', chance: 0.1 },
-      { type: 'skill', skillId: 'dragon_roar', chance: 0.04 }
-    ]
-  },
-  {
-    id: 'chronos_weaver',
-    name: '缚时织者',
-    level: 20,
-    description: '掌控时间缝隙的神秘存在，拥有不可思议的闪避能力。',
-    stats: {
-      maxHp: 2000,
-      physicalAttack: 210,
-      magicAttack: 240,
-      physicalDefense: 120,
-      magicDefense: 150,
-      speed: 120,
-      accuracy: 135,
-      dodge: 150,
-      critRate: 0.12,
-      critDamage: 1.7,
-      finalDamageBonus: 0.12,
-      finalDamageReduction: 0.08,
-      lifeSteal: 0.07,
-      controlHit: 60,
-      controlResist: 50,
-      physicalPenetration: 18,
-      magicPenetration: 26,
-      critResist: 0.03
-    },
-    special: { shield: 80, bonusDamage: 80, dodgeChance: 0.08 },
-    rewards: { stones: 66, attributePoints: 3 },
-    loot: [
-      { type: 'equipment', itemId: 'phoenix_plume', chance: 0.05 },
-      { type: 'skill', skillId: 'time_dilation', chance: 0.05 }
-    ]
-  }
-];
+const ENEMY_LIBRARY = buildSecretRealmLibrary();
 
 const EQUIPMENT_MAP = buildMap(EQUIPMENT_LIBRARY);
 const CONSUMABLE_MAP = buildMap(CONSUMABLE_LIBRARY);
 const ENEMY_MAP = buildMap(ENEMY_LIBRARY);
+const SECRET_REALM_MAX_FLOOR = ENEMY_LIBRARY.length
+  ? ENEMY_LIBRARY[ENEMY_LIBRARY.length - 1].floor
+  : 0;
 
 async function loadMembershipLevels() {
   if (membershipLevelsCache && membershipLevelsCache.length) {
@@ -2156,8 +2378,22 @@ async function simulateBattle(actorId, enemyId) {
     throw createError('ENEMY_NOT_FOUND', '未找到指定的副本目标');
   }
 
+  const secretRealmState = normalizeSecretRealm(profile.secretRealm || {});
+  const highestUnlocked = secretRealmState.highestUnlockedFloor || 1;
+  if (enemy.category === 'secretRealm' && enemy.floor > highestUnlocked) {
+    throw createError('FLOOR_LOCKED', '请先通关上一层秘境');
+  }
+
+  const floorState =
+    secretRealmState && secretRealmState.floors ? secretRealmState.floors[enemy.id] : null;
+  const alreadyCleared = !!(floorState && floorState.clearedAt);
+
   const battleSetup = buildBattleSetup(profile, enemy);
   const result = runBattleSimulation(battleSetup);
+
+  if (alreadyCleared && result && result.rewards) {
+    result.rewards = { exp: 0, stones: 0, attributePoints: 0, loot: [] };
+  }
 
   const now = new Date();
   const updatedProfile = applyBattleOutcome(profile, result, enemy, now, member, levels);
@@ -3182,6 +3418,7 @@ function buildDefaultProfile(now = new Date()) {
     attributes: buildDefaultAttributes(),
     equipment: buildDefaultEquipment(),
     skills: buildDefaultSkills(now),
+    secretRealm: buildDefaultSecretRealmState(),
     battleHistory: [],
     skillHistory: []
   };
@@ -3256,6 +3493,14 @@ function buildDefaultSkills(now = new Date()) {
     equipped: ['sword_breaking_clouds'],
     lastDrawAt: null,
     drawCount: 0
+  };
+}
+
+function buildDefaultSecretRealmState() {
+  const firstFloor = ENEMY_LIBRARY.length ? ENEMY_LIBRARY[0].floor : 1;
+  return {
+    highestUnlockedFloor: firstFloor,
+    floors: {}
   };
 }
 
@@ -3358,6 +3603,7 @@ function normalizeProfileInternal(profile, now = new Date(), options = {}) {
     attributes: normalizeAttributes(payload.attributes),
     equipment: normalizeEquipment(payload.equipment, now, { includeDefaults }),
     skills: normalizeSkills(payload.skills, now),
+    secretRealm: normalizeSecretRealm(payload.secretRealm, now),
     battleHistory: normalizeHistory(payload.battleHistory, MAX_BATTLE_HISTORY),
     skillHistory: normalizeHistory(payload.skillHistory, MAX_SKILL_HISTORY)
   };
@@ -3637,6 +3883,50 @@ function normalizeSkills(skills, now = new Date()) {
   };
 }
 
+function normalizeSecretRealm(secretRealm, now = new Date()) {
+  const defaults = buildDefaultSecretRealmState();
+  const payload = typeof secretRealm === 'object' && secretRealm ? secretRealm : {};
+  const floors = {};
+  const rawFloors = payload.floors && typeof payload.floors === 'object' ? payload.floors : {};
+
+  Object.keys(rawFloors).forEach((floorId) => {
+    if (!ENEMY_MAP[floorId]) {
+      return;
+    }
+    const entry = rawFloors[floorId] || {};
+    const clearedAt = entry.clearedAt ? new Date(entry.clearedAt) : null;
+    const normalizedClearedAt = clearedAt && !Number.isNaN(clearedAt.getTime()) ? clearedAt : null;
+    const bestRounds = Number.isFinite(Number(entry.bestRounds))
+      ? Math.max(1, Math.floor(Number(entry.bestRounds)))
+      : null;
+    const victories = Number.isFinite(Number(entry.victories))
+      ? Math.max(0, Math.floor(Number(entry.victories)))
+      : 0;
+
+    floors[floorId] = {
+      clearedAt: normalizedClearedAt,
+      bestRounds,
+      victories
+    };
+  });
+
+  const rawHighest = Number(payload.highestUnlockedFloor);
+  let highestUnlockedFloor = Number.isFinite(rawHighest)
+    ? Math.max(1, Math.floor(rawHighest))
+    : defaults.highestUnlockedFloor;
+  if (SECRET_REALM_MAX_FLOOR > 0) {
+    highestUnlockedFloor = Math.min(SECRET_REALM_MAX_FLOOR, highestUnlockedFloor);
+  }
+  if (!highestUnlockedFloor || highestUnlockedFloor < 1) {
+    highestUnlockedFloor = defaults.highestUnlockedFloor;
+  }
+
+  return {
+    highestUnlockedFloor,
+    floors
+  };
+}
+
 function normalizeHistory(history, maxLength) {
   if (!Array.isArray(history)) {
     return [];
@@ -3772,7 +4062,8 @@ function decorateProfile(member, profile) {
   const attributeSummary = calculateAttributes(attributes, equipment, skills);
   const equipmentSummary = decorateEquipment(profile, attributeSummary.equipmentBonus);
   const skillsSummary = decorateSkills(profile);
-  const enemies = ENEMY_LIBRARY.map((enemy) => decorateEnemy(enemy, attributeSummary));
+  const secretRealm = decorateSecretRealm(profile.secretRealm, attributeSummary);
+  const enemies = secretRealm.floors;
   const battleHistory = decorateBattleHistory(profile.battleHistory, profile);
   const skillHistory = decorateSkillHistory(profile.skillHistory);
 
@@ -3781,6 +4072,7 @@ function decorateProfile(member, profile) {
     attributes: attributeSummary,
     equipment: equipmentSummary,
     skills: skillsSummary,
+    secretRealm,
     enemies,
     battleHistory,
     skillHistory,
@@ -4447,6 +4739,25 @@ function decorateSkills(profile) {
   };
 }
 
+function decorateSecretRealm(secretRealmState, attributeSummary) {
+  const normalized = normalizeSecretRealm(secretRealmState || {});
+  const highestUnlockedFloor = normalized.highestUnlockedFloor || 1;
+  const floors = ENEMY_LIBRARY.map((enemy) => decorateEnemy(enemy, attributeSummary, normalized));
+  const clearedCount = floors.filter((floor) => floor.completed).length;
+  const nextFloor = floors.find((floor) => !floor.completed && !floor.locked);
+  const totalFloors = ENEMY_LIBRARY.length;
+  const progress = totalFloors > 0 ? Math.min(1, clearedCount / totalFloors) : 0;
+
+  return {
+    highestUnlockedFloor,
+    clearedCount,
+    totalFloors,
+    progress,
+    nextFloorId: nextFloor ? nextFloor.id : '',
+    floors
+  };
+}
+
 function decorateSkillInventoryEntry(entry, profile) {
   if (!entry) {
     return null;
@@ -4489,11 +4800,24 @@ function decorateSkillInventoryEntry(entry, profile) {
       : false
   };
 }
-function decorateEnemy(enemy, attributeSummary) {
+function decorateEnemy(enemy, attributeSummary, secretRealmState) {
   const combatPower = calculateCombatPower(enemy.stats, enemy.special || {});
   const playerPower = calculateCombatPower(attributeSummary.finalStats || {}, attributeSummary.skillSummary || {});
   const difficulty = resolveDifficultyLabel(playerPower, combatPower);
   const rewards = normalizeDungeonRewards(enemy.rewards);
+  const floors = secretRealmState && secretRealmState.floors ? secretRealmState.floors : {};
+  const floorState = floors[enemy.id] || null;
+  let highestUnlockedFloor = ENEMY_LIBRARY.length ? ENEMY_LIBRARY[0].floor : 1;
+  if (secretRealmState && secretRealmState.highestUnlockedFloor) {
+    highestUnlockedFloor = secretRealmState.highestUnlockedFloor;
+  }
+  const completed = !!(floorState && floorState.clearedAt);
+  const locked = enemy.floor > highestUnlockedFloor;
+  const clearedAt = floorState && floorState.clearedAt ? floorState.clearedAt : null;
+  const clearedAtText = clearedAt ? formatDateTime(clearedAt) : '';
+  const bestRounds = floorState && floorState.bestRounds ? floorState.bestRounds : null;
+  const victories = floorState && typeof floorState.victories === 'number' ? floorState.victories : 0;
+  const statusLabel = locked ? '未解锁' : completed ? '已通关' : '可挑战';
   return {
     id: enemy.id,
     name: enemy.name,
@@ -4506,7 +4830,20 @@ function decorateEnemy(enemy, attributeSummary) {
     loot: decorateEnemyLoot(enemy.loot || []),
     combatPower,
     difficulty,
-    recommendedPower: combatPower
+    recommendedPower: combatPower,
+    floor: enemy.floor,
+    floorLabel: enemy.floorLabel || `第${enemy.floor}层`,
+    stageName: enemy.stageName || '',
+    stageLabel: enemy.stageLabel || '',
+    type: enemy.type || 'normal',
+    locked,
+    completed,
+    statusLabel,
+    clearedAt,
+    clearedAtText,
+    bestRounds,
+    victories,
+    suggestedRewards: enemy.meta && enemy.meta.suggestedRewards ? enemy.meta.suggestedRewards : null
   };
 }
 
@@ -4964,6 +5301,40 @@ function applyBattleOutcome(profile, result, enemy, now, member, levels = []) {
   }
 
   syncAttributesWithMemberLevel(updated.attributes, member || {}, levels);
+
+  if (enemy && enemy.category === 'secretRealm') {
+    updated.secretRealm = normalizeSecretRealm(updated.secretRealm || {});
+    const progress = updated.secretRealm || buildDefaultSecretRealmState();
+    const floorState = progress.floors[enemy.id] || {};
+    if (result.victory) {
+      if (!floorState.clearedAt) {
+        floorState.clearedAt = now;
+      }
+      const normalizedRounds = Number.isFinite(result.rounds)
+        ? Math.max(1, Math.floor(result.rounds))
+        : null;
+      if (normalizedRounds) {
+        if (!floorState.bestRounds || normalizedRounds < floorState.bestRounds) {
+          floorState.bestRounds = normalizedRounds;
+        }
+      }
+      floorState.victories = (floorState.victories || 0) + 1;
+      progress.floors[enemy.id] = floorState;
+
+      const defaultFloor = ENEMY_LIBRARY.length ? ENEMY_LIBRARY[0].floor : 1;
+      const currentHighest = progress.highestUnlockedFloor || defaultFloor;
+      const maxFloor = SECRET_REALM_MAX_FLOOR > 0 ? SECRET_REALM_MAX_FLOOR : enemy.floor + 1;
+      const nextFloor = Math.min(maxFloor, enemy.floor + 1);
+      if (nextFloor > currentHighest) {
+        progress.highestUnlockedFloor = nextFloor;
+      } else if (!progress.highestUnlockedFloor || progress.highestUnlockedFloor < defaultFloor) {
+        progress.highestUnlockedFloor = defaultFloor;
+      }
+    } else if (floorState.victories) {
+      progress.floors[enemy.id] = floorState;
+    }
+    updated.secretRealm = progress;
+  }
 
   updated.battleHistory = appendHistory(
     updated.battleHistory,

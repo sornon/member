@@ -60,6 +60,14 @@ page {
   color: #f1f4ff;
 }
 
+.progress-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx 32rpx;
+  font-size: 24rpx;
+  color: rgba(207, 217, 255, 0.78);
+}
+
 .enemy-header {
   display: flex;
   justify-content: space-between;
@@ -90,6 +98,26 @@ page {
   font-size: 22rpx;
   color: rgba(198, 208, 255, 0.72);
   margin-bottom: 8rpx;
+}
+
+.enemy-status {
+  font-size: 22rpx;
+  color: rgba(214, 224, 255, 0.82);
+  margin-bottom: 6rpx;
+}
+
+.enemy-card.enemy-boss {
+  border-color: rgba(255, 188, 87, 0.6);
+  background: linear-gradient(135deg, rgba(255, 184, 77, 0.25), rgba(255, 119, 81, 0.18));
+}
+
+.enemy-card.enemy-locked {
+  opacity: 0.6;
+}
+
+.enemy-card.enemy-locked .enemy-action {
+  background: rgba(120, 136, 196, 0.28);
+  color: rgba(240, 244, 255, 0.6);
 }
 
 .enemy-action {
