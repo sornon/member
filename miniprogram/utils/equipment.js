@@ -174,11 +174,14 @@ export function sanitizeEquipmentProfile(profile) {
         return { slot: '', slotLabel: '', item: null };
       }
       const rawItem = slot.item && typeof slot.item === 'object' ? slot.item : null;
-      const item = rawItem && rawItem.itemId && !isDefaultEquipmentId(rawItem.itemId) ? cloneItem(rawItem) : null;
-      if (item && !item.storageCategory) {
-        item.storageCategory = 'equipment';
-      }
+      const item = rawItem && rawItem.itemId ? cloneItem(rawItem) : null;
       if (item) {
+        if (!item.storageCategory) {
+          item.storageCategory = 'equipment';
+        }
+        if (isDefaultEquipmentId(item.itemId)) {
+          item.isDefault = true;
+        }
         applyEquipmentIcon(item);
       }
       return { ...slot, item };
