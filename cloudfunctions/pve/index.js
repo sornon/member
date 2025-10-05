@@ -4092,11 +4092,13 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
     }
   });
 
-  (defaults.inventory || []).forEach((entry) => {
-    if (entry) {
-      trackInventory({ ...entry });
-    }
-  });
+  if (includeDefaults && normalizedInventory.length === 0) {
+    (defaults.inventory || []).forEach((entry) => {
+      if (entry) {
+        trackInventory({ ...entry });
+      }
+    });
+  }
 
   const availableById = new Map();
   const availableByItemId = {};
@@ -4141,6 +4143,7 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
   const rawSlots = payload.slots || {};
 
   Object.keys(resolvedSlots).forEach((slot) => {
+    const hasRawSlotValue = Object.prototype.hasOwnProperty.call(rawSlots, slot);
     const raw = rawSlots[slot];
     let normalizedEntry = null;
     if (raw && typeof raw === 'object' && raw.itemId) {
@@ -4151,7 +4154,7 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
     } else if (typeof raw === 'string' && raw) {
       normalizedEntry = claimByItemId(raw);
     }
-    if (!normalizedEntry && defaults.slots && defaults.slots[slot]) {
+    if (!normalizedEntry && !hasRawSlotValue && defaults.slots && defaults.slots[slot]) {
       normalizedEntry = { ...defaults.slots[slot] };
     }
     if (normalizedEntry) {
