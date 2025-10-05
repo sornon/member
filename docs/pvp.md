@@ -44,9 +44,21 @@
 - 赛季自动轮转：当检测到当前赛季结束时会自动创建下一赛季，默认周期 56 天。
 - 段位区间：系统内置青铜→宗师六档，依据积分上下限自动映射段位与奖励。
 - 战斗模拟：基于会员 `pveProfile` 的最终战斗属性进行 15 回合以内的回合制结算，命中、暴击、伤害浮动与减伤均在云端处理。
-- 数值统一：战斗流程直接调用公共模块 `cloudfunctions/nodejs-layer/node_modules/combat-system/index.js`，与 PVE 共用命中、伤害与战力评估公式，确保竞技场与副本的属性口径一致。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L1-L210】【F:cloudfunctions/pvp/index.js†L1194-L1294】
+- 数值统一：战斗流程直接调用公共模块 `cloudfunctions/nodejs-layer/node_modules/combat-system/index.js`，与 PVE 共用命中、伤害与战力评估公式，确保竞技场与副本的属性口径一致。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L1-L210】【F:cloudfunctions/pvp/index.js†L1199-L1294】
 - 档案快照：`pve` 云函数在写回会员档案时会刷新 `attributeSummary`，竞技场直接读取该字段即可获得包含装备、技能增益的最终战斗属性。【F:cloudfunctions/pve/index.js†L2836-L2873】【F:cloudfunctions/pve/index.js†L3377-L3452】【F:cloudfunctions/pve/index.js†L3738-L3796】【F:cloudfunctions/pvp/index.js†L1198-L1239】
 - 防刷机制：邀战会校验过期时间与状态；同一战斗结果生成 MD5 签名返回前端；机器人对战的积分增减有限制，避免刷分。
+
+### 普通攻击与技能依赖
+
+- **无技能时仍可发动普攻**：`aggregateSkillEffects` 在未穿戴任何技能时返回全零的加成摘要，不会抛出异常；`buildCombatSnapshot` 会把该摘要与基础属性合并后交给战斗模拟使用，因此角色即便空槽也保留默认战斗面板，可以照常进入战斗流程。【F:cloudfunctions/nodejs-layer/node_modules/skill-model/index.js†L763-L785】【F:cloudfunctions/pvp/index.js†L1199-L1227】
+- **战斗轮转始终执行普通攻击**：竞技场模拟每个回合依序调用 `resolveAttack`，内部直接触发 `executeAttack` 普攻计算，不依赖任何主动技能配置，所以双方会持续进行普攻直至其中一方倒下或达到回合上限。【F:cloudfunctions/pvp/index.js†L513-L559】【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L280-L349】
+
+#### 普通攻击伤害公式
+
+1. **命中判定**：以 `0.85 + (命中 - 闪避) × 0.005` 计算基础命中率（限制在 20%~99%），再叠加防守方被动闪避几率；任一检定失败则该次攻击被闪避。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L284-L292】
+2. **基础伤害**：分别计算物攻与法攻分支，取 `max(攻击×25%, 攻击 - 有效防御)`，若法攻结果更高则视为法术攻击。随后乘以 0.9~1.1 的随机浮动，并叠加额外固定伤害（如技能或特效提供）。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L294-L324】
+3. **暴击与终伤**：按 `clamp(暴击率 - 抗暴, 5%, 95%)` 触发暴击，暴击后乘以至少 1.2 倍的暴击伤害；再乘以 `max(0.1, 1 + 终伤加成 - 终伤减免)` 得到最终伤害，并保证不低于 1 点。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L326-L337】
+4. **吸血与治疗**：基于最终伤害计算吸血（上限 60%），同时考虑治疗增减系数与额外命中治疗，从而更新攻击者生命值。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L339-L349】
 
 ## 小程序前端
 
