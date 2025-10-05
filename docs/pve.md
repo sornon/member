@@ -84,7 +84,7 @@
 | `drawSkill` | 执行一次技能抽卡，返回抽取结果并更新技能背包。 |
 | `equipSkill` | 装备/卸下技能，自动校验槽位数量。 |
 | `equipItem` | 更换或卸下装备：传入 `itemId` 装备至对应槽位，传入 `slot` 且 `itemId` 为空时表示卸下该槽位装备。 |
-| `applyLevelGrant` | 根据传入的等级奖励配置，直接在会员档案中发放装备、技能与储物道具，供会员等级体系调用。 |
+| `applyLevelGrant` | 根据传入的等级奖励配置，直接在会员档案中发放装备、技能与储物道具，供会员等级体系调用。会员 `member` 云函数会优先通过 `cloud.callFunction` 调用该动作，若运行环境尝试本地加载 `../pve/index.js` 失败，则自动降级为 `cloud.openapi.cloudfunctions.invoke`，确保无需把 PVE 源码一并打包到 `member` 函数。 |
 | `listEquipmentCatalog` | **管理员专用**：返回可发放的装备目录（包含槽位、品质、标签信息），用于后台指派装备。 |
 | `grantEquipment` | **管理员专用**：为指定会员追加装备，返回更新后的完整 PVE 档案。 |
 | `adminInspectProfile` | **管理员专用**：查看任意会员的 PVE 档案，便于客服或运营排查。 |
@@ -95,8 +95,9 @@
 ## 部署提示
 
 1. 在云开发控制台创建或更新 `pve` 云函数，上传 `cloudfunctions/pve` 目录并安装依赖。
-2. 同步更新 `admin` 云函数（目录 `cloudfunctions/admin`），获取管理员发放装备所需的代理接口。
-3. 重新上传小程序前端代码，包含会员端 `/pages/role` 以及后台 `/pages/admin/member-detail` 的改动。
-4. 如需重置老用户数据，可在运营后台执行一次 `pve` 云函数的 `profile` 动作，或在数据库中删除 `pveProfile` 字段后重新进入页面。
+2. 同步更新 `member` 云函数，确保最新的等级奖励逻辑能够成功远程调用 `pve.applyLevelGrant`。发布时建议同时上传 `member` 与 `pve`，避免出现因旧版本缓存导致的“找不到 ../pve/index.js”错误。
+3. 同步更新 `admin` 云函数（目录 `cloudfunctions/admin`），获取管理员发放装备所需的代理接口。
+4. 重新上传小程序前端代码，包含会员端 `/pages/role` 以及后台 `/pages/admin/member-detail` 的改动。
+5. 如需重置老用户数据，可在运营后台执行一次 `pve` 云函数的 `profile` 动作，或在数据库中删除 `pveProfile` 字段后重新进入页面。
 
 通过上述体系，会员可在日常消费或活动中持续提升“战力”，运营侧可结合副本掉落、抽卡概率和任务奖励设计更丰富的玩法。

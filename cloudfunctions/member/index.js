@@ -81,28 +81,116 @@ async function resolveMemberExtras(memberId) {
   return data;
 }
 
-async function applyLevelGrantsThroughPve(actorId, grants, now = new Date()) {
-  if (!grants || typeof grants !== 'object') {
+function isValidDateLike(value) {
+  return value instanceof Date && !Number.isNaN(value.getTime());
+}
+
+function buildApplyLevelGrantPayload(actorId, grants, now) {
+  const timestamp = isValidDateLike(now) ? now.getTime() : Date.now();
+  return {
+    action: 'applyLevelGrant',
+    actorId,
+    grants,
+    timestamp
+  };
+}
+
+function decodePveInvocationResult(result) {
+  if (!result) {
     return null;
   }
-  const timestamp =
-    now instanceof Date && !Number.isNaN(now.getTime()) ? now.getTime() : Date.now();
+  if (typeof result === 'object') {
+    return result;
+  }
+  if (typeof result !== 'string') {
+    return null;
+  }
+
+  const trimmed = result.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const tryParseJson = (text) => {
+    try {
+      return JSON.parse(text);
+    } catch (parseError) {
+      return null;
+    }
+  };
+
+  // 云函数开放接口返回的 result 默认为 Base64，需要优先解码。
   try {
-    const response = await cloud.callFunction({
-      name: 'pve',
-      data: {
-        action: 'applyLevelGrant',
-        actorId,
-        grants,
-        timestamp
+    const decoded = Buffer.from(trimmed, 'base64').toString('utf8');
+    if (decoded) {
+      const parsed = tryParseJson(decoded);
+      if (parsed) {
+        return parsed;
       }
-    });
+    }
+  } catch (decodeError) {
+    // fall through — 说明不是 Base64 字符串
+  }
+
+  return tryParseJson(trimmed);
+}
+
+async function invokePveApplyLevelGrantViaSdk(payload) {
+  try {
+    const response = await cloud.callFunction({ name: 'pve', data: payload });
     if (response && response.result) {
       return response.result;
     }
   } catch (error) {
-    console.error('[member] Failed to apply level grants through pve function', error);
+    const message = (error && error.message) || '';
+    const isMissingModule =
+      error &&
+      (error.code === 'MODULE_NOT_FOUND' || /Cannot find module '\.\.\/pve\/index\.js'/.test(message));
+    if (!isMissingModule) {
+      console.error('[member] Failed to invoke pve.applyLevelGrant via callFunction', error);
+    }
   }
+  return null;
+}
+
+async function invokePveApplyLevelGrantViaOpenApi(payload) {
+  if (!cloud.openapi || !cloud.openapi.cloudfunctions || !cloud.openapi.cloudfunctions.invoke) {
+    return null;
+  }
+  try {
+    const response = await cloud.openapi.cloudfunctions.invoke({
+      name: 'pve',
+      data: Buffer.from(JSON.stringify(payload)).toString('base64')
+    });
+    if (response && typeof response === 'object') {
+      const parsed = decodePveInvocationResult(response.result || response.data || null);
+      if (parsed) {
+        return parsed;
+      }
+    }
+  } catch (error) {
+    console.error('[member] Failed to invoke pve.applyLevelGrant via openapi', error);
+  }
+  return null;
+}
+
+async function applyLevelGrantsThroughPve(actorId, grants, now = new Date()) {
+  if (!grants || typeof grants !== 'object') {
+    return null;
+  }
+
+  const payload = buildApplyLevelGrantPayload(actorId, grants, now);
+
+  const directResult = await invokePveApplyLevelGrantViaSdk(payload);
+  if (directResult) {
+    return directResult;
+  }
+
+  const openApiResult = await invokePveApplyLevelGrantViaOpenApi(payload);
+  if (openApiResult) {
+    return openApiResult;
+  }
+
   return null;
 }
 
