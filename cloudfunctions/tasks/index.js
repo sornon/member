@@ -2,20 +2,10 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
+const { COLLECTIONS } = require('common-config'); // 公共配置模块
+
 const db = cloud.database();
 const _ = db.command;
-
-const COLLECTIONS = {
-  TASKS: 'tasks',
-  TASK_RECORDS: 'taskRecords',
-  COUPONS: 'coupons',
-  COUPON_RECORDS: 'couponRecords',
-  MEMBERS: 'members',
-  MEMBER_RIGHTS: 'memberRights',
-  MEMBERSHIP_LEVELS: 'membershipLevels',
-  MEMBERSHIP_RIGHTS: 'membershipRights',
-  STONE_TRANSACTIONS: 'stoneTransactions'
-};
 
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext();

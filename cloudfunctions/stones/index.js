@@ -2,14 +2,11 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
+const { COLLECTIONS } = require('common-config');
+
 const db = cloud.database();
 const $ = db.command.aggregate;
 const _ = db.command;
-
-const COLLECTIONS = {
-  MEMBERS: 'members',
-  STONE_TRANSACTIONS: 'stoneTransactions'
-};
 
 const MALL_ITEMS = [
   {

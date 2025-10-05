@@ -12,18 +12,10 @@ const {
   resolveBackgroundByRealmName,
   resolveBackgroundById
 } = require('./shared/backgrounds.js');
+const { COLLECTIONS } = require('common-config');
 
 const db = cloud.database();
 const _ = db.command;
-
-const COLLECTIONS = {
-  MEMBERS: 'members',
-  LEVELS: 'membershipLevels',
-  RIGHTS_MASTER: 'membershipRights',
-  MEMBER_RIGHTS: 'memberRights',
-  MEMBER_EXTRAS: 'memberExtras',
-  MEMBER_TIMELINE: 'memberTimeline'
-};
 
 const GENDER_OPTIONS = ['unknown', 'male', 'female'];
 const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;

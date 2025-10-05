@@ -2,18 +2,11 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
+const { COLLECTIONS, DEFAULT_ADMIN_ROLES } = require('common-config');
+
 const db = cloud.database();
 const _ = db.command;
-
-const COLLECTIONS = {
-  ROOMS: 'rooms',
-  RESERVATIONS: 'reservations',
-  MEMBER_RIGHTS: 'memberRights',
-  MEMBERSHIP_RIGHTS: 'membershipRights',
-  MEMBERS: 'members'
-};
-
-const ADMIN_ROLES = ['admin', 'developer'];
+const ADMIN_ROLES = DEFAULT_ADMIN_ROLES;
 
 const RESERVATION_ACTIVE_STATUSES = [
   'pendingApproval',

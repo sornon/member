@@ -1,24 +1,14 @@
 const cloud = require('wx-server-sdk');
-const { EXPERIENCE_PER_YUAN } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
+const {
+  EXPERIENCE_PER_YUAN,
+  COLLECTIONS,
+  EXCLUDED_TRANSACTION_STATUSES
+} = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 const _ = db.command;
-
-const COLLECTIONS = {
-  MEMBERS: 'members',
-  TRANSACTIONS: 'walletTransactions',
-  RESERVATIONS: 'reservations',
-  MEMBER_RIGHTS: 'memberRights',
-  MEMBERSHIP_LEVELS: 'membershipLevels',
-  MEMBERSHIP_RIGHTS: 'membershipRights',
-  CHARGE_ORDERS: 'chargeOrders',
-  STONE_TRANSACTIONS: 'stoneTransactions',
-  MEMBER_EXTRAS: 'memberExtras'
-};
-
-const EXCLUDED_TRANSACTION_STATUSES = ['pending', 'processing', 'failed', 'cancelled', 'refunded', 'closed'];
 
 function normalizeWineStorageEntries(list = []) {
   const normalized = [];
@@ -102,7 +92,7 @@ exports.main = async (event, context) => {
 };
 
 async function getSummary(openid) {
-  const transactionsCollection = db.collection(COLLECTIONS.TRANSACTIONS);
+  const transactionsCollection = db.collection(COLLECTIONS.WALLET_TRANSACTIONS);
   const totalsPromise = resolveEffectiveTotals(transactionsCollection, openid);
   const [memberDoc, transactionsSnapshot, totals, extrasDoc] = await Promise.all([
     db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null),
@@ -267,7 +257,7 @@ async function createRecharge(openid, amount) {
     throw new Error('充值金额无效');
   }
   const now = new Date();
-  const record = await db.collection(COLLECTIONS.TRANSACTIONS).add({
+  const record = await db.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
     data: {
       memberId: openid,
       amount,
@@ -302,7 +292,7 @@ async function completeRecharge(openid, transactionId) {
 
   let result = { success: true, message: '充值成功' };
   await db.runTransaction(async (transaction) => {
-    const transactionRef = transaction.collection(COLLECTIONS.TRANSACTIONS).doc(transactionId);
+    const transactionRef = transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).doc(transactionId);
     const transactionDoc = await transactionRef.get().catch(() => null);
     if (!transactionDoc || !transactionDoc.data) {
       throw new Error('充值记录不存在');
@@ -379,7 +369,7 @@ async function payWithBalance(openid, orderId, amount) {
         ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
       }
     });
-    await transaction.collection(COLLECTIONS.TRANSACTIONS).add({
+    await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
       data: {
         memberId: openid,
         amount: -normalizedAmount,
@@ -486,7 +476,7 @@ async function confirmChargeOrder(openid, orderId) {
         updatedAt: now
       }
     });
-    await transaction.collection(COLLECTIONS.TRANSACTIONS).add({
+    await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
       data: {
         memberId: openid,
         amount: -amount,
