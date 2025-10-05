@@ -150,6 +150,14 @@ function generateStorageInventoryId(itemId, obtainedAt = new Date()) {
   return `st-${base}-${timestamp}-${random}`;
 }
 
+function generateEquipmentInventoryId(itemId, obtainedAt = new Date()) {
+  const base = typeof itemId === 'string' && itemId ? itemId : 'equipment';
+  const timestamp =
+    obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : Date.now();
+  const random = Math.random().toString(36).slice(2, 8);
+  return `eq-${base}-${timestamp}-${random}`;
+}
+
 function ensurePveRewardProfile(profile) {
   const base = profile && typeof profile === 'object' ? { ...profile } : {};
   const equipment = base.equipment && typeof base.equipment === 'object' ? { ...base.equipment } : {};
@@ -249,6 +257,38 @@ function createStorageRewardItem(reward, now = new Date()) {
     item.primaryAction = null;
   }
   return item;
+}
+
+function createEquipmentRewardEntry(reward, now = new Date()) {
+  if (!reward || typeof reward !== 'object' || !reward.itemId) {
+    return null;
+  }
+  const obtainedAt = now instanceof Date && !Number.isNaN(now.getTime()) ? now : new Date();
+  const entry = {
+    inventoryId: generateEquipmentInventoryId(reward.itemId, obtainedAt),
+    itemId: reward.itemId,
+    obtainedAt,
+    level: typeof reward.level === 'number' ? reward.level : 1,
+    refine: typeof reward.refine === 'number' ? reward.refine : 0,
+    favorite: false,
+    storageCategory: 'equipment'
+  };
+  if (typeof reward.quality === 'string' && reward.quality) {
+    entry.quality = reward.quality;
+  }
+  if (typeof reward.qualityLabel === 'string' && reward.qualityLabel) {
+    entry.qualityLabel = reward.qualityLabel;
+  }
+  if (typeof reward.qualityColor === 'string' && reward.qualityColor) {
+    entry.qualityColor = reward.qualityColor;
+  }
+  if (typeof reward.qualityRank === 'number') {
+    entry.qualityRank = reward.qualityRank;
+  }
+  if (typeof reward.iconId === 'number') {
+    entry.iconId = reward.iconId;
+  }
+  return entry;
 }
 
 function appendStorageItemToProfile(profile, item) {
@@ -1117,8 +1157,11 @@ async function grantInventoryRewardsForLevel(openid, level) {
     if (reward.type === 'equipment' && reward.itemId) {
       const hasItem = profile.equipment.inventory.some((entry) => entry && entry.itemId === reward.itemId);
       if (!hasItem) {
-        profile.equipment.inventory.push({ itemId: reward.itemId, obtainedAt: now, level: 1, refine: 0 });
-        profileChanged = true;
+        const equipmentEntry = createEquipmentRewardEntry(reward, now);
+        if (equipmentEntry) {
+          profile.equipment.inventory.push(equipmentEntry);
+          profileChanged = true;
+        }
       }
       continue;
     }
