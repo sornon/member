@@ -1,4 +1,4 @@
-import { AdminService } from '../../../services/api';
+import { AdminService, PveService } from '../../../services/api';
 import { listAllAvatars, normalizeAvatarUnlocks } from '../../../utils/avatar-catalog';
 import { sanitizeEquipmentProfile, buildEquipmentIconPaths } from '../../../utils/equipment';
 
@@ -265,6 +265,7 @@ Page({
     rechargeAmount: '',
     renameHistory: [],
     pveProfile: null,
+    pveProfileLoading: false,
     equipmentSlots: [],
     equipmentInventory: [],
     equipmentCatalog: [],
@@ -373,22 +374,9 @@ Page({
   applyDetail(detail) {
     if (!detail || !detail.member) return;
     const { member, levels = [] } = detail;
-    const sanitizedProfile = sanitizeEquipmentProfile(detail.pveProfile);
-    const storage =
-      sanitizedProfile &&
-      sanitizedProfile.equipment &&
-      sanitizedProfile.equipment.storage &&
-      typeof sanitizedProfile.equipment.storage === 'object'
-        ? sanitizedProfile.equipment.storage
-        : null;
-    const storageUpgradeAvailable = String(
-      this.parseStorageUpgradeAvailable(
-        storage && Object.prototype.hasOwnProperty.call(storage, 'upgradeAvailable')
-          ? storage.upgradeAvailable
-          : 0
-      )
-    );
-    const storageUpgradeLimit = this.resolveStorageUpgradeLimitInput(storage);
+    const existingProfile = this.data.pveProfile || null;
+    const hasNewProfile = !!(detail && detail.pveProfile);
+    const profileToApply = hasNewProfile ? detail.pveProfile : existingProfile;
     const levelIndex = Math.max(
       levels.findIndex((level) => level._id === member.levelId),
       0
@@ -400,6 +388,7 @@ Page({
       checked: roles.includes(option.value)
     }));
     const avatarUnlocks = normalizeAvatarUnlocks(member.avatarUnlocks);
+    const previousForm = this.data.form || {};
     this.setData({
       member,
       levels,
@@ -407,6 +396,7 @@ Page({
       currentLevelName: currentLevel.name || '',
       loading: false,
       form: {
+        ...previousForm,
         nickName: member.nickName || '',
         realName: member.realName || '',
         mobile: member.mobile || '',
@@ -418,16 +408,91 @@ Page({
         renameCredits: String(member.renameCredits ?? 0),
         respecAvailable: String(member.pveRespecAvailable ?? 0),
         roomUsageCount: String(member.roomUsageCount ?? 0),
-        storageUpgradeAvailable,
-        storageUpgradeLimit,
+        storageUpgradeAvailable:
+          typeof previousForm.storageUpgradeAvailable === 'string'
+            ? previousForm.storageUpgradeAvailable
+            : '0',
+        storageUpgradeLimit:
+          typeof previousForm.storageUpgradeLimit === 'string'
+            ? previousForm.storageUpgradeLimit
+            : '',
         avatarUnlocks: avatarUnlocks
       },
       roleOptions,
       renameHistory: formatRenameHistory(member.renameHistory),
-      avatarOptionGroups: buildAvatarOptionGroups(avatarUnlocks),
-      pveProfile: sanitizedProfile || null
+      avatarOptionGroups: buildAvatarOptionGroups(avatarUnlocks)
     });
-    this.applyEquipmentProfile(sanitizedProfile);
+    this.updatePveProfile(profileToApply, {
+      skipSanitize: !hasNewProfile && !!existingProfile,
+      overrideForm: hasNewProfile,
+      resetFormStorage: !hasNewProfile && !existingProfile
+    });
+    if (!hasNewProfile) {
+      this.loadMemberPveProfile(member._id, { silent: true });
+    }
+  },
+
+  async loadMemberPveProfile(memberId, { silent = false, force = false } = {}) {
+    const targetId = typeof memberId === 'string' && memberId ? memberId : this.data.memberId;
+    if (!targetId) {
+      return;
+    }
+    if (this.data.pveProfileLoading && !force) {
+      return;
+    }
+    if (!silent || !this.data.pveProfileLoading) {
+      this.setData({ pveProfileLoading: true });
+    }
+    try {
+      const res = await PveService.adminInspectProfile(targetId);
+      if (res && res.profile) {
+        this.updatePveProfile(res.profile);
+      }
+    } catch (error) {
+      console.error('[admin] load member pve profile failed', error);
+    } finally {
+      this.setData({ pveProfileLoading: false });
+    }
+  },
+
+  updatePveProfile(profile, options = {}) {
+    const skipSanitize = !!(options && options.skipSanitize);
+    const sanitizedProfile = skipSanitize ? profile : sanitizeEquipmentProfile(profile);
+    const hasProfile = !!(sanitizedProfile && sanitizedProfile.equipment);
+    const updates = {
+      pveProfile: sanitizedProfile || null,
+      equipmentProfileLoaded: hasProfile
+    };
+    if (hasProfile && options.overrideForm !== false) {
+      const storage =
+        sanitizedProfile &&
+        sanitizedProfile.equipment &&
+        typeof sanitizedProfile.equipment.storage === 'object'
+          ? sanitizedProfile.equipment.storage
+          : null;
+      const storageMeta = storage && typeof storage.meta === 'object' ? storage.meta : null;
+      const availableSource =
+        storage && Object.prototype.hasOwnProperty.call(storage, 'upgradeAvailable')
+          ? storage.upgradeAvailable
+          : storageMeta && Object.prototype.hasOwnProperty.call(storageMeta, 'upgradeAvailable')
+          ? storageMeta.upgradeAvailable
+          : 0;
+      updates.form = {
+        ...this.data.form,
+        storageUpgradeAvailable: String(
+          this.parseStorageUpgradeAvailable(availableSource)
+        ),
+        storageUpgradeLimit: this.resolveStorageUpgradeLimitInput(storage)
+      };
+    } else if (!hasProfile && options.resetFormStorage) {
+      updates.form = {
+        ...this.data.form,
+        storageUpgradeAvailable: '0',
+        storageUpgradeLimit: ''
+      };
+    }
+    this.setData(updates);
+    this.applyEquipmentProfile(sanitizedProfile, { skipSanitize: true });
   },
 
   resolveStorageUpgradeLimitInput(storage) {
@@ -446,15 +511,16 @@ Page({
     return '';
   },
 
-  applyEquipmentProfile(profile) {
-    const sanitizedProfile = sanitizeEquipmentProfile(profile);
+  applyEquipmentProfile(profile, options = {}) {
+    const sanitizedProfile =
+      options && options.skipSanitize ? profile : sanitizeEquipmentProfile(profile);
     const hasProfile = !!(sanitizedProfile && sanitizedProfile.equipment);
     const equipmentSlots = hasProfile ? formatEquipmentSlots(sanitizedProfile) : [];
     const equipmentInventory = hasProfile ? formatEquipmentInventory(sanitizedProfile) : [];
     this.setData({
       equipmentSlots,
       equipmentInventory,
-      equipmentProfileLoaded: !!sanitizedProfile
+      equipmentProfileLoaded: hasProfile
     });
   },
 
@@ -664,7 +730,7 @@ Page({
         itemId
       });
       if (res && res.profile) {
-        this.applyEquipmentProfile(res.profile);
+        this.updatePveProfile(res.profile, { overrideForm: false });
       }
       wx.showToast({ title: '发放成功', icon: 'success' });
       const catalog = this.data.filteredEquipmentCatalog || [];
@@ -718,7 +784,7 @@ Page({
         inventoryId
       });
       if (res && res.profile) {
-        this.applyEquipmentProfile(res.profile);
+        this.updatePveProfile(res.profile, { overrideForm: false });
       }
       wx.showToast({ title: '删除成功', icon: 'success' });
       return true;
@@ -890,7 +956,7 @@ Page({
         refine
       });
       if (res && res.profile) {
-        this.applyEquipmentProfile(res.profile);
+        this.updatePveProfile(res.profile, { overrideForm: false });
       }
       wx.showToast({ title: '修改成功', icon: 'success' });
       this.hideEquipmentEditDialog();

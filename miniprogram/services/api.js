@@ -339,6 +339,14 @@ export const PveService = {
   },
   async resetAttributes() {
     return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'resetAttributes' });
+  },
+  async adminInspectProfile(memberId) {
+    const payload = { action: 'adminInspectProfile' };
+    const normalizedId = typeof memberId === 'string' ? memberId.trim() : '';
+    if (normalizedId) {
+      payload.memberId = normalizedId;
+    }
+    return callCloud(CLOUD_FUNCTIONS.PVE, payload);
   }
 };
 
@@ -419,18 +427,26 @@ export const AdminService = {
       pageSize
     });
   },
-  async getMemberDetail(memberId) {
-    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+  async getMemberDetail(memberId, options = {}) {
+    const payload = {
       action: 'getMemberDetail',
       memberId
-    });
+    };
+    if (options && options.includePveProfile) {
+      payload.includePveProfile = true;
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   },
-  async updateMember(memberId, updates) {
-    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+  async updateMember(memberId, updates, options = {}) {
+    const payload = {
       action: 'updateMember',
       memberId,
       updates
-    });
+    };
+    if (options && options.includePveProfile) {
+      payload.includePveProfile = true;
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   },
   async deleteMember(memberId) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
@@ -516,12 +532,16 @@ export const AdminService = {
       remark
     });
   },
-  async rechargeMember(memberId, amount) {
-    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+  async rechargeMember(memberId, amount, options = {}) {
+    const payload = {
       action: 'rechargeMember',
       memberId,
       amount
-    });
+    };
+    if (options && options.includePveProfile) {
+      payload.includePveProfile = true;
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   },
   async listReservations({ status = 'pendingApproval', page = 1, pageSize = 20 } = {}) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
