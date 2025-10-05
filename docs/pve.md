@@ -68,7 +68,7 @@
 ### 秘境副本
 
 - 秘境改为按照境界爬楼：每个境界对应 9 层小怪 + 1 层首领，从“炼气期 · 一层”开始一路延展至化神、大乘乃至飞升阶段，楼层名称完全复用会员等级公共配置。【F:cloudfunctions/nodejs-layer/node_modules/common-config/index.js†L1-L210】【F:cloudfunctions/pve/index.js†L51-L318】
-- 玩家必须依次通关，击败当前层才会解锁下一层。通关状态保存在 `secretRealm.floors` 中，历史胜利不会重复发放奖励（奖励占位待后续配置，可在 `enemy.meta.suggestedRewards` 中查看建议档位）。【F:cloudfunctions/pve/index.js†L2144-L2195】【F:cloudfunctions/pve/index.js†L4947-L5008】
+- 玩家必须依次通关，击败当前层才会解锁下一层。通关状态保存在 `secretRealm.floors` 中，历史胜利不会重复发放奖励（奖励占位待后续配置，可在 `enemy.meta.suggestedRewards` 中查看建议档位）。前端仅展示当前可挑战的楼层，所有未解锁或已通关的楼层都会被隐藏，防止重复挑战或提前查看配置。【F:cloudfunctions/pve/index.js†L2144-L2195】【F:cloudfunctions/pve/index.js†L4947-L5008】【F:cloudfunctions/pve/index.js†L4853-L4866】
 - 为兼容旧版本数据，云函数会在读取/挑战副本时自动识别历史楼层 ID（纯数字、未补零的 `secret_*_1` 等），并转换为新的规范 ID，同时合并通关记录与解锁层数，避免出现“未找到副本目标”或进度回退。【F:cloudfunctions/pve/index.js†L219-L336】【F:cloudfunctions/pve/index.js†L3886-L4015】
 - 每个境界的 9 种小怪分别突出生命、物攻、法攻、双防、速度、命中、闪避与控制命中等核心属性，首领同时强化三项关键属性并附带专属特技。数值模型通过 `SECRET_REALM_TUNING` 控制成长曲线，保证高级装备勉强通关、顶级装备轻松通过，后续仅需调整基准或倍率即可批量更新难度。【F:cloudfunctions/pve/index.js†L41-L318】【F:cloudfunctions/pve/index.js†L2106-L2145】
 - 战斗流程仍采用回合制模拟，综合命中、暴击、破甲、最终增减伤等参数产出完整战报；战斗日志与胜败结果写入战斗历史供复盘。【F:cloudfunctions/pve/index.js†L2117-L2198】【F:cloudfunctions/pve/index.js†L4947-L5008】

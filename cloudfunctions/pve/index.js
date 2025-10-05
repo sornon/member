@@ -4869,27 +4869,7 @@ function resolveVisibleSecretRealmFloors(floors) {
     return [];
   }
 
-  const currentIndex = floors.findIndex((floor) => !floor.completed && !floor.locked);
-  if (currentIndex === -1) {
-    return [];
-  }
-
-  const visibleFloors = [floors[currentIndex]];
-
-  if (currentIndex + 1 < floors.length) {
-    const nextFloor = floors[currentIndex + 1];
-    const lockedNextFloor =
-      nextFloor.locked && nextFloor.statusLabel === '未解锁'
-        ? nextFloor
-        : {
-            ...nextFloor,
-            locked: true,
-            statusLabel: '未解锁'
-          };
-    visibleFloors.push(lockedNextFloor);
-  }
-
-  return visibleFloors;
+  return floors.filter((floor) => !floor.locked && !floor.completed);
 }
 
 function decorateSkillInventoryEntry(entry, profile) {
