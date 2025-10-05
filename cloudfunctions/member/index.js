@@ -61,7 +61,7 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       type: 'title',
       titleId: 'title_refining_rookie',
       storageItemId: 'reward_title_refining_rookie',
-      storageCategory: 'quest',
+      storageCategory: 'consumable',
       name: '称号·炼气新人',
       description: '使用后解锁称号“炼气新人”，并可在档案中展示。',
       slotLabel: '称号',
@@ -226,7 +226,7 @@ function createStorageRewardItem(reward, now = new Date()) {
       return 'consumable';
     }
     if (reward.type === 'title') {
-      return 'quest';
+      return 'consumable';
     }
     return 'consumable';
   })();
