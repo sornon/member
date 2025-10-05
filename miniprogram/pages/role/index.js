@@ -407,6 +407,34 @@ Page({
           if (!normalized.storageCategory) {
             normalized.storageCategory = key;
           }
+          if (!normalized.storageCategoryLabel) {
+            normalized.storageCategoryLabel =
+              STORAGE_CATEGORY_LABELS[normalized.storageCategory] || normalized.storageCategory || '';
+          }
+          if (!normalized.kind) {
+            normalized.kind = key === 'equipment' ? 'equipment' : 'storage';
+          }
+          if (Array.isArray(normalized.notes)) {
+            normalized.notes = normalized.notes.filter((note) => !!note);
+          } else {
+            normalized.notes = [];
+          }
+          const rawActions = Array.isArray(normalized.actions) ? normalized.actions : [];
+          const actions = rawActions
+            .map((action) => ({
+              key: typeof action.key === 'string' ? action.key : '',
+              label: typeof action.label === 'string' ? action.label : '',
+              primary: !!action.primary
+            }))
+            .filter((action) => action.key && action.label);
+          normalized.actions = actions;
+          if (!normalized.primaryAction) {
+            normalized.primaryAction = actions.find((action) => action.primary) || actions[0] || null;
+          }
+          if (!normalized.slotLabel) {
+            normalized.slotLabel =
+              STORAGE_CATEGORY_LABELS[normalized.storageCategory] || normalized.storageCategory || '道具';
+          }
           if (key === 'equipment') {
             const slotValue = normalizeSlotValue(normalized.slot);
             if (slotValue) {
@@ -1055,6 +1083,67 @@ Page({
     });
   },
 
+  async handleStorageItemAction(event) {
+    const tooltip = this.data && this.data.equipmentTooltip;
+    if (!tooltip || tooltip.mode === 'delete' || !tooltip.item) {
+      return;
+    }
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const requestedAction = typeof dataset.action === 'string' ? dataset.action.trim() : '';
+    const inventoryId = (tooltip.item.inventoryId || tooltip.inventoryId || '').trim();
+    if (!inventoryId) {
+      wx.showToast({ title: '物品信息缺失', icon: 'none' });
+      return;
+    }
+    const actions = Array.isArray(tooltip.item.actions) ? tooltip.item.actions : [];
+    const primaryAction = tooltip.item.primaryAction && tooltip.item.primaryAction.key
+      ? tooltip.item.primaryAction
+      : null;
+    const resolvedAction =
+      actions.find((action) => action && action.key === requestedAction) || primaryAction || actions[0] || null;
+    const actionKey = resolvedAction && resolvedAction.key ? resolvedAction.key : requestedAction || 'use';
+    if (actionKey !== 'use') {
+      wx.showToast({ title: '暂不支持该操作', icon: 'none' });
+      return;
+    }
+    if (this.data && this.data.equipmentTooltip && this.data.equipmentTooltip.using) {
+      return;
+    }
+    const itemName = tooltip.item.name || tooltip.item.shortName || '道具';
+    this.setData({
+      'equipmentTooltip.using': true,
+      'equipmentTooltip.pendingAction': actionKey
+    });
+    try {
+      const res = await PveService.useStorageItem({ inventoryId, actionKey });
+      if (res && res.profile) {
+        this.applyProfile(res.profile);
+      }
+      if (res && res.unlockTitle) {
+        wx.showToast({
+          title: res.unlockTitle.alreadyUnlocked ? '称号已解锁' : '称号解锁成功',
+          icon: 'success'
+        });
+      } else if (res && res.unlockBackground) {
+        wx.showToast({ title: '背景解锁成功', icon: 'success' });
+      } else if (res && Array.isArray(res.acquiredSkills) && res.acquiredSkills.length) {
+        wx.showToast({
+          title: `获得 ${res.acquiredSkills.length} 个技能`,
+          icon: 'success'
+        });
+      } else {
+        wx.showToast({ title: `已使用${itemName}`, icon: 'success' });
+      }
+      this.closeEquipmentTooltip();
+    } catch (error) {
+      console.error('[role] use storage item failed', error);
+      wx.showToast({ title: (error && error.errMsg) || '操作失败', icon: 'none' });
+      this.setData({ 'equipmentTooltip.using': false, 'equipmentTooltip.pendingAction': '' });
+      return;
+    }
+    this.setData({ 'equipmentTooltip.using': false, 'equipmentTooltip.pendingAction': '' });
+  },
+
   openEquipmentTooltip(options = {}) {
     const rawItem = options && options.item;
     if (!rawItem) {
@@ -1069,7 +1158,11 @@ Page({
     const slotLabel = options.slotLabel || rawItem.slotLabel || '';
     const category = typeof options.category === 'string' ? options.category : rawItem.storageCategory || '';
     const profile = (this.data && this.data.profile) || null;
-    const equippedItem = findEquippedItemFromProfile(profile, slot || rawItem.slot || '', rawItem.itemId);
+    const isEquipment =
+      (rawItem && rawItem.kind === 'equipment') || !!normalizeSlotValue(slot || rawItem.slot || '');
+    const equippedItem = isEquipment
+      ? findEquippedItemFromProfile(profile, slot || rawItem.slot || '', rawItem.itemId)
+      : null;
     const currentTooltip = this.data && this.data.equipmentTooltip;
     if (
       currentTooltip &&

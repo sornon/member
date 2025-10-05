@@ -53,6 +53,48 @@
   color: rgba(246, 249, 255, 0.92);
 }
 
+.breakthrough-hint {
+  margin-top: 20rpx;
+  padding: 16rpx;
+  border-radius: 16rpx;
+  border: 1rpx solid rgba(255, 244, 200, 0.38);
+  background: rgba(255, 240, 180, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.breakthrough-hint__text {
+  font-size: 24rpx;
+  color: #fff6cf;
+}
+
+.breakthrough-hint__reward {
+  font-size: 22rpx;
+  color: rgba(255, 248, 220, 0.88);
+}
+
+.breakthrough-button {
+  margin-top: 16rpx;
+  align-self: flex-start;
+  padding: 14rpx 32rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(120deg, rgba(255, 205, 120, 0.95), rgba(255, 165, 92, 0.95));
+  border: 1rpx solid rgba(255, 207, 136, 0.6);
+  color: #2e1a00;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.breakthrough-button::after {
+  display: none;
+}
+
+.breakthrough-button--hover {
+  background: linear-gradient(120deg, rgba(255, 215, 140, 0.98), rgba(255, 175, 110, 0.98));
+  border-color: rgba(255, 215, 150, 0.75);
+}
+
 .milestone-hint {
   margin-top: 24rpx;
   background: rgba(255, 229, 127, 0.18);

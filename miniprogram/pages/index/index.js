@@ -35,6 +35,16 @@ const app = getApp();
 
 const NAV_EXPANDED_STORAGE_KEY = 'home-nav-expanded';
 
+function resolveBackgroundUnlocks(source) {
+  if (!source) {
+    return [];
+  }
+  if (Array.isArray(source.backgroundUnlocks)) {
+    return source.backgroundUnlocks.filter((id) => typeof id === 'string' && id.trim());
+  }
+  return [];
+}
+
 const BASE_NAV_ITEMS = [
   { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
   { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index' },
@@ -108,10 +118,32 @@ function resolveMemberRealmOrder(member) {
 function resolvePreferredBackground(member) {
   const realmOrder = resolveMemberRealmOrder(member);
   const desiredId = normalizeBackgroundId(member && member.appearanceBackground);
-  if (desiredId && isBackgroundUnlocked(desiredId, realmOrder)) {
+  const backgroundUnlocks = resolveBackgroundUnlocks(member);
+  if (desiredId && isBackgroundUnlocked(desiredId, realmOrder, backgroundUnlocks)) {
     const desired = resolveBackgroundById(desiredId);
     if (desired) {
       return desired;
+    }
+  }
+  const manualUnlocked = backgroundUnlocks
+    .map((id) => resolveBackgroundById(id))
+    .filter((background) => background && background.unlockType === 'manual');
+  if (manualUnlocked.length) {
+    manualUnlocked.sort((a, b) => (a.realmOrder || 0) - (b.realmOrder || 0));
+    let candidate = null;
+    manualUnlocked.forEach((background) => {
+      if (!background) {
+        return;
+      }
+      if (background.realmOrder && background.realmOrder <= realmOrder) {
+        candidate = background;
+      }
+    });
+    if (!candidate) {
+      candidate = manualUnlocked[manualUnlocked.length - 1];
+    }
+    if (candidate) {
+      return candidate;
     }
   }
   const fallback = resolveHighestUnlockedBackgroundByRealmOrder(realmOrder);
@@ -162,9 +194,10 @@ function buildBackgroundOptionList(member) {
     const highestVisibleOrder = Math.min(maxRealmOrder, realmOrder + 1);
     visibleBackgrounds = backgrounds.filter((background) => background.realmOrder <= highestVisibleOrder);
   }
+  const backgroundUnlocks = resolveBackgroundUnlocks(member);
   return visibleBackgrounds.map((background) => {
-    const unlocked = isBackgroundUnlocked(background.id, realmOrder);
-    let description = `突破至${background.realmName}解锁`;
+    const unlocked = isBackgroundUnlocked(background.id, realmOrder, backgroundUnlocks);
+    let description = background.unlockType === 'manual' ? '使用奖励道具后解锁' : `突破至${background.realmName}解锁`;
     if (unlocked) {
       description = background.id === activeId ? '当前使用' : '已解锁';
     }
@@ -179,7 +212,8 @@ function buildBackgroundOptionList(member) {
 function resolveSafeBackgroundId(member, desiredId) {
   const realmOrder = resolveMemberRealmOrder(member);
   const sanitizedId = normalizeBackgroundId(desiredId || '');
-  if (sanitizedId && isBackgroundUnlocked(sanitizedId, realmOrder)) {
+  const backgroundUnlocks = resolveBackgroundUnlocks(member);
+  if (sanitizedId && isBackgroundUnlocked(sanitizedId, realmOrder, backgroundUnlocks)) {
     return sanitizedId;
   }
   const fallback = resolvePreferredBackground(member);
@@ -382,7 +416,8 @@ function buildSanitizedMember(member) {
     avatarUrl: sanitizedAvatar || '',
     avatarFrame: sanitizedFrame,
     appearanceBackground: sanitizedBackground,
-    appearanceBackgroundAnimated: !!member.appearanceBackgroundAnimated
+    appearanceBackgroundAnimated: !!member.appearanceBackgroundAnimated,
+    backgroundUnlocks: resolveBackgroundUnlocks(member)
   };
 }
 

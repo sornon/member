@@ -1,14 +1,16 @@
 const RAW_BACKGROUNDS = [
-  { id: 'realm_refining', realmOrder: 1, realmName: '炼气期', name: '炼气之地' },
-  { id: 'realm_foundation', realmOrder: 2, realmName: '筑基期', name: '筑基之地' },
-  { id: 'realm_core', realmOrder: 3, realmName: '金丹期', name: '金丹之地' },
-  { id: 'realm_nascent', realmOrder: 4, realmName: '元婴期', name: '元婴之地' },
-  { id: 'realm_divine', realmOrder: 5, realmName: '化神期', name: '化神之地' },
-  { id: 'realm_void', realmOrder: 6, realmName: '炼虚期', name: '炼虚之地' },
-  { id: 'realm_unity', realmOrder: 7, realmName: '合体期', name: '合体之地' },
-  { id: 'realm_great_vehicle', realmOrder: 8, realmName: '大乘期', name: '大乘之地' },
-  { id: 'realm_tribulation', realmOrder: 9, realmName: '渡劫期', name: '渡劫之地' },
-  { id: 'realm_ascension', realmOrder: 10, realmName: '飞升期', name: '飞升之地' }
+  { id: 'realm_refining', realmOrder: 1, realmName: '炼气期', name: '炼气之地', unlockType: 'realm' },
+  { id: 'trial_spirit_test', realmOrder: 1, realmName: '炼气期', name: '灵根测试', unlockType: 'manual' },
+  { id: 'realm_foundation', realmOrder: 2, realmName: '筑基期', name: '筑基之地', unlockType: 'realm' },
+  { id: 'reward_foundation', realmOrder: 2, realmName: '筑基期', name: '筑基背景', unlockType: 'manual' },
+  { id: 'realm_core', realmOrder: 3, realmName: '金丹期', name: '金丹之地', unlockType: 'realm' },
+  { id: 'realm_nascent', realmOrder: 4, realmName: '元婴期', name: '元婴之地', unlockType: 'realm' },
+  { id: 'realm_divine', realmOrder: 5, realmName: '化神期', name: '化神之地', unlockType: 'realm' },
+  { id: 'realm_void', realmOrder: 6, realmName: '炼虚期', name: '炼虚之地', unlockType: 'realm' },
+  { id: 'realm_unity', realmOrder: 7, realmName: '合体期', name: '合体之地', unlockType: 'realm' },
+  { id: 'realm_great_vehicle', realmOrder: 8, realmName: '大乘期', name: '大乘之地', unlockType: 'realm' },
+  { id: 'realm_tribulation', realmOrder: 9, realmName: '渡劫期', name: '渡劫之地', unlockType: 'realm' },
+  { id: 'realm_ascension', realmOrder: 10, realmName: '飞升期', name: '飞升之地', unlockType: 'realm' }
 ];
 
 const BACKGROUNDS = RAW_BACKGROUNDS.map((item) => ({ ...item }));
@@ -49,10 +51,16 @@ function getDefaultBackgroundId() {
   return BACKGROUNDS[0].id;
 }
 
-function isBackgroundUnlocked(id, realmOrder) {
+function isBackgroundUnlocked(id, realmOrder, unlockedList = []) {
   const background = BACKGROUNDS.find((item) => item.id === id);
   if (!background) {
     return false;
+  }
+  if (background.unlockType === 'manual') {
+    if (!Array.isArray(unlockedList)) {
+      return false;
+    }
+    return unlockedList.includes(id);
   }
   const numericRealmOrder = Number(realmOrder);
   if (!Number.isFinite(numericRealmOrder)) {

@@ -99,8 +99,10 @@ function normalizeAction(action) {
 const ACTION_HANDLERS = {
   [ACTIONS.LIST_MEMBERS]: (openid, event) =>
     listMembers(openid, event.keyword || '', event.page || 1, event.pageSize || 20),
-  [ACTIONS.GET_MEMBER_DETAIL]: (openid, event) => getMemberDetail(openid, event.memberId),
-  [ACTIONS.UPDATE_MEMBER]: (openid, event) => updateMember(openid, event.memberId, event.updates || {}),
+  [ACTIONS.GET_MEMBER_DETAIL]: (openid, event) =>
+    getMemberDetail(openid, event.memberId, event || {}),
+  [ACTIONS.UPDATE_MEMBER]: (openid, event) =>
+    updateMember(openid, event.memberId, event.updates || {}, event || {}),
   [ACTIONS.DELETE_MEMBER]: (openid, event) => deleteMember(openid, event.memberId),
   [ACTIONS.CREATE_CHARGE_ORDER]: (openid, event) => createChargeOrder(openid, event.items || []),
   [ACTIONS.GET_CHARGE_ORDER]: (openid, event) => getChargeOrder(openid, event.orderId),
@@ -122,7 +124,8 @@ const ACTION_HANDLERS = {
       amount: event.amount,
       remark: event.remark || ''
     }),
-  [ACTIONS.RECHARGE_MEMBER]: (openid, event) => rechargeMember(openid, event.memberId, event.amount),
+  [ACTIONS.RECHARGE_MEMBER]: (openid, event) =>
+    rechargeMember(openid, event.memberId, event.amount, event || {}),
   [ACTIONS.LIST_RESERVATIONS]: (openid, event) =>
     listReservations(openid, {
       status: event.status || 'pendingApproval',
@@ -505,15 +508,15 @@ async function listMembers(openid, keyword, page, pageSize) {
   };
 }
 
-async function getMemberDetail(openid, memberId) {
+async function getMemberDetail(openid, memberId, options = {}) {
   await ensureAdmin(openid);
   if (!memberId) {
     throw new Error('缺少会员编号');
   }
-  return fetchMemberDetail(memberId, openid);
+  return fetchMemberDetail(memberId, openid, options);
 }
 
-async function updateMember(openid, memberId, updates) {
+async function updateMember(openid, memberId, updates, options = {}) {
   await ensureAdmin(openid);
   if (!memberId) {
     throw new Error('缺少会员编号');
@@ -529,7 +532,7 @@ async function updateMember(openid, memberId, updates) {
   const extras = await resolveMemberExtras(memberId);
   const { memberUpdates, extrasUpdates, renameLog } = buildUpdatePayload(updates, memberDoc.data, extras);
   if (!Object.keys(memberUpdates).length && !Object.keys(extrasUpdates).length && !renameLog) {
-    return fetchMemberDetail(memberId, openid);
+    return fetchMemberDetail(memberId, openid, options);
   }
   const now = new Date();
   const tasks = [];
@@ -552,7 +555,7 @@ async function updateMember(openid, memberId, updates) {
   if (tasks.length) {
     await Promise.all(tasks);
   }
-  return fetchMemberDetail(memberId, openid);
+  return fetchMemberDetail(memberId, openid, options);
 }
 
 async function listWineStorage(openid, memberId) {
@@ -1095,7 +1098,7 @@ async function adjustChargeOrderAmount(openid, orderId, { amount, remark = '' } 
   return { order: mapChargeOrder(updatedOrder) };
 }
 
-async function rechargeMember(openid, memberId, amount) {
+async function rechargeMember(openid, memberId, amount, options = {}) {
   await ensureAdmin(openid);
   const numericAmount = normalizeAmountFen(amount);
   if (!numericAmount || numericAmount <= 0) {
@@ -1136,7 +1139,7 @@ async function rechargeMember(openid, memberId, amount) {
   if (experienceGain > 0) {
     await syncMemberLevel(memberId);
   }
-  return fetchMemberDetail(memberId);
+  return fetchMemberDetail(memberId, openid, options);
 }
 
 async function listReservations(openid, { status = 'pendingApproval', page = 1, pageSize = 20 } = {}) {
@@ -1367,7 +1370,7 @@ async function getReservationRecord(reservationId) {
   );
 }
 
-async function fetchMemberDetail(memberId, adminId) {
+async function fetchMemberDetail(memberId, adminId, options = {}) {
   const [memberDoc, levels] = await Promise.all([
     db
       .collection(COLLECTIONS.MEMBERS)
@@ -1388,7 +1391,8 @@ async function fetchMemberDetail(memberId, adminId) {
     renameHistory
   };
   const levelMap = buildLevelMap(levels);
-  const pveProfile = await loadMemberPveProfile(memberId, adminId);
+  const includePveProfile = !!(options && options.includePveProfile);
+  const pveProfile = includePveProfile ? await loadMemberPveProfile(memberId, adminId) : null;
   return {
     member: decorateMemberRecord(mergedMember, levelMap),
     levels: levels.map((level) => ({

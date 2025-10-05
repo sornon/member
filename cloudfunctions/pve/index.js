@@ -38,6 +38,29 @@ const {
 const db = cloud.database();
 const _ = db.command;
 
+const BACKGROUND_IDS = new Set([
+  'realm_refining',
+  'trial_spirit_test',
+  'realm_foundation',
+  'reward_foundation',
+  'realm_core',
+  'realm_nascent',
+  'realm_divine',
+  'realm_void',
+  'realm_unity',
+  'realm_great_vehicle',
+  'realm_tribulation',
+  'realm_ascension'
+]);
+
+function normalizeBackgroundId(id) {
+  if (typeof id !== 'string') {
+    return '';
+  }
+  const trimmed = id.trim();
+  return BACKGROUND_IDS.has(trimmed) ? trimmed : '';
+}
+
 const MAX_LEVEL = 100;
 const MAX_SKILL_SLOTS = 3;
 const MAX_BATTLE_HISTORY = 15;
@@ -418,6 +441,12 @@ const STORAGE_CATEGORY_DEFINITIONS = [
   perUpgrade: STORAGE_PER_UPGRADE
 }));
 const STORAGE_CATEGORY_KEYS = STORAGE_CATEGORY_DEFINITIONS.map((item) => item.key);
+const STORAGE_CATEGORY_LABEL_MAP = STORAGE_CATEGORY_DEFINITIONS.reduce((acc, item) => {
+  if (item && item.key) {
+    acc[item.key] = item.label || item.key;
+  }
+  return acc;
+}, {});
 
 const STORAGE_UPGRADE_AVAILABLE_KEYS = ['upgradeAvailable', 'upgradeRemaining', 'availableUpgrades', 'upgradeTokens'];
 const STORAGE_UPGRADE_LIMIT_KEYS = ['upgradeLimit', 'maxUpgrades', 'limit'];
@@ -516,6 +545,92 @@ function resolveStorageUpgradeAvailable(storage) {
 
 function resolveStorageUpgradeLimit(storage) {
   return extractStorageUpgradeLimit(storage).value;
+}
+
+async function loadMemberExtras(memberId) {
+  if (!memberId) {
+    return {
+      avatarUnlocks: [],
+      claimedLevelRewards: [],
+      wineStorage: [],
+      titleUnlocks: [],
+      backgroundUnlocks: [],
+      deliveredLevelRewards: []
+    };
+  }
+  const collection = db.collection(COLLECTIONS.MEMBER_EXTRAS);
+  const snapshot = await collection
+    .doc(memberId)
+    .get()
+    .catch(() => null);
+  if (snapshot && snapshot.data) {
+    const extras = snapshot.data;
+    if (!Array.isArray(extras.avatarUnlocks)) {
+      extras.avatarUnlocks = [];
+    }
+    if (!Array.isArray(extras.claimedLevelRewards)) {
+      extras.claimedLevelRewards = [];
+    }
+    if (!Array.isArray(extras.wineStorage)) {
+      extras.wineStorage = [];
+    }
+    if (!Array.isArray(extras.titleUnlocks)) {
+      extras.titleUnlocks = [];
+    }
+    if (!Array.isArray(extras.backgroundUnlocks)) {
+      extras.backgroundUnlocks = [];
+    }
+    if (!Array.isArray(extras.deliveredLevelRewards)) {
+      extras.deliveredLevelRewards = [];
+    }
+    return extras;
+  }
+  const now = new Date();
+  const data = {
+    avatarUnlocks: [],
+    claimedLevelRewards: [],
+    wineStorage: [],
+    titleUnlocks: [],
+    backgroundUnlocks: [],
+    deliveredLevelRewards: [],
+    createdAt: now,
+    updatedAt: now
+  };
+  await collection
+    .doc(memberId)
+    .set({ data })
+    .catch(() => {});
+  return data;
+}
+
+async function updateMemberExtrasRecord(memberId, updates = {}) {
+  if (!memberId || !updates || !Object.keys(updates).length) {
+    return;
+  }
+  const collection = db.collection(COLLECTIONS.MEMBER_EXTRAS);
+  const payload = { ...updates, updatedAt: new Date() };
+  await collection
+    .doc(memberId)
+    .update({ data: payload })
+    .catch(async (error) => {
+      if (error && /not exist/i.test(error.errMsg || '')) {
+        await collection
+          .doc(memberId)
+          .set({
+            data: {
+              ...payload,
+              createdAt: new Date(),
+              avatarUnlocks: [],
+              claimedLevelRewards: [],
+              wineStorage: [],
+              titleUnlocks: [],
+              backgroundUnlocks: [],
+              deliveredLevelRewards: []
+            }
+          })
+          .catch(() => {});
+      }
+    });
 }
 
 function setStorageField(target, descriptor, defaultKey, value) {
@@ -2392,6 +2507,8 @@ exports.main = async (event = {}) => {
       return equipItem(actorId, event);
     case 'discardItem':
       return discardItem(actorId, event);
+    case 'useStorageItem':
+      return useStorageItem(actorId, event);
     case 'upgradeStorage':
       return upgradeStorage(actorId, event);
     case 'listEquipmentCatalog':
@@ -2474,41 +2591,7 @@ async function drawSkill(actorId) {
   const profile = await ensurePveProfile(actorId, member);
   const now = new Date();
 
-  const roll = rollSkill();
-  const inventory = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
-  let existing = inventory.find((entry) => entry.skillId === roll.skill.id);
-  let isNew = false;
-  if (existing) {
-    const maxLevel = resolveSkillMaxLevel(roll.skill.id);
-    const nextLevel = Math.min(maxLevel, (existing.level || 1) + 1);
-    if (nextLevel > (existing.level || 1)) {
-      existing.level = nextLevel;
-    }
-    existing.duplicates = (existing.duplicates || 0) + 1;
-    existing.obtainedAt = now;
-  } else {
-    isNew = true;
-    existing = createSkillInventoryEntry(roll.skill.id, now);
-    inventory.push(existing);
-  }
-
-  profile.skills.drawCount = (profile.skills.drawCount || 0) + 1;
-  profile.skills.lastDrawAt = now;
-  profile.skillHistory = appendHistory(
-    profile.skillHistory,
-    {
-      type: 'draw',
-      createdAt: now,
-      detail: {
-        skillId: roll.skill.id,
-        quality: roll.skill.quality,
-        level: existing.level,
-        isNew
-      }
-    },
-    MAX_SKILL_HISTORY
-  );
-
+  const draws = performSkillDraw(profile, 1, now);
   refreshAttributeSummary(profile);
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
@@ -2519,15 +2602,17 @@ async function drawSkill(actorId) {
   });
 
   const decorated = decorateProfile(member, profile);
-  const decoratedSkill = decorateSkillInventoryEntry(existing, profile);
+  const acquired = draws[0] || null;
   return {
-    acquiredSkill: {
-      ...decoratedSkill,
-      isNew,
-      quality: roll.skill.quality,
-      qualityLabel: resolveSkillQualityLabel(roll.skill.quality),
-      qualityColor: resolveSkillQualityColor(roll.skill.quality)
-    },
+    acquiredSkill: acquired
+      ? {
+          ...(acquired.decorated || { skillId: acquired.skillId }),
+          isNew: acquired.isNew,
+          quality: acquired.quality,
+          qualityLabel: acquired.qualityLabel,
+          qualityColor: acquired.qualityColor
+        }
+      : null,
     profile: decorated
   };
 }
@@ -2828,6 +2913,9 @@ async function discardItem(actorId, event = {}) {
     if (candidateCategory === 'quest') {
       throw createError('QUEST_ITEM_LOCKED', '任务道具无法删除');
     }
+    if (candidate && candidate.locked) {
+      throw createError('ITEM_LOCKED', '该道具无法删除');
+    }
     removedEntry = candidate;
     removedCategory = candidateCategory;
     inventory.splice(index, 1);
@@ -2854,6 +2942,9 @@ async function discardItem(actorId, event = {}) {
       const candidateCategory = category || candidate.storageCategory || categoryEntry.key || '';
       if (candidateCategory === 'quest') {
         throw createError('QUEST_ITEM_LOCKED', '任务道具无法删除');
+      }
+      if (candidate && candidate.locked) {
+        throw createError('ITEM_LOCKED', '该道具无法删除');
       }
       removedEntry = candidate;
       removedCategory = candidateCategory || categoryEntry.key || '';
@@ -2919,6 +3010,253 @@ async function discardItem(actorId, event = {}) {
 
   const decorated = decorateProfile(member, profile);
   return { profile: decorated };
+}
+
+function performSkillDraw(profile, count = 1, baseTime = new Date()) {
+  const safeCount = Math.max(1, Math.floor(Number(count) || 1));
+  const base =
+    baseTime instanceof Date && !Number.isNaN(baseTime.getTime()) ? new Date(baseTime.getTime()) : new Date();
+  const inventory = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
+  const results = [];
+
+  for (let i = 0; i < safeCount; i += 1) {
+    const drawAt = new Date(base.getTime() + i);
+    const roll = rollSkill();
+    let entry = inventory.find((item) => item && item.skillId === roll.skill.id);
+    let isNew = false;
+    if (entry) {
+      const maxLevel = resolveSkillMaxLevel(roll.skill.id);
+      const nextLevel = Math.min(maxLevel, (entry.level || 1) + 1);
+      if (nextLevel > (entry.level || 1)) {
+        entry.level = nextLevel;
+      }
+      entry.duplicates = (entry.duplicates || 0) + 1;
+      entry.obtainedAt = drawAt;
+    } else {
+      isNew = true;
+      entry = createSkillInventoryEntry(roll.skill.id, drawAt);
+      inventory.push(entry);
+    }
+
+    profile.skills.drawCount = (profile.skills.drawCount || 0) + 1;
+    profile.skills.lastDrawAt = drawAt;
+    profile.skillHistory = appendHistory(
+      profile.skillHistory,
+      {
+        type: 'draw',
+        createdAt: drawAt,
+        detail: {
+          skillId: roll.skill.id,
+          quality: roll.skill.quality,
+          level: entry.level,
+          isNew
+        }
+      },
+      MAX_SKILL_HISTORY
+    );
+
+    const decorated = decorateSkillInventoryEntry(entry, profile);
+    const quality = roll.skill.quality || (decorated ? decorated.quality : 'linggan');
+    results.push({
+      skillId: roll.skill.id,
+      isNew,
+      quality,
+      qualityLabel: resolveSkillQualityLabel(quality),
+      qualityColor: resolveSkillQualityColor(quality),
+      decorated
+    });
+  }
+
+  return results;
+}
+
+async function useStorageItem(actorId, event = {}) {
+  const inventoryId =
+    event && typeof event.inventoryId === 'string' && event.inventoryId.trim() ? event.inventoryId.trim() : '';
+  if (!inventoryId) {
+    throw createError('INVENTORY_ID_REQUIRED', '缺少物品编号');
+  }
+  const actionKey =
+    event && typeof event.actionKey === 'string' && event.actionKey.trim() ? event.actionKey.trim() : 'use';
+  const member = await ensureMember(actorId);
+  const profile = await ensurePveProfile(actorId, member);
+  const equipment = profile.equipment || {};
+  profile.equipment = equipment;
+  const storage = equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : {};
+  const rawCategories = Array.isArray(storage.categories) ? storage.categories : [];
+
+  let targetItem = null;
+  let categoryKey = '';
+  let categoryIndex = -1;
+  let itemIndex = -1;
+
+  const categories = rawCategories.map((category, idx) => {
+    if (!category || typeof category !== 'object') {
+      return category;
+    }
+    const items = Array.isArray(category.items) ? category.items.map((item) => ({ ...item })) : [];
+    const foundIndex = items.findIndex((item) => item && item.inventoryId === inventoryId);
+    if (foundIndex >= 0) {
+      targetItem = items[foundIndex];
+      categoryKey = category.key || targetItem.storageCategory || '';
+      categoryIndex = idx;
+      itemIndex = foundIndex;
+    }
+    return { ...category, items };
+  });
+
+  if (!targetItem) {
+    throw createError('ITEM_NOT_FOUND', '未找到对应物品');
+  }
+
+  const normalizedActions = Array.isArray(targetItem.actions)
+    ? targetItem.actions
+        .map((action) => ({
+          key: typeof action.key === 'string' ? action.key : '',
+          label: typeof action.label === 'string' ? action.label : '',
+          primary: !!action.primary
+        }))
+        .filter((action) => action.key && action.label)
+    : [];
+  const resolvedAction = actionKey || (normalizedActions.length ? normalizedActions[0].key : '');
+  if (!resolvedAction || resolvedAction !== 'use') {
+    throw createError('ITEM_ACTION_NOT_SUPPORTED', '暂不支持该操作');
+  }
+
+  const usage = targetItem.usage && typeof targetItem.usage === 'object' ? { ...targetItem.usage } : null;
+  if (!usage || typeof usage.type !== 'string') {
+    throw createError('ITEM_NO_USAGE', '该道具无法使用');
+  }
+
+  const now = new Date();
+  const result = {};
+  let extras = null;
+  let extrasChanged = false;
+  const extrasUpdates = {};
+  const memberUpdates = {};
+  const ensureExtras = async () => {
+    if (!extras) {
+      extras = await loadMemberExtras(actorId);
+    }
+    return extras;
+  };
+
+  const removeItem = () => {
+    if (categoryIndex >= 0 && itemIndex >= 0 && categories[categoryIndex]) {
+      const items = Array.isArray(categories[categoryIndex].items) ? categories[categoryIndex].items : [];
+      items.splice(itemIndex, 1);
+      categories[categoryIndex] = { ...categories[categoryIndex], items };
+    }
+  };
+
+  switch (usage.type) {
+    case 'unlockTitle': {
+      const extrasData = await ensureExtras();
+      const titleId = typeof usage.titleId === 'string' ? usage.titleId.trim() : '';
+      if (!titleId) {
+        throw createError('ITEM_USAGE_INVALID', '道具目标无效');
+      }
+      const set = new Set(Array.isArray(extrasData.titleUnlocks) ? extrasData.titleUnlocks : []);
+      const alreadyUnlocked = set.has(titleId);
+      if (!alreadyUnlocked) {
+        set.add(titleId);
+        extrasUpdates.titleUnlocks = Array.from(set);
+        extrasChanged = true;
+      }
+      if (!member.appearanceTitle) {
+        memberUpdates.appearanceTitle = titleId;
+      }
+      result.unlockTitle = { titleId, alreadyUnlocked };
+      removeItem();
+      break;
+    }
+    case 'unlockBackground': {
+      const extrasData = await ensureExtras();
+      const backgroundId = normalizeBackgroundId(usage.backgroundId || '');
+      if (!backgroundId) {
+        throw createError('ITEM_USAGE_INVALID', '道具目标无效');
+      }
+      const set = new Set(Array.isArray(extrasData.backgroundUnlocks) ? extrasData.backgroundUnlocks : []);
+      const alreadyUnlocked = set.has(backgroundId);
+      if (!alreadyUnlocked) {
+        set.add(backgroundId);
+        extrasUpdates.backgroundUnlocks = Array.from(set);
+        extrasChanged = true;
+      }
+      memberUpdates.appearanceBackground = backgroundId;
+      result.unlockBackground = { backgroundId, alreadyUnlocked };
+      removeItem();
+      break;
+    }
+    case 'skillDraw': {
+      const drawCount = Math.max(1, Math.floor(Number(usage.drawCount) || 1));
+      const draws = performSkillDraw(profile, drawCount, now);
+      result.acquiredSkills = draws.map((entry) => {
+        const decorated = entry.decorated || null;
+        if (decorated) {
+          return {
+            ...decorated,
+            isNew: entry.isNew,
+            quality: entry.quality,
+            qualityLabel: entry.qualityLabel,
+            qualityColor: entry.qualityColor
+          };
+        }
+        return {
+          skillId: entry.skillId,
+          isNew: entry.isNew,
+          quality: entry.quality,
+          qualityLabel: entry.qualityLabel,
+          qualityColor: entry.qualityColor
+        };
+      });
+      removeItem();
+      break;
+    }
+    default:
+      throw createError('ITEM_USAGE_UNSUPPORTED', '暂不支持该道具');
+  }
+
+  storage.categories = categories;
+  profile.equipment.storage = { ...storage, categories };
+
+  profile.battleHistory = appendHistory(
+    profile.battleHistory,
+    {
+      type: 'equipment-change',
+      createdAt: now,
+      detail: {
+        action: 'use-storage-item',
+        itemId: targetItem.itemId || '',
+        inventoryId,
+        category: categoryKey || targetItem.storageCategory || '',
+        usage: usage.type
+      }
+    },
+    MAX_BATTLE_HISTORY
+  );
+
+  refreshAttributeSummary(profile);
+
+  const updatePayload = {
+    pveProfile: _.set(profile),
+    updatedAt: now,
+    ...memberUpdates
+  };
+
+  await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(actorId)
+    .update({
+      data: updatePayload
+    });
+
+  if (extrasChanged) {
+    await updateMemberExtrasRecord(actorId, extrasUpdates);
+  }
+
+  const decorated = decorateProfile({ ...member, ...memberUpdates }, profile);
+  return { profile: decorated, ...result };
 }
 
 async function upgradeStorage(actorId, event = {}) {
@@ -4161,6 +4499,80 @@ function createSkillInventoryEntry(skillId, obtainedAt = new Date()) {
     favorite: false
   };
 }
+
+function decorateStorageInventoryItem(entry, fallbackCategory = '') {
+  if (!entry) {
+    return null;
+  }
+  const payload = typeof entry === 'object' ? { ...entry } : { itemId: entry };
+  const category =
+    typeof payload.storageCategory === 'string' && payload.storageCategory
+      ? payload.storageCategory
+      : fallbackCategory || 'consumable';
+  const inventoryIdCandidates = [
+    payload.inventoryId,
+    payload.id,
+    payload._id,
+    payload.itemId ? `${category}-${payload.itemId}` : ''
+  ];
+  let inventoryId = '';
+  for (let i = 0; i < inventoryIdCandidates.length; i += 1) {
+    const candidate = inventoryIdCandidates[i];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      inventoryId = candidate.trim();
+      break;
+    }
+  }
+  const obtainedAtRaw = payload.obtainedAt ? new Date(payload.obtainedAt) : null;
+  const obtainedAt = obtainedAtRaw instanceof Date && !Number.isNaN(obtainedAtRaw.getTime()) ? obtainedAtRaw : null;
+  const actions = Array.isArray(payload.actions)
+    ? payload.actions
+        .map((action) => ({
+          key: typeof action.key === 'string' ? action.key.trim() : '',
+          label: typeof action.label === 'string' ? action.label : '',
+          primary: !!action.primary
+        }))
+        .filter((action) => action.key && action.label)
+    : [];
+  const primaryAction = payload.primaryAction && typeof payload.primaryAction.key === 'string'
+    ? actions.find((action) => action.key === payload.primaryAction.key)
+    : null;
+  const notes = Array.isArray(payload.notes) ? payload.notes.filter((note) => !!note) : [];
+  const normalized = {
+    ...payload,
+    inventoryId,
+    storageCategory: category,
+    storageCategoryLabel: payload.storageCategoryLabel || STORAGE_CATEGORY_LABEL_MAP[category] || category || '',
+    name: payload.name || '道具',
+    shortName: payload.shortName || payload.name || '道具',
+    description: payload.description || '',
+    iconUrl: payload.iconUrl || '',
+    iconFallbackUrl: payload.iconFallbackUrl || '',
+    quality: payload.quality || '',
+    qualityLabel: payload.qualityLabel || '',
+    qualityColor: payload.qualityColor || '#6b7bff',
+    obtainedAt,
+    obtainedAtText: payload.obtainedAtText || (obtainedAt ? formatDateTime(obtainedAt) : ''),
+    locked: !!payload.locked,
+    usage: payload.usage && typeof payload.usage === 'object' ? { ...payload.usage } : null,
+    actions,
+    primaryAction: primaryAction || (actions.length ? actions[0] : null),
+    kind: payload.kind || (category === 'equipment' ? 'equipment' : 'storage'),
+    notes,
+    slotLabel:
+      payload.slotLabel ||
+      (category && STORAGE_CATEGORY_LABEL_MAP[category] ? STORAGE_CATEGORY_LABEL_MAP[category] : '道具')
+  };
+  const quantityCandidates = [payload.quantity, payload.count, payload.amount];
+  for (let i = 0; i < quantityCandidates.length; i += 1) {
+    const candidate = Number(quantityCandidates[i]);
+    if (Number.isFinite(candidate)) {
+      normalized.quantity = Math.max(0, Math.floor(candidate));
+      break;
+    }
+  }
+  return normalized;
+}
 function decorateProfile(member, profile) {
   const { attributes, equipment, skills } = profile;
   const attributeSummary = calculateAttributes(attributes, equipment, skills);
@@ -4688,21 +5100,85 @@ function decorateEquipment(profile, summary = null) {
   const upgradeLimit = rawUpgradeLimit !== null && rawUpgradeLimit > 0 ? rawUpgradeLimit : null;
   const upgradesRemaining =
     upgradeLimit !== null ? Math.max(upgradeLimit - Math.min(upgradeLimit, storageLevel), 0) : null;
-  const storageCategories = STORAGE_CATEGORY_DEFINITIONS.map((definition) => {
-    const items = definition.key === 'equipment' ? list : [];
+  const rawCategories = Array.isArray(storage.categories) ? storage.categories : [];
+  const rawCategoryMap = new Map();
+  rawCategories.forEach((category) => {
+    if (category && typeof category.key === 'string' && category.key) {
+      rawCategoryMap.set(category.key, category);
+    }
+  });
+
+  const processedKeys = new Set();
+  const storageCategories = [];
+
+  STORAGE_CATEGORY_DEFINITIONS.forEach((definition) => {
+    const key = definition.key;
+    const raw = rawCategoryMap.get(key);
+    processedKeys.add(key);
+    const label = (raw && typeof raw.label === 'string' && raw.label) || definition.label || key;
+    const items =
+      key === 'equipment'
+        ? list.map((item) => ({ ...item }))
+        : (raw && Array.isArray(raw.items) ? raw.items : [])
+            .map((item) => decorateStorageInventoryItem(item, key))
+            .filter((item) => !!item);
     const used = items.length;
+    const slotCount = Math.max(capacity, used);
+    const slotsList = items.map((item) => ({ ...item, placeholder: false, storageCategory: key }));
+    for (let i = items.length; i < slotCount; i += 1) {
+      slotsList.push({ placeholder: true, storageKey: `${key}-placeholder-${i}` });
+    }
     const remaining = Math.max(capacity - used, 0);
-    return {
-      key: definition.key,
-      label: definition.label,
+    const usagePercent = capacity ? Math.min(100, Math.round((used / capacity) * 100)) : 0;
+    storageCategories.push({
+      key,
+      label,
       baseCapacity,
       perUpgrade,
       upgrades: storageLevel,
-      capacity,
+      capacity: slotCount,
       used,
       remaining,
-      items
-    };
+      usagePercent,
+      nextCapacity: capacity + perUpgrade,
+      items,
+      slots: slotsList
+    });
+  });
+
+  rawCategories.forEach((category) => {
+    if (!category || typeof category !== 'object') {
+      return;
+    }
+    const key = typeof category.key === 'string' ? category.key : '';
+    if (!key || processedKeys.has(key)) {
+      return;
+    }
+    const label = typeof category.label === 'string' && category.label ? category.label : key;
+    const rawItems = Array.isArray(category.items) ? category.items : [];
+    const items = rawItems.map((item) => decorateStorageInventoryItem(item, key)).filter((item) => !!item);
+    const used = items.length;
+    const slotCount = Math.max(capacity, used);
+    const slotsList = items.map((item) => ({ ...item, placeholder: false, storageCategory: key }));
+    for (let i = items.length; i < slotCount; i += 1) {
+      slotsList.push({ placeholder: true, storageKey: `${key}-placeholder-${i}` });
+    }
+    const remaining = Math.max(capacity - used, 0);
+    const usagePercent = capacity ? Math.min(100, Math.round((used / capacity) * 100)) : 0;
+    storageCategories.push({
+      key,
+      label,
+      baseCapacity,
+      perUpgrade,
+      upgrades: storageLevel,
+      capacity: slotCount,
+      used,
+      remaining,
+      usagePercent,
+      nextCapacity: capacity + perUpgrade,
+      items,
+      slots: slotsList
+    });
   });
   const totalUsed = storageCategories.reduce((sum, category) => sum + (category.used || 0), 0);
   const clampedUsed = Math.min(totalUsed, capacity);
