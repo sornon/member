@@ -53,7 +53,6 @@
           <view class="profile-meta">
             <text class="profile-meta__text" bindtap="handleLevelTap">境界 {{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</text>
             <text class="profile-meta__text" bindtap="handleStoneTap">灵石 {{memberStats.stoneBalance}}</text>
-            <text class="profile-meta__text" bindtap="handleExperienceTap">修为 {{memberStats.experience}}</text>
           </view>
         </view>
       </view>
@@ -79,7 +78,7 @@
           <view class="progress-track">
             <view class="progress-inner" style="{{progressStyle}}"></view>
           </view>
-          <view class="progress-text">距下境界还需 {{progress ? progress.nextDiff : 0}} 修为</view>
+          <view class="progress-text">修为{{memberStats.experience}}，距下级还需 {{progress ? progress.nextDiff : 0}} </view>
         </view>
       </view>
 
