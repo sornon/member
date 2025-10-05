@@ -4805,7 +4805,7 @@ function runBattleSimulation({ player, enemy, attributes }) {
   let playerHp = playerStats.maxHp + (playerSpecial.shield || 0);
   let enemyHp = enemyStats.maxHp + (enemySpecial.shield || 0);
   let round = 1;
-  const maxRounds = 30;
+  const maxRounds = 15;
   const playerFirst = playerStats.speed >= enemyStats.speed;
   let attacker = playerFirst ? 'player' : 'enemy';
 
@@ -4857,15 +4857,20 @@ function runBattleSimulation({ player, enemy, attributes }) {
     }
   }
 
+  const timeout = round > maxRounds && playerHp > 0 && enemyHp > 0;
+  if (timeout) {
+    log.push(`第${maxRounds}回合后仍未击败敌人，秘境挑战失败`);
+  }
+
   const victory = enemyHp <= 0 && playerHp > 0;
-  const draw = !victory && playerHp > 0 && enemyHp > 0;
+  const draw = !victory && !timeout && playerHp > 0 && enemyHp > 0;
 
   const rewards = calculateBattleRewards(attributes, enemy.meta || enemy, { victory, draw });
 
   return {
     victory,
     draw,
-    rounds: round,
+    rounds: Math.min(round, maxRounds),
     log,
     rewards,
     remaining: {
