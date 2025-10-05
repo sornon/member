@@ -4167,7 +4167,7 @@ function decorateProfile(member, profile) {
   const equipmentSummary = decorateEquipment(profile, attributeSummary.equipmentBonus);
   const skillsSummary = decorateSkills(profile);
   const secretRealm = decorateSecretRealm(profile.secretRealm, attributeSummary);
-  const enemies = secretRealm.floors;
+  const enemies = secretRealm.visibleFloors || secretRealm.floors;
   const battleHistory = decorateBattleHistory(profile.battleHistory, profile);
   const skillHistory = decorateSkillHistory(profile.skillHistory);
 
@@ -4851,6 +4851,7 @@ function decorateSecretRealm(secretRealmState, attributeSummary) {
   const nextFloor = floors.find((floor) => !floor.completed && !floor.locked);
   const totalFloors = ENEMY_LIBRARY.length;
   const progress = totalFloors > 0 ? Math.min(1, clearedCount / totalFloors) : 0;
+  const visibleFloors = resolveVisibleSecretRealmFloors(floors);
 
   return {
     highestUnlockedFloor,
@@ -4858,8 +4859,37 @@ function decorateSecretRealm(secretRealmState, attributeSummary) {
     totalFloors,
     progress,
     nextFloorId: nextFloor ? nextFloor.id : '',
-    floors
+    floors,
+    visibleFloors
   };
+}
+
+function resolveVisibleSecretRealmFloors(floors) {
+  if (!Array.isArray(floors) || floors.length === 0) {
+    return [];
+  }
+
+  const currentIndex = floors.findIndex((floor) => !floor.completed && !floor.locked);
+  if (currentIndex === -1) {
+    return [];
+  }
+
+  const visibleFloors = [floors[currentIndex]];
+
+  if (currentIndex + 1 < floors.length) {
+    const nextFloor = floors[currentIndex + 1];
+    const lockedNextFloor =
+      nextFloor.locked && nextFloor.statusLabel === '未解锁'
+        ? nextFloor
+        : {
+            ...nextFloor,
+            locked: true,
+            statusLabel: '未解锁'
+          };
+    visibleFloors.push(lockedNextFloor);
+  }
+
+  return visibleFloors;
 }
 
 function decorateSkillInventoryEntry(entry, profile) {
