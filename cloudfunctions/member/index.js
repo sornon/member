@@ -29,6 +29,13 @@ const TITLE_LIBRARY = Object.freeze({
   }
 });
 
+function normalizeTitleId(titleId) {
+  if (typeof titleId !== 'string') {
+    return '';
+  }
+  return titleId.trim();
+}
+
 const BACKGROUND_LIBRARY = Object.freeze({
   trial_spirit_test: {
     id: 'trial_spirit_test',
@@ -1381,7 +1388,23 @@ async function ensureArchiveDefaults(member) {
   const extrasUpdates = {};
   const memberId = member._id;
   const extras = await resolveMemberExtras(memberId);
-  const titleUnlocks = Array.isArray(extras.titleUnlocks) ? extras.titleUnlocks.slice() : [];
+  const titleUnlockSet = new Set();
+  const titleUnlocks = Array.isArray(extras.titleUnlocks)
+    ? extras.titleUnlocks
+        .map((id) => normalizeTitleId(id))
+        .filter((id) => {
+          if (!id || titleUnlockSet.has(id)) {
+            return false;
+          }
+          titleUnlockSet.add(id);
+          return true;
+        })
+    : [];
+  if (!arraysEqual(Array.isArray(extras.titleUnlocks) ? extras.titleUnlocks : [], titleUnlocks)) {
+    extrasUpdates.titleUnlocks = titleUnlocks;
+    extras.titleUnlocks = titleUnlocks;
+  }
+  extras.titleUnlocks = titleUnlocks;
   const backgroundUnlocks = Array.isArray(extras.backgroundUnlocks) ? extras.backgroundUnlocks.slice() : [];
 
   if (!GENDER_OPTIONS.includes(member.gender)) {
@@ -1432,12 +1455,12 @@ async function ensureArchiveDefaults(member) {
   }
   member.appearanceBackground = safeBackgroundId;
 
-  const appearanceTitle = typeof member.appearanceTitle === 'string' ? member.appearanceTitle.trim() : '';
+  const appearanceTitle = normalizeTitleId(member.appearanceTitle);
   if (appearanceTitle && !titleUnlocks.includes(appearanceTitle)) {
     updates.appearanceTitle = '';
     member.appearanceTitle = '';
-  } else if (!appearanceTitle) {
-    member.appearanceTitle = '';
+  } else {
+    member.appearanceTitle = appearanceTitle || '';
   }
 
   const backgroundAnimated = normalizeBooleanFlag(member.appearanceBackgroundAnimated, false);
@@ -1528,6 +1551,7 @@ async function updateArchive(openid, updates = {}) {
   const patch = {};
   let renamed = false;
   const realmOrder = resolveMemberRealmOrder(member, levels);
+  const titleUnlocks = Array.isArray(extras && extras.titleUnlocks) ? extras.titleUnlocks : [];
   const backgroundUnlocks = Array.isArray(extras && extras.backgroundUnlocks)
     ? extras.backgroundUnlocks
     : [];
@@ -1587,6 +1611,22 @@ async function updateArchive(openid, updates = {}) {
       const fallbackId = fallback ? fallback.id : getDefaultBackgroundId();
       if (fallbackId && fallbackId !== (member.appearanceBackground || '')) {
         patch.appearanceBackground = fallbackId;
+      }
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'appearanceTitle')) {
+    const desiredTitle = normalizeTitleId(updates.appearanceTitle);
+    if (!desiredTitle) {
+      if (member.appearanceTitle) {
+        patch.appearanceTitle = '';
+      }
+    } else {
+      if (!titleUnlocks.includes(desiredTitle)) {
+        throw createError('TITLE_NOT_UNLOCKED', '该称号尚未解锁');
+      }
+      if (desiredTitle !== (member.appearanceTitle || '')) {
+        patch.appearanceTitle = desiredTitle;
       }
     }
   }

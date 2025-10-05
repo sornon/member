@@ -11,11 +11,13 @@ function buildCloudAssetUrl(...segments) {
 const BACKGROUND_IMAGE_BASE_PATH = buildCloudAssetUrl('background');
 const BACKGROUND_VIDEO_BASE_PATH = buildCloudAssetUrl('background');
 const CHARACTER_IMAGE_BASE_PATH = buildCloudAssetUrl('character');
+const TITLE_IMAGE_BASE_PATH = buildCloudAssetUrl('title');
 
 module.exports = {
   CLOUD_ASSET_BASE_PATH,
   BACKGROUND_IMAGE_BASE_PATH,
   BACKGROUND_VIDEO_BASE_PATH,
   CHARACTER_IMAGE_BASE_PATH,
+  TITLE_IMAGE_BASE_PATH,
   buildCloudAssetUrl
 };

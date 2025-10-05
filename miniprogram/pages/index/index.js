@@ -19,6 +19,7 @@ const {
   isBackgroundUnlocked
 } = require('../../shared/backgrounds.js');
 const { CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
+const { buildTitleImageUrl, resolveTitleById, normalizeTitleId } = require('../../shared/titles.js');
 const { listAvatarIds: listAllAvatarIds } = require('../../shared/avatar-catalog.js');
 
 function buildCharacterImageMap() {
@@ -43,6 +44,56 @@ function resolveBackgroundUnlocks(source) {
     return source.backgroundUnlocks.filter((id) => typeof id === 'string' && id.trim());
   }
   return [];
+}
+
+function resolveTitleUnlocks(source) {
+  if (!source) {
+    return [];
+  }
+  let rawUnlocks = [];
+  if (Array.isArray(source.titleUnlocks)) {
+    rawUnlocks = source.titleUnlocks;
+  } else if (source.extras && Array.isArray(source.extras.titleUnlocks)) {
+    rawUnlocks = source.extras.titleUnlocks;
+  }
+  const result = [];
+  rawUnlocks.forEach((id) => {
+    const normalized = normalizeTitleId(id);
+    if (normalized && !result.includes(normalized)) {
+      result.push(normalized);
+    }
+  });
+  return result;
+}
+
+function buildTitleOptionList(member) {
+  const unlocks = resolveTitleUnlocks(member);
+  const options = [
+    { id: '', name: '无称号', image: '' }
+  ];
+  unlocks.forEach((titleId) => {
+    const definition = resolveTitleById(titleId);
+    const name = definition && definition.name ? definition.name : '神秘称号';
+    const image = buildTitleImageUrl(titleId);
+    options.push({
+      id: titleId,
+      name,
+      image
+    });
+  });
+  return options;
+}
+
+function resolveActiveTitleId(member, desiredId) {
+  const normalized = normalizeTitleId(desiredId || '');
+  if (!normalized) {
+    return '';
+  }
+  const unlocks = resolveTitleUnlocks(member);
+  if (unlocks.includes(normalized)) {
+    return normalized;
+  }
+  return '';
 }
 
 const BASE_NAV_ITEMS = [
@@ -411,12 +462,17 @@ function buildSanitizedMember(member) {
   const sanitizedAvatar = sanitizeAvatarUrl(member.avatarUrl);
   const sanitizedFrame = sanitizeAvatarFrame(member.avatarFrame || '');
   const sanitizedBackground = normalizeBackgroundId(member.appearanceBackground || '') || getDefaultBackgroundId();
+  const titleUnlocks = resolveTitleUnlocks(member);
+  const desiredTitle = normalizeTitleId(member.appearanceTitle || '');
+  const appearanceTitle = desiredTitle && titleUnlocks.includes(desiredTitle) ? desiredTitle : '';
   return {
     ...member,
     avatarUrl: sanitizedAvatar || '',
     avatarFrame: sanitizedFrame,
     appearanceBackground: sanitizedBackground,
     appearanceBackgroundAnimated: !!member.appearanceBackgroundAnimated,
+    appearanceTitle,
+    titleUnlocks,
     backgroundUnlocks: resolveBackgroundUnlocks(member)
   };
 }
@@ -610,6 +666,7 @@ Page({
     },
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
+    activeTitleImage: '',
     activityIcons: [
       { icon: '🏪', label: '商城', url: '/pages/mall/index' },
       { icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
@@ -627,6 +684,7 @@ Page({
       gender: 'unknown',
       avatarUrl: '',
       avatarFrame: '',
+      appearanceTitle: '',
       appearanceBackground: getDefaultBackgroundId(),
       appearanceBackgroundAnimated: false,
       renameCredits: 0,
@@ -646,7 +704,9 @@ Page({
       frameOptions: cloneAvatarFrameOptions(),
       backgroundId: getDefaultBackgroundId(),
       backgroundOptions: buildBackgroundOptionList(null),
-      dynamicBackground: false
+      dynamicBackground: false,
+      appearanceTitle: '',
+      titleOptions: []
     },
   },
 
@@ -982,9 +1042,14 @@ Page({
       return;
     }
     const updates = {
-      'avatarPicker.activeTab': tab,
-      'avatarPicker.backgroundOptions': buildBackgroundOptionList(this.data.member)
+      'avatarPicker.activeTab': tab
     };
+    if (tab === 'background') {
+      updates['avatarPicker.backgroundOptions'] = buildBackgroundOptionList(this.data.member);
+    }
+    if (tab === 'title') {
+      updates['avatarPicker.titleOptions'] = buildTitleOptionList(this.data.member);
+    }
     this.setData(updates);
   },
 
@@ -1007,6 +1072,8 @@ Page({
       typeof this.data.profileEditor.appearanceBackgroundAnimated === 'boolean'
         ? this.data.profileEditor.appearanceBackgroundAnimated
         : !!member.appearanceBackgroundAnimated;
+    const appearanceTitle = resolveActiveTitleId(member, this.data.profileEditor.appearanceTitle || member.appearanceTitle);
+    const titleOptions = buildTitleOptionList(member);
     const updates = {
       showAvatarPicker: true,
       avatarPickerSaving: false,
@@ -1018,7 +1085,9 @@ Page({
         frameOptions,
         backgroundId,
         backgroundOptions,
-        dynamicBackground
+        dynamicBackground,
+        appearanceTitle,
+        titleOptions
       }
     };
     if (avatarUrl && this.data.profileEditor.avatarUrl !== avatarUrl) {
@@ -1032,6 +1101,9 @@ Page({
     }
     if (this.data.profileEditor.appearanceBackgroundAnimated !== dynamicBackground) {
       updates['profileEditor.appearanceBackgroundAnimated'] = dynamicBackground;
+    }
+    if (this.data.profileEditor.appearanceTitle !== appearanceTitle) {
+      updates['profileEditor.appearanceTitle'] = appearanceTitle;
     }
     this.setData(updates);
   },
@@ -1052,13 +1124,20 @@ Page({
     const preferredAvatar = sanitizeAvatarUrl(this.data.avatarPicker.avatarUrl) || sanitizeAvatarUrl(member.avatarUrl);
     const avatarOptions = computeAvatarOptionList(member, preferredAvatar, gender);
     const avatarUrl = resolveAvatarSelection(avatarOptions, preferredAvatar, gender) || this.data.defaultAvatar;
+    const titleOptions = buildTitleOptionList(this.data.member);
+    const appearanceTitle = resolveActiveTitleId(this.data.member, this.data.profileEditor.appearanceTitle);
     const updates = {
       'avatarPicker.avatarOptions': avatarOptions,
       'avatarPicker.avatarUrl': avatarUrl,
-      'avatarPicker.backgroundOptions': buildBackgroundOptionList(this.data.member)
+      'avatarPicker.backgroundOptions': buildBackgroundOptionList(this.data.member),
+      'avatarPicker.titleOptions': titleOptions,
+      'avatarPicker.appearanceTitle': appearanceTitle
     };
     if (avatarUrl && this.data.profileEditor.avatarUrl !== avatarUrl) {
       updates['profileEditor.avatarUrl'] = avatarUrl;
+    }
+    if (this.data.profileEditor.appearanceTitle !== appearanceTitle) {
+      updates['profileEditor.appearanceTitle'] = appearanceTitle;
     }
     this.setData(updates);
   },
@@ -1086,6 +1165,30 @@ Page({
     this.setData({
       'avatarPicker.avatarFrame': frame,
       'profileEditor.avatarFrame': frame
+    });
+  },
+
+  handleTitleSelect(event) {
+    if (this.data.avatarPickerSaving) {
+      return;
+    }
+    const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
+    const rawId = typeof dataset.id === 'string' ? dataset.id : '';
+    const normalizedId = normalizeTitleId(rawId);
+    if (!normalizedId) {
+      this.setData({
+        'avatarPicker.appearanceTitle': '',
+        'profileEditor.appearanceTitle': ''
+      });
+      return;
+    }
+    const unlocks = resolveTitleUnlocks(this.data.member);
+    if (!unlocks.includes(normalizedId)) {
+      return;
+    }
+    this.setData({
+      'avatarPicker.appearanceTitle': normalizedId,
+      'profileEditor.appearanceTitle': normalizedId
     });
   },
 
@@ -1159,13 +1262,15 @@ Page({
       this.data.avatarPicker.backgroundId || this.data.profileEditor.appearanceBackground
     );
     const isAnimated = !!this.data.avatarPicker.dynamicBackground;
+    const appearanceTitle = resolveActiveTitleId(this.data.member, this.data.avatarPicker.appearanceTitle);
     this.setData({ avatarPickerSaving: true });
     try {
       const member = await MemberService.updateArchive({
         avatarUrl,
         avatarFrame,
         appearanceBackground: backgroundId,
-        appearanceBackgroundAnimated: isAnimated
+        appearanceBackgroundAnimated: isAnimated,
+        appearanceTitle
       });
       this.applyMemberUpdate(member);
       this.setData({
@@ -1174,7 +1279,10 @@ Page({
         'profileEditor.avatarFrame': avatarFrame,
         'profileEditor.appearanceBackground': backgroundId,
         'profileEditor.appearanceBackgroundAnimated': isAnimated,
-        'avatarPicker.dynamicBackground': isAnimated
+        'profileEditor.appearanceTitle': appearanceTitle,
+        'avatarPicker.dynamicBackground': isAnimated,
+        'avatarPicker.appearanceTitle': appearanceTitle,
+        activeTitleImage: buildTitleImageUrl(appearanceTitle)
       });
       wx.showToast({ title: '外观已更新', icon: 'success' });
     } catch (error) {
@@ -1193,16 +1301,18 @@ Page({
       wx.showToast({ title: '请输入道号', icon: 'none' });
       return;
     }
+    const appearanceTitle = resolveActiveTitleId(this.data.member, this.data.profileEditor.appearanceTitle);
     const payload = {
       nickName,
       gender: this.data.profileEditor.gender,
-      avatarUrl: this.data.profileEditor.avatarUrl || this.data.defaultAvatar,
+      avatarUrl: sanitizeAvatarUrl(this.data.profileEditor.avatarUrl) || this.data.defaultAvatar,
       avatarFrame: sanitizeAvatarFrame(this.data.profileEditor.avatarFrame),
       appearanceBackground: resolveSafeBackgroundId(
         this.data.member,
         this.data.profileEditor.appearanceBackground
       ),
-      appearanceBackgroundAnimated: !!this.data.profileEditor.appearanceBackgroundAnimated
+      appearanceBackgroundAnimated: !!this.data.profileEditor.appearanceBackgroundAnimated,
+      appearanceTitle
     };
     this.setData({ profileSaving: true });
     try {
@@ -1258,6 +1368,7 @@ Page({
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
       'profileEditor.avatarUrl': sanitizedMember.avatarUrl || this.data.profileEditor.avatarUrl,
       'profileEditor.avatarFrame': sanitizedMember.avatarFrame,
+      'profileEditor.appearanceTitle': sanitizedMember.appearanceTitle,
       'profileEditor.appearanceBackground': sanitizedMember.appearanceBackground,
       'profileEditor.appearanceBackgroundAnimated': !!sanitizedMember.appearanceBackgroundAnimated,
       'avatarPicker.avatarUrl': sanitizedMember.avatarUrl || this.data.avatarPicker.avatarUrl,
@@ -1267,11 +1378,14 @@ Page({
         : cloneAvatarFrameOptions(),
       'avatarPicker.backgroundId': resolveSafeBackgroundId(sanitizedMember, sanitizedMember.appearanceBackground),
       'avatarPicker.backgroundOptions': buildBackgroundOptionList(sanitizedMember),
+      'avatarPicker.appearanceTitle': sanitizedMember.appearanceTitle,
+      'avatarPicker.titleOptions': buildTitleOptionList(sanitizedMember),
       'avatarPicker.dynamicBackground': !!sanitizedMember.appearanceBackgroundAnimated,
       'profileEditor.renameCredits': sanitizedMember.renameCredits || 0,
       'profileEditor.renameCards': sanitizedMember.renameCards || 0,
       'profileEditor.renameUsed': sanitizedMember.renameUsed || 0,
-      'profileEditor.renameHistory': renameHistory
+      'profileEditor.renameHistory': renameHistory,
+      activeTitleImage: buildTitleImageUrl(sanitizedMember.appearanceTitle)
     });
     this.updateBackgroundDisplay(sanitizedMember, { resetError: true });
     if (this.data.showAvatarPicker) {

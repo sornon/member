@@ -51,6 +51,9 @@
         <view class="profile-info">
           <view class="profile-name" bindtap="handleProfileTap">{{member ? (member.nickName || '无名仙友') : '无名仙友'}}</view>
           <view class="profile-meta">
+            <view wx:if="{{activeTitleImage}}" class="profile-meta__title">
+              <image class="profile-meta__title-image" src="{{activeTitleImage}}" mode="heightFix"></image>
+            </view>
             <text class="profile-meta__text" bindtap="handleLevelTap">境界 {{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</text>
             <text class="profile-meta__text" bindtap="handleStoneTap">灵石 {{memberStats.stoneBalance}}</text>
           </view>
@@ -233,6 +236,11 @@
             bindtap="handleAppearanceTabChange"
           >相框</view>
           <view
+            class="appearance-tab {{avatarPicker.activeTab === 'title' ? 'appearance-tab--active' : ''}}"
+            data-tab="title"
+            bindtap="handleAppearanceTabChange"
+          >称号</view>
+          <view
             class="appearance-tab {{avatarPicker.activeTab === 'background' ? 'appearance-tab--active' : ''}}"
             data-tab="background"
             bindtap="handleAppearanceTabChange"
@@ -279,6 +287,28 @@
                   ></image>
                 </view>
                 <view class="avatar-frame-option__label">{{item.name}}</view>
+              </view>
+            </view>
+          </view>
+          <view wx:elif="{{avatarPicker.activeTab === 'title'}}" class="archive-section appearance-section">
+            <view class="appearance-title-grid">
+              <view
+                class="appearance-title-option {{avatarPicker.appearanceTitle === item.id ? 'appearance-title-option--active' : ''}}"
+                wx:for="{{avatarPicker.titleOptions}}"
+                wx:key="id"
+                data-id="{{item.id}}"
+                bindtap="handleTitleSelect"
+              >
+                <view class="appearance-title-option__preview">
+                  <image
+                    wx:if="{{item.image}}"
+                    class="appearance-title-option__image"
+                    src="{{item.image}}"
+                    mode="widthFix"
+                  ></image>
+                  <view wx:else class="appearance-title-option__placeholder">无称号</view>
+                </view>
+                <view class="appearance-title-option__label">{{item.name}}</view>
               </view>
             </view>
           </view>
