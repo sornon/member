@@ -3,6 +3,15 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { COLLECTIONS } = require('common-config');
+const {
+  DEFAULT_COMBAT_STATS,
+  clamp,
+  createCombatantFromAttributes,
+  resolveCombatStats,
+  resolveSpecialStats,
+  executeAttack: performCombatAttack,
+  calculateCombatPower
+} = require('combat-system');
 
 const db = cloud.database();
 const _ = db.command;
@@ -11,6 +20,20 @@ const MAX_LEVEL = 100;
 const MAX_SKILL_SLOTS = 3;
 const MAX_BATTLE_HISTORY = 15;
 const MAX_SKILL_HISTORY = 30;
+
+const ENEMY_COMBAT_DEFAULTS = {
+  ...DEFAULT_COMBAT_STATS,
+  maxHp: 0,
+  physicalAttack: 0,
+  magicAttack: 0,
+  physicalDefense: 0,
+  magicDefense: 0,
+  speed: 0,
+  accuracy: 110,
+  dodge: 0,
+  critRate: 0.05,
+  critDamage: 1.5
+};
 
 const STORAGE_BASE_CAPACITY = 100;
 const STORAGE_PER_UPGRADE = 20;
@@ -5003,75 +5026,6 @@ function applyModifierGroup(summary, group, scale = 1) {
   });
 }
 
-function calculateCombatPower(stats, special = {}) {
-  if (!stats) return 0;
-  const maxHp = Number(stats.maxHp) || 0;
-  const physicalAttack = Number(stats.physicalAttack) || 0;
-  const magicAttack = Number(stats.magicAttack) || 0;
-  const physicalDefense = Number(stats.physicalDefense) || 0;
-  const magicDefense = Number(stats.magicDefense) || 0;
-  const speed = Number(stats.speed) || 0;
-  const accuracy = Number(stats.accuracy) || 0;
-  const dodge = Number(stats.dodge) || 0;
-  const critRate = clamp(Number(stats.critRate) || 0, 0, 0.95);
-  const critDamage = Math.max(1.2, Number(stats.critDamage) || 1.5);
-  const critResist = Number(stats.critResist) || 0;
-  const finalDamageBonus = Number(stats.finalDamageBonus) || 0;
-  const finalDamageReduction = Number(stats.finalDamageReduction) || 0;
-  const lifeSteal = Number(stats.lifeSteal) || 0;
-  const healingBonus = Number(stats.healingBonus) || 0;
-  const controlHit = Number(stats.controlHit) || 0;
-  const controlResist = Number(stats.controlResist) || 0;
-  const physicalPenetration = Number(stats.physicalPenetration) || 0;
-  const magicPenetration = Number(stats.magicPenetration) || 0;
-  const comboRate = Number(stats.comboRate) || 0;
-  const block = Number(stats.block) || 0;
-  const counterRate = Number(stats.counterRate) || 0;
-  const damageReduction = Number(stats.damageReduction) || 0;
-  const healingReceived = Number(stats.healingReceived) || 0;
-  const rageGain = Number(stats.rageGain) || 0;
-  const controlStrength = Number(stats.controlStrength) || 0;
-  const shieldPower = Number(stats.shieldPower) || 0;
-  const summonPower = Number(stats.summonPower) || 0;
-  const elementalVulnerability = Number(stats.elementalVulnerability) || 0;
-  const shield = special.shield || 0;
-  const bonusDamage = special.bonusDamage || 0;
-  const dodgeChance = special.dodgeChance || 0;
-
-  const power =
-    maxHp * 0.35 +
-    (physicalAttack + magicAttack) * 1.8 +
-    (physicalDefense + magicDefense) * 1.45 +
-    speed * 1.2 +
-    accuracy * 0.9 +
-    dodge * 2.5 +
-    critRate * 520 +
-    (critDamage - 1) * 180 +
-    finalDamageBonus * 650 -
-    finalDamageReduction * 480 +
-    critResist * 360 +
-    lifeSteal * 420 +
-    healingBonus * 380 +
-    controlHit * 1.1 +
-    controlResist * 1.1 +
-    physicalPenetration * 2.2 +
-    magicPenetration * 2.2 +
-    comboRate * 520 +
-    block * 380 +
-    counterRate * 480 +
-    damageReduction * 360 +
-    healingReceived * 340 +
-    rageGain * 320 +
-    controlStrength * 300 +
-    shieldPower * 260 +
-    summonPower * 240 +
-    elementalVulnerability * 320 +
-    shield * 0.25 +
-    bonusDamage * 1.4 +
-    dodgeChance * 620;
-  return Math.round(power);
-}
-
 function decorateEquipment(profile, summary = null) {
   const equipment = profile.equipment || {};
   const inventory = Array.isArray(equipment.inventory) ? equipment.inventory : [];
@@ -5663,7 +5617,7 @@ function runBattleSimulation({ player, enemy, attributes }) {
 
   while (playerHp > 0 && enemyHp > 0 && round <= maxRounds) {
     if (attacker === 'player') {
-      const result = executeAttack(playerStats, playerSpecial, enemyStats, enemySpecial);
+      const result = performCombatAttack(playerStats, playerSpecial, enemyStats, enemySpecial);
       if (result.dodged) {
         log.push(`第${round}回合：敌方闪避了你的攻势`);
       } else {
@@ -5686,7 +5640,7 @@ function runBattleSimulation({ player, enemy, attributes }) {
         break;
       }
     } else {
-      const result = executeAttack(enemyStats, enemySpecial, playerStats, playerSpecial);
+      const result = performCombatAttack(enemyStats, enemySpecial, playerStats, playerSpecial);
       if (result.dodged) {
         log.push(`第${round}回合：你闪避了敌方的攻势`);
       } else {
@@ -5732,134 +5686,20 @@ function runBattleSimulation({ player, enemy, attributes }) {
 }
 
 function createPlayerCombatant(attributes) {
-  const final = attributes.finalStats || {};
-  const special = attributes.skillSummary || {};
-  return {
-    stats: {
-      maxHp: Number(final.maxHp) || 0,
-      physicalAttack: Number(final.physicalAttack) || 0,
-      magicAttack: Number(final.magicAttack) || 0,
-      physicalDefense: Number(final.physicalDefense) || 0,
-      magicDefense: Number(final.magicDefense) || 0,
-      speed: Number(final.speed) || 0,
-      accuracy: Number(final.accuracy) || 0,
-      dodge: Number(final.dodge) || 0,
-      critRate: clamp(Number(final.critRate) || 0, 0, 0.95),
-      critDamage: Math.max(1.2, Number(final.critDamage) || 1.5),
-      finalDamageBonus: Number(final.finalDamageBonus) || 0,
-      finalDamageReduction: Number(final.finalDamageReduction) || 0,
-      lifeSteal: Number(final.lifeSteal) || 0,
-      healingBonus: Number(final.healingBonus) || 0,
-      healingReduction: Number(final.healingReduction) || 0,
-      controlHit: Number(final.controlHit) || 0,
-      controlResist: Number(final.controlResist) || 0,
-      physicalPenetration: Number(final.physicalPenetration) || 0,
-      magicPenetration: Number(final.magicPenetration) || 0,
-      critResist: Number(final.critResist) || 0
-    },
-    special: {
-      shield: special.shield || 0,
-      bonusDamage: special.bonusDamage || 0,
-      dodgeChance: clamp(special.dodgeChance || 0, 0, 0.5)
-    }
-  };
+  return createCombatantFromAttributes(attributes, { convertLegacyPercentages: true });
 }
 
 function createEnemyCombatant(enemy) {
-  const stats = normalizeEnemyStats(enemy.stats || {});
-  const special = enemy.special || {};
+  const stats = resolveCombatStats(
+    { finalStats: enemy.stats || {}, combatStats: enemy.combatStats },
+    { defaults: ENEMY_COMBAT_DEFAULTS, convertLegacyPercentages: true }
+  );
+  const special = resolveSpecialStats(enemy.special || {}, { convertLegacyPercentages: true });
   return {
     stats,
-    special: {
-      shield: special.shield || 0,
-      bonusDamage: special.bonusDamage || 0,
-      dodgeChance: clamp(special.dodgeChance || 0, 0, 0.6)
-    },
+    special,
     meta: enemy
   };
-}
-
-function normalizeEnemyStats(stats = {}) {
-  return {
-    maxHp: Number(stats.maxHp || stats.hp || 0),
-    physicalAttack: Number(stats.physicalAttack || stats.attack || 0),
-    magicAttack: Number(stats.magicAttack || 0),
-    physicalDefense: Number(stats.physicalDefense || stats.defense || 0),
-    magicDefense: Number(stats.magicDefense || 0),
-    speed: Number(stats.speed || 0),
-    accuracy: Number(stats.accuracy || 110),
-    dodge: Number(stats.dodge || 0),
-    critRate: clamp(Number(stats.critRate || 0.05), 0, 0.95),
-    critDamage: Math.max(1.2, Number(stats.critDamage || 1.5)),
-    finalDamageBonus: Number(stats.finalDamageBonus || 0),
-    finalDamageReduction: Number(stats.finalDamageReduction || 0),
-    lifeSteal: Number(stats.lifeSteal || 0),
-    healingBonus: Number(stats.healingBonus || 0),
-    healingReduction: Number(stats.healingReduction || 0),
-    controlHit: Number(stats.controlHit || 0),
-    controlResist: Number(stats.controlResist || 0),
-    physicalPenetration: Number(stats.physicalPenetration || 0),
-    magicPenetration: Number(stats.magicPenetration || 0),
-    critResist: Number(stats.critResist || 0)
-  };
-}
-
-function executeAttack(attacker, attackerSpecial, defender, defenderSpecial) {
-  const offensiveSpecial = attackerSpecial || {};
-  const defensiveSpecial = defenderSpecial || {};
-  const accuracy = Number(attacker.accuracy || 100);
-  const dodge = Number(defender.dodge || 0);
-  const baseHitChance = clamp(0.85 + (accuracy - dodge) * 0.005, 0.2, 0.99);
-  if (Math.random() > baseHitChance) {
-    return { dodged: true, damage: 0, crit: false, heal: 0 };
-  }
-  if (Math.random() < clamp(defensiveSpecial.dodgeChance || 0, 0, 0.8)) {
-    return { dodged: true, damage: 0, crit: false, heal: 0 };
-  }
-
-  const physicalAttack = Math.max(0, Number(attacker.physicalAttack) || 0);
-  const magicAttack = Math.max(0, Number(attacker.magicAttack) || 0);
-  const physicalPenetrationRating = Math.max(0, Number(attacker.physicalPenetration) || 0);
-  const magicPenetrationRating = Math.max(0, Number(attacker.magicPenetration) || 0);
-  const physicalPenetration = clamp(physicalPenetrationRating * 0.005, 0, 0.6);
-  const magicPenetration = clamp(magicPenetrationRating * 0.005, 0, 0.6);
-
-  const physicalDefense = Math.max(0, Number(defender.physicalDefense) || 0);
-  const magicDefense = Math.max(0, Number(defender.magicDefense) || 0);
-  const effectivePhysicalDefense = physicalDefense * (1 - physicalPenetration);
-  const effectiveMagicDefense = magicDefense * (1 - magicPenetration);
-
-  const basePhysical = physicalAttack > 0 ? Math.max(physicalAttack * 0.25, physicalAttack - effectivePhysicalDefense) : 0;
-  const baseMagic = magicAttack > 0 ? Math.max(magicAttack * 0.25, magicAttack - effectiveMagicDefense) : 0;
-  const usingMagic = baseMagic > basePhysical;
-  let damage = usingMagic ? baseMagic : basePhysical;
-  damage *= 0.9 + Math.random() * 0.2;
-
-  const bonusDamage = Number(offensiveSpecial.bonusDamage) || 0;
-  if (bonusDamage) {
-    damage += bonusDamage;
-  }
-
-  const critChance = clamp((Number(attacker.critRate) || 0) - (Number(defender.critResist) || 0), 0.05, 0.95);
-  const crit = Math.random() < critChance;
-  if (crit) {
-    damage *= Math.max(1.2, Number(attacker.critDamage) || 1.5);
-  }
-
-  const finalDamageBonus = Number(attacker.finalDamageBonus) || 0;
-  const finalDamageReduction = clamp(Number(defender.finalDamageReduction) || 0, 0, 0.9);
-  const finalMultiplier = Math.max(0.1, 1 + finalDamageBonus - finalDamageReduction);
-  damage *= finalMultiplier;
-
-  damage = Math.max(1, damage);
-
-  const lifeSteal = clamp(Number(attacker.lifeSteal) || 0, 0, 0.6);
-  const healingBonus = Number(attacker.healingBonus) || 0;
-  const healingReduction = Number(defender.healingReduction) || 0;
-  const healingMultiplier = clamp(1 + healingBonus - healingReduction, 0, 2);
-  const heal = Math.max(0, damage * lifeSteal * healingMultiplier);
-
-  return { damage, crit, dodged: false, heal };
 }
 
 function calculateBattleRewards(attributes, enemy, { victory, draw, enemyStats }) {
@@ -6333,8 +6173,4 @@ function buildMap(list) {
     map[item.id] = item;
   });
   return map;
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
 }

@@ -44,6 +44,7 @@
 - 赛季自动轮转：当检测到当前赛季结束时会自动创建下一赛季，默认周期 56 天。
 - 段位区间：系统内置青铜→宗师六档，依据积分上下限自动映射段位与奖励。
 - 战斗模拟：基于会员 `pveProfile` 的最终战斗属性进行 15 回合以内的回合制结算，命中、暴击、伤害浮动与减伤均在云端处理。
+- 数值统一：战斗流程直接调用公共模块 `cloudfunctions/nodejs-layer/node_modules/combat-system/index.js`，与 PVE 共用命中、伤害与战力评估公式，确保竞技场与副本的属性口径一致。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L1-L210】【F:cloudfunctions/pvp/index.js†L1194-L1294】
 - 防刷机制：邀战会校验过期时间与状态；同一战斗结果生成 MD5 签名返回前端；机器人对战的积分增减有限制，避免刷分。
 
 ## 小程序前端
@@ -58,10 +59,11 @@
 
 ## 部署步骤
 
-1. 在云开发控制台创建上述五个集合，并设置必要索引（建议对 `pvpProfiles.points`、`pvpMatches.seasonId` 建立排序索引）。如在沙盒环境中暂未手动创建，`pvp` 云函数会在首次调用时尝试自动创建缺失集合，但仍建议在正式环境提前完成，以便配置索引与权限。 
+1. 在云开发控制台创建上述五个集合，并设置必要索引（建议对 `pvpProfiles.points`、`pvpMatches.seasonId` 建立排序索引）。如在沙盒环境中暂未手动创建，`pvp` 云函数会在首次调用时尝试自动创建缺失集合，但仍建议在正式环境提前完成，以便配置索引与权限。
 2. 在微信开发者工具中右键上传 `cloudfunctions/pvp` 目录并安装依赖。
-3. 更新小程序前端代码，确保 `miniprogram/services/config.js` 中新增的 `pvp` 云函数名称与实际部署一致。
-4. 若为老项目升级，请手动执行一次 `pvp` 云函数的 `profile` 动作（或让用户进入竞技场页面），以便生成默认档案。
-5. 赛季奖励文案默认内置，可在云数据库的 `pvpSeasons` 文档中按需调整奖励描述或周期。
+3. 若 `cloudfunctions/nodejs-layer/node_modules/combat-system` 有更新，请重新打包 `nodejs-layer` 并在 `pve`、`pvp` 云函数的“层管理”中绑定最新层版本，避免战斗公式不一致。
+4. 更新小程序前端代码，确保 `miniprogram/services/config.js` 中新增的 `pvp` 云函数名称与实际部署一致。
+5. 若为老项目升级，请手动执行一次 `pvp` 云函数的 `profile` 动作（或让用户进入竞技场页面），以便生成默认档案。
+6. 赛季奖励文案默认内置，可在云数据库的 `pvpSeasons` 文档中按需调整奖励描述或周期。
 
 部署完成后，会员即可在“比武”入口体验天梯匹配、好友切磋与邀战分享，实现线上社交裂变与线下消费联动。

@@ -65,13 +65,14 @@
 
 ## 战斗计算要点
 
-1. **最终属性汇总**：角色最终面板由“基础 + 训练加点 + 装备 + 技能”组成，并在战斗前附加境界突破倍率；云函数会把计算结果和特殊效果（护盾、额外伤害、闪避率）传递给模拟器。【F:cloudfunctions/pve/index.js†L1323-L1440】【F:cloudfunctions/pve/index.js†L1672-L1704】
-2. **出手与命中**：战斗首回合由速度决定；每次攻击先以 `clamp(0.85 + (命中 − 闪避) × 0.005, 0.2, 0.99)` 进行命中判定，再与目标的技能闪避概率对抗。【F:cloudfunctions/pve/index.js†L2117-L2130】【F:cloudfunctions/pve/index.js†L2273-L2283】
-3. **伤害路径**：系统会比较物理与法术两条路线的净收益：`max(攻击 × 25%, 攻击 − 防御 × (1 − 穿透))`，并选择更高的一种；随后乘以 0.9~1.1 的浮动并叠加技能额外伤害。【F:cloudfunctions/pve/index.js†L2286-L2307】
-4. **暴击与最终修正**：暴击概率为 `clamp(暴击率 − 抗暴, 5%, 95%)`，暴击时按暴击伤害倍率放大；最终伤害再乘以 `(1 + 增伤 − 减伤)`，并保证至少造成 10% 的原始伤害，上限不低于 1 点。【F:cloudfunctions/pve/index.js†L2309-L2318】
-5. **吸血与治疗系数**：吸血最多结算 60%，同时受治疗强化与治疗削弱影响，最终回血 = 伤害 × 吸血 × `clamp(1 + 强化 − 削弱, 0, 2)`。【F:cloudfunctions/pve/index.js†L2322-L2326】
-6. **战斗节奏**：战斗最多 30 回合，支持护盾、额外伤害与闪避特效；若双方都未倒下则判定为平局并按 30% 的灵石奖励结算。【F:cloudfunctions/pve/index.js†L2117-L2178】【F:cloudfunctions/pve/index.js†L2331-L2344】
-7. **掉落与加成**：悟性会提高灵石收益（上限 25%，仅折半计入灵石）并提升装备/技能掉落概率（上限 20%），同时额外属性点奖励完全取决于副本配置。【F:cloudfunctions/pve/index.js†L2344-L2369】
+0. **公共战斗模块**：角色属性整合、命中/伤害结算与战力评分统一收敛在 `cloudfunctions/nodejs-layer/node_modules/combat-system/index.js` 中输出，`pve` 与 `pvp` 云函数共享同一套公式，确保竞技与副本的数值来源一致。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L1-L210】【F:cloudfunctions/pve/index.js†L5600-L5702】【F:cloudfunctions/pvp/index.js†L1194-L1319】
+1. **最终属性汇总**：角色最终面板由“基础 + 训练加点 + 装备 + 技能”组成，并在战斗前附加境界突破倍率；云函数会把计算结果和特殊效果（护盾、额外伤害、闪避率）传递给模拟器。【F:cloudfunctions/pve/index.js†L1323-L1440】【F:cloudfunctions/pve/index.js†L1670-L1702】
+2. **出手与命中**：战斗首回合由速度决定；每次攻击先以 `clamp(0.85 + (命中 − 闪避) × 0.005, 0.2, 0.99)` 进行命中判定，再与目标的技能闪避概率对抗。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L146-L175】【F:cloudfunctions/pve/index.js†L5605-L5662】
+3. **伤害路径**：系统会比较物理与法术两条路线的净收益：`max(攻击 × 25%, 攻击 − 防御 × (1 − 穿透))`，并选择更高的一种；随后乘以 0.9~1.1 的浮动并叠加技能额外伤害。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L176-L205】
+4. **暴击与最终修正**：暴击概率为 `clamp(暴击率 − 抗暴, 5%, 95%)`，暴击时按暴击伤害倍率放大；最终伤害再乘以 `(1 + 增伤 − 减伤)`，并保证至少造成 10% 的原始伤害，上限不低于 1 点。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L188-L204】
+5. **吸血与治疗系数**：吸血最多结算 60%，同时受治疗强化与治疗削弱影响，最终回血 = 伤害 × 吸血 × `clamp(1 + 强化 − 削弱, 0, 2)`。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L200-L205】
+6. **战斗节奏**：战斗最多 30 回合，支持护盾、额外伤害与闪避特效；若双方都未倒下则判定为平局并按 30% 的灵石奖励结算。【F:cloudfunctions/pve/index.js†L5605-L5685】【F:cloudfunctions/pve/index.js†L5705-L5746】
+7. **掉落与加成**：悟性会提高灵石收益（上限 25%，仅折半计入灵石）并提升装备/技能掉落概率（上限 20%），同时额外属性点奖励完全取决于副本配置。【F:cloudfunctions/pve/index.js†L5878-L5927】
 
 ## 云函数接口
 
@@ -94,8 +95,9 @@
 ## 部署提示
 
 1. 在云开发控制台创建或更新 `pve` 云函数，上传 `cloudfunctions/pve` 目录并安装依赖。
-2. 同步更新 `admin` 云函数（目录 `cloudfunctions/admin`），获取管理员发放装备所需的代理接口。
-3. 重新上传小程序前端代码，包含会员端 `/pages/role` 以及后台 `/pages/admin/member-detail` 的改动。
-4. 如需重置老用户数据，可在运营后台执行一次 `pve` 云函数的 `profile` 动作，或在数据库中删除 `pveProfile` 字段后重新进入页面。
+2. 若 `cloudfunctions/nodejs-layer/node_modules/combat-system` 有改动（例如本次统一 PVE/PVP 数值公式），请重新打包 `nodejs-layer` 为新的层版本，并在 `pve`、`pvp` 云函数的“层管理”中绑定最新版本。
+3. 同步更新 `admin` 云函数（目录 `cloudfunctions/admin`），获取管理员发放装备所需的代理接口。
+4. 重新上传小程序前端代码，包含会员端 `/pages/role` 以及后台 `/pages/admin/member-detail` 的改动。
+5. 如需重置老用户数据，可在运营后台执行一次 `pve` 云函数的 `profile` 动作，或在数据库中删除 `pveProfile` 字段后重新进入页面。
 
 通过上述体系，会员可在日常消费或活动中持续提升“战力”，运营侧可结合副本掉落、抽卡概率和任务奖励设计更丰富的玩法。
