@@ -276,6 +276,11 @@ export const PveService = {
     const payload = { action: 'equipSkill', skillId: skillId || '' };
     if (typeof slot === 'number') {
       payload.slot = slot;
+    } else if (typeof slot === 'string' && slot.trim()) {
+      const parsedSlot = Number(slot);
+      if (Number.isFinite(parsedSlot)) {
+        payload.slot = Math.floor(parsedSlot);
+      }
     }
     return callCloud(CLOUD_FUNCTIONS.PVE, payload);
   },
