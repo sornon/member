@@ -2112,6 +2112,57 @@ const SECRET_REALM_MAX_FLOOR = ENEMY_LIBRARY.length
   ? ENEMY_LIBRARY[ENEMY_LIBRARY.length - 1].floor
   : 0;
 
+function resolveEnemyTarget(enemyId) {
+  if (enemyId == null) {
+    return null;
+  }
+  let key = '';
+  if (typeof enemyId === 'string') {
+    key = enemyId.trim();
+  } else if (Number.isFinite(enemyId)) {
+    key = String(Math.floor(enemyId));
+  }
+
+  if (key && ENEMY_MAP[key]) {
+    return ENEMY_MAP[key];
+  }
+
+  const numericKey = Number(key);
+  if (Number.isFinite(numericKey)) {
+    const floorNumber = Math.max(1, Math.floor(numericKey));
+    const numericEnemy = ENEMY_LIBRARY.find((enemy) => enemy.floor === floorNumber);
+    if (numericEnemy) {
+      return numericEnemy;
+    }
+  }
+
+  if (key) {
+    const legacyMatch = key.match(/^(secret_[a-z0-9]+(?:_[a-z0-9]+)*_)(\d{1,2})$/i);
+    if (legacyMatch) {
+      const [, prefix, suffix] = legacyMatch;
+      if (suffix.length === 1) {
+        const paddedId = `${prefix}${suffix.padStart(2, '0')}`;
+        if (ENEMY_MAP[paddedId]) {
+          return ENEMY_MAP[paddedId];
+        }
+      }
+    }
+
+    const tailDigits = key.match(/(\d{1,3})$/);
+    if (tailDigits) {
+      const floorNumber = Number(tailDigits[1]);
+      if (Number.isFinite(floorNumber)) {
+        const fallbackEnemy = ENEMY_LIBRARY.find((enemy) => enemy.floor === floorNumber);
+        if (fallbackEnemy) {
+          return fallbackEnemy;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 async function loadMembershipLevels() {
   if (membershipLevelsCache && membershipLevelsCache.length) {
     return membershipLevelsCache;
@@ -2373,7 +2424,7 @@ async function simulateBattle(actorId, enemyId) {
   const member = await ensureMember(actorId);
   const levels = await loadMembershipLevels();
   const profile = await ensurePveProfile(actorId, member, levels);
-  const enemy = ENEMY_MAP[enemyId];
+  const enemy = resolveEnemyTarget(enemyId);
   if (!enemy) {
     throw createError('ENEMY_NOT_FOUND', '未找到指定的副本目标');
   }
@@ -3890,23 +3941,60 @@ function normalizeSecretRealm(secretRealm, now = new Date()) {
   const rawFloors = payload.floors && typeof payload.floors === 'object' ? payload.floors : {};
 
   Object.keys(rawFloors).forEach((floorId) => {
-    if (!ENEMY_MAP[floorId]) {
+    const entry = rawFloors[floorId] || {};
+    let enemy = resolveEnemyTarget(floorId);
+    if (!enemy && entry && entry.enemyId) {
+      enemy = resolveEnemyTarget(entry.enemyId);
+    }
+    if (!enemy) {
       return;
     }
-    const entry = rawFloors[floorId] || {};
-    const clearedAt = entry.clearedAt ? new Date(entry.clearedAt) : null;
-    const normalizedClearedAt = clearedAt && !Number.isNaN(clearedAt.getTime()) ? clearedAt : null;
-    const bestRounds = Number.isFinite(Number(entry.bestRounds))
+    const entryClearedAt = entry.clearedAt ? new Date(entry.clearedAt) : null;
+    const normalizedClearedAt =
+      entryClearedAt && !Number.isNaN(entryClearedAt.getTime()) ? entryClearedAt : null;
+    const normalizedBestRounds = Number.isFinite(Number(entry.bestRounds))
       ? Math.max(1, Math.floor(Number(entry.bestRounds)))
       : null;
-    const victories = Number.isFinite(Number(entry.victories))
+    const normalizedVictories = Number.isFinite(Number(entry.victories))
       ? Math.max(0, Math.floor(Number(entry.victories)))
       : 0;
 
-    floors[floorId] = {
-      clearedAt: normalizedClearedAt,
-      bestRounds,
-      victories
+    const targetId = enemy.id;
+    const existing = floors[targetId] || {};
+    const existingClearedAt =
+      existing.clearedAt instanceof Date && !Number.isNaN(existing.clearedAt.getTime())
+        ? existing.clearedAt
+        : null;
+    let mergedClearedAt = existingClearedAt;
+    if (normalizedClearedAt) {
+      if (!mergedClearedAt) {
+        mergedClearedAt = normalizedClearedAt;
+      } else if (normalizedClearedAt.getTime() < mergedClearedAt.getTime()) {
+        mergedClearedAt = normalizedClearedAt;
+      }
+    }
+
+    const existingBestRounds = Number.isFinite(Number(existing.bestRounds))
+      ? Math.max(1, Math.floor(Number(existing.bestRounds)))
+      : null;
+    let mergedBestRounds = existingBestRounds;
+    if (normalizedBestRounds) {
+      if (!mergedBestRounds) {
+        mergedBestRounds = normalizedBestRounds;
+      } else {
+        mergedBestRounds = Math.min(mergedBestRounds, normalizedBestRounds);
+      }
+    }
+
+    const existingVictories = Number.isFinite(Number(existing.victories))
+      ? Math.max(0, Math.floor(Number(existing.victories)))
+      : 0;
+    const mergedVictories = Math.max(existingVictories, normalizedVictories);
+
+    floors[targetId] = {
+      clearedAt: mergedClearedAt || null,
+      bestRounds: mergedBestRounds || null,
+      victories: mergedVictories
     };
   });
 
@@ -3914,6 +4002,22 @@ function normalizeSecretRealm(secretRealm, now = new Date()) {
   let highestUnlockedFloor = Number.isFinite(rawHighest)
     ? Math.max(1, Math.floor(rawHighest))
     : defaults.highestUnlockedFloor;
+  const highestProgress = Object.keys(floors).reduce((max, floorKey) => {
+    const enemy = ENEMY_MAP[floorKey];
+    if (!enemy) {
+      return max;
+    }
+    const state = floors[floorKey];
+    if (!state || !state.clearedAt) {
+      return max;
+    }
+    const nextCandidate = enemy.floor + 1;
+    if (SECRET_REALM_MAX_FLOOR > 0) {
+      return Math.max(max, Math.min(SECRET_REALM_MAX_FLOOR, nextCandidate));
+    }
+    return Math.max(max, nextCandidate);
+  }, defaults.highestUnlockedFloor);
+  highestUnlockedFloor = Math.max(highestUnlockedFloor, highestProgress);
   if (SECRET_REALM_MAX_FLOOR > 0) {
     highestUnlockedFloor = Math.min(SECRET_REALM_MAX_FLOOR, highestUnlockedFloor);
   }
