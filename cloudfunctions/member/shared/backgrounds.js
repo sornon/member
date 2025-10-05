@@ -1,5 +1,12 @@
 const RAW_BACKGROUNDS = [
   { id: 'realm_refining', realmOrder: 1, realmName: '炼气期', name: '炼气之地' },
+  {
+    id: 'background_spirit_trial',
+    realmOrder: 1,
+    realmName: '炼气期',
+    name: '灵力测试',
+    requiresUnlock: true
+  },
   { id: 'realm_foundation', realmOrder: 2, realmName: '筑基期', name: '筑基之地' },
   { id: 'realm_core', realmOrder: 3, realmName: '金丹期', name: '金丹之地' },
   { id: 'realm_nascent', realmOrder: 4, realmName: '元婴期', name: '元婴之地' },
@@ -49,10 +56,18 @@ function getDefaultBackgroundId() {
   return BACKGROUNDS[0].id;
 }
 
-function isBackgroundUnlocked(id, realmOrder) {
+function isBackgroundUnlocked(id, realmOrder, unlockedBackgrounds = []) {
   const background = BACKGROUNDS.find((item) => item.id === id);
   if (!background) {
     return false;
+  }
+  if (background.requiresUnlock) {
+    const unlockSet = new Set(
+      Array.isArray(unlockedBackgrounds) ? unlockedBackgrounds.map((value) => String(value)) : []
+    );
+    if (!unlockSet.has(background.id)) {
+      return false;
+    }
   }
   const numericRealmOrder = Number(realmOrder);
   if (!Number.isFinite(numericRealmOrder)) {
@@ -61,12 +76,20 @@ function isBackgroundUnlocked(id, realmOrder) {
   return Math.max(1, Math.floor(numericRealmOrder)) >= background.realmOrder;
 }
 
-function resolveHighestUnlockedBackgroundByRealmOrder(realmOrder) {
+function resolveHighestUnlockedBackgroundByRealmOrder(realmOrder, unlockedBackgrounds = []) {
   const numericRealmOrder = Number(realmOrder);
   if (!Number.isFinite(numericRealmOrder)) {
     return cloneBackground(BACKGROUNDS[0]);
   }
-  const unlocked = BACKGROUNDS.filter((background) => numericRealmOrder >= background.realmOrder);
+  const unlockSet = new Set(
+    Array.isArray(unlockedBackgrounds) ? unlockedBackgrounds.map((value) => String(value)) : []
+  );
+  const unlocked = BACKGROUNDS.filter((background) => {
+    if (background.requiresUnlock && !unlockSet.has(background.id)) {
+      return false;
+    }
+    return numericRealmOrder >= background.realmOrder;
+  });
   const target = unlocked.length ? unlocked[unlocked.length - 1] : BACKGROUNDS[0];
   return cloneBackground(target);
 }

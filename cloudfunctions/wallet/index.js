@@ -1,5 +1,6 @@
 const cloud = require('wx-server-sdk');
 const { EXPERIENCE_PER_YUAN } = require('level-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/level-config
+const { applyLevelGrantRewards } = require('../member/index.js');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -689,41 +690,45 @@ function resolveLevelByExperience(exp, levels) {
 }
 
 async function grantLevelRewards(openid, level) {
-  const rewards = level.rewards || [];
-  if (!rewards.length) return;
-  const masterSnapshot = await db.collection(COLLECTIONS.MEMBERSHIP_RIGHTS).get();
-  const masterMap = {};
-  masterSnapshot.data.forEach((item) => {
-    masterMap[item._id] = item;
-  });
-  const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
-  const now = new Date();
-  for (const reward of rewards) {
-    const right = masterMap[reward.rightId];
-    if (!right) continue;
-    const existing = await rightsCollection
-      .where({ memberId: openid, rightId: reward.rightId, levelId: level._id })
-      .count();
-    const quantity = reward.quantity || 1;
-    if (existing.total >= quantity) continue;
-    const validUntil = right.validDays
-      ? new Date(now.getTime() + right.validDays * 24 * 60 * 60 * 1000)
-      : null;
-    for (let i = existing.total; i < quantity; i += 1) {
-      await rightsCollection.add({
-        data: {
-          memberId: openid,
-          rightId: reward.rightId,
-          levelId: level._id,
-          status: 'active',
-          issuedAt: now,
-          validUntil,
-          meta: {
-            fromLevel: level._id,
-            rewardName: reward.description || right.name
+  const rewards = Array.isArray(level.rewards) ? level.rewards : [];
+
+  if (rewards.length) {
+    const masterSnapshot = await db.collection(COLLECTIONS.MEMBERSHIP_RIGHTS).get();
+    const masterMap = {};
+    masterSnapshot.data.forEach((item) => {
+      masterMap[item._id] = item;
+    });
+    const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
+    const now = new Date();
+    for (const reward of rewards) {
+      const right = masterMap[reward.rightId];
+      if (!right) continue;
+      const existing = await rightsCollection
+        .where({ memberId: openid, rightId: reward.rightId, levelId: level._id })
+        .count();
+      const quantity = reward.quantity || 1;
+      if (existing.total >= quantity) continue;
+      const validUntil = right.validDays
+        ? new Date(now.getTime() + right.validDays * 24 * 60 * 60 * 1000)
+        : null;
+      for (let i = existing.total; i < quantity; i += 1) {
+        await rightsCollection.add({
+          data: {
+            memberId: openid,
+            rightId: reward.rightId,
+            levelId: level._id,
+            status: 'active',
+            issuedAt: now,
+            validUntil,
+            meta: {
+              fromLevel: level._id,
+              rewardName: reward.description || right.name
+            }
           }
-        }
-      });
+        });
+      }
     }
   }
+
+  await applyLevelGrantRewards(openid, level, []);
 }

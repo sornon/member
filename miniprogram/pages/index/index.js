@@ -107,14 +107,15 @@ function resolveMemberRealmOrder(member) {
 
 function resolvePreferredBackground(member) {
   const realmOrder = resolveMemberRealmOrder(member);
+  const unlocks = Array.isArray(member && member.backgroundUnlocks) ? member.backgroundUnlocks : [];
   const desiredId = normalizeBackgroundId(member && member.appearanceBackground);
-  if (desiredId && isBackgroundUnlocked(desiredId, realmOrder)) {
+  if (desiredId && isBackgroundUnlocked(desiredId, realmOrder, unlocks)) {
     const desired = resolveBackgroundById(desiredId);
     if (desired) {
       return desired;
     }
   }
-  const fallback = resolveHighestUnlockedBackgroundByRealmOrder(realmOrder);
+  const fallback = resolveHighestUnlockedBackgroundByRealmOrder(realmOrder, unlocks);
   if (fallback) {
     return fallback;
   }
@@ -154,6 +155,7 @@ function resolveBackgroundDisplay(member) {
 
 function buildBackgroundOptionList(member) {
   const realmOrder = resolveMemberRealmOrder(member);
+  const unlocks = Array.isArray(member && member.backgroundUnlocks) ? member.backgroundUnlocks : [];
   const activeId = resolveSafeBackgroundId(member, member && member.appearanceBackground);
   const backgrounds = listBackgrounds();
   let visibleBackgrounds = backgrounds;
@@ -163,8 +165,10 @@ function buildBackgroundOptionList(member) {
     visibleBackgrounds = backgrounds.filter((background) => background.realmOrder <= highestVisibleOrder);
   }
   return visibleBackgrounds.map((background) => {
-    const unlocked = isBackgroundUnlocked(background.id, realmOrder);
-    let description = `突破至${background.realmName}解锁`;
+    const unlocked = isBackgroundUnlocked(background.id, realmOrder, unlocks);
+    let description = background.requiresUnlock
+      ? '完成奖励后解锁'
+      : `突破至${background.realmName}解锁`;
     if (unlocked) {
       description = background.id === activeId ? '当前使用' : '已解锁';
     }
@@ -178,8 +182,9 @@ function buildBackgroundOptionList(member) {
 
 function resolveSafeBackgroundId(member, desiredId) {
   const realmOrder = resolveMemberRealmOrder(member);
+  const unlocks = Array.isArray(member && member.backgroundUnlocks) ? member.backgroundUnlocks : [];
   const sanitizedId = normalizeBackgroundId(desiredId || '');
-  if (sanitizedId && isBackgroundUnlocked(sanitizedId, realmOrder)) {
+  if (sanitizedId && isBackgroundUnlocked(sanitizedId, realmOrder, unlocks)) {
     return sanitizedId;
   }
   const fallback = resolvePreferredBackground(member);

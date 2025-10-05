@@ -67,7 +67,7 @@ function buildMembershipLevels() {
   let order = 1;
 
   realmConfigs.forEach((realm, realmIndex) => {
-    const { increment, discount, virtualRewards, milestone, thresholds } = realm;
+    const { increment, discount, virtualRewards, milestone, thresholds, grants } = realm;
     const hasCustomThresholds =
       Array.isArray(thresholds) && thresholds.length === subLevelLabels.length;
 
@@ -101,7 +101,8 @@ function buildMembershipLevels() {
         virtualRewards: [],
         milestoneReward: '',
         milestoneType: milestone ? milestone.type || '' : '',
-        rewards: []
+        rewards: [],
+        grants: {}
       };
 
       const rewardText = virtualRewards[subIndex];
@@ -109,6 +110,14 @@ function buildMembershipLevels() {
         level.virtualRewards = Array.isArray(rewardText)
           ? rewardText.filter(Boolean)
           : [rewardText];
+      }
+
+      const grantDefinition =
+        Array.isArray(grants) && grants[subIndex] && typeof grants[subIndex] === 'object'
+          ? grants[subIndex]
+          : null;
+      if (grantDefinition && Object.keys(grantDefinition).length) {
+        level.grants = JSON.parse(JSON.stringify(grantDefinition));
       }
 
       if (subLevel === subLevelLabels.length && milestone) {
