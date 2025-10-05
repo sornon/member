@@ -73,7 +73,7 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       type: 'background',
       backgroundId: 'trial_spirit_test',
       storageItemId: 'reward_background_spirit_test',
-      storageCategory: 'quest',
+      storageCategory: 'consumable',
       name: '背景·灵根测试',
       description: '使用后解锁背景“灵根测试”，可在外观设置中选择。',
       slotLabel: '背景',
@@ -115,7 +115,7 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       type: 'background',
       backgroundId: 'reward_foundation',
       storageItemId: 'reward_background_foundation',
-      storageCategory: 'quest',
+      storageCategory: 'consumable',
       name: '背景·筑基背景',
       description: '突破筑基后可在外观设置中启用的主题背景。',
       slotLabel: '背景',
@@ -221,6 +221,15 @@ function createStorageRewardItem(reward, now = new Date()) {
   if (!reward || typeof reward !== 'object') {
     return null;
   }
+  const defaultCategory = (() => {
+    if (reward.type === 'background') {
+      return 'consumable';
+    }
+    if (reward.type === 'title') {
+      return 'quest';
+    }
+    return 'consumable';
+  })();
   const item = {
     inventoryId: generateStorageInventoryId(reward.storageItemId || reward.itemId || 'item', now),
     itemId: reward.storageItemId || reward.itemId || '',
@@ -232,8 +241,8 @@ function createStorageRewardItem(reward, now = new Date()) {
     quality: reward.quality || '',
     qualityLabel: reward.qualityLabel || '',
     qualityColor: reward.qualityColor || '',
-    storageCategory: reward.storageCategory || 'consumable',
-    slotLabel: reward.slotLabel || resolveStorageCategoryLabel(reward.storageCategory || 'consumable'),
+    storageCategory: reward.storageCategory || defaultCategory,
+    slotLabel: reward.slotLabel || resolveStorageCategoryLabel(reward.storageCategory || defaultCategory),
     obtainedAt: now,
     actions:
       Array.isArray(reward.actions) && reward.actions.length
@@ -249,6 +258,12 @@ function createStorageRewardItem(reward, now = new Date()) {
     kind: reward.kind || 'storage'
   };
   applyStorageRewardMetadata(item, reward.type || 'consumable');
+  if (reward.type === 'background') {
+    item.storageCategory = 'consumable';
+    if (!reward.slotLabel) {
+      item.slotLabel = '背景';
+    }
+  }
   if (Array.isArray(item.actions) && item.actions.length) {
     const primary = item.actions.find((action) => action.primary) || item.actions[0];
     item.primaryAction = primary || null;
