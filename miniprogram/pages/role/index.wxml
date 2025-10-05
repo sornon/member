@@ -536,7 +536,16 @@
         bindtap="handleUnequipFromTooltip"
       >卸下</button>
       <button
-        wx:elif="{{equipmentTooltip.mode !== 'delete' && (equipmentTooltip.source === 'inventory' || equipmentTooltip.source === 'storage')}}"
+        wx:elif="{{equipmentTooltip.mode !== 'delete' && equipmentTooltip.useAction === 'useConsumable'}}"
+        class="equipment-tooltip__equip pill-btn pill-btn--primary"
+        hover-class="pill-btn--primary-hover"
+        size="mini"
+        loading="{{equipmentTooltip.using}}"
+        disabled="{{equipmentTooltip.using}}"
+        bindtap="handleUseConsumableFromTooltip"
+      >使用</button>
+      <button
+        wx:elif="{{equipmentTooltip.mode !== 'delete' && (equipmentTooltip.source === 'inventory' || equipmentTooltip.source === 'storage') && equipmentTooltip.item.type !== 'consumable'}}"
         class="equipment-tooltip__equip pill-btn pill-btn--primary"
         hover-class="pill-btn--primary-hover"
         size="mini"

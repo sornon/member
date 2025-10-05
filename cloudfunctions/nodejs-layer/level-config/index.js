@@ -12,25 +12,77 @@ const realmConfigs = [
     thresholds: [0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800],
     discount: 1,
     virtualRewards: [
-      '称号「炼气·初悟」，解锁灵根检测背景',
-      '灵石积分 +100，可兑换入门灵草',
-      '头像框「灵气萌芽」开放',
-      '修炼服饰「青布道袍」上线',
-      '虚拟法器「灵木剑」挂件',
-      '聊天气泡「灵气环绕」',
-      '消费积分加成 +5%，基础任务收益提升',
-      '表情包「闭关修炼」解锁',
-      '灵宠挂件「碧灵狐」幼崽随行',
-      '修炼笔记皮肤「炼气圆满」开放'
+      '称号「炼气新人」，同步点亮入门称号',
+      '背景「灵力测试」，可替换档案场景',
+      '武器「青竹练气杖」，稳固物攻输出',
+      '技能「烈炽火弹」，开启法修主线',
+      '衣装「初阳布袍」，提升生命上限',
+      '鞋履「翎痕轻履」，带来闪避增益',
+      '腰带「知风木环」，增强受疗能力',
+      '护腕「回鸣臂缚」，解锁反击尝试',
+      '法器「清魂定珠」，提升控制命中',
+      '道具「技能5连抽」，一次抽取五张技能卡'
+    ],
+    grants: [
+      {
+        titles: [
+          {
+            id: 'title_refining_rookie',
+            name: '炼气新人',
+            description: '炼气期入门称号，展示新晋修士身份。'
+          }
+        ]
+      },
+      {
+        backgrounds: [
+          {
+            id: 'background_spirit_trial',
+            name: '灵力测试',
+            description: '灵力测验现场背景，可在外观设置中启用。'
+          }
+        ]
+      },
+      {
+        equipment: ['mortal_weapon_staff']
+      },
+      {
+        skills: ['spell_burning_burst']
+      },
+      {
+        equipment: ['mortal_chest_robe']
+      },
+      {
+        equipment: ['mortal_boots_lightstep']
+      },
+      {
+        equipment: ['mortal_belt_ring']
+      },
+      {
+        equipment: ['mortal_bracer_echo']
+      },
+      {
+        equipment: ['mortal_orb_calm']
+      },
+      {
+        items: [
+          {
+            id: 'skill_bundle_5',
+            type: 'skill_bundle',
+            name: '技能5连抽',
+            description: '使用后立即连续抽取 5 次技能卡。',
+            meta: { drawCount: 5 }
+          }
+        ]
+      }
     ],
     milestone: {
       type: '虚拟+饮品礼遇',
-      summary: '灵泉饮品券 1 张 + 限定背景「炼气圆满」',
+      summary: '背景「筑基背景」 + 任意 ¥120 内饮品权益券 1 张',
       rights: [
         {
           rightId: 'right_realm_qi_drink',
           quantity: 1,
-          description: '灵泉饮品券 1 张'
+          description: '炼气圆满突破奖励，任意 ¥120 内饮品权益券 1 张'
         }
       ]
     }
@@ -328,8 +380,8 @@ const realmConfigs = [
 const membershipRights = [
   {
     _id: 'right_realm_qi_drink',
-    name: '灵泉饮品券',
-    description: '炼气圆满奖励，赠送店内特调饮品 1 杯',
+    name: '任意饮品券（¥120）',
+    description: '炼气圆满奖励，可兑换店内任意 ¥120 内饮品 1 杯',
     applyReservation: false,
     validDays: 60
   },

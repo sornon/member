@@ -25,13 +25,20 @@ const COLLECTIONS = {
   MEMBER_TIMELINE: 'memberTimeline'
 };
 
+const STORAGE_CATEGORY_LABELS = {
+  equipment: '装备',
+  quest: '任务',
+  material: '材料',
+  consumable: '道具'
+};
+
 const GENDER_OPTIONS = ['unknown', 'male', 'female'];
 const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
 const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
 
 async function resolveMemberExtras(memberId) {
   if (!memberId) {
-    return { avatarUnlocks: [], claimedLevelRewards: [] };
+    return { avatarUnlocks: [], claimedLevelRewards: [], backgroundUnlocks: [], titleUnlocks: [] };
   }
   const collection = db.collection(COLLECTIONS.MEMBER_EXTRAS);
   const snapshot = await collection
@@ -49,12 +56,20 @@ async function resolveMemberExtras(memberId) {
     if (!Array.isArray(extras.wineStorage)) {
       extras.wineStorage = [];
     }
+    if (!Array.isArray(extras.backgroundUnlocks)) {
+      extras.backgroundUnlocks = [];
+    }
+    if (!Array.isArray(extras.titleUnlocks)) {
+      extras.titleUnlocks = [];
+    }
     return extras;
   }
   const now = new Date();
   const data = {
     avatarUnlocks: [],
     claimedLevelRewards: [],
+    backgroundUnlocks: [],
+    titleUnlocks: [],
     wineStorage: [],
     createdAt: now,
     updatedAt: now
@@ -64,6 +79,31 @@ async function resolveMemberExtras(memberId) {
     .set({ data })
     .catch(() => {});
   return data;
+}
+
+async function applyLevelGrantsThroughPve(actorId, grants, now = new Date()) {
+  if (!grants || typeof grants !== 'object') {
+    return null;
+  }
+  const timestamp =
+    now instanceof Date && !Number.isNaN(now.getTime()) ? now.getTime() : Date.now();
+  try {
+    const response = await cloud.callFunction({
+      name: 'pve',
+      data: {
+        action: 'applyLevelGrant',
+        actorId,
+        grants,
+        timestamp
+      }
+    });
+    if (response && response.result) {
+      return response.result;
+    }
+  } catch (error) {
+    console.error('[member] Failed to apply level grants through pve function', error);
+  }
+  return null;
 }
 
 async function updateMemberExtras(memberId, updates = {}) {
@@ -85,6 +125,8 @@ async function updateMemberExtras(memberId, updates = {}) {
               createdAt: new Date(),
               avatarUnlocks: [],
               claimedLevelRewards: [],
+              backgroundUnlocks: [],
+              titleUnlocks: [],
               wineStorage: []
             }
           })
@@ -292,6 +334,8 @@ async function initMember(openid, profile) {
       data: {
         avatarUnlocks: [],
         claimedLevelRewards: [],
+        backgroundUnlocks: [],
+        titleUnlocks: [],
         createdAt: now,
         updatedAt: now
       }
@@ -564,53 +608,195 @@ function hasLevelRewards(level) {
   return !!level.milestoneReward;
 }
 
-async function grantLevelRewards(openid, level, levels) {
-  const rewards = level.rewards || [];
-  if (!rewards.length) return;
-  const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
-  const now = new Date();
-  const masterSnapshot = await db.collection(COLLECTIONS.RIGHTS_MASTER).get();
-  const masterMap = {};
-  masterSnapshot.data.forEach((item) => {
-    masterMap[item._id] = item;
-  });
+function normalizeGrantTitles(level) {
+  const grant = level && level.grants;
+  if (!grant || !Array.isArray(grant.titles)) {
+    return [];
+  }
+  return grant.titles
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return null;
+      }
+      const id = typeof entry.id === 'string' ? entry.id.trim() : '';
+      if (!id) {
+        return null;
+      }
+      const name = typeof entry.name === 'string' ? entry.name.trim() : '';
+      const description = typeof entry.description === 'string' ? entry.description : '';
+      return { id, name, description };
+    })
+    .filter((item) => !!item);
+}
 
-  for (const reward of rewards) {
-    const right = masterMap[reward.rightId];
-    if (!right) continue;
-    const existing = await rightsCollection
-      .where({
-        memberId: openid,
-        rightId: reward.rightId,
-        levelId: level._id
-      })
-      .get();
-    const needQuantity = reward.quantity || 1;
-    const already = existing.data.length;
-    if (already >= needQuantity) {
-      continue;
-    }
-    const diff = needQuantity - already;
-    for (let i = 0; i < diff; i += 1) {
-      const validUntil = right.validDays
-        ? new Date(now.getTime() + right.validDays * 24 * 60 * 60 * 1000)
-        : null;
-      await rightsCollection.add({
-        data: {
-          memberId: openid,
-          rightId: reward.rightId,
-          levelId: level._id,
-          status: 'active',
-          issuedAt: now,
-          validUntil,
-          meta: {
-            fromLevel: level._id,
-            rewardName: reward.description || right.name
-          }
-        }
-      });
+function normalizeGrantBackgrounds(level) {
+  const grant = level && level.grants;
+  if (!grant || !Array.isArray(grant.backgrounds)) {
+    return [];
+  }
+  return grant.backgrounds
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return null;
+      }
+      const id = typeof entry.id === 'string' ? entry.id.trim() : '';
+      if (!id) {
+        return null;
+      }
+      const name = typeof entry.name === 'string' ? entry.name.trim() : '';
+      const description = typeof entry.description === 'string' ? entry.description : '';
+      return { id, name, description };
+    })
+    .filter((item) => !!item);
+}
+
+async function applyLevelGrantRewards(openid, level, levels = []) {
+  if (!openid || !level || !level.grants || typeof level.grants !== 'object') {
+    return;
+  }
+  const titles = normalizeGrantTitles(level);
+  const backgrounds = normalizeGrantBackgrounds(level);
+  const hasInventoryRewards =
+    (Array.isArray(level.grants.equipment) && level.grants.equipment.length) ||
+    (Array.isArray(level.grants.skills) && level.grants.skills.length) ||
+    (Array.isArray(level.grants.items) && level.grants.items.length);
+  if (!titles.length && !backgrounds.length && !hasInventoryRewards) {
+    return;
+  }
+
+  const [extras, memberSnapshot] = await Promise.all([
+    resolveMemberExtras(openid),
+    db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(openid)
+      .get()
+      .catch(() => null)
+  ]);
+
+  if (!memberSnapshot || !memberSnapshot.data) {
+    return;
+  }
+
+  const member = memberSnapshot.data;
+  const extrasUpdates = {};
+  let extrasChanged = false;
+  const currentTitleUnlocks = normalizeTitleUnlocks(extras.titleUnlocks);
+  const titleIds = titles.map((entry) => entry.id);
+  if (titleIds.length) {
+    const mergedTitleUnlocks = normalizeTitleUnlocks([...currentTitleUnlocks, ...titleIds]);
+    if (!arraysEqual(currentTitleUnlocks, mergedTitleUnlocks)) {
+      extrasUpdates.titleUnlocks = mergedTitleUnlocks;
+      extrasChanged = true;
+      extras.titleUnlocks = mergedTitleUnlocks;
     }
   }
+
+  const currentBackgroundUnlocks = normalizeBackgroundUnlocks(extras.backgroundUnlocks);
+  const backgroundIds = backgrounds.map((entry) => entry.id);
+  if (backgroundIds.length) {
+    const mergedBackgroundUnlocks = normalizeBackgroundUnlocks([
+      ...currentBackgroundUnlocks,
+      ...backgroundIds
+    ]);
+    if (!arraysEqual(currentBackgroundUnlocks, mergedBackgroundUnlocks)) {
+      extrasUpdates.backgroundUnlocks = mergedBackgroundUnlocks;
+      extrasChanged = true;
+      extras.backgroundUnlocks = mergedBackgroundUnlocks;
+    }
+  }
+
+  if (extrasChanged) {
+    await updateMemberExtras(openid, extrasUpdates);
+  }
+
+  const memberUpdates = {};
+  const now = new Date();
+
+  if (titles.length) {
+    const currentTitleId = typeof member.titleId === 'string' ? member.titleId.trim() : '';
+    if (!currentTitleId) {
+      memberUpdates.titleId = titles[0].id;
+      if (titles[0].name) {
+        memberUpdates.title = titles[0].name;
+      }
+    } else if (!member.title || !member.title.trim()) {
+      const matched = titles.find((entry) => entry.id === currentTitleId);
+      if (matched && matched.name) {
+        memberUpdates.title = matched.name;
+      }
+    }
+  }
+
+  if (hasInventoryRewards) {
+    const applyResult = await applyLevelGrantsThroughPve(openid, level.grants, now);
+    if (applyResult && applyResult.changed && applyResult.profile) {
+      memberUpdates.pveProfile = _.set(applyResult.profile);
+    }
+  }
+
+  if (Object.keys(memberUpdates).length) {
+    memberUpdates.updatedAt = now;
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(openid)
+      .update({
+        data: memberUpdates
+      })
+      .catch(() => {});
+  }
+}
+
+async function grantLevelRewards(openid, level, levels) {
+  const rewards = Array.isArray(level.rewards) ? level.rewards : [];
+
+  if (rewards.length) {
+    const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
+    const now = new Date();
+    const masterSnapshot = await db.collection(COLLECTIONS.RIGHTS_MASTER).get();
+    const masterMap = {};
+    masterSnapshot.data.forEach((item) => {
+      masterMap[item._id] = item;
+    });
+
+    for (const reward of rewards) {
+      const right = masterMap[reward.rightId];
+      if (!right) continue;
+      const existing = await rightsCollection
+        .where({
+          memberId: openid,
+          rightId: reward.rightId,
+          levelId: level._id
+        })
+        .get();
+      const needQuantity = reward.quantity || 1;
+      const already = existing.data.length;
+      if (already >= needQuantity) {
+        continue;
+      }
+      const diff = needQuantity - already;
+      for (let i = 0; i < diff; i += 1) {
+        const validUntil = right.validDays
+          ? new Date(now.getTime() + right.validDays * 24 * 60 * 60 * 1000)
+          : null;
+        await rightsCollection.add({
+          data: {
+            memberId: openid,
+            rightId: reward.rightId,
+            levelId: level._id,
+            status: 'active',
+            issuedAt: now,
+            validUntil,
+            meta: {
+              fromLevel: level._id,
+              rewardName: reward.description || right.name
+            }
+          }
+        });
+      }
+    }
+  }
+
+  await applyLevelGrantRewards(openid, level, levels);
 }
 
 async function loadLevels() {
@@ -778,19 +964,6 @@ async function ensureArchiveDefaults(member) {
   }
   member.avatarFrame = avatarFrame;
 
-  const backgroundId = normalizeBackgroundId(member.appearanceBackground || '');
-  const safeBackgroundId = backgroundId || getDefaultBackgroundId();
-  if (!Object.is(safeBackgroundId, member.appearanceBackground || '')) {
-    updates.appearanceBackground = safeBackgroundId;
-  }
-  member.appearanceBackground = safeBackgroundId;
-
-  const backgroundAnimated = normalizeBooleanFlag(member.appearanceBackgroundAnimated, false);
-  if (!Object.is(backgroundAnimated, member.appearanceBackgroundAnimated)) {
-    updates.appearanceBackgroundAnimated = backgroundAnimated;
-  }
-  member.appearanceBackgroundAnimated = backgroundAnimated;
-
   const usageCountRaw = Number(member.roomUsageCount);
   const usageCount = Number.isFinite(usageCountRaw) ? Math.max(0, Math.floor(usageCountRaw)) : 0;
   if (!Object.is(usageCount, member.roomUsageCount)) {
@@ -833,6 +1006,85 @@ async function ensureArchiveDefaults(member) {
     updates.claimedLevelRewards = _.remove();
   }
   member.claimedLevelRewards = mergedClaims;
+
+  const hadBackgroundUnlocksField = Object.prototype.hasOwnProperty.call(member, 'backgroundUnlocks');
+  const memberBackgroundUnlocks = normalizeBackgroundUnlocks(member.backgroundUnlocks);
+  const extrasBackgroundUnlocks = normalizeBackgroundUnlocks(extras.backgroundUnlocks);
+  const mergedBackgroundUnlocks = normalizeBackgroundUnlocks([
+    ...extrasBackgroundUnlocks,
+    ...memberBackgroundUnlocks
+  ]);
+  if (!arraysEqual(extrasBackgroundUnlocks, mergedBackgroundUnlocks)) {
+    extrasUpdates.backgroundUnlocks = mergedBackgroundUnlocks;
+    extras.backgroundUnlocks = mergedBackgroundUnlocks;
+  }
+  if (hadBackgroundUnlocksField) {
+    updates.backgroundUnlocks = _.remove();
+  }
+  member.backgroundUnlocks = mergedBackgroundUnlocks;
+
+  const hadTitleUnlocksField = Object.prototype.hasOwnProperty.call(member, 'titleUnlocks');
+  const memberTitleUnlocks = normalizeTitleUnlocks(member.titleUnlocks);
+  const extrasTitleUnlocks = normalizeTitleUnlocks(extras.titleUnlocks);
+  const mergedTitleUnlocks = normalizeTitleUnlocks([...extrasTitleUnlocks, ...memberTitleUnlocks]);
+  if (!arraysEqual(extrasTitleUnlocks, mergedTitleUnlocks)) {
+    extrasUpdates.titleUnlocks = mergedTitleUnlocks;
+    extras.titleUnlocks = mergedTitleUnlocks;
+  }
+  if (hadTitleUnlocksField) {
+    updates.titleUnlocks = _.remove();
+  }
+  member.titleUnlocks = mergedTitleUnlocks;
+
+  const currentTitleId = typeof member.titleId === 'string' ? member.titleId.trim() : '';
+  let normalizedTitleId = currentTitleId;
+  if (normalizedTitleId && mergedTitleUnlocks.length && !mergedTitleUnlocks.includes(normalizedTitleId)) {
+    normalizedTitleId = '';
+  }
+  if (normalizedTitleId) {
+    if (!Object.is(normalizedTitleId, member.titleId || '')) {
+      updates.titleId = normalizedTitleId;
+    }
+  } else if (member.titleId) {
+    updates.titleId = _.remove();
+  }
+  member.titleId = normalizedTitleId;
+
+  const currentTitleName = typeof member.title === 'string' ? member.title.trim() : '';
+  let normalizedTitle = currentTitleName;
+  if (!normalizedTitleId) {
+    normalizedTitle = '';
+  }
+  if (!Object.is(normalizedTitle, member.title || '')) {
+    if (normalizedTitle) {
+      updates.title = normalizedTitle;
+    } else if (member.title) {
+      updates.title = _.remove();
+    }
+  }
+  member.title = normalizedTitle;
+
+  const realmOrderForBackground = resolveMemberRealmOrder(member);
+  const availableBackgroundUnlocks = member.backgroundUnlocks || [];
+  const rawBackgroundId = normalizeBackgroundId(member.appearanceBackground || '');
+  let resolvedBackgroundId = rawBackgroundId || getDefaultBackgroundId();
+  if (!isBackgroundUnlocked(resolvedBackgroundId, realmOrderForBackground, availableBackgroundUnlocks)) {
+    const fallbackBackground = resolveHighestUnlockedBackgroundByRealmOrder(
+      realmOrderForBackground,
+      availableBackgroundUnlocks
+    );
+    resolvedBackgroundId = fallbackBackground ? fallbackBackground.id : getDefaultBackgroundId();
+  }
+  if (!Object.is(resolvedBackgroundId, member.appearanceBackground || '')) {
+    updates.appearanceBackground = resolvedBackgroundId;
+  }
+  member.appearanceBackground = resolvedBackgroundId;
+
+  const backgroundAnimated = normalizeBooleanFlag(member.appearanceBackgroundAnimated, false);
+  if (!Object.is(backgroundAnimated, member.appearanceBackgroundAnimated)) {
+    updates.appearanceBackgroundAnimated = backgroundAnimated;
+  }
+  member.appearanceBackgroundAnimated = backgroundAnimated;
 
   const renameHistory = await loadRenameTimeline(memberId, 20);
   member.renameHistory = renameHistory;
@@ -915,15 +1167,19 @@ async function updateArchive(openid, updates = {}) {
 
   if (typeof updates.appearanceBackground === 'string') {
     const desiredBackgroundId = normalizeBackgroundId(updates.appearanceBackground || '');
+    const availableBackgroundUnlocks = member.backgroundUnlocks || [];
     if (desiredBackgroundId) {
-      if (!isBackgroundUnlocked(desiredBackgroundId, realmOrder)) {
+      if (!isBackgroundUnlocked(desiredBackgroundId, realmOrder, availableBackgroundUnlocks)) {
         throw createError('BACKGROUND_NOT_UNLOCKED', '该背景尚未解锁');
       }
       if (desiredBackgroundId !== (member.appearanceBackground || '')) {
         patch.appearanceBackground = desiredBackgroundId;
       }
     } else {
-      const fallback = resolveHighestUnlockedBackgroundByRealmOrder(realmOrder);
+      const fallback = resolveHighestUnlockedBackgroundByRealmOrder(
+        realmOrder,
+        availableBackgroundUnlocks
+      );
       const fallbackId = fallback ? fallback.id : getDefaultBackgroundId();
       if (fallbackId && fallbackId !== (member.appearanceBackground || '')) {
         patch.appearanceBackground = fallbackId;
@@ -1067,12 +1323,16 @@ function decorateMember(member, levels) {
   }
   const reservationBadges = normalizeReservationBadges(member.reservationBadges);
   const claimedLevelRewards = normalizeClaimedLevelRewards(member.claimedLevelRewards, levels);
+  const backgroundUnlocks = normalizeBackgroundUnlocks(member.backgroundUnlocks);
+  const titleUnlocks = normalizeTitleUnlocks(member.titleUnlocks);
   return {
     ...member,
     roles,
     level,
     reservationBadges,
-    claimedLevelRewards
+    claimedLevelRewards,
+    backgroundUnlocks,
+    titleUnlocks
   };
 }
 
@@ -1128,6 +1388,46 @@ function normalizeAvatarUnlocksList(unlocks) {
     result.push(trimmed);
   });
   return result;
+}
+
+function normalizeBackgroundUnlocks(unlocks) {
+  if (!Array.isArray(unlocks)) {
+    return [];
+  }
+  const seen = new Set();
+  const normalized = [];
+  unlocks.forEach((value) => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      return;
+    }
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  });
+  return normalized;
+}
+
+function normalizeTitleUnlocks(unlocks) {
+  if (!Array.isArray(unlocks)) {
+    return [];
+  }
+  const seen = new Set();
+  const normalized = [];
+  unlocks.forEach((value) => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      return;
+    }
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  });
+  return normalized;
 }
 
 function normalizeClaimedLevelRewards(claims, levels = []) {
@@ -1297,3 +1597,5 @@ function resolveAmountNumber(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : NaN;
 }
+
+exports.applyLevelGrantRewards = applyLevelGrantRewards;

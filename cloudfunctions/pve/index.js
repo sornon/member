@@ -28,6 +28,10 @@ const STORAGE_CATEGORY_DEFINITIONS = [
   baseCapacity: STORAGE_BASE_CAPACITY,
   perUpgrade: STORAGE_PER_UPGRADE
 }));
+const STORAGE_CATEGORY_LABELS = STORAGE_CATEGORY_DEFINITIONS.reduce((map, definition) => {
+  map[definition.key] = definition.label;
+  return map;
+}, {});
 const STORAGE_CATEGORY_KEYS = STORAGE_CATEGORY_DEFINITIONS.map((item) => item.key);
 
 const STORAGE_UPGRADE_AVAILABLE_KEYS = ['upgradeAvailable', 'upgradeRemaining', 'availableUpgrades', 'upgradeTokens'];
@@ -2364,6 +2368,13 @@ const CONSUMABLE_LIBRARY = [
     name: '洗点灵符',
     description: '注入灵力的玉符，使用后可额外获得一次洗点机会。',
     effects: { respecAvailable: 1 }
+  },
+  {
+    id: 'skill_bundle_5',
+    name: '技能5连抽',
+    description: '使用后立即连续抽取 5 次技能卡。',
+    effects: { skillDraw: 5 },
+    usage: { category: 'consumable' }
   }
 ];
 
@@ -2731,6 +2742,10 @@ exports.main = async (event = {}) => {
       return equipItem(actorId, event);
     case 'discardItem':
       return discardItem(actorId, event);
+    case 'useStorageItem':
+      return useStorageItem(actorId, event);
+    case 'applyLevelGrant':
+      return applyLevelGrant(actorId, event);
     case 'upgradeStorage':
       return upgradeStorage(actorId, event);
     case 'listEquipmentCatalog':
@@ -2794,14 +2809,13 @@ async function simulateBattle(actorId, enemyId) {
   };
 }
 
-async function drawSkill(actorId) {
-  const member = await ensureMember(actorId);
-  const profile = await ensurePveProfile(actorId, member);
-  const now = new Date();
-
-  const roll = rollSkill();
+function applySkillRoll(profile, roll, timestamp) {
+  if (!profile.skills || typeof profile.skills !== 'object') {
+    profile.skills = buildDefaultSkills(timestamp);
+  }
   const inventory = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
-  let existing = inventory.find((entry) => entry.skillId === roll.skill.id);
+  profile.skills.inventory = inventory;
+  let existing = inventory.find((entry) => entry && entry.skillId === roll.skill.id);
   let isNew = false;
   if (existing) {
     const maxLevel = resolveSkillMaxLevel(roll.skill.id);
@@ -2810,20 +2824,20 @@ async function drawSkill(actorId) {
       existing.level = nextLevel;
     }
     existing.duplicates = (existing.duplicates || 0) + 1;
-    existing.obtainedAt = now;
+    existing.obtainedAt = timestamp;
   } else {
     isNew = true;
-    existing = createSkillInventoryEntry(roll.skill.id, now);
+    existing = createSkillInventoryEntry(roll.skill.id, timestamp);
     inventory.push(existing);
   }
 
   profile.skills.drawCount = (profile.skills.drawCount || 0) + 1;
-  profile.skills.lastDrawAt = now;
+  profile.skills.lastDrawAt = timestamp;
   profile.skillHistory = appendHistory(
     profile.skillHistory,
     {
       type: 'draw',
-      createdAt: now,
+      createdAt: timestamp,
       detail: {
         skillId: roll.skill.id,
         quality: roll.skill.quality,
@@ -2833,6 +2847,38 @@ async function drawSkill(actorId) {
     },
     MAX_SKILL_HISTORY
   );
+
+  return { entry: existing, isNew };
+}
+
+function performSkillDraws(profile, count, now = new Date()) {
+  const total = Math.max(1, Math.floor(Number(count) || 1));
+  const draws = [];
+  for (let i = 0; i < total; i += 1) {
+    const timestamp = new Date(now.getTime() + i);
+    const roll = rollSkill();
+    const { entry, isNew } = applySkillRoll(profile, roll, timestamp);
+    draws.push({
+      skillId: roll.skill.id,
+      quality: roll.skill.quality,
+      isNew,
+      level: entry.level,
+      duplicates: entry.duplicates || 0,
+      timestamp,
+      roll
+    });
+  }
+  return draws;
+}
+
+async function drawSkill(actorId) {
+  const member = await ensureMember(actorId);
+  const profile = await ensurePveProfile(actorId, member);
+  const now = new Date();
+  const draws = performSkillDraws(profile, 1, now);
+  const draw = draws[0];
+  const inventory = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
+  const existing = inventory.find((entry) => entry && entry.skillId === draw.skillId);
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
@@ -2846,10 +2892,10 @@ async function drawSkill(actorId) {
   return {
     acquiredSkill: {
       ...decoratedSkill,
-      isNew,
-      quality: roll.skill.quality,
-      qualityLabel: resolveSkillQualityLabel(roll.skill.quality),
-      qualityColor: resolveSkillQualityColor(roll.skill.quality)
+      isNew: draw ? draw.isNew : false,
+      quality: draw ? draw.quality : decoratedSkill.quality,
+      qualityLabel: resolveSkillQualityLabel(draw ? draw.quality : decoratedSkill.quality),
+      qualityColor: resolveSkillQualityColor(draw ? draw.quality : decoratedSkill.quality)
     },
     profile: decorated
   };
@@ -3102,6 +3148,168 @@ async function equipItem(actorId, event) {
 
   const decorated = decorateProfile(member, profile);
   return { profile: decorated };
+}
+
+async function useStorageItem(actorId, event = {}) {
+  const inventoryId =
+    event && typeof event.inventoryId === 'string' && event.inventoryId.trim() ? event.inventoryId.trim() : '';
+  if (!inventoryId) {
+    throw createError('INVENTORY_ID_REQUIRED', '缺少物品编号');
+  }
+  const category = event && typeof event.category === 'string' ? event.category.trim() : '';
+  const member = await ensureMember(actorId);
+  const profile = await ensurePveProfile(actorId, member);
+  const equipment = profile.equipment || {};
+  const storage = equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : {};
+  const rawCategories = Array.isArray(storage.categories) ? storage.categories : [];
+  let foundCategoryIndex = -1;
+  let foundItemIndex = -1;
+  let item = null;
+  for (let i = 0; i < rawCategories.length; i += 1) {
+    const entry = rawCategories[i];
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    if (category && entry.key !== category) {
+      continue;
+    }
+    const items = Array.isArray(entry.items) ? entry.items : [];
+    const index = items.findIndex((record) => record && record.inventoryId === inventoryId);
+    if (index >= 0) {
+      foundCategoryIndex = i;
+      foundItemIndex = index;
+      item = items[index];
+      break;
+    }
+  }
+  if (!item) {
+    throw createError('ITEM_NOT_FOUND', '未找到对应道具');
+  }
+  const storageCategory =
+    item.storageCategory ||
+    (rawCategories[foundCategoryIndex] && rawCategories[foundCategoryIndex].key) ||
+    '';
+  if (storageCategory === 'equipment') {
+    throw createError('INVALID_STORAGE_ITEM', '该物品无法在此使用');
+  }
+  const consumableId = item.consumableId || item.itemId;
+  const definition = consumableId ? CONSUMABLE_MAP[consumableId] : null;
+  if (!definition) {
+    throw createError('CONSUMABLE_NOT_SUPPORTED', '暂不支持使用该道具');
+  }
+  if (item.type !== 'consumable') {
+    throw createError('CONSUMABLE_NOT_SUPPORTED', '暂不支持使用该道具');
+  }
+  const usesRemaining = Number.isFinite(item.usesRemaining) ? Math.max(0, Math.floor(item.usesRemaining)) : 1;
+  if (usesRemaining <= 0) {
+    throw createError('CONSUMABLE_USED_UP', '该道具已无法继续使用');
+  }
+
+  const now = new Date();
+  const outcome = applyConsumableReward(profile, consumableId, now) || { respecIncrease: 0, skillDraws: [] };
+
+  const updatedCategories = rawCategories.map((entry, index) => {
+    if (index !== foundCategoryIndex) {
+      return entry;
+    }
+    const items = Array.isArray(entry.items) ? entry.items.slice() : [];
+    if (usesRemaining <= 1) {
+      items.splice(foundItemIndex, 1);
+    } else {
+      const updatedItem = { ...items[foundItemIndex], usesRemaining: usesRemaining - 1 };
+      items[foundItemIndex] = updatedItem;
+    }
+    return { ...entry, items };
+  });
+
+  profile.equipment = equipment;
+  profile.equipment.storage = {
+    ...storage,
+    categories: updatedCategories
+  };
+
+  profile.battleHistory = appendHistory(
+    profile.battleHistory,
+    {
+      type: 'consumable',
+      createdAt: now,
+      detail: {
+        consumableId,
+        effect: 'use',
+        amount: outcome.respecIncrease || 0,
+        skillDraws: outcome.skillDraws.length,
+        inventoryId
+      }
+    },
+    MAX_BATTLE_HISTORY
+  );
+
+  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
+    data: {
+      pveProfile: _.set(profile),
+      updatedAt: now
+    }
+  });
+
+  const decorated = decorateProfile(member, profile);
+  const draws = outcome.skillDraws.map((draw) => {
+    const entry = profile.skills && Array.isArray(profile.skills.inventory)
+      ? profile.skills.inventory.find((record) => record && record.skillId === draw.skillId)
+      : null;
+    const decoratedSkill = decorateSkillInventoryEntry(entry, profile);
+    const definitionSkill = SKILL_MAP[draw.skillId] || {};
+    return {
+      skillId: draw.skillId,
+      name: (decoratedSkill && decoratedSkill.name) || definitionSkill.name || '技能',
+      quality: draw.quality,
+      qualityLabel: resolveSkillQualityLabel(draw.quality),
+      qualityColor: resolveSkillQualityColor(draw.quality),
+      isNew: draw.isNew,
+      level: draw.level
+    };
+  });
+
+  return {
+    profile: decorated,
+    result: {
+      consumableId,
+      inventoryId,
+      storageCategory,
+      respecIncrease: outcome.respecIncrease || 0,
+      skillDraws: draws,
+      usesRemaining: Math.max(0, usesRemaining - 1)
+    }
+  };
+}
+
+async function applyLevelGrant(actorId, event = {}) {
+  const grants = event && typeof event.grants === 'object' ? event.grants : null;
+  if (!grants) {
+    return { changed: false, profile: null, results: null };
+  }
+  const member = await ensureMember(actorId);
+  const levels = await loadMembershipLevels();
+  const timestamp = Number(event && event.timestamp);
+  const now = Number.isFinite(timestamp) && timestamp > 0 ? new Date(timestamp) : new Date();
+  const profile = await ensurePveProfile(actorId, member, levels);
+  const outcome = applyLevelGrantToProfile(profile, grants, { now }) || {
+    profile,
+    changed: false,
+    results: { equipmentGranted: [], skillsGranted: [], itemsGranted: [] }
+  };
+  if (outcome.changed) {
+    await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
+      data: {
+        pveProfile: _.set(outcome.profile),
+        updatedAt: now
+      }
+    });
+  }
+  return {
+    changed: Boolean(outcome.changed),
+    profile: outcome.profile || profile,
+    results: outcome.results || { equipmentGranted: [], skillsGranted: [], itemsGranted: [] }
+  };
 }
 
 async function discardItem(actorId, event = {}) {
@@ -3804,13 +4012,21 @@ function buildDefaultStorage(level = 0) {
   });
   const upgradeAvailable =
     safeLevel > 0 ? Math.max(limit - Math.min(limit, safeLevel), 0) : 0;
+  const categories = STORAGE_CATEGORY_DEFINITIONS.filter((definition) => definition.key !== 'equipment').map(
+    (definition) => ({
+      key: definition.key,
+      label: definition.label,
+      items: []
+    })
+  );
   return {
     upgrades,
     globalUpgrades: safeLevel,
     baseCapacity: STORAGE_BASE_CAPACITY,
     perUpgrade: STORAGE_PER_UPGRADE,
     upgradeLimit: limit,
-    upgradeAvailable
+    upgradeAvailable,
+    categories
   };
 }
 
@@ -3947,6 +4163,126 @@ function normalizeStorageMetadata(rawStorage) {
   }
 
   return normalized;
+}
+
+function generateStorageInventoryId(category, itemId, obtainedAt = new Date()) {
+  const safeCategory = typeof category === 'string' && category.trim() ? category.trim() : 'storage';
+  const baseId = typeof itemId === 'string' && itemId.trim() ? itemId.trim() : 'item';
+  const timestamp =
+    obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : Date.now();
+  const random = Math.random().toString(36).slice(2, 8);
+  return `st-${safeCategory}-${baseId}-${timestamp}-${random}`;
+}
+
+function normalizeStorageItem(entry, categoryKey, now = new Date(), seen = new Set()) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const storageCategory = typeof categoryKey === 'string' && categoryKey.trim() ? categoryKey.trim() : 'consumable';
+  const type = typeof entry.type === 'string' && entry.type.trim() ? entry.type.trim() : 'consumable';
+  const consumableId =
+    typeof entry.consumableId === 'string' && entry.consumableId.trim()
+      ? entry.consumableId.trim()
+      : typeof entry.itemId === 'string' && entry.itemId.trim()
+      ? entry.itemId.trim()
+      : type === 'consumable'
+      ? storageCategory
+      : '';
+  const rawObtainedAt = entry.obtainedAt ? new Date(entry.obtainedAt) : now;
+  const obtainedAt = Number.isNaN(rawObtainedAt.getTime()) ? now : rawObtainedAt;
+  let inventoryId =
+    typeof entry.inventoryId === 'string' && entry.inventoryId.trim()
+      ? entry.inventoryId.trim()
+      : typeof entry.id === 'string' && entry.id.trim()
+      ? entry.id.trim()
+      : null;
+  if (!inventoryId) {
+    inventoryId = generateStorageInventoryId(storageCategory, consumableId || type, obtainedAt);
+  }
+  if (seen.has(inventoryId)) {
+    return null;
+  }
+  const name = typeof entry.name === 'string' ? entry.name : '';
+  const description = typeof entry.description === 'string' ? entry.description : '';
+  const usesRemainingRaw =
+    typeof entry.usesRemaining === 'number'
+      ? entry.usesRemaining
+      : typeof entry.usesRemaining === 'string'
+      ? Number(entry.usesRemaining)
+      : null;
+  const usesRemaining =
+    usesRemainingRaw === null || Number.isNaN(usesRemainingRaw)
+      ? Math.max(1, Math.floor(Number(entry.quantity || entry.count || 1) || 1))
+      : Math.max(0, Math.floor(usesRemainingRaw));
+  const meta = entry.meta && typeof entry.meta === 'object' ? { ...entry.meta } : {};
+  const label = typeof entry.label === 'string' ? entry.label : '';
+  const iconUrl = typeof entry.iconUrl === 'string' ? entry.iconUrl : '';
+  const iconFallbackUrl = typeof entry.iconFallbackUrl === 'string' ? entry.iconFallbackUrl : '';
+  const source = typeof entry.source === 'string' ? entry.source : '';
+  const payload = {
+    inventoryId,
+    storageCategory,
+    type,
+    consumableId,
+    itemId: consumableId || entry.itemId || '',
+    name,
+    label,
+    description,
+    iconUrl,
+    iconFallbackUrl,
+    usesRemaining,
+    meta,
+    obtainedAt,
+    source
+  };
+  seen.add(inventoryId);
+  return payload;
+}
+
+function normalizeStorageCategories(rawCategories, now = new Date()) {
+  const seen = new Set();
+  const prepared = {};
+  const list = Array.isArray(rawCategories) ? rawCategories : [];
+  list.forEach((category) => {
+    if (!category || typeof category !== 'object') {
+      return;
+    }
+    const key = typeof category.key === 'string' && category.key.trim() ? category.key.trim() : '';
+    if (!key || key === 'equipment' || !STORAGE_CATEGORY_KEYS.includes(key)) {
+      return;
+    }
+    const label = typeof category.label === 'string' && category.label.trim() ? category.label.trim() : key;
+    const items = Array.isArray(category.items) ? category.items : [];
+    const normalizedItems = [];
+    items.forEach((item) => {
+      const normalized = normalizeStorageItem(item, key, now, seen);
+      if (normalized) {
+        normalizedItems.push(normalized);
+      }
+    });
+    prepared[key] = {
+      key,
+      label,
+      items: normalizedItems
+    };
+  });
+  const ordered = [];
+  STORAGE_CATEGORY_DEFINITIONS.forEach((definition) => {
+    if (definition.key === 'equipment') {
+      return;
+    }
+    const existing = prepared[definition.key];
+    if (existing) {
+      ordered.push({
+        key: definition.key,
+        label: existing.label || definition.label,
+        items: existing.items
+      });
+    } else {
+      ordered.push({ key: definition.key, label: definition.label, items: [] });
+    }
+  });
+  return ordered;
 }
 
 function normalizeProfileWithoutEquipmentDefaults(profile, now = new Date()) {
@@ -4172,6 +4508,18 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
   if (resolvedUpgradeLimit !== null) {
     const key = storageUpgradeLimitKey || 'upgradeLimit';
     normalizedStorage[key] = resolvedUpgradeLimit;
+  }
+
+  const defaultCategories =
+    defaultStorage && Array.isArray(defaultStorage.categories) ? defaultStorage.categories : [];
+  const providedCategories =
+    rawStoragePayload && Array.isArray(rawStoragePayload.categories) ? rawStoragePayload.categories : [];
+  const normalizedCategories = normalizeStorageCategories(
+    [...defaultCategories, ...providedCategories],
+    now
+  );
+  if (normalizedCategories.length) {
+    normalizedStorage.categories = normalizedCategories;
   }
 
   return {
@@ -5075,6 +5423,72 @@ function calculateCombatPower(stats, special = {}) {
   return Math.round(power);
 }
 
+function decorateStorageItem(entry) {
+  if (!entry) {
+    return null;
+  }
+  const storageCategory = typeof entry.storageCategory === 'string' ? entry.storageCategory : 'consumable';
+  const usesRemaining = Number.isFinite(entry.usesRemaining) ? Math.max(0, Math.floor(entry.usesRemaining)) : 0;
+  if (entry.type === 'consumable') {
+    const definition = CONSUMABLE_MAP[entry.consumableId] || CONSUMABLE_MAP[entry.itemId] || null;
+    const name = entry.name || (definition && definition.name) || '道具';
+    const description = entry.description || (definition && definition.description) || '';
+    const notes = [];
+    if (description) {
+      notes.push(description);
+    }
+    if (usesRemaining > 1) {
+      notes.push(`剩余次数：${usesRemaining}`);
+    }
+    const meta = entry.meta && typeof entry.meta === 'object' ? entry.meta : {};
+    return {
+      inventoryId: entry.inventoryId,
+      storageCategory,
+      type: 'consumable',
+      consumableId: entry.consumableId || entry.itemId || '',
+      name,
+      shortName: name,
+      quality: 'consumable',
+      qualityLabel: '道具',
+      qualityColor: '#f5a623',
+      iconUrl: entry.iconUrl || '',
+      iconFallbackUrl: entry.iconFallbackUrl || '',
+      statsText: [],
+      notes,
+      usesRemaining,
+      description,
+      meta,
+      obtainedAt: entry.obtainedAt,
+      obtainedAtText: formatDateTime(entry.obtainedAt),
+      useAction: 'useConsumable',
+      source: entry.source || ''
+    };
+  }
+  const name = entry.name || '物品';
+  const notes = entry.description ? [entry.description] : [];
+  return {
+    inventoryId: entry.inventoryId,
+    storageCategory,
+    type: entry.type || 'item',
+    itemId: entry.itemId || '',
+    name,
+    shortName: name,
+    quality: 'item',
+    qualityLabel: '物品',
+    qualityColor: '#6b7a99',
+    iconUrl: entry.iconUrl || '',
+    iconFallbackUrl: entry.iconFallbackUrl || '',
+    statsText: [],
+    notes,
+    description: entry.description || '',
+    usesRemaining,
+    meta: entry.meta && typeof entry.meta === 'object' ? entry.meta : {},
+    obtainedAt: entry.obtainedAt,
+    obtainedAtText: formatDateTime(entry.obtainedAt),
+    source: entry.source || ''
+  };
+}
+
 function decorateEquipment(profile, summary = null) {
   const equipment = profile.equipment || {};
   const inventory = Array.isArray(equipment.inventory) ? equipment.inventory : [];
@@ -5138,6 +5552,19 @@ function decorateEquipment(profile, summary = null) {
 
   const bonusSummary = summary || sumEquipmentBonuses(equipment);
   const storage = equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : {};
+  const storedCategories = new Map();
+  const rawCategories = Array.isArray(storage.categories) ? storage.categories : [];
+  rawCategories.forEach((category) => {
+    if (!category || typeof category !== 'object') {
+      return;
+    }
+    const key = typeof category.key === 'string' ? category.key : '';
+    if (!key) {
+      return;
+    }
+    const items = Array.isArray(category.items) ? category.items : [];
+    storedCategories.set(key, items);
+  });
   const { level: storageLevel, upgrades: storageLevelMap } = resolveStorageUpgradeState(storage);
   const baseCapacity = resolveStorageBaseCapacity(storage);
   const perUpgrade = resolveStoragePerUpgrade(storage);
@@ -5148,7 +5575,15 @@ function decorateEquipment(profile, summary = null) {
   const upgradesRemaining =
     upgradeLimit !== null ? Math.max(upgradeLimit - Math.min(upgradeLimit, storageLevel), 0) : null;
   const storageCategories = STORAGE_CATEGORY_DEFINITIONS.map((definition) => {
-    const items = definition.key === 'equipment' ? list : [];
+    let items = [];
+    if (definition.key === 'equipment') {
+      items = list;
+    } else {
+      const storedItems = storedCategories.get(definition.key) || [];
+      items = storedItems
+        .map((item) => decorateStorageItem(item))
+        .filter((decorated) => !!decorated);
+    }
     const used = items.length;
     const remaining = Math.max(capacity - used, 0);
     return {
@@ -5473,6 +5908,14 @@ function decorateBattleHistory(history, profile) {
       let summary = `获得道具：${consumable.name}`;
       if (detail.effect === 'respecAvailable' && detail.amount) {
         summary += `（洗点次数 +${detail.amount}）`;
+      }
+      if (detail.effect === 'use') {
+        summary = `使用道具：${consumable.name}`;
+        if (detail.skillDraws) {
+          summary += `（抽取技能 ${detail.skillDraws} 次）`;
+        } else if (detail.amount) {
+          summary += `（效果 +${detail.amount}）`;
+        }
       }
       return {
         type: 'consumable',
@@ -5985,11 +6428,15 @@ function ensureSkillOwned(profile, skillId, now) {
 function applyConsumableReward(profile, consumableId, now) {
   const definition = CONSUMABLE_MAP[consumableId];
   if (!definition) {
-    return;
+    return null;
   }
   if (!profile.attributes) {
     profile.attributes = buildDefaultAttributes();
   }
+  const outcome = {
+    respecIncrease: 0,
+    skillDraws: []
+  };
   const availableIncrease = definition.effects && definition.effects.respecAvailable ? definition.effects.respecAvailable : 0;
   if (availableIncrease > 0) {
     const attrs = profile.attributes;
@@ -6011,7 +6458,161 @@ function applyConsumableReward(profile, consumableId, now) {
       },
       MAX_BATTLE_HISTORY
     );
+    outcome.respecIncrease = availableIncrease;
   }
+  const drawCount = definition.effects && definition.effects.skillDraw ? definition.effects.skillDraw : 0;
+  if (drawCount > 0) {
+    const draws = performSkillDraws(profile, drawCount, now);
+    outcome.skillDraws = draws;
+  }
+  if (!outcome.respecIncrease && !outcome.skillDraws.length) {
+    return null;
+  }
+  return outcome;
+}
+
+function ensureStorageCategoriesInitialized(profile, now = new Date()) {
+  if (!profile.equipment || typeof profile.equipment !== 'object') {
+    profile.equipment = buildDefaultEquipment(now);
+  }
+  const equipment = profile.equipment;
+  if (!equipment.storage || typeof equipment.storage !== 'object') {
+    equipment.storage = buildDefaultStorage(0);
+  }
+  if (!Array.isArray(equipment.storage.categories)) {
+    equipment.storage.categories = [];
+  }
+  STORAGE_CATEGORY_DEFINITIONS.forEach((definition) => {
+    if (definition.key === 'equipment') {
+      return;
+    }
+    const exists = equipment.storage.categories.some(
+      (category) => category && category.key === definition.key
+    );
+    if (!exists) {
+      equipment.storage.categories.push({ key: definition.key, label: definition.label, items: [] });
+    }
+  });
+}
+
+function appendStorageItem(profile, categoryKey, item, now = new Date()) {
+  ensureStorageCategoriesInitialized(profile, now);
+  const storage = profile.equipment.storage;
+  const categories = Array.isArray(storage.categories) ? storage.categories : [];
+  const index = categories.findIndex((entry) => entry && entry.key === categoryKey);
+  const targetIndex =
+    index >= 0
+      ? index
+      : categories.push({
+          key: categoryKey,
+          label: STORAGE_CATEGORY_LABELS[categoryKey] || categoryKey,
+          items: []
+        }) - 1;
+  const target =
+    categories[targetIndex] ||
+    {
+      key: categoryKey,
+      label: STORAGE_CATEGORY_LABELS[categoryKey] || categoryKey,
+      items: []
+    };
+  const items = Array.isArray(target.items) ? target.items.slice() : [];
+  items.push(item);
+  categories[targetIndex] = { ...target, items };
+  storage.categories = categories;
+  profile.equipment.storage = storage;
+}
+
+function createStorageItemFromGrant(grant, now = new Date()) {
+  if (!grant || typeof grant !== 'object') {
+    return null;
+  }
+  const category = grant.category || 'consumable';
+  if (category !== 'consumable') {
+    return null;
+  }
+  const consumableId = grant.id || grant.consumableId;
+  if (!consumableId || !CONSUMABLE_MAP[consumableId]) {
+    return null;
+  }
+  const definition = CONSUMABLE_MAP[consumableId];
+  const name = grant.name || definition.name || '道具';
+  const description = grant.description || definition.description || '';
+  const quantityRaw =
+    typeof grant.quantity === 'number'
+      ? grant.quantity
+      : typeof grant.count === 'number'
+      ? grant.count
+      : typeof grant.uses === 'number'
+      ? grant.uses
+      : 1;
+  const usesRemaining = Math.max(1, Math.floor(quantityRaw));
+  return {
+    inventoryId: generateStorageInventoryId(category, consumableId, now),
+    storageCategory: category,
+    type: 'consumable',
+    consumableId,
+    itemId: consumableId,
+    name,
+    description,
+    usesRemaining,
+    meta: grant.meta && typeof grant.meta === 'object' ? { ...grant.meta } : {},
+    source: grant.source || 'level',
+    obtainedAt: now
+  };
+}
+
+function applyLevelGrantToProfile(profile, grantDefinition = {}, options = {}) {
+  const now = options.now instanceof Date && !Number.isNaN(options.now.getTime()) ? options.now : new Date();
+  const normalizedProfile = normalizeProfile(profile || {}, now);
+  const results = {
+    equipmentGranted: [],
+    skillsGranted: [],
+    itemsGranted: []
+  };
+  let changed = false;
+
+  if (Array.isArray(grantDefinition.equipment)) {
+    grantDefinition.equipment.forEach((itemId) => {
+      const definition = EQUIPMENT_MAP[itemId];
+      if (!definition) {
+        return;
+      }
+      ensureEquipmentOwned(normalizedProfile, itemId, now);
+      results.equipmentGranted.push(itemId);
+      changed = true;
+    });
+  }
+
+  if (Array.isArray(grantDefinition.skills)) {
+    grantDefinition.skills.forEach((skillId) => {
+      const definition = SKILL_MAP[skillId];
+      if (!definition) {
+        return;
+      }
+      ensureSkillOwned(normalizedProfile, skillId, now);
+      results.skillsGranted.push(skillId);
+      changed = true;
+    });
+  }
+
+  if (Array.isArray(grantDefinition.items)) {
+    grantDefinition.items.forEach((item) => {
+      const payload = {
+        ...item,
+        category: item && item.category ? item.category : 'consumable',
+        source: item && item.source ? item.source : 'level'
+      };
+      const entry = createStorageItemFromGrant(payload, now);
+      if (!entry) {
+        return;
+      }
+      appendStorageItem(normalizedProfile, entry.storageCategory || 'consumable', entry, now);
+      results.itemsGranted.push(entry);
+      changed = true;
+    });
+  }
+
+  return { profile: normalizedProfile, changed, results };
 }
 
 async function recordStoneTransaction(actorId, result, enemy, now) {
@@ -6341,3 +6942,5 @@ function buildMap(list) {
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
+
+exports.applyLevelGrantToProfile = applyLevelGrantToProfile;

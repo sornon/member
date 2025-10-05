@@ -1093,7 +1093,9 @@ Page({
       inventoryId: inventoryId || '',
       mode,
       category,
-      deleting: false
+      deleting: false,
+      using: false,
+      useAction: rawItem.useAction || ''
     };
     const deleteState = resolveTooltipDeleteState(tooltip);
     tooltip.canDelete = deleteState.canDelete;
@@ -1197,6 +1199,44 @@ Page({
       console.error('[role] discard item failed', error);
       wx.showToast({ title: error.errMsg || '删除失败', icon: 'none' });
       this.setData({ 'equipmentTooltip.deleting': false });
+    }
+  },
+
+  async handleUseConsumableFromTooltip() {
+    const tooltip = this.data && this.data.equipmentTooltip;
+    if (!tooltip || tooltip.useAction !== 'useConsumable' || tooltip.using) {
+      return;
+    }
+    const inventoryId = tooltip.inventoryId || (tooltip.item && tooltip.item.inventoryId) || '';
+    const category = tooltip.category || (tooltip.item && tooltip.item.storageCategory) || 'consumable';
+    if (!inventoryId) {
+      wx.showToast({ title: '缺少物品信息', icon: 'none' });
+      return;
+    }
+    this.setData({ 'equipmentTooltip.using': true });
+    try {
+      const res = await PveService.useStorageItem({ inventoryId, category });
+      if (res && res.profile) {
+        this.applyProfile(res.profile);
+      } else {
+        this.setData({ 'equipmentTooltip.using': false });
+      }
+      if (res && res.result) {
+        const result = res.result;
+        if (result.skillDraws && result.skillDraws.length) {
+          const names = result.skillDraws.map((item) => `${item.name}（${item.qualityLabel}）`);
+          wx.showToast({ title: `获得技能：${names.join('，')}`, icon: 'none', duration: 2500 });
+        } else if (result.respecIncrease) {
+          wx.showToast({ title: `洗点次数 +${result.respecIncrease}`, icon: 'none' });
+        } else {
+          wx.showToast({ title: '已使用', icon: 'success', duration: 1500 });
+        }
+      }
+      this.closeEquipmentTooltip();
+    } catch (error) {
+      console.error('[role] use storage item failed', error);
+      wx.showToast({ title: error.errMsg || '使用失败', icon: 'none' });
+      this.setData({ 'equipmentTooltip.using': false });
     }
   },
 
