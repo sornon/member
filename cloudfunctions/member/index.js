@@ -12,7 +12,7 @@ const {
   resolveBackgroundByRealmName,
   resolveBackgroundById
 } = require('./shared/backgrounds.js');
-const { COLLECTIONS } = require('common-config');
+const { COLLECTIONS, realmConfigs, subLevelLabels } = require('common-config');
 
 const db = cloud.database();
 const _ = db.command;
@@ -51,6 +51,9 @@ const STORAGE_REWARD_META = Object.freeze({
   background: { quality: 'rare', qualityLabel: '背景', qualityColor: '#45c0a8' },
   consumable: { quality: 'epic', qualityLabel: '消耗品', qualityColor: '#f2a546' }
 });
+
+const SUB_LEVEL_COUNT =
+  Array.isArray(subLevelLabels) && subLevelLabels.length ? subLevelLabels.length : 10;
 
 const LEVEL_REWARD_CONFIG = Object.freeze({
   level_001: [
@@ -888,9 +891,128 @@ function resolveSubLevel(level) {
     return Math.max(1, Math.floor(level.subLevel));
   }
   if (typeof level.order === 'number' && Number.isFinite(level.order)) {
-    return Math.max(1, ((Math.floor(level.order) - 1) % 10) + 1);
+    const perRealm = SUB_LEVEL_COUNT > 0 ? SUB_LEVEL_COUNT : 10;
+    return Math.max(1, ((Math.floor(level.order) - 1) % perRealm) + 1);
   }
   return 1;
+}
+
+function findRealmConfigForLevel(level) {
+  if (!level || !Array.isArray(realmConfigs) || !realmConfigs.length) {
+    return null;
+  }
+
+  const realmId = typeof level.realmId === 'string' ? level.realmId.trim() : '';
+  if (realmId) {
+    const indexById = realmConfigs.findIndex((realm) => realm && realm.id === realmId);
+    if (indexById >= 0) {
+      return { config: realmConfigs[indexById], index: indexById };
+    }
+  }
+
+  const realmName = typeof level.realm === 'string' ? level.realm.trim() : '';
+  if (realmName) {
+    const indexByName = realmConfigs.findIndex(
+      (realm) => realm && (realm.name === realmName || realm.shortName === realmName)
+    );
+    if (indexByName >= 0) {
+      return { config: realmConfigs[indexByName], index: indexByName };
+    }
+  }
+
+  if (typeof level.realmOrder === 'number' && Number.isFinite(level.realmOrder)) {
+    const realmIndex = Math.max(0, Math.floor(level.realmOrder) - 1);
+    if (realmConfigs[realmIndex]) {
+      return { config: realmConfigs[realmIndex], index: realmIndex };
+    }
+  }
+
+  if (typeof level.order === 'number' && Number.isFinite(level.order) && SUB_LEVEL_COUNT > 0) {
+    const realmIndex = Math.max(0, Math.floor((Math.floor(level.order) - 1) / SUB_LEVEL_COUNT));
+    if (realmConfigs[realmIndex]) {
+      return { config: realmConfigs[realmIndex], index: realmIndex };
+    }
+  }
+
+  return null;
+}
+
+function normalizeConfigRewardEntry(entry) {
+  if (Array.isArray(entry)) {
+    return entry
+      .map((item) => (typeof item === 'string' ? item.trim() : ''))
+      .filter((item) => !!item);
+  }
+  if (typeof entry === 'string') {
+    const trimmed = entry.trim();
+    return trimmed ? [trimmed] : [];
+  }
+  return [];
+}
+
+function applyRealmConfigOverrides(levels = []) {
+  if (!Array.isArray(levels) || !levels.length) {
+    return levels || [];
+  }
+
+  return levels.map((level) => {
+    if (!level) {
+      return level;
+    }
+    const matched = findRealmConfigForLevel(level);
+    if (!matched) {
+      return level;
+    }
+
+    const { config } = matched;
+    const overrides = {};
+    const subIndex = Math.max(0, resolveSubLevel(level) - 1);
+    const rewardsList = Array.isArray(config.virtualRewards) ? config.virtualRewards : [];
+
+    if (subIndex < rewardsList.length) {
+      const normalizedRewards = normalizeConfigRewardEntry(rewardsList[subIndex]);
+      if (normalizedRewards.length) {
+        overrides.virtualRewards = normalizedRewards;
+      }
+    }
+
+    let isFinalSubLevel = false;
+    if (SUB_LEVEL_COUNT > 0) {
+      isFinalSubLevel = subIndex >= SUB_LEVEL_COUNT - 1;
+    } else if (rewardsList.length > 0) {
+      isFinalSubLevel = subIndex >= rewardsList.length - 1;
+    }
+
+    if (isFinalSubLevel && config.milestone) {
+      overrides.milestoneReward = config.milestone.summary || level.milestoneReward || '';
+      overrides.milestoneType = config.milestone.type || level.milestoneType || '';
+      if (Array.isArray(config.milestone.rights) && config.milestone.rights.length) {
+        overrides.rewards = config.milestone.rights.map((item) => ({
+          rightId: item.rightId,
+          quantity: item.quantity || 1,
+          description: item.description || ''
+        }));
+      }
+    }
+
+    if (config.description) {
+      overrides.realmDescription = config.description;
+    }
+
+    if (config.id) {
+      overrides.realmId = config.id;
+    }
+
+    if (config.shortName) {
+      overrides.realmShort = config.shortName;
+    }
+
+    if (config.name) {
+      overrides.realm = config.name;
+    }
+
+    return Object.keys(overrides).length ? { ...level, ...overrides } : level;
+  });
 }
 
 function requiresBreakthrough(currentLevel, nextLevel) {
@@ -1037,7 +1159,8 @@ async function grantInventoryRewardsForLevel(openid, level) {
 
 async function loadLevels() {
   const snapshot = await db.collection(COLLECTIONS.LEVELS).orderBy('order', 'asc').get();
-  return snapshot.data || [];
+  const levels = snapshot.data || [];
+  return applyRealmConfigOverrides(levels);
 }
 
 function createError(code, message) {
