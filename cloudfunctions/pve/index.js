@@ -3981,6 +3981,152 @@ function normalizeStorageMetadata(rawStorage) {
   return normalized;
 }
 
+function normalizeStorageInventoryItem(entry, categoryKey) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const normalized = { ...entry };
+  const key = typeof categoryKey === 'string' && categoryKey.trim() ? categoryKey.trim() : 'consumable';
+  const itemId = typeof normalized.itemId === 'string' ? normalized.itemId.trim() : '';
+  const inventoryId = typeof normalized.inventoryId === 'string' ? normalized.inventoryId.trim() : '';
+  if (!itemId && !inventoryId) {
+    return null;
+  }
+  if (itemId) {
+    normalized.itemId = itemId;
+  }
+  if (inventoryId) {
+    normalized.inventoryId = inventoryId;
+  } else if (itemId) {
+    normalized.inventoryId = `${key}-${itemId}`;
+  }
+  if (typeof normalized.storageCategory === 'string' && normalized.storageCategory.trim()) {
+    normalized.storageCategory = normalized.storageCategory.trim();
+  } else {
+    normalized.storageCategory = key;
+  }
+  if (
+    typeof normalized.slotLabel !== 'string' ||
+    !normalized.slotLabel.trim()
+  ) {
+    normalized.slotLabel =
+      STORAGE_CATEGORY_LABEL_MAP[normalized.storageCategory] ||
+      STORAGE_CATEGORY_LABEL_MAP[key] ||
+      normalized.storageCategory ||
+      '道具';
+  }
+  if (Array.isArray(normalized.actions)) {
+    normalized.actions = normalized.actions
+      .map((action) => ({
+        key: typeof action.key === 'string' ? action.key.trim() : '',
+        label: typeof action.label === 'string' ? action.label : '',
+        primary: !!action.primary
+      }))
+      .filter((action) => action.key && action.label);
+  } else {
+    normalized.actions = [];
+  }
+  if (normalized.actions.length) {
+    const primary = normalized.actions.find((action) => action.primary) || normalized.actions[0];
+    normalized.primaryAction = primary || null;
+  } else {
+    normalized.primaryAction = null;
+  }
+  if (Array.isArray(normalized.notes)) {
+    normalized.notes = normalized.notes.filter((note) => !!note);
+  } else {
+    normalized.notes = [];
+  }
+  if (normalized.obtainedAt) {
+    const obtainedAt = new Date(normalized.obtainedAt);
+    if (!Number.isNaN(obtainedAt.getTime())) {
+      normalized.obtainedAt = obtainedAt;
+    } else {
+      delete normalized.obtainedAt;
+    }
+  }
+  normalized.locked = normalized.locked === true;
+  if (!normalized.kind) {
+    normalized.kind = normalized.storageCategory === 'equipment' ? 'equipment' : 'storage';
+  }
+  if (normalized.usage && typeof normalized.usage === 'object') {
+    normalized.usage = { ...normalized.usage };
+  } else {
+    normalized.usage = null;
+  }
+  const quantityCandidates = [normalized.quantity, normalized.count, normalized.amount];
+  for (let i = 0; i < quantityCandidates.length; i += 1) {
+    const candidate = Number(quantityCandidates[i]);
+    if (Number.isFinite(candidate)) {
+      normalized.quantity = Math.max(0, Math.floor(candidate));
+      break;
+    }
+  }
+  return normalized;
+}
+
+function normalizeStorageCategoryEntry(category) {
+  if (!category || typeof category !== 'object') {
+    return null;
+  }
+  const key = typeof category.key === 'string' ? category.key.trim() : '';
+  if (!key) {
+    return null;
+  }
+  const label =
+    typeof category.label === 'string' && category.label.trim()
+      ? category.label.trim()
+      : STORAGE_CATEGORY_LABEL_MAP[key] || key;
+  const items = Array.isArray(category.items)
+    ? category.items.map((item) => normalizeStorageInventoryItem(item, key)).filter((item) => !!item)
+    : [];
+  const normalized = { key, label, items };
+  const baseCapacity = toOptionalPositiveInt(category.baseCapacity);
+  if (baseCapacity !== null) {
+    normalized.baseCapacity = baseCapacity;
+  }
+  const perUpgrade = toOptionalPositiveInt(category.perUpgrade);
+  if (perUpgrade !== null) {
+    normalized.perUpgrade = perUpgrade;
+  }
+  const upgrades = toOptionalPositiveInt(category.upgrades);
+  if (upgrades !== null) {
+    normalized.upgrades = upgrades;
+  }
+  const capacity = toOptionalPositiveInt(category.capacity);
+  if (capacity !== null) {
+    normalized.capacity = capacity;
+  }
+  const used = toOptionalPositiveInt(category.used);
+  if (used !== null) {
+    normalized.used = used;
+  }
+  const remaining = toOptionalPositiveInt(category.remaining);
+  if (remaining !== null) {
+    normalized.remaining = remaining;
+  }
+  const usagePercent = toOptionalPositiveInt(category.usagePercent);
+  if (usagePercent !== null) {
+    normalized.usagePercent = Math.min(100, usagePercent);
+  }
+  const nextCapacity = toOptionalPositiveInt(category.nextCapacity);
+  if (nextCapacity !== null) {
+    normalized.nextCapacity = nextCapacity;
+  }
+  const upgradeAvailable = toOptionalPositiveInt(category.upgradeAvailable);
+  if (upgradeAvailable !== null) {
+    normalized.upgradeAvailable = upgradeAvailable;
+  }
+  const upgradeLimit = toOptionalPositiveInt(category.upgradeLimit);
+  if (upgradeLimit !== null) {
+    normalized.upgradeLimit = upgradeLimit;
+  }
+  if (category.meta && typeof category.meta === 'object') {
+    normalized.meta = { ...category.meta };
+  }
+  return normalized;
+}
+
 function normalizeProfileWithoutEquipmentDefaults(profile, now = new Date()) {
   return normalizeProfileInternal(profile, now, { includeEquipmentDefaults: false });
 }
@@ -4215,6 +4361,19 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
   if (resolvedUpgradeLimit !== null) {
     const key = storageUpgradeLimitKey || 'upgradeLimit';
     normalizedStorage[key] = resolvedUpgradeLimit;
+  }
+
+  const normalizedStorageMeta = normalizeStorageMetadata(rawStoragePayload);
+  if (normalizedStorageMeta && Object.keys(normalizedStorageMeta).length) {
+    normalizedStorage.meta = normalizedStorageMeta;
+  }
+  const rawStorageCategories =
+    rawStoragePayload && Array.isArray(rawStoragePayload.categories) ? rawStoragePayload.categories : [];
+  const normalizedCategories = rawStorageCategories
+    .map((category) => normalizeStorageCategoryEntry(category))
+    .filter((category) => !!category);
+  if (normalizedCategories.length) {
+    normalizedStorage.categories = normalizedCategories;
   }
 
   return {
