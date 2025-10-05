@@ -13,6 +13,7 @@ const {
   resolveSpecialStats,
   executeAttack: performCombatAttack
 } = require('combat-system');
+const { aggregateSkillEffects } = require('skill-model');
 
 const db = cloud.database();
 const _ = db.command;
@@ -1199,7 +1200,23 @@ function buildCombatSnapshot(member) {
   if (!member || !member.pveProfile) {
     return defaultCombatSnapshot();
   }
-  const { stats, special, combatPower } = extractCombatProfile(member.pveProfile, {
+  const profile = member.pveProfile;
+  const attributeSummary = (profile && typeof profile === 'object' && profile.attributeSummary) || {};
+  const existingSkillSummary = attributeSummary && attributeSummary.skillSummary;
+  const skillSummaryValid =
+    existingSkillSummary &&
+    typeof existingSkillSummary === 'object' &&
+    existingSkillSummary.combatAdditive &&
+    typeof existingSkillSummary.combatAdditive === 'object';
+  const computedSkillSummary = aggregateSkillEffects((profile && profile.skills) || {});
+  const enrichedProfile = {
+    ...profile,
+    attributeSummary: {
+      ...attributeSummary,
+      skillSummary: skillSummaryValid ? existingSkillSummary : computedSkillSummary
+    }
+  };
+  const { stats, special, combatPower } = extractCombatProfile(enrichedProfile, {
     defaults: DEFAULT_COMBAT_STATS,
     convertLegacyPercentages: true
   });
