@@ -92,6 +92,8 @@
 
 所有动作均会同步写回 `members` 表的 `pveProfile` 字段，并在需要时记录灵石流水（`stoneTransactions`）。【F:cloudfunctions/pve/index.js†L691-L707】【F:cloudfunctions/pve/index.js†L713-L961】
 
+> **数值同步提示**：云函数会在每次更新属性、装备或技能时重新计算 `pveProfile.attributeSummary`，将装备词条、套装效果与技能增益折算为最终战斗属性，供 PVE 战斗与 PVP 竞技场共用。【F:cloudfunctions/pve/index.js†L2836-L2873】【F:cloudfunctions/pve/index.js†L2994-L3072】【F:cloudfunctions/pve/index.js†L3218-L3333】【F:cloudfunctions/pve/index.js†L3377-L3452】【F:cloudfunctions/pve/index.js†L5748-L5796】
+
 ## 部署提示
 
 1. 在云开发控制台创建或更新 `pve` 云函数，上传 `cloudfunctions/pve` 目录并安装依赖。

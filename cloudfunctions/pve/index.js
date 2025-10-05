@@ -2854,6 +2854,8 @@ async function drawSkill(actorId) {
     MAX_SKILL_HISTORY
   );
 
+  refreshAttributeSummary(profile);
+
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
       pveProfile: _.set(profile),
@@ -2976,6 +2978,8 @@ async function equipSkill(actorId, event) {
     MAX_SKILL_HISTORY
   );
 
+  refreshAttributeSummary(profile);
+
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
       pveProfile: _.set(profile),
@@ -3048,6 +3052,9 @@ async function equipItem(actorId, event) {
     );
 
     profile.equipment.inventory = inventory;
+
+    refreshAttributeSummary(profile);
+
     await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
       data: {
         pveProfile: _.set(profile),
@@ -3112,6 +3119,8 @@ async function equipItem(actorId, event) {
     },
     MAX_BATTLE_HISTORY
   );
+
+  refreshAttributeSummary(profile);
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
@@ -3231,6 +3240,8 @@ async function discardItem(actorId, event = {}) {
     MAX_BATTLE_HISTORY
   );
 
+  refreshAttributeSummary(profile);
+
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
       pveProfile: _.set(profile),
@@ -3300,6 +3311,9 @@ async function upgradeStorage(actorId, event = {}) {
   }
   profile.equipment.storage = updatedStorage;
   const now = new Date();
+
+  refreshAttributeSummary(profile);
+
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
       pveProfile: _.set(profile),
@@ -3364,6 +3378,8 @@ async function allocatePoints(actorId, allocations) {
     MAX_BATTLE_HISTORY
   );
 
+  refreshAttributeSummary(profile);
+
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
       pveProfile: _.set(profile),
@@ -3420,6 +3436,8 @@ async function resetAttributes(actorId) {
     },
     MAX_BATTLE_HISTORY
   );
+
+  refreshAttributeSummary(profile);
 
   await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
     data: {
@@ -3504,6 +3522,8 @@ async function grantEquipment(actorId, event = {}) {
     MAX_BATTLE_HISTORY
   );
 
+  refreshAttributeSummary(profile);
+
   await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
     data: {
       pveProfile: _.set(profile),
@@ -3575,6 +3595,8 @@ async function removeEquipment(actorId, event = {}) {
     },
     MAX_BATTLE_HISTORY
   );
+
+  refreshAttributeSummary(profile);
 
   await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
     data: {
@@ -3673,6 +3695,8 @@ async function updateEquipmentAttributes(actorId, event = {}) {
     MAX_BATTLE_HISTORY
   );
 
+  refreshAttributeSummary(profile);
+
   await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
     data: {
       pveProfile: _.set(profile),
@@ -3752,6 +3776,12 @@ async function ensurePveProfile(actorId, member, levelCache) {
 
   const levels = Array.isArray(levelCache) ? levelCache : await loadMembershipLevels();
   if (syncAttributesWithMemberLevel(profile.attributes, member, levels)) {
+    changed = true;
+  }
+
+  const previousSummary = profile.attributeSummary ? JSON.stringify(profile.attributeSummary) : null;
+  const refreshed = refreshAttributeSummary(profile);
+  if (!changed && previousSummary !== (refreshed ? JSON.stringify(refreshed) : null)) {
     changed = true;
   }
 
@@ -3876,13 +3906,7 @@ function buildDefaultSkills(now = new Date()) {
 }
 
 function normalizeProfile(profile, now = new Date()) {
-  return {
-    attributes: normalizeAttributes(profile.attributes),
-    equipment: normalizeEquipment(profile.equipment, now),
-    skills: normalizeSkills(profile.skills, now),
-    battleHistory: normalizeHistory(profile.battleHistory, MAX_BATTLE_HISTORY),
-    skillHistory: normalizeHistory(profile.skillHistory, MAX_SKILL_HISTORY)
-  };
+  return normalizeProfileInternal(profile, now, { includeEquipmentDefaults: true });
 }
 
 function readStorageNumber(payload, metadata, keys, options = {}) {
@@ -3970,14 +3994,21 @@ function normalizeStorageMetadata(rawStorage) {
 }
 
 function normalizeProfileWithoutEquipmentDefaults(profile, now = new Date()) {
+  return normalizeProfileInternal(profile, now, { includeEquipmentDefaults: false });
+}
+
+function normalizeProfileInternal(profile, now = new Date(), options = {}) {
   const payload = typeof profile === 'object' && profile ? profile : {};
-  return {
+  const includeDefaults = options.includeEquipmentDefaults !== false;
+  const normalized = {
     attributes: normalizeAttributes(payload.attributes),
-    equipment: normalizeEquipment(payload.equipment, now, { includeDefaults: false }),
+    equipment: normalizeEquipment(payload.equipment, now, { includeDefaults }),
     skills: normalizeSkills(payload.skills, now),
     battleHistory: normalizeHistory(payload.battleHistory, MAX_BATTLE_HISTORY),
     skillHistory: normalizeHistory(payload.skillHistory, MAX_SKILL_HISTORY)
   };
+  refreshAttributeSummary(normalized);
+  return normalized;
 }
 
 function normalizeAttributes(attributes) {
@@ -4400,6 +4431,15 @@ function decorateProfile(member, profile) {
       maxLevel: attributeSummary.maxLevel || MAX_LEVEL
     }
   };
+}
+
+function refreshAttributeSummary(profile) {
+  if (!profile || typeof profile !== 'object') {
+    return null;
+  }
+  const summary = calculateAttributes(profile.attributes || {}, profile.equipment || {}, profile.skills || {});
+  profile.attributeSummary = summary;
+  return summary;
 }
 
 function calculateAttributes(attributes, equipment, skills) {
@@ -5781,6 +5821,8 @@ function applyBattleOutcome(profile, result, enemy, now, member, levels = []) {
     },
     MAX_BATTLE_HISTORY
   );
+
+  refreshAttributeSummary(updated);
 
   return updated;
 }
