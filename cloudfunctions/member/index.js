@@ -21,6 +21,250 @@ const GENDER_OPTIONS = ['unknown', 'male', 'female'];
 const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
 const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
 
+const TITLE_LIBRARY = Object.freeze({
+  title_refining_rookie: {
+    id: 'title_refining_rookie',
+    name: '炼气新人',
+    description: '初入修行的身份称号，可在档案中展示。'
+  }
+});
+
+const BACKGROUND_LIBRARY = Object.freeze({
+  trial_spirit_test: {
+    id: 'trial_spirit_test',
+    name: '灵力测试'
+  },
+  reward_foundation: {
+    id: 'reward_foundation',
+    name: '筑基背景'
+  }
+});
+
+const STORAGE_CATEGORY_DEFAULT_LABELS = Object.freeze({
+  quest: '任务',
+  material: '材料',
+  consumable: '道具'
+});
+
+const STORAGE_REWARD_META = Object.freeze({
+  title: { quality: 'rare', qualityLabel: '称号', qualityColor: '#6c8cff' },
+  background: { quality: 'rare', qualityLabel: '背景', qualityColor: '#45c0a8' },
+  consumable: { quality: 'epic', qualityLabel: '消耗品', qualityColor: '#f2a546' }
+});
+
+const LEVEL_REWARD_CONFIG = Object.freeze({
+  level_001: [
+    {
+      type: 'title',
+      titleId: 'title_refining_rookie',
+      storageItemId: 'reward_title_refining_rookie',
+      storageCategory: 'quest',
+      name: '称号·炼气新人',
+      description: '使用后解锁称号“炼气新人”，并可在档案中展示。',
+      slotLabel: '称号',
+      usage: { type: 'unlockTitle', titleId: 'title_refining_rookie' }
+    }
+  ],
+  level_002: [
+    {
+      type: 'background',
+      backgroundId: 'trial_spirit_test',
+      storageItemId: 'reward_background_spirit_test',
+      storageCategory: 'quest',
+      name: '背景·灵力测试',
+      description: '使用后解锁背景“灵力测试”，可在外观设置中选择。',
+      slotLabel: '背景',
+      usage: { type: 'unlockBackground', backgroundId: 'trial_spirit_test' }
+    }
+  ],
+  level_003: [
+    { type: 'equipment', itemId: 'mortal_weapon_staff' }
+  ],
+  level_004: [
+    { type: 'skill', skillId: 'spell_burning_burst' }
+  ],
+  level_005: [
+    { type: 'equipment', itemId: 'mortal_chest_robe' }
+  ],
+  level_006: [
+    { type: 'equipment', itemId: 'mortal_boots_lightstep' }
+  ],
+  level_007: [
+    { type: 'equipment', itemId: 'mortal_belt_ring' }
+  ],
+  level_008: [
+    { type: 'equipment', itemId: 'mortal_bracer_echo' }
+  ],
+  level_009: [
+    { type: 'equipment', itemId: 'mortal_orb_calm' }
+  ],
+  level_010: [
+    {
+      type: 'consumable',
+      storageItemId: 'reward_skill_draw_bundle',
+      storageCategory: 'consumable',
+      usage: { type: 'skillDraw', drawCount: 5 },
+      name: '技能5连抽',
+      description: '使用后立即进行 5 次技能抽取。',
+      slotLabel: '道具'
+    },
+    {
+      type: 'background',
+      backgroundId: 'reward_foundation',
+      storageItemId: 'reward_background_foundation',
+      storageCategory: 'quest',
+      name: '背景·筑基背景',
+      description: '突破筑基后可在外观设置中启用的主题背景。',
+      slotLabel: '背景',
+      usage: { type: 'unlockBackground', backgroundId: 'reward_foundation' }
+    }
+  ]
+});
+
+function resolveTitleDefinition(titleId) {
+  if (typeof titleId !== 'string') {
+    return null;
+  }
+  return TITLE_LIBRARY[titleId] || null;
+}
+
+function resolveBackgroundDefinition(backgroundId) {
+  if (typeof backgroundId !== 'string') {
+    return null;
+  }
+  return BACKGROUND_LIBRARY[backgroundId] || null;
+}
+
+function resolveStorageCategoryLabel(key) {
+  return STORAGE_CATEGORY_DEFAULT_LABELS[key] || key || '道具';
+}
+
+function generateStorageInventoryId(itemId, obtainedAt = new Date()) {
+  const base = typeof itemId === 'string' && itemId ? itemId : 'storage';
+  const timestamp =
+    obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : Date.now();
+  const random = Math.random().toString(36).slice(2, 8);
+  return `st-${base}-${timestamp}-${random}`;
+}
+
+function ensurePveRewardProfile(profile) {
+  const base = profile && typeof profile === 'object' ? { ...profile } : {};
+  const equipment = base.equipment && typeof base.equipment === 'object' ? { ...base.equipment } : {};
+  equipment.inventory = Array.isArray(equipment.inventory)
+    ? equipment.inventory.map((item) => ({ ...item }))
+    : [];
+  const storage = equipment.storage && typeof equipment.storage === 'object' ? { ...equipment.storage } : {};
+  storage.categories = Array.isArray(storage.categories)
+    ? storage.categories.map((category) => ({
+        ...(category || {}),
+        items: Array.isArray(category && category.items)
+          ? category.items.map((item) => ({ ...item }))
+          : []
+      }))
+    : [];
+  equipment.storage = storage;
+  base.equipment = equipment;
+
+  const skills = base.skills && typeof base.skills === 'object' ? { ...base.skills } : {};
+  skills.inventory = Array.isArray(skills.inventory)
+    ? skills.inventory.map((item) => ({ ...item }))
+    : [];
+  skills.equipped = Array.isArray(skills.equipped) ? skills.equipped.slice() : [];
+  base.skills = skills;
+
+  return base;
+}
+
+function ensureStorageCategoryEntry(storage, key) {
+  if (!storage || typeof storage !== 'object') {
+    return { key, label: resolveStorageCategoryLabel(key), items: [] };
+  }
+  const categories = Array.isArray(storage.categories) ? storage.categories : [];
+  let entry = categories.find((category) => category && category.key === key);
+  if (!entry) {
+    entry = { key, label: resolveStorageCategoryLabel(key), items: [] };
+    categories.push(entry);
+    storage.categories = categories;
+  } else if (!Array.isArray(entry.items)) {
+    entry.items = [];
+  }
+  entry.label = entry.label || resolveStorageCategoryLabel(key);
+  return entry;
+}
+
+function applyStorageRewardMetadata(item, rewardType) {
+  const meta = STORAGE_REWARD_META[rewardType] || {};
+  if (meta.quality && !item.quality) {
+    item.quality = meta.quality;
+  }
+  if (meta.qualityLabel && !item.qualityLabel) {
+    item.qualityLabel = meta.qualityLabel;
+  }
+  if (meta.qualityColor && !item.qualityColor) {
+    item.qualityColor = meta.qualityColor;
+  }
+  return item;
+}
+
+function createStorageRewardItem(reward, now = new Date()) {
+  if (!reward || typeof reward !== 'object') {
+    return null;
+  }
+  const item = {
+    inventoryId: generateStorageInventoryId(reward.storageItemId || reward.itemId || 'item', now),
+    itemId: reward.storageItemId || reward.itemId || '',
+    name: reward.name || '道具',
+    shortName: reward.shortName || reward.name || '道具',
+    description: reward.description || '',
+    iconUrl: reward.iconUrl || '',
+    iconFallbackUrl: reward.iconFallbackUrl || '',
+    quality: reward.quality || '',
+    qualityLabel: reward.qualityLabel || '',
+    qualityColor: reward.qualityColor || '',
+    storageCategory: reward.storageCategory || 'consumable',
+    slotLabel: reward.slotLabel || resolveStorageCategoryLabel(reward.storageCategory || 'consumable'),
+    obtainedAt: now,
+    actions:
+      Array.isArray(reward.actions) && reward.actions.length
+        ? reward.actions.map((action) => ({
+            key: typeof action.key === 'string' ? action.key : '',
+            label: typeof action.label === 'string' ? action.label : '',
+            primary: !!action.primary
+          })).filter((action) => action.key && action.label)
+        : [{ key: 'use', label: '使用', primary: true }],
+    usage: reward.usage ? { ...reward.usage } : null,
+    locked: reward.locked === true,
+    notes: Array.isArray(reward.notes) ? reward.notes.slice() : [],
+    kind: reward.kind || 'storage'
+  };
+  applyStorageRewardMetadata(item, reward.type || 'consumable');
+  if (Array.isArray(item.actions) && item.actions.length) {
+    const primary = item.actions.find((action) => action.primary) || item.actions[0];
+    item.primaryAction = primary || null;
+  } else {
+    item.actions = [];
+    item.primaryAction = null;
+  }
+  return item;
+}
+
+function appendStorageItemToProfile(profile, item) {
+  if (!profile || !item) {
+    return profile;
+  }
+  const storage = profile.equipment && profile.equipment.storage ? profile.equipment.storage : null;
+  if (!storage) {
+    return profile;
+  }
+  const categoryKey = item.storageCategory || 'consumable';
+  const category = ensureStorageCategoryEntry(storage, categoryKey);
+  const alreadyExists = category.items.some((existing) => existing && existing.inventoryId === item.inventoryId);
+  if (!alreadyExists) {
+    category.items.push(item);
+  }
+  return profile;
+}
+
 async function resolveMemberExtras(memberId) {
   if (!memberId) {
     return { avatarUnlocks: [], claimedLevelRewards: [] };
@@ -41,6 +285,15 @@ async function resolveMemberExtras(memberId) {
     if (!Array.isArray(extras.wineStorage)) {
       extras.wineStorage = [];
     }
+    if (!Array.isArray(extras.titleUnlocks)) {
+      extras.titleUnlocks = [];
+    }
+    if (!Array.isArray(extras.backgroundUnlocks)) {
+      extras.backgroundUnlocks = [];
+    }
+    if (!Array.isArray(extras.deliveredLevelRewards)) {
+      extras.deliveredLevelRewards = [];
+    }
     return extras;
   }
   const now = new Date();
@@ -48,6 +301,9 @@ async function resolveMemberExtras(memberId) {
     avatarUnlocks: [],
     claimedLevelRewards: [],
     wineStorage: [],
+    titleUnlocks: [],
+    backgroundUnlocks: [],
+    deliveredLevelRewards: [],
     createdAt: now,
     updatedAt: now
   };
@@ -77,7 +333,10 @@ async function updateMemberExtras(memberId, updates = {}) {
               createdAt: new Date(),
               avatarUnlocks: [],
               claimedLevelRewards: [],
-              wineStorage: []
+              wineStorage: [],
+              titleUnlocks: [],
+              backgroundUnlocks: [],
+              deliveredLevelRewards: []
             }
           })
           .catch(() => {});
@@ -230,6 +489,8 @@ exports.main = async (event, context) => {
       return updateArchive(OPENID, event.updates || {});
     case 'redeemRenameCard':
       return redeemRenameCard(OPENID, event.count || 1);
+    case 'breakthrough':
+      return breakthrough(OPENID);
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -252,6 +513,7 @@ async function initMember(openid, profile) {
     avatarFrame: normalizeAvatarFrameValue(profile.avatarFrame || ''),
     appearanceBackground: normalizeBackgroundId(profile.appearanceBackground || '') || getDefaultBackgroundId(),
     appearanceBackgroundAnimated: normalizeBooleanFlag(profile.appearanceBackgroundAnimated, false),
+    appearanceTitle: '',
     mobile: profile.mobile || '',
     gender: normalizeGender(profile.gender),
     levelId: defaultLevel ? defaultLevel._id : '',
@@ -267,6 +529,7 @@ async function initMember(openid, profile) {
     renameCredits: 1,
     renameUsed: 0,
     renameCards: 0,
+    pendingBreakthroughLevelId: '',
     roomUsageCount: 0,
     reservationBadges: {
       memberVersion: 0,
@@ -496,21 +759,93 @@ const statusLabelMap = {
 };
 
 async function ensureLevelSync(member, levels) {
-  if (!levels.length) return member;
-  const targetLevel = resolveLevelByExperience(member.experience || 0, levels);
-  if (targetLevel && targetLevel._id !== member.levelId) {
-    await db
-      .collection(COLLECTIONS.MEMBERS)
+  if (!levels.length || !member || !member._id) {
+    return member;
+  }
+  const membersCollection = db.collection(COLLECTIONS.MEMBERS);
+  const experience = Number(member.experience || 0);
+  let currentLevel = levels.find((lvl) => lvl && lvl._id === member.levelId) || levels[0];
+
+  if (currentLevel && currentLevel._id !== member.levelId) {
+    await membersCollection
       .doc(member._id)
       .update({
         data: {
-          levelId: targetLevel._id,
+          levelId: currentLevel._id,
           updatedAt: new Date()
         }
-      });
-    await grantLevelRewards(member._id, targetLevel, levels);
-    member.levelId = targetLevel._id;
+      })
+      .catch(() => {});
+    member.levelId = currentLevel._id;
   }
+
+  let pendingId = typeof member.pendingBreakthroughLevelId === 'string' ? member.pendingBreakthroughLevelId : '';
+  let pendingLevel = pendingId ? levels.find((lvl) => lvl && lvl._id === pendingId) : null;
+
+  if (
+    pendingId &&
+    (!pendingLevel ||
+      !requiresBreakthrough(currentLevel, pendingLevel) ||
+      experience < (typeof pendingLevel.threshold === 'number' ? pendingLevel.threshold : Number.POSITIVE_INFINITY))
+  ) {
+    pendingId = '';
+    pendingLevel = null;
+    if (member.pendingBreakthroughLevelId) {
+      await membersCollection
+        .doc(member._id)
+        .update({
+          data: {
+            pendingBreakthroughLevelId: '',
+            updatedAt: new Date()
+          }
+        })
+        .catch(() => {});
+      member.pendingBreakthroughLevelId = '';
+    }
+  }
+
+  while (true) {
+    const nextLevel = getNextLevel(levels, currentLevel);
+    if (!nextLevel) {
+      break;
+    }
+    const threshold = typeof nextLevel.threshold === 'number' ? nextLevel.threshold : Number.POSITIVE_INFINITY;
+    if (experience < threshold) {
+      break;
+    }
+    if (requiresBreakthrough(currentLevel, nextLevel)) {
+      if (pendingId !== nextLevel._id) {
+        pendingId = nextLevel._id;
+        await membersCollection
+          .doc(member._id)
+          .update({
+            data: {
+              pendingBreakthroughLevelId: nextLevel._id,
+              updatedAt: new Date()
+            }
+          })
+          .catch(() => {});
+      }
+      member.pendingBreakthroughLevelId = pendingId;
+      break;
+    }
+
+    await membersCollection
+      .doc(member._id)
+      .update({
+        data: {
+          levelId: nextLevel._id,
+          pendingBreakthroughLevelId: '',
+          updatedAt: new Date()
+        }
+      })
+      .catch(() => {});
+    await grantLevelRewards(member._id, nextLevel, levels);
+    member.levelId = nextLevel._id;
+    member.pendingBreakthroughLevelId = '';
+    currentLevel = nextLevel;
+  }
+
   return member;
 }
 
@@ -545,6 +880,31 @@ function calculatePercentage(exp, currentLevel, nextLevel) {
   return Math.min(100, Math.round(((exp - currentLevel.threshold) / delta) * 100));
 }
 
+function resolveSubLevel(level) {
+  if (!level) {
+    return 1;
+  }
+  if (typeof level.subLevel === 'number' && Number.isFinite(level.subLevel)) {
+    return Math.max(1, Math.floor(level.subLevel));
+  }
+  if (typeof level.order === 'number' && Number.isFinite(level.order)) {
+    return Math.max(1, ((Math.floor(level.order) - 1) % 10) + 1);
+  }
+  return 1;
+}
+
+function requiresBreakthrough(currentLevel, nextLevel) {
+  if (!currentLevel || !nextLevel) {
+    return false;
+  }
+  const currentRealm = resolveRealmOrderFromLevel(currentLevel);
+  const nextRealm = resolveRealmOrderFromLevel(nextLevel);
+  if (nextRealm <= currentRealm) {
+    return false;
+  }
+  return resolveSubLevel(currentLevel) >= 10;
+}
+
 function hasLevelRewards(level) {
   if (!level) return false;
   if (Array.isArray(level.rewards) && level.rewards.length) {
@@ -558,51 +918,121 @@ function hasLevelRewards(level) {
 
 async function grantLevelRewards(openid, level, levels) {
   const rewards = level.rewards || [];
-  if (!rewards.length) return;
-  const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
-  const now = new Date();
-  const masterSnapshot = await db.collection(COLLECTIONS.RIGHTS_MASTER).get();
-  const masterMap = {};
-  masterSnapshot.data.forEach((item) => {
-    masterMap[item._id] = item;
-  });
+  if (rewards.length) {
+    const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
+    const now = new Date();
+    const masterSnapshot = await db.collection(COLLECTIONS.RIGHTS_MASTER).get();
+    const masterMap = {};
+    masterSnapshot.data.forEach((item) => {
+      masterMap[item._id] = item;
+    });
 
-  for (const reward of rewards) {
-    const right = masterMap[reward.rightId];
-    if (!right) continue;
-    const existing = await rightsCollection
-      .where({
-        memberId: openid,
-        rightId: reward.rightId,
-        levelId: level._id
-      })
-      .get();
-    const needQuantity = reward.quantity || 1;
-    const already = existing.data.length;
-    if (already >= needQuantity) {
-      continue;
-    }
-    const diff = needQuantity - already;
-    for (let i = 0; i < diff; i += 1) {
-      const validUntil = right.validDays
-        ? new Date(now.getTime() + right.validDays * 24 * 60 * 60 * 1000)
-        : null;
-      await rightsCollection.add({
-        data: {
+    for (const reward of rewards) {
+      const right = masterMap[reward.rightId];
+      if (!right) continue;
+      const existing = await rightsCollection
+        .where({
           memberId: openid,
           rightId: reward.rightId,
-          levelId: level._id,
-          status: 'active',
-          issuedAt: now,
-          validUntil,
-          meta: {
-            fromLevel: level._id,
-            rewardName: reward.description || right.name
+          levelId: level._id
+        })
+        .get();
+      const needQuantity = reward.quantity || 1;
+      const already = existing.data.length;
+      if (already >= needQuantity) {
+        continue;
+      }
+      const diff = needQuantity - already;
+      for (let i = 0; i < diff; i += 1) {
+        const validUntil = right.validDays
+          ? new Date(now.getTime() + right.validDays * 24 * 60 * 60 * 1000)
+          : null;
+        await rightsCollection.add({
+          data: {
+            memberId: openid,
+            rightId: reward.rightId,
+            levelId: level._id,
+            status: 'active',
+            issuedAt: now,
+            validUntil,
+            meta: {
+              fromLevel: level._id,
+              rewardName: reward.description || right.name
+            }
           }
-        }
-      });
+        });
+      }
     }
   }
+
+  await grantInventoryRewardsForLevel(openid, level);
+}
+
+async function grantInventoryRewardsForLevel(openid, level) {
+  const rewards = LEVEL_REWARD_CONFIG[level._id];
+  if (!Array.isArray(rewards) || !rewards.length) {
+    return;
+  }
+  const extras = await resolveMemberExtras(openid);
+  const delivered = Array.isArray(extras.deliveredLevelRewards) ? extras.deliveredLevelRewards : [];
+  if (delivered.includes(level._id)) {
+    return;
+  }
+
+  const memberSnapshot = await db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null);
+  if (!memberSnapshot || !memberSnapshot.data) {
+    return;
+  }
+
+  const now = new Date();
+  const profile = ensurePveRewardProfile(memberSnapshot.data.pveProfile);
+  let profileChanged = false;
+
+  for (const reward of rewards) {
+    if (!reward || typeof reward !== 'object') {
+      continue;
+    }
+    if (reward.type === 'equipment' && reward.itemId) {
+      const hasItem = profile.equipment.inventory.some((entry) => entry && entry.itemId === reward.itemId);
+      if (!hasItem) {
+        profile.equipment.inventory.push({ itemId: reward.itemId, obtainedAt: now, level: 1, refine: 0 });
+        profileChanged = true;
+      }
+      continue;
+    }
+    if (reward.type === 'skill' && reward.skillId) {
+      const hasSkill = profile.skills.inventory.some((entry) => entry && entry.skillId === reward.skillId);
+      if (!hasSkill) {
+        profile.skills.inventory.push({ skillId: reward.skillId, obtainedAt: now, level: 1, duplicates: 0 });
+        profileChanged = true;
+      }
+      continue;
+    }
+    if (['title', 'background', 'consumable'].includes(reward.type)) {
+      const storageItem = createStorageRewardItem(reward, now);
+      if (storageItem) {
+        appendStorageItemToProfile(profile, storageItem);
+        profileChanged = true;
+      }
+    }
+  }
+
+  if (profileChanged) {
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(openid)
+      .update({
+        data: {
+          pveProfile: _.set(profile),
+          updatedAt: now
+        }
+      })
+      .catch(() => {});
+  }
+
+  const deliveredSet = new Set(delivered);
+  deliveredSet.add(level._id);
+  await updateMemberExtras(openid, { deliveredLevelRewards: Array.from(deliveredSet) });
 }
 
 async function loadLevels() {
@@ -735,6 +1165,9 @@ async function ensureArchiveDefaults(member) {
   const updates = {};
   const extrasUpdates = {};
   const memberId = member._id;
+  const extras = await resolveMemberExtras(memberId);
+  const titleUnlocks = Array.isArray(extras.titleUnlocks) ? extras.titleUnlocks.slice() : [];
+  const backgroundUnlocks = Array.isArray(extras.backgroundUnlocks) ? extras.backgroundUnlocks.slice() : [];
 
   if (!GENDER_OPTIONS.includes(member.gender)) {
     member.gender = 'unknown';
@@ -771,11 +1204,26 @@ async function ensureArchiveDefaults(member) {
   member.avatarFrame = avatarFrame;
 
   const backgroundId = normalizeBackgroundId(member.appearanceBackground || '');
-  const safeBackgroundId = backgroundId || getDefaultBackgroundId();
+  const realmOrder = resolveMemberRealmOrder(member, []);
+  const unlockedBackgroundId =
+    backgroundId && isBackgroundUnlocked(backgroundId, realmOrder, backgroundUnlocks)
+      ? backgroundId
+      : '';
+  const fallbackBackground = resolveHighestUnlockedBackgroundByRealmOrder(realmOrder);
+  const safeBackgroundId =
+    unlockedBackgroundId || (fallbackBackground ? fallbackBackground.id : getDefaultBackgroundId());
   if (!Object.is(safeBackgroundId, member.appearanceBackground || '')) {
     updates.appearanceBackground = safeBackgroundId;
   }
   member.appearanceBackground = safeBackgroundId;
+
+  const appearanceTitle = typeof member.appearanceTitle === 'string' ? member.appearanceTitle.trim() : '';
+  if (appearanceTitle && !titleUnlocks.includes(appearanceTitle)) {
+    updates.appearanceTitle = '';
+    member.appearanceTitle = '';
+  } else if (!appearanceTitle) {
+    member.appearanceTitle = '';
+  }
 
   const backgroundAnimated = normalizeBooleanFlag(member.appearanceBackgroundAnimated, false);
   if (!Object.is(backgroundAnimated, member.appearanceBackgroundAnimated)) {
@@ -797,8 +1245,6 @@ async function ensureArchiveDefaults(member) {
     updates.reservationBadges = badges;
   }
   member.reservationBadges = badges;
-
-  const extras = await resolveMemberExtras(memberId);
 
   const hadAvatarUnlocksField = Object.prototype.hasOwnProperty.call(member, 'avatarUnlocks');
   const hadClaimsField = Object.prototype.hasOwnProperty.call(member, 'claimedLevelRewards');
@@ -825,6 +1271,10 @@ async function ensureArchiveDefaults(member) {
     updates.claimedLevelRewards = _.remove();
   }
   member.claimedLevelRewards = mergedClaims;
+
+  member.titleUnlocks = titleUnlocks;
+
+  member.backgroundUnlocks = backgroundUnlocks;
 
   const renameHistory = await loadRenameTimeline(memberId, 20);
   member.renameHistory = renameHistory;
@@ -856,13 +1306,16 @@ async function updateArchive(openid, updates = {}) {
   }
 
   const normalized = normalizeAssetFields(existing.data);
-  const { member: memberWithDefaults } = await ensureArchiveDefaults(normalized);
+  const { member: memberWithDefaults, extras } = await ensureArchiveDefaults(normalized);
   const levels = await loadLevels();
   const member = await ensureLevelSync(memberWithDefaults, levels);
   const now = new Date();
   const patch = {};
   let renamed = false;
   const realmOrder = resolveMemberRealmOrder(member, levels);
+  const backgroundUnlocks = Array.isArray(extras && extras.backgroundUnlocks)
+    ? extras.backgroundUnlocks
+    : [];
 
   if (typeof updates.nickName === 'string') {
     const nickName = updates.nickName.trim();
@@ -908,7 +1361,7 @@ async function updateArchive(openid, updates = {}) {
   if (typeof updates.appearanceBackground === 'string') {
     const desiredBackgroundId = normalizeBackgroundId(updates.appearanceBackground || '');
     if (desiredBackgroundId) {
-      if (!isBackgroundUnlocked(desiredBackgroundId, realmOrder)) {
+      if (!isBackgroundUnlocked(desiredBackgroundId, realmOrder, backgroundUnlocks)) {
         throw createError('BACKGROUND_NOT_UNLOCKED', '该背景尚未解锁');
       }
       if (desiredBackgroundId !== (member.appearanceBackground || '')) {
@@ -977,6 +1430,84 @@ async function redeemRenameCard(openid, count = 1) {
   });
 
   return getProfile(openid);
+}
+
+async function breakthrough(openid) {
+  const [levels, memberDoc] = await Promise.all([
+    loadLevels(),
+    db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null)
+  ]);
+  if (!memberDoc || !memberDoc.data) {
+    await initMember(openid, {});
+    return breakthrough(openid);
+  }
+
+  const normalized = normalizeAssetFields(memberDoc.data);
+  const { member: memberWithDefaults } = await ensureArchiveDefaults(normalized);
+  const member = await ensureLevelSync(memberWithDefaults, levels);
+  const pendingId =
+    typeof member.pendingBreakthroughLevelId === 'string' && member.pendingBreakthroughLevelId
+      ? member.pendingBreakthroughLevelId
+      : '';
+  if (!pendingId) {
+    throw createError('BREAKTHROUGH_NOT_PENDING', '暂无可突破的境界');
+  }
+
+  const targetLevel = levels.find((lvl) => lvl && lvl._id === pendingId);
+  if (!targetLevel) {
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(openid)
+      .update({
+        data: {
+          pendingBreakthroughLevelId: '',
+          updatedAt: new Date()
+        }
+      })
+      .catch(() => {});
+    throw createError('BREAKTHROUGH_INVALID', '突破目标无效，请稍后再试');
+  }
+
+  const currentLevel = levels.find((lvl) => lvl && lvl._id === member.levelId) || levels[0];
+  if (!requiresBreakthrough(currentLevel, targetLevel)) {
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(openid)
+      .update({
+        data: {
+          pendingBreakthroughLevelId: '',
+          updatedAt: new Date()
+        }
+      })
+      .catch(() => {});
+    return getProgress(openid);
+  }
+
+  const threshold = typeof targetLevel.threshold === 'number' ? targetLevel.threshold : Number.POSITIVE_INFINITY;
+  if (Number(member.experience || 0) < threshold) {
+    throw createError('BREAKTHROUGH_NOT_READY', '修为尚未达到突破条件');
+  }
+
+  const now = new Date();
+  await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(openid)
+    .update({
+      data: {
+        levelId: targetLevel._id,
+        pendingBreakthroughLevelId: '',
+        updatedAt: now
+      }
+    })
+    .catch(() => {});
+
+  await grantLevelRewards(openid, targetLevel, levels);
+
+  member.levelId = targetLevel._id;
+  member.pendingBreakthroughLevelId = '';
+  await ensureLevelSync(member, levels);
+
+  return getProgress(openid);
 }
 
 async function claimLevelReward(openid, levelId) {

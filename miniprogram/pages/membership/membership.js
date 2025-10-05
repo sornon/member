@@ -160,6 +160,10 @@ Page({
     currentLevel: null,
     nextLevel: null,
     upcomingMilestone: null,
+    pendingBreakthroughLevelId: '',
+    breakthroughLevel: null,
+    breakthroughRewardText: '',
+    breakthroughLoading: false,
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
     isAdmin: false,
@@ -286,6 +290,19 @@ Page({
       const visibleLevels = resolveVisibleLevels(levels, visibilityOptions);
       const visibleRealms = resolveVisibleRealms(realms, visibilityOptions);
       mergedMember.claimedLevelRewards = claimedLevelRewards;
+      const pendingBreakthroughLevelId =
+        typeof mergedMember.pendingBreakthroughLevelId === 'string'
+          ? mergedMember.pendingBreakthroughLevelId
+          : '';
+      const breakthroughLevel = pendingBreakthroughLevelId
+        ? rawLevels.find((lvl) => lvl && lvl._id === pendingBreakthroughLevelId) || null
+        : null;
+      const breakthroughRewardText = breakthroughLevel && breakthroughLevel.milestoneReward
+        ? breakthroughLevel.milestoneReward
+        : breakthroughLevel
+        ? '筑基背景 + 任意120元内饮品券'
+        : '';
+      mergedMember.pendingBreakthroughLevelId = pendingBreakthroughLevelId;
 
       this.setData({
         loading: false,
@@ -301,7 +318,10 @@ Page({
         isAdmin,
         visibleLevels,
         visibleRealms,
-        claimedLevelRewards
+        claimedLevelRewards,
+        pendingBreakthroughLevelId,
+        breakthroughLevel,
+        breakthroughRewardText
       });
     } catch (error) {
       const width = normalizePercentage(this.data.progress);
@@ -376,6 +396,23 @@ Page({
       });
     } finally {
       this.claimingReward = false;
+    }
+  },
+
+  async handleBreakthrough() {
+    if (this.data.breakthroughLoading || !this.data.pendingBreakthroughLevelId) {
+      return;
+    }
+    this.setData({ breakthroughLoading: true });
+    try {
+      await MemberService.breakthrough();
+      wx.showToast({ title: '突破成功', icon: 'success' });
+      await this.fetchData({ showLoading: false });
+    } catch (error) {
+      console.error('[membership] breakthrough failed', error);
+      wx.showToast({ title: (error && error.errMsg) || '突破失败', icon: 'none' });
+    } finally {
+      this.setData({ breakthroughLoading: false });
     }
   },
 

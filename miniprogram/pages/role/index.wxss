@@ -937,6 +937,22 @@ button.pill-btn[disabled] {
   gap: 8rpx;
 }
 
+.equipment-tooltip__description {
+  font-size: 22rpx;
+  color: rgba(210, 222, 255, 0.92);
+  line-height: 1.6;
+}
+
+.equipment-tooltip__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.equipment-tooltip__action-button {
+  margin: 0;
+}
+
 .equipment-tooltip__equip {
   align-self: flex-start;
   margin-top: 4rpx;

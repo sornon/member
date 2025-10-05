@@ -181,6 +181,9 @@ export const MemberService = {
       action: 'redeemRenameCard',
       count
     });
+  },
+  async breakthrough() {
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'breakthrough' });
   }
 };
 
@@ -309,6 +312,18 @@ export const PveService = {
     }
     if (normalizedCategory) {
       payload.category = normalizedCategory;
+    }
+    return callCloud(CLOUD_FUNCTIONS.PVE, payload);
+  },
+  async useStorageItem({ inventoryId = '', actionKey = 'use' } = {}) {
+    const payload = { action: 'useStorageItem' };
+    const normalizedInventoryId = typeof inventoryId === 'string' ? inventoryId.trim() : '';
+    if (normalizedInventoryId) {
+      payload.inventoryId = normalizedInventoryId;
+    }
+    const normalizedAction = typeof actionKey === 'string' ? actionKey.trim() : '';
+    if (normalizedAction) {
+      payload.actionKey = normalizedAction;
     }
     return callCloud(CLOUD_FUNCTIONS.PVE, payload);
   },
