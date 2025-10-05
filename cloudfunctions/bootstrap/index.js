@@ -9,7 +9,7 @@ const {
   subLevelLabels,
   realmConfigs,
   membershipRights
-} = require('level-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/level-config
+} = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 
 exports.main = async () => {
   await Promise.all([

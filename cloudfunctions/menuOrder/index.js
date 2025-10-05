@@ -1,5 +1,5 @@
 const cloud = require('wx-server-sdk');
-const { EXPERIENCE_PER_YUAN } = require('level-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/level-config
+const { EXPERIENCE_PER_YUAN } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
