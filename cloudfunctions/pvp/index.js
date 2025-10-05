@@ -4,6 +4,15 @@ const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { COLLECTIONS } = require('common-config');
+const {
+  DEFAULT_COMBAT_STATS,
+  DEFAULT_SPECIAL_STATS,
+  clamp,
+  extractCombatProfile,
+  resolveCombatStats,
+  resolveSpecialStats,
+  executeAttack: performCombatAttack
+} = require('combat-system');
 
 const db = cloud.database();
 const _ = db.command;
@@ -1190,89 +1199,78 @@ function buildCombatSnapshot(member) {
   if (!member || !member.pveProfile) {
     return defaultCombatSnapshot();
   }
-  const profile = member.pveProfile;
-  const attributeSummary = profile.attributeSummary || profile.attributes || {};
-  const finalStats =
-    attributeSummary.finalStats ||
-    profile.finalStats ||
-    (profile.derivedSummary && profile.derivedSummary.finalStats) ||
-    {};
-  const combatStatsArray = Array.isArray(profile.combatStats) ? profile.combatStats : attributeSummary.combatStats;
-  const resolved = { ...finalStats };
-  if (Array.isArray(combatStatsArray)) {
-    combatStatsArray.forEach((entry) => {
-      if (!entry || !entry.key) return;
-      resolved[entry.key] = typeof entry.value === 'number' ? entry.value : entry.base || 0;
-    });
-  }
-  const get = (keys, fallback) => {
-    for (let i = 0; i < keys.length; i += 1) {
-      const key = keys[i];
-      if (typeof resolved[key] === 'number') {
-        return resolved[key];
-      }
-    }
-    return fallback;
-  };
+  const { stats, special, combatPower } = extractCombatProfile(member.pveProfile, {
+    defaults: DEFAULT_COMBAT_STATS,
+    convertLegacyPercentages: true
+  });
   return {
-    combatPower: profile.combatPower || attributeSummary.combatPower || 0,
-    maxHp: get(['maxHp', 'hp', 'health'], 4500),
-    physicalAttack: get(['physicalAttack', 'attack'], 320),
-    magicAttack: get(['magicAttack', 'spellAttack'], 320),
-    physicalDefense: get(['physicalDefense', 'defense'], 160),
-    magicDefense: get(['magicDefense', 'resistance'], 160),
-    speed: get(['speed'], 120),
-    accuracy: get(['accuracy', 'hitRate'], 100),
-    dodge: get(['dodge', 'evasion'], 90),
-    critRate: get(['critRate', 'criticalRate'], 5),
-    critDamage: get(['critDamage', 'criticalDamage'], 50),
-    damageReduction: get(['damageReduction', 'finalDamageReduction'], 0.1),
-    armorPenetration: get(['armorPenetration', 'physicalPenetration'], 0),
-    magicPenetration: get(['magicPenetration', 'spellPenetration'], 0)
+    stats,
+    special,
+    combatPower
   };
 }
 
 function defaultCombatSnapshot() {
   return {
-    combatPower: 0,
-    maxHp: 4200,
-    physicalAttack: 300,
-    magicAttack: 300,
-    physicalDefense: 150,
-    magicDefense: 150,
-    speed: 120,
-    accuracy: 95,
-    dodge: 85,
-    critRate: 5,
-    critDamage: 50,
-    damageReduction: 0.08,
-    armorPenetration: 0,
-    magicPenetration: 0
+    stats: { ...DEFAULT_COMBAT_STATS },
+    special: { ...DEFAULT_SPECIAL_STATS },
+    combatPower: 0
+  };
+}
+
+function normalizeCombatSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return defaultCombatSnapshot();
+  }
+  const statsSource = snapshot.stats && typeof snapshot.stats === 'object' ? snapshot.stats : snapshot;
+  const combatStats = Array.isArray(snapshot.combatStats) ? snapshot.combatStats : undefined;
+  const stats = resolveCombatStats(
+    { finalStats: statsSource, combatStats },
+    { defaults: DEFAULT_COMBAT_STATS, convertLegacyPercentages: true }
+  );
+  const special = resolveSpecialStats(snapshot.special || {}, {
+    defaults: DEFAULT_SPECIAL_STATS,
+    convertLegacyPercentages: true
+  });
+  const combatPower = Number(snapshot.combatPower || (statsSource && statsSource.combatPower) || 0);
+  return {
+    stats,
+    special,
+    combatPower: Number.isFinite(combatPower) ? combatPower : 0
   };
 }
 
 function buildBattleActor({ memberId, member, profile, combat, isBot }) {
   const tier = resolveTierByPoints(profile.points);
+  const normalized = normalizeCombatSnapshot(combat);
   return {
     memberId: memberId || profile.memberId,
     displayName: profile.memberSnapshot && profile.memberSnapshot.nickName ? profile.memberSnapshot.nickName : member ? member.nickName || '无名仙友' : '神秘对手',
     tierId: profile.tierId || tier.id,
     tierName: profile.tierName || tier.name,
     points: profile.points,
-    stats: combat || defaultCombatSnapshot(),
+    stats: normalized.stats,
+    special: normalized.special,
+    combatPower: normalized.combatPower,
     isBot: !!isBot
   };
 }
 
 function buildActorState(actor) {
+  const stats = { ...DEFAULT_COMBAT_STATS, ...(actor.stats || {}) };
+  const special = { ...DEFAULT_SPECIAL_STATS, ...(actor.special || {}) };
+  const baseMaxHp = Math.max(1, Math.round(stats.maxHp || DEFAULT_COMBAT_STATS.maxHp));
+  const shield = Math.max(0, Math.round(special.shield || 0));
+  const maxHp = baseMaxHp + shield;
   return {
     memberId: actor.memberId,
     displayName: actor.displayName,
-    stats: actor.stats,
+    stats,
+    special,
     tierId: actor.tierId,
     tierName: actor.tierName,
-    maxHp: Math.max(1, Math.round(actor.stats.maxHp || 4200)),
-    hp: Math.max(1, Math.round(actor.stats.maxHp || 4200)),
+    maxHp,
+    hp: maxHp,
     damageDealt: 0,
     damageTaken: 0,
     roundsWon: 0,
@@ -1295,46 +1293,33 @@ function summarizeActor(state) {
 }
 
 function resolveAttack(attacker, defender, rng, round) {
-  const attackStats = attacker.stats;
-  const defenseStats = defender.stats;
-  const accuracy = attackStats.accuracy || 100;
-  const dodge = defenseStats.dodge || 90;
-  const hitChance = clamp(0.6 + (accuracy - dodge) * 0.005, 0.25, 0.98);
-  const hitRoll = rng();
-  let dodged = hitRoll > hitChance;
+  const result = performCombatAttack(attacker.stats, attacker.special, defender.stats, defender.special, rng);
   let damage = 0;
-  let crit = false;
-  if (!dodged) {
-    const physicalAttack = attackStats.physicalAttack || 0;
-    const magicAttack = attackStats.magicAttack || 0;
-    const usePhysical = physicalAttack >= magicAttack;
-    const attackValue = usePhysical ? physicalAttack : magicAttack;
-    const defenseValue = usePhysical ? defenseStats.physicalDefense || 0 : defenseStats.magicDefense || 0;
-    const penetration = usePhysical ? attackStats.armorPenetration || 0 : attackStats.magicPenetration || 0;
-    const effectiveDefense = Math.max(defenseValue * (1 - penetration), defenseValue * 0.4);
-    const baseDamage = Math.max(attackValue * 0.35, attackValue - effectiveDefense);
-    const variance = 0.9 + rng() * 0.2;
-    damage = baseDamage * variance;
-    const critRate = clamp(((attackStats.critRate || 5) - (defenseStats.critResist || 0)) / 100, 0.05, 0.75);
-    if (rng() < critRate) {
-      crit = true;
-      const critMultiplier = 1.5 + (attackStats.critDamage || 50) / 100;
-      damage *= critMultiplier;
-    }
-    const reduction = clamp(defenseStats.damageReduction || 0, 0, 0.7);
-    damage *= 1 - reduction;
-    damage = Math.max(1, Math.round(damage));
+  let healApplied = 0;
+  if (!result.dodged) {
+    damage = Math.max(1, Math.round(result.damage));
     defender.hp = Math.max(0, defender.hp - damage);
     attacker.damageDealt += damage;
     defender.damageTaken += damage;
+    if (result.heal > 0) {
+      const before = attacker.hp;
+      attacker.hp = Math.min(attacker.maxHp, attacker.hp + result.heal);
+      healApplied = Math.max(0, Math.round(attacker.hp - before));
+    }
+    if (defender.hp <= 0 && attacker.special && attacker.special.healOnKill) {
+      const previous = attacker.hp;
+      attacker.hp = Math.min(attacker.maxHp, attacker.hp + attacker.special.healOnKill);
+      healApplied += Math.max(0, Math.round(attacker.hp - previous));
+    }
   }
   return {
     round,
     actorId: attacker.memberId,
     targetId: defender.memberId,
     damage,
-    dodged,
-    crit,
+    dodged: result.dodged,
+    crit: !!result.crit,
+    heal: healApplied,
     targetRemainingHp: Math.max(0, Math.round(defender.hp))
   };
 }
@@ -1429,10 +1414,6 @@ function resolveActorId(openid, event = {}) {
 function signBattlePayload(payload) {
   const serialized = JSON.stringify(payload);
   return crypto.createHash('md5').update(serialized).digest('hex');
-}
-
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, value));
 }
 
 function createError(code, message) {

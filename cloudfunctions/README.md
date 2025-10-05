@@ -20,6 +20,8 @@
 
 后续若有新增云函数引用 `require('common-config')`，也需要同步在部署说明中补充清单并在控制台完成层绑定。
 
+此外，`cloudfunctions/nodejs-layer/node_modules/combat-system` 封装了角色属性汇总、伤害结算与战力评分等公共战斗公式。目前 `pve`、`pvp` 云函数均通过 `require('combat-system')` 引用该模块，部署时请将更新后的 `nodejs-layer` 打包为新的层版本并在上述两个云函数中完成绑定，否则会出现 `Cannot find module 'combat-system'` 的运行时错误。
+
 ## 云函数开发原则
 
 - **禁止跨云函数调用**：跨云函数调用非常影响性能，禁止使用。
