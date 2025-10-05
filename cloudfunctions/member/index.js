@@ -1686,6 +1686,9 @@ async function claimLevelReward(openid, levelId) {
             data: {
               claimedLevelRewards: [targetLevelId],
               avatarUnlocks: [],
+              backgroundUnlocks: [],
+              titleUnlocks: [],
+              deliveredLevelRewards: [],
               createdAt: new Date(),
               updatedAt: new Date()
             }
@@ -1693,6 +1696,8 @@ async function claimLevelReward(openid, levelId) {
           .catch(() => {});
       }
     });
+
+  await grantInventoryRewardsForLevel(openid, level);
 
   return getProgress(openid);
 }
