@@ -12,6 +12,8 @@ const _ = db.command;
 
 const ADMIN_ROLES = [...new Set([...DEFAULT_ADMIN_ROLES, 'superadmin'])];
 const CATEGORY_TYPES = ['drinks', 'dining'];
+const DRINK_VOUCHER_RIGHT_ID = 'right_realm_qi_drink';
+const DRINK_VOUCHER_AMOUNT_LIMIT = 12000;
 const ensuredCollections = new Set();
 
 const ERROR_CODES = {
@@ -115,30 +117,98 @@ async function createOrder(openid, itemsInput, remarkInput, categoryTotalsInput 
   if (!items.length) {
     throw new Error('请至少选择一件商品');
   }
-  const totalAmount = items.reduce((sum, item) => sum + item.amount, 0);
-  if (!totalAmount || totalAmount <= 0) {
+  const originalTotalAmount = items.reduce((sum, item) => sum + item.amount, 0);
+  if (!originalTotalAmount || originalTotalAmount <= 0) {
     throw new Error('订单金额无效');
   }
   const categoryTotals = normalizeCategoryTotals(categoryTotalsInput);
   const now = new Date();
-  const orderData = {
-    memberId: openid,
-    memberSnapshot: {
-      nickName: member.nickName || '',
-      mobile: member.mobile || '',
-      levelId: member.levelId || ''
-    },
-    items,
-    totalAmount,
-    categoryTotals,
-    remark: normalizeRemark(remarkInput),
-    status: 'submitted',
-    createdAt: now,
-    updatedAt: now
-  };
   await ensureCollection(COLLECTIONS.MENU_ORDERS);
-  const result = await db.collection(COLLECTIONS.MENU_ORDERS).add({ data: orderData });
-  return { order: mapOrder({ _id: result._id, ...orderData }) };
+
+  let orderRecord = null;
+
+  await db.runTransaction(async (transaction) => {
+    let discountAmount = 0;
+    let appliedRight = null;
+    const updatedItems = items.map((item) => ({ ...item }));
+    const updatedCategoryTotals = { ...categoryTotals };
+
+    const voucherCandidate = resolveDrinkVoucherCandidate(updatedItems);
+    if (voucherCandidate) {
+      const lockedRight = await lockDrinkVoucherRight(transaction, openid, now);
+      if (lockedRight) {
+        discountAmount = voucherCandidate.discount;
+        if (discountAmount > 0) {
+          const target = updatedItems[voucherCandidate.index];
+          const currentAmount = Number(target.amount || target.price * target.quantity);
+          const nextAmount = Math.max(0, currentAmount - discountAmount);
+          updatedItems[voucherCandidate.index] = {
+            ...target,
+            amount: nextAmount,
+            discount: (Number(target.discount || 0) || 0) + discountAmount
+          };
+          updatedCategoryTotals.drinks = Math.max(
+            0,
+            Math.round(Number(updatedCategoryTotals.drinks || 0)) - discountAmount
+          );
+          appliedRight = lockedRight;
+        }
+      }
+    }
+
+    const totalAmount = Math.max(0, originalTotalAmount - discountAmount);
+    const orderData = {
+      memberId: openid,
+      memberSnapshot: {
+        nickName: member.nickName || '',
+        mobile: member.mobile || '',
+        levelId: member.levelId || ''
+      },
+      items: updatedItems,
+      totalAmount,
+      originalTotalAmount,
+      categoryTotals: updatedCategoryTotals,
+      remark: normalizeRemark(remarkInput),
+      status: 'submitted',
+      createdAt: now,
+      updatedAt: now
+    };
+
+    if (discountAmount > 0 && appliedRight && appliedRight._id) {
+      orderData.appliedRights = [
+        {
+          memberRightId: appliedRight._id,
+          rightId: appliedRight.rightId,
+          amount: discountAmount,
+          type: 'drinkVoucher',
+          title: appliedRight.title || '任意饮品券（120 元内）'
+        }
+      ];
+      orderData.discountTotal = discountAmount;
+    }
+
+    const result = await transaction.collection(COLLECTIONS.MENU_ORDERS).add({ data: orderData });
+    orderRecord = { _id: result._id, ...orderData };
+
+    if (discountAmount > 0 && appliedRight && appliedRight._id) {
+      await transaction.collection(COLLECTIONS.MEMBER_RIGHTS).doc(appliedRight._id).update({
+        data: {
+          status: 'locked',
+          orderId: result._id,
+          lockedAt: now,
+          updatedAt: now,
+          meta: {
+            ...(appliedRight.meta || {}),
+            lockedFor: 'drinkVoucher',
+            lockedDiscountAmount: discountAmount,
+            lockedOrderId: result._id
+          }
+        }
+      });
+    }
+  });
+
+  return { order: mapOrder(orderRecord) };
 }
 
 async function listMemberOrders(openid) {
@@ -170,11 +240,14 @@ async function listMemberOrders(openid) {
 }
 
 async function ensureChargeOrderForMenuOrder(transaction, orderId, order, adminId, now) {
-  const items = buildChargeItemsFromMenuOrder(order);
   const totalAmount = Number(order.totalAmount || 0);
-  if (!totalAmount || totalAmount <= 0) {
+  if (!Number.isFinite(totalAmount) || totalAmount < 0) {
     throw new Error('订单金额无效');
   }
+  if (totalAmount === 0) {
+    return { id: '', order: null };
+  }
+  const items = buildChargeItemsFromMenuOrder(order);
   const baseStoneReward = totalAmount;
   const remark = typeof order.remark === 'string' ? order.remark : '';
   const memberId = typeof order.memberId === 'string' ? order.memberId : '';
@@ -366,76 +439,86 @@ async function confirmMemberOrder(openid, orderId) {
         throw new Error('订单当前不可确认');
       }
       const amount = Number(order.totalAmount || 0);
-      if (!amount || amount <= 0) {
+      if (!Number.isFinite(amount) || amount < 0) {
         throw new Error('订单金额无效');
       }
       const now = new Date();
-      const { id: chargeOrderId, order: chargeOrderDoc } = await ensureChargeOrderForMenuOrder(
-        transaction,
-        orderId,
-        order,
-        order.adminId || openid,
-        now
-      );
       const memberRef = transaction.collection(COLLECTIONS.MEMBERS).doc(openid);
       const memberDoc = await memberRef.get().catch(() => null);
       if (!memberDoc || !memberDoc.data) {
         throw new Error('会员不存在');
       }
-      const balance = resolveCashBalance(memberDoc.data);
-      if (balance < amount) {
-        throw createCustomError(ERROR_CODES.INSUFFICIENT_FUNDS, '余额不足，请先充值');
-      }
       const memberSnapshot = buildMemberSnapshot(memberDoc.data);
-      stoneReward = resolveChargeStoneReward(chargeOrderDoc, amount);
-      experienceGain = calculateExperienceGain(amount);
-      await memberRef.update({
-        data: {
-          cashBalance: _.inc(-amount),
-          totalSpend: _.inc(amount),
-          stoneBalance: _.inc(stoneReward),
-          updatedAt: now,
-          ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
-        }
-      });
-      await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
-        data: {
-          memberId: openid,
-          amount: -amount,
-          type: 'spend',
-          status: 'success',
-          source: 'menuOrder',
+      let chargeOrderId = order.chargeOrderId || '';
+      let chargeOrderDoc = null;
+      if (amount > 0) {
+        const ensured = await ensureChargeOrderForMenuOrder(
+          transaction,
           orderId,
-          remark: '菜单消费',
-          createdAt: now,
-          updatedAt: now
+          order,
+          order.adminId || openid,
+          now
+        );
+        chargeOrderId = ensured.id || chargeOrderId;
+        chargeOrderDoc = ensured.order;
+        const balance = resolveCashBalance(memberDoc.data);
+        if (balance < amount) {
+          throw createCustomError(ERROR_CODES.INSUFFICIENT_FUNDS, '余额不足，请先充值');
         }
-      });
-      await transaction.collection(COLLECTIONS.STONE_TRANSACTIONS).add({
-        data: {
-          memberId: openid,
-          amount: stoneReward,
-          type: 'earn',
-          source: 'menuOrder',
-          description: '菜单消费赠送灵石',
-          createdAt: now,
-          meta: {
-            orderId,
-            chargeOrderId
+        stoneReward = resolveChargeStoneReward(chargeOrderDoc, amount);
+        experienceGain = calculateExperienceGain(amount);
+        await memberRef.update({
+          data: {
+            cashBalance: _.inc(-amount),
+            totalSpend: _.inc(amount),
+            stoneBalance: _.inc(stoneReward),
+            updatedAt: now,
+            ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
           }
+        });
+        await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
+          data: {
+            memberId: openid,
+            amount: -amount,
+            type: 'spend',
+            status: 'success',
+            source: 'menuOrder',
+            orderId,
+            remark: '菜单消费',
+            createdAt: now,
+            updatedAt: now
+          }
+        });
+        await transaction.collection(COLLECTIONS.STONE_TRANSACTIONS).add({
+          data: {
+            memberId: openid,
+            amount: stoneReward,
+            type: 'earn',
+            source: 'menuOrder',
+            description: '菜单消费赠送灵石',
+            createdAt: now,
+            meta: {
+              orderId,
+              chargeOrderId: chargeOrderId || ensured.id || ''
+            }
+          }
+        });
+        if (chargeOrderId) {
+          await transaction.collection(COLLECTIONS.CHARGE_ORDERS).doc(chargeOrderId).update({
+            data: {
+              status: 'paid',
+              memberId: openid,
+              memberSnapshot,
+              confirmedAt: now,
+              stoneReward,
+              updatedAt: now,
+              menuOrderId: orderId
+            }
+          });
         }
-      });
-      await transaction.collection(COLLECTIONS.CHARGE_ORDERS).doc(chargeOrderId).update({
-        data: {
-          status: 'paid',
-          memberId: openid,
-          memberSnapshot,
-          confirmedAt: now,
-          stoneReward,
-          updatedAt: now,
-          menuOrderId: orderId
-        }
-      });
+      } else {
+        chargeOrderId = '';
+      }
       await orderRef.update({
         data: {
           status: 'paid',
@@ -445,6 +528,33 @@ async function confirmMemberOrder(openid, orderId) {
           memberSnapshot
         }
       });
+      const appliedRights = Array.isArray(order.appliedRights) ? order.appliedRights : [];
+      for (const applied of appliedRights) {
+        const memberRightId = applied && typeof applied.memberRightId === 'string' ? applied.memberRightId.trim() : '';
+        if (!memberRightId) {
+          continue;
+        }
+        const rightRef = transaction.collection(COLLECTIONS.MEMBER_RIGHTS).doc(memberRightId);
+        const rightSnapshot = await rightRef.get().catch(() => null);
+        if (!rightSnapshot || !rightSnapshot.data) {
+          continue;
+        }
+        const previousMeta = rightSnapshot.data.meta || {};
+        await rightRef.update({
+          data: {
+            status: 'used',
+            usedAt: now,
+            updatedAt: now,
+            orderId,
+            meta: {
+              ...previousMeta,
+              redeemedFor: 'drinkVoucher',
+              redeemedAmount: Number(applied.amount || 0),
+              redeemedOrderId: orderId
+            }
+          }
+        });
+      }
       orderSnapshot = mapOrder({
         _id: orderId,
         ...order,
@@ -527,6 +637,26 @@ async function cancelMenuOrder(actorId, orderId, remarkInput = '', { role } = {}
       updatedAt: now
     };
     await orderRef.update({ data: updates });
+    const appliedRights = Array.isArray(order.appliedRights) ? order.appliedRights : [];
+    for (const applied of appliedRights) {
+      const memberRightId = applied && typeof applied.memberRightId === 'string' ? applied.memberRightId.trim() : '';
+      if (!memberRightId) {
+        continue;
+      }
+      await transaction
+        .collection(COLLECTIONS.MEMBER_RIGHTS)
+        .doc(memberRightId)
+        .update({
+          data: {
+            status: 'active',
+            updatedAt: now,
+            orderId: _.remove(),
+            lockedAt: _.remove(),
+            usedAt: _.remove()
+          }
+        })
+        .catch(() => null);
+    }
     const chargeOrderId = typeof order.chargeOrderId === 'string' ? order.chargeOrderId.trim() : '';
     if (chargeOrderId) {
       const chargeOrderRef = transaction.collection(COLLECTIONS.CHARGE_ORDERS).doc(chargeOrderId);
@@ -569,6 +699,103 @@ async function ensureAdmin(openid) {
     throw new Error('无权访问该功能');
   }
   return member;
+}
+
+function isMemberRightExpired(right, now = new Date()) {
+  if (!right || !right.validUntil) {
+    return false;
+  }
+  const expiry = new Date(right.validUntil).getTime();
+  if (!Number.isFinite(expiry)) {
+    return false;
+  }
+  return expiry < now.getTime();
+}
+
+function resolveDrinkVoucherCandidate(items, limit = DRINK_VOUCHER_AMOUNT_LIMIT, category = 'drinks') {
+  if (!Array.isArray(items) || !items.length) {
+    return null;
+  }
+  let targetIndex = -1;
+  let highestPrice = -1;
+  items.forEach((item, index) => {
+    if (!item) {
+      return;
+    }
+    const section = normalizeCategoryType(item.categoryType);
+    if (section !== category) {
+      return;
+    }
+    const price = Number(item.price || 0);
+    const quantity = Math.max(1, Math.floor(Number(item.quantity || 0)));
+    const amount = Number(item.amount || price * quantity);
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(amount) || amount <= 0) {
+      return;
+    }
+    if (price > highestPrice) {
+      highestPrice = price;
+      targetIndex = index;
+    }
+  });
+  if (targetIndex < 0) {
+    return null;
+  }
+  const target = items[targetIndex];
+  const price = Number(target.price || 0);
+  const quantity = Math.max(1, Math.floor(Number(target.quantity || 0)));
+  const amount = Number(target.amount || price * quantity);
+  if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(amount) || amount <= 0) {
+    return null;
+  }
+  const discount = Math.min(limit, price, amount);
+  if (discount <= 0) {
+    return null;
+  }
+  return { index: targetIndex, discount, price, quantity, categoryType: normalizeCategoryType(target.categoryType) };
+}
+
+async function lockDrinkVoucherRight(transaction, memberId, now = new Date()) {
+  if (!memberId) {
+    return null;
+  }
+  let snapshot;
+  try {
+    snapshot = await transaction
+      .collection(COLLECTIONS.MEMBER_RIGHTS)
+      .where({ memberId, rightId: DRINK_VOUCHER_RIGHT_ID, status: 'active' })
+      .orderBy('issuedAt', 'asc')
+      .limit(5)
+      .get();
+  } catch (error) {
+    if (isCollectionNotFoundError(error)) {
+      return null;
+    }
+    throw error;
+  }
+  const candidates = Array.isArray(snapshot.data) ? snapshot.data : [];
+  const usable = candidates.find((entry) => !isMemberRightExpired(entry, now));
+  if (!usable) {
+    return null;
+  }
+  let title = '任意饮品券（120 元内）';
+  try {
+    const masterSnapshot = await transaction
+      .collection(COLLECTIONS.MEMBERSHIP_RIGHTS)
+      .doc(DRINK_VOUCHER_RIGHT_ID)
+      .get();
+    if (masterSnapshot && masterSnapshot.data && masterSnapshot.data.name) {
+      title = masterSnapshot.data.name;
+    }
+  } catch (error) {
+    if (!isCollectionNotFoundError(error)) {
+      throw error;
+    }
+  }
+  const docId = typeof usable._id === 'string' ? usable._id : typeof usable.id === 'string' ? usable.id : '';
+  if (!docId) {
+    return null;
+  }
+  return { ...usable, _id: docId, title };
 }
 
 function normalizeRemark(value, limit = 140) {
@@ -691,6 +918,7 @@ function mapOrder(doc) {
         price: Number(item.price || 0),
         quantity: Number(item.quantity || 0),
         amount: Number(item.amount || 0),
+        discount: Number(item.discount || 0),
         categoryType: normalizeCategoryType(item.categoryType)
       }))
     : [];
@@ -700,6 +928,16 @@ function mapOrder(doc) {
     items,
     totalAmount: Number(doc.totalAmount || 0),
     originalTotalAmount: Number(doc.originalTotalAmount || 0),
+    discountTotal: Number(doc.discountTotal || 0),
+    appliedRights: Array.isArray(doc.appliedRights)
+      ? doc.appliedRights.map((entry) => ({
+          memberRightId: entry.memberRightId || '',
+          rightId: entry.rightId || '',
+          amount: Number(entry.amount || 0),
+          type: entry.type || '',
+          title: entry.title || entry.name || ''
+        }))
+      : [],
     categoryTotals: normalizeCategoryTotals(doc.categoryTotals),
     remark: doc.remark || '',
     adminRemark: doc.adminRemark || '',

@@ -61,7 +61,7 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       type: 'title',
       titleId: 'title_refining_rookie',
       storageItemId: 'reward_title_refining_rookie',
-      storageCategory: 'quest',
+      storageCategory: 'consumable',
       name: '称号·炼气新人',
       description: '使用后解锁称号“炼气新人”，并可在档案中展示。',
       slotLabel: '称号',
@@ -73,7 +73,7 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       type: 'background',
       backgroundId: 'trial_spirit_test',
       storageItemId: 'reward_background_spirit_test',
-      storageCategory: 'quest',
+      storageCategory: 'consumable',
       name: '背景·灵根测试',
       description: '使用后解锁背景“灵根测试”，可在外观设置中选择。',
       slotLabel: '背景',
@@ -112,14 +112,28 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       slotLabel: '道具'
     },
     {
+      type: 'consumable',
+      storageItemId: 'reward_voucher_qi_drink',
+      storageCategory: 'consumable',
+      usage: {
+        type: 'grantRight',
+        rightId: 'right_realm_qi_drink',
+        amountLimit: 12000,
+        categoryType: 'drinks'
+      },
+      name: '饮品券·任意 120 元内饮品',
+      description: '使用后获得「任意饮品券（120 元内）」权益，点餐时自动抵扣最贵的一件酒水。',
+      slotLabel: '道具',
+      quality: 'epic',
+      qualityLabel: '权益券',
+      qualityColor: '#f2a546'
+    },
+    {
       type: 'background',
       backgroundId: 'reward_foundation',
-      storageItemId: 'reward_background_foundation',
-      storageCategory: 'quest',
       name: '背景·筑基背景',
-      description: '突破筑基后可在外观设置中启用的主题背景。',
-      slotLabel: '背景',
-      usage: { type: 'unlockBackground', backgroundId: 'reward_foundation' }
+      description: '突破筑基后自动解锁的专属背景，无需额外道具。',
+      autoUnlock: true
     }
   ]
 });
@@ -148,6 +162,14 @@ function generateStorageInventoryId(itemId, obtainedAt = new Date()) {
     obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : Date.now();
   const random = Math.random().toString(36).slice(2, 8);
   return `st-${base}-${timestamp}-${random}`;
+}
+
+function generateEquipmentInventoryId(itemId, obtainedAt = new Date()) {
+  const base = typeof itemId === 'string' && itemId ? itemId : 'equipment';
+  const timestamp =
+    obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : Date.now();
+  const random = Math.random().toString(36).slice(2, 8);
+  return `eq-${base}-${timestamp}-${random}`;
 }
 
 function ensurePveRewardProfile(profile) {
@@ -213,6 +235,15 @@ function createStorageRewardItem(reward, now = new Date()) {
   if (!reward || typeof reward !== 'object') {
     return null;
   }
+  const defaultCategory = (() => {
+    if (reward.type === 'background') {
+      return 'consumable';
+    }
+    if (reward.type === 'title') {
+      return 'consumable';
+    }
+    return 'consumable';
+  })();
   const item = {
     inventoryId: generateStorageInventoryId(reward.storageItemId || reward.itemId || 'item', now),
     itemId: reward.storageItemId || reward.itemId || '',
@@ -224,8 +255,8 @@ function createStorageRewardItem(reward, now = new Date()) {
     quality: reward.quality || '',
     qualityLabel: reward.qualityLabel || '',
     qualityColor: reward.qualityColor || '',
-    storageCategory: reward.storageCategory || 'consumable',
-    slotLabel: reward.slotLabel || resolveStorageCategoryLabel(reward.storageCategory || 'consumable'),
+    storageCategory: reward.storageCategory || defaultCategory,
+    slotLabel: reward.slotLabel || resolveStorageCategoryLabel(reward.storageCategory || defaultCategory),
     obtainedAt: now,
     actions:
       Array.isArray(reward.actions) && reward.actions.length
@@ -241,6 +272,12 @@ function createStorageRewardItem(reward, now = new Date()) {
     kind: reward.kind || 'storage'
   };
   applyStorageRewardMetadata(item, reward.type || 'consumable');
+  if (reward.type === 'background') {
+    item.storageCategory = 'consumable';
+    if (!reward.slotLabel) {
+      item.slotLabel = '背景';
+    }
+  }
   if (Array.isArray(item.actions) && item.actions.length) {
     const primary = item.actions.find((action) => action.primary) || item.actions[0];
     item.primaryAction = primary || null;
@@ -249,6 +286,38 @@ function createStorageRewardItem(reward, now = new Date()) {
     item.primaryAction = null;
   }
   return item;
+}
+
+function createEquipmentRewardEntry(reward, now = new Date()) {
+  if (!reward || typeof reward !== 'object' || !reward.itemId) {
+    return null;
+  }
+  const obtainedAt = now instanceof Date && !Number.isNaN(now.getTime()) ? now : new Date();
+  const entry = {
+    inventoryId: generateEquipmentInventoryId(reward.itemId, obtainedAt),
+    itemId: reward.itemId,
+    obtainedAt,
+    level: typeof reward.level === 'number' ? reward.level : 1,
+    refine: typeof reward.refine === 'number' ? reward.refine : 0,
+    favorite: false,
+    storageCategory: 'equipment'
+  };
+  if (typeof reward.quality === 'string' && reward.quality) {
+    entry.quality = reward.quality;
+  }
+  if (typeof reward.qualityLabel === 'string' && reward.qualityLabel) {
+    entry.qualityLabel = reward.qualityLabel;
+  }
+  if (typeof reward.qualityColor === 'string' && reward.qualityColor) {
+    entry.qualityColor = reward.qualityColor;
+  }
+  if (typeof reward.qualityRank === 'number') {
+    entry.qualityRank = reward.qualityRank;
+  }
+  if (typeof reward.iconId === 'number') {
+    entry.iconId = reward.iconId;
+  }
+  return entry;
 }
 
 function appendStorageItemToProfile(profile, item) {
@@ -1097,6 +1166,8 @@ async function grantInventoryRewardsForLevel(openid, level) {
   }
   const extras = await resolveMemberExtras(openid);
   const delivered = Array.isArray(extras.deliveredLevelRewards) ? extras.deliveredLevelRewards : [];
+  const backgroundUnlocks = Array.isArray(extras.backgroundUnlocks) ? extras.backgroundUnlocks : [];
+  const backgroundUnlockSet = new Set(backgroundUnlocks);
   if (delivered.includes(level._id)) {
     return;
   }
@@ -1109,6 +1180,7 @@ async function grantInventoryRewardsForLevel(openid, level) {
   const now = new Date();
   const profile = ensurePveRewardProfile(memberSnapshot.data.pveProfile);
   let profileChanged = false;
+  let extrasChanged = false;
 
   for (const reward of rewards) {
     if (!reward || typeof reward !== 'object') {
@@ -1117,8 +1189,11 @@ async function grantInventoryRewardsForLevel(openid, level) {
     if (reward.type === 'equipment' && reward.itemId) {
       const hasItem = profile.equipment.inventory.some((entry) => entry && entry.itemId === reward.itemId);
       if (!hasItem) {
-        profile.equipment.inventory.push({ itemId: reward.itemId, obtainedAt: now, level: 1, refine: 0 });
-        profileChanged = true;
+        const equipmentEntry = createEquipmentRewardEntry(reward, now);
+        if (equipmentEntry) {
+          profile.equipment.inventory.push(equipmentEntry);
+          profileChanged = true;
+        }
       }
       continue;
     }
@@ -1129,6 +1204,19 @@ async function grantInventoryRewardsForLevel(openid, level) {
         profileChanged = true;
       }
       continue;
+    }
+    if (reward.type === 'background' && reward.backgroundId) {
+      const backgroundId = normalizeBackgroundId(reward.backgroundId);
+      if (!backgroundId) {
+        continue;
+      }
+      if (reward.autoUnlock) {
+        if (!backgroundUnlockSet.has(backgroundId)) {
+          backgroundUnlockSet.add(backgroundId);
+          extrasChanged = true;
+        }
+        continue;
+      }
     }
     if (['title', 'background', 'consumable'].includes(reward.type)) {
       const storageItem = createStorageRewardItem(reward, now);
@@ -1154,7 +1242,11 @@ async function grantInventoryRewardsForLevel(openid, level) {
 
   const deliveredSet = new Set(delivered);
   deliveredSet.add(level._id);
-  await updateMemberExtras(openid, { deliveredLevelRewards: Array.from(deliveredSet) });
+  const extrasUpdate = { deliveredLevelRewards: Array.from(deliveredSet) };
+  if (extrasChanged) {
+    extrasUpdate.backgroundUnlocks = Array.from(backgroundUnlockSet);
+  }
+  await updateMemberExtras(openid, extrasUpdate);
 }
 
 async function loadLevels() {
@@ -1686,6 +1778,9 @@ async function claimLevelReward(openid, levelId) {
             data: {
               claimedLevelRewards: [targetLevelId],
               avatarUnlocks: [],
+              backgroundUnlocks: [],
+              titleUnlocks: [],
+              deliveredLevelRewards: [],
               createdAt: new Date(),
               updatedAt: new Date()
             }
@@ -1693,6 +1788,8 @@ async function claimLevelReward(openid, levelId) {
           .catch(() => {});
       }
     });
+
+  await grantInventoryRewardsForLevel(openid, level);
 
   return getProgress(openid);
 }
