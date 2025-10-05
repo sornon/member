@@ -3,31 +3,18 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { listAvatarIds } = require('./avatar-catalog.js');
-const { EXPERIENCE_PER_YUAN } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
+const {
+  EXPERIENCE_PER_YUAN,
+  COLLECTIONS,
+  EXCLUDED_TRANSACTION_STATUSES,
+  DEFAULT_ADMIN_ROLES
+} = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 
 const db = cloud.database();
 const _ = db.command;
 const $ = db.command.aggregate;
 
-const COLLECTIONS = {
-  MEMBERS: 'members',
-  LEVELS: 'membershipLevels',
-  CHARGE_ORDERS: 'chargeOrders',
-  WALLET_TRANSACTIONS: 'walletTransactions',
-  RESERVATIONS: 'reservations',
-  MENU_ORDERS: 'menuOrders',
-  ROOMS: 'rooms',
-  MEMBER_RIGHTS: 'memberRights',
-  MEMBER_EXTRAS: 'memberExtras',
-  MEMBER_TIMELINE: 'memberTimeline',
-  TASK_RECORDS: 'taskRecords',
-  COUPON_RECORDS: 'couponRecords',
-  STONE_TRANSACTIONS: 'stoneTransactions',
-  ERROR_LOGS: 'errorlogs'
-};
-
-const ADMIN_ROLES = ['admin', 'developer'];
-const EXCLUDED_TRANSACTION_STATUSES = ['pending', 'processing', 'failed', 'cancelled', 'refunded', 'closed'];
+const ADMIN_ROLES = DEFAULT_ADMIN_ROLES;
 const MIN_REPORT_MONTH = new Date(2025, 8, 1);
 const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
 const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());

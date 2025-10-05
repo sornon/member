@@ -1,23 +1,16 @@
 const cloud = require('wx-server-sdk');
-const { EXPERIENCE_PER_YUAN } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
+const {
+  EXPERIENCE_PER_YUAN,
+  COLLECTIONS,
+  DEFAULT_ADMIN_ROLES
+} = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 const _ = db.command;
 
-const COLLECTIONS = {
-  MENU_ORDERS: 'menuOrders',
-  MEMBERS: 'members',
-  WALLET_TRANSACTIONS: 'walletTransactions',
-  MEMBERSHIP_LEVELS: 'membershipLevels',
-  MEMBERSHIP_RIGHTS: 'membershipRights',
-  MEMBER_RIGHTS: 'memberRights',
-  CHARGE_ORDERS: 'chargeOrders',
-  STONE_TRANSACTIONS: 'stoneTransactions'
-};
-
-const ADMIN_ROLES = ['admin', 'developer', 'superadmin'];
+const ADMIN_ROLES = [...new Set([...DEFAULT_ADMIN_ROLES, 'superadmin'])];
 const CATEGORY_TYPES = ['drinks', 'dining'];
 const ensuredCollections = new Set();
 

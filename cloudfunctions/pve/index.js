@@ -2,13 +2,10 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
+const { COLLECTIONS } = require('common-config');
+
 const db = cloud.database();
 const _ = db.command;
-
-const COLLECTIONS = {
-  MEMBERS: 'members',
-  STONE_TRANSACTIONS: 'stoneTransactions'
-};
 
 const MAX_LEVEL = 100;
 const MAX_SKILL_SLOTS = 3;

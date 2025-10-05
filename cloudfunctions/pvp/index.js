@@ -3,17 +3,10 @@ const crypto = require('crypto');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
+const { COLLECTIONS } = require('common-config');
+
 const db = cloud.database();
 const _ = db.command;
-
-const COLLECTIONS = {
-  MEMBERS: 'members',
-  PVP_PROFILES: 'pvpProfiles',
-  PVP_SEASONS: 'pvpSeasons',
-  PVP_MATCHES: 'pvpMatches',
-  PVP_LEADERBOARD: 'pvpLeaderboard',
-  PVP_INVITES: 'pvpInvites'
-};
 
 const DEFAULT_SEASON_LENGTH_DAYS = 56;
 const MATCH_ROUND_LIMIT = 15;

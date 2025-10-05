@@ -209,6 +209,10 @@ cd cloudfunctions/member && npm install && cd -
 
 > 如需迁移至自建后端，只需在 `miniprogram/services` 中替换为 HTTPS 请求，即可保持前端逻辑不变。
 
+### 公共模块绑定要求
+
+当前仓库将通用的集合名称、管理员角色、交易状态等配置统一维护在 `cloudfunctions/nodejs-layer/node_modules/common-config` 目录。部署以下云函数时，请在云开发控制台的“层管理”中绑定 `common-config` 公共模块：`admin`、`avatar`、`bootstrap`、`member`、`menuOrder`、`reservation`、`stones`、`tasks`、`pve`、`pvp`、`wallet`。若缺少绑定，云函数会在加载配置时抛出 `Cannot find module 'common-config'` 等错误，导致接口调用失败。
+
 ## 二次开发建议
 
 1. **会员权益重写**：

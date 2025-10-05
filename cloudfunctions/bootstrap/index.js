@@ -6,6 +6,7 @@ const db = cloud.database();
 
 const {
   EXPERIENCE_PER_YUAN,
+  COLLECTIONS,
   subLevelLabels,
   realmConfigs,
   membershipRights
@@ -13,20 +14,20 @@ const {
 
 exports.main = async () => {
   await Promise.all([
-    ensureCollection('chargeOrders'),
-    ensureCollection('errorlogs'),
-    ensureCollection('memberExtras'),
-    ensureCollection('memberTimeline')
+    ensureCollection(COLLECTIONS.CHARGE_ORDERS),
+    ensureCollection(COLLECTIONS.ERROR_LOGS),
+    ensureCollection(COLLECTIONS.MEMBER_EXTRAS),
+    ensureCollection(COLLECTIONS.MEMBER_TIMELINE)
   ]);
 
   await Promise.all([
-    seedCollection('membershipRights', membershipRights),
-    seedCollection('membershipLevels', membershipLevels),
-    seedCollection('rooms', rooms),
-    seedCollection('tasks', tasks),
-    seedCollection('coupons', coupons),
-    seedCollection('avatarCategories', avatarCategories),
-    seedCollection('avatars', avatars)
+    seedCollection(COLLECTIONS.MEMBERSHIP_RIGHTS, membershipRights),
+    seedCollection(COLLECTIONS.MEMBERSHIP_LEVELS, membershipLevels),
+    seedCollection(COLLECTIONS.ROOMS, rooms),
+    seedCollection(COLLECTIONS.TASKS, tasks),
+    seedCollection(COLLECTIONS.COUPONS, coupons),
+    seedCollection(COLLECTIONS.AVATAR_CATEGORIES, avatarCategories),
+    seedCollection(COLLECTIONS.AVATARS, avatars)
   ]);
 
   return { success: true };
