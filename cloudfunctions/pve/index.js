@@ -3604,6 +3604,8 @@ function normalizeSkills(skills, now = new Date()) {
     }
   });
 
+  const hadInventory = inventory.length > 0;
+
   defaults.inventory.forEach((entry) => {
     if (!seen.has(entry.skillId)) {
       inventory.push(entry);
@@ -3613,7 +3615,7 @@ function normalizeSkills(skills, now = new Date()) {
 
   let equipped = Array.isArray(payload.equipped) ? payload.equipped.filter((id) => typeof id === 'string' && id) : [];
   equipped = equipped.filter((id, index) => SKILL_MAP[id] && equipped.indexOf(id) === index).slice(0, MAX_SKILL_SLOTS);
-  if (!equipped.length) {
+  if (!equipped.length && !hadInventory) {
     equipped = defaults.equipped.slice(0, MAX_SKILL_SLOTS);
   }
   while (equipped.length < MAX_SKILL_SLOTS) {
