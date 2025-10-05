@@ -3,7 +3,6 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { COLLECTIONS, realmConfigs, subLevelLabels } = require('common-config');
-const { normalizeBackgroundId } = require('../member/shared/backgrounds.js');
 const {
   DEFAULT_COMBAT_STATS,
   clamp,
@@ -38,6 +37,29 @@ const {
 
 const db = cloud.database();
 const _ = db.command;
+
+const BACKGROUND_IDS = new Set([
+  'realm_refining',
+  'trial_spirit_test',
+  'realm_foundation',
+  'reward_foundation',
+  'realm_core',
+  'realm_nascent',
+  'realm_divine',
+  'realm_void',
+  'realm_unity',
+  'realm_great_vehicle',
+  'realm_tribulation',
+  'realm_ascension'
+]);
+
+function normalizeBackgroundId(id) {
+  if (typeof id !== 'string') {
+    return '';
+  }
+  const trimmed = id.trim();
+  return BACKGROUND_IDS.has(trimmed) ? trimmed : '';
+}
 
 const MAX_LEVEL = 100;
 const MAX_SKILL_SLOTS = 3;
