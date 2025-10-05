@@ -32,7 +32,7 @@ const TITLE_LIBRARY = Object.freeze({
 const BACKGROUND_LIBRARY = Object.freeze({
   trial_spirit_test: {
     id: 'trial_spirit_test',
-    name: '灵力测试'
+    name: '灵根测试'
   },
   reward_foundation: {
     id: 'reward_foundation',
@@ -71,8 +71,8 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       backgroundId: 'trial_spirit_test',
       storageItemId: 'reward_background_spirit_test',
       storageCategory: 'quest',
-      name: '背景·灵力测试',
-      description: '使用后解锁背景“灵力测试”，可在外观设置中选择。',
+      name: '背景·灵根测试',
+      description: '使用后解锁背景“灵根测试”，可在外观设置中选择。',
       slotLabel: '背景',
       usage: { type: 'unlockBackground', backgroundId: 'trial_spirit_test' }
     }

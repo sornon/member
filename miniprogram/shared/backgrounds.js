@@ -2,7 +2,7 @@ const { BACKGROUND_IMAGE_BASE_PATH, BACKGROUND_VIDEO_BASE_PATH } = require('./as
 
 const RAW_BACKGROUNDS = [
   { id: 'realm_refining', realmOrder: 1, realmName: '炼气期', name: '炼气之地', unlockType: 'realm' },
-  { id: 'trial_spirit_test', realmOrder: 1, realmName: '炼气期', name: '灵力测试', unlockType: 'manual', mediaKey: '1' },
+  { id: 'trial_spirit_test', realmOrder: 1, realmName: '炼气期', name: '灵根测试', unlockType: 'manual', mediaKey: '1' },
   { id: 'realm_foundation', realmOrder: 2, realmName: '筑基期', name: '筑基之地', unlockType: 'realm' },
   { id: 'reward_foundation', realmOrder: 2, realmName: '筑基期', name: '筑基背景', unlockType: 'manual', mediaKey: '2' },
   { id: 'realm_core', realmOrder: 3, realmName: '金丹期', name: '金丹之地', unlockType: 'realm' },
