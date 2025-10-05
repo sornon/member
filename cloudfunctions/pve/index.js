@@ -3799,7 +3799,7 @@ async function ensurePveProfile(actorId, member, levelCache) {
 function buildDefaultProfile(now = new Date()) {
   return {
     attributes: buildDefaultAttributes(),
-    equipment: buildDefaultEquipment(now),
+    equipment: buildDefaultEquipment(),
     skills: buildDefaultSkills(now),
     battleHistory: [],
     skillHistory: []
@@ -3864,35 +3864,8 @@ function buildDefaultStorage(level = 0) {
   };
 }
 
-function buildDefaultEquipment(now = new Date()) {
-  const defaults = [
-    'novice_sword',
-    'apprentice_helm',
-    'apprentice_robe',
-    'lightstep_boots',
-    'spirit_belt',
-    'initiate_bracers',
-    'initiate_orb',
-    'spirit_ring',
-    'oath_token',
-    'wooden_puppet',
-    'initiate_focus',
-    'initiate_treasure'
-  ];
-  const generated = defaults
-    .map((itemId) => createEquipmentInventoryEntry(itemId, now))
-    .filter((entry) => !!entry);
-  const slots = createEmptySlotMap();
-  const inventory = [];
-  generated.forEach((entry) => {
-    const definition = EQUIPMENT_MAP[entry.itemId];
-    if (definition && definition.slot && !slots[definition.slot]) {
-      slots[definition.slot] = { ...entry };
-    } else {
-      inventory.push({ ...entry });
-    }
-  });
-  return { inventory, slots, storage: buildDefaultStorage(0) };
+function buildDefaultEquipment() {
+  return { inventory: [], slots: createEmptySlotMap(), storage: buildDefaultStorage(0) };
 }
 
 function buildDefaultSkills(now = new Date()) {
@@ -4071,7 +4044,7 @@ function normalizeAttributes(attributes) {
 
 function normalizeEquipment(equipment, now = new Date(), options = {}) {
   const includeDefaults = options && options.includeDefaults !== false;
-  const defaults = includeDefaults ? buildDefaultEquipment(now) : { inventory: [], slots: createEmptySlotMap() };
+  const defaults = includeDefaults ? buildDefaultEquipment() : { inventory: [], slots: createEmptySlotMap() };
   const payload = typeof equipment === 'object' && equipment ? equipment : {};
   const rawInventory = Array.isArray(payload.inventory) ? payload.inventory : [];
   const normalizedInventory = [];
@@ -4092,11 +4065,13 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
     }
   });
 
-  (defaults.inventory || []).forEach((entry) => {
-    if (entry) {
-      trackInventory({ ...entry });
-    }
-  });
+  if (includeDefaults && normalizedInventory.length === 0) {
+    (defaults.inventory || []).forEach((entry) => {
+      if (entry) {
+        trackInventory({ ...entry });
+      }
+    });
+  }
 
   const availableById = new Map();
   const availableByItemId = {};
@@ -4141,6 +4116,7 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
   const rawSlots = payload.slots || {};
 
   Object.keys(resolvedSlots).forEach((slot) => {
+    const hasRawSlotValue = Object.prototype.hasOwnProperty.call(rawSlots, slot);
     const raw = rawSlots[slot];
     let normalizedEntry = null;
     if (raw && typeof raw === 'object' && raw.itemId) {
@@ -4151,7 +4127,7 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
     } else if (typeof raw === 'string' && raw) {
       normalizedEntry = claimByItemId(raw);
     }
-    if (!normalizedEntry && defaults.slots && defaults.slots[slot]) {
+    if (!normalizedEntry && !hasRawSlotValue && defaults.slots && defaults.slots[slot]) {
       normalizedEntry = { ...defaults.slots[slot] };
     }
     if (normalizedEntry) {
@@ -5832,7 +5808,7 @@ function ensureEquipmentOwned(profile, itemId, now) {
   if (!definition) {
     return;
   }
-  profile.equipment = profile.equipment || buildDefaultEquipment(now);
+  profile.equipment = profile.equipment || buildDefaultEquipment();
   profile.equipment.inventory = profile.equipment.inventory || [];
   const existing = profile.equipment.inventory.find((entry) => entry.itemId === itemId);
   if (existing) {
