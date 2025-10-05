@@ -2287,7 +2287,20 @@ async function equipSkill(actorId, event) {
     }
   }
 
-  let resolvedSlot = typeof slot === 'number' && slot >= 0 && slot < MAX_SKILL_SLOTS ? slot : null;
+  let resolvedSlot = null;
+  if (typeof slot === 'number') {
+    if (slot >= 0 && slot < MAX_SKILL_SLOTS) {
+      resolvedSlot = slot;
+    }
+  } else if (typeof slot === 'string') {
+    const parsedSlot = Number(slot);
+    if (Number.isFinite(parsedSlot)) {
+      const normalizedSlot = Math.floor(parsedSlot);
+      if (normalizedSlot >= 0 && normalizedSlot < MAX_SKILL_SLOTS) {
+        resolvedSlot = normalizedSlot;
+      }
+    }
+  }
 
   if (resolvedSlot !== null) {
     if (normalizedSkillId) {
@@ -3591,6 +3604,8 @@ function normalizeSkills(skills, now = new Date()) {
     }
   });
 
+  const hadInventory = inventory.length > 0;
+
   defaults.inventory.forEach((entry) => {
     if (!seen.has(entry.skillId)) {
       inventory.push(entry);
@@ -3600,7 +3615,7 @@ function normalizeSkills(skills, now = new Date()) {
 
   let equipped = Array.isArray(payload.equipped) ? payload.equipped.filter((id) => typeof id === 'string' && id) : [];
   equipped = equipped.filter((id, index) => SKILL_MAP[id] && equipped.indexOf(id) === index).slice(0, MAX_SKILL_SLOTS);
-  if (!equipped.length) {
+  if (!equipped.length && !hadInventory) {
     equipped = defaults.equipped.slice(0, MAX_SKILL_SLOTS);
   }
   while (equipped.length < MAX_SKILL_SLOTS) {
