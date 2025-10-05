@@ -2,24 +2,42 @@
 <view class="page">
   <view wx:if="{{loading}}" class="loading">灵气汇聚中...</view>
   <scroll-view wx:elif="{{profile}}" scroll-y="true" class="scroll-container">
+    <view class="section-card" wx:if="{{profile.secretRealm}}">
+      <view class="section-header">
+        <view class="section-title">秘境进度</view>
+      </view>
+      <view class="progress-summary">
+        <view>最高解锁：第{{profile.secretRealm.highestUnlockedFloor}}层</view>
+        <view>已通关：{{profile.secretRealm.clearedCount}} / {{profile.secretRealm.totalFloors}}</view>
+      </view>
+    </view>
+
     <view class="section-card">
       <view class="section-header">
         <view class="section-title">秘境对手</view>
       </view>
-      <view class="enemy-card" wx:for="{{profile.enemies || []}}" wx:key="id">
+      <view
+        class="enemy-card {{item.type === 'boss' ? 'enemy-boss' : ''}} {{item.locked ? 'enemy-locked' : ''}}"
+        wx:for="{{profile.enemies || []}}"
+        wx:key="id"
+      >
         <view class="enemy-header">
           <view class="enemy-name">{{item.name}}</view>
           <view class="enemy-difficulty">{{item.difficulty}}</view>
         </view>
+        <view class="enemy-meta">{{item.floorLabel}} · {{item.stageName}}</view>
         <view class="enemy-desc">{{item.description}}</view>
         <view class="enemy-meta">等级 {{item.level}} · 推荐战力 {{item.combatPower}}</view>
+        <view class="enemy-status">状态：{{item.statusLabel}}</view>
         <view class="enemy-reward">{{item.rewardsText}}</view>
         <button
           class="enemy-action"
           data-id="{{item.id}}"
+          data-locked="{{item.locked}}"
           loading="{{battleLoading && selectedEnemyId === item.id}}"
           bindtap="handleBattle"
-        >挑战</button>
+          disabled="{{item.locked}}"
+        >{{item.locked ? '未解锁' : '挑战'}}</button>
       </view>
       <view wx:if="{{!(profile.enemies && profile.enemies.length)}}" class="empty-tip">暂无可挑战的秘境</view>
     </view>

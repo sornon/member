@@ -40,8 +40,8 @@ Page({
   },
 
   async handleBattle(event) {
-    const enemyId = event.currentTarget.dataset.id;
-    if (!enemyId) return;
+    const { id: enemyId, locked } = event.currentTarget.dataset || {};
+    if (!enemyId || locked) return;
     this.setData({ battleLoading: true, selectedEnemyId: enemyId });
     try {
       const res = await PveService.battle(enemyId);
