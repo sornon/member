@@ -4167,7 +4167,7 @@ function decorateProfile(member, profile) {
   const equipmentSummary = decorateEquipment(profile, attributeSummary.equipmentBonus);
   const skillsSummary = decorateSkills(profile);
   const secretRealm = decorateSecretRealm(profile.secretRealm, attributeSummary);
-  const enemies = secretRealm.visibleFloors || secretRealm.floors;
+  const enemies = secretRealm.visibleFloors || [];
   const battleHistory = decorateBattleHistory(profile.battleHistory, profile);
   const skillHistory = decorateSkillHistory(profile.skillHistory);
 
@@ -4846,12 +4846,12 @@ function decorateSkills(profile) {
 function decorateSecretRealm(secretRealmState, attributeSummary) {
   const normalized = normalizeSecretRealm(secretRealmState || {});
   const highestUnlockedFloor = normalized.highestUnlockedFloor || 1;
-  const floors = ENEMY_LIBRARY.map((enemy) => decorateEnemy(enemy, attributeSummary, normalized));
-  const clearedCount = floors.filter((floor) => floor.completed).length;
-  const nextFloor = floors.find((floor) => !floor.completed && !floor.locked);
+  const decoratedFloors = ENEMY_LIBRARY.map((enemy) => decorateEnemy(enemy, attributeSummary, normalized));
+  const clearedCount = decoratedFloors.filter((floor) => floor.completed).length;
+  const nextFloor = decoratedFloors.find((floor) => !floor.completed && !floor.locked);
   const totalFloors = ENEMY_LIBRARY.length;
   const progress = totalFloors > 0 ? Math.min(1, clearedCount / totalFloors) : 0;
-  const visibleFloors = resolveVisibleSecretRealmFloors(floors);
+  const visibleFloors = resolveVisibleSecretRealmFloors(decoratedFloors);
 
   return {
     highestUnlockedFloor,
@@ -4859,7 +4859,6 @@ function decorateSecretRealm(secretRealmState, attributeSummary) {
     totalFloors,
     progress,
     nextFloorId: nextFloor ? nextFloor.id : '',
-    floors,
     visibleFloors
   };
 }
@@ -4869,7 +4868,56 @@ function resolveVisibleSecretRealmFloors(floors) {
     return [];
   }
 
-  return floors.filter((floor) => !floor.locked && !floor.completed);
+  const summaries = [];
+  const currentIndex = floors.findIndex((floor) => !floor.completed && !floor.locked);
+  if (currentIndex >= 0) {
+    const currentSummary = summarizeSecretRealmFloor(floors[currentIndex]);
+    if (currentSummary) {
+      summaries.push(currentSummary);
+    }
+    const nextLocked = floors.slice(currentIndex + 1).find((floor) => floor.locked && !floor.completed);
+    if (nextLocked) {
+      const nextSummary = summarizeSecretRealmFloor(nextLocked);
+      if (nextSummary) {
+        summaries.push(nextSummary);
+      }
+    }
+    return summaries;
+  }
+
+  const upcoming = floors.find((floor) => !floor.completed && floor.locked);
+  if (upcoming) {
+    const upcomingSummary = summarizeSecretRealmFloor(upcoming);
+    if (upcomingSummary) {
+      summaries.push(upcomingSummary);
+    }
+  }
+
+  return summaries;
+}
+
+function summarizeSecretRealmFloor(floor) {
+  if (!floor) {
+    return null;
+  }
+
+  return {
+    id: floor.id,
+    name: floor.name,
+    description: floor.description,
+    level: floor.level,
+    combatPower: floor.combatPower,
+    difficulty: floor.difficulty,
+    floor: floor.floor,
+    floorLabel: floor.floorLabel,
+    stageName: floor.stageName,
+    stageLabel: floor.stageLabel,
+    type: floor.type,
+    locked: floor.locked,
+    completed: floor.completed,
+    statusLabel: floor.statusLabel,
+    rewardsText: floor.rewardsText
+  };
 }
 
 function decorateSkillInventoryEntry(entry, profile) {
