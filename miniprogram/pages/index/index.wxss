@@ -512,6 +512,7 @@ page {
   display: flex;
   flex-direction: column;
   padding: 32rpx 36rpx 28rpx;
+  overflow: visible;
 }
 
 .modal-header {
@@ -600,11 +601,13 @@ page {
   max-height: 520rpx;
   height: 520rpx;
   width: 100%;
+  overflow: visible;
 }
 
 .appearance-modal__body {
   height: 100%;
   width: 100%;
+  overflow: visible;
 }
 
 .archive-section {
@@ -745,7 +748,7 @@ page {
 .avatar-frame-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18rpx;
+  gap: 26rpx 28rpx;
   margin: 18rpx 0;
   justify-items: center;
 }
@@ -768,6 +771,7 @@ page {
   align-items: center;
   justify-content: center;
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  overflow: visible;
 }
 
 .avatar-frame-option--active .avatar-frame-option__preview {
