@@ -71,7 +71,7 @@
 - 玩家必须依次通关，击败当前层才会解锁下一层。通关状态保存在 `secretRealm.floors` 中，历史胜利不会重复发放奖励（奖励占位待后续配置，可在 `enemy.meta.suggestedRewards` 中查看建议档位）。云函数仅返回当前可挑战的楼层与紧邻的下一关提示，其余未解锁或已通关楼层不会出现在响应或前端列表中，避免重复挑战或提前查看配置。【F:cloudfunctions/pve/index.js†L2144-L2195】【F:cloudfunctions/pve/index.js†L4846-L4921】
 - 为兼容旧版本数据，云函数会在读取/挑战副本时自动识别历史楼层 ID（纯数字、未补零的 `secret_*_1` 等），并转换为新的规范 ID，同时合并通关记录与解锁层数，避免出现“未找到副本目标”或进度回退。【F:cloudfunctions/pve/index.js†L219-L336】【F:cloudfunctions/pve/index.js†L3886-L4015】
 - 每个境界的 9 种小怪分别突出生命、物攻、法攻、双防、速度、命中、闪避与控制命中等核心属性，首领同时强化三项关键属性并附带专属特技。数值模型通过 `SECRET_REALM_TUNING` 控制成长曲线，保证高级装备勉强通关、顶级装备轻松通过，后续仅需调整基准或倍率即可批量更新难度。【F:cloudfunctions/pve/index.js†L41-L318】【F:cloudfunctions/pve/index.js†L2106-L2145】
-- 战斗流程仍采用回合制模拟，综合命中、暴击、破甲、最终增减伤等参数产出完整战报；战斗日志与胜败结果写入战斗历史供复盘。【F:cloudfunctions/pve/index.js†L2117-L2198】【F:cloudfunctions/pve/index.js†L4947-L5008】
+- 战斗流程仍采用回合制模拟，综合命中、暴击、破甲、最终增减伤等参数产出完整战报；战斗日志与胜败结果写入 `memberPveHistory.battleHistory` 供复盘。【F:cloudfunctions/pve/index.js†L2117-L2198】【F:cloudfunctions/pve/index.js†L4947-L5008】【F:cloudfunctions/pve/index.js†L6126-L6206】
 - 奖励结构保留灵石、属性点、掉落位，当前默认为 0 以待数值策划后续配置，胜利仍会触发灵石流水与战斗记录逻辑。【F:cloudfunctions/pve/index.js†L2165-L2198】【F:cloudfunctions/pve/index.js†L4496-L4546】
 
 ## 前端交互
@@ -108,7 +108,7 @@
 | `adminInspectProfile` | **管理员专用**：查看任意会员的 PVE 档案，便于客服或运营排查。 |
 | `allocatePoints` | 分配属性点，按服务端定义的步进值更新属性。 |
 
-所有动作均会同步写回 `members` 表的 `pveProfile` 字段，并在需要时记录灵石流水（`stoneTransactions`）。【F:cloudfunctions/pve/index.js†L691-L707】【F:cloudfunctions/pve/index.js†L713-L961】
+所有动作会把核心属性与装备信息写回 `members` 表的 `pveProfile` 字段，战斗与技能历史则同步至 `memberPveHistory` 集合，并在需要时记录灵石流水（`stoneTransactions`）。【F:cloudfunctions/pve/index.js†L691-L707】【F:cloudfunctions/pve/index.js†L713-L961】【F:cloudfunctions/pve/index.js†L2560-L2654】【F:cloudfunctions/pve/index.js†L3805-L3899】
 
 > **数值同步提示**：云函数会在每次更新属性、装备或技能时重新计算 `pveProfile.attributeSummary`，将装备词条、套装效果与技能增益折算为最终战斗属性，供 PVE 战斗与 PVP 竞技场共用。【F:cloudfunctions/pve/index.js†L2836-L2873】【F:cloudfunctions/pve/index.js†L2994-L3072】【F:cloudfunctions/pve/index.js†L3218-L3333】【F:cloudfunctions/pve/index.js†L3377-L3452】【F:cloudfunctions/pve/index.js†L5748-L5796】
 

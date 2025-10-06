@@ -2565,12 +2565,16 @@ async function simulateBattle(actorId, enemyId) {
 
   const now = new Date();
   const updatedProfile = applyBattleOutcome(profile, result, enemy, now, member, levels);
-  const updates = { pveProfile: _.set(updatedProfile), updatedAt: now };
+  const extraUpdates = {};
   if (result.rewards && result.rewards.stones > 0) {
-    updates.stoneBalance = _.inc(result.rewards.stones);
+    extraUpdates.stoneBalance = _.inc(result.rewards.stones);
   }
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({ data: updates });
+  await savePveProfile(actorId, updatedProfile, {
+    now,
+    extraUpdates,
+    historyDoc: profile.__historyDoc
+  });
 
   if (result.rewards && result.rewards.stones > 0) {
     await recordStoneTransaction(actorId, result, enemy, now).catch(() => {});
@@ -2594,12 +2598,7 @@ async function drawSkill(actorId) {
   const draws = performSkillDraw(profile, 1, now);
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
 
   const decorated = decorateProfile(member, profile);
   const acquired = draws[0] || null;
@@ -2733,12 +2732,7 @@ async function equipSkill(actorId, event) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
 
   const decorated = decorateProfile(member, profile);
   return { profile: decorated };
@@ -2808,12 +2802,7 @@ async function equipItem(actorId, event) {
 
     refreshAttributeSummary(profile);
 
-    await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-      data: {
-        pveProfile: _.set(profile),
-        updatedAt: now
-      }
-    });
+    await savePveProfile(actorId, profile, { now });
 
     const decorated = decorateProfile(member, profile);
     return { profile: decorated };
@@ -2875,12 +2864,7 @@ async function equipItem(actorId, event) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
 
   const decorated = decorateProfile(member, profile);
   return { profile: decorated };
@@ -3001,12 +2985,7 @@ async function discardItem(actorId, event = {}) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
 
   const decorated = decorateProfile(member, profile);
   return { profile: decorated };
@@ -3283,18 +3262,7 @@ async function useStorageItem(actorId, event = {}) {
 
   refreshAttributeSummary(profile);
 
-  const updatePayload = {
-    pveProfile: _.set(profile),
-    updatedAt: now,
-    ...memberUpdates
-  };
-
-  await db
-    .collection(COLLECTIONS.MEMBERS)
-    .doc(actorId)
-    .update({
-      data: updatePayload
-    });
+  await savePveProfile(actorId, profile, { now, extraUpdates: memberUpdates });
 
   if (extrasChanged) {
     await updateMemberExtrasRecord(actorId, extrasUpdates);
@@ -3365,12 +3333,7 @@ async function upgradeStorage(actorId, event = {}) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
   const decorated = decorateProfile(member, profile);
   const capacity = baseCapacity + perUpgrade * nextLevel;
   const upgradesRemaining =
@@ -3431,12 +3394,7 @@ async function allocatePoints(actorId, allocations) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
 
   const decorated = decorateProfile(member, profile);
   return { profile: decorated };
@@ -3490,12 +3448,7 @@ async function resetAttributes(actorId) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
 
   const decorated = decorateProfile(member, profile);
   return { profile: decorated };
@@ -3534,6 +3487,7 @@ async function inspectProfileForAdmin(actorId, memberId) {
   }
   const now = new Date();
   const normalizedProfile = normalizeProfileWithoutEquipmentDefaults(rawProfile, now);
+  await attachHistoryToProfile(targetId, normalizedProfile);
   const decorated = decorateProfile({ ...targetMember, pveProfile: normalizedProfile }, normalizedProfile);
   return { profile: decorated };
 }
@@ -3556,6 +3510,7 @@ async function grantEquipment(actorId, event = {}) {
   const targetMember = await ensureMember(memberId);
   const now = new Date();
   const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
+  await attachHistoryToProfile(memberId, profile);
   const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
   const entry = createEquipmentInventoryEntry(itemId, now);
   if (!entry) {
@@ -3575,12 +3530,7 @@ async function grantEquipment(actorId, event = {}) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(memberId, profile, { now });
 
   const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
   const granted = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
@@ -3603,6 +3553,7 @@ async function removeEquipment(actorId, event = {}) {
   const targetMember = await ensureMember(memberId);
   const now = new Date();
   const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
+  await attachHistoryToProfile(memberId, profile);
   const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
   let index = -1;
   if (inventoryId) {
@@ -3649,12 +3600,7 @@ async function removeEquipment(actorId, event = {}) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(memberId, profile, { now });
 
   const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
   return { profile: decorated };
@@ -3686,6 +3632,7 @@ async function updateEquipmentAttributes(actorId, event = {}) {
   const targetMember = await ensureMember(memberId);
   const now = new Date();
   const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
+  await attachHistoryToProfile(memberId, profile);
   const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
   let index = -1;
   if (inventoryId) {
@@ -3748,12 +3695,7 @@ async function updateEquipmentAttributes(actorId, event = {}) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(memberId, profile, { now });
 
   const decoratedProfile = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
   const updated = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
@@ -3808,6 +3750,91 @@ function ensureAdminAccess(member) {
   }
 }
 
+function cloneProfileWithoutHistory(profile) {
+  if (!profile || typeof profile !== 'object') {
+    return profile;
+  }
+  const { battleHistory, skillHistory, __historyDoc, ...rest } = profile;
+  return { ...rest };
+}
+
+async function loadPveHistory(memberId) {
+  const historyCollection = db.collection(COLLECTIONS.MEMBER_PVE_HISTORY);
+  const snapshot = await historyCollection
+    .doc(memberId)
+    .get()
+    .catch(() => null);
+
+  const data = snapshot && snapshot.data ? snapshot.data : null;
+  const battleHistory = normalizeHistory(data ? data.battleHistory : [], MAX_BATTLE_HISTORY);
+  const skillHistory = normalizeHistory(data ? data.skillHistory : [], MAX_SKILL_HISTORY);
+
+  return {
+    exists: !!data,
+    createdAt: data && data.createdAt ? new Date(data.createdAt) : null,
+    battleHistory,
+    skillHistory
+  };
+}
+
+async function savePveHistory(memberId, battleHistory, skillHistory, now = new Date(), historyDoc = null) {
+  const historyCollection = db.collection(COLLECTIONS.MEMBER_PVE_HISTORY);
+  const normalizedBattle = normalizeHistory(battleHistory, MAX_BATTLE_HISTORY);
+  const normalizedSkill = normalizeHistory(skillHistory, MAX_SKILL_HISTORY);
+  const createdAt = historyDoc && historyDoc.createdAt ? historyDoc.createdAt : now;
+
+  await historyCollection.doc(memberId).set({
+    data: {
+      _id: memberId,
+      createdAt,
+      updatedAt: now,
+      battleHistory: normalizedBattle,
+      skillHistory: normalizedSkill
+    }
+  });
+
+  return { createdAt, battleHistory: normalizedBattle, skillHistory: normalizedSkill, exists: true };
+}
+
+async function savePveProfile(actorId, profile, options = {}) {
+  const nowCandidate = options.now instanceof Date && !Number.isNaN(options.now.getTime()) ? options.now : new Date();
+  const extraUpdates = options.extraUpdates && typeof options.extraUpdates === 'object' ? options.extraUpdates : {};
+  const membersCollection = db.collection(COLLECTIONS.MEMBERS);
+  const updatePayload = { ...extraUpdates, updatedAt: nowCandidate };
+
+  if (!options.skipProfile) {
+    updatePayload.pveProfile = _.set(cloneProfileWithoutHistory(profile));
+  }
+
+  await membersCollection.doc(actorId).update({
+    data: updatePayload
+  });
+
+  if (options.saveHistory !== false) {
+    const existingHistory = options.historyDoc || profile.__historyDoc || null;
+    const battleHistory = profile && Array.isArray(profile.battleHistory) ? profile.battleHistory : [];
+    const skillHistory = profile && Array.isArray(profile.skillHistory) ? profile.skillHistory : [];
+    const savedHistory = await savePveHistory(actorId, battleHistory, skillHistory, nowCandidate, existingHistory);
+    if (profile && typeof profile === 'object') {
+      profile.__historyDoc = savedHistory;
+      profile.battleHistory = savedHistory.battleHistory;
+      profile.skillHistory = savedHistory.skillHistory;
+    }
+  }
+
+  return nowCandidate;
+}
+
+async function attachHistoryToProfile(memberId, profile) {
+  const historyDoc = await loadPveHistory(memberId);
+  if (profile && typeof profile === 'object') {
+    profile.battleHistory = Array.isArray(historyDoc.battleHistory) ? historyDoc.battleHistory : [];
+    profile.skillHistory = Array.isArray(historyDoc.skillHistory) ? historyDoc.skillHistory : [];
+    profile.__historyDoc = historyDoc;
+  }
+  return historyDoc;
+}
+
 async function ensurePveProfile(actorId, member, levelCache) {
   const now = new Date();
   let profile = member.pveProfile;
@@ -3836,13 +3863,34 @@ async function ensurePveProfile(actorId, member, levelCache) {
     changed = true;
   }
 
-  if (changed) {
-    await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-      data: {
-        pveProfile: _.set(profile),
-        updatedAt: now
-      }
+  const historyDoc = await loadPveHistory(actorId);
+  let historyChanged = false;
+  let battleHistory = historyDoc.battleHistory;
+  let skillHistory = historyDoc.skillHistory;
+
+  if ((!battleHistory || battleHistory.length === 0) && Array.isArray(profile.battleHistory) && profile.battleHistory.length) {
+    battleHistory = normalizeHistory(profile.battleHistory, MAX_BATTLE_HISTORY);
+    historyChanged = true;
+  }
+
+  if ((!skillHistory || skillHistory.length === 0) && Array.isArray(profile.skillHistory) && profile.skillHistory.length) {
+    skillHistory = normalizeHistory(profile.skillHistory, MAX_SKILL_HISTORY);
+    historyChanged = true;
+  }
+
+  profile.battleHistory = Array.isArray(battleHistory) ? battleHistory : [];
+  profile.skillHistory = Array.isArray(skillHistory) ? skillHistory : [];
+  profile.__historyDoc = { ...historyDoc, battleHistory: profile.battleHistory, skillHistory: profile.skillHistory };
+
+  const shouldPersistProfile = changed || historyChanged;
+  if (shouldPersistProfile) {
+    await savePveProfile(actorId, profile, {
+      now,
+      saveHistory: true,
+      historyDoc: profile.__historyDoc
     });
+  } else if (!historyDoc.exists) {
+    await savePveHistory(actorId, profile.battleHistory, profile.skillHistory, now, historyDoc).catch(() => {});
   }
 
   return profile;
@@ -6195,6 +6243,10 @@ function applyBattleOutcome(profile, result, enemy, now, member, levels = []) {
   );
 
   refreshAttributeSummary(updated);
+
+  if (profile && profile.__historyDoc) {
+    updated.__historyDoc = profile.__historyDoc;
+  }
 
   return updated;
 }

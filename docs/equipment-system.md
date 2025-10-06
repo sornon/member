@@ -452,4 +452,4 @@ PVP 最终伤害为 `DamagePVP = HitRate × Final`。由于守方可同时堆叠
 
 - **云函数同步**：凡品装备库、管理员发放接口均落地在 `cloudfunctions/pve` 与 `cloudfunctions/admin` 中，更新后需在微信云开发控制台重新上传这两个函数目录并安装依赖。
 - **后台操作**：运营后台的“会员资料”详情页已经新增“PVE 装备”面板，可通过下拉选择器调用 `listEquipmentCatalog` 查看可发放装备并执行 `grantEquipment` 发放动作。更新前端代码后即可使用。【F:miniprogram/pages/admin/member-detail/index.wxml†L121-L171】【F:miniprogram/pages/admin/member-detail/index.js†L1-L270】
-- **发放记录**：发放装备会写入会员的 `battleHistory`，便于后续审计或排查；同一装备重复发放会刷新 `obtainedAt` 时间但不会产生重复条目，保持背包的唯一性。【F:cloudfunctions/pve/index.js†L1795-L1856】【F:cloudfunctions/pve/index.js†L1869-L1911】
+- **发放记录**：发放装备会写入会员的 `memberPveHistory.battleHistory`，便于后续审计或排查；同一装备重复发放会刷新 `obtainedAt` 时间但不会产生重复条目，保持背包的唯一性。【F:cloudfunctions/pve/index.js†L1795-L1856】【F:cloudfunctions/pve/index.js†L1869-L1911】
