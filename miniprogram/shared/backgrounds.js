@@ -8,9 +8,9 @@ const RAW_BACKGROUNDS = [
     realmName: '炼气期',
     name: '灵根测试',
     unlockType: 'manual',
-    mediaKey: 'bg-free-1',
-    image: 'cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/background/bg-free-1.jpg',
-    video: 'cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/background/bg-free-1.mp4'
+    mediaKey: 'bg-free-1'
+    //image: 'cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/background/bg-free-1.jpg',
+    //video: 'cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/background/bg-free-1.mp4'
   },
   { id: 'realm_foundation', realmOrder: 2, realmName: '筑基期', name: '筑基之地', unlockType: 'realm' },
   { id: 'realm_core', realmOrder: 3, realmName: '金丹期', name: '金丹之地', unlockType: 'realm' },
