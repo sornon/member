@@ -332,7 +332,8 @@ page {
   color: #fff;
   border-radius: 12rpx;
   padding: 0 24rpx;
-  font-size: 24rpx;
+  font-size: 28rpx!important;
+  line-height: 3!important;
 }
 
 .force-dialog__search-btn::after {
