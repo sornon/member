@@ -65,6 +65,18 @@ function normalizeVariant(variant) {
   };
 }
 
+function extractMinQuantityFromTitle(title) {
+  if (typeof title !== 'string') {
+    return 0;
+  }
+  const match = title.match(/[（(]\s*(\d+)\s*串起\s*[）)]/);
+  if (!match) {
+    return 0;
+  }
+  const value = Number(match[1]);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
 function normalizeItem(item, overrides = {}) {
   if (!item || !item.id) {
     return null;
@@ -81,14 +93,16 @@ function normalizeItem(item, overrides = {}) {
     return null;
   }
   const section = normalizeSection(overrides.section || item.section);
+  const title = typeof item.title === 'string' ? item.title : '';
   return {
     id: item.id,
     cat: category,
     section,
-    title: typeof item.title === 'string' ? item.title : '',
+    title,
     desc: typeof item.desc === 'string' ? item.desc : '',
     img: typeof item.img === 'string' ? item.img : '',
-    variants
+    variants,
+    minQuantity: extractMinQuantityFromTitle(title)
   };
 }
 
@@ -431,12 +445,14 @@ function showConfirmDialog(options) {
 
 function decorateCart(cart) {
   return cart.map((line) => {
-    const quantity = Math.max(1, Number(line.quantity || 1));
+    const minQuantity = Math.max(1, Number(line.minQuantity || 1));
+    const quantity = Math.max(minQuantity, Number(line.quantity || minQuantity));
     const price = Number(line.price || 0);
     const amount = price * quantity;
     const section = normalizeSection(line.section);
     return {
       ...line,
+      minQuantity,
       section,
       sectionTitle: SECTION_META[section].title,
       price,
@@ -587,9 +603,11 @@ Page({
     const key = `${item.id}|${variant.label}`;
     const cart = this.data.cart.map((line) => ({ ...line }));
     const existingIndex = cart.findIndex((line) => line.key === key);
+    const minQuantity = Math.max(1, Number(item.minQuantity || 0) || 1);
     if (existingIndex >= 0) {
       cart[existingIndex] = {
         ...cart[existingIndex],
+        minQuantity,
         quantity: cart[existingIndex].quantity + 1
       };
     } else {
@@ -600,8 +618,9 @@ Page({
         spec: variant.label,
         unit: variant.unit || '',
         price: variant.price,
-        quantity: 1,
-        section: item.section
+        quantity: minQuantity,
+        section: item.section,
+        minQuantity
       });
     }
     this.updateCartState(cart);
@@ -618,11 +637,25 @@ Page({
     if (index < 0) {
       return;
     }
+    const item = ITEM_MAP[cart[index].itemId];
+    const minQuantity = Math.max(
+      1,
+      Number(cart[index].minQuantity || 0) || 0,
+      item ? Number(item.minQuantity || 0) || 0 : 0
+    );
     const nextQuantity = cart[index].quantity + numericDelta;
-    if (nextQuantity <= 0) {
+    if (numericDelta < 0 && minQuantity > 1) {
+      if (nextQuantity < minQuantity) {
+        cart.splice(index, 1);
+      } else {
+        cart[index].quantity = nextQuantity;
+        cart[index].minQuantity = minQuantity;
+      }
+    } else if (nextQuantity <= 0) {
       cart.splice(index, 1);
     } else {
       cart[index].quantity = nextQuantity;
+      cart[index].minQuantity = minQuantity;
     }
     this.updateCartState(cart);
   },
