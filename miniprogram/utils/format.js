@@ -69,6 +69,20 @@ export const formatStones = (value = 0) => {
   return normalized.toString();
 };
 
+export const formatCombatPower = (value = 0) => {
+  const numeric = coerceToNumber(value);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+
+  const normalized = Math.max(0, Math.floor(numeric));
+  if (normalized >= 10000) {
+    return normalized.toLocaleString('zh-CN');
+  }
+
+  return normalized.toString();
+};
+
 export const formatStoneChange = (value = 0) => {
   const numeric = coerceToNumber(value);
   if (!Number.isFinite(numeric) || numeric === 0) {

@@ -1,6 +1,6 @@
 import { MemberService, TaskService } from '../../services/api';
 import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../services/member-realtime';
-import { formatCurrency, formatExperience, formatStones } from '../../utils/format';
+import { formatCombatPower, formatCurrency, formatExperience, formatStones } from '../../utils/format';
 import {
   buildAvatarUrlById,
   getAvailableAvatars,
@@ -601,18 +601,83 @@ const DEFAULT_AVATAR =
 const EMPTY_MEMBER_STATS = {
   stoneBalance: formatStones(0),
   cashBalance: formatCurrency(0),
-  experience: formatExperience(0)
+  experience: formatExperience(0),
+  combatPower: formatCombatPower(0)
 };
+
+function resolveMemberCombatPower(member) {
+  if (!member || typeof member !== 'object') {
+    return 0;
+  }
+
+  const candidates = [
+    member.combatPower,
+    member.power,
+    member.powerScore,
+    member.powerValue,
+    member.fightPower,
+    member.fighting,
+    member.score,
+    member.rating
+  ];
+
+  const attributeSummary = member.attributeSummary && typeof member.attributeSummary === 'object'
+    ? member.attributeSummary
+    : null;
+  if (attributeSummary) {
+    candidates.push(attributeSummary.combatPower);
+  }
+
+  const profile = member.pveProfile && typeof member.pveProfile === 'object' ? member.pveProfile : null;
+  if (profile) {
+    const profileSummary = profile.attributeSummary && typeof profile.attributeSummary === 'object'
+      ? profile.attributeSummary
+      : null;
+    if (profileSummary) {
+      candidates.push(
+        profileSummary.combatPower,
+        profileSummary.power,
+        profileSummary.powerScore,
+        profileSummary.score,
+        profileSummary.rating
+      );
+    }
+
+    const profileAttributes = profile.attributes && typeof profile.attributes === 'object'
+      ? profile.attributes
+      : null;
+    if (profileAttributes) {
+      candidates.push(
+        profileAttributes.combatPower,
+        profileAttributes.power,
+        profileAttributes.powerScore,
+        profileAttributes.score,
+        profileAttributes.rating
+      );
+    }
+  }
+
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = Number(candidates[i]);
+    if (Number.isFinite(candidate)) {
+      return candidate;
+    }
+  }
+
+  return 0;
+}
 
 function deriveMemberStats(member) {
   if (!member) {
     return { ...EMPTY_MEMBER_STATS };
   }
 
+  const combatPower = resolveMemberCombatPower(member);
   return {
     stoneBalance: formatStones(member.stoneBalance ?? 0),
     cashBalance: formatCurrency(member.cashBalance ?? member.balance ?? 0),
-    experience: formatExperience(member.experience ?? 0)
+    experience: formatExperience(member.experience ?? 0),
+    combatPower: formatCombatPower(combatPower)
   };
 }
 
