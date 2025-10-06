@@ -184,7 +184,7 @@ page {
 }
 
 .profile-meta__title-image {
-  height: 40rpx;
+  height: 60rpx;
   max-width: 260rpx;
   width: auto;
   display: block;
@@ -194,7 +194,13 @@ page {
   display: block;
   white-space: nowrap;
 }
-
+.profile-other {
+    position: absolute;
+    top: 200rpx;
+    left: 185rpx;
+    font-size: 24rpx;
+    line-height: 2;
+}
 .activity-panel {
   display: flex;
   flex-wrap: nowrap;
@@ -507,7 +513,7 @@ page {
 }
 
 .modal-content--avatar {
-  width: 620rpx;
+  width: 700rpx;
   max-height: 70vh;
   display: flex;
   flex-direction: column;
@@ -897,7 +903,6 @@ page {
 
 .appearance-background-option--active {
   border-color: rgba(156, 178, 255, 0.85);
-  box-shadow: 0 0 0 12rpx rgba(156, 178, 255, 0.18);
   transform: translateY(-4rpx);
 }
 

@@ -54,9 +54,12 @@
             <view wx:if="{{activeTitleImage}}" class="profile-meta__title">
               <image class="profile-meta__title-image" src="{{activeTitleImage}}" mode="heightFix"></image>
             </view>
-            <text class="profile-meta__text" bindtap="handleLevelTap">境界 {{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</text>
-            <text class="profile-meta__text" bindtap="handleStoneTap">灵石 {{memberStats.stoneBalance}}</text>
           </view>
+        </view>
+        <view class="profile-other">
+            <text class="profile-meta__text" bindtap="handleLevelTap">境界 {{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</text>
+            <text class="profile-meta__text" bindtap="handleStoneTap">战力 </text>
+            <text class="profile-meta__text" bindtap="handleStoneTap">灵石 {{memberStats.stoneBalance}}</text>
         </view>
       </view>
 
