@@ -2,7 +2,16 @@ const { BACKGROUND_IMAGE_BASE_PATH, BACKGROUND_VIDEO_BASE_PATH } = require('./as
 
 const RAW_BACKGROUNDS = [
   { id: 'realm_refining', realmOrder: 1, realmName: '炼气期', name: '炼气之地', unlockType: 'realm' },
-  { id: 'trial_spirit_test', realmOrder: 1, realmName: '炼气期', name: '灵根测试', unlockType: 'manual', mediaKey: '1' },
+  {
+    id: 'trial_spirit_test',
+    realmOrder: 1,
+    realmName: '炼气期',
+    name: '灵根测试',
+    unlockType: 'manual',
+    mediaKey: 'bg-free-1'
+    //image: 'cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/background/bg-free-1.jpg',
+    //video: 'cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/background/bg-free-1.mp4'
+  },
   { id: 'realm_foundation', realmOrder: 2, realmName: '筑基期', name: '筑基之地', unlockType: 'realm' },
   { id: 'realm_core', realmOrder: 3, realmName: '金丹期', name: '金丹之地', unlockType: 'realm' },
   { id: 'realm_nascent', realmOrder: 4, realmName: '元婴期', name: '元婴之地', unlockType: 'realm' },
@@ -25,11 +34,13 @@ function resolveMediaKey(realmOrder) {
 
 const BACKGROUNDS = RAW_BACKGROUNDS.map((item) => {
   const mediaKey = item.mediaKey || resolveMediaKey(item.realmOrder);
+  const image = item.image || `${BACKGROUND_IMAGE_BASE_PATH}/${mediaKey}.jpg`;
+  const video = item.video || `${BACKGROUND_VIDEO_BASE_PATH}/${mediaKey}.mp4`;
   return {
     ...item,
     mediaKey,
-    image: `${BACKGROUND_IMAGE_BASE_PATH}/${mediaKey}.jpg`,
-    video: `${BACKGROUND_VIDEO_BASE_PATH}/${mediaKey}.mp4`
+    image,
+    video
   };
 });
 
