@@ -111,9 +111,61 @@ function resolveEquipmentQualityRank(quality) {
   return EQUIPMENT_QUALITY_RANK_MAP[key] || 1;
 }
 
+function resolveStorageMediaKey(item) {
+  if (!item || typeof item !== 'object') {
+    return '';
+  }
+  const usageType =
+    item.usage && typeof item.usage === 'object' && typeof item.usage.type === 'string'
+      ? item.usage.type.trim()
+      : '';
+  if (!usageType && typeof item.slotLabel === 'string') {
+    const slotLabel = item.slotLabel.trim();
+    if (slotLabel === '背景') {
+      return 'item-1';
+    }
+    if (slotLabel === '称号') {
+      return 'item-2';
+    }
+  }
+  if (usageType === 'unlockBackground' || usageType === 'backgroundUnlock') {
+    return 'item-1';
+  }
+  if (usageType === 'unlockTitle' || usageType === 'titleUnlock') {
+    return 'item-2';
+  }
+  if (usageType === 'skillDraw' || usageType === 'skillUnlock' || usageType === 'unlockSkill') {
+    return 'item-3';
+  }
+  if (usageType === 'grantRight' || usageType === 'grantCoupon' || usageType === 'coupon') {
+    return 'item-4';
+  }
+  const type = typeof item.type === 'string' ? item.type.trim() : '';
+  if (type === 'background') {
+    return 'item-1';
+  }
+  if (type === 'title') {
+    return 'item-2';
+  }
+  if (type === 'skill') {
+    return 'item-3';
+  }
+  if (type === 'right' || type === 'voucher' || type === 'coupon') {
+    return 'item-4';
+  }
+  return '';
+}
+
 export function buildEquipmentIconPaths(item) {
   if (!item || typeof item !== 'object') {
     return { iconUrl: '', iconFallbackUrl: '' };
+  }
+  const directMediaKey = typeof item.mediaKey === 'string' ? item.mediaKey.trim() : '';
+  const inferredMediaKey = directMediaKey || resolveStorageMediaKey(item);
+  if (inferredMediaKey) {
+    const fileName = /\.[a-z0-9]+$/i.test(inferredMediaKey) ? inferredMediaKey : `${inferredMediaKey}.png`;
+    const mediaUrl = buildCloudAssetUrl('item', fileName);
+    return { iconUrl: mediaUrl, iconFallbackUrl: mediaUrl };
   }
   const iconId = toPositiveInt(item.iconId);
   const qualityRank = toPositiveInt(item.qualityRank) || resolveEquipmentQualityRank(item.quality);
