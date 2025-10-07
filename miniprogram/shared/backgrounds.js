@@ -103,7 +103,9 @@ function resolveHighestUnlockedBackgroundByRealmOrder(realmOrder) {
   if (!Number.isFinite(numericRealmOrder)) {
     return cloneBackground(BACKGROUNDS[0]);
   }
-  const unlocked = BACKGROUNDS.filter((background) => numericRealmOrder >= background.realmOrder);
+  const unlocked = BACKGROUNDS.filter(
+    (background) => background.unlockType !== 'manual' && numericRealmOrder >= background.realmOrder
+  );
   const target = unlocked.length ? unlocked[unlocked.length - 1] : BACKGROUNDS[0];
   return cloneBackground(target);
 }
