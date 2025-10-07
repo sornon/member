@@ -7,6 +7,32 @@
       <view class="summary-meta">对手：{{record.enemyName}}</view>
       <view class="summary-meta">{{record.createdAtText}}</view>
       <view wx:if="{{record.combatPowerText}}" class="summary-meta">挑战战力 {{record.combatPowerText}}</view>
+      <view wx:if="{{record.adminEnemyDetails}}" class="admin-section">
+        <view class="admin-section-title">怪物详细属性（仅管理员可见）</view>
+        <view
+          wx:if="{{record.adminEnemyDetails.meta && record.adminEnemyDetails.meta.length}}"
+          class="admin-meta-list"
+        >
+          <text
+            wx:for="{{record.adminEnemyDetails.meta}}"
+            wx:key="label"
+            class="admin-meta-item"
+          >{{item.label}}：{{item.value}}</text>
+        </view>
+        <view
+          wx:if="{{record.adminEnemyDetails.entries && record.adminEnemyDetails.entries.length}}"
+          class="admin-stat-grid"
+        >
+          <view
+            wx:for="{{record.adminEnemyDetails.entries}}"
+            wx:key="key"
+            class="admin-stat-item {{item.type === 'special' ? 'admin-stat-special' : ''}}"
+          >
+            <text class="admin-stat-label">{{item.label}}</text>
+            <text class="admin-stat-value">{{item.value}}</text>
+          </view>
+        </view>
+      </view>
       <view wx:if="{{record.rewardsText}}" class="summary-reward">{{record.rewardsText}}</view>
     </view>
     <view class="card log-card">

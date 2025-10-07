@@ -59,6 +59,64 @@ page {
   color: rgba(207, 217, 255, 0.78);
 }
 
+.admin-section {
+  margin-top: 8rpx;
+  padding: 20rpx 24rpx;
+  border-radius: 20rpx;
+  background: rgba(5, 12, 34, 0.78);
+  border: 1rpx solid rgba(119, 138, 230, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.admin-section-title {
+  font-size: 22rpx;
+  color: rgba(207, 217, 255, 0.72);
+  letter-spacing: 1rpx;
+}
+
+.admin-meta-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx 24rpx;
+}
+
+.admin-meta-item {
+  font-size: 22rpx;
+  color: rgba(198, 208, 255, 0.72);
+}
+
+.admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx 24rpx;
+}
+
+.admin-stat-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12rpx;
+  font-size: 22rpx;
+  color: rgba(214, 221, 255, 0.82);
+}
+
+.admin-stat-special {
+  color: rgba(255, 220, 150, 0.88);
+}
+
+.admin-stat-label {
+  color: rgba(177, 194, 255, 0.82);
+}
+
+.admin-stat-special .admin-stat-label {
+  color: rgba(255, 236, 188, 0.88);
+}
+
+.admin-stat-value {
+  flex-shrink: 0;
+}
+
 .summary-reward {
   margin-top: 8rpx;
   font-size: 24rpx;

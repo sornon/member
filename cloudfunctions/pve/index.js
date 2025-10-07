@@ -292,6 +292,16 @@ const SECRET_REALM_BOSS_ARCHETYPE = {
   special: { shield: 140, bonusDamage: 60, dodgeChance: 0.08 }
 };
 
+const SECRET_REALM_ARCHETYPE_LABELS = SECRET_REALM_ARCHETYPES.reduce(
+  (acc, archetype) => {
+    if (archetype && archetype.key) {
+      acc[archetype.key] = archetype.title || archetype.name || archetype.key;
+    }
+    return acc;
+  },
+  { [SECRET_REALM_BOSS_ARCHETYPE.key]: SECRET_REALM_BOSS_ARCHETYPE.title }
+);
+
 function buildSecretRealmLibrary() {
   if (!Array.isArray(realmConfigs) || !realmConfigs.length) {
     return [];
@@ -3541,7 +3551,11 @@ async function inspectProfileForAdmin(actorId, memberId) {
   const now = new Date();
   const normalizedProfile = normalizeProfileWithoutEquipmentDefaults(rawProfile, now);
   await attachHistoryToProfile(targetId, normalizedProfile);
-  const decorated = decorateProfile({ ...targetMember, pveProfile: normalizedProfile }, normalizedProfile);
+  const decorated = decorateProfile(
+    { ...targetMember, pveProfile: normalizedProfile },
+    normalizedProfile,
+    { viewer: admin }
+  );
   return { profile: decorated };
 }
 
@@ -3585,7 +3599,7 @@ async function grantEquipment(actorId, event = {}) {
 
   await savePveProfile(memberId, profile, { now });
 
-  const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+  const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile, { viewer: admin });
   const granted = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
   return { profile: decorated, granted };
 }
@@ -3655,7 +3669,7 @@ async function removeEquipment(actorId, event = {}) {
 
   await savePveProfile(memberId, profile, { now });
 
-  const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+  const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile, { viewer: admin });
   return { profile: decorated };
 }
 
@@ -3723,7 +3737,11 @@ async function updateEquipmentAttributes(actorId, event = {}) {
     }
   }
   if (!changed) {
-    const decoratedProfile = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+    const decoratedProfile = decorateProfile(
+      { ...targetMember, pveProfile: profile },
+      profile,
+      { viewer: admin }
+    );
     const updated = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
     return { profile: decoratedProfile, updated };
   }
@@ -3750,7 +3768,11 @@ async function updateEquipmentAttributes(actorId, event = {}) {
 
   await savePveProfile(memberId, profile, { now });
 
-  const decoratedProfile = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+  const decoratedProfile = decorateProfile(
+    { ...targetMember, pveProfile: profile },
+    profile,
+    { viewer: admin }
+  );
   const updated = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
   return { profile: decoratedProfile, updated };
 }
@@ -4893,14 +4915,16 @@ function decorateStorageInventoryItem(entry, fallbackCategory = '') {
   }
   return normalized;
 }
-function decorateProfile(member, profile) {
+function decorateProfile(member, profile, options = {}) {
+  const viewer = options.viewer || member;
+  const viewerIsAdmin = isAdminMember(viewer);
   const { attributes, equipment, skills } = profile;
   const attributeSummary = calculateAttributes(attributes, equipment, skills);
   const equipmentSummary = decorateEquipment(profile, attributeSummary.equipmentBonus);
   const skillsSummary = decorateSkills(profile);
   const secretRealm = decorateSecretRealm(profile.secretRealm, attributeSummary);
   const enemies = secretRealm.visibleFloors || [];
-  const battleHistory = decorateBattleHistory(profile.battleHistory, profile);
+  const battleHistory = decorateBattleHistory(profile.battleHistory, profile, { viewerIsAdmin });
   const skillHistory = decorateSkillHistory(profile.skillHistory);
 
   return {
@@ -4915,7 +4939,8 @@ function decorateProfile(member, profile) {
     skillQualityConfig: decorateSkillQualityConfig(),
     metadata: {
       maxSkillSlots: MAX_SKILL_SLOTS,
-      maxLevel: attributeSummary.maxLevel || MAX_LEVEL
+      maxLevel: attributeSummary.maxLevel || MAX_LEVEL,
+      viewerIsAdmin
     }
   };
 }
@@ -5856,14 +5881,57 @@ function decorateEnemyLoot(loot) {
   });
 }
 
-function decorateBattleHistory(history, profile) {
+const ADMIN_ENEMY_STAT_ORDER = [
+  'maxHp',
+  'physicalAttack',
+  'magicAttack',
+  'physicalDefense',
+  'magicDefense',
+  'speed',
+  'accuracy',
+  'dodge',
+  'critRate',
+  'critDamage',
+  'critResist',
+  'physicalPenetration',
+  'magicPenetration',
+  'finalDamageBonus',
+  'finalDamageReduction',
+  'lifeSteal',
+  'healingBonus',
+  'healingReduction',
+  'controlHit',
+  'controlResist',
+  'comboRate',
+  'block',
+  'counterRate',
+  'damageReduction',
+  'healingReceived',
+  'rageGain',
+  'controlStrength',
+  'shieldPower',
+  'summonPower',
+  'elementalVulnerability'
+];
+
+const ADMIN_ENEMY_SPECIAL_LABELS = {
+  bonusDamage: '额外伤害',
+  shield: '护盾值',
+  dodgeChance: '闪避率'
+};
+
+function decorateBattleHistory(history, profile, options = {}) {
   if (!Array.isArray(history)) {
     return [];
   }
+  const viewerIsAdmin = !!options.viewerIsAdmin;
   return history.map((entry, index) => {
     if (entry.type === 'battle') {
       const enemy = ENEMY_MAP[entry.enemyId] || { name: entry.enemyName || '未知对手' };
       const resultLabel = entry.result === 'win' ? '胜利' : entry.result === 'lose' ? '惜败' : '战斗';
+      const adminEnemyDetails = viewerIsAdmin
+        ? buildBattleEnemyDetails(entry, enemy)
+        : null;
       return {
         type: 'battle',
         id: entry.id || entry.createdAt || `${entry.enemyId || 'battle'}-${index}`,
@@ -5878,7 +5946,8 @@ function decorateBattleHistory(history, profile) {
         rewardsText: formatRewardText(entry.rewards),
         rounds: entry.rounds,
         combatPower: entry.combatPower,
-        log: Array.isArray(entry.log) ? entry.log : []
+        log: Array.isArray(entry.log) ? entry.log : [],
+        ...(adminEnemyDetails ? { adminEnemyDetails } : {})
       };
     }
     if (entry.type === 'allocate') {
@@ -5947,6 +6016,184 @@ function decorateBattleHistory(history, profile) {
       createdAtText: formatDateTime(entry.createdAt)
     };
   });
+}
+
+function captureEnemySnapshot(enemy = {}) {
+  if (!enemy || typeof enemy !== 'object') {
+    return null;
+  }
+  const snapshot = {};
+  if (enemy.id) {
+    snapshot.id = enemy.id;
+  }
+  if (enemy.type) {
+    snapshot.type = enemy.type;
+  }
+  if (enemy.stageName) {
+    snapshot.stageName = enemy.stageName;
+  }
+  if (enemy.realmName) {
+    snapshot.realmName = enemy.realmName;
+  }
+  if (enemy.realmShort) {
+    snapshot.realmShort = enemy.realmShort;
+  }
+  if (enemy.archetype) {
+    snapshot.archetype = enemy.archetype;
+  }
+  if (enemy.floor != null) {
+    const floor = normalizePositiveInteger(enemy.floor);
+    if (floor) {
+      snapshot.floor = floor;
+    }
+  }
+  if (enemy.level != null) {
+    const level = normalizePositiveInteger(enemy.level);
+    if (level) {
+      snapshot.level = level;
+    }
+  }
+  const stats = sanitizeNumericRecord(enemy.stats);
+  if (stats && Object.keys(stats).length) {
+    snapshot.stats = stats;
+  }
+  const special = sanitizeNumericRecord(enemy.special);
+  if (special && Object.keys(special).length) {
+    snapshot.special = special;
+  }
+  return Object.keys(snapshot).length ? snapshot : null;
+}
+
+function buildBattleEnemyDetails(entry, fallbackEnemy = {}) {
+  const snapshot = (entry && entry.enemySnapshot) || {};
+  const statsSource = snapshot.stats || entry.enemyStats || null;
+  const specialSource = snapshot.special || entry.enemySpecial || null;
+  const stats = sanitizeNumericRecord(statsSource);
+  const special = sanitizeNumericRecord(specialSource);
+  const meta = [];
+
+  const stageName = entry.enemyStageName || snapshot.stageName || fallbackEnemy.stageName || '';
+  const realmName = entry.enemyRealmName || snapshot.realmName || fallbackEnemy.realmName || '';
+  const type = entry.enemyType || snapshot.type || fallbackEnemy.type || '';
+  const floor = normalizePositiveInteger(
+    snapshot.floor != null ? snapshot.floor : entry.enemyFloor != null ? entry.enemyFloor : fallbackEnemy.floor
+  );
+  const level = normalizePositiveInteger(
+    snapshot.level != null ? snapshot.level : entry.enemyLevel != null ? entry.enemyLevel : fallbackEnemy.level
+  );
+  const archetypeKey = entry.enemyArchetype || snapshot.archetype || fallbackEnemy.archetype || '';
+  const archetype = archetypeKey ? SECRET_REALM_ARCHETYPE_LABELS[archetypeKey] || '' : '';
+
+  if (realmName) {
+    meta.push({ label: '秘境', value: realmName });
+  }
+  if (stageName) {
+    meta.push({ label: '关卡', value: stageName });
+  }
+  if (floor) {
+    meta.push({ label: '层数', value: `第${floor}层` });
+  }
+  if (level) {
+    meta.push({ label: '等级', value: `${level}` });
+  }
+  if (type) {
+    const typeLabel = type === 'boss' ? '首领' : '普通';
+    meta.push({ label: '类型', value: typeLabel });
+  }
+  if (archetype) {
+    meta.push({ label: '流派', value: archetype });
+  }
+
+  const entries = [];
+  const seen = new Set();
+  const pushStat = (key, value) => {
+    if (value == null || value === 0 || seen.has(key)) {
+      return;
+    }
+    const label = resolveCombatStatLabel(key);
+    entries.push({
+      key,
+      label,
+      value: formatStatDisplay(key, value),
+      type: 'stat'
+    });
+    seen.add(key);
+  };
+
+  ADMIN_ENEMY_STAT_ORDER.forEach((key) => {
+    if (stats && Object.prototype.hasOwnProperty.call(stats, key)) {
+      pushStat(key, stats[key]);
+    }
+  });
+
+  if (stats) {
+    Object.keys(stats)
+      .sort()
+      .forEach((key) => {
+        if (!seen.has(key)) {
+          pushStat(key, stats[key]);
+        }
+      });
+  }
+
+  if (special) {
+    Object.keys(special).forEach((key) => {
+      const raw = special[key];
+      if (raw == null || raw === 0) {
+        return;
+      }
+      if (key.endsWith('Multiplier')) {
+        const target = key.replace('Multiplier', '');
+        const label = resolveCombatStatLabel(target);
+        const value = `${Math.round(raw * 10000) / 100}%`;
+        entries.push({ key: `special-${key}`, label, value: `+${value}`, type: 'special' });
+        return;
+      }
+      const label = ADMIN_ENEMY_SPECIAL_LABELS[key] || resolveCombatStatLabel(key);
+      const value = formatEnemySpecialValue(key, raw);
+      if (value) {
+        entries.push({ key: `special-${key}`, label, value, type: 'special' });
+      }
+    });
+  }
+
+  if (!entries.length && !meta.length) {
+    return null;
+  }
+
+  return { meta, entries };
+}
+
+function formatEnemySpecialValue(key, value) {
+  if (value == null) {
+    return '';
+  }
+  if (key === 'dodgeChance') {
+    return `+${Math.round(value * 10000) / 100}%`;
+  }
+  return `+${Math.round(value)}`;
+}
+
+function sanitizeNumericRecord(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  return Object.keys(record).reduce((acc, key) => {
+    const value = Number(record[key]);
+    if (Number.isFinite(value)) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+}
+
+function normalizePositiveInteger(value) {
+  const number = Number(value);
+  if (Number.isFinite(number)) {
+    const normalized = Math.max(0, Math.floor(number));
+    return normalized > 0 ? normalized : null;
+  }
+  return null;
 }
 
 function decorateSkillHistory(history) {
@@ -6309,6 +6556,13 @@ function applyBattleOutcome(profile, result, enemy, now, member, levels = []) {
       createdAt: now,
       enemyId: enemy.id,
       enemyName: enemy.name,
+      enemyStageName: enemy.stageName,
+      enemyRealmName: enemy.realmName,
+      enemyType: enemy.type,
+      enemyLevel: enemy.level,
+      enemyFloor: enemy.floor,
+      enemyArchetype: enemy.archetype,
+      enemySnapshot: captureEnemySnapshot(enemy),
       result: result.victory ? 'win' : result.draw ? 'draw' : 'lose',
       rounds: result.rounds,
       rewards: result.rewards,
