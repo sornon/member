@@ -333,6 +333,7 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
   const scaling = resolveSecretRealmScaling({ realmIndex, subIndex, perRealm, type });
   const stats = generateSecretRealmStats(archetype, scaling, type);
   const special = generateSecretRealmSpecial(archetype, scaling, type);
+  const attributes = deriveEnemyAttributesFromStats(stats, floorNumber);
   const rewards = resolveSecretRealmRewards({ floorNumber, type, scaling });
   const normalizedRealmId = realm.id || realm.realmId || `realm_${realmIndex + 1}`;
   const id = `secret_${normalizedRealmId}_${String(floorCode).padStart(2, '0')}`;
@@ -354,6 +355,7 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
     level: floorNumber,
     name: `${stageName} · ${archetype.title}`,
     description,
+    attributes,
     stats,
     special,
     rewards,
@@ -477,6 +479,65 @@ function generateSecretRealmSpecial(archetype, scaling, type) {
   }
 
   return special;
+}
+
+function deriveEnemyAttributesFromStats(statsSource, fallbackLevel = 1) {
+  const stats = sanitizeNumericRecord(statsSource);
+  const normalizedLevel = Math.max(1, Math.floor(Number(fallbackLevel) || 1));
+  const fallbackBase = calculateBaseAttributesForLevel(normalizedLevel);
+  if (!stats || !Object.keys(stats).length) {
+    return fallbackBase;
+  }
+
+  const attributes = {};
+  const speed = Number(stats.speed);
+  if (Number.isFinite(speed)) {
+    attributes.agility = Math.max(0, Math.round(speed - 80));
+  }
+  const accuracy = Number(stats.accuracy);
+  if (Number.isFinite(accuracy)) {
+    attributes.insight = Math.max(0, Math.round(accuracy - 100));
+  }
+  const physicalAttack = Number(stats.physicalAttack);
+  if (Number.isFinite(physicalAttack)) {
+    attributes.strength = Math.max(0, Math.round((physicalAttack - 50) / 2));
+  }
+  const magicAttack = Number(stats.magicAttack);
+  if (Number.isFinite(magicAttack)) {
+    attributes.spirit = Math.max(0, Math.round((magicAttack - 50) / 2));
+  }
+
+  const strengthComponent = Number.isFinite(attributes.strength) ? attributes.strength * 0.2 : 0;
+  const spiritComponent = Number.isFinite(attributes.spirit) ? attributes.spirit * 0.2 : 0;
+  const rootCandidates = [];
+  const physicalDefense = Number(stats.physicalDefense);
+  if (Number.isFinite(physicalDefense)) {
+    rootCandidates.push(physicalDefense - 40 - strengthComponent);
+  }
+  const magicDefense = Number(stats.magicDefense);
+  if (Number.isFinite(magicDefense)) {
+    rootCandidates.push(magicDefense - 40 - spiritComponent);
+  }
+  if (rootCandidates.length) {
+    const rootRaw = rootCandidates.reduce((sum, value) => sum + value, 0) / rootCandidates.length;
+    attributes.root = Math.max(0, Math.round(rootRaw));
+  }
+
+  const rootContribution = Number.isFinite(attributes.root) ? attributes.root * 20 : 0;
+  const maxHp = Number(stats.maxHp);
+  if (Number.isFinite(maxHp)) {
+    const constitutionRaw = (maxHp - 500 - rootContribution) / 100;
+    attributes.constitution = Math.max(0, Math.round(constitutionRaw));
+  }
+
+  const resolved = { ...fallbackBase };
+  BASE_ATTRIBUTE_KEYS.forEach((key) => {
+    const value = Number(attributes[key]);
+    if (Number.isFinite(value)) {
+      resolved[key] = Math.max(0, Math.round(value));
+    }
+  });
+  return sanitizeNumericRecord(resolved);
 }
 
 function resolveSecretRealmRewards({ floorNumber, type, scaling }) {
@@ -5881,6 +5942,8 @@ function decorateEnemyLoot(loot) {
   });
 }
 
+const ADMIN_ENEMY_ATTRIBUTE_ORDER = [...BASE_ATTRIBUTE_KEYS];
+
 const ADMIN_ENEMY_STAT_ORDER = [
   'maxHp',
   'physicalAttack',
@@ -6053,6 +6116,10 @@ function captureEnemySnapshot(enemy = {}) {
       snapshot.level = level;
     }
   }
+  const attributes = sanitizeNumericRecord(enemy.attributes || enemy.baseAttributes);
+  if (attributes && Object.keys(attributes).length) {
+    snapshot.attributes = attributes;
+  }
   const stats = sanitizeNumericRecord(enemy.stats);
   if (stats && Object.keys(stats).length) {
     snapshot.stats = stats;
@@ -6070,6 +6137,7 @@ function buildBattleEnemyDetails(entry, fallbackEnemy = {}) {
   const specialSource = snapshot.special || entry.enemySpecial || null;
   const stats = sanitizeNumericRecord(statsSource);
   const special = sanitizeNumericRecord(specialSource);
+  const baseAttributes = resolveEnemyAttributesFromSources(snapshot, entry, fallbackEnemy);
   const meta = [];
 
   const stageName = entry.enemyStageName || snapshot.stageName || fallbackEnemy.stageName || '';
@@ -6105,9 +6173,33 @@ function buildBattleEnemyDetails(entry, fallbackEnemy = {}) {
   }
 
   const entries = [];
-  const seen = new Set();
+  const attributeSeen = new Set();
+  const statSeen = new Set();
+
+  const pushAttribute = (key, value) => {
+    if (value == null || attributeSeen.has(key)) {
+      return;
+    }
+    const label = resolveAttributeLabel(key);
+    entries.push({
+      key: `attribute-${key}`,
+      label,
+      value: formatEnemyAttributeValue(value),
+      type: 'attribute'
+    });
+    attributeSeen.add(key);
+  };
+
+  if (baseAttributes) {
+    ADMIN_ENEMY_ATTRIBUTE_ORDER.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(baseAttributes, key)) {
+        pushAttribute(key, baseAttributes[key]);
+      }
+    });
+  }
+
   const pushStat = (key, value) => {
-    if (value == null || value === 0 || seen.has(key)) {
+    if (value == null || value === 0 || statSeen.has(key)) {
       return;
     }
     const label = resolveCombatStatLabel(key);
@@ -6117,7 +6209,7 @@ function buildBattleEnemyDetails(entry, fallbackEnemy = {}) {
       value: formatStatDisplay(key, value),
       type: 'stat'
     });
-    seen.add(key);
+    statSeen.add(key);
   };
 
   ADMIN_ENEMY_STAT_ORDER.forEach((key) => {
@@ -6130,7 +6222,7 @@ function buildBattleEnemyDetails(entry, fallbackEnemy = {}) {
     Object.keys(stats)
       .sort()
       .forEach((key) => {
-        if (!seen.has(key)) {
+        if (!statSeen.has(key)) {
           pushStat(key, stats[key]);
         }
       });
@@ -6162,6 +6254,41 @@ function buildBattleEnemyDetails(entry, fallbackEnemy = {}) {
   }
 
   return { meta, entries };
+}
+
+function resolveEnemyAttributesFromSources(snapshot = {}, entry = {}, fallbackEnemy = {}) {
+  const candidate =
+    (snapshot && (snapshot.attributes || snapshot.baseAttributes)) ||
+    (entry && entry.enemyAttributes) ||
+    fallbackEnemy.attributes ||
+    fallbackEnemy.baseAttributes ||
+    null;
+  const attributes = sanitizeNumericRecord(candidate);
+  if (attributes && Object.keys(attributes).length) {
+    return attributes;
+  }
+
+  const statsSource =
+    (snapshot && snapshot.stats) ||
+    (entry && entry.enemyStats) ||
+    fallbackEnemy.stats ||
+    null;
+  let levelSource = 1;
+  if (snapshot && snapshot.level != null) {
+    levelSource = snapshot.level;
+  } else if (entry && entry.enemyLevel != null) {
+    levelSource = entry.enemyLevel;
+  } else if (fallbackEnemy && fallbackEnemy.level != null) {
+    levelSource = fallbackEnemy.level;
+  }
+  return deriveEnemyAttributesFromStats(statsSource, levelSource);
+}
+
+function formatEnemyAttributeValue(value) {
+  if (!Number.isFinite(Number(value))) {
+    return '';
+  }
+  return `${Math.max(0, Math.round(Number(value)))}`;
 }
 
 function formatEnemySpecialValue(key, value) {
@@ -6562,6 +6689,7 @@ function applyBattleOutcome(profile, result, enemy, now, member, levels = []) {
       enemyLevel: enemy.level,
       enemyFloor: enemy.floor,
       enemyArchetype: enemy.archetype,
+      enemyAttributes: enemy.attributes,
       enemySnapshot: captureEnemySnapshot(enemy),
       result: result.victory ? 'win' : result.draw ? 'draw' : 'lose',
       rounds: result.rounds,
