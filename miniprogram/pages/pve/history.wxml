@@ -6,7 +6,7 @@
       <view class="summary-result">{{record.resultLabel}}</view>
       <view class="summary-meta">对手：{{record.enemyName}}</view>
       <view class="summary-meta">{{record.createdAtText}}</view>
-      <view wx:if="{{record.combatPower}}" class="summary-meta">挑战战力 {{record.combatPower}}</view>
+      <view wx:if="{{record.combatPowerText}}" class="summary-meta">挑战战力 {{record.combatPowerText}}</view>
       <view wx:if="{{record.rewardsText}}" class="summary-reward">{{record.rewardsText}}</view>
     </view>
     <view class="card log-card">

@@ -12,6 +12,40 @@ function formatDateTime(date) {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
+function formatCombatPower(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  if (typeof value === 'number') {
+    return String(Math.round(value));
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'object') {
+    const segments = [];
+    const player = value.player;
+    const enemy = value.enemy;
+    if (Number.isFinite(Number(player))) {
+      segments.push(`我方 ${Math.round(Number(player))}`);
+    }
+    if (Number.isFinite(Number(enemy))) {
+      segments.push(`敌方 ${Math.round(Number(enemy))}`);
+    }
+    if (segments.length) {
+      return segments.join(' · ');
+    }
+    const numericValues = Object.values(value)
+      .map((v) => Number(v))
+      .filter((v) => Number.isFinite(v));
+    if (numericValues.length) {
+      return numericValues.map((v) => String(Math.round(v))).join(' / ');
+    }
+    return '';
+  }
+  return '';
+}
+
 Page({
   data: {
     loading: true,
@@ -63,7 +97,8 @@ Page({
       loading: false,
       record: {
         ...record,
-        createdAtText: record.createdAtText || formatDateTime(record.createdAt)
+        createdAtText: record.createdAtText || formatDateTime(record.createdAt),
+        combatPowerText: record.combatPowerText || formatCombatPower(record.combatPower)
       },
       log: normalizedLog
     });
