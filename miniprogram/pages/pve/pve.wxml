@@ -59,9 +59,16 @@
       <view class="section-header">
         <view class="section-title">战斗记录</view>
       </view>
-      <view class="history-item" wx:for="{{profile.battleHistory || []}}" wx:key="id">
+      <view
+        class="history-item"
+        wx:for="{{profile.battleHistory || []}}"
+        wx:key="id"
+        data-index="{{index}}"
+        hover-class="none"
+        bindtap="handleHistoryTap"
+      >
         <view class="history-title">{{item.createdAtText}}</view>
-        <view class="history-desc">{{item.summary}}</view>
+        <view class="history-desc">{{item.summary || item.resultLabel}}</view>
       </view>
       <view wx:if="{{!(profile.battleHistory && profile.battleHistory.length)}}" class="empty-tip">暂无战斗记录</view>
     </view>

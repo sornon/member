@@ -60,5 +60,26 @@ Page({
       wx.showToast({ title: error.errMsg || '挑战失败', icon: 'none' });
       this.setData({ battleLoading: false, selectedEnemyId: '' });
     }
+  },
+
+  handleHistoryTap(event) {
+    const { index } = event.currentTarget.dataset || {};
+    const historyIndex = Number(index);
+    if (!Number.isInteger(historyIndex) || historyIndex < 0) {
+      return;
+    }
+    const history = (this.data.profile && this.data.profile.battleHistory) || [];
+    const record = history[historyIndex];
+    if (!record || record.type !== 'battle') {
+      return;
+    }
+    wx.navigateTo({
+      url: '/pages/pve/history',
+      success: (res) => {
+        if (res && res.eventChannel && typeof res.eventChannel.emit === 'function') {
+          res.eventChannel.emit('historyRecord', { record });
+        }
+      }
+    });
   }
 });

@@ -1,0 +1,21 @@
+<custom-nav title="战斗详情" theme="dark"></custom-nav>
+<view class="page">
+  <view wx:if="{{loading}}" class="state-card">战斗详情加载中...</view>
+  <scroll-view wx:elif="{{record}}" scroll-y="true" class="scroll-container">
+    <view class="card summary-card">
+      <view class="summary-result">{{record.resultLabel}}</view>
+      <view class="summary-meta">对手：{{record.enemyName}}</view>
+      <view class="summary-meta">{{record.createdAtText}}</view>
+      <view wx:if="{{record.combatPower}}" class="summary-meta">挑战战力 {{record.combatPower}}</view>
+      <view wx:if="{{record.rewardsText}}" class="summary-reward">{{record.rewardsText}}</view>
+    </view>
+    <view class="card log-card">
+      <view class="log-title">战斗过程</view>
+      <block wx:if="{{log.length}}">
+        <view class="log-item" wx:for="{{log}}" wx:key="index">{{item}}</view>
+      </block>
+      <view wx:else class="log-empty">暂无战斗详情</view>
+    </view>
+  </scroll-view>
+  <view wx:else class="state-card">未找到战斗详情</view>
+</view>

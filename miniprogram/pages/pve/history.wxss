@@ -1,0 +1,97 @@
+page {
+  background: #050921;
+  min-height: 100%;
+}
+
+.page {
+  padding: 32rpx;
+  padding-bottom: calc(48rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(48rpx + env(safe-area-inset-bottom));
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  color: #e7ecff;
+}
+
+.state-card {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: rgba(203, 213, 255, 0.75);
+  font-size: 28rpx;
+}
+
+.scroll-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 28rpx;
+  padding-bottom: calc(32rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+
+.card {
+  background: rgba(14, 22, 54, 0.92);
+  border-radius: 28rpx;
+  padding: 32rpx;
+  box-shadow: 0 18rpx 36rpx rgba(4, 8, 28, 0.55);
+  border: 1rpx solid rgba(119, 138, 230, 0.28);
+  color: #f1f4ff;
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.summary-result {
+  font-size: 36rpx;
+  font-weight: 700;
+}
+
+.summary-meta {
+  font-size: 24rpx;
+  color: rgba(207, 217, 255, 0.78);
+}
+
+.summary-reward {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: rgba(255, 238, 193, 0.9);
+}
+
+.log-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.log-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #f7f8ff;
+}
+
+.log-item {
+  font-size: 24rpx;
+  line-height: 1.6;
+  color: rgba(198, 208, 255, 0.82);
+  padding: 8rpx 0;
+  border-bottom: 1rpx dashed rgba(119, 138, 230, 0.24);
+}
+
+.log-item:last-child {
+  border-bottom: none;
+}
+
+.log-empty {
+  font-size: 24rpx;
+  color: rgba(198, 208, 255, 0.68);
+  text-align: center;
+  padding: 40rpx 0;
+}
