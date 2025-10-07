@@ -3969,11 +3969,10 @@ function isAdminMember(member) {
     });
   }
 
-  const adminRoleSet = new Set(
-    Array.isArray(DEFAULT_ADMIN_ROLES)
-      ? DEFAULT_ADMIN_ROLES.map((role) => (typeof role === 'string' ? role.trim().toLowerCase() : '')).filter(Boolean)
-      : []
-  );
+  const defaultRoles = Array.isArray(DEFAULT_ADMIN_ROLES)
+    ? DEFAULT_ADMIN_ROLES.map((role) => (typeof role === 'string' ? role.trim().toLowerCase() : '')).filter(Boolean)
+    : [];
+  const adminRoleSet = new Set([...defaultRoles, 'superadmin']);
 
   return normalizedRoles.some((role) => adminRoleSet.has(role));
 }
