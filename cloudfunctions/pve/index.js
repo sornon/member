@@ -3785,7 +3785,6 @@ async function savePveHistory(memberId, battleHistory, skillHistory, now = new D
 
   await historyCollection.doc(memberId).set({
     data: {
-      _id: memberId,
       createdAt,
       updatedAt: now,
       battleHistory: normalizedBattle,
