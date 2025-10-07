@@ -14,7 +14,7 @@ const db = cloud.database();
 const _ = db.command;
 const $ = db.command.aggregate;
 
-const ADMIN_ROLES = DEFAULT_ADMIN_ROLES;
+const ADMIN_ROLES = [...new Set([...DEFAULT_ADMIN_ROLES, 'superadmin'])];
 const MIN_REPORT_MONTH = new Date(2025, 8, 1);
 const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
 const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
