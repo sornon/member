@@ -150,6 +150,20 @@ export const menuData = {
       "img": "images/cubaney-10.jpg"
     },
     {
+      "id": "santiago-11",
+      "cat": "rum",
+      "title": "圣地亚哥 11 年",
+      "desc": "加勒比热辣与陈年复杂度的平衡。",
+      "variants": [
+        {
+          "label": "瓶",
+          "unit": "/瓶",
+          "price": 138000
+        }
+      ],
+      "img": "images/santiago-11.jpg"
+    },
+    {
       "id": "cubaney-20",
       "cat": "rum",
       "title": "古巴邑 20 年",
@@ -167,7 +181,7 @@ export const menuData = {
       "id": "santiago-20",
       "cat": "rum",
       "title": "圣地亚哥 20 年（绝版）",
-      "desc": "加勒比热辣与陈年复杂度的平衡。",
+      "desc": "古巴茅台，2瓶媳妇娶走",
       "variants": [
         {
           "label": "瓶",
