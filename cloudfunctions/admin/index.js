@@ -1662,6 +1662,7 @@ async function cleanupMemberData(memberId) {
 
   await removeCollectionByMemberId(COLLECTIONS.MEMBER_TIMELINE, memberId, summary);
   await removeDocumentById(COLLECTIONS.MEMBER_EXTRAS, memberId, summary);
+  await removeDocumentById(COLLECTIONS.MEMBER_PVE_HISTORY, memberId, summary);
 
   const reservationsRemoved = await removeCollectionByMemberId(COLLECTIONS.RESERVATIONS, memberId, summary);
   await removeCollectionByMemberId(COLLECTIONS.MEMBER_RIGHTS, memberId, summary);
@@ -1671,7 +1672,23 @@ async function cleanupMemberData(memberId) {
   await removeCollectionByMemberId(COLLECTIONS.TASK_RECORDS, memberId, summary);
   await removeCollectionByMemberId(COLLECTIONS.COUPON_RECORDS, memberId, summary);
   await removeCollectionByMemberId(COLLECTIONS.CHARGE_ORDERS, memberId, summary);
+  await removeCollectionByMemberId(COLLECTIONS.MENU_ORDERS, memberId, summary);
   await removeCollectionByMemberId(COLLECTIONS.ERROR_LOGS, memberId, summary);
+
+  await removeCollectionByMemberIdFields(
+    COLLECTIONS.PVP_INVITES,
+    ['inviterId', 'opponentId'],
+    memberId,
+    summary
+  );
+  await removeCollectionByMemberIdFields(
+    COLLECTIONS.PVP_MATCHES,
+    ['player.memberId', 'opponent.memberId'],
+    memberId,
+    summary
+  );
+  await removeDocumentById(COLLECTIONS.PVP_PROFILES, memberId, summary);
+  await removeMemberFromPvpLeaderboard(memberId, summary);
 
   await removeDocumentById(COLLECTIONS.MEMBERS, memberId, summary);
 
@@ -1733,6 +1750,131 @@ async function removeCollectionByMemberId(collectionName, memberId, summary) {
     summary.removed[collectionName] = (summary.removed[collectionName] || 0) + removed;
   }
   return removed;
+}
+
+async function removeCollectionByMemberIdFields(collectionName, fields, memberId, summary) {
+  const targetId = normalizeMemberIdValue(memberId);
+  const normalizedFields = Array.isArray(fields)
+    ? fields.map((field) => (typeof field === 'string' ? field.trim() : '')).filter((field) => field)
+    : [];
+  if (!targetId || !normalizedFields.length) {
+    return 0;
+  }
+  const collection = db.collection(collectionName);
+  const limit = 100;
+  let removed = 0;
+  let hasMore = true;
+  const filterConditions = normalizedFields.map((field) => ({ [field]: targetId }));
+
+  while (hasMore) {
+    const whereCondition =
+      filterConditions.length === 1 ? filterConditions[0] : _.or(filterConditions);
+    const snapshot = await collection
+      .where(whereCondition)
+      .limit(limit)
+      .get()
+      .catch((error) => {
+        if (!isNotFoundError(error)) {
+          pushCleanupError(summary, collectionName, error);
+        }
+        return { data: [] };
+      });
+    const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+
+    await Promise.all(
+      docs.map((doc) =>
+        collection
+          .doc(doc._id)
+          .remove()
+          .then(() => {
+            removed += 1;
+          })
+          .catch((error) => {
+            if (!isNotFoundError(error)) {
+              pushCleanupError(summary, collectionName, error, doc._id);
+            }
+          })
+      )
+    );
+
+    if (docs.length < limit) {
+      hasMore = false;
+    }
+  }
+
+  if (removed > 0) {
+    summary.removed[collectionName] = (summary.removed[collectionName] || 0) + removed;
+  }
+  return removed;
+}
+
+async function removeMemberFromPvpLeaderboard(memberId, summary) {
+  const targetId = normalizeMemberIdValue(memberId);
+  if (!targetId) {
+    return 0;
+  }
+  const collection = db.collection(COLLECTIONS.PVP_LEADERBOARD);
+  const limit = 100;
+  let offset = 0;
+  let cleanedEntries = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const snapshot = await collection
+      .skip(offset)
+      .limit(limit)
+      .get()
+      .catch((error) => {
+        if (!isNotFoundError(error)) {
+          pushCleanupError(summary, COLLECTIONS.PVP_LEADERBOARD, error);
+        }
+        return { data: [] };
+      });
+    const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+
+    await Promise.all(
+      docs.map((doc) => {
+        const entries = Array.isArray(doc.entries) ? doc.entries : [];
+        const filtered = entries.filter((entry) => entry && entry.memberId !== targetId);
+        if (filtered.length === entries.length) {
+          return Promise.resolve();
+        }
+        return collection
+          .doc(doc._id)
+          .update({
+            data: {
+              entries: filtered,
+              updatedAt: new Date()
+            }
+          })
+          .then(() => {
+            cleanedEntries += entries.length - filtered.length;
+          })
+          .catch((error) => {
+            if (!isNotFoundError(error)) {
+              pushCleanupError(summary, COLLECTIONS.PVP_LEADERBOARD, error, doc._id);
+            }
+          });
+      })
+    );
+
+    offset += docs.length;
+    if (docs.length < limit) {
+      hasMore = false;
+    }
+  }
+
+  if (cleanedEntries > 0) {
+    summary.removed.pvpLeaderboardEntries =
+      (summary.removed.pvpLeaderboardEntries || 0) + cleanedEntries;
+  }
+  return cleanedEntries;
 }
 
 async function removeDocumentById(collectionName, docId, summary) {
