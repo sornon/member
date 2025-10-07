@@ -108,8 +108,24 @@ function decorateLevels(levels = [], options = {}) {
 
 function resolveVisibleLevels(levels = [], options = {}) {
   const { isAdmin, showPastLevels, currentLevel, nextLevel } = options;
-  if (isAdmin || showPastLevels) {
+  if (isAdmin) {
     return [...levels];
+  }
+  if (showPastLevels) {
+    let hasIncludedLocked = false;
+    return levels.filter((level) => {
+      if (!level) {
+        return false;
+      }
+      if (level.reached) {
+        return true;
+      }
+      if (!hasIncludedLocked) {
+        hasIncludedLocked = true;
+        return true;
+      }
+      return false;
+    });
   }
   const currentId = currentLevel && currentLevel._id ? currentLevel._id : '';
   const nextId = nextLevel && nextLevel._id ? nextLevel._id : '';
@@ -118,8 +134,24 @@ function resolveVisibleLevels(levels = [], options = {}) {
 
 function resolveVisibleRealms(realms = [], options = {}) {
   const { isAdmin, showPastLevels, currentLevel, nextLevel } = options;
-  if (isAdmin || showPastLevels) {
+  if (isAdmin) {
     return [...realms];
+  }
+  if (showPastLevels) {
+    let hasIncludedLocked = false;
+    return realms.filter((realm) => {
+      if (!realm) {
+        return false;
+      }
+      if (realm.reached) {
+        return true;
+      }
+      if (!hasIncludedLocked) {
+        hasIncludedLocked = true;
+        return true;
+      }
+      return false;
+    });
   }
   if (!Array.isArray(realms) || realms.length === 0) {
     return [];
@@ -241,7 +273,7 @@ Page({
         memberExperience: mergedMember.experience || progressMember.experience || 0
       });
       const realmMap = {};
-      rawLevels.forEach((lvl) => {
+      levels.forEach((lvl) => {
         if (!lvl) return;
         const key = buildRealmKey(lvl);
         if (!key) return;
@@ -256,7 +288,8 @@ Page({
             milestoneReward: lvl.milestoneReward || '',
             milestoneType: lvl.milestoneType || '',
             milestoneThreshold: lvl.milestoneReward ? lvl.threshold : 0,
-            realmKey: key
+            realmKey: key,
+            reached: !!lvl.reached
           };
         } else if (typeof lvl.threshold === 'number') {
           realmMap[key].start = Math.min(realmMap[key].start, lvl.threshold);
@@ -266,6 +299,9 @@ Page({
             realmMap[key].milestoneType = lvl.milestoneType || realmMap[key].milestoneType;
             realmMap[key].milestoneThreshold = lvl.threshold;
           }
+        }
+        if (!realmMap[key].reached && lvl.reached) {
+          realmMap[key].reached = true;
         }
         if (!realmMap[key].milestoneReward && lvl.milestoneReward) {
           realmMap[key].milestoneReward = lvl.milestoneReward;
