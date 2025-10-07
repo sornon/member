@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "数据清理",
+  "usingComponents": {
+    "custom-nav": "/components/custom-nav/custom-nav"
+  }
+}

@@ -1,0 +1,31 @@
+<custom-nav title="数据清理" theme="dark"></custom-nav>
+<view class="cleanup-page">
+  <view class="intro-card">
+    <view class="intro-title">清理删除会员遗留数据</view>
+    <view class="intro-desc">该操作会扫描多项会员相关数据，移除已被删除会员遗留的记录，避免异常数据影响现有会员。</view>
+    <view class="intro-note">操作仅针对无效成员记录，不会改动当前有效会员的数据。建议在非营业高峰时段执行。</view>
+    <button class="cleanup-button" bindtap="handleCleanupTap" loading="{{loading}}" disabled="{{loading}}">
+      {{loading ? '清理中…' : '开始清理'}}
+    </button>
+  </view>
+
+  <view wx:if="{{result}}" class="result-card">
+    <view class="result-header">
+      <view class="result-title">清理结果</view>
+      <view wx:if="{{finishedAt}}" class="result-time">{{finishedAt}}</view>
+    </view>
+    <view class="result-summary">共清理 {{result.totalRemoved}} 条记录</view>
+    <view class="result-members">当前有效会员：{{result.memberCount}} 人</view>
+    <view wx:if="{{result.details.length}}" class="detail-list">
+      <view wx:for="{{result.details}}" wx:key="key" class="detail-item">
+        <view class="detail-name">{{item.label}}</view>
+        <view class="detail-count">{{item.count}}</view>
+      </view>
+    </view>
+    <view wx:else class="detail-empty">未发现需要清理的数据，系统状态良好。</view>
+    <view wx:if="{{result.errors.length}}" class="error-block">
+      <view class="error-title">部分数据未能成功清理：</view>
+      <view wx:for="{{result.errors}}" wx:key="index" class="error-item">{{item}}</view>
+    </view>
+  </view>
+</view>
