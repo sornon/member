@@ -80,7 +80,7 @@
 - `/pages/role/index` 中的“角色属性”页签会并列展示六维基础属性与战斗属性映射，支持查看基础/装备/技能来源，并在战斗属性中追加境界倍率提示。【F:miniprogram/pages/role/index.wxml†L26-L99】【F:miniprogram/pages/role/index.wxss†L204-L280】
 - 属性分配面板改为使用六维属性键位，支持手动选择与平均分配；所有操作均通过云函数校验剩余属性点并记录战斗日志。【F:miniprogram/pages/role/index.js†L1-L220】【F:cloudfunctions/pve/index.js†L919-L961】
 - 装备与技能页签保留已有交互：展示当前穿戴、背包、抽卡按钮以及技能槽位，并与云函数互通刷新档案。【F:miniprogram/pages/role/index.wxml†L102-L170】【F:miniprogram/pages/role/index.js†L108-L196】
-- 秘境战斗详情页会在管理员登录时自动附加“怪物详细属性”模块：服务端仅对管理员响应关卡信息、六维基础属性与全部衍生属性，前端在战力行下方以紧凑网格展示，便于客服定位战力异常。【F:cloudfunctions/pve/index.js†L6084-L6284】【F:miniprogram/pages/pve/history.wxml†L8-L31】【F:miniprogram/pages/pve/history.wxss†L40-L99】
+- 秘境战斗详情页会在管理员登录时自动附加“怪物详细属性”模块：服务端仅对管理员响应关卡信息、六维基础属性、全部衍生属性与技能负载，前端在战力行下方以紧凑网格与技能列表展示，便于客服定位战力或技能异常。【F:cloudfunctions/pve/index.js†L6050-L6369】【F:miniprogram/pages/pve/history.wxml†L8-L52】【F:miniprogram/pages/pve/history.wxss†L40-L143】
 
 ## 战斗计算要点
 

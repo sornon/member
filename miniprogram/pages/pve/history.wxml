@@ -32,6 +32,31 @@
             <text class="admin-stat-value">{{item.value}}</text>
           </view>
         </view>
+        <view
+          wx:if="{{record.adminEnemyDetails.skills && record.adminEnemyDetails.skills.length}}"
+          class="admin-skill-list"
+        >
+          <view class="admin-section-subtitle">怪物技能配置</view>
+          <view
+            wx:for="{{record.adminEnemyDetails.skills}}"
+            wx:key="id"
+            class="admin-skill-item"
+          >
+            <view class="admin-skill-name">{{item.name}}</view>
+            <view wx:if="{{item.meta}}" class="admin-skill-meta">{{item.meta}}</view>
+            <view wx:if="{{item.description}}" class="admin-skill-desc">{{item.description}}</view>
+            <view
+              wx:if="{{item.highlights && item.highlights.length}}"
+              class="admin-skill-highlights"
+            >
+              <view
+                wx:for="{{item.highlights}}"
+                wx:key="*this"
+                class="admin-skill-highlight"
+              >{{item}}</view>
+            </view>
+          </view>
+        </view>
       </view>
       <view wx:if="{{record.rewardsText}}" class="summary-reward">{{record.rewardsText}}</view>
     </view>

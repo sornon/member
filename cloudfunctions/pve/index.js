@@ -302,6 +302,19 @@ const SECRET_REALM_ARCHETYPE_LABELS = SECRET_REALM_ARCHETYPES.reduce(
   { [SECRET_REALM_BOSS_ARCHETYPE.key]: SECRET_REALM_BOSS_ARCHETYPE.title }
 );
 
+const SECRET_REALM_ARCHETYPE_SKILLS = Object.freeze({
+  vitality_guardian: ['body_rockridge_guard', 'body_bronze_skin', 'sigil_taiyi_barrier'],
+  stone_monk: ['sword_breaking_clouds', 'body_blood_fury', 'sword_flowing_strike'],
+  frost_magus: ['spell_frost_bolt', 'spell_frost_tide', 'spell_frost_prison'],
+  golden_defender: ['body_stone_bulwark', 'body_diamond_eternity', 'sigil_focus_talisman'],
+  spirit_warden: ['sigil_void_respiration', 'sigil_purified_mind', 'spell_searing_comet'],
+  shadow_runner: ['sword_flame_wings', 'sword_thunder_break', 'spell_thunder_chain'],
+  sky_sharpshooter: ['sword_thousand_blades', 'sword_blazing_brand', 'sigil_corroding_mark'],
+  phantom_trickster: ['sigil_heart_rot', 'sigil_soul_bind', 'spell_thunder_chain'],
+  mind_binder: ['sigil_rupture_chain', 'sigil_taiyi_barrier', 'sigil_heart_rot'],
+  realm_overseer: ['sword_immortal_domain', 'spell_pyrocataclysm', 'body_furnace_of_ruin']
+});
+
 function buildSecretRealmLibrary() {
   if (!Array.isArray(realmConfigs) || !realmConfigs.length) {
     return [];
@@ -338,6 +351,7 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
   const normalizedRealmId = realm.id || realm.realmId || `realm_${realmIndex + 1}`;
   const id = `secret_${normalizedRealmId}_${String(floorCode).padStart(2, '0')}`;
   const description = `${archetype.description}（${stageName}）`;
+  const skills = resolveSecretRealmSkillSet(archetype.key);
 
   return {
     id,
@@ -358,6 +372,7 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
     attributes,
     stats,
     special,
+    skills,
     rewards,
     loot: [],
     meta: {
@@ -365,6 +380,34 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
       suggestedRewards: rewards && rewards._model ? rewards._model : null
     }
   };
+}
+
+function resolveSecretRealmSkillSet(archetypeKey) {
+  const preset = SECRET_REALM_ARCHETYPE_SKILLS[archetypeKey];
+  if (!Array.isArray(preset) || !preset.length) {
+    return [];
+  }
+  const seen = new Set();
+  const skills = [];
+  preset.forEach((entry) => {
+    let skillId = '';
+    if (typeof entry === 'string') {
+      skillId = entry.trim();
+    } else if (entry && typeof entry.skillId === 'string') {
+      skillId = entry.skillId.trim();
+    } else if (entry && typeof entry.id === 'string') {
+      skillId = entry.id.trim();
+    }
+    if (!skillId || seen.has(skillId)) {
+      return;
+    }
+    if (!SKILL_MAP[skillId]) {
+      return;
+    }
+    seen.add(skillId);
+    skills.push(skillId);
+  });
+  return skills;
 }
 
 function resolveSecretRealmScaling({ realmIndex, subIndex, perRealm, type }) {
@@ -6183,6 +6226,10 @@ function captureEnemySnapshot(enemy = {}) {
   if (special && Object.keys(special).length) {
     snapshot.special = special;
   }
+  const skills = sanitizeSkillList(collectSkillList(enemy));
+  if (skills.length) {
+    snapshot.skills = skills;
+  }
   return Object.keys(snapshot).length ? snapshot : null;
 }
 
@@ -6193,6 +6240,10 @@ function buildBattleEnemyDetails(entry, fallbackEnemy = {}) {
   const stats = sanitizeNumericRecord(statsSource);
   const special = sanitizeNumericRecord(specialSource);
   const baseAttributes = resolveEnemyAttributesFromSources(snapshot, entry, fallbackEnemy);
+  const skillIds = resolveEnemySkillsFromSources(snapshot, entry, fallbackEnemy);
+  const skillDetails = skillIds
+    .map((skillId) => buildEnemySkillDetails(skillId))
+    .filter((detail) => detail);
   const meta = [];
 
   const stageName = entry.enemyStageName || snapshot.stageName || fallbackEnemy.stageName || '';
@@ -6304,11 +6355,15 @@ function buildBattleEnemyDetails(entry, fallbackEnemy = {}) {
     });
   }
 
-  if (!entries.length && !meta.length) {
+  if (!entries.length && !meta.length && !skillDetails.length) {
     return null;
   }
 
-  return { meta, entries };
+  return {
+    meta,
+    entries,
+    ...(skillDetails.length ? { skills: skillDetails } : {})
+  };
 }
 
 function resolveEnemyAttributesFromSources(snapshot = {}, entry = {}, fallbackEnemy = {}) {
@@ -6339,6 +6394,86 @@ function resolveEnemyAttributesFromSources(snapshot = {}, entry = {}, fallbackEn
   return deriveEnemyAttributesFromStats(statsSource, levelSource);
 }
 
+function resolveEnemySkillsFromSources(snapshot = {}, entry = {}, fallbackEnemy = {}) {
+  const sets = [
+    collectSkillList(snapshot),
+    collectSkillList(entry),
+    collectSkillList((entry && entry.detail) || {}),
+    collectSkillList(fallbackEnemy)
+  ];
+  const seen = new Set();
+  const skills = [];
+  sets.forEach((list) => {
+    const normalized = sanitizeSkillList(list);
+    normalized.forEach((skillId) => {
+      if (!seen.has(skillId)) {
+        seen.add(skillId);
+        skills.push(skillId);
+      }
+    });
+  });
+  return skills;
+}
+
+function collectSkillList(source) {
+  if (!source || typeof source !== 'object') {
+    return [];
+  }
+  const keys = ['skills', 'skillIds', 'skillIdList', 'skillLoadout', 'enemySkills', 'enemySkillIds'];
+  for (let i = 0; i < keys.length; i += 1) {
+    const value = source[keys[i]];
+    if (Array.isArray(value) && value.length) {
+      return value;
+    }
+  }
+  return [];
+}
+
+function buildEnemySkillDetails(skillId) {
+  if (!skillId) {
+    return null;
+  }
+  const definition = SKILL_MAP[skillId];
+  if (!definition) {
+    return {
+      id: skillId,
+      name: `未知技能（${skillId}）`,
+      meta: '',
+      description: '',
+      highlights: []
+    };
+  }
+  const qualityLabel = resolveSkillQualityLabel(definition.quality || 'linggan');
+  const typeLabel = resolveSkillTypeLabel(definition.type || 'active');
+  const disciplineLabel = resolveSkillDisciplineLabel(definition.discipline);
+  const elementLabel = resolveSkillElementLabel(definition.element);
+  const resourceText = formatSkillResource(definition.params || {});
+  const metaParts = [];
+  if (qualityLabel) {
+    metaParts.push(qualityLabel);
+  }
+  if (typeLabel) {
+    metaParts.push(typeLabel);
+  }
+  if (disciplineLabel) {
+    metaParts.push(disciplineLabel);
+  }
+  if (elementLabel && elementLabel !== '无属性') {
+    metaParts.push(elementLabel);
+  }
+  if (resourceText) {
+    metaParts.push(resourceText);
+  }
+  const highlights = buildSkillHighlights(null, definition);
+  return {
+    id: definition.id,
+    name: definition.name || definition.id,
+    meta: metaParts.join(' · '),
+    description: definition.description || '',
+    highlights
+  };
+}
+
 function formatEnemyAttributeValue(value) {
   if (!Number.isFinite(Number(value))) {
     return '';
@@ -6367,6 +6502,30 @@ function sanitizeNumericRecord(record) {
     }
     return acc;
   }, {});
+}
+
+function sanitizeSkillList(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  const seen = new Set();
+  const normalized = [];
+  list.forEach((entry) => {
+    let skillId = '';
+    if (typeof entry === 'string') {
+      skillId = entry.trim();
+    } else if (entry && typeof entry.skillId === 'string') {
+      skillId = entry.skillId.trim();
+    } else if (entry && typeof entry.id === 'string') {
+      skillId = entry.id.trim();
+    }
+    if (!skillId || seen.has(skillId)) {
+      return;
+    }
+    seen.add(skillId);
+    normalized.push(skillId);
+  });
+  return normalized;
 }
 
 function normalizePositiveInteger(value) {

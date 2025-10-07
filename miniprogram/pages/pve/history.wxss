@@ -76,6 +76,11 @@ page {
   letter-spacing: 1rpx;
 }
 
+.admin-section-subtitle {
+  font-size: 22rpx;
+  color: rgba(207, 217, 255, 0.68);
+}
+
 .admin-meta-list {
   display: flex;
   flex-wrap: wrap;
@@ -115,6 +120,53 @@ page {
 
 .admin-stat-value {
   flex-shrink: 0;
+}
+
+.admin-skill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.admin-skill-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  padding: 12rpx 16rpx;
+  border-radius: 12rpx;
+  background: rgba(10, 18, 42, 0.6);
+  border: 1rpx solid rgba(119, 138, 230, 0.16);
+}
+
+.admin-skill-name {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: rgba(235, 240, 255, 0.92);
+}
+
+.admin-skill-meta {
+  font-size: 20rpx;
+  color: rgba(189, 202, 255, 0.7);
+}
+
+.admin-skill-desc {
+  font-size: 20rpx;
+  color: rgba(198, 208, 255, 0.76);
+  line-height: 1.5;
+}
+
+.admin-skill-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6rpx;
+}
+
+.admin-skill-highlight {
+  font-size: 20rpx;
+  color: rgba(255, 238, 193, 0.82);
+  background: rgba(64, 56, 32, 0.45);
+  border-radius: 8rpx;
+  padding: 4rpx 10rpx;
 }
 
 .summary-reward {
