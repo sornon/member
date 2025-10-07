@@ -37,6 +37,7 @@ const {
 
 const db = cloud.database();
 const _ = db.command;
+const ensuredCollections = new Set();
 
 const BACKGROUND_IDS = new Set([
   'realm_refining',
@@ -134,6 +135,58 @@ const SECRET_REALM_TUNING = {
     dodge: 420
   }
 };
+
+function isCollectionNotFoundError(error) {
+  if (!error) {
+    return false;
+  }
+  if (error.errCode === -502005 || error.code === 'ResourceNotFound') {
+    return true;
+  }
+  const message = typeof error.message === 'string' ? error.message : '';
+  return /collection\s+not\s+exists/i.test(message) || /ResourceNotFound/i.test(message);
+}
+
+function isCollectionAlreadyExistsError(error) {
+  if (!error) {
+    return false;
+  }
+  if (error.errCode === -502006 || error.code === 'ResourceExists') {
+    return true;
+  }
+  const message = typeof error.message === 'string' ? error.message : '';
+  return /already\s+exists/i.test(message);
+}
+
+async function ensureCollection(name) {
+  if (!name || ensuredCollections.has(name)) {
+    return;
+  }
+  try {
+    await db
+      .collection(name)
+      .limit(1)
+      .get();
+    ensuredCollections.add(name);
+  } catch (error) {
+    if (!isCollectionNotFoundError(error)) {
+      throw error;
+    }
+    if (typeof db.createCollection !== 'function') {
+      throw error;
+    }
+    try {
+      await db.createCollection(name);
+      ensuredCollections.add(name);
+    } catch (createError) {
+      if (isCollectionAlreadyExistsError(createError)) {
+        ensuredCollections.add(name);
+        return;
+      }
+      throw createError;
+    }
+  }
+}
 
 const SECRET_REALM_ARCHETYPES = [
   {
@@ -3778,19 +3831,35 @@ async function loadPveHistory(memberId) {
 }
 
 async function savePveHistory(memberId, battleHistory, skillHistory, now = new Date(), historyDoc = null) {
-  const historyCollection = db.collection(COLLECTIONS.MEMBER_PVE_HISTORY);
+  const collectionName = COLLECTIONS.MEMBER_PVE_HISTORY;
+  const historyCollection = db.collection(collectionName);
   const normalizedBattle = normalizeHistory(battleHistory, MAX_BATTLE_HISTORY);
   const normalizedSkill = normalizeHistory(skillHistory, MAX_SKILL_HISTORY);
   const createdAt = historyDoc && historyDoc.createdAt ? historyDoc.createdAt : now;
 
-  await historyCollection.doc(memberId).set({
-    data: {
-      createdAt,
-      updatedAt: now,
-      battleHistory: normalizedBattle,
-      skillHistory: normalizedSkill
+  const payload = {
+    createdAt,
+    updatedAt: now,
+    battleHistory: normalizedBattle,
+    skillHistory: normalizedSkill
+  };
+
+  await ensureCollection(collectionName);
+
+  try {
+    await historyCollection.doc(memberId).set({
+      data: payload
+    });
+  } catch (error) {
+    if (!isCollectionNotFoundError(error)) {
+      throw error;
     }
-  });
+    ensuredCollections.delete(collectionName);
+    await ensureCollection(collectionName);
+    await historyCollection.doc(memberId).set({
+      data: payload
+    });
+  }
 
   return { createdAt, battleHistory: normalizedBattle, skillHistory: normalizedSkill, exists: true };
 }
