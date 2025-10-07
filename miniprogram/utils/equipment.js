@@ -115,6 +115,12 @@ export function buildEquipmentIconPaths(item) {
   if (!item || typeof item !== 'object') {
     return { iconUrl: '', iconFallbackUrl: '' };
   }
+  const mediaKey = typeof item.mediaKey === 'string' ? item.mediaKey.trim() : '';
+  if (mediaKey) {
+    const fileName = /\.[a-z0-9]+$/i.test(mediaKey) ? mediaKey : `${mediaKey}.png`;
+    const mediaUrl = buildCloudAssetUrl('item', fileName);
+    return { iconUrl: mediaUrl, iconFallbackUrl: mediaUrl };
+  }
   const iconId = toPositiveInt(item.iconId);
   const qualityRank = toPositiveInt(item.qualityRank) || resolveEquipmentQualityRank(item.quality);
   if (!qualityRank) {

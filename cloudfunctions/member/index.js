@@ -238,6 +238,39 @@ function applyStorageRewardMetadata(item, rewardType) {
   return item;
 }
 
+function resolveStorageRewardMediaKey(reward) {
+  if (!reward || typeof reward !== 'object') {
+    return '';
+  }
+  if (typeof reward.mediaKey === 'string' && reward.mediaKey.trim()) {
+    return reward.mediaKey.trim();
+  }
+  const type = typeof reward.type === 'string' ? reward.type.trim() : '';
+  if (type === 'background') {
+    return 'item-1';
+  }
+  if (type === 'title') {
+    return 'item-2';
+  }
+  if (type === 'skill') {
+    return 'item-3';
+  }
+  const usageType =
+    reward.usage && typeof reward.usage === 'object' && typeof reward.usage.type === 'string'
+      ? reward.usage.type.trim()
+      : '';
+  if (usageType === 'skillDraw' || usageType === 'skillUnlock' || usageType === 'unlockSkill') {
+    return 'item-3';
+  }
+  if (usageType === 'grantRight' || usageType === 'grantCoupon' || usageType === 'coupon') {
+    return 'item-4';
+  }
+  if (type === 'right' || type === 'voucher' || type === 'coupon') {
+    return 'item-4';
+  }
+  return '';
+}
+
 function createStorageRewardItem(reward, now = new Date()) {
   if (!reward || typeof reward !== 'object') {
     return null;
@@ -265,6 +298,7 @@ function createStorageRewardItem(reward, now = new Date()) {
     storageCategory: reward.storageCategory || defaultCategory,
     slotLabel: reward.slotLabel || resolveStorageCategoryLabel(reward.storageCategory || defaultCategory),
     obtainedAt: now,
+    mediaKey: resolveStorageRewardMediaKey(reward),
     actions:
       Array.isArray(reward.actions) && reward.actions.length
         ? reward.actions.map((action) => ({
