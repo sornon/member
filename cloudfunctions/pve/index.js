@@ -2,7 +2,7 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
-const { COLLECTIONS, realmConfigs, subLevelLabels } = require('common-config');
+const { COLLECTIONS, realmConfigs, subLevelLabels, DEFAULT_ADMIN_ROLES } = require('common-config');
 const {
   DEFAULT_COMBAT_STATS,
   clamp,
@@ -37,6 +37,7 @@ const {
 
 const db = cloud.database();
 const _ = db.command;
+const ensuredCollections = new Set();
 
 const BACKGROUND_IDS = new Set([
   'realm_refining',
@@ -134,6 +135,58 @@ const SECRET_REALM_TUNING = {
     dodge: 420
   }
 };
+
+function isCollectionNotFoundError(error) {
+  if (!error) {
+    return false;
+  }
+  if (error.errCode === -502005 || error.code === 'ResourceNotFound') {
+    return true;
+  }
+  const message = typeof error.message === 'string' ? error.message : '';
+  return /collection\s+not\s+exists/i.test(message) || /ResourceNotFound/i.test(message);
+}
+
+function isCollectionAlreadyExistsError(error) {
+  if (!error) {
+    return false;
+  }
+  if (error.errCode === -502006 || error.code === 'ResourceExists') {
+    return true;
+  }
+  const message = typeof error.message === 'string' ? error.message : '';
+  return /already\s+exists/i.test(message);
+}
+
+async function ensureCollection(name) {
+  if (!name || ensuredCollections.has(name)) {
+    return;
+  }
+  try {
+    await db
+      .collection(name)
+      .limit(1)
+      .get();
+    ensuredCollections.add(name);
+  } catch (error) {
+    if (!isCollectionNotFoundError(error)) {
+      throw error;
+    }
+    if (typeof db.createCollection !== 'function') {
+      throw error;
+    }
+    try {
+      await db.createCollection(name);
+      ensuredCollections.add(name);
+    } catch (createError) {
+      if (isCollectionAlreadyExistsError(createError)) {
+        ensuredCollections.add(name);
+        return;
+      }
+      throw createError;
+    }
+  }
+}
 
 const SECRET_REALM_ARCHETYPES = [
   {
@@ -239,6 +292,16 @@ const SECRET_REALM_BOSS_ARCHETYPE = {
   special: { shield: 140, bonusDamage: 60, dodgeChance: 0.08 }
 };
 
+const SECRET_REALM_ARCHETYPE_LABELS = SECRET_REALM_ARCHETYPES.reduce(
+  (acc, archetype) => {
+    if (archetype && archetype.key) {
+      acc[archetype.key] = archetype.title || archetype.name || archetype.key;
+    }
+    return acc;
+  },
+  { [SECRET_REALM_BOSS_ARCHETYPE.key]: SECRET_REALM_BOSS_ARCHETYPE.title }
+);
+
 function buildSecretRealmLibrary() {
   if (!Array.isArray(realmConfigs) || !realmConfigs.length) {
     return [];
@@ -270,6 +333,7 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
   const scaling = resolveSecretRealmScaling({ realmIndex, subIndex, perRealm, type });
   const stats = generateSecretRealmStats(archetype, scaling, type);
   const special = generateSecretRealmSpecial(archetype, scaling, type);
+  const attributes = deriveEnemyAttributesFromStats(stats, floorNumber);
   const rewards = resolveSecretRealmRewards({ floorNumber, type, scaling });
   const normalizedRealmId = realm.id || realm.realmId || `realm_${realmIndex + 1}`;
   const id = `secret_${normalizedRealmId}_${String(floorCode).padStart(2, '0')}`;
@@ -291,6 +355,7 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
     level: floorNumber,
     name: `${stageName} · ${archetype.title}`,
     description,
+    attributes,
     stats,
     special,
     rewards,
@@ -414,6 +479,65 @@ function generateSecretRealmSpecial(archetype, scaling, type) {
   }
 
   return special;
+}
+
+function deriveEnemyAttributesFromStats(statsSource, fallbackLevel = 1) {
+  const stats = sanitizeNumericRecord(statsSource);
+  const normalizedLevel = Math.max(1, Math.floor(Number(fallbackLevel) || 1));
+  const fallbackBase = calculateBaseAttributesForLevel(normalizedLevel);
+  if (!stats || !Object.keys(stats).length) {
+    return fallbackBase;
+  }
+
+  const attributes = {};
+  const speed = Number(stats.speed);
+  if (Number.isFinite(speed)) {
+    attributes.agility = Math.max(0, Math.round(speed - 80));
+  }
+  const accuracy = Number(stats.accuracy);
+  if (Number.isFinite(accuracy)) {
+    attributes.insight = Math.max(0, Math.round(accuracy - 100));
+  }
+  const physicalAttack = Number(stats.physicalAttack);
+  if (Number.isFinite(physicalAttack)) {
+    attributes.strength = Math.max(0, Math.round((physicalAttack - 50) / 2));
+  }
+  const magicAttack = Number(stats.magicAttack);
+  if (Number.isFinite(magicAttack)) {
+    attributes.spirit = Math.max(0, Math.round((magicAttack - 50) / 2));
+  }
+
+  const strengthComponent = Number.isFinite(attributes.strength) ? attributes.strength * 0.2 : 0;
+  const spiritComponent = Number.isFinite(attributes.spirit) ? attributes.spirit * 0.2 : 0;
+  const rootCandidates = [];
+  const physicalDefense = Number(stats.physicalDefense);
+  if (Number.isFinite(physicalDefense)) {
+    rootCandidates.push(physicalDefense - 40 - strengthComponent);
+  }
+  const magicDefense = Number(stats.magicDefense);
+  if (Number.isFinite(magicDefense)) {
+    rootCandidates.push(magicDefense - 40 - spiritComponent);
+  }
+  if (rootCandidates.length) {
+    const rootRaw = rootCandidates.reduce((sum, value) => sum + value, 0) / rootCandidates.length;
+    attributes.root = Math.max(0, Math.round(rootRaw));
+  }
+
+  const rootContribution = Number.isFinite(attributes.root) ? attributes.root * 20 : 0;
+  const maxHp = Number(stats.maxHp);
+  if (Number.isFinite(maxHp)) {
+    const constitutionRaw = (maxHp - 500 - rootContribution) / 100;
+    attributes.constitution = Math.max(0, Math.round(constitutionRaw));
+  }
+
+  const resolved = { ...fallbackBase };
+  BASE_ATTRIBUTE_KEYS.forEach((key) => {
+    const value = Number(attributes[key]);
+    if (Number.isFinite(value)) {
+      resolved[key] = Math.max(0, Math.round(value));
+    }
+  });
+  return sanitizeNumericRecord(resolved);
 }
 
 function resolveSecretRealmRewards({ floorNumber, type, scaling }) {
@@ -2565,12 +2689,16 @@ async function simulateBattle(actorId, enemyId) {
 
   const now = new Date();
   const updatedProfile = applyBattleOutcome(profile, result, enemy, now, member, levels);
-  const updates = { pveProfile: _.set(updatedProfile), updatedAt: now };
+  const extraUpdates = {};
   if (result.rewards && result.rewards.stones > 0) {
-    updates.stoneBalance = _.inc(result.rewards.stones);
+    extraUpdates.stoneBalance = _.inc(result.rewards.stones);
   }
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({ data: updates });
+  await savePveProfile(actorId, updatedProfile, {
+    now,
+    extraUpdates,
+    historyDoc: profile.__historyDoc
+  });
 
   if (result.rewards && result.rewards.stones > 0) {
     await recordStoneTransaction(actorId, result, enemy, now).catch(() => {});
@@ -2594,12 +2722,7 @@ async function drawSkill(actorId) {
   const draws = performSkillDraw(profile, 1, now);
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
 
   const decorated = decorateProfile(member, profile);
   const acquired = draws[0] || null;
@@ -2733,12 +2856,7 @@ async function equipSkill(actorId, event) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
 
   const decorated = decorateProfile(member, profile);
   return { profile: decorated };
@@ -2808,12 +2926,7 @@ async function equipItem(actorId, event) {
 
     refreshAttributeSummary(profile);
 
-    await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-      data: {
-        pveProfile: _.set(profile),
-        updatedAt: now
-      }
-    });
+    await savePveProfile(actorId, profile, { now });
 
     const decorated = decorateProfile(member, profile);
     return { profile: decorated };
@@ -2875,12 +2988,7 @@ async function equipItem(actorId, event) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
 
   const decorated = decorateProfile(member, profile);
   return { profile: decorated };
@@ -3001,12 +3109,7 @@ async function discardItem(actorId, event = {}) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
 
   const decorated = decorateProfile(member, profile);
   return { profile: decorated };
@@ -3283,18 +3386,7 @@ async function useStorageItem(actorId, event = {}) {
 
   refreshAttributeSummary(profile);
 
-  const updatePayload = {
-    pveProfile: _.set(profile),
-    updatedAt: now,
-    ...memberUpdates
-  };
-
-  await db
-    .collection(COLLECTIONS.MEMBERS)
-    .doc(actorId)
-    .update({
-      data: updatePayload
-    });
+  await savePveProfile(actorId, profile, { now, extraUpdates: memberUpdates });
 
   if (extrasChanged) {
     await updateMemberExtrasRecord(actorId, extrasUpdates);
@@ -3365,12 +3457,7 @@ async function upgradeStorage(actorId, event = {}) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
   const decorated = decorateProfile(member, profile);
   const capacity = baseCapacity + perUpgrade * nextLevel;
   const upgradesRemaining =
@@ -3431,12 +3518,7 @@ async function allocatePoints(actorId, allocations) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
 
   const decorated = decorateProfile(member, profile);
   return { profile: decorated };
@@ -3490,12 +3572,7 @@ async function resetAttributes(actorId) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(actorId, profile, { now });
 
   const decorated = decorateProfile(member, profile);
   return { profile: decorated };
@@ -3534,7 +3611,12 @@ async function inspectProfileForAdmin(actorId, memberId) {
   }
   const now = new Date();
   const normalizedProfile = normalizeProfileWithoutEquipmentDefaults(rawProfile, now);
-  const decorated = decorateProfile({ ...targetMember, pveProfile: normalizedProfile }, normalizedProfile);
+  await attachHistoryToProfile(targetId, normalizedProfile);
+  const decorated = decorateProfile(
+    { ...targetMember, pveProfile: normalizedProfile },
+    normalizedProfile,
+    { viewer: admin }
+  );
   return { profile: decorated };
 }
 
@@ -3556,6 +3638,7 @@ async function grantEquipment(actorId, event = {}) {
   const targetMember = await ensureMember(memberId);
   const now = new Date();
   const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
+  await attachHistoryToProfile(memberId, profile);
   const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
   const entry = createEquipmentInventoryEntry(itemId, now);
   if (!entry) {
@@ -3575,14 +3658,9 @@ async function grantEquipment(actorId, event = {}) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(memberId, profile, { now });
 
-  const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+  const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile, { viewer: admin });
   const granted = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
   return { profile: decorated, granted };
 }
@@ -3603,6 +3681,7 @@ async function removeEquipment(actorId, event = {}) {
   const targetMember = await ensureMember(memberId);
   const now = new Date();
   const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
+  await attachHistoryToProfile(memberId, profile);
   const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
   let index = -1;
   if (inventoryId) {
@@ -3649,14 +3728,9 @@ async function removeEquipment(actorId, event = {}) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(memberId, profile, { now });
 
-  const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+  const decorated = decorateProfile({ ...targetMember, pveProfile: profile }, profile, { viewer: admin });
   return { profile: decorated };
 }
 
@@ -3686,6 +3760,7 @@ async function updateEquipmentAttributes(actorId, event = {}) {
   const targetMember = await ensureMember(memberId);
   const now = new Date();
   const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
+  await attachHistoryToProfile(memberId, profile);
   const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
   let index = -1;
   if (inventoryId) {
@@ -3723,7 +3798,11 @@ async function updateEquipmentAttributes(actorId, event = {}) {
     }
   }
   if (!changed) {
-    const decoratedProfile = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+    const decoratedProfile = decorateProfile(
+      { ...targetMember, pveProfile: profile },
+      profile,
+      { viewer: admin }
+    );
     const updated = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
     return { profile: decoratedProfile, updated };
   }
@@ -3748,14 +3827,13 @@ async function updateEquipmentAttributes(actorId, event = {}) {
 
   refreshAttributeSummary(profile);
 
-  await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
-    data: {
-      pveProfile: _.set(profile),
-      updatedAt: now
-    }
-  });
+  await savePveProfile(memberId, profile, { now });
 
-  const decoratedProfile = decorateProfile({ ...targetMember, pveProfile: profile }, profile);
+  const decoratedProfile = decorateProfile(
+    { ...targetMember, pveProfile: profile },
+    profile,
+    { viewer: admin }
+  );
   const updated = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
   return { profile: decoratedProfile, updated };
 }
@@ -3798,14 +3876,169 @@ function isAdminMember(member) {
   if (!member || typeof member !== 'object') {
     return false;
   }
-  const roles = Array.isArray(member.roles) ? member.roles : [];
-  return roles.includes('admin') || roles.includes('developer');
+
+  const normalizeRole = (role) => {
+    if (!role) {
+      return '';
+    }
+    if (typeof role === 'string') {
+      return role.trim().toLowerCase();
+    }
+    if (typeof role === 'object') {
+      if (typeof role.value === 'string') {
+        return role.value.trim().toLowerCase();
+      }
+      if (typeof role.role === 'string') {
+        return role.role.trim().toLowerCase();
+      }
+    }
+    return '';
+  };
+
+  const normalizedRoles = [];
+  if (Array.isArray(member.roles)) {
+    member.roles.forEach((role) => {
+      const normalized = normalizeRole(role);
+      if (normalized) {
+        normalizedRoles.push(normalized);
+      }
+    });
+  } else if (typeof member.roles === 'string') {
+    const normalized = normalizeRole(member.roles);
+    if (normalized) {
+      normalizedRoles.push(normalized);
+    }
+  }
+
+  if (typeof member.role === 'string') {
+    const normalized = normalizeRole(member.role);
+    if (normalized) {
+      normalizedRoles.push(normalized);
+    }
+  }
+
+  if (Array.isArray(member.permissions)) {
+    member.permissions.forEach((permission) => {
+      const normalized = normalizeRole(permission);
+      if (normalized) {
+        normalizedRoles.push(normalized);
+      }
+    });
+  }
+
+  const adminRoleSet = new Set(
+    Array.isArray(DEFAULT_ADMIN_ROLES)
+      ? DEFAULT_ADMIN_ROLES.map((role) => (typeof role === 'string' ? role.trim().toLowerCase() : '')).filter(Boolean)
+      : []
+  );
+
+  return normalizedRoles.some((role) => adminRoleSet.has(role));
 }
 
 function ensureAdminAccess(member) {
   if (!isAdminMember(member)) {
     throw createError('FORBIDDEN', '仅管理员可执行该操作');
   }
+}
+
+function cloneProfileWithoutHistory(profile) {
+  if (!profile || typeof profile !== 'object') {
+    return profile;
+  }
+  const { battleHistory, skillHistory, __historyDoc, ...rest } = profile;
+  return { ...rest };
+}
+
+async function loadPveHistory(memberId) {
+  const historyCollection = db.collection(COLLECTIONS.MEMBER_PVE_HISTORY);
+  const snapshot = await historyCollection
+    .doc(memberId)
+    .get()
+    .catch(() => null);
+
+  const data = snapshot && snapshot.data ? snapshot.data : null;
+  const battleHistory = normalizeHistory(data ? data.battleHistory : [], MAX_BATTLE_HISTORY);
+  const skillHistory = normalizeHistory(data ? data.skillHistory : [], MAX_SKILL_HISTORY);
+
+  return {
+    exists: !!data,
+    createdAt: data && data.createdAt ? new Date(data.createdAt) : null,
+    battleHistory,
+    skillHistory
+  };
+}
+
+async function savePveHistory(memberId, battleHistory, skillHistory, now = new Date(), historyDoc = null) {
+  const collectionName = COLLECTIONS.MEMBER_PVE_HISTORY;
+  const historyCollection = db.collection(collectionName);
+  const normalizedBattle = normalizeHistory(battleHistory, MAX_BATTLE_HISTORY);
+  const normalizedSkill = normalizeHistory(skillHistory, MAX_SKILL_HISTORY);
+  const createdAt = historyDoc && historyDoc.createdAt ? historyDoc.createdAt : now;
+
+  const payload = {
+    createdAt,
+    updatedAt: now,
+    battleHistory: normalizedBattle,
+    skillHistory: normalizedSkill
+  };
+
+  await ensureCollection(collectionName);
+
+  try {
+    await historyCollection.doc(memberId).set({
+      data: payload
+    });
+  } catch (error) {
+    if (!isCollectionNotFoundError(error)) {
+      throw error;
+    }
+    ensuredCollections.delete(collectionName);
+    await ensureCollection(collectionName);
+    await historyCollection.doc(memberId).set({
+      data: payload
+    });
+  }
+
+  return { createdAt, battleHistory: normalizedBattle, skillHistory: normalizedSkill, exists: true };
+}
+
+async function savePveProfile(actorId, profile, options = {}) {
+  const nowCandidate = options.now instanceof Date && !Number.isNaN(options.now.getTime()) ? options.now : new Date();
+  const extraUpdates = options.extraUpdates && typeof options.extraUpdates === 'object' ? options.extraUpdates : {};
+  const membersCollection = db.collection(COLLECTIONS.MEMBERS);
+  const updatePayload = { ...extraUpdates, updatedAt: nowCandidate };
+
+  if (!options.skipProfile) {
+    updatePayload.pveProfile = _.set(cloneProfileWithoutHistory(profile));
+  }
+
+  await membersCollection.doc(actorId).update({
+    data: updatePayload
+  });
+
+  if (options.saveHistory !== false) {
+    const existingHistory = options.historyDoc || profile.__historyDoc || null;
+    const battleHistory = profile && Array.isArray(profile.battleHistory) ? profile.battleHistory : [];
+    const skillHistory = profile && Array.isArray(profile.skillHistory) ? profile.skillHistory : [];
+    const savedHistory = await savePveHistory(actorId, battleHistory, skillHistory, nowCandidate, existingHistory);
+    if (profile && typeof profile === 'object') {
+      profile.__historyDoc = savedHistory;
+      profile.battleHistory = savedHistory.battleHistory;
+      profile.skillHistory = savedHistory.skillHistory;
+    }
+  }
+
+  return nowCandidate;
+}
+
+async function attachHistoryToProfile(memberId, profile) {
+  const historyDoc = await loadPveHistory(memberId);
+  if (profile && typeof profile === 'object') {
+    profile.battleHistory = Array.isArray(historyDoc.battleHistory) ? historyDoc.battleHistory : [];
+    profile.skillHistory = Array.isArray(historyDoc.skillHistory) ? historyDoc.skillHistory : [];
+    profile.__historyDoc = historyDoc;
+  }
+  return historyDoc;
 }
 
 async function ensurePveProfile(actorId, member, levelCache) {
@@ -3836,13 +4069,34 @@ async function ensurePveProfile(actorId, member, levelCache) {
     changed = true;
   }
 
-  if (changed) {
-    await db.collection(COLLECTIONS.MEMBERS).doc(actorId).update({
-      data: {
-        pveProfile: _.set(profile),
-        updatedAt: now
-      }
+  const historyDoc = await loadPveHistory(actorId);
+  let historyChanged = false;
+  let battleHistory = historyDoc.battleHistory;
+  let skillHistory = historyDoc.skillHistory;
+
+  if ((!battleHistory || battleHistory.length === 0) && Array.isArray(profile.battleHistory) && profile.battleHistory.length) {
+    battleHistory = normalizeHistory(profile.battleHistory, MAX_BATTLE_HISTORY);
+    historyChanged = true;
+  }
+
+  if ((!skillHistory || skillHistory.length === 0) && Array.isArray(profile.skillHistory) && profile.skillHistory.length) {
+    skillHistory = normalizeHistory(profile.skillHistory, MAX_SKILL_HISTORY);
+    historyChanged = true;
+  }
+
+  profile.battleHistory = Array.isArray(battleHistory) ? battleHistory : [];
+  profile.skillHistory = Array.isArray(skillHistory) ? skillHistory : [];
+  profile.__historyDoc = { ...historyDoc, battleHistory: profile.battleHistory, skillHistory: profile.skillHistory };
+
+  const shouldPersistProfile = changed || historyChanged;
+  if (shouldPersistProfile) {
+    await savePveProfile(actorId, profile, {
+      now,
+      saveHistory: true,
+      historyDoc: profile.__historyDoc
     });
+  } else if (!historyDoc.exists) {
+    await savePveHistory(actorId, profile.battleHistory, profile.skillHistory, now, historyDoc).catch(() => {});
   }
 
   return profile;
@@ -4777,14 +5031,16 @@ function decorateStorageInventoryItem(entry, fallbackCategory = '') {
   }
   return normalized;
 }
-function decorateProfile(member, profile) {
+function decorateProfile(member, profile, options = {}) {
+  const viewer = options.viewer || member;
+  const viewerIsAdmin = isAdminMember(viewer);
   const { attributes, equipment, skills } = profile;
   const attributeSummary = calculateAttributes(attributes, equipment, skills);
   const equipmentSummary = decorateEquipment(profile, attributeSummary.equipmentBonus);
   const skillsSummary = decorateSkills(profile);
   const secretRealm = decorateSecretRealm(profile.secretRealm, attributeSummary);
   const enemies = secretRealm.visibleFloors || [];
-  const battleHistory = decorateBattleHistory(profile.battleHistory, profile);
+  const battleHistory = decorateBattleHistory(profile.battleHistory, profile, { viewerIsAdmin });
   const skillHistory = decorateSkillHistory(profile.skillHistory);
 
   return {
@@ -4799,7 +5055,8 @@ function decorateProfile(member, profile) {
     skillQualityConfig: decorateSkillQualityConfig(),
     metadata: {
       maxSkillSlots: MAX_SKILL_SLOTS,
-      maxLevel: attributeSummary.maxLevel || MAX_LEVEL
+      maxLevel: attributeSummary.maxLevel || MAX_LEVEL,
+      viewerIsAdmin
     }
   };
 }
@@ -5740,31 +5997,81 @@ function decorateEnemyLoot(loot) {
   });
 }
 
-function decorateBattleHistory(history, profile) {
+const ADMIN_ENEMY_ATTRIBUTE_ORDER = [...BASE_ATTRIBUTE_KEYS];
+
+const ADMIN_ENEMY_STAT_ORDER = [
+  'maxHp',
+  'physicalAttack',
+  'magicAttack',
+  'physicalDefense',
+  'magicDefense',
+  'speed',
+  'accuracy',
+  'dodge',
+  'critRate',
+  'critDamage',
+  'critResist',
+  'physicalPenetration',
+  'magicPenetration',
+  'finalDamageBonus',
+  'finalDamageReduction',
+  'lifeSteal',
+  'healingBonus',
+  'healingReduction',
+  'controlHit',
+  'controlResist',
+  'comboRate',
+  'block',
+  'counterRate',
+  'damageReduction',
+  'healingReceived',
+  'rageGain',
+  'controlStrength',
+  'shieldPower',
+  'summonPower',
+  'elementalVulnerability'
+];
+
+const ADMIN_ENEMY_SPECIAL_LABELS = {
+  bonusDamage: '额外伤害',
+  shield: '护盾值',
+  dodgeChance: '闪避率'
+};
+
+function decorateBattleHistory(history, profile, options = {}) {
   if (!Array.isArray(history)) {
     return [];
   }
-  return history.map((entry) => {
+  const viewerIsAdmin = !!options.viewerIsAdmin;
+  return history.map((entry, index) => {
     if (entry.type === 'battle') {
       const enemy = ENEMY_MAP[entry.enemyId] || { name: entry.enemyName || '未知对手' };
+      const resultLabel = entry.result === 'win' ? '胜利' : entry.result === 'lose' ? '惜败' : '战斗';
+      const adminEnemyDetails = viewerIsAdmin
+        ? buildBattleEnemyDetails(entry, enemy)
+        : null;
       return {
         type: 'battle',
+        id: entry.id || entry.createdAt || `${entry.enemyId || 'battle'}-${index}`,
         createdAt: entry.createdAt,
         createdAtText: formatDateTime(entry.createdAt),
         enemyId: entry.enemyId,
         enemyName: enemy.name,
         result: entry.result,
-        resultLabel: entry.result === 'win' ? '胜利' : entry.result === 'lose' ? '失利' : '战斗',
+        resultLabel,
+        summary: `${resultLabel} · ${enemy.name}`,
         rewards: entry.rewards,
         rewardsText: formatRewardText(entry.rewards),
         rounds: entry.rounds,
         combatPower: entry.combatPower,
-        log: entry.log || []
+        log: Array.isArray(entry.log) ? entry.log : [],
+        ...(adminEnemyDetails ? { adminEnemyDetails } : {})
       };
     }
     if (entry.type === 'allocate') {
       return {
         type: 'allocate',
+        id: entry.id || entry.createdAt || `allocate-${index}`,
         createdAt: entry.createdAt,
         createdAtText: formatDateTime(entry.createdAt),
         detail: entry.detail,
@@ -5786,6 +6093,7 @@ function decorateBattleHistory(history, profile) {
       }
       return {
         type: 'equipment',
+        id: entry.id || entry.createdAt || `equipment-${index}`,
         createdAt: entry.createdAt,
         createdAtText: formatDateTime(entry.createdAt),
         summary
@@ -5800,6 +6108,7 @@ function decorateBattleHistory(history, profile) {
       }
       return {
         type: 'consumable',
+        id: entry.id || entry.createdAt || `consumable-${index}`,
         createdAt: entry.createdAt,
         createdAtText: formatDateTime(entry.createdAt),
         detail,
@@ -5812,6 +6121,7 @@ function decorateBattleHistory(history, profile) {
       const summary = refunded > 0 ? `洗点返还属性点 ${refunded}` : '洗点完成';
       return {
         type: 'respec',
+        id: entry.id || entry.createdAt || `respec-${index}`,
         createdAt: entry.createdAt,
         createdAtText: formatDateTime(entry.createdAt),
         detail,
@@ -5820,9 +6130,252 @@ function decorateBattleHistory(history, profile) {
     }
     return {
       ...entry,
+      id: entry.id || entry.createdAt || `${entry.type || 'history'}-${index}`,
       createdAtText: formatDateTime(entry.createdAt)
     };
   });
+}
+
+function captureEnemySnapshot(enemy = {}) {
+  if (!enemy || typeof enemy !== 'object') {
+    return null;
+  }
+  const snapshot = {};
+  if (enemy.id) {
+    snapshot.id = enemy.id;
+  }
+  if (enemy.type) {
+    snapshot.type = enemy.type;
+  }
+  if (enemy.stageName) {
+    snapshot.stageName = enemy.stageName;
+  }
+  if (enemy.realmName) {
+    snapshot.realmName = enemy.realmName;
+  }
+  if (enemy.realmShort) {
+    snapshot.realmShort = enemy.realmShort;
+  }
+  if (enemy.archetype) {
+    snapshot.archetype = enemy.archetype;
+  }
+  if (enemy.floor != null) {
+    const floor = normalizePositiveInteger(enemy.floor);
+    if (floor) {
+      snapshot.floor = floor;
+    }
+  }
+  if (enemy.level != null) {
+    const level = normalizePositiveInteger(enemy.level);
+    if (level) {
+      snapshot.level = level;
+    }
+  }
+  const attributes = sanitizeNumericRecord(enemy.attributes || enemy.baseAttributes);
+  if (attributes && Object.keys(attributes).length) {
+    snapshot.attributes = attributes;
+  }
+  const stats = sanitizeNumericRecord(enemy.stats);
+  if (stats && Object.keys(stats).length) {
+    snapshot.stats = stats;
+  }
+  const special = sanitizeNumericRecord(enemy.special);
+  if (special && Object.keys(special).length) {
+    snapshot.special = special;
+  }
+  return Object.keys(snapshot).length ? snapshot : null;
+}
+
+function buildBattleEnemyDetails(entry, fallbackEnemy = {}) {
+  const snapshot = (entry && entry.enemySnapshot) || {};
+  const statsSource = snapshot.stats || entry.enemyStats || null;
+  const specialSource = snapshot.special || entry.enemySpecial || null;
+  const stats = sanitizeNumericRecord(statsSource);
+  const special = sanitizeNumericRecord(specialSource);
+  const baseAttributes = resolveEnemyAttributesFromSources(snapshot, entry, fallbackEnemy);
+  const meta = [];
+
+  const stageName = entry.enemyStageName || snapshot.stageName || fallbackEnemy.stageName || '';
+  const realmName = entry.enemyRealmName || snapshot.realmName || fallbackEnemy.realmName || '';
+  const type = entry.enemyType || snapshot.type || fallbackEnemy.type || '';
+  const floor = normalizePositiveInteger(
+    snapshot.floor != null ? snapshot.floor : entry.enemyFloor != null ? entry.enemyFloor : fallbackEnemy.floor
+  );
+  const level = normalizePositiveInteger(
+    snapshot.level != null ? snapshot.level : entry.enemyLevel != null ? entry.enemyLevel : fallbackEnemy.level
+  );
+  const archetypeKey = entry.enemyArchetype || snapshot.archetype || fallbackEnemy.archetype || '';
+  const archetype = archetypeKey ? SECRET_REALM_ARCHETYPE_LABELS[archetypeKey] || '' : '';
+
+  if (realmName) {
+    meta.push({ label: '秘境', value: realmName });
+  }
+  if (stageName) {
+    meta.push({ label: '关卡', value: stageName });
+  }
+  if (floor) {
+    meta.push({ label: '层数', value: `第${floor}层` });
+  }
+  if (level) {
+    meta.push({ label: '等级', value: `${level}` });
+  }
+  if (type) {
+    const typeLabel = type === 'boss' ? '首领' : '普通';
+    meta.push({ label: '类型', value: typeLabel });
+  }
+  if (archetype) {
+    meta.push({ label: '流派', value: archetype });
+  }
+
+  const entries = [];
+  const attributeSeen = new Set();
+  const statSeen = new Set();
+
+  const pushAttribute = (key, value) => {
+    if (value == null || attributeSeen.has(key)) {
+      return;
+    }
+    const label = resolveAttributeLabel(key);
+    entries.push({
+      key: `attribute-${key}`,
+      label,
+      value: formatEnemyAttributeValue(value),
+      type: 'attribute'
+    });
+    attributeSeen.add(key);
+  };
+
+  if (baseAttributes) {
+    ADMIN_ENEMY_ATTRIBUTE_ORDER.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(baseAttributes, key)) {
+        pushAttribute(key, baseAttributes[key]);
+      }
+    });
+  }
+
+  const pushStat = (key, value) => {
+    if (value == null || value === 0 || statSeen.has(key)) {
+      return;
+    }
+    const label = resolveCombatStatLabel(key);
+    entries.push({
+      key,
+      label,
+      value: formatStatDisplay(key, value),
+      type: 'stat'
+    });
+    statSeen.add(key);
+  };
+
+  ADMIN_ENEMY_STAT_ORDER.forEach((key) => {
+    if (stats && Object.prototype.hasOwnProperty.call(stats, key)) {
+      pushStat(key, stats[key]);
+    }
+  });
+
+  if (stats) {
+    Object.keys(stats)
+      .sort()
+      .forEach((key) => {
+        if (!statSeen.has(key)) {
+          pushStat(key, stats[key]);
+        }
+      });
+  }
+
+  if (special) {
+    Object.keys(special).forEach((key) => {
+      const raw = special[key];
+      if (raw == null || raw === 0) {
+        return;
+      }
+      if (key.endsWith('Multiplier')) {
+        const target = key.replace('Multiplier', '');
+        const label = resolveCombatStatLabel(target);
+        const value = `${Math.round(raw * 10000) / 100}%`;
+        entries.push({ key: `special-${key}`, label, value: `+${value}`, type: 'special' });
+        return;
+      }
+      const label = ADMIN_ENEMY_SPECIAL_LABELS[key] || resolveCombatStatLabel(key);
+      const value = formatEnemySpecialValue(key, raw);
+      if (value) {
+        entries.push({ key: `special-${key}`, label, value, type: 'special' });
+      }
+    });
+  }
+
+  if (!entries.length && !meta.length) {
+    return null;
+  }
+
+  return { meta, entries };
+}
+
+function resolveEnemyAttributesFromSources(snapshot = {}, entry = {}, fallbackEnemy = {}) {
+  const candidate =
+    (snapshot && (snapshot.attributes || snapshot.baseAttributes)) ||
+    (entry && entry.enemyAttributes) ||
+    fallbackEnemy.attributes ||
+    fallbackEnemy.baseAttributes ||
+    null;
+  const attributes = sanitizeNumericRecord(candidate);
+  if (attributes && Object.keys(attributes).length) {
+    return attributes;
+  }
+
+  const statsSource =
+    (snapshot && snapshot.stats) ||
+    (entry && entry.enemyStats) ||
+    fallbackEnemy.stats ||
+    null;
+  let levelSource = 1;
+  if (snapshot && snapshot.level != null) {
+    levelSource = snapshot.level;
+  } else if (entry && entry.enemyLevel != null) {
+    levelSource = entry.enemyLevel;
+  } else if (fallbackEnemy && fallbackEnemy.level != null) {
+    levelSource = fallbackEnemy.level;
+  }
+  return deriveEnemyAttributesFromStats(statsSource, levelSource);
+}
+
+function formatEnemyAttributeValue(value) {
+  if (!Number.isFinite(Number(value))) {
+    return '';
+  }
+  return `${Math.max(0, Math.round(Number(value)))}`;
+}
+
+function formatEnemySpecialValue(key, value) {
+  if (value == null) {
+    return '';
+  }
+  if (key === 'dodgeChance') {
+    return `+${Math.round(value * 10000) / 100}%`;
+  }
+  return `+${Math.round(value)}`;
+}
+
+function sanitizeNumericRecord(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  return Object.keys(record).reduce((acc, key) => {
+    const value = Number(record[key]);
+    if (Number.isFinite(value)) {
+      acc[key] = value;
+    }
+    return acc;
+  }, {});
+}
+
+function normalizePositiveInteger(value) {
+  const number = Number(value);
+  if (Number.isFinite(number)) {
+    const normalized = Math.max(0, Math.floor(number));
+    return normalized > 0 ? normalized : null;
+  }
+  return null;
 }
 
 function decorateSkillHistory(history) {
@@ -6185,6 +6738,14 @@ function applyBattleOutcome(profile, result, enemy, now, member, levels = []) {
       createdAt: now,
       enemyId: enemy.id,
       enemyName: enemy.name,
+      enemyStageName: enemy.stageName,
+      enemyRealmName: enemy.realmName,
+      enemyType: enemy.type,
+      enemyLevel: enemy.level,
+      enemyFloor: enemy.floor,
+      enemyArchetype: enemy.archetype,
+      enemyAttributes: enemy.attributes,
+      enemySnapshot: captureEnemySnapshot(enemy),
       result: result.victory ? 'win' : result.draw ? 'draw' : 'lose',
       rounds: result.rounds,
       rewards: result.rewards,
@@ -6195,6 +6756,10 @@ function applyBattleOutcome(profile, result, enemy, now, member, levels = []) {
   );
 
   refreshAttributeSummary(updated);
+
+  if (profile && profile.__historyDoc) {
+    updated.__historyDoc = profile.__historyDoc;
+  }
 
   return updated;
 }

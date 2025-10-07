@@ -1,0 +1,47 @@
+<custom-nav title="战斗详情" theme="dark"></custom-nav>
+<view class="page">
+  <view wx:if="{{loading}}" class="state-card">战斗详情加载中...</view>
+  <scroll-view wx:elif="{{record}}" scroll-y="true" class="scroll-container">
+    <view class="card summary-card">
+      <view class="summary-result">{{record.resultLabel}}</view>
+      <view class="summary-meta">对手：{{record.enemyName}}</view>
+      <view class="summary-meta">{{record.createdAtText}}</view>
+      <view wx:if="{{record.combatPowerText}}" class="summary-meta">挑战战力 {{record.combatPowerText}}</view>
+      <view wx:if="{{record.adminEnemyDetails}}" class="admin-section">
+        <view class="admin-section-title">怪物详细属性（仅管理员可见）</view>
+        <view
+          wx:if="{{record.adminEnemyDetails.meta && record.adminEnemyDetails.meta.length}}"
+          class="admin-meta-list"
+        >
+          <text
+            wx:for="{{record.adminEnemyDetails.meta}}"
+            wx:key="label"
+            class="admin-meta-item"
+          >{{item.label}}：{{item.value}}</text>
+        </view>
+        <view
+          wx:if="{{record.adminEnemyDetails.entries && record.adminEnemyDetails.entries.length}}"
+          class="admin-stat-grid"
+        >
+          <view
+            wx:for="{{record.adminEnemyDetails.entries}}"
+            wx:key="key"
+            class="admin-stat-item {{item.type === 'special' ? 'admin-stat-special' : ''}}"
+          >
+            <text class="admin-stat-label">{{item.label}}</text>
+            <text class="admin-stat-value">{{item.value}}</text>
+          </view>
+        </view>
+      </view>
+      <view wx:if="{{record.rewardsText}}" class="summary-reward">{{record.rewardsText}}</view>
+    </view>
+    <view class="card log-card">
+      <view class="log-title">战斗过程</view>
+      <block wx:if="{{log.length}}">
+        <view class="log-item" wx:for="{{log}}" wx:key="index">{{item}}</view>
+      </block>
+      <view wx:else class="log-empty">暂无战斗详情</view>
+    </view>
+  </scroll-view>
+  <view wx:else class="state-card">未找到战斗详情</view>
+</view>
