@@ -105,6 +105,89 @@ page {
   color: rgba(214, 224, 255, 0.82);
   margin-bottom: 6rpx;
 }
+.enemy-admin-section {
+  margin-top: 12rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 18rpx;
+  background: rgba(5, 12, 34, 0.78);
+  border: 1rpx solid rgba(119, 138, 230, 0.18);
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+}
+.enemy-admin-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx 18rpx;
+}
+.enemy-admin-meta-item {
+  font-size: 20rpx;
+  color: rgba(198, 208, 255, 0.7);
+}
+.enemy-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx 18rpx;
+}
+.enemy-admin-stat {
+  display: flex;
+  justify-content: space-between;
+  gap: 10rpx;
+  font-size: 20rpx;
+  color: rgba(214, 221, 255, 0.82);
+}
+.enemy-admin-stat-label {
+  color: rgba(177, 194, 255, 0.78);
+}
+.enemy-admin-stat-value {
+  flex-shrink: 0;
+}
+.enemy-admin-stat-special {
+  color: rgba(255, 220, 150, 0.88);
+}
+.enemy-admin-stat-special .enemy-admin-stat-label {
+  color: rgba(255, 236, 188, 0.88);
+}
+.enemy-admin-skill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+.enemy-admin-skill-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  padding: 10rpx 14rpx;
+  border-radius: 12rpx;
+  background: rgba(10, 18, 42, 0.6);
+  border: 1rpx solid rgba(119, 138, 230, 0.16);
+}
+.enemy-admin-skill-name {
+  font-size: 22rpx;
+  font-weight: 600;
+  color: rgba(235, 240, 255, 0.92);
+}
+.enemy-admin-skill-meta {
+  font-size: 20rpx;
+  color: rgba(189, 202, 255, 0.7);
+}
+.enemy-admin-skill-desc {
+  font-size: 20rpx;
+  color: rgba(198, 208, 255, 0.76);
+  line-height: 1.5;
+}
+.enemy-admin-skill-highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6rpx;
+}
+.enemy-admin-skill-highlight {
+  font-size: 20rpx;
+  color: rgba(255, 238, 193, 0.82);
+  background: rgba(64, 56, 32, 0.45);
+  border-radius: 8rpx;
+  padding: 4rpx 10rpx;
+}
 
 .enemy-card.enemy-boss {
   border-color: rgba(255, 188, 87, 0.6);

@@ -5081,7 +5081,7 @@ function decorateProfile(member, profile, options = {}) {
   const attributeSummary = calculateAttributes(attributes, equipment, skills);
   const equipmentSummary = decorateEquipment(profile, attributeSummary.equipmentBonus);
   const skillsSummary = decorateSkills(profile);
-  const secretRealm = decorateSecretRealm(profile.secretRealm, attributeSummary);
+  const secretRealm = decorateSecretRealm(profile.secretRealm, attributeSummary, { viewerIsAdmin });
   const enemies = secretRealm.visibleFloors || [];
   const battleHistory = decorateBattleHistory(profile.battleHistory, profile, { viewerIsAdmin });
   const skillHistory = decorateSkillHistory(profile.skillHistory);
@@ -5823,10 +5823,13 @@ function decorateSkills(profile) {
   };
 }
 
-function decorateSecretRealm(secretRealmState, attributeSummary) {
+function decorateSecretRealm(secretRealmState, attributeSummary, options = {}) {
   const normalized = normalizeSecretRealm(secretRealmState || {});
   const highestUnlockedFloor = normalized.highestUnlockedFloor || 1;
-  const decoratedFloors = ENEMY_LIBRARY.map((enemy) => decorateEnemy(enemy, attributeSummary, normalized));
+  const viewerIsAdmin = !!options.viewerIsAdmin;
+  const decoratedFloors = ENEMY_LIBRARY.map((enemy) =>
+    decorateEnemy(enemy, attributeSummary, normalized, { viewerIsAdmin })
+  );
   const clearedCount = decoratedFloors.filter((floor) => floor.completed).length;
   const nextFloor = decoratedFloors.find((floor) => !floor.completed && !floor.locked);
   const totalFloors = ENEMY_LIBRARY.length;
@@ -5896,7 +5899,8 @@ function summarizeSecretRealmFloor(floor) {
     locked: floor.locked,
     completed: floor.completed,
     statusLabel: floor.statusLabel,
-    rewardsText: floor.rewardsText
+    rewardsText: floor.rewardsText,
+    ...(floor.adminEnemyDetails ? { adminEnemyDetails: floor.adminEnemyDetails } : {})
   };
 }
 
@@ -5942,7 +5946,7 @@ function decorateSkillInventoryEntry(entry, profile) {
       : false
   };
 }
-function decorateEnemy(enemy, attributeSummary, secretRealmState) {
+function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) {
   const combatPower = calculateCombatPower(enemy.stats, enemy.special || {});
   const playerPower = calculateCombatPower(attributeSummary.finalStats || {}, attributeSummary.skillSummary || {});
   const difficulty = resolveDifficultyLabel(playerPower, combatPower);
@@ -5960,6 +5964,8 @@ function decorateEnemy(enemy, attributeSummary, secretRealmState) {
   const bestRounds = floorState && floorState.bestRounds ? floorState.bestRounds : null;
   const victories = floorState && typeof floorState.victories === 'number' ? floorState.victories : 0;
   const statusLabel = locked ? '未解锁' : completed ? '已通关' : '可挑战';
+  const viewerIsAdmin = !!options.viewerIsAdmin;
+  const adminEnemyDetails = viewerIsAdmin ? buildEnemyPreviewDetails(enemy) : null;
   return {
     id: enemy.id,
     name: enemy.name,
@@ -5985,8 +5991,18 @@ function decorateEnemy(enemy, attributeSummary, secretRealmState) {
     clearedAtText,
     bestRounds,
     victories,
-    suggestedRewards: enemy.meta && enemy.meta.suggestedRewards ? enemy.meta.suggestedRewards : null
+    suggestedRewards: enemy.meta && enemy.meta.suggestedRewards ? enemy.meta.suggestedRewards : null,
+    ...(adminEnemyDetails ? { adminEnemyDetails } : {})
   };
+}
+
+function buildEnemyPreviewDetails(enemy) {
+  if (!enemy || typeof enemy !== 'object') {
+    return null;
+  }
+  const snapshot = captureEnemySnapshot(enemy);
+  const entry = snapshot ? { enemySnapshot: snapshot } : {};
+  return buildBattleEnemyDetails(entry, enemy);
 }
 
 function normalizeDungeonRewards(rewards = {}) {

@@ -81,6 +81,7 @@
 - 属性分配面板改为使用六维属性键位，支持手动选择与平均分配；所有操作均通过云函数校验剩余属性点并记录战斗日志。【F:miniprogram/pages/role/index.js†L1-L220】【F:cloudfunctions/pve/index.js†L919-L961】
 - 装备与技能页签保留已有交互：展示当前穿戴、背包、抽卡按钮以及技能槽位，并与云函数互通刷新档案。【F:miniprogram/pages/role/index.wxml†L102-L170】【F:miniprogram/pages/role/index.js†L108-L196】
 - 秘境战斗详情页会在管理员登录时自动附加“怪物详细属性”模块：服务端仅对管理员响应关卡信息、六维基础属性、全部衍生属性与技能负载，前端在战力行下方以紧凑网格与技能列表展示，便于客服定位战力或技能异常。【F:cloudfunctions/pve/index.js†L6050-L6369】【F:miniprogram/pages/pve/history.wxml†L8-L52】【F:miniprogram/pages/pve/history.wxss†L40-L143】
+- 秘境挑战首页同样会在管理员账户下展示关卡的怪物属性、衍生数据与技能列表，模块位于挑战按钮上方，保持紧凑排版便于快速核查。【F:cloudfunctions/pve/index.js†L5080-L5132】【F:cloudfunctions/pve/index.js†L5934-L6003】【F:miniprogram/pages/pve/pve.wxml†L27-L67】【F:miniprogram/pages/pve/pve.wxss†L73-L140】
 
 ## 战斗计算要点
 
