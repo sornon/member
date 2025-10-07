@@ -30,6 +30,58 @@
         <view class="enemy-meta">等级 {{item.level}} · 推荐战力 {{item.combatPower}}</view>
         <view class="enemy-status">状态：{{item.statusLabel}}</view>
         <view class="enemy-reward">{{item.rewardsText}}</view>
+        <view
+          wx:if="{{profile.metadata.viewerIsAdmin && item.adminEnemyDetails}}"
+          class="enemy-admin-section"
+        >
+          <view
+            wx:if="{{item.adminEnemyDetails.meta && item.adminEnemyDetails.meta.length}}"
+            class="enemy-admin-meta"
+          >
+            <text
+              wx:for="{{item.adminEnemyDetails.meta}}"
+              wx:key="label"
+              class="enemy-admin-meta-item"
+            >{{item.label}}：{{item.value}}</text>
+          </view>
+          <view
+            wx:if="{{item.adminEnemyDetails.entries && item.adminEnemyDetails.entries.length}}"
+            class="enemy-admin-grid"
+          >
+            <view
+              wx:for="{{item.adminEnemyDetails.entries}}"
+              wx:key="key"
+              class="enemy-admin-stat {{item.type === 'special' ? 'enemy-admin-stat-special' : ''}}"
+            >
+              <text class="enemy-admin-stat-label">{{item.label}}</text>
+              <text class="enemy-admin-stat-value">{{item.value}}</text>
+            </view>
+          </view>
+          <view
+            wx:if="{{item.adminEnemyDetails.skills && item.adminEnemyDetails.skills.length}}"
+            class="enemy-admin-skill-list"
+          >
+            <view
+              wx:for="{{item.adminEnemyDetails.skills}}"
+              wx:key="id"
+              class="enemy-admin-skill-item"
+            >
+              <view class="enemy-admin-skill-name">{{item.name}}</view>
+              <view wx:if="{{item.meta}}" class="enemy-admin-skill-meta">{{item.meta}}</view>
+              <view wx:if="{{item.description}}" class="enemy-admin-skill-desc">{{item.description}}</view>
+              <view
+                wx:if="{{item.highlights && item.highlights.length}}"
+                class="enemy-admin-skill-highlights"
+              >
+                <view
+                  wx:for="{{item.highlights}}"
+                  wx:key="*this"
+                  class="enemy-admin-skill-highlight"
+                >{{item}}</view>
+              </view>
+            </view>
+          </view>
+        </view>
         <button
           class="enemy-action"
           data-id="{{item.id}}"
@@ -59,9 +111,16 @@
       <view class="section-header">
         <view class="section-title">战斗记录</view>
       </view>
-      <view class="history-item" wx:for="{{profile.battleHistory || []}}" wx:key="id">
+      <view
+        class="history-item"
+        wx:for="{{profile.battleHistory || []}}"
+        wx:key="id"
+        data-index="{{index}}"
+        hover-class="none"
+        bindtap="handleHistoryTap"
+      >
         <view class="history-title">{{item.createdAtText}}</view>
-        <view class="history-desc">{{item.summary}}</view>
+        <view class="history-desc">{{item.summary || item.resultLabel}}</view>
       </view>
       <view wx:if="{{!(profile.battleHistory && profile.battleHistory.length)}}" class="empty-tip">暂无战斗记录</view>
     </view>

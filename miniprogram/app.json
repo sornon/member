@@ -9,6 +9,7 @@
     "pages/stones/stones",
     "pages/mall/index",
     "pages/pve/pve",
+    "pages/pve/history",
     "pages/pvp/index",
     "pages/pvp/leaderboard",
     "pages/pvp/battle",

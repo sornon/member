@@ -118,7 +118,7 @@ cd cloudfunctions/member && npm install && cd -
 
 > 现金钱包与灵石为两套完全独立的账户体系，当前版本不支持兑换或折现，灵石数值仅以整数形式发放与消耗。
 
-> 提示：增长速度较快的扩展字段（如头像解锁、等级奖励、改名记录）已迁移至 `memberExtras` 与 `memberTimeline` 集合，避免主档案文档持续膨胀，从而提升读取性能。
+> 提示：增长速度较快的扩展字段（如头像解锁、等级奖励、改名记录、战斗与技能历史）已迁移至 `memberExtras`、`memberTimeline` 与 `memberPveHistory` 集合，避免主档案文档持续膨胀，从而提升读取性能。
 
 ### memberExtras
 
@@ -145,6 +145,18 @@ cd cloudfunctions/member && npm install && cd -
 | `source` | string | 变更来源（`manual`、`admin` 等） |
 | `changedAt` | Date | 业务发生时间 |
 | `createdAt` | Date | 日志写入时间 |
+
+### memberPveHistory
+
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | string | 与会员 `openid` 一致 |
+| `battleHistory` | array | 最近的秘境战斗与装备操作记录，长度默认保留 15 条 |
+| `skillHistory` | array | 最近的技能抽取、装备与重置记录，长度默认保留 30 条 |
+| `createdAt` | Date | 创建时间 |
+| `updatedAt` | Date | 最近更新时间 |
+
+> 历史数据在云函数首次读取时会自动迁移至 `memberPveHistory`，迁移完成后 `members.pveProfile` 中的 `battleHistory` 与 `skillHistory` 字段会被剔除，减少实时订阅与常规查询的负担。
 
 ## 仙缘档案编辑
 
