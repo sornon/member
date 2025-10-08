@@ -57,7 +57,10 @@
           </view>
         </view>
         <view class="profile-other">
-            <text class="profile-meta__text" bindtap="handleLevelTap">境界 {{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</text>
+            <view class="profile-meta__item" bindtap="handleLevelTap">
+              <text class="profile-meta__text">境界 {{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</text>
+              <view wx:if="{{realmHasPendingRewards}}" class="badge-dot profile-meta__dot"></view>
+            </view>
             <text class="profile-meta__text" bindtap="handleStoneTap">战力 {{memberStats.combatPower}}</text>
             <text class="profile-meta__text" bindtap="handleStoneTap">灵石 {{memberStats.stoneBalance}}</text>
         </view>

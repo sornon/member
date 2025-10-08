@@ -288,6 +288,13 @@ function normalizePercentage(progress) {
   return value;
 }
 
+function hasPendingLevelRewards(progress) {
+  if (!progress || !Array.isArray(progress.levels)) {
+    return false;
+  }
+  return progress.levels.some((level) => level && level.claimable);
+}
+
 function buildWidthStyle(width) {
   const safeWidth = typeof width === 'number' && Number.isFinite(width) ? width : 0;
   return `width: ${safeWidth}%;`;
@@ -705,6 +712,7 @@ Page({
   data: {
     member: null,
     progress: null,
+    realmHasPendingRewards: false,
     tasks: [],
     loading: true,
     backgroundImage: resolveBackgroundImage(null),
@@ -913,9 +921,11 @@ Page({
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
       const navItems = resolveNavItems(sanitizedMember);
       const collapsedNavItems = buildCollapsedNavItems(navItems);
+      const realmHasPendingRewards = hasPendingLevelRewards(progress);
       this.setData({
         member: sanitizedMember,
         progress,
+        realmHasPendingRewards,
         tasks: tasks.slice(0, 3),
         loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),

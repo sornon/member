@@ -194,6 +194,17 @@ page {
   display: block;
   white-space: nowrap;
 }
+.profile-meta__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-right: 16rpx;
+}
+.profile-meta__dot {
+  position: absolute;
+  top: -6rpx;
+  right: -6rpx;
+}
 .profile-other {
     position: absolute;
     top: 200rpx;
