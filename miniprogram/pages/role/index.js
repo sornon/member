@@ -3,6 +3,11 @@ import {
   extractPendingAttributePointCountFromProfile,
   writePendingAttributeOverride
 } from '../../utils/pending-attributes';
+import {
+  acknowledgeStorageItems,
+  shouldDisplayStorageItemNew,
+  syncStorageBadgeStateFromProfile
+} from '../../utils/storage-notifications';
 import { formatStones } from '../../utils/format';
 import { sanitizeEquipmentProfile } from '../../utils/equipment';
 
@@ -297,6 +302,7 @@ Page({
   applyProfile(profile, extraState = {}) {
     const sanitizedProfile = sanitizeEquipmentProfile(profile);
     syncRolePendingAttributes(sanitizedProfile);
+    syncStorageBadgeStateFromProfile(sanitizedProfile);
     const storageState = this.buildStorageState(sanitizedProfile);
     const updates = { ...extraState, profile: sanitizedProfile, ...storageState };
     const tooltip = this.data ? this.data.equipmentTooltip : null;
@@ -467,12 +473,18 @@ Page({
           } else {
             normalized.recommendedUpgrade = false;
           }
+          normalized.showNewBadge = shouldDisplayStorageItemNew(normalized);
           return normalized;
         });
         const slotCount = Math.max(capacity, normalizedItems.length);
-        const slots = normalizedItems.map((item) => ({ ...item, placeholder: false, storageCategory: key }));
+        const slots = normalizedItems.map((item) => ({
+          ...item,
+          placeholder: false,
+          storageCategory: key,
+          showNewBadge: item.showNewBadge
+        }));
         for (let i = normalizedItems.length; i < slotCount; i += 1) {
-          slots.push({ placeholder: true, storageKey: `${key}-placeholder-${i}` });
+          slots.push({ placeholder: true, storageKey: `${key}-placeholder-${i}`, showNewBadge: false });
         }
         const used = Math.min(normalizedItems.length, slotCount);
         const remaining = Math.max(capacity - normalizedItems.length, 0);
@@ -493,6 +505,81 @@ Page({
         };
       })
       .filter((category) => !!category);
+  },
+
+  refreshStorageNewBadges() {
+    const categories = Array.isArray(this.data.storageCategories) ? this.data.storageCategories : [];
+    const updates = {};
+    const activeIndex = Number.isFinite(this.data.activeStorageCategoryIndex)
+      ? this.data.activeStorageCategoryIndex
+      : -1;
+    categories.forEach((category, categoryIndex) => {
+      if (!category) {
+        return;
+      }
+      const items = Array.isArray(category.items) ? category.items : [];
+      items.forEach((item, itemIndex) => {
+        if (!item) {
+          return;
+        }
+        const desired = shouldDisplayStorageItemNew(item);
+        if (item.showNewBadge !== desired) {
+          updates[`storageCategories[${categoryIndex}].items[${itemIndex}].showNewBadge`] = desired;
+          if (categoryIndex === activeIndex) {
+            updates[`activeStorageCategoryData.items[${itemIndex}].showNewBadge`] = desired;
+          }
+        }
+      });
+      const slots = Array.isArray(category.slots) ? category.slots : [];
+      slots.forEach((slotItem, slotIndex) => {
+        if (!slotItem || slotItem.placeholder) {
+          return;
+        }
+        const desired = shouldDisplayStorageItemNew(slotItem);
+        if (slotItem.showNewBadge !== desired) {
+          updates[`storageCategories[${categoryIndex}].slots[${slotIndex}].showNewBadge`] = desired;
+          if (categoryIndex === activeIndex) {
+            updates[`activeStorageCategoryData.slots[${slotIndex}].showNewBadge`] = desired;
+          }
+        }
+      });
+    });
+    const profile = (this.data && this.data.profile) || null;
+    const profileStorage =
+      profile &&
+      profile.equipment &&
+      profile.equipment.storage &&
+      typeof profile.equipment.storage === 'object'
+        ? profile.equipment.storage
+        : null;
+    if (profileStorage) {
+      const profileCategories = Array.isArray(profileStorage.categories) ? profileStorage.categories : [];
+      profileCategories.forEach((category, categoryIndex) => {
+        if (!category || !Array.isArray(category.items)) {
+          return;
+        }
+        category.items.forEach((item, itemIndex) => {
+          if (!item) {
+            return;
+          }
+          const desired = shouldDisplayStorageItemNew(item);
+          if (item.showNewBadge !== desired) {
+            updates[`profile.equipment.storage.categories[${categoryIndex}].items[${itemIndex}].showNewBadge`] = desired;
+          }
+        });
+      });
+    }
+    if (Object.keys(updates).length) {
+      this.setData(updates);
+    }
+  },
+
+  acknowledgeStorageItem(item) {
+    if (!item) {
+      return;
+    }
+    acknowledgeStorageItems(item);
+    this.refreshStorageNewBadges();
   },
 
   onLoad(options = {}) {
@@ -1206,6 +1293,9 @@ Page({
     tooltip.deleteDisabledReason = deleteState.reason;
     if (equippedItem) {
       tooltip.equippedItem = equippedItem;
+    }
+    if (source === 'storage') {
+      this.acknowledgeStorageItem(rawItem);
     }
     this.setData({ equipmentTooltip: tooltip });
   },

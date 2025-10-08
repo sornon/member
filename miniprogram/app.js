@@ -4,7 +4,11 @@ App({
     memberInfo: null,
     ready: false,
     lastPvpBattle: null,
-    rolePendingAttributes: null
+    rolePendingAttributes: null,
+    storageBadge: {
+      acknowledged: {},
+      latest: {}
+    }
   },
 
   onLaunch() {
