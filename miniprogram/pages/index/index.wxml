@@ -106,7 +106,7 @@
         >
           <view class="nav-icon-wrapper">
             <text class="nav-icon">{{item.icon}}</text>
-            <view wx:if="{{item.showDot}}" class="nav-item__dot"></view>
+            <view wx:if="{{item.showDot}}" class="badge-dot nav-item__dot"></view>
           </view>
           <view class="nav-label">{{item.label}}</view>
         </view>

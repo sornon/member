@@ -363,7 +363,7 @@ page {
   align-items: center;
   gap: 16rpx;
   box-shadow: 0 18rpx 36rpx rgba(16, 13, 55, 0.45);
-  overflow: hidden;
+  overflow: visible;
   transition: max-width 280ms ease, padding-right 280ms ease, padding-left 280ms ease;
   transform-origin: left center;
   width: 100%;
@@ -383,7 +383,7 @@ page {
   display: flex;
   align-items: center;
   flex-wrap: nowrap;
-  overflow: hidden;
+  overflow: visible;
   transition: gap 260ms ease, justify-content 260ms ease;
 }
 
@@ -445,6 +445,7 @@ page {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: visible;
 }
 
 .nav-icon {
@@ -455,12 +456,7 @@ page {
   position: absolute;
   top: -6rpx;
   right: -6rpx;
-  width: 18rpx;
-  height: 18rpx;
-  border-radius: 50%;
-  background: #ff5f6d;
-  border: 2rpx solid rgba(11, 19, 40, 0.9);
-  box-shadow: 0 0 8rpx rgba(255, 95, 109, 0.65);
+  pointer-events: none;
 }
 
 .nav-label {
