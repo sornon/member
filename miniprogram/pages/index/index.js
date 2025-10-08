@@ -288,6 +288,58 @@ function normalizePercentage(progress) {
   return value;
 }
 
+function hasPendingLevelRewards(progress) {
+  if (!progress || !Array.isArray(progress.levels)) {
+    return false;
+  }
+  return progress.levels.some((level) => level && level.claimable);
+}
+
+function hasPendingAttributePoints(member) {
+  if (!member || typeof member !== 'object') {
+    return false;
+  }
+
+  const candidates = [];
+
+  if (Object.prototype.hasOwnProperty.call(member, 'attributePoints')) {
+    candidates.push(member.attributePoints);
+  }
+  if (Object.prototype.hasOwnProperty.call(member, 'pendingAttributePoints')) {
+    candidates.push(member.pendingAttributePoints);
+  }
+
+  const attributeSummary =
+    member.attributeSummary && typeof member.attributeSummary === 'object'
+      ? member.attributeSummary
+      : null;
+  if (attributeSummary && Object.prototype.hasOwnProperty.call(attributeSummary, 'attributePoints')) {
+    candidates.push(attributeSummary.attributePoints);
+  }
+
+  const profile = member.pveProfile && typeof member.pveProfile === 'object' ? member.pveProfile : null;
+  if (profile) {
+    const profileSummary =
+      profile.attributeSummary && typeof profile.attributeSummary === 'object'
+        ? profile.attributeSummary
+        : null;
+    if (profileSummary && Object.prototype.hasOwnProperty.call(profileSummary, 'attributePoints')) {
+      candidates.push(profileSummary.attributePoints);
+    }
+
+    const profileAttributes =
+      profile.attributes && typeof profile.attributes === 'object' ? profile.attributes : null;
+    if (profileAttributes && Object.prototype.hasOwnProperty.call(profileAttributes, 'attributePoints')) {
+      candidates.push(profileAttributes.attributePoints);
+    }
+  }
+
+  return candidates.some((value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 0;
+  });
+}
+
 function buildWidthStyle(width) {
   const safeWidth = typeof width === 'number' && Number.isFinite(width) ? width : 0;
   return `width: ${safeWidth}%;`;
@@ -684,11 +736,16 @@ function deriveMemberStats(member) {
 function resolveNavItems(member) {
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
   const badges = normalizeReservationBadges(member && member.reservationBadges);
+  const roleHasPendingAttributes = hasPendingAttributePoints(member);
   const navItems = BASE_NAV_ITEMS.map((item) => {
+    const next = { ...item };
     if (item.label === '预订') {
-      return { ...item, showDot: shouldShowReservationDot(badges) };
+      next.showDot = shouldShowReservationDot(badges);
     }
-    return { ...item };
+    if (item.label === '角色') {
+      next.showDot = roleHasPendingAttributes;
+    }
+    return next;
   });
   if (roles.some((role) => ADMIN_ALLOWED_ROLES.includes(role))) {
     navItems.push({
@@ -705,6 +762,7 @@ Page({
   data: {
     member: null,
     progress: null,
+    realmHasPendingRewards: false,
     tasks: [],
     loading: true,
     backgroundImage: resolveBackgroundImage(null),
@@ -913,9 +971,11 @@ Page({
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
       const navItems = resolveNavItems(sanitizedMember);
       const collapsedNavItems = buildCollapsedNavItems(navItems);
+      const realmHasPendingRewards = hasPendingLevelRewards(progress);
       this.setData({
         member: sanitizedMember,
         progress,
+        realmHasPendingRewards,
         tasks: tasks.slice(0, 3),
         loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),
