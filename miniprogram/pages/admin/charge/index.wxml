@@ -50,7 +50,7 @@
               data-index="{{index}}"
               bindchange="handleDiningToggle"
             ></switch>
-            <text class="hint">纳入财务用餐统计</text>
+            <text class="hint">纳入用餐统计</text>
           </view>
         </view>
         <button class="remove" wx:if="{{items.length > 1}}" data-index="{{index}}" bindtap="handleRemoveItem">移除</button>
