@@ -17,7 +17,7 @@
         <view class="progress-inner" style="{{progressStyle}}"></view>
       </view>
       <view class="progress-text" wx:if="{{nextLevel}}">距离 {{nextLevel.displayName}} 还差 {{formatCurrency(progress ? progress.nextDiff : 0)}}</view>
-      <view class="progress-text" wx:else>恭喜飞升圆满，尊享终极特权</view>
+      <view class="progress-text" wx:else>恭喜金仙圆满，尊享终极特权</view>
       <view wx:if="{{breakthroughLevel}}" class="breakthrough-hint">
         <text class="breakthrough-hint__text">修为已圆满，请突破至 {{breakthroughLevel.displayName || breakthroughLevel.name}}。</text>
         <text class="breakthrough-hint__reward">奖励：{{breakthroughRewardText}}</text>
