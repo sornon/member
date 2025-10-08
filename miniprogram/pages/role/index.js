@@ -1,4 +1,8 @@
 import { PveService, MemberService } from '../../services/api';
+import {
+  extractPendingAttributePointCountFromProfile,
+  writePendingAttributeOverride
+} from '../../utils/pending-attributes';
 import { formatStones } from '../../utils/format';
 import { sanitizeEquipmentProfile } from '../../utils/equipment';
 
@@ -26,6 +30,14 @@ function sanitizeOptionalCount(value) {
     return Math.max(0, Math.floor(number));
   }
   return null;
+}
+
+function syncRolePendingAttributes(profile) {
+  const points = extractPendingAttributePointCountFromProfile(profile);
+  if (points === null) {
+    return;
+  }
+  writePendingAttributeOverride(points, Date.now());
 }
 
 function extractStorageMetaFromProfile(profile) {
@@ -284,6 +296,7 @@ Page({
 
   applyProfile(profile, extraState = {}) {
     const sanitizedProfile = sanitizeEquipmentProfile(profile);
+    syncRolePendingAttributes(sanitizedProfile);
     const storageState = this.buildStorageState(sanitizedProfile);
     const updates = { ...extraState, profile: sanitizedProfile, ...storageState };
     const tooltip = this.data ? this.data.equipmentTooltip : null;

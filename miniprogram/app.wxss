@@ -54,6 +54,24 @@ page {
   border: 1rpx solid rgba(149, 173, 255, 0.35);
 }
 
+.badge-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18rpx;
+  min-width: 18rpx;
+  height: 18rpx;
+  border-radius: 999rpx;
+  background: #ff5f6d;
+  border: 2rpx solid rgba(11, 19, 40, 0.9);
+  box-shadow: 0 0 8rpx rgba(255, 95, 109, 0.65);
+  color: #ffffff;
+  font-size: 18rpx;
+  font-weight: 600;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
 .flex {
   display: flex;
 }

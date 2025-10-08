@@ -1,6 +1,7 @@
 import { MemberService, TaskService } from '../../services/api';
 import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../services/member-realtime';
 import { formatCombatPower, formatCurrency, formatExperience, formatStones } from '../../utils/format';
+import { shouldShowRoleBadge } from '../../utils/pending-attributes';
 import {
   buildAvatarUrlById,
   getAvailableAvatars,
@@ -108,11 +109,51 @@ const BASE_NAV_ITEMS = [
   //{ icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
 
+function buildDefaultNavItems() {
+  const showRoleDot = shouldShowRoleBadge(null);
+  return BASE_NAV_ITEMS.map((item) => {
+    if (item.label === '角色') {
+      return { ...item, showDot: showRoleDot };
+    }
+    return { ...item };
+  });
+}
+
+const INITIAL_NAV_ITEMS = buildDefaultNavItems();
+
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
 
 function buildCollapsedNavItems(navItems) {
   const source = Array.isArray(navItems) && navItems.length ? navItems : BASE_NAV_ITEMS;
-  return source.slice(0, 3);
+  if (!source.length) {
+    return [];
+  }
+
+  const MAX_ITEMS = 3;
+  const selected = [];
+  const seen = new Set();
+
+  const tryAdd = (item) => {
+    if (!item || seen.has(item.label) || selected.length >= MAX_ITEMS) {
+      return;
+    }
+    selected.push(item);
+    seen.add(item.label);
+  };
+
+  source.forEach((item) => {
+    if (item && item.showDot) {
+      tryAdd(item);
+    }
+  });
+
+  if (selected.length < MAX_ITEMS) {
+    source.forEach((item) => {
+      tryAdd(item);
+    });
+  }
+
+  return selected.slice(0, MAX_ITEMS);
 }
 
 const AVATAR_FRAME_OPTIONS = buildAvatarFrameOptionList();
@@ -286,6 +327,13 @@ function normalizePercentage(progress) {
     return 100;
   }
   return value;
+}
+
+function hasPendingLevelRewards(progress) {
+  if (!progress || !Array.isArray(progress.levels)) {
+    return false;
+  }
+  return progress.levels.some((level) => level && level.claimable);
 }
 
 function buildWidthStyle(width) {
@@ -684,11 +732,16 @@ function deriveMemberStats(member) {
 function resolveNavItems(member) {
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
   const badges = normalizeReservationBadges(member && member.reservationBadges);
+  const roleHasPendingAttributes = shouldShowRoleBadge(member);
   const navItems = BASE_NAV_ITEMS.map((item) => {
+    const next = { ...item };
     if (item.label === '预订') {
-      return { ...item, showDot: shouldShowReservationDot(badges) };
+      next.showDot = shouldShowReservationDot(badges);
     }
-    return { ...item };
+    if (item.label === '角色') {
+      next.showDot = roleHasPendingAttributes;
+    }
+    return next;
   });
   if (roles.some((role) => ADMIN_ALLOWED_ROLES.includes(role))) {
     navItems.push({
@@ -705,6 +758,7 @@ Page({
   data: {
     member: null,
     progress: null,
+    realmHasPendingRewards: false,
     tasks: [],
     loading: true,
     backgroundImage: resolveBackgroundImage(null),
@@ -738,8 +792,8 @@ Page({
       { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
       { icon: '🥊', label: '比武', url: '/pages/pvp/index' }
     ],
-    navItems: [...BASE_NAV_ITEMS],
-    collapsedNavItems: buildCollapsedNavItems(BASE_NAV_ITEMS),
+    navItems: INITIAL_NAV_ITEMS.slice(),
+    collapsedNavItems: buildCollapsedNavItems(INITIAL_NAV_ITEMS),
     navExpanded: false,
     memberStats: { ...EMPTY_MEMBER_STATS },
     progressWidth: 0,
@@ -913,9 +967,11 @@ Page({
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
       const navItems = resolveNavItems(sanitizedMember);
       const collapsedNavItems = buildCollapsedNavItems(navItems);
+      const realmHasPendingRewards = hasPendingLevelRewards(progress);
       this.setData({
         member: sanitizedMember,
         progress,
+        realmHasPendingRewards,
         tasks: tasks.slice(0, 3),
         loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),
