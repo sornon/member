@@ -7,7 +7,7 @@
 - 小程序首页仅在具备对应角色时展示“管理员”入口，新建的“创建扣费单”页面也沿用了该限制。
 
 ### 扣费流程
-1. 在“创建扣费单”页面录入消费项目（名称、单价、数量）。
+1. 在“创建扣费单”页面录入消费项目（名称、单价、数量），并可勾选“记为用餐”以便财务统计。
 2. 前端会实时以“元”为单位计算订单合计金额，创建时转换为“分”保存，避免精度损失。
 3. 调用 `admin.createChargeOrder` 云函数写入 `chargeOrders` 集合，生成 10 分钟有效期的待支付订单，返回格式化数据与扫码 payload（`member-charge:<orderId>`）。
 4. 页面使用内置二维码工具绘制二维码画布，同时云函数会生成可在“微信扫一扫”中识别的小程序跳转链接（优先 Scheme，失败时降级为 URL Link），
@@ -40,9 +40,10 @@
 ## 数据模型
 - `chargeOrders`
   - `status`: `pending | paid | cancelled | expired`
-  - `items`: `{ name, price, quantity, amount }[]`（金额单位：分）
+  - `items`: `{ name, price, quantity, amount, isDining }[]`（金额单位：分，`isDining` 用于财务统计）
   - `totalAmount`: 分
   - `stoneReward`: 默认等于 `totalAmount`
+  - `diningAmount`: 勾选为用餐的项目合计（分，已按实际总额封顶）
   - `createdBy`, `memberId`, `createdAt`, `updatedAt`, `confirmedAt`, `expireAt`
 - 流水表沿用原有集合，无需新增结构。
 

@@ -48,6 +48,29 @@ page {
   gap: 12rpx;
 }
 
+.field.dining {
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.field.dining .label {
+  opacity: 0.9;
+}
+
+.dining-control {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  color: rgba(226, 232, 240, 0.7);
+  font-size: 22rpx;
+}
+
+.dining-control .hint {
+  max-width: 360rpx;
+  line-height: 1.4;
+}
+
 .label {
   font-size: 24rpx;
   opacity: 0.8;

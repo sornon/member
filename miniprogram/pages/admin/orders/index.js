@@ -85,6 +85,19 @@ function formatAmountInputFromFen(value) {
   return (numeric / 100).toFixed(2);
 }
 
+function showConfirmDialog({ title = '提示', content = '', confirmText = '确定' } = {}) {
+  return new Promise((resolve) => {
+    wx.showModal({
+      title,
+      content,
+      confirmText,
+      cancelText: '取消',
+      success: (res) => resolve(res || { confirm: false, cancel: true }),
+      fail: () => resolve({ confirm: false, cancel: true })
+    });
+  });
+}
+
 function decorateOrder(order) {
   if (!order) return null;
   const totalAmount = Number(order.totalAmount || 0);
@@ -161,6 +174,7 @@ Page({
       remark: ''
     },
     priceAdjustingId: '',
+    cancelingId: '',
     priceAdjustDialog: {
       visible: false,
       orderId: '',
@@ -250,6 +264,38 @@ Page({
       return;
     }
     this.openForceChargeDialog(id);
+  },
+
+  async handleCancelOrderTap(event) {
+    const { id } = event.currentTarget.dataset || {};
+    if (!id || this.data.cancelingId) {
+      return;
+    }
+    const targetOrder = this.data.orders.find((item) => item && item._id === id);
+    if (!targetOrder || !['pending', 'created'].includes(targetOrder.status)) {
+      return;
+    }
+    const confirmResult = await showConfirmDialog({
+      title: '取消订单',
+      content: '确认取消该订单？',
+      confirmText: '取消订单'
+    });
+    if (!confirmResult.confirm) {
+      return;
+    }
+    this.setData({ cancelingId: id });
+    try {
+      await AdminService.cancelChargeOrder(id, { remark: '' });
+      wx.showToast({ title: '订单已取消', icon: 'success' });
+      await this.loadOrders({ reset: true });
+    } catch (error) {
+      const message =
+        (error && (error.errMsg || error.message)) ? String(error.errMsg || error.message) : '取消失败';
+      const shortMessage = message.length > 14 ? `${message.slice(0, 13)}…` : message;
+      wx.showToast({ title: shortMessage, icon: 'none' });
+    } finally {
+      this.setData({ cancelingId: '' });
+    }
   },
 
   handleOpenPriceAdjustDialog(event) {

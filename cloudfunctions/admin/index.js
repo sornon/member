@@ -40,6 +40,7 @@ const ACTIONS = {
   GET_CHARGE_ORDER_QR_CODE: 'getChargeOrderQrCode',
   FORCE_CHARGE_ORDER: 'forceChargeOrder',
   ADJUST_CHARGE_ORDER: 'adjustChargeOrder',
+  CANCEL_CHARGE_ORDER: 'cancelChargeOrder',
   RECHARGE_MEMBER: 'rechargeMember',
   LIST_RESERVATIONS: 'listReservations',
   APPROVE_RESERVATION: 'approveReservation',
@@ -69,6 +70,7 @@ const ACTION_ALIASES = {
   listchargeorder: ACTIONS.LIST_CHARGE_ORDERS,
   forcechargeorder: ACTIONS.FORCE_CHARGE_ORDER,
   adjustchargeorder: ACTIONS.ADJUST_CHARGE_ORDER,
+  cancelchargeorder: ACTIONS.CANCEL_CHARGE_ORDER,
   rechargemember: ACTIONS.RECHARGE_MEMBER,
   listreservations: ACTIONS.LIST_RESERVATIONS,
   approvereservation: ACTIONS.APPROVE_RESERVATION,
@@ -124,6 +126,8 @@ const ACTION_HANDLERS = {
       memberId: event.memberId || '',
       remark: event.remark || ''
     }),
+  [ACTIONS.CANCEL_CHARGE_ORDER]: (openid, event) =>
+    cancelChargeOrder(openid, event.orderId, event.remark || ''),
   [ACTIONS.ADJUST_CHARGE_ORDER]: (openid, event) =>
     adjustChargeOrderAmount(openid, event.orderId, {
       amount: event.amount,
@@ -753,6 +757,12 @@ async function createChargeOrder(openid, items) {
   if (!totalAmount || totalAmount <= 0) {
     throw new Error('扣费金额无效');
   }
+  const diningAmount = normalizedItems.reduce((sum, item) => {
+    if (!item || !item.isDining) {
+      return sum;
+    }
+    return sum + item.amount;
+  }, 0);
   const now = new Date();
   const expireAt = new Date(now.getTime() + 10 * 60 * 1000);
   const orderData = {
@@ -760,6 +770,7 @@ async function createChargeOrder(openid, items) {
     items: normalizedItems,
     totalAmount,
     stoneReward: totalAmount,
+    diningAmount: Math.min(totalAmount, Math.max(0, diningAmount)),
     createdBy: admin._id,
     createdAt: now,
     updatedAt: now,
@@ -1018,6 +1029,103 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '' } 
   };
 }
 
+async function cancelChargeOrder(openid, orderId, remark = '') {
+  await ensureAdmin(openid);
+  if (!orderId) {
+    throw new Error('缺少订单编号');
+  }
+  const normalizedRemark =
+    typeof remark === 'string' ? remark.trim().slice(0, 200) : '';
+  const cancelRemark = normalizedRemark || '管理员取消订单';
+  const now = new Date();
+  let updatedOrder = null;
+  await db.runTransaction(async (transaction) => {
+    const orderRef = transaction
+      .collection(COLLECTIONS.CHARGE_ORDERS)
+      .doc(orderId);
+    const orderDoc = await orderRef.get().catch(() => null);
+    if (!orderDoc || !orderDoc.data) {
+      throw new Error('订单不存在');
+    }
+    const order = orderDoc.data;
+    const status = order.status || 'pending';
+    if (status === 'paid') {
+      throw new Error('订单已完成，无法取消');
+    }
+    if (status === 'cancelled') {
+      updatedOrder = { _id: orderId, ...order };
+      return;
+    }
+    if (!['pending', 'created'].includes(status)) {
+      throw new Error('订单当前不可取消');
+    }
+    const chargeUpdates = {
+      status: 'cancelled',
+      cancelRemark,
+      cancelReason: 'adminCancelled',
+      cancelledAt: now,
+      cancelledBy: openid,
+      cancelledByRole: 'admin',
+      updatedAt: now
+    };
+    await orderRef.update({ data: chargeUpdates });
+    updatedOrder = { ...order, ...chargeUpdates };
+
+    const menuOrderId =
+      typeof order.menuOrderId === 'string' ? order.menuOrderId.trim() : '';
+    if (!menuOrderId) {
+      return;
+    }
+    const menuOrderRef = transaction
+      .collection(COLLECTIONS.MENU_ORDERS)
+      .doc(menuOrderId);
+    const menuSnapshot = await menuOrderRef.get().catch(() => null);
+    if (!menuSnapshot || !menuSnapshot.data) {
+      return;
+    }
+    const menuOrder = menuSnapshot.data;
+    if (menuOrder.status === 'paid' || menuOrder.status === 'cancelled') {
+      return;
+    }
+    const menuUpdates = {
+      status: 'cancelled',
+      cancelRemark,
+      cancelReason: 'adminCancelled',
+      cancelledAt: now,
+      cancelledBy: openid,
+      cancelledByRole: 'admin',
+      updatedAt: now
+    };
+    await menuOrderRef.update({ data: menuUpdates });
+    const appliedRights = Array.isArray(menuOrder.appliedRights)
+      ? menuOrder.appliedRights
+      : [];
+    for (const applied of appliedRights) {
+      const memberRightId =
+        applied && typeof applied.memberRightId === 'string'
+          ? applied.memberRightId.trim()
+          : '';
+      if (!memberRightId) {
+        continue;
+      }
+      await transaction
+        .collection(COLLECTIONS.MEMBER_RIGHTS)
+        .doc(memberRightId)
+        .update({
+          data: {
+            status: 'active',
+            updatedAt: now,
+            orderId: _.remove(),
+            lockedAt: _.remove(),
+            usedAt: _.remove()
+          }
+        })
+        .catch(() => null);
+    }
+  });
+  return { order: mapChargeOrder(updatedOrder) };
+}
+
 async function adjustChargeOrderAmount(openid, orderId, { amount, remark = '' } = {}) {
   await ensureAdmin(openid);
   if (!orderId) {
@@ -1075,6 +1183,10 @@ async function adjustChargeOrderAmount(openid, orderId, { amount, remark = '' } 
           ? Number(order.originalTotalAmount)
           : previousAmount
     };
+    const existingDiningAmount = Number(order.diningAmount || 0);
+    if (Number.isFinite(existingDiningAmount) && existingDiningAmount > 0) {
+      chargeUpdates.diningAmount = Math.min(normalizedAmount, Math.max(0, Math.round(existingDiningAmount)));
+    }
     await orderRef.update({ data: chargeUpdates });
 
     if (order.menuOrderId) {
@@ -2648,6 +2760,23 @@ function formatRenameHistory(history) {
   });
 }
 
+function normalizeDiningFlag(value) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+    return ['1', 'true', 'yes', 'y', '是', '用餐'].includes(normalized);
+  }
+  return false;
+}
+
 function normalizeChargeItems(items) {
   if (!Array.isArray(items)) {
     return [];
@@ -2666,7 +2795,8 @@ function normalizeChargeItems(items) {
         name,
         price,
         quantity: normalizedQuantity,
-        amount
+        amount,
+        isDining: normalizeDiningFlag(raw.isDining)
       };
     })
     .filter(Boolean);
@@ -2683,10 +2813,12 @@ function mapChargeOrder(order) {
       name: item.name || '',
       price: Number(item.price || 0),
       quantity: Number(item.quantity || 0),
-      amount: Number(item.amount || 0)
+      amount: Number(item.amount || 0),
+      isDining: !!item.isDining
     })),
     totalAmount,
     stoneReward: Number(order.stoneReward || totalAmount || 0),
+    diningAmount: Number(order.diningAmount || 0),
     createdAt: order.createdAt || null,
     updatedAt: order.updatedAt || null,
     expireAt: order.expireAt || null,
@@ -3175,13 +3307,18 @@ async function getFinanceReport(openid, monthInput) {
   const adminMemberIds = await loadAdminMemberIds();
   const walletMatch = buildWalletMatch(range, adminMemberIds);
   const menuOrderMatch = buildMenuOrderMatch(range, adminMemberIds);
-  const [walletTotals, diningTotals] = await Promise.all([
+  const chargeOrderMatch = buildChargeOrderMatch(range, adminMemberIds);
+  const [walletTotals, menuDiningTotals, chargeDiningTotals] = await Promise.all([
     aggregateWalletTotals(walletMatch),
-    aggregateDiningTotals(menuOrderMatch, range)
+    aggregateMenuDiningTotals(menuOrderMatch, range),
+    aggregateChargeOrderDiningTotals(chargeOrderMatch, range)
   ]);
   const totalIncome = Math.max(0, normalizeAmountValue(walletTotals.totalIncome));
   const totalSpend = Math.max(0, normalizeAmountValue(walletTotals.totalSpend));
-  const diningSpendRaw = Math.max(0, normalizeAmountValue(diningTotals.diningTotal));
+  const diningSpendRaw = Math.max(
+    0,
+    normalizeAmountValue(menuDiningTotals.diningTotal) + normalizeAmountValue(chargeDiningTotals.diningTotal)
+  );
   const diningSpend = Math.min(totalSpend, diningSpendRaw);
   const now = new Date();
   return {
@@ -3426,7 +3563,18 @@ function buildMenuOrderMatch(range, excludedMemberIds = []) {
   return match;
 }
 
-async function aggregateDiningTotals(match, range) {
+function buildChargeOrderMatch(range, excludedMemberIds = []) {
+  const match = {
+    status: 'paid',
+    confirmedAt: _.gte(range.start).and(_.lt(range.end))
+  };
+  if (Array.isArray(excludedMemberIds) && excludedMemberIds.length) {
+    match.memberId = _.nin(excludedMemberIds);
+  }
+  return match;
+}
+
+async function aggregateMenuDiningTotals(match, range) {
   try {
     const snapshot = await db
       .collection(COLLECTIONS.MENU_ORDERS)
@@ -3444,10 +3592,10 @@ async function aggregateDiningTotals(match, range) {
   } catch (error) {
     console.error('[admin] aggregate dining totals failed', error);
   }
-  return fallbackAggregateDiningTotals(match, range);
+  return fallbackAggregateMenuDiningTotals(match, range);
 }
 
-async function fallbackAggregateDiningTotals(match, range) {
+async function fallbackAggregateMenuDiningTotals(match, range) {
   const limit = 200;
   let offset = 0;
   let guard = 0;
@@ -3488,6 +3636,143 @@ async function fallbackAggregateDiningTotals(match, range) {
     guard += 1;
   }
   return { diningTotal: Math.round(total) };
+}
+
+async function aggregateChargeOrderDiningTotals(match, range) {
+  try {
+    const diningItemsSumExpression = $.sum(
+      $.map({
+        input: $.ifNull(['$items', []]),
+        as: 'item',
+        in: $.cond({
+          if: $.eq([$.ifNull(['$$item.isDining', false]), true]),
+          then: $.ifNull(['$$item.amount', 0]),
+          else: 0
+        })
+      })
+    );
+    const snapshot = await db
+      .collection(COLLECTIONS.CHARGE_ORDERS)
+      .aggregate()
+      .match(match)
+      .project({
+        rawDiningAmount: diningItemsSumExpression,
+        totalAmountSafe: $.cond({
+          if: $.lt([$.ifNull(['$totalAmount', 0]), 0]),
+          then: 0,
+          else: $.ifNull(['$totalAmount', 0])
+        })
+      })
+      .project({
+        diningAmount: $.cond({
+          if: $.lt(['$rawDiningAmount', 0]),
+          then: 0,
+          else: $.cond({
+            if: $.lt(['$rawDiningAmount', '$totalAmountSafe']),
+            then: '$rawDiningAmount',
+            else: '$totalAmountSafe'
+          })
+        })
+      })
+      .group({
+        _id: null,
+        diningTotal: $.sum($.cond({
+          if: $.lt(['$diningAmount', 0]),
+          then: 0,
+          else: '$diningAmount'
+        }))
+      })
+      .end();
+    if (snapshot && Array.isArray(snapshot.list) && snapshot.list.length) {
+      const doc = snapshot.list[0] || {};
+      return { diningTotal: normalizeAmountValue(doc.diningTotal) };
+    }
+  } catch (error) {
+    console.error('[admin] aggregate charge order dining totals failed', error);
+  }
+  return fallbackAggregateChargeOrderDiningTotals(match, range);
+}
+
+async function fallbackAggregateChargeOrderDiningTotals(match, range) {
+  const limit = 200;
+  let offset = 0;
+  let guard = 0;
+  let total = 0;
+  let hasMore = true;
+  while (hasMore && guard < 50) {
+    const snapshot = await db
+      .collection(COLLECTIONS.CHARGE_ORDERS)
+      .where(match)
+      .orderBy('confirmedAt', 'desc')
+      .skip(offset)
+      .limit(limit)
+      .field({ items: 1, totalAmount: 1, confirmedAt: 1, diningAmount: 1 })
+      .get()
+      .catch(() => null);
+    const batch = (snapshot && snapshot.data) || [];
+    if (!batch.length) {
+      break;
+    }
+    batch.forEach((doc) => {
+      if (!doc) {
+        return;
+      }
+      const confirmedAt = resolveDateValue(doc.confirmedAt);
+      if (!confirmedAt || confirmedAt < range.start || confirmedAt >= range.end) {
+        return;
+      }
+      const diningAmount = extractChargeOrderDiningAmount(doc);
+      if (diningAmount > 0) {
+        total += diningAmount;
+      }
+    });
+    if (batch.length < limit) {
+      hasMore = false;
+    } else {
+      offset += limit;
+    }
+    guard += 1;
+  }
+  return { diningTotal: Math.round(total) };
+}
+
+function extractChargeOrderDiningAmount(order) {
+  if (!order) {
+    return 0;
+  }
+  const directDiningAmount = Number(order.diningAmount || 0);
+  if (Number.isFinite(directDiningAmount) && directDiningAmount > 0) {
+    const totalAmount = Number(order.totalAmount || 0);
+    if (Number.isFinite(totalAmount) && totalAmount > 0) {
+      return Math.min(Math.round(directDiningAmount), Math.round(totalAmount));
+    }
+    return Math.round(directDiningAmount);
+  }
+  const items = Array.isArray(order.items) ? order.items : [];
+  if (!items.length) {
+    return 0;
+  }
+  const totalAmount = Number(order.totalAmount || 0);
+  const diningSum = items.reduce((sum, item) => {
+    if (!item || !normalizeDiningFlag(item.isDining)) {
+      return sum;
+    }
+    const amount = Number(item.amount || item.price || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      const price = Number(item.price || 0);
+      const quantity = Number(item.quantity || 0);
+      const fallback = Number.isFinite(price) && Number.isFinite(quantity) ? price * quantity : 0;
+      return fallback > 0 ? sum + fallback : sum;
+    }
+    return sum + amount;
+  }, 0);
+  if (!Number.isFinite(diningSum) || diningSum <= 0) {
+    return 0;
+  }
+  if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+    return Math.round(diningSum);
+  }
+  return Math.min(Math.round(diningSum), Math.round(totalAmount));
 }
 
 function resolveDateValue(value) {
