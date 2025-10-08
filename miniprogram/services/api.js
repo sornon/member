@@ -606,6 +606,11 @@ export const AdminService = {
       payload.month = month;
     }
     return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
+  },
+  async cleanupResidualData() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'cleanupOrphanData'
+    });
   }
 };
 

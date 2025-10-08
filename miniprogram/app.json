@@ -25,6 +25,7 @@
     "pages/admin/orders/index",
     "pages/admin/menu-orders/index",
     "pages/admin/finance-report/index",
+    "pages/admin/data-cleanup/index",
     "pages/wallet/charge-confirm/index"
   ],
   "window": {

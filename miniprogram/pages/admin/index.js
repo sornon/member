@@ -42,6 +42,12 @@ const BASE_ACTIONS = [
     label: '预约审核',
     description: '查看并审核包房预约申请',
     url: '/pages/admin/reservations/index'
+  },
+  {
+    icon: '🧹',
+    label: '数据清理',
+    description: '清理删除会员遗留数据',
+    url: '/pages/admin/data-cleanup/index'
   }
 ];
 
