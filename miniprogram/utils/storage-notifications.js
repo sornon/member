@@ -1,6 +1,6 @@
 import { resolveTimestamp } from './pending-attributes';
 
-const fallbackState = { acknowledged: {}, latest: {} };
+const fallbackState = { acknowledged: {}, latest: {}, initialized: false };
 
 function getAppInstance() {
   if (typeof getApp !== 'function') {
@@ -20,7 +20,7 @@ function ensureState() {
   }
   const globalState = app.globalData.storageBadge;
   if (!globalState || typeof globalState !== 'object') {
-    app.globalData.storageBadge = { acknowledged: {}, latest: {} };
+    app.globalData.storageBadge = { acknowledged: {}, latest: {}, initialized: false };
     return app.globalData.storageBadge;
   }
   if (!globalState.acknowledged || typeof globalState.acknowledged !== 'object') {
@@ -28,6 +28,9 @@ function ensureState() {
   }
   if (!globalState.latest || typeof globalState.latest !== 'object') {
     globalState.latest = {};
+  }
+  if (typeof globalState.initialized !== 'boolean') {
+    globalState.initialized = false;
   }
   return globalState;
 }
@@ -37,6 +40,7 @@ function writeState(state) {
   if (!app || !app.globalData) {
     fallbackState.acknowledged = { ...state.acknowledged };
     fallbackState.latest = { ...state.latest };
+    fallbackState.initialized = !!state.initialized;
     return;
   }
   app.globalData.storageBadge = state;
@@ -71,14 +75,14 @@ function normalizeStorageInventoryId(source) {
   return '';
 }
 
-function collectNewStorageItems(storageCategories = []) {
+function collectStorageSnapshots(storageCategories = []) {
   const seen = new Map();
   storageCategories.forEach((category) => {
     if (!category || !Array.isArray(category.items)) {
       return;
     }
     category.items.forEach((item) => {
-      if (!item || !item.isNew) {
+      if (!item) {
         return;
       }
       const id = normalizeStorageInventoryId(item);
@@ -90,7 +94,9 @@ function collectNewStorageItems(storageCategories = []) {
       );
       const existing = seen.get(id);
       if (!existing || obtainedAt > existing.obtainedAt) {
-        seen.set(id, { id, obtainedAt });
+        seen.set(id, { id, obtainedAt, isNew: !!item.isNew });
+      } else if (existing && item.isNew && !existing.isNew) {
+        existing.isNew = true;
       }
     });
   });
@@ -104,7 +110,7 @@ export function extractNewStorageItemsFromProfile(profile) {
   const equipment = profile.equipment && typeof profile.equipment === 'object' ? profile.equipment : {};
   const storage = equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : {};
   const categories = Array.isArray(storage.categories) ? storage.categories : [];
-  return collectNewStorageItems(categories);
+  return collectStorageSnapshots(categories);
 }
 
 export function extractNewStorageItemsFromMember(member) {
@@ -120,17 +126,35 @@ export function extractNewStorageItemsFromMember(member) {
 
 function setLatestItems(state, items) {
   const latest = {};
+  const acknowledged = state.acknowledged || {};
+  const prevLatest = state.latest || {};
+  const initialized = !!state.initialized;
+  const explicitNew = new Set();
+
   items.forEach((item) => {
     if (!item || !item.id) {
       return;
     }
+    if (item.isNew) {
+      explicitNew.add(item.id);
+    }
     const normalizedTime = resolveTimestamp(item.obtainedAt || 0);
+    const prevTime = prevLatest[item.id] || 0;
+    const candidateTime = normalizedTime || prevTime || 0;
     const previous = latest[item.id];
-    if (previous === undefined || normalizedTime > previous) {
-      latest[item.id] = normalizedTime;
+    if (previous === undefined || candidateTime > previous) {
+      latest[item.id] = candidateTime;
+    }
+    if (!initialized) {
+      const ackTime = candidateTime || Date.now();
+      if (!explicitNew.has(item.id) && (!acknowledged[item.id] || acknowledged[item.id] < ackTime)) {
+        acknowledged[item.id] = ackTime;
+      }
+    } else if (prevTime && acknowledged[item.id] === undefined) {
+      acknowledged[item.id] = prevTime;
     }
   });
-  const prevLatest = state.latest || {};
+
   const prevKeys = Object.keys(prevLatest);
   const nextKeys = Object.keys(latest);
   let changed = prevKeys.length !== nextKeys.length;
@@ -143,28 +167,44 @@ function setLatestItems(state, items) {
       }
     }
   }
-  state.latest = latest;
+
   let pruned = false;
-  const acknowledged = state.acknowledged || {};
   Object.keys(acknowledged).forEach((id) => {
     if (!Object.prototype.hasOwnProperty.call(latest, id)) {
       delete acknowledged[id];
       pruned = true;
     }
   });
+
+  state.latest = latest;
+  state.acknowledged = acknowledged;
+  if (!state.initialized) {
+    state.initialized = true;
+    changed = true;
+  }
   if (changed || pruned) {
     writeState(state);
   }
 }
 
-function hasUnseenItem(items, acknowledged) {
+function hasUnseenItem(items, state) {
+  const acknowledged = state.acknowledged || {};
+  const latest = state.latest || {};
+  const initialized = !!state.initialized;
   for (let i = 0; i < items.length; i += 1) {
     const item = items[i];
     if (!item || !item.id) {
       continue;
     }
-    const obtainedAt = resolveTimestamp(item.obtainedAt || 0);
-    const ack = acknowledged[item.id] || 0;
+    const id = item.id;
+    const ack = acknowledged[id] || 0;
+    const obtainedAt = resolveTimestamp(item.obtainedAt || latest[id] || 0);
+    if (!initialized) {
+      if (item.isNew && !ack) {
+        return true;
+      }
+      continue;
+    }
     if (!ack) {
       return true;
     }
@@ -188,26 +228,37 @@ export function shouldShowStorageBadge(member) {
   if (!items.length) {
     return false;
   }
-  const acknowledged = state.acknowledged || {};
-  return hasUnseenItem(items, acknowledged);
+  return hasUnseenItem(items, state);
 }
 
 export function shouldDisplayStorageItemNew(item) {
-  if (!item || !item.isNew) {
+  if (!item) {
     return false;
   }
   const state = ensureState();
   const id = normalizeStorageInventoryId(item);
   if (!id) {
-    return true;
+    return !!item.isNew;
   }
-  const obtainedAt = resolveTimestamp(item.obtainedAt || item.obtainedAtText || item.updatedAt || item.createdAt || 0);
-  const ack = state.acknowledged[id] || 0;
+  const acknowledged = state.acknowledged || {};
+  const latest = state.latest || {};
+  const initialized = !!state.initialized;
+  const obtainedAt = resolveTimestamp(
+    item.obtainedAt || item.obtainedAtText || item.updatedAt || item.createdAt || latest[id] || 0
+  );
+  const ack = acknowledged[id] || 0;
+  if (!initialized) {
+    return !!item.isNew && !ack;
+  }
   if (!ack) {
     return true;
   }
-  if (obtainedAt) {
-    return ack < obtainedAt;
+  if (obtainedAt && ack < obtainedAt) {
+    return true;
+  }
+  const latestTime = latest[id] || 0;
+  if (latestTime && ack < latestTime) {
+    return true;
   }
   return false;
 }
@@ -231,7 +282,8 @@ export function acknowledgeStorageItems(items) {
     const obtainedAt = resolveTimestamp(
       item.obtainedAt || item.obtainedAtText || item.updatedAt || item.createdAt || 0
     );
-    const ackTime = obtainedAt || Date.now();
+    const latestTime = state.latest && state.latest[id] ? state.latest[id] : 0;
+    const ackTime = obtainedAt || latestTime || Date.now();
     const current = acknowledged[id] || 0;
     if (!current || ackTime >= current) {
       acknowledged[id] = ackTime;
