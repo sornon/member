@@ -3,7 +3,13 @@ App({
     env: 'cloud1-8gyoxq651fcc92c2',
     memberInfo: null,
     ready: false,
-    lastPvpBattle: null
+    lastPvpBattle: null,
+    rolePendingAttributes: null,
+    storageBadge: {
+      acknowledged: {},
+      latest: {},
+      initialized: false
+    }
   },
 
   onLaunch() {
