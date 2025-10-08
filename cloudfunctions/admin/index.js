@@ -55,7 +55,8 @@ const ACTIONS = {
   LIST_WINE_STORAGE: 'listWineStorage',
   ADD_WINE_STORAGE: 'addWineStorage',
   REMOVE_WINE_STORAGE: 'removeWineStorage',
-  CLEANUP_ORPHAN_DATA: 'cleanupOrphanData'
+  CLEANUP_ORPHAN_DATA: 'cleanupOrphanData',
+  PREVIEW_CLEANUP_ORPHAN_DATA: 'previewCleanupOrphanData'
 };
 
 const ACTION_CANONICAL_MAP = Object.values(ACTIONS).reduce((map, name) => {
@@ -96,7 +97,10 @@ const ACTION_ALIASES = {
   cleanuporphandata: ACTIONS.CLEANUP_ORPHAN_DATA,
   datacleanup: ACTIONS.CLEANUP_ORPHAN_DATA,
   cleanupresidualdata: ACTIONS.CLEANUP_ORPHAN_DATA,
-  cleanupdata: ACTIONS.CLEANUP_ORPHAN_DATA
+  cleanupdata: ACTIONS.CLEANUP_ORPHAN_DATA,
+  previewcleanuporphandata: ACTIONS.PREVIEW_CLEANUP_ORPHAN_DATA,
+  previewcleanupdata: ACTIONS.PREVIEW_CLEANUP_ORPHAN_DATA,
+  scandataorphans: ACTIONS.PREVIEW_CLEANUP_ORPHAN_DATA
 };
 
 function normalizeAction(action) {
@@ -178,7 +182,8 @@ const ACTION_HANDLERS = {
     }),
   [ACTIONS.REMOVE_WINE_STORAGE]: (openid, event) =>
     removeWineStorage(openid, event.memberId, event.entryId || event.storageId || ''),
-  [ACTIONS.CLEANUP_ORPHAN_DATA]: (openid) => cleanupResidualMemberData(openid)
+  [ACTIONS.CLEANUP_ORPHAN_DATA]: (openid) => cleanupResidualMemberData(openid),
+  [ACTIONS.PREVIEW_CLEANUP_ORPHAN_DATA]: (openid) => previewCleanupResidualData(openid)
 };
 
 async function resolveMemberExtras(memberId) {
@@ -1799,8 +1804,14 @@ async function updateAdminReservationBadges({ incrementVersion = false } = {}) {
   }
 }
 
-async function cleanupResidualMemberData(openid) {
+async function previewCleanupResidualData(openid) {
+  return cleanupResidualMemberData(openid, { previewOnly: true });
+}
+
+async function cleanupResidualMemberData(openid, options = {}) {
   await ensureAdmin(openid);
+
+  const previewOnly = Boolean(options && options.previewOnly);
 
   let memberIds;
   try {
@@ -1810,73 +1821,141 @@ async function cleanupResidualMemberData(openid) {
     throw new Error('获取会员列表失败，暂时无法执行数据清理');
   }
 
-  const summary = { removed: {}, errors: [] };
+  const summary = { removed: {}, errors: [], preview: {} };
   const processedCollections = [];
 
   processedCollections.push(COLLECTIONS.MEMBER_TIMELINE);
-  await cleanupCollectionOrphans(COLLECTIONS.MEMBER_TIMELINE, ['memberId'], memberIds, summary);
+  await cleanupCollectionOrphans(
+    COLLECTIONS.MEMBER_TIMELINE,
+    ['memberId'],
+    memberIds,
+    summary,
+    { previewOnly }
+  );
 
   processedCollections.push(COLLECTIONS.MEMBER_EXTRAS);
-  await removeOrphanedDocumentsById(COLLECTIONS.MEMBER_EXTRAS, memberIds, summary);
+  await removeOrphanedDocumentsById(COLLECTIONS.MEMBER_EXTRAS, memberIds, summary, { previewOnly });
 
   processedCollections.push(COLLECTIONS.MEMBER_PVE_HISTORY);
-  await removeOrphanedDocumentsById(COLLECTIONS.MEMBER_PVE_HISTORY, memberIds, summary);
+  await removeOrphanedDocumentsById(
+    COLLECTIONS.MEMBER_PVE_HISTORY,
+    memberIds,
+    summary,
+    { previewOnly }
+  );
 
   processedCollections.push(COLLECTIONS.RESERVATIONS);
   const reservationsRemoved = await cleanupCollectionOrphans(
     COLLECTIONS.RESERVATIONS,
     ['memberId'],
     memberIds,
-    summary
+    summary,
+    { previewOnly }
   );
 
   processedCollections.push(COLLECTIONS.MEMBER_RIGHTS);
-  await cleanupCollectionOrphans(COLLECTIONS.MEMBER_RIGHTS, ['memberId'], memberIds, summary);
+  await cleanupCollectionOrphans(
+    COLLECTIONS.MEMBER_RIGHTS,
+    ['memberId'],
+    memberIds,
+    summary,
+    { previewOnly }
+  );
 
   processedCollections.push(COLLECTIONS.WALLET_TRANSACTIONS);
-  await cleanupCollectionOrphans(COLLECTIONS.WALLET_TRANSACTIONS, ['memberId'], memberIds, summary);
+  await cleanupCollectionOrphans(
+    COLLECTIONS.WALLET_TRANSACTIONS,
+    ['memberId'],
+    memberIds,
+    summary,
+    { previewOnly }
+  );
 
   processedCollections.push(COLLECTIONS.STONE_TRANSACTIONS);
-  await cleanupCollectionOrphans(COLLECTIONS.STONE_TRANSACTIONS, ['memberId'], memberIds, summary);
+  await cleanupCollectionOrphans(
+    COLLECTIONS.STONE_TRANSACTIONS,
+    ['memberId'],
+    memberIds,
+    summary,
+    { previewOnly }
+  );
 
   processedCollections.push(COLLECTIONS.TASK_RECORDS);
-  await cleanupCollectionOrphans(COLLECTIONS.TASK_RECORDS, ['memberId'], memberIds, summary);
+  await cleanupCollectionOrphans(
+    COLLECTIONS.TASK_RECORDS,
+    ['memberId'],
+    memberIds,
+    summary,
+    { previewOnly }
+  );
 
   processedCollections.push(COLLECTIONS.COUPON_RECORDS);
-  await cleanupCollectionOrphans(COLLECTIONS.COUPON_RECORDS, ['memberId'], memberIds, summary);
+  await cleanupCollectionOrphans(
+    COLLECTIONS.COUPON_RECORDS,
+    ['memberId'],
+    memberIds,
+    summary,
+    { previewOnly }
+  );
 
   processedCollections.push(COLLECTIONS.CHARGE_ORDERS);
-  await cleanupCollectionOrphans(COLLECTIONS.CHARGE_ORDERS, ['memberId'], memberIds, summary);
+  await cleanupCollectionOrphans(
+    COLLECTIONS.CHARGE_ORDERS,
+    ['memberId'],
+    memberIds,
+    summary,
+    { previewOnly }
+  );
 
   processedCollections.push(COLLECTIONS.MENU_ORDERS);
-  await cleanupCollectionOrphans(COLLECTIONS.MENU_ORDERS, ['memberId'], memberIds, summary);
+  await cleanupCollectionOrphans(
+    COLLECTIONS.MENU_ORDERS,
+    ['memberId'],
+    memberIds,
+    summary,
+    { previewOnly }
+  );
 
   processedCollections.push(COLLECTIONS.ERROR_LOGS);
-  await cleanupCollectionOrphans(COLLECTIONS.ERROR_LOGS, ['memberId'], memberIds, summary);
+  await cleanupCollectionOrphans(
+    COLLECTIONS.ERROR_LOGS,
+    ['memberId'],
+    memberIds,
+    summary,
+    { previewOnly }
+  );
 
   processedCollections.push(COLLECTIONS.PVP_INVITES);
-  await cleanupCollectionOrphans(COLLECTIONS.PVP_INVITES, ['inviterId', 'opponentId'], memberIds, summary);
+  await cleanupCollectionOrphans(
+    COLLECTIONS.PVP_INVITES,
+    ['inviterId', 'opponentId'],
+    memberIds,
+    summary,
+    { previewOnly }
+  );
 
   processedCollections.push(COLLECTIONS.PVP_MATCHES);
   await cleanupCollectionOrphans(
     COLLECTIONS.PVP_MATCHES,
     ['player.memberId', 'opponent.memberId'],
     memberIds,
-    summary
+    summary,
+    { previewOnly }
   );
 
   processedCollections.push(COLLECTIONS.PVP_PROFILES);
-  await removeOrphanedDocumentsById(COLLECTIONS.PVP_PROFILES, memberIds, summary);
+  await removeOrphanedDocumentsById(COLLECTIONS.PVP_PROFILES, memberIds, summary, { previewOnly });
 
   processedCollections.push(COLLECTIONS.PVP_LEADERBOARD);
-  await cleanupPvpLeaderboardOrphans(memberIds, summary);
+  await cleanupPvpLeaderboardOrphans(memberIds, summary, { previewOnly });
 
-  if (reservationsRemoved > 0) {
+  if (!previewOnly && reservationsRemoved > 0) {
     await updateAdminReservationBadges({ incrementVersion: true });
   }
 
-  const totalRemoved = Object.keys(summary.removed).reduce((acc, key) => {
-    const value = Number(summary.removed[key]);
+  const totalSource = previewOnly ? summary.preview : summary.removed;
+  const totalRemoved = Object.keys(totalSource).reduce((acc, key) => {
+    const value = Number(totalSource[key]);
     return acc + (Number.isFinite(value) ? value : 0);
   }, 0);
 
@@ -1884,7 +1963,8 @@ async function cleanupResidualMemberData(openid) {
     memberCount: memberIds.size,
     totalRemoved,
     processedCollections: Array.from(new Set(processedCollections)),
-    summary
+    summary,
+    previewOnly
   };
 }
 
@@ -1972,7 +2052,8 @@ async function listAllMemberIds() {
   return memberIds;
 }
 
-async function cleanupCollectionOrphans(collectionName, memberIdPaths, memberIds, summary) {
+async function cleanupCollectionOrphans(collectionName, memberIdPaths, memberIds, summary, options = {}) {
+  const previewOnly = Boolean(options && options.previewOnly);
   if (!Array.isArray(memberIdPaths) || !memberIdPaths.length) {
     return 0;
   }
@@ -2003,35 +2084,44 @@ async function cleanupCollectionOrphans(collectionName, memberIdPaths, memberIds
     }
     lastId = docs[docs.length - 1]._id || lastId;
 
-    const tasks = docs
-      .map((doc) => {
-        if (!doc || !doc._id) {
-          return null;
+    const orphanDocs = docs.filter((doc) => {
+      if (!doc || !doc._id) {
+        return false;
+      }
+      return memberIdPaths.some((path) => {
+        const candidates = extractMemberIdsByPath(doc, path);
+        if (!candidates.length) {
+          return false;
         }
-        const shouldRemove = memberIdPaths.some((path) => {
-          const candidates = extractMemberIdsByPath(doc, path);
-          if (!candidates.length) {
-            return false;
+        return candidates.some((candidate) => !memberIds.has(candidate));
+      });
+    });
+
+    if (!orphanDocs.length) {
+      continue;
+    }
+
+    if (previewOnly) {
+      summary.preview = summary.preview || {};
+      summary.preview[collectionName] = (summary.preview[collectionName] || 0) + orphanDocs.length;
+      removed += orphanDocs.length;
+      continue;
+    }
+
+    const tasks = orphanDocs.map((doc) =>
+      collection
+        .doc(doc._id)
+        .remove()
+        .then(() => {
+          removed += 1;
+          summary.removed[collectionName] = (summary.removed[collectionName] || 0) + 1;
+        })
+        .catch((error) => {
+          if (!isNotFoundError(error)) {
+            pushCleanupError(summary, collectionName, error, doc._id);
           }
-          return candidates.some((candidate) => !memberIds.has(candidate));
-        });
-        if (!shouldRemove) {
-          return null;
-        }
-        return collection
-          .doc(doc._id)
-          .remove()
-          .then(() => {
-            removed += 1;
-            summary.removed[collectionName] = (summary.removed[collectionName] || 0) + 1;
-          })
-          .catch((error) => {
-            if (!isNotFoundError(error)) {
-              pushCleanupError(summary, collectionName, error, doc._id);
-            }
-          });
-      })
-      .filter(Boolean);
+        })
+    );
 
     if (tasks.length) {
       await Promise.all(tasks);
@@ -2045,7 +2135,8 @@ async function cleanupCollectionOrphans(collectionName, memberIdPaths, memberIds
   return removed;
 }
 
-async function removeOrphanedDocumentsById(collectionName, memberIds, summary) {
+async function removeOrphanedDocumentsById(collectionName, memberIds, summary, options = {}) {
+  const previewOnly = Boolean(options && options.previewOnly);
   const collection = db.collection(collectionName);
   const limit = 100;
   let removed = 0;
@@ -2074,26 +2165,36 @@ async function removeOrphanedDocumentsById(collectionName, memberIds, summary) {
     }
     lastId = docs[docs.length - 1]._id || lastId;
 
-    const tasks = docs
-      .map((doc) => {
-        const docId = normalizeMemberIdValue(doc && doc._id);
-        if (!docId || memberIds.has(docId)) {
-          return null;
-        }
-        return collection
-          .doc(doc._id)
-          .remove()
-          .then(() => {
-            removed += 1;
-            summary.removed[collectionName] = (summary.removed[collectionName] || 0) + 1;
-          })
-          .catch((error) => {
-            if (!isNotFoundError(error)) {
-              pushCleanupError(summary, collectionName, error, doc._id);
-            }
-          });
-      })
-      .filter(Boolean);
+    const orphanDocs = docs.filter((doc) => {
+      const docId = normalizeMemberIdValue(doc && doc._id);
+      return docId && !memberIds.has(docId);
+    });
+
+    if (!orphanDocs.length) {
+      continue;
+    }
+
+    if (previewOnly) {
+      summary.preview = summary.preview || {};
+      summary.preview[collectionName] = (summary.preview[collectionName] || 0) + orphanDocs.length;
+      removed += orphanDocs.length;
+      continue;
+    }
+
+    const tasks = orphanDocs.map((doc) =>
+      collection
+        .doc(doc._id)
+        .remove()
+        .then(() => {
+          removed += 1;
+          summary.removed[collectionName] = (summary.removed[collectionName] || 0) + 1;
+        })
+        .catch((error) => {
+          if (!isNotFoundError(error)) {
+            pushCleanupError(summary, collectionName, error, doc._id);
+          }
+        })
+    );
 
     if (tasks.length) {
       await Promise.all(tasks);
@@ -2107,7 +2208,8 @@ async function removeOrphanedDocumentsById(collectionName, memberIds, summary) {
   return removed;
 }
 
-async function cleanupPvpLeaderboardOrphans(memberIds, summary) {
+async function cleanupPvpLeaderboardOrphans(memberIds, summary, options = {}) {
+  const previewOnly = Boolean(options && options.previewOnly);
   const collection = db.collection(COLLECTIONS.PVP_LEADERBOARD);
   const limit = 100;
   let hasMore = true;
@@ -2135,9 +2237,11 @@ async function cleanupPvpLeaderboardOrphans(memberIds, summary) {
     }
     lastId = docs[docs.length - 1]._id || lastId;
 
-    const tasks = docs.map((doc) => {
+    const tasks = [];
+
+    docs.forEach((doc) => {
       if (!doc || !doc._id) {
-        return Promise.resolve();
+        return;
       }
       const entries = Array.isArray(doc.entries) ? doc.entries : [];
       const filtered = entries.filter((entry) => {
@@ -2145,27 +2249,37 @@ async function cleanupPvpLeaderboardOrphans(memberIds, summary) {
         return candidate && memberIds.has(candidate);
       });
       if (filtered.length === entries.length) {
-        return Promise.resolve();
+        return;
       }
-      return collection
-        .doc(doc._id)
-        .update({
-          data: {
-            entries: filtered,
-            updatedAt: new Date()
-          }
-        })
-        .then(() => {
-          cleanedEntries += entries.length - filtered.length;
-        })
-        .catch((error) => {
-          if (!isNotFoundError(error)) {
-            pushCleanupError(summary, COLLECTIONS.PVP_LEADERBOARD, error, doc._id);
-          }
-        });
+      const orphanCount = entries.length - filtered.length;
+      if (previewOnly) {
+        summary.preview = summary.preview || {};
+        summary.preview.pvpLeaderboardEntries =
+          (summary.preview.pvpLeaderboardEntries || 0) + orphanCount;
+        cleanedEntries += orphanCount;
+        return;
+      }
+      tasks.push(
+        collection
+          .doc(doc._id)
+          .update({
+            data: {
+              entries: filtered,
+              updatedAt: new Date()
+            }
+          })
+          .then(() => {
+            cleanedEntries += orphanCount;
+          })
+          .catch((error) => {
+            if (!isNotFoundError(error)) {
+              pushCleanupError(summary, COLLECTIONS.PVP_LEADERBOARD, error, doc._id);
+            }
+          })
+      );
     });
 
-    if (tasks.length) {
+    if (!previewOnly && tasks.length) {
       await Promise.all(tasks);
     }
 
@@ -2174,7 +2288,7 @@ async function cleanupPvpLeaderboardOrphans(memberIds, summary) {
     }
   }
 
-  if (cleanedEntries > 0) {
+  if (cleanedEntries > 0 && !previewOnly) {
     summary.removed.pvpLeaderboardEntries = (summary.removed.pvpLeaderboardEntries || 0) + cleanedEntries;
   }
 

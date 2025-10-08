@@ -4,9 +4,44 @@
     <view class="intro-title">清理删除会员遗留数据</view>
     <view class="intro-desc">该操作会扫描多项会员相关数据，移除已被删除会员遗留的记录，避免异常数据影响现有会员。</view>
     <view class="intro-note">操作仅针对无效成员记录，不会改动当前有效会员的数据。建议在非营业高峰时段执行。</view>
-    <button class="cleanup-button" bindtap="handleCleanupTap" loading="{{loading}}" disabled="{{loading}}">
-      {{loading ? '清理中…' : '开始清理'}}
+    <button
+      class="cleanup-button primary"
+      bindtap="handleScanTap"
+      loading="{{loading && loadingAction === 'scan'}}"
+      disabled="{{loading}}"
+    >
+      {{loading && loadingAction === 'scan' ? '扫描中…' : '扫描待清理数据'}}
     </button>
+    <button
+      wx:if="{{preview && preview.items.length}}"
+      class="cleanup-button danger"
+      bindtap="handleCleanupTap"
+      loading="{{loading && loadingAction === 'cleanup'}}"
+      disabled="{{loading}}"
+    >
+      {{loading && loadingAction === 'cleanup' ? '清理中…' : '确认清理'}}
+    </button>
+  </view>
+
+  <view wx:if="{{preview}}" class="preview-card">
+    <view class="preview-header">
+      <view class="preview-title">扫描结果</view>
+      <view wx:if="{{previewAt}}" class="preview-time">{{previewAt}}</view>
+    </view>
+    <view wx:if="{{preview.total > 0}}" class="preview-summary">发现 {{preview.total}} 条待清理记录</view>
+    <view wx:else class="preview-summary muted">未发现待清理数据</view>
+    <view wx:if="{{preview.items.length}}" class="preview-list">
+      <view wx:for="{{preview.items}}" wx:key="key" class="preview-item">
+        <view class="preview-name">
+          <text class="preview-collection">{{item.collection}}</text>
+          <text class="preview-label">{{item.label}}</text>
+        </view>
+        <view class="preview-field">索引字段：{{item.indexes}}</view>
+        <view class="preview-desc">数据功能：{{item.description}}</view>
+        <view class="preview-reason">清理原因：{{item.reason}}</view>
+      </view>
+    </view>
+    <view wx:else class="preview-empty">未发现孤立数据，当前无需清理。</view>
   </view>
 
   <view wx:if="{{result}}" class="result-card">

@@ -614,6 +614,11 @@ export const AdminService = {
     }
     return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   },
+  async previewCleanupResidualData() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'previewCleanupOrphanData'
+    });
+  },
   async cleanupResidualData() {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'cleanupOrphanData'
