@@ -202,8 +202,8 @@ page {
 }
 .profile-meta__dot {
   position: absolute;
-  top: -6rpx;
-  right: -6rpx;
+  top: 0;
+  right: 0;
 }
 .profile-other {
     position: absolute;
