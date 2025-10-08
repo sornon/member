@@ -67,11 +67,19 @@
           wx:if="{{item.status === 'pending' || item.status === 'created'}}"
         >
           <button
+            class="cancel-btn"
+            size="mini"
+            data-id="{{item._id}}"
+            loading="{{cancelingId === item._id}}"
+            disabled="{{cancelingId === item._id || priceAdjustingId === item._id || forceChargingId === item._id}}"
+            bindtap="handleCancelOrderTap"
+          >取消</button>
+          <button
             class="adjust-btn"
             size="mini"
             data-id="{{item._id}}"
             loading="{{priceAdjustingId === item._id}}"
-            disabled="{{priceAdjustingId === item._id || forceChargingId === item._id}}"
+            disabled="{{priceAdjustingId === item._id || forceChargingId === item._id || cancelingId === item._id}}"
             bindtap="handleOpenPriceAdjustDialog"
           >改价</button>
           <button
@@ -80,6 +88,7 @@
             type="primary"
             loading="{{forceChargingId === item._id}}"
             data-id="{{item._id}}"
+            disabled="{{forceChargingId === item._id || priceAdjustingId === item._id || cancelingId === item._id}}"
             bindtap="handleForceChargeTap"
           >强制扣款</button>
         </view>

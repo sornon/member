@@ -524,6 +524,13 @@ export const AdminService = {
       remark
     });
   },
+  async cancelChargeOrder(orderId, { remark = '' } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'cancelChargeOrder',
+      orderId,
+      remark
+    });
+  },
   async adjustChargeOrder(orderId, { amount, remark = '' } = {}) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'adjustChargeOrder',

@@ -40,6 +40,7 @@ const ACTIONS = {
   GET_CHARGE_ORDER_QR_CODE: 'getChargeOrderQrCode',
   FORCE_CHARGE_ORDER: 'forceChargeOrder',
   ADJUST_CHARGE_ORDER: 'adjustChargeOrder',
+  CANCEL_CHARGE_ORDER: 'cancelChargeOrder',
   RECHARGE_MEMBER: 'rechargeMember',
   LIST_RESERVATIONS: 'listReservations',
   APPROVE_RESERVATION: 'approveReservation',
@@ -69,6 +70,7 @@ const ACTION_ALIASES = {
   listchargeorder: ACTIONS.LIST_CHARGE_ORDERS,
   forcechargeorder: ACTIONS.FORCE_CHARGE_ORDER,
   adjustchargeorder: ACTIONS.ADJUST_CHARGE_ORDER,
+  cancelchargeorder: ACTIONS.CANCEL_CHARGE_ORDER,
   rechargemember: ACTIONS.RECHARGE_MEMBER,
   listreservations: ACTIONS.LIST_RESERVATIONS,
   approvereservation: ACTIONS.APPROVE_RESERVATION,
@@ -124,6 +126,8 @@ const ACTION_HANDLERS = {
       memberId: event.memberId || '',
       remark: event.remark || ''
     }),
+  [ACTIONS.CANCEL_CHARGE_ORDER]: (openid, event) =>
+    cancelChargeOrder(openid, event.orderId, event.remark || ''),
   [ACTIONS.ADJUST_CHARGE_ORDER]: (openid, event) =>
     adjustChargeOrderAmount(openid, event.orderId, {
       amount: event.amount,
@@ -1023,6 +1027,103 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '' } 
     experienceGain,
     memberId: targetMemberId
   };
+}
+
+async function cancelChargeOrder(openid, orderId, remark = '') {
+  await ensureAdmin(openid);
+  if (!orderId) {
+    throw new Error('缺少订单编号');
+  }
+  const normalizedRemark =
+    typeof remark === 'string' ? remark.trim().slice(0, 200) : '';
+  const cancelRemark = normalizedRemark || '管理员取消订单';
+  const now = new Date();
+  let updatedOrder = null;
+  await db.runTransaction(async (transaction) => {
+    const orderRef = transaction
+      .collection(COLLECTIONS.CHARGE_ORDERS)
+      .doc(orderId);
+    const orderDoc = await orderRef.get().catch(() => null);
+    if (!orderDoc || !orderDoc.data) {
+      throw new Error('订单不存在');
+    }
+    const order = orderDoc.data;
+    const status = order.status || 'pending';
+    if (status === 'paid') {
+      throw new Error('订单已完成，无法取消');
+    }
+    if (status === 'cancelled') {
+      updatedOrder = { _id: orderId, ...order };
+      return;
+    }
+    if (!['pending', 'created'].includes(status)) {
+      throw new Error('订单当前不可取消');
+    }
+    const chargeUpdates = {
+      status: 'cancelled',
+      cancelRemark,
+      cancelReason: 'adminCancelled',
+      cancelledAt: now,
+      cancelledBy: openid,
+      cancelledByRole: 'admin',
+      updatedAt: now
+    };
+    await orderRef.update({ data: chargeUpdates });
+    updatedOrder = { ...order, ...chargeUpdates };
+
+    const menuOrderId =
+      typeof order.menuOrderId === 'string' ? order.menuOrderId.trim() : '';
+    if (!menuOrderId) {
+      return;
+    }
+    const menuOrderRef = transaction
+      .collection(COLLECTIONS.MENU_ORDERS)
+      .doc(menuOrderId);
+    const menuSnapshot = await menuOrderRef.get().catch(() => null);
+    if (!menuSnapshot || !menuSnapshot.data) {
+      return;
+    }
+    const menuOrder = menuSnapshot.data;
+    if (menuOrder.status === 'paid' || menuOrder.status === 'cancelled') {
+      return;
+    }
+    const menuUpdates = {
+      status: 'cancelled',
+      cancelRemark,
+      cancelReason: 'adminCancelled',
+      cancelledAt: now,
+      cancelledBy: openid,
+      cancelledByRole: 'admin',
+      updatedAt: now
+    };
+    await menuOrderRef.update({ data: menuUpdates });
+    const appliedRights = Array.isArray(menuOrder.appliedRights)
+      ? menuOrder.appliedRights
+      : [];
+    for (const applied of appliedRights) {
+      const memberRightId =
+        applied && typeof applied.memberRightId === 'string'
+          ? applied.memberRightId.trim()
+          : '';
+      if (!memberRightId) {
+        continue;
+      }
+      await transaction
+        .collection(COLLECTIONS.MEMBER_RIGHTS)
+        .doc(memberRightId)
+        .update({
+          data: {
+            status: 'active',
+            updatedAt: now,
+            orderId: _.remove(),
+            lockedAt: _.remove(),
+            usedAt: _.remove()
+          }
+        })
+        .catch(() => null);
+    }
+  });
+  return { order: mapChargeOrder(updatedOrder) };
 }
 
 async function adjustChargeOrderAmount(openid, orderId, { amount, remark = '' } = {}) {
