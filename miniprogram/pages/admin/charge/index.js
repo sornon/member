@@ -22,7 +22,8 @@ function formatItems(items = []) {
   return items.map((item) => ({
     name: item.name || '',
     priceYuan: item.priceYuan || '',
-    quantity: item.quantity > 0 ? item.quantity : 1
+    quantity: item.quantity > 0 ? item.quantity : 1,
+    isDining: !!item.isDining
   }));
 }
 
@@ -38,7 +39,8 @@ function buildPayload(items) {
       return {
         name,
         quantity: Math.floor(quantity),
-        price
+        price,
+        isDining: !!item.isDining
       };
     })
     .filter(Boolean);
@@ -71,7 +73,7 @@ function describeStatus(status) {
 Page({
   data: {
     items: formatItems([
-      { name: '', priceYuan: '', quantity: 1 }
+      { name: '', priceYuan: '', quantity: 1, isDining: false }
     ]),
     totalAmount: 0,
     generating: false,
@@ -135,12 +137,20 @@ Page({
   handleAddItem() {
     const items = [
       ...this.data.items,
-      { name: '', priceYuan: '', quantity: 1 }
+      { name: '', priceYuan: '', quantity: 1, isDining: false }
     ];
     this.setData({
       items,
       totalAmount: calculateTotalFen(items)
     });
+  },
+
+  handleDiningToggle(event) {
+    const { index } = event.currentTarget.dataset;
+    if (typeof index !== 'number') return;
+    const items = [...this.data.items];
+    items[index] = { ...items[index], isDining: !!event.detail.value };
+    this.setData({ items });
   },
 
   handleRemoveItem(event) {

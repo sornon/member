@@ -42,6 +42,17 @@
             <button class="step" data-index="{{index}}" data-delta="1" bindtap="handleQuantityStep">+</button>
           </view>
         </view>
+        <view class="field dining">
+          <view class="label">记为用餐</view>
+          <view class="dining-control">
+            <switch
+              checked="{{item.isDining}}"
+              data-index="{{index}}"
+              bindchange="handleDiningToggle"
+            ></switch>
+            <text class="hint">纳入财务用餐统计</text>
+          </view>
+        </view>
         <button class="remove" wx:if="{{items.length > 1}}" data-index="{{index}}" bindtap="handleRemoveItem">移除</button>
       </view>
     </view>
