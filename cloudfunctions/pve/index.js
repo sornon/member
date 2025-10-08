@@ -898,8 +898,8 @@ const REALM_PHASES = [
   },
   {
     id: 'golden_core',
-    name: '金丹期',
-    short: '金丹',
+    name: '结丹期',
+    short: '结丹',
     range: [61, 90],
     perLevel: { constitution: 3, strength: 2.8, spirit: 3, root: 2.8, agility: 1.6, insight: 1.5 },
     breakthroughBonus: {

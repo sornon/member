@@ -13,7 +13,7 @@
 #### 等级成长与境界
 
 - **初始档位**：炼气一阶的默认属性为 体质 20、力量 16、灵力 16、根骨 18、敏捷 12、悟性 12。【F:cloudfunctions/pve/index.js†L72-L79】
-- **境界分段成长**：等级被划分为炼气期 (1-30)、筑基期 (31-60)、金丹期 (61-90)、元婴期 (91-100)。每段境界定义了六维的逐级成长值以及突破时对生命、攻击、防御、速度、命中的乘法增益。【F:cloudfunctions/pve/index.js†L81-L128】
+- **境界分段成长**：等级被划分为炼气期 (1-30)、筑基期 (31-60)、结丹期 (61-90)、元婴期 (91-100)。每段境界定义了六维的逐级成长值以及突破时对生命、攻击、防御、速度、命中的乘法增益。【F:cloudfunctions/pve/index.js†L81-L128】
 - **累积计算**：`calculateBaseAttributesForLevel` 会按境界成长表逐级累积出目标等级的基础属性，再由 `syncAttributesWithMemberLevel` 写回档案并追加突破加成、境界标签与下一级的经验阈值信息。【F:cloudfunctions/pve/index.js†L536-L558】【F:cloudfunctions/pve/index.js†L576-L642】
 
 #### 炼气期（1-10 级）基础属性
@@ -67,7 +67,7 @@
 
 ### 秘境副本
 
-- 秘境改为按照境界爬楼：每个境界对应 9 层小怪 + 1 层首领，从“炼气期 · 一层”开始一路延展至化神、大乘乃至飞升阶段，楼层名称完全复用会员等级公共配置。【F:cloudfunctions/nodejs-layer/node_modules/common-config/index.js†L1-L210】【F:cloudfunctions/pve/index.js†L51-L318】
+- 秘境改为按照境界爬楼：每个境界对应 9 层小怪 + 1 层首领，从“炼气期 · 一层”开始一路延展至化神、大乘乃至真仙、金仙阶段，楼层名称完全复用会员等级公共配置。【F:cloudfunctions/nodejs-layer/node_modules/common-config/index.js†L1-L210】【F:cloudfunctions/pve/index.js†L51-L318】
 - 玩家必须依次通关，击败当前层才会解锁下一层。通关状态保存在 `secretRealm.floors` 中，历史胜利不会重复发放奖励（奖励占位待后续配置，可在 `enemy.meta.suggestedRewards` 中查看建议档位）。云函数仅返回当前可挑战的楼层与紧邻的下一关提示，其余未解锁或已通关楼层不会出现在响应或前端列表中，避免重复挑战或提前查看配置。【F:cloudfunctions/pve/index.js†L2144-L2195】【F:cloudfunctions/pve/index.js†L4846-L4921】
 - 为兼容旧版本数据，云函数会在读取/挑战副本时自动识别历史楼层 ID（纯数字、未补零的 `secret_*_1` 等），并转换为新的规范 ID，同时合并通关记录与解锁层数，避免出现“未找到副本目标”或进度回退。【F:cloudfunctions/pve/index.js†L219-L336】【F:cloudfunctions/pve/index.js†L3886-L4015】
 - 每个境界的 9 种小怪分别突出生命、物攻、法攻、双防、速度、命中、闪避与控制命中等核心属性，首领同时强化三项关键属性并附带专属特技。数值模型通过 `SECRET_REALM_TUNING` 控制成长曲线，保证高级装备勉强通关、顶级装备轻松通过，后续仅需调整基准或倍率即可批量更新难度。【F:cloudfunctions/pve/index.js†L41-L318】【F:cloudfunctions/pve/index.js†L2106-L2145】
