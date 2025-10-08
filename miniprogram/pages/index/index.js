@@ -112,7 +112,35 @@ const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
 
 function buildCollapsedNavItems(navItems) {
   const source = Array.isArray(navItems) && navItems.length ? navItems : BASE_NAV_ITEMS;
-  return source.slice(0, 3);
+  if (!source.length) {
+    return [];
+  }
+
+  const MAX_ITEMS = 3;
+  const selected = [];
+  const seen = new Set();
+
+  const tryAdd = (item) => {
+    if (!item || seen.has(item.label) || selected.length >= MAX_ITEMS) {
+      return;
+    }
+    selected.push(item);
+    seen.add(item.label);
+  };
+
+  source.forEach((item) => {
+    if (item && item.showDot) {
+      tryAdd(item);
+    }
+  });
+
+  if (selected.length < MAX_ITEMS) {
+    source.forEach((item) => {
+      tryAdd(item);
+    });
+  }
+
+  return selected.slice(0, MAX_ITEMS);
 }
 
 const AVATAR_FRAME_OPTIONS = buildAvatarFrameOptionList();
