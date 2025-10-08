@@ -58,6 +58,13 @@ const ACTIONS = {
   CLEANUP_ORPHAN_DATA: 'cleanupOrphanData'
 };
 
+const ACTION_CANONICAL_MAP = Object.values(ACTIONS).reduce((map, name) => {
+  const lowercase = name.toLowerCase();
+  map[lowercase] = name;
+  map[name.replace(/[\s_-]+/g, '').toLowerCase()] = name;
+  return map;
+}, {});
+
 const ACTION_ALIASES = {
   listmembers: ACTIONS.LIST_MEMBERS,
   getmemberdetail: ACTIONS.GET_MEMBER_DETAIL,
@@ -97,7 +104,17 @@ function normalizeAction(action) {
     const trimmed = String(action).trim();
     if (trimmed) {
       const canonical = trimmed.replace(/[\s_-]+/g, '').toLowerCase();
-      return ACTION_ALIASES[canonical] || trimmed;
+      if (ACTION_ALIASES[canonical]) {
+        return ACTION_ALIASES[canonical];
+      }
+      if (ACTION_CANONICAL_MAP[canonical]) {
+        return ACTION_CANONICAL_MAP[canonical];
+      }
+      const lowercase = trimmed.toLowerCase();
+      if (ACTION_CANONICAL_MAP[lowercase]) {
+        return ACTION_CANONICAL_MAP[lowercase];
+      }
+      return trimmed;
     }
   }
   return ACTIONS.LIST_MEMBERS;
@@ -445,7 +462,14 @@ exports.main = async (event = {}) => {
   const rawAction =
     event.action ?? event.actionName ?? event.action_type ?? event.type ?? event.operation;
   const action = normalizeAction(rawAction);
-  const handler = ACTION_HANDLERS[action];
+  let handler = ACTION_HANDLERS[action];
+
+  if (!handler && typeof action === 'string') {
+    const fallbackKey = ACTION_CANONICAL_MAP[action.replace(/[\s_-]+/g, '').toLowerCase()];
+    if (fallbackKey) {
+      handler = ACTION_HANDLERS[fallbackKey];
+    }
+  }
 
   if (!handler) {
     throw new Error(`Unknown action: ${action}`);
