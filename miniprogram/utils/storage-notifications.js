@@ -95,6 +95,8 @@ function buildItemKey(item) {
   }
   const category = normalizeString(item.storageCategory) || 'storage';
   const candidateFields = [
+    item.storageBadgeKey,
+    item.badgeKey,
     item.badgeId,
     item.inventoryId,
     item.inventoryKey,
