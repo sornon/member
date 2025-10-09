@@ -50,6 +50,36 @@ export const formatCurrency = (amount = 0) => {
   return `¥${normalizedValue.toFixed(2)}`;
 };
 
+function formatWithUnit(value, divisor, unit) {
+  if (divisor <= 0) {
+    return value.toString();
+  }
+
+  const baseValue = value / divisor;
+  const integerDigits = Math.max(Math.floor(baseValue), 0).toString().length;
+  let decimalPlaces = 0;
+
+  if (integerDigits < 4) {
+    decimalPlaces = Math.min(4, Math.max(0, 5 - integerDigits));
+  } else {
+    decimalPlaces = 0;
+  }
+
+  let formatted;
+  if (decimalPlaces === 0) {
+    formatted = Math.floor(baseValue).toString();
+  } else {
+    formatted = baseValue.toFixed(decimalPlaces)
+      .replace(/\.0+$/, '')
+      .replace(/(\.\d*?)0+$/, '$1');
+    if (formatted.endsWith('.')) {
+      formatted = formatted.slice(0, -1);
+    }
+  }
+
+  return `${formatted}${unit}`;
+}
+
 export const formatExperience = (value = 0) => {
   const numeric = coerceToNumber(value);
   if (!Number.isFinite(numeric)) {
@@ -57,6 +87,15 @@ export const formatExperience = (value = 0) => {
   }
 
   const normalized = Math.max(0, Math.floor(numeric));
+
+  if (normalized >= 100000000) {
+    return formatWithUnit(normalized, 100000000, '亿');
+  }
+
+  if (normalized >= 1000000) {
+    return formatWithUnit(normalized, 10000, '万');
+  }
+
   return normalized.toString();
 };
 
