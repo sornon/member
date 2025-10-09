@@ -4695,7 +4695,7 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
     const hasRawSlotValue = Object.prototype.hasOwnProperty.call(rawSlots, slot);
     const raw = rawSlots[slot];
     let normalizedEntry = null;
-    if (raw && typeof raw === 'object' && raw.itemId) {
+    if (raw && typeof raw === 'object') {
       const candidate = normalizeEquipmentInventoryItem(raw, now);
       if (candidate) {
         normalizedEntry = { ...candidate };
@@ -4723,7 +4723,7 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
     }
     const raw = rawSlots[slot];
     let normalizedEntry = null;
-    if (raw && typeof raw === 'object' && raw.itemId) {
+    if (raw && typeof raw === 'object') {
       const candidate = normalizeEquipmentInventoryItem(raw, now);
       if (candidate) {
         normalizedEntry = { ...candidate };
