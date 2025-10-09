@@ -56,25 +56,21 @@ function formatWithUnit(value, divisor, unit) {
   }
 
   const baseValue = value / divisor;
-  const integerDigits = Math.max(Math.floor(baseValue), 0).toString().length;
-  let decimalPlaces = 0;
+  const integerDigits = Math.floor(baseValue).toString().length;
 
-  if (integerDigits < 4) {
-    decimalPlaces = Math.min(4, Math.max(0, 5 - integerDigits));
-  } else {
-    decimalPlaces = 0;
+  if (integerDigits >= 4) {
+    return `${Math.floor(baseValue)}${unit}`;
   }
 
-  let formatted;
-  if (decimalPlaces === 0) {
-    formatted = Math.floor(baseValue).toString();
-  } else {
-    formatted = baseValue.toFixed(decimalPlaces)
-      .replace(/\.0+$/, '')
-      .replace(/(\.\d*?)0+$/, '$1');
-    if (formatted.endsWith('.')) {
-      formatted = formatted.slice(0, -1);
-    }
+  const decimalPlaces = Math.max(0, 4 - integerDigits);
+  let formatted = baseValue
+    .toFixed(decimalPlaces)
+    .replace(/\.0+$/, '')
+    .replace(/(\.\d*?)0+$/, '$1')
+    .replace(/\.$/, '');
+
+  if (!formatted) {
+    formatted = '0';
   }
 
   return `${formatted}${unit}`;
@@ -92,7 +88,7 @@ export const formatExperience = (value = 0) => {
     return formatWithUnit(normalized, 100000000, '亿');
   }
 
-  if (normalized >= 1000000) {
+  if (normalized >= 10000) {
     return formatWithUnit(normalized, 10000, '万');
   }
 
