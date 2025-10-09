@@ -4336,6 +4336,14 @@ function sanitizeStorageIdentifier(value) {
   return '';
 }
 
+function sanitizeStorageKeyComponent(value) {
+  const normalized = sanitizeStorageIdentifier(value);
+  if (!normalized) {
+    return '';
+  }
+  return normalized.replace(/[:/\\?&#%]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+}
+
 function generateStorageInventoryId(category, itemId, obtainedAt = null) {
   const safeCategory = sanitizeStorageIdentifier(category) || 'storage';
   const safeItem = sanitizeStorageIdentifier(itemId) || 'item';
@@ -4345,7 +4353,16 @@ function generateStorageInventoryId(category, itemId, obtainedAt = null) {
   return `${safeCategory}-${safeItem}-${timestamp}-${random}`;
 }
 
-function normalizeStorageInventoryItem(entry, categoryKey) {
+function buildStableStorageInventoryId(category, sourceId, obtainedAt = null, index = 0) {
+  const safeCategory = sanitizeStorageKeyComponent(category) || 'storage';
+  const safeSource = sanitizeStorageKeyComponent(sourceId) || 'item';
+  const timestamp =
+    obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : 0;
+  const safeIndex = Number.isFinite(index) && index >= 0 ? Math.floor(index) : 0;
+  return `${safeCategory}-${safeSource}-${timestamp}-${safeIndex}`;
+}
+
+function normalizeStorageInventoryItem(entry, categoryKey, index = 0) {
   if (!entry || typeof entry !== 'object') {
     return null;
   }
@@ -4381,17 +4398,65 @@ function normalizeStorageInventoryItem(entry, categoryKey) {
     delete normalized.obtainedAt;
   }
 
-  if (!inventoryId) {
-    const generated = generateStorageInventoryId(key, itemId || normalized.storageId || 'item', obtainedAt);
-    inventoryId = generated;
-  }
-  normalized.inventoryId = inventoryId;
-
   if (typeof normalized.storageCategory === 'string' && normalized.storageCategory.trim()) {
     normalized.storageCategory = normalized.storageCategory.trim();
   } else {
     normalized.storageCategory = key;
   }
+
+  const badgeCategory = sanitizeStorageIdentifier(normalized.storageCategory) || key;
+
+  const stableCategoryComponent =
+    sanitizeStorageKeyComponent(normalized.storageCategory) ||
+    sanitizeStorageKeyComponent(key) ||
+    'storage';
+
+  const fallbackSourceCandidates = [
+    inventoryId,
+    normalized.storageSerial,
+    normalized.storageBadgeKey,
+    normalized.storageKey,
+    normalized.storageId,
+    normalized.inventoryKey,
+    normalized.itemId,
+    normalized.timestamp,
+    normalized.createdAt,
+    normalized.updatedAt,
+    normalized.obtainTime,
+    obtainedAt ? obtainedAt.getTime() : '',
+    normalized.id,
+    normalized._id,
+    `entry-${index}`
+  ];
+  let fallbackSource = '';
+  for (let i = 0; i < fallbackSourceCandidates.length; i += 1) {
+    const component = sanitizeStorageKeyComponent(fallbackSourceCandidates[i]);
+    if (component) {
+      if (component.startsWith(`${stableCategoryComponent}-`)) {
+        const trimmed = component.slice(stableCategoryComponent.length + 1);
+        fallbackSource = trimmed || component;
+      } else {
+        fallbackSource = component;
+      }
+      break;
+    }
+  }
+  if (!fallbackSource) {
+    const safeIndex = Number.isFinite(index) && index >= 0 ? Math.floor(index) : 0;
+    fallbackSource = `entry-${safeIndex}`;
+  }
+
+  const stableIdentifier = buildStableStorageInventoryId(
+    normalized.storageCategory,
+    fallbackSource,
+    obtainedAt,
+    index
+  );
+
+  if (!inventoryId) {
+    inventoryId = stableIdentifier;
+  }
+  normalized.inventoryId = inventoryId;
 
   const serialCandidates = [
     normalized.storageSerial,
@@ -4401,6 +4466,7 @@ function normalizeStorageInventoryItem(entry, categoryKey) {
     normalized.entryId,
     normalized.badgeId,
     inventoryId,
+    stableIdentifier,
     itemId && obtainedAt ? `${itemId}-${obtainedAt.getTime()}` : ''
   ];
   let storageSerial = '';
@@ -4412,11 +4478,10 @@ function normalizeStorageInventoryItem(entry, categoryKey) {
     }
   }
   if (!storageSerial) {
-    storageSerial = generateStorageInventoryId(key, itemId || 'item', obtainedAt);
+    storageSerial = stableIdentifier;
   }
   normalized.storageSerial = storageSerial;
 
-  const badgeCategory = sanitizeStorageIdentifier(normalized.storageCategory) || key;
   if (
     typeof normalized.storageBadgeKey !== 'string' ||
     !normalized.storageBadgeKey.trim()
@@ -4492,7 +4557,9 @@ function normalizeStorageCategoryEntry(category) {
       ? category.label.trim()
       : STORAGE_CATEGORY_LABEL_MAP[key] || key;
   const items = Array.isArray(category.items)
-    ? category.items.map((item) => normalizeStorageInventoryItem(item, key)).filter((item) => !!item)
+    ? category.items
+        .map((item, index) => normalizeStorageInventoryItem(item, key, index))
+        .filter((item) => !!item)
     : [];
   const normalized = { key, label, items };
   const baseCapacity = toOptionalPositiveInt(category.baseCapacity);
