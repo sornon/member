@@ -758,6 +758,7 @@ Page({
   data: {
     member: null,
     progress: null,
+    progressRemainingExperience: formatExperience(0),
     realmHasPendingRewards: false,
     tasks: [],
     loading: true,
@@ -962,6 +963,8 @@ Page({
       ]);
       const sanitizedMember = buildSanitizedMember(member);
       const width = normalizePercentage(progress);
+      const nextDiff = progress && typeof progress.nextDiff === 'number' ? progress.nextDiff : 0;
+      const progressRemainingExperience = formatExperience(nextDiff);
       const needsProfile = !sanitizedMember || !sanitizedMember.nickName || !sanitizedMember.mobile;
       const profileAuthorized = !!(sanitizedMember && sanitizedMember.nickName);
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
@@ -971,6 +974,7 @@ Page({
       this.setData({
         member: sanitizedMember,
         progress,
+        progressRemainingExperience,
         realmHasPendingRewards,
         tasks: tasks.slice(0, 3),
         loading: false,

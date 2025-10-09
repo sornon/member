@@ -187,6 +187,7 @@ Page({
     loading: true,
     member: null,
     progress: null,
+    nextLevelRemainingExperience: formatExperience(0),
     levels: [],
     realms: [],
     currentLevel: null,
@@ -313,6 +314,8 @@ Page({
       const realms = Object.values(realmMap).sort((a, b) => a.order - b.order);
       const currentLevel = progress.currentLevel || null;
       const nextLevel = progress.nextLevel || null;
+      const nextDiff = progress && typeof progress.nextDiff === 'number' ? progress.nextDiff : 0;
+      const nextLevelRemainingExperience = formatExperience(nextDiff);
       const currentOrder = currentLevel && currentLevel.order ? currentLevel.order : 0;
       const upcomingMilestone = levels.find((lvl) => lvl.order > currentOrder && lvl.milestoneReward) || null;
       const width = normalizePercentage(progress);
@@ -344,6 +347,7 @@ Page({
         loading: false,
         member: mergedMember,
         progress,
+        nextLevelRemainingExperience,
         levels,
         realms,
         currentLevel,
