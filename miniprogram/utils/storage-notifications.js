@@ -89,31 +89,65 @@ function isTruthy(value) {
   return false;
 }
 
-function buildItemKey(item) {
+function collectItemKeyAliases(item) {
   if (!item || typeof item !== 'object') {
-    return '';
+    return [];
   }
   const category = normalizeString(item.storageCategory) || 'storage';
   const candidateFields = [
     item.storageBadgeKey,
-    item.badgeKey,
-    item.badgeId,
+    item.storageKey,
     item.inventoryId,
     item.inventoryKey,
-    item.storageKey,
     item.storageId,
+    item.itemId,
     item.id,
     item._id,
-    item.itemId,
+    item.badgeKey,
+    item.badgeId,
     item.slot
   ];
-  for (let i = 0; i < candidateFields.length; i += 1) {
-    const value = normalizeString(candidateFields[i]);
-    if (value) {
-      return `${category}:${value}`;
+  const aliases = [];
+  const seen = new Set();
+
+  candidateFields.forEach((field) => {
+    const value = normalizeString(field);
+    if (!value) {
+      return;
     }
+    const primary = `${category}:${value}`;
+    if (!seen.has(primary)) {
+      aliases.push(primary);
+      seen.add(primary);
+    }
+    if (value.includes(':')) {
+      const parts = value.split(':');
+      const explicitCategory = normalizeString(parts[0]);
+      const explicitId = normalizeString(parts.slice(1).join(':'));
+      if (explicitCategory && explicitId) {
+        const compact = `${explicitCategory}:${explicitId}`;
+        if (!seen.has(compact)) {
+          aliases.push(compact);
+          seen.add(compact);
+        }
+        const nested = `${category}:${explicitCategory}:${explicitId}`;
+        if (!seen.has(nested)) {
+          aliases.push(nested);
+          seen.add(nested);
+        }
+      }
+    }
+  });
+
+  return aliases;
+}
+
+function buildItemKey(item) {
+  if (!item || typeof item !== 'object') {
+    return '';
   }
-  return '';
+  const aliases = collectItemKeyAliases(item);
+  return aliases.length ? aliases[0] : '';
 }
 
 function extractItemTimestamp(item) {
@@ -217,6 +251,9 @@ function ensureLatestState(state, items, options = {}) {
     if (!entry || !entry.key) {
       return;
     }
+    if (entry.item && migrateBadgeStateForItem(entry, state)) {
+      mutated = true;
+    }
     seenKeys.add(entry.key);
     const previous = Number(previousLatest[entry.key]) || 0;
     const obtainedAt = Number(entry.obtainedAt) || 0;
@@ -311,6 +348,46 @@ export function shouldShowStorageBadge(member) {
     items = Object.keys(latest).map((key) => ({ key, obtainedAt: Number(latest[key]) || 0 }));
   }
   return hasUnacknowledgedItems(items, state);
+}
+
+function migrateBadgeStateForItem(entry, state) {
+  if (!entry || !entry.item || !entry.key) {
+    return false;
+  }
+  const acknowledged = state.acknowledged || {};
+  const latest = state.latest || {};
+  const aliases = collectItemKeyAliases(entry.item);
+  let mutated = false;
+
+  aliases.forEach((alias) => {
+    if (!alias || alias === entry.key) {
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(acknowledged, alias)) {
+      const ackValue = Number(acknowledged[alias]) || 0;
+      if (ackValue) {
+        const current = Number(acknowledged[entry.key]) || 0;
+        if (!current || current < ackValue) {
+          acknowledged[entry.key] = ackValue;
+        }
+      }
+      delete acknowledged[alias];
+      mutated = true;
+    }
+    if (Object.prototype.hasOwnProperty.call(latest, alias)) {
+      const latestValue = Number(latest[alias]) || 0;
+      if (latestValue) {
+        const currentLatest = Number(latest[entry.key]) || 0;
+        if (!currentLatest || currentLatest < latestValue) {
+          latest[entry.key] = latestValue;
+        }
+      }
+      delete latest[alias];
+      mutated = true;
+    }
+  });
+
+  return mutated;
 }
 
 function itemHasExplicitNewFlag(item) {

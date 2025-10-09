@@ -130,16 +130,16 @@ function buildStorageItemBadgeKeys(categoryKey, item, index = 0) {
     };
   }
   const candidates = [
-    item.badgeKey,
     item.storageBadgeKey,
-    item.badgeId,
+    item.storageKey,
     item.inventoryId,
     item.inventoryKey,
-    item.storageKey,
     item.storageId,
+    item.itemId,
     item.id,
     item._id,
-    item.itemId,
+    item.badgeKey,
+    item.badgeId,
     item.slot
   ];
   let identifier = '';
