@@ -1,7 +1,6 @@
 import { resolveTimestamp } from './pending-attributes';
 
 const STORAGE_BADGE_STORAGE_KEY = 'storageBadgeState';
-
 const FALLBACK_STATE = {
   acknowledged: {},
   latest: {},
@@ -158,6 +157,27 @@ function normalizeString(value) {
   return '';
 }
 
+function isEquipmentCategoryKey(value) {
+  return normalizeString(value) === 'equipment';
+}
+
+function isEquipmentItem(item, categoryKey = '') {
+  if (!item || typeof item !== 'object') {
+    return false;
+  }
+  if (isEquipmentCategoryKey(categoryKey)) {
+    return true;
+  }
+  if (isEquipmentCategoryKey(item.storageCategory)) {
+    return true;
+  }
+  const kind = normalizeString(item.kind);
+  if (kind === 'equipment') {
+    return true;
+  }
+  return false;
+}
+
 function isTruthy(value) {
   if (!value) {
     return false;
@@ -180,6 +200,12 @@ function collectItemKeyAliases(item) {
   }
   const category = normalizeString(item.storageCategory) || 'storage';
   const candidateFields = [
+    item.storageSerial,
+    item.serialId,
+    item.serial,
+    item.sequenceId,
+    item.entryId,
+    item.badgeId,
     item.storageBadgeKey,
     item.storageKey,
     item.inventoryId,
@@ -189,7 +215,6 @@ function collectItemKeyAliases(item) {
     item.id,
     item._id,
     item.badgeKey,
-    item.badgeId,
     item.slot
   ];
   const aliases = [];
@@ -260,7 +285,14 @@ function collectStorageItemsFromCategories(categories) {
     if (!category || !Array.isArray(category.items)) {
       return;
     }
+    const categoryKey = normalizeString(category.key);
+    if (isEquipmentCategoryKey(categoryKey)) {
+      return;
+    }
     category.items.forEach((item) => {
+      if (isEquipmentItem(item, categoryKey)) {
+        return;
+      }
       const key = buildItemKey(item);
       if (!key) {
         return;
@@ -286,23 +318,13 @@ export function extractNewStorageItemsFromProfile(profile) {
   return collectStorageItemsFromCategories(categories);
 }
 
-export function extractNewStorageItemsFromMember(member) {
-  if (!member || typeof member !== 'object') {
-    return [];
-  }
-  const profile = member.pveProfile && typeof member.pveProfile === 'object' ? member.pveProfile : null;
-  if (!profile) {
-    return [];
-  }
-  return extractNewStorageItemsFromProfile(profile);
-}
-
 function ensureLatestState(state, items, options = {}) {
   const list = Array.isArray(items) ? items : [];
   const acknowledged = state.acknowledged || {};
   const previousLatest = state.latest || {};
   const nextLatest = {};
   const seenKeys = new Set();
+  const touched = [];
   const { pruneMissing = false, initialize = list.length > 0 } = options;
   let mutated = false;
 
@@ -326,6 +348,7 @@ function ensureLatestState(state, items, options = {}) {
       mutated = true;
     }
     seenKeys.add(entry.key);
+    touched.push(entry.key);
     const previous = Number(previousLatest[entry.key]) || 0;
     const obtainedAt = Number(entry.obtainedAt) || 0;
     const candidate = obtainedAt || previous;
@@ -372,55 +395,6 @@ function ensureLatestState(state, items, options = {}) {
   }
 }
 
-function hasUnacknowledgedItems(items, state) {
-  if (!items.length) {
-    return false;
-  }
-  const acknowledged = state.acknowledged || {};
-  const latest = state.latest || {};
-  const initialized = !!state.initialized;
-
-  for (let i = 0; i < items.length; i += 1) {
-    const entry = items[i];
-    if (!entry || !entry.key) {
-      continue;
-    }
-    const ackTime = Number(acknowledged[entry.key]) || 0;
-    const latestTime = Number(latest[entry.key]) || 0;
-    const obtainedAt = Number(entry.obtainedAt) || 0;
-    const effectiveLatest = Math.max(latestTime, obtainedAt);
-    if (!initialized) {
-      if (entry.isNew && !ackTime) {
-        return true;
-      }
-      continue;
-    }
-    if (!ackTime || (effectiveLatest && ackTime < effectiveLatest)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-export function shouldShowStorageBadge(member) {
-  const state = ensureState();
-  let items = [];
-  if (member) {
-    items = extractNewStorageItemsFromMember(member);
-    if (items.length) {
-      ensureLatestState(state, items, { pruneMissing: true, initialize: true });
-    }
-  } else {
-    const latest = state.latest || {};
-    items = Object.keys(latest).map((key) => ({ key, obtainedAt: Number(latest[key]) || 0 }));
-  }
-  if (!items.length) {
-    const latest = state.latest || {};
-    items = Object.keys(latest).map((key) => ({ key, obtainedAt: Number(latest[key]) || 0 }));
-  }
-  return hasUnacknowledgedItems(items, state);
-}
-
 function migrateBadgeStateForItem(entry, state) {
   if (!entry || !entry.item || !entry.key) {
     return false;
@@ -465,11 +439,17 @@ function itemHasExplicitNewFlag(item) {
   if (!item || typeof item !== 'object') {
     return false;
   }
+  if (isEquipmentItem(item)) {
+    return false;
+  }
   return isTruthy(item.isNew) || isTruthy(item.new) || isTruthy(item.hasNewBadge) || isTruthy(item.hasNew);
 }
 
 export function shouldDisplayStorageItemNew(item) {
   if (!item) {
+    return false;
+  }
+  if (isEquipmentItem(item)) {
     return false;
   }
   const state = ensureState();
@@ -483,17 +463,18 @@ export function shouldDisplayStorageItemNew(item) {
   const ackTime = Number(acknowledged[key]) || 0;
   const latestTime = Number(latest[key]) || 0;
   const obtainedAt = Math.max(extractItemTimestamp(item), latestTime);
-
+  let result;
   if (!initialized) {
-    return itemHasExplicitNewFlag(item) && !ackTime;
+    result = itemHasExplicitNewFlag(item) && !ackTime;
+  } else if (!ackTime) {
+    result = true;
+  } else if (obtainedAt && ackTime < obtainedAt) {
+    result = true;
+  } else {
+    result = false;
   }
-  if (!ackTime) {
-    return true;
-  }
-  if (obtainedAt && ackTime < obtainedAt) {
-    return true;
-  }
-  return false;
+
+  return result;
 }
 
 export function acknowledgeStorageItems(items) {
@@ -505,15 +486,18 @@ export function acknowledgeStorageItems(items) {
   const acknowledged = state.acknowledged || {};
   const latest = state.latest || {};
   let mutated = false;
-
   list.forEach((item) => {
     if (!item) {
+      return;
+    }
+    if (isEquipmentItem(item)) {
       return;
     }
     const key = buildItemKey(item);
     if (!key) {
       return;
     }
+    const ackTime = Number(acknowledged[key]) || 0;
     const obtainedAt = extractItemTimestamp(item);
     const latestTime = Number(latest[key]) || 0;
     const newAck = Math.max(obtainedAt, latestTime, Date.now());
@@ -530,6 +514,7 @@ export function acknowledgeStorageItems(items) {
   if (mutated) {
     writeState(state);
   }
+
 }
 
 export function syncStorageBadgeStateFromProfile(profile) {

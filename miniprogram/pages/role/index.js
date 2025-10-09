@@ -415,14 +415,21 @@ Page({
           return null;
         }
         const key = typeof category.key === 'string' ? category.key : '';
+        const isEquipmentCategory = key === 'equipment';
         if (!key) {
           return null;
         }
         const label = typeof category.label === 'string' ? category.label : key;
         const items = Array.isArray(category.items) ? category.items : [];
         const normalizedItems = items.map((item, index) => {
-          const storageKey = `${key}-${item && item.inventoryId ? item.inventoryId : `${item && item.itemId ? item.itemId : 'item'}-${index}`}`;
-          const normalized = { ...item, storageKey };
+          const normalized = { ...item };
+          if (typeof normalized.storageKey !== 'string' || !normalized.storageKey) {
+            const fallbackId =
+              item && item.inventoryId
+                ? item.inventoryId
+                : `${item && item.itemId ? item.itemId : 'item'}-${index}`;
+            normalized.storageKey = `${key}-${fallbackId}`;
+          }
           if (!normalized.storageCategory) {
             normalized.storageCategory = key;
           }
@@ -431,7 +438,7 @@ Page({
               STORAGE_CATEGORY_LABELS[normalized.storageCategory] || normalized.storageCategory || '';
           }
           if (!normalized.kind) {
-            normalized.kind = key === 'equipment' ? 'equipment' : 'storage';
+            normalized.kind = isEquipmentCategory ? 'equipment' : 'storage';
           }
           if (Array.isArray(normalized.notes)) {
             normalized.notes = normalized.notes.filter((note) => !!note);
@@ -454,7 +461,7 @@ Page({
             normalized.slotLabel =
               STORAGE_CATEGORY_LABELS[normalized.storageCategory] || normalized.storageCategory || '道具';
           }
-          if (key === 'equipment') {
+          if (isEquipmentCategory) {
             const slotValue = normalizeSlotValue(normalized.slot);
             if (slotValue) {
               const equippedItem = findEquippedItemFromProfile(profile, slotValue, normalized.itemId);
@@ -473,7 +480,7 @@ Page({
           } else {
             normalized.recommendedUpgrade = false;
           }
-          normalized.showNewBadge = shouldDisplayStorageItemNew(normalized);
+          normalized.showNewBadge = isEquipmentCategory ? false : shouldDisplayStorageItemNew(normalized);
           return normalized;
         });
         const slotCount = Math.max(capacity, normalizedItems.length);
@@ -517,7 +524,30 @@ Page({
       if (!category) {
         return;
       }
+      const categoryKey = typeof category.key === 'string' ? category.key : '';
+      const isEquipmentCategory = categoryKey === 'equipment';
       const items = Array.isArray(category.items) ? category.items : [];
+      if (isEquipmentCategory) {
+        items.forEach((item, itemIndex) => {
+          if (item && item.showNewBadge) {
+            updates[`storageCategories[${categoryIndex}].items[${itemIndex}].showNewBadge`] = false;
+            if (categoryIndex === activeIndex) {
+              updates[`activeStorageCategoryData.items[${itemIndex}].showNewBadge`] = false;
+            }
+          }
+        });
+        const slots = Array.isArray(category.slots) ? category.slots : [];
+        slots.forEach((slotItem, slotIndex) => {
+          if (!slotItem || slotItem.placeholder || !slotItem.showNewBadge) {
+            return;
+          }
+          updates[`storageCategories[${categoryIndex}].slots[${slotIndex}].showNewBadge`] = false;
+          if (categoryIndex === activeIndex) {
+            updates[`activeStorageCategoryData.slots[${slotIndex}].showNewBadge`] = false;
+          }
+        });
+        return;
+      }
       items.forEach((item, itemIndex) => {
         if (!item) {
           return;
@@ -558,6 +588,14 @@ Page({
         if (!category || !Array.isArray(category.items)) {
           return;
         }
+        if ((typeof category.key === 'string' ? category.key : '') === 'equipment') {
+          category.items.forEach((item, itemIndex) => {
+            if (item && item.showNewBadge) {
+              updates[`profile.equipment.storage.categories[${categoryIndex}].items[${itemIndex}].showNewBadge`] = false;
+            }
+          });
+          return;
+        }
         category.items.forEach((item, itemIndex) => {
           if (!item) {
             return;
@@ -576,6 +614,11 @@ Page({
 
   acknowledgeStorageItem(item) {
     if (!item) {
+      return;
+    }
+    const categoryKey = typeof item.storageCategory === 'string' ? item.storageCategory.trim() : '';
+    const kind = typeof item.kind === 'string' ? item.kind.trim() : '';
+    if (categoryKey === 'equipment' || kind === 'equipment') {
       return;
     }
     acknowledgeStorageItems(item);
