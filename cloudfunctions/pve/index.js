@@ -4322,30 +4322,202 @@ function normalizeStorageMetadata(rawStorage) {
   return normalized;
 }
 
-function normalizeStorageInventoryItem(entry, categoryKey) {
+function sanitizeStorageIdentifier(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.replace(/\s+/g, '-');
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+  return '';
+}
+
+function sanitizeStorageKeyComponent(value) {
+  const normalized = sanitizeStorageIdentifier(value);
+  if (!normalized) {
+    return '';
+  }
+  return normalized.replace(/[:/\\?&#%]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+}
+
+function generateStorageInventoryId(category, itemId, obtainedAt = null) {
+  const safeCategory = sanitizeStorageIdentifier(category) || 'storage';
+  const safeItem = sanitizeStorageIdentifier(itemId) || 'item';
+  const timestamp =
+    obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : Date.now();
+  const random = Math.random().toString(36).slice(2, 10);
+  return `${safeCategory}-${safeItem}-${timestamp}-${random}`;
+}
+
+function buildStableStorageInventoryId(category, sourceId, obtainedAt = null, index = 0) {
+  const safeCategory = sanitizeStorageKeyComponent(category) || 'storage';
+  const safeSource = sanitizeStorageKeyComponent(sourceId) || 'item';
+  const timestamp =
+    obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : 0;
+  const safeIndex = Number.isFinite(index) && index >= 0 ? Math.floor(index) : 0;
+  return `${safeCategory}-${safeSource}-${timestamp}-${safeIndex}`;
+}
+
+function normalizeStorageInventoryItem(entry, categoryKey, index = 0) {
   if (!entry || typeof entry !== 'object') {
     return null;
   }
   const normalized = { ...entry };
   const key = typeof categoryKey === 'string' && categoryKey.trim() ? categoryKey.trim() : 'consumable';
   const itemId = typeof normalized.itemId === 'string' ? normalized.itemId.trim() : '';
-  const inventoryId = typeof normalized.inventoryId === 'string' ? normalized.inventoryId.trim() : '';
+  const candidateIds = [normalized.inventoryId, normalized.id, normalized._id];
+  let inventoryId = '';
+  for (let i = 0; i < candidateIds.length; i += 1) {
+    const candidate = sanitizeStorageIdentifier(candidateIds[i]);
+    if (candidate) {
+      inventoryId = candidate;
+      break;
+    }
+  }
   if (!itemId && !inventoryId) {
     return null;
   }
   if (itemId) {
     normalized.itemId = itemId;
   }
-  if (inventoryId) {
-    normalized.inventoryId = inventoryId;
-  } else if (itemId) {
-    normalized.inventoryId = `${key}-${itemId}`;
+
+  let obtainedAt = null;
+  if (normalized.obtainedAt) {
+    const parsed = new Date(normalized.obtainedAt);
+    if (!Number.isNaN(parsed.getTime())) {
+      obtainedAt = parsed;
+    }
   }
+  if (obtainedAt) {
+    normalized.obtainedAt = obtainedAt;
+  } else if (normalized.obtainedAt) {
+    delete normalized.obtainedAt;
+  }
+
   if (typeof normalized.storageCategory === 'string' && normalized.storageCategory.trim()) {
     normalized.storageCategory = normalized.storageCategory.trim();
   } else {
     normalized.storageCategory = key;
   }
+
+  const badgeCategory = sanitizeStorageIdentifier(normalized.storageCategory) || key;
+
+  const stableCategoryComponent =
+    sanitizeStorageKeyComponent(normalized.storageCategory) ||
+    sanitizeStorageKeyComponent(key) ||
+    'storage';
+
+  const fallbackSourceCandidates = [
+    inventoryId,
+    normalized.storageSerial,
+    normalized.storageBadgeKey,
+    normalized.storageKey,
+    normalized.storageId,
+    normalized.inventoryKey,
+    normalized.itemId,
+    normalized.timestamp,
+    normalized.createdAt,
+    normalized.updatedAt,
+    normalized.obtainTime,
+    obtainedAt ? obtainedAt.getTime() : '',
+    normalized.id,
+    normalized._id,
+    `entry-${index}`
+  ];
+  let fallbackSource = '';
+  for (let i = 0; i < fallbackSourceCandidates.length; i += 1) {
+    const component = sanitizeStorageKeyComponent(fallbackSourceCandidates[i]);
+    if (component) {
+      if (component.startsWith(`${stableCategoryComponent}-`)) {
+        const trimmed = component.slice(stableCategoryComponent.length + 1);
+        fallbackSource = trimmed || component;
+      } else {
+        fallbackSource = component;
+      }
+      break;
+    }
+  }
+  if (!fallbackSource) {
+    const safeIndex = Number.isFinite(index) && index >= 0 ? Math.floor(index) : 0;
+    fallbackSource = `entry-${safeIndex}`;
+  }
+
+  const stableIdentifier = buildStableStorageInventoryId(
+    normalized.storageCategory,
+    fallbackSource,
+    obtainedAt,
+    index
+  );
+
+  if (!inventoryId) {
+    inventoryId = stableIdentifier;
+  }
+  normalized.inventoryId = inventoryId;
+
+  const previousSerial = sanitizeStorageIdentifier(normalized.storageSerial);
+  const serialCandidates = [
+    sanitizeStorageIdentifier(inventoryId),
+    sanitizeStorageIdentifier(stableIdentifier),
+    itemId && obtainedAt ? sanitizeStorageIdentifier(`${itemId}-${obtainedAt.getTime()}`) : '',
+    sanitizeStorageIdentifier(normalized.serialId),
+    sanitizeStorageIdentifier(normalized.serial),
+    sanitizeStorageIdentifier(normalized.sequenceId),
+    sanitizeStorageIdentifier(normalized.entryId),
+    sanitizeStorageIdentifier(normalized.badgeId),
+    previousSerial
+  ];
+  let storageSerial = '';
+  for (let i = 0; i < serialCandidates.length; i += 1) {
+    const candidate = serialCandidates[i];
+    if (candidate) {
+      storageSerial = candidate;
+      break;
+    }
+  }
+  if (!storageSerial) {
+    storageSerial = stableIdentifier;
+  }
+  if (previousSerial && previousSerial !== storageSerial) {
+    const legacyTargets = ['serialId', 'sequenceId', 'entryId', 'badgeId'];
+    for (let i = 0; i < legacyTargets.length; i += 1) {
+      const key = legacyTargets[i];
+      const existing = sanitizeStorageIdentifier(normalized[key]);
+      if (!existing) {
+        normalized[key] = previousSerial;
+        break;
+      }
+    }
+  }
+  normalized.storageSerial = storageSerial;
+
+  const previousBadgeKey =
+    typeof normalized.storageBadgeKey === 'string' ? normalized.storageBadgeKey.trim() : '';
+  const desiredBadgeKey = `${badgeCategory}:${storageSerial}`;
+  if (previousBadgeKey && previousBadgeKey !== desiredBadgeKey) {
+    if (!normalized.badgeKey) {
+      normalized.badgeKey = previousBadgeKey;
+    } else if (!normalized.storageId) {
+      normalized.storageId = previousBadgeKey;
+    }
+  }
+  normalized.storageBadgeKey = desiredBadgeKey;
+
+  const previousStorageKey =
+    typeof normalized.storageKey === 'string' ? normalized.storageKey.trim() : '';
+  const desiredStorageKey = `${badgeCategory}-${storageSerial}`;
+  if (previousStorageKey && previousStorageKey !== desiredStorageKey) {
+    if (!normalized.inventoryKey) {
+      normalized.inventoryKey = previousStorageKey;
+    } else if (!normalized.storageId) {
+      normalized.storageId = previousStorageKey;
+    }
+  }
+  normalized.storageKey = desiredStorageKey;
+
   if (
     typeof normalized.slotLabel !== 'string' ||
     !normalized.slotLabel.trim()
@@ -4377,14 +4549,6 @@ function normalizeStorageInventoryItem(entry, categoryKey) {
     normalized.notes = normalized.notes.filter((note) => !!note);
   } else {
     normalized.notes = [];
-  }
-  if (normalized.obtainedAt) {
-    const obtainedAt = new Date(normalized.obtainedAt);
-    if (!Number.isNaN(obtainedAt.getTime())) {
-      normalized.obtainedAt = obtainedAt;
-    } else {
-      delete normalized.obtainedAt;
-    }
   }
   normalized.locked = normalized.locked === true;
   if (!normalized.kind) {
@@ -4419,7 +4583,9 @@ function normalizeStorageCategoryEntry(category) {
       ? category.label.trim()
       : STORAGE_CATEGORY_LABEL_MAP[key] || key;
   const items = Array.isArray(category.items)
-    ? category.items.map((item) => normalizeStorageInventoryItem(item, key)).filter((item) => !!item)
+    ? category.items
+        .map((item, index) => normalizeStorageInventoryItem(item, key, index))
+        .filter((item) => !!item)
     : [];
   const normalized = { key, label, items };
   const baseCapacity = toOptionalPositiveInt(category.baseCapacity);
@@ -4622,7 +4788,7 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
     const hasRawSlotValue = Object.prototype.hasOwnProperty.call(rawSlots, slot);
     const raw = rawSlots[slot];
     let normalizedEntry = null;
-    if (raw && typeof raw === 'object' && raw.itemId) {
+    if (raw && typeof raw === 'object') {
       const candidate = normalizeEquipmentInventoryItem(raw, now);
       if (candidate) {
         normalizedEntry = { ...candidate };
@@ -4650,7 +4816,7 @@ function normalizeEquipment(equipment, now = new Date(), options = {}) {
     }
     const raw = rawSlots[slot];
     let normalizedEntry = null;
-    if (raw && typeof raw === 'object' && raw.itemId) {
+    if (raw && typeof raw === 'object') {
       const candidate = normalizeEquipmentInventoryItem(raw, now);
       if (candidate) {
         normalizedEntry = { ...candidate };
@@ -4898,6 +5064,88 @@ function mergeStats(source, defaults) {
   return result;
 }
 
+function extractTimestamp(value) {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isFinite(time) ? time : null;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (/^-?\d+$/.test(trimmed)) {
+      const numeric = Number(trimmed);
+      return Number.isFinite(numeric) ? numeric : null;
+    }
+    const parsed = Date.parse(trimmed);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+function resolveEquipmentObtainedTimestamp(item, now = new Date()) {
+  if (item && typeof item === 'object') {
+    const candidates = [
+      item.obtainedAt,
+      item.obtainTime,
+      item.obtainTimestamp,
+      item.obtainDate,
+      item.obtainDateTime,
+      item.obtain_at,
+      item.obtain_time,
+      item.acquireTime,
+      item.acquire_at,
+      item.acquiredAt,
+      item.acquiredTime,
+      item.grantedAt,
+      item.createdAt,
+      item.created_at,
+      item.timestamp,
+      item.time
+    ];
+    for (let i = 0; i < candidates.length; i += 1) {
+      const parsed = extractTimestamp(candidates[i]);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+  }
+  return 0;
+}
+
+function buildEquipmentFingerprint(item) {
+  if (!item || typeof item !== 'object') {
+    return '';
+  }
+  const rawLevel = Number(item.level);
+  const rawRefine = Number(item.refine);
+  const payload = {
+    level: Number.isFinite(rawLevel) ? Math.max(0, Math.floor(rawLevel)) : null,
+    refine: Number.isFinite(rawRefine) ? Math.max(0, Math.floor(rawRefine)) : null,
+    favorite: !!item.favorite,
+    bonus: item.bonus && typeof item.bonus === 'object' ? item.bonus : null,
+    extra: item.extra && typeof item.extra === 'object' ? item.extra : null,
+    rolls: Array.isArray(item.rolls) ? item.rolls : null,
+    stats: item.stats && typeof item.stats === 'object' ? item.stats : null
+  };
+  const json = JSON.stringify(payload);
+  if (!json) {
+    return '';
+  }
+  let hash = 0;
+  for (let i = 0; i < json.length; i += 1) {
+    hash = (hash * 31 + json.charCodeAt(i)) >>> 0;
+  }
+  return hash ? hash.toString(36) : '';
+}
+
 function normalizeEquipmentInventoryItem(item, now = new Date()) {
   if (!item || typeof item !== 'object') {
     return null;
@@ -4909,7 +5157,8 @@ function normalizeEquipmentInventoryItem(item, now = new Date()) {
   }
   const level = Math.max(1, Math.floor(Number(item.level) || 1));
   const refine = Math.max(0, Math.floor(Number(item.refine) || 0));
-  const obtainedAt = item.obtainedAt ? new Date(item.obtainedAt) : now;
+  const obtainedTimestamp = resolveEquipmentObtainedTimestamp(item, now);
+  const obtainedAt = obtainedTimestamp ? new Date(obtainedTimestamp) : null;
   const inventoryId = resolveEquipmentInventoryId(item, itemId, obtainedAt);
   return {
     inventoryId,
@@ -4956,7 +5205,19 @@ function resolveEquipmentInventoryId(item, itemId, obtainedAt = new Date()) {
     item && item.instanceId,
     item && item.entryId,
     item && item.id,
-    item && item._id
+    item && item._id,
+    item && item.inventoryKey,
+    item && item.storageId,
+    item && item.storageSerial,
+    item && item.storageKey,
+    item && item.storageBadgeKey,
+    item && item.serialId,
+    item && item.serial,
+    item && item.sequenceId,
+    item && item.badgeId,
+    item && item.obtainId,
+    item && item.obtainKey,
+    item && item.identifier
   ];
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
@@ -4964,8 +5225,29 @@ function resolveEquipmentInventoryId(item, itemId, obtainedAt = new Date()) {
       return candidate.trim();
     }
   }
-  const timestamp = obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : Date.now();
-  return `eq-${itemId}-${timestamp}`;
+  const timestamp =
+    obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : 0;
+  const safeItemId = sanitizeStorageKeyComponent(itemId) || 'equipment';
+  const parts = [safeItemId];
+  if (timestamp) {
+    parts.push(`t${timestamp}`);
+  }
+  const level = Number(item && item.level);
+  if (Number.isFinite(level)) {
+    parts.push(`l${Math.max(0, Math.floor(level))}`);
+  }
+  const refine = Number(item && item.refine);
+  if (Number.isFinite(refine)) {
+    parts.push(`r${Math.max(0, Math.floor(refine))}`);
+  }
+  if (item && typeof item.slot === 'string' && item.slot.trim()) {
+    parts.push(`s${sanitizeStorageKeyComponent(item.slot)}`);
+  }
+  const fingerprint = buildEquipmentFingerprint(item);
+  if (fingerprint) {
+    parts.push(`f${fingerprint}`);
+  }
+  return `eq-${parts.join('-')}`;
 }
 
 function createEquipmentInventoryEntry(itemId, obtainedAt = new Date()) {
@@ -5023,6 +5305,24 @@ function decorateStorageInventoryItem(entry, fallbackCategory = '') {
       break;
     }
   }
+  const serialCandidates = [
+    payload.storageSerial,
+    payload.serialId,
+    payload.serial,
+    payload.sequenceId,
+    payload.entryId,
+    payload.badgeId,
+    inventoryId,
+    payload.itemId && payload.obtainedAt ? `${payload.itemId}-${payload.obtainedAt}` : ''
+  ];
+  let storageSerial = '';
+  for (let i = 0; i < serialCandidates.length; i += 1) {
+    const candidate = serialCandidates[i];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      storageSerial = candidate.trim();
+      break;
+    }
+  }
   const obtainedAtRaw = payload.obtainedAt ? new Date(payload.obtainedAt) : null;
   const obtainedAt = obtainedAtRaw instanceof Date && !Number.isNaN(obtainedAtRaw.getTime()) ? obtainedAtRaw : null;
   const actions = Array.isArray(payload.actions)
@@ -5041,6 +5341,7 @@ function decorateStorageInventoryItem(entry, fallbackCategory = '') {
   const normalized = {
     ...payload,
     inventoryId,
+    storageSerial: storageSerial || inventoryId,
     storageCategory: category,
     storageCategoryLabel: payload.storageCategoryLabel || STORAGE_CATEGORY_LABEL_MAP[category] || category || '',
     name: payload.name || '道具',
@@ -5063,6 +5364,24 @@ function decorateStorageInventoryItem(entry, fallbackCategory = '') {
       payload.slotLabel ||
       (category && STORAGE_CATEGORY_LABEL_MAP[category] ? STORAGE_CATEGORY_LABEL_MAP[category] : '道具')
   };
+  if (typeof normalized.storageBadgeKey !== 'string' || !normalized.storageBadgeKey) {
+    const safeCategory = typeof normalized.storageCategory === 'string' && normalized.storageCategory
+      ? normalized.storageCategory
+      : category;
+    const serial = normalized.storageSerial || inventoryId;
+    if (serial) {
+      normalized.storageBadgeKey = `${safeCategory}:${serial}`;
+    }
+  }
+  if (typeof normalized.storageKey !== 'string' || !normalized.storageKey) {
+    const safeCategory = typeof normalized.storageCategory === 'string' && normalized.storageCategory
+      ? normalized.storageCategory
+      : category;
+    const serial = normalized.storageSerial || inventoryId;
+    if (serial) {
+      normalized.storageKey = `${safeCategory}-${serial}`;
+    }
+  }
   const quantityCandidates = [payload.quantity, payload.count, payload.amount];
   for (let i = 0; i < quantityCandidates.length; i += 1) {
     const candidate = Number(quantityCandidates[i]);

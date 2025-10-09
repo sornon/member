@@ -1,6 +1,140 @@
 import { resolveTimestamp } from './pending-attributes';
 
 const STORAGE_BADGE_STORAGE_KEY = 'storageBadgeState';
+const STORAGE_BADGE_DEBUG_KEY = 'storageBadgeDebug';
+const DEBUG_CACHE_TTL = 1000;
+
+let debugOverride = null;
+let cachedDebugValue = false;
+let cachedDebugReadAt = 0;
+
+function parseDebugFlag(value) {
+  if (value === true) {
+    return true;
+  }
+  if (value === false) {
+    return false;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return false;
+    }
+    return value !== 0;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+    if (normalized === 'false' || normalized === '0' || normalized === 'off') {
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+function readDebugFlagFromStorage() {
+  if (typeof wx === 'undefined' || !wx || typeof wx.getStorageSync !== 'function') {
+    return false;
+  }
+  try {
+    const stored = wx.getStorageSync(STORAGE_BADGE_DEBUG_KEY);
+    return parseDebugFlag(stored);
+  } catch (error) {
+    console.warn('[storage-notifications] read debug flag failed', error);
+    return false;
+  }
+}
+
+function isDebugEnabled() {
+  if (debugOverride !== null) {
+    return debugOverride;
+  }
+  const now = Date.now();
+  if (!cachedDebugReadAt || now - cachedDebugReadAt > DEBUG_CACHE_TTL) {
+    cachedDebugValue = readDebugFlagFromStorage();
+    cachedDebugReadAt = now;
+  }
+  return cachedDebugValue;
+}
+
+function debugLog(...args) {
+  if (!isDebugEnabled()) {
+    return;
+  }
+  try {
+    console.info('[storage-notifications]', ...args);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.log('[storage-notifications]', ...args);
+  }
+}
+
+function summarizeItemForDebug(item) {
+  if (!item || typeof item !== 'object') {
+    return item;
+  }
+  const fields = [
+    'storageCategory',
+    'storageSerial',
+    'storageBadgeKey',
+    'storageKey',
+    'inventoryId',
+    'inventoryKey',
+    'storageId',
+    'itemId',
+    'id',
+    '_id',
+    'slot',
+    'slotLabel',
+    'obtainedAt',
+    'obtainTime',
+    'obtainTimestamp',
+    'obtainDate',
+    'obtainDateTime',
+    'timestamp',
+    'new',
+    'isNew',
+    'hasNew',
+    'hasNewBadge'
+  ];
+  const summary = {};
+  fields.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(item, field)) {
+      summary[field] = item[field];
+    }
+  });
+  return summary;
+}
+
+function summarizeStateSnapshot(state, keys = null) {
+  const snapshot = snapshotState(state);
+  const listKeys = Array.isArray(keys) ? keys : null;
+  if (!listKeys || !listKeys.length) {
+    return {
+      debugEnabled: isDebugEnabled(),
+      initialized: snapshot.initialized,
+      acknowledgedCount: Object.keys(snapshot.acknowledged || {}).length,
+      latestCount: Object.keys(snapshot.latest || {}).length
+    };
+  }
+  const acknowledged = {};
+  const latest = {};
+  listKeys.forEach((key) => {
+    if (typeof key !== 'string' || !key) {
+      return;
+    }
+    acknowledged[key] = Number(snapshot.acknowledged[key]) || 0;
+    latest[key] = Number(snapshot.latest[key]) || 0;
+  });
+  return {
+    debugEnabled: isDebugEnabled(),
+    initialized: snapshot.initialized,
+    acknowledged,
+    latest
+  };
+}
 
 const FALLBACK_STATE = {
   acknowledged: {},
@@ -52,6 +186,36 @@ function persistState(state) {
   } catch (error) {
     console.warn('[storage-notifications] persist badge state failed', error);
   }
+}
+
+export function setStorageNotificationDebug(enabled) {
+  const desired = !!enabled;
+  debugOverride = desired;
+  cachedDebugValue = desired;
+  cachedDebugReadAt = Date.now();
+  if (typeof wx !== 'undefined' && wx && typeof wx.setStorageSync === 'function') {
+    try {
+      wx.setStorageSync(STORAGE_BADGE_DEBUG_KEY, desired ? 1 : 0);
+    } catch (error) {
+      console.warn('[storage-notifications] persist debug flag failed', error);
+    }
+  }
+  debugLog('debug flag updated', { enabled: desired });
+  return desired;
+}
+
+export function refreshStorageNotificationDebugFlag() {
+  debugOverride = null;
+  cachedDebugReadAt = 0;
+  const enabled = isDebugEnabled();
+  debugLog('debug flag refreshed', { enabled });
+  return enabled;
+}
+
+export function getStorageNotificationDebugInfo(options = {}) {
+  const state = ensureState();
+  const keys = Array.isArray(options.keys) ? options.keys : null;
+  return summarizeStateSnapshot(state, keys);
 }
 
 function getAppInstance() {
@@ -158,6 +322,27 @@ function normalizeString(value) {
   return '';
 }
 
+function isEquipmentCategoryKey(value) {
+  return normalizeString(value) === 'equipment';
+}
+
+function isEquipmentItem(item, categoryKey = '') {
+  if (!item || typeof item !== 'object') {
+    return false;
+  }
+  if (isEquipmentCategoryKey(categoryKey)) {
+    return true;
+  }
+  if (isEquipmentCategoryKey(item.storageCategory)) {
+    return true;
+  }
+  const kind = normalizeString(item.kind);
+  if (kind === 'equipment') {
+    return true;
+  }
+  return false;
+}
+
 function isTruthy(value) {
   if (!value) {
     return false;
@@ -180,6 +365,12 @@ function collectItemKeyAliases(item) {
   }
   const category = normalizeString(item.storageCategory) || 'storage';
   const candidateFields = [
+    item.storageSerial,
+    item.serialId,
+    item.serial,
+    item.sequenceId,
+    item.entryId,
+    item.badgeId,
     item.storageBadgeKey,
     item.storageKey,
     item.inventoryId,
@@ -189,7 +380,6 @@ function collectItemKeyAliases(item) {
     item.id,
     item._id,
     item.badgeKey,
-    item.badgeId,
     item.slot
   ];
   const aliases = [];
@@ -232,7 +422,18 @@ function buildItemKey(item) {
     return '';
   }
   const aliases = collectItemKeyAliases(item);
-  return aliases.length ? aliases[0] : '';
+  if (aliases.length) {
+    debugLog('buildItemKey', {
+      primary: aliases[0],
+      aliases,
+      item: summarizeItemForDebug(item)
+    });
+    return aliases[0];
+  }
+  debugLog('buildItemKey: missing aliases', {
+    item: summarizeItemForDebug(item)
+  });
+  return '';
 }
 
 function extractItemTimestamp(item) {
@@ -260,7 +461,14 @@ function collectStorageItemsFromCategories(categories) {
     if (!category || !Array.isArray(category.items)) {
       return;
     }
+    const categoryKey = normalizeString(category.key);
+    if (isEquipmentCategoryKey(categoryKey)) {
+      return;
+    }
     category.items.forEach((item) => {
+      if (isEquipmentItem(item, categoryKey)) {
+        return;
+      }
       const key = buildItemKey(item);
       if (!key) {
         return;
@@ -272,6 +480,10 @@ function collectStorageItemsFromCategories(categories) {
         item
       });
     });
+  });
+  debugLog('collectStorageItemsFromCategories', {
+    count: items.length,
+    keys: items.map((entry) => entry.key)
   });
   return items;
 }
@@ -286,23 +498,13 @@ export function extractNewStorageItemsFromProfile(profile) {
   return collectStorageItemsFromCategories(categories);
 }
 
-export function extractNewStorageItemsFromMember(member) {
-  if (!member || typeof member !== 'object') {
-    return [];
-  }
-  const profile = member.pveProfile && typeof member.pveProfile === 'object' ? member.pveProfile : null;
-  if (!profile) {
-    return [];
-  }
-  return extractNewStorageItemsFromProfile(profile);
-}
-
 function ensureLatestState(state, items, options = {}) {
   const list = Array.isArray(items) ? items : [];
   const acknowledged = state.acknowledged || {};
   const previousLatest = state.latest || {};
   const nextLatest = {};
   const seenKeys = new Set();
+  const touched = [];
   const { pruneMissing = false, initialize = list.length > 0 } = options;
   let mutated = false;
 
@@ -326,6 +528,7 @@ function ensureLatestState(state, items, options = {}) {
       mutated = true;
     }
     seenKeys.add(entry.key);
+    touched.push(entry.key);
     const previous = Number(previousLatest[entry.key]) || 0;
     const obtainedAt = Number(entry.obtainedAt) || 0;
     const candidate = obtainedAt || previous;
@@ -367,58 +570,24 @@ function ensureLatestState(state, items, options = {}) {
     mutated = true;
   }
 
+  if (isDebugEnabled()) {
+    const summary = touched.map((key) => ({
+      key,
+      previousLatest: Number(previousLatest[key]) || 0,
+      nextLatest: Number(nextLatest[key]) || 0,
+      acknowledged: Number(acknowledged[key]) || 0
+    }));
+    debugLog('ensureLatestState', {
+      initialize,
+      pruneMissing,
+      mutated,
+      summary
+    });
+  }
+
   if (mutated) {
     writeState(state);
   }
-}
-
-function hasUnacknowledgedItems(items, state) {
-  if (!items.length) {
-    return false;
-  }
-  const acknowledged = state.acknowledged || {};
-  const latest = state.latest || {};
-  const initialized = !!state.initialized;
-
-  for (let i = 0; i < items.length; i += 1) {
-    const entry = items[i];
-    if (!entry || !entry.key) {
-      continue;
-    }
-    const ackTime = Number(acknowledged[entry.key]) || 0;
-    const latestTime = Number(latest[entry.key]) || 0;
-    const obtainedAt = Number(entry.obtainedAt) || 0;
-    const effectiveLatest = Math.max(latestTime, obtainedAt);
-    if (!initialized) {
-      if (entry.isNew && !ackTime) {
-        return true;
-      }
-      continue;
-    }
-    if (!ackTime || (effectiveLatest && ackTime < effectiveLatest)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-export function shouldShowStorageBadge(member) {
-  const state = ensureState();
-  let items = [];
-  if (member) {
-    items = extractNewStorageItemsFromMember(member);
-    if (items.length) {
-      ensureLatestState(state, items, { pruneMissing: true, initialize: true });
-    }
-  } else {
-    const latest = state.latest || {};
-    items = Object.keys(latest).map((key) => ({ key, obtainedAt: Number(latest[key]) || 0 }));
-  }
-  if (!items.length) {
-    const latest = state.latest || {};
-    items = Object.keys(latest).map((key) => ({ key, obtainedAt: Number(latest[key]) || 0 }));
-  }
-  return hasUnacknowledgedItems(items, state);
 }
 
 function migrateBadgeStateForItem(entry, state) {
@@ -465,11 +634,17 @@ function itemHasExplicitNewFlag(item) {
   if (!item || typeof item !== 'object') {
     return false;
   }
+  if (isEquipmentItem(item)) {
+    return false;
+  }
   return isTruthy(item.isNew) || isTruthy(item.new) || isTruthy(item.hasNewBadge) || isTruthy(item.hasNew);
 }
 
 export function shouldDisplayStorageItemNew(item) {
   if (!item) {
+    return false;
+  }
+  if (isEquipmentItem(item)) {
     return false;
   }
   const state = ensureState();
@@ -483,17 +658,30 @@ export function shouldDisplayStorageItemNew(item) {
   const ackTime = Number(acknowledged[key]) || 0;
   const latestTime = Number(latest[key]) || 0;
   const obtainedAt = Math.max(extractItemTimestamp(item), latestTime);
-
+  let result;
   if (!initialized) {
-    return itemHasExplicitNewFlag(item) && !ackTime;
+    result = itemHasExplicitNewFlag(item) && !ackTime;
+  } else if (!ackTime) {
+    result = true;
+  } else if (obtainedAt && ackTime < obtainedAt) {
+    result = true;
+  } else {
+    result = false;
   }
-  if (!ackTime) {
-    return true;
-  }
-  if (obtainedAt && ackTime < obtainedAt) {
-    return true;
-  }
-  return false;
+
+  debugLog('shouldDisplayStorageItemNew', {
+    key,
+    initialized,
+    ackTime,
+    latestTime,
+    obtainedAt,
+    explicitNew: itemHasExplicitNewFlag(item),
+    result,
+    aliases: collectItemKeyAliases(item),
+    item: summarizeItemForDebug(item)
+  });
+
+  return result;
 }
 
 export function acknowledgeStorageItems(items) {
@@ -505,15 +693,26 @@ export function acknowledgeStorageItems(items) {
   const acknowledged = state.acknowledged || {};
   const latest = state.latest || {};
   let mutated = false;
+  const acknowledgedEntries = [];
 
   list.forEach((item) => {
     if (!item) {
       return;
     }
-    const key = buildItemKey(item);
-    if (!key) {
+    if (isEquipmentItem(item)) {
+      debugLog('acknowledgeStorageItems: skip equipment item', {
+        item: summarizeItemForDebug(item)
+      });
       return;
     }
+    const key = buildItemKey(item);
+    if (!key) {
+      debugLog('acknowledgeStorageItems: missing key', {
+        item: summarizeItemForDebug(item)
+      });
+      return;
+    }
+    const ackTime = Number(acknowledged[key]) || 0;
     const obtainedAt = extractItemTimestamp(item);
     const latestTime = Number(latest[key]) || 0;
     const newAck = Math.max(obtainedAt, latestTime, Date.now());
@@ -525,10 +724,25 @@ export function acknowledgeStorageItems(items) {
       latest[key] = obtainedAt || latestTime || newAck;
       mutated = true;
     }
+    acknowledgedEntries.push({
+      key,
+      previousAck: ackTime,
+      newAck,
+      latestTime,
+      obtainedAt,
+      aliases: collectItemKeyAliases(item)
+    });
   });
 
   if (mutated) {
     writeState(state);
+  }
+
+  if (acknowledgedEntries.length) {
+    debugLog('acknowledgeStorageItems', {
+      entries: acknowledgedEntries,
+      state: summarizeStateSnapshot(state, acknowledgedEntries.map((entry) => entry.key))
+    });
   }
 }
 
