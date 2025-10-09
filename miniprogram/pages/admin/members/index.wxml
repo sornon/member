@@ -27,11 +27,11 @@
       <view class="member-info">
         <view class="member-name">{{item.displayName || '未命名会员'}}</view>
         <view class="member-meta">
-          <text>ID：{{item._id}}</text>
-          <text wx:if="{{item.mobile}}"> · 手机：{{item.mobile}}</text>
+          <text wx:if="{{item.mobile}}">手机：{{item.mobile}}</text>
+          <text wx:else>手机：未绑定</text>
         </view>
-        <view class="member-assets">灵石：{{item.stoneBalanceLabel}} · 现金：¥{{item.cashBalanceYuan}}</view>
-        <view class="member-status">境界：{{item.levelName || '未设置'}} · 角色：{{item.roles.join(' / ')}}</view>
+        <view class="member-assets">累计充值：¥{{item.totalRechargeYuan}} · 现金：¥{{item.cashBalanceYuan}}</view>
+        <view class="member-status">包房可使用次数：{{item.roomUsageCount}} · 上次消费：{{item.lastConsumptionAtLabel || '—'}}</view>
       </view>
       <view class="member-arrow">›</view>
     </view>
