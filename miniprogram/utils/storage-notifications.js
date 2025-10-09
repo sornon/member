@@ -1,141 +1,6 @@
 import { resolveTimestamp } from './pending-attributes';
 
 const STORAGE_BADGE_STORAGE_KEY = 'storageBadgeState';
-const STORAGE_BADGE_DEBUG_KEY = 'storageBadgeDebug';
-const DEBUG_CACHE_TTL = 1000;
-
-let debugOverride = null;
-let cachedDebugValue = false;
-let cachedDebugReadAt = 0;
-
-function parseDebugFlag(value) {
-  if (value === true) {
-    return true;
-  }
-  if (value === false) {
-    return false;
-  }
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) {
-      return false;
-    }
-    return value !== 0;
-  }
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase();
-    if (!normalized) {
-      return false;
-    }
-    if (normalized === 'false' || normalized === '0' || normalized === 'off') {
-      return false;
-    }
-    return true;
-  }
-  return false;
-}
-
-function readDebugFlagFromStorage() {
-  if (typeof wx === 'undefined' || !wx || typeof wx.getStorageSync !== 'function') {
-    return false;
-  }
-  try {
-    const stored = wx.getStorageSync(STORAGE_BADGE_DEBUG_KEY);
-    return parseDebugFlag(stored);
-  } catch (error) {
-    console.warn('[storage-notifications] read debug flag failed', error);
-    return false;
-  }
-}
-
-function isDebugEnabled() {
-  if (debugOverride !== null) {
-    return debugOverride;
-  }
-  const now = Date.now();
-  if (!cachedDebugReadAt || now - cachedDebugReadAt > DEBUG_CACHE_TTL) {
-    cachedDebugValue = readDebugFlagFromStorage();
-    cachedDebugReadAt = now;
-  }
-  return cachedDebugValue;
-}
-
-function debugLog(...args) {
-  if (!isDebugEnabled()) {
-    return;
-  }
-  try {
-    console.info('[storage-notifications]', ...args);
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.log('[storage-notifications]', ...args);
-  }
-}
-
-function summarizeItemForDebug(item) {
-  if (!item || typeof item !== 'object') {
-    return item;
-  }
-  const fields = [
-    'storageCategory',
-    'storageSerial',
-    'storageBadgeKey',
-    'storageKey',
-    'inventoryId',
-    'inventoryKey',
-    'storageId',
-    'itemId',
-    'id',
-    '_id',
-    'slot',
-    'slotLabel',
-    'obtainedAt',
-    'obtainTime',
-    'obtainTimestamp',
-    'obtainDate',
-    'obtainDateTime',
-    'timestamp',
-    'new',
-    'isNew',
-    'hasNew',
-    'hasNewBadge'
-  ];
-  const summary = {};
-  fields.forEach((field) => {
-    if (Object.prototype.hasOwnProperty.call(item, field)) {
-      summary[field] = item[field];
-    }
-  });
-  return summary;
-}
-
-function summarizeStateSnapshot(state, keys = null) {
-  const snapshot = snapshotState(state);
-  const listKeys = Array.isArray(keys) ? keys : null;
-  if (!listKeys || !listKeys.length) {
-    return {
-      debugEnabled: isDebugEnabled(),
-      initialized: snapshot.initialized,
-      acknowledgedCount: Object.keys(snapshot.acknowledged || {}).length,
-      latestCount: Object.keys(snapshot.latest || {}).length
-    };
-  }
-  const acknowledged = {};
-  const latest = {};
-  listKeys.forEach((key) => {
-    if (typeof key !== 'string' || !key) {
-      return;
-    }
-    acknowledged[key] = Number(snapshot.acknowledged[key]) || 0;
-    latest[key] = Number(snapshot.latest[key]) || 0;
-  });
-  return {
-    debugEnabled: isDebugEnabled(),
-    initialized: snapshot.initialized,
-    acknowledged,
-    latest
-  };
-}
-
 const FALLBACK_STATE = {
   acknowledged: {},
   latest: {},
@@ -186,36 +51,6 @@ function persistState(state) {
   } catch (error) {
     console.warn('[storage-notifications] persist badge state failed', error);
   }
-}
-
-export function setStorageNotificationDebug(enabled) {
-  const desired = !!enabled;
-  debugOverride = desired;
-  cachedDebugValue = desired;
-  cachedDebugReadAt = Date.now();
-  if (typeof wx !== 'undefined' && wx && typeof wx.setStorageSync === 'function') {
-    try {
-      wx.setStorageSync(STORAGE_BADGE_DEBUG_KEY, desired ? 1 : 0);
-    } catch (error) {
-      console.warn('[storage-notifications] persist debug flag failed', error);
-    }
-  }
-  debugLog('debug flag updated', { enabled: desired });
-  return desired;
-}
-
-export function refreshStorageNotificationDebugFlag() {
-  debugOverride = null;
-  cachedDebugReadAt = 0;
-  const enabled = isDebugEnabled();
-  debugLog('debug flag refreshed', { enabled });
-  return enabled;
-}
-
-export function getStorageNotificationDebugInfo(options = {}) {
-  const state = ensureState();
-  const keys = Array.isArray(options.keys) ? options.keys : null;
-  return summarizeStateSnapshot(state, keys);
 }
 
 function getAppInstance() {
@@ -422,18 +257,7 @@ function buildItemKey(item) {
     return '';
   }
   const aliases = collectItemKeyAliases(item);
-  if (aliases.length) {
-    debugLog('buildItemKey', {
-      primary: aliases[0],
-      aliases,
-      item: summarizeItemForDebug(item)
-    });
-    return aliases[0];
-  }
-  debugLog('buildItemKey: missing aliases', {
-    item: summarizeItemForDebug(item)
-  });
-  return '';
+  return aliases.length ? aliases[0] : '';
 }
 
 function extractItemTimestamp(item) {
@@ -480,10 +304,6 @@ function collectStorageItemsFromCategories(categories) {
         item
       });
     });
-  });
-  debugLog('collectStorageItemsFromCategories', {
-    count: items.length,
-    keys: items.map((entry) => entry.key)
   });
   return items;
 }
@@ -570,21 +390,6 @@ function ensureLatestState(state, items, options = {}) {
     mutated = true;
   }
 
-  if (isDebugEnabled()) {
-    const summary = touched.map((key) => ({
-      key,
-      previousLatest: Number(previousLatest[key]) || 0,
-      nextLatest: Number(nextLatest[key]) || 0,
-      acknowledged: Number(acknowledged[key]) || 0
-    }));
-    debugLog('ensureLatestState', {
-      initialize,
-      pruneMissing,
-      mutated,
-      summary
-    });
-  }
-
   if (mutated) {
     writeState(state);
   }
@@ -669,18 +474,6 @@ export function shouldDisplayStorageItemNew(item) {
     result = false;
   }
 
-  debugLog('shouldDisplayStorageItemNew', {
-    key,
-    initialized,
-    ackTime,
-    latestTime,
-    obtainedAt,
-    explicitNew: itemHasExplicitNewFlag(item),
-    result,
-    aliases: collectItemKeyAliases(item),
-    item: summarizeItemForDebug(item)
-  });
-
   return result;
 }
 
@@ -693,23 +486,15 @@ export function acknowledgeStorageItems(items) {
   const acknowledged = state.acknowledged || {};
   const latest = state.latest || {};
   let mutated = false;
-  const acknowledgedEntries = [];
-
   list.forEach((item) => {
     if (!item) {
       return;
     }
     if (isEquipmentItem(item)) {
-      debugLog('acknowledgeStorageItems: skip equipment item', {
-        item: summarizeItemForDebug(item)
-      });
       return;
     }
     const key = buildItemKey(item);
     if (!key) {
-      debugLog('acknowledgeStorageItems: missing key', {
-        item: summarizeItemForDebug(item)
-      });
       return;
     }
     const ackTime = Number(acknowledged[key]) || 0;
@@ -724,26 +509,12 @@ export function acknowledgeStorageItems(items) {
       latest[key] = obtainedAt || latestTime || newAck;
       mutated = true;
     }
-    acknowledgedEntries.push({
-      key,
-      previousAck: ackTime,
-      newAck,
-      latestTime,
-      obtainedAt,
-      aliases: collectItemKeyAliases(item)
-    });
   });
 
   if (mutated) {
     writeState(state);
   }
 
-  if (acknowledgedEntries.length) {
-    debugLog('acknowledgeStorageItems', {
-      entries: acknowledgedEntries,
-      state: summarizeStateSnapshot(state, acknowledgedEntries.map((entry) => entry.key))
-    });
-  }
 }
 
 export function syncStorageBadgeStateFromProfile(profile) {

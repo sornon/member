@@ -1,8 +1,3 @@
-import {
-  getStorageNotificationDebugInfo,
-  refreshStorageNotificationDebugFlag,
-  setStorageNotificationDebug
-} from './utils/storage-notifications';
 
 App({
   globalData: {
@@ -42,24 +37,6 @@ App({
         timingFunc: 'linear'
       }
     });
-  },
-
-  enableStorageBadgeDebug() {
-    setStorageNotificationDebug(true);
-  },
-
-  disableStorageBadgeDebug() {
-    setStorageNotificationDebug(false);
-  },
-
-  refreshStorageBadgeDebug() {
-    return refreshStorageNotificationDebugFlag();
-  },
-
-  logStorageBadgeDebugInfo(options = {}) {
-    const info = getStorageNotificationDebugInfo(options);
-    console.info('[app] storage badge debug info', info);
-    return info;
   },
 
   setupSystemMetrics() {
