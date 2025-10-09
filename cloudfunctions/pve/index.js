@@ -5064,6 +5064,88 @@ function mergeStats(source, defaults) {
   return result;
 }
 
+function extractTimestamp(value) {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isFinite(time) ? time : null;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (/^-?\d+$/.test(trimmed)) {
+      const numeric = Number(trimmed);
+      return Number.isFinite(numeric) ? numeric : null;
+    }
+    const parsed = Date.parse(trimmed);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+  return null;
+}
+
+function resolveEquipmentObtainedTimestamp(item, now = new Date()) {
+  if (item && typeof item === 'object') {
+    const candidates = [
+      item.obtainedAt,
+      item.obtainTime,
+      item.obtainTimestamp,
+      item.obtainDate,
+      item.obtainDateTime,
+      item.obtain_at,
+      item.obtain_time,
+      item.acquireTime,
+      item.acquire_at,
+      item.acquiredAt,
+      item.acquiredTime,
+      item.grantedAt,
+      item.createdAt,
+      item.created_at,
+      item.timestamp,
+      item.time
+    ];
+    for (let i = 0; i < candidates.length; i += 1) {
+      const parsed = extractTimestamp(candidates[i]);
+      if (parsed !== null) {
+        return parsed;
+      }
+    }
+  }
+  return 0;
+}
+
+function buildEquipmentFingerprint(item) {
+  if (!item || typeof item !== 'object') {
+    return '';
+  }
+  const rawLevel = Number(item.level);
+  const rawRefine = Number(item.refine);
+  const payload = {
+    level: Number.isFinite(rawLevel) ? Math.max(0, Math.floor(rawLevel)) : null,
+    refine: Number.isFinite(rawRefine) ? Math.max(0, Math.floor(rawRefine)) : null,
+    favorite: !!item.favorite,
+    bonus: item.bonus && typeof item.bonus === 'object' ? item.bonus : null,
+    extra: item.extra && typeof item.extra === 'object' ? item.extra : null,
+    rolls: Array.isArray(item.rolls) ? item.rolls : null,
+    stats: item.stats && typeof item.stats === 'object' ? item.stats : null
+  };
+  const json = JSON.stringify(payload);
+  if (!json) {
+    return '';
+  }
+  let hash = 0;
+  for (let i = 0; i < json.length; i += 1) {
+    hash = (hash * 31 + json.charCodeAt(i)) >>> 0;
+  }
+  return hash ? hash.toString(36) : '';
+}
+
 function normalizeEquipmentInventoryItem(item, now = new Date()) {
   if (!item || typeof item !== 'object') {
     return null;
@@ -5075,7 +5157,8 @@ function normalizeEquipmentInventoryItem(item, now = new Date()) {
   }
   const level = Math.max(1, Math.floor(Number(item.level) || 1));
   const refine = Math.max(0, Math.floor(Number(item.refine) || 0));
-  const obtainedAt = item.obtainedAt ? new Date(item.obtainedAt) : now;
+  const obtainedTimestamp = resolveEquipmentObtainedTimestamp(item, now);
+  const obtainedAt = obtainedTimestamp ? new Date(obtainedTimestamp) : null;
   const inventoryId = resolveEquipmentInventoryId(item, itemId, obtainedAt);
   return {
     inventoryId,
@@ -5122,7 +5205,19 @@ function resolveEquipmentInventoryId(item, itemId, obtainedAt = new Date()) {
     item && item.instanceId,
     item && item.entryId,
     item && item.id,
-    item && item._id
+    item && item._id,
+    item && item.inventoryKey,
+    item && item.storageId,
+    item && item.storageSerial,
+    item && item.storageKey,
+    item && item.storageBadgeKey,
+    item && item.serialId,
+    item && item.serial,
+    item && item.sequenceId,
+    item && item.badgeId,
+    item && item.obtainId,
+    item && item.obtainKey,
+    item && item.identifier
   ];
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = candidates[i];
@@ -5130,8 +5225,29 @@ function resolveEquipmentInventoryId(item, itemId, obtainedAt = new Date()) {
       return candidate.trim();
     }
   }
-  const timestamp = obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : Date.now();
-  return `eq-${itemId}-${timestamp}`;
+  const timestamp =
+    obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : 0;
+  const safeItemId = sanitizeStorageKeyComponent(itemId) || 'equipment';
+  const parts = [safeItemId];
+  if (timestamp) {
+    parts.push(`t${timestamp}`);
+  }
+  const level = Number(item && item.level);
+  if (Number.isFinite(level)) {
+    parts.push(`l${Math.max(0, Math.floor(level))}`);
+  }
+  const refine = Number(item && item.refine);
+  if (Number.isFinite(refine)) {
+    parts.push(`r${Math.max(0, Math.floor(refine))}`);
+  }
+  if (item && typeof item.slot === 'string' && item.slot.trim()) {
+    parts.push(`s${sanitizeStorageKeyComponent(item.slot)}`);
+  }
+  const fingerprint = buildEquipmentFingerprint(item);
+  if (fingerprint) {
+    parts.push(`f${fingerprint}`);
+  }
+  return `eq-${parts.join('-')}`;
 }
 
 function createEquipmentInventoryEntry(itemId, obtainedAt = new Date()) {
