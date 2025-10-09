@@ -307,25 +307,11 @@ function ensureLatestState(state, items, options = {}) {
   let mutated = false;
 
   if (!list.length) {
-    if (pruneMissing) {
-      if (Object.keys(previousLatest).length) {
-        state.latest = {};
-        mutated = true;
-      }
-      if (Object.keys(acknowledged).length) {
-        Object.keys(acknowledged).forEach((key) => {
-          delete acknowledged[key];
-        });
-        mutated = true;
-      }
-    }
     if (initialize && !state.initialized) {
       state.initialized = true;
       mutated = true;
     }
-    if (!pruneMissing) {
-      state.latest = previousLatest;
-    }
+    state.latest = previousLatest;
     if (mutated) {
       writeState(state);
     }
