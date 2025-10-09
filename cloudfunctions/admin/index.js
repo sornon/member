@@ -522,7 +522,7 @@ async function listMembers(openid, keyword, page, pageSize) {
       _.or([
         { nickName: regex },
         { mobile: regex },
-        { _id: regex }
+        { realName: regex }
       ])
     );
   }
@@ -3334,9 +3334,9 @@ async function searchMemberIdsByKeyword(keyword) {
     .collection(COLLECTIONS.MEMBERS)
     .where(
       _.or([
-        { _id: regex },
         { nickName: regex },
-        { mobile: regex }
+        { mobile: regex },
+        { realName: regex }
       ])
     )
     .limit(20)

@@ -7,7 +7,7 @@
       bindinput="handleKeywordInput"
       confirm-type="search"
       bindconfirm="handleSearch"
-      placeholder="搜索昵称 / 手机 / OpenID"
+      placeholder="搜索昵称 / 手机 / 真实姓名"
     />
     <button class="search-button" bindtap="handleSearch">搜索</button>
   </view>

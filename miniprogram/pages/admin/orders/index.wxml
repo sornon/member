@@ -4,7 +4,7 @@
     <view class="filter-input">
       <input
         class="input"
-        placeholder="输入会员昵称 / 手机号 / 编号"
+        placeholder="输入会员昵称 / 手机号 / 真实姓名"
         value="{{keyword}}"
         confirm-type="search"
         bindinput="handleKeywordInput"
@@ -121,7 +121,7 @@
           <view class="force-dialog__search">
             <input
               class="force-dialog__input"
-              placeholder="输入昵称 / 手机号 / 编号"
+              placeholder="输入昵称 / 手机号 / 真实姓名"
               value="{{forceChargeDialog.keyword}}"
               confirm-type="search"
               bindinput="handleForceChargeMemberInput"
