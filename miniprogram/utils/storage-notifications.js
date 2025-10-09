@@ -1,10 +1,58 @@
 import { resolveTimestamp } from './pending-attributes';
 
+const STORAGE_BADGE_STORAGE_KEY = 'storageBadgeState';
+
 const FALLBACK_STATE = {
   acknowledged: {},
   latest: {},
   initialized: false
 };
+
+function snapshotState(state) {
+  const acknowledged =
+    state && state.acknowledged && typeof state.acknowledged === 'object'
+      ? { ...state.acknowledged }
+      : {};
+  const latest =
+    state && state.latest && typeof state.latest === 'object' ? { ...state.latest } : {};
+  const initialized = !!(state && state.initialized);
+  return { acknowledged, latest, initialized };
+}
+
+function readPersistedState() {
+  if (typeof wx === 'undefined' || !wx) {
+    return null;
+  }
+  if (typeof wx.getStorageSync !== 'function') {
+    return null;
+  }
+  try {
+    const stored = wx.getStorageSync(STORAGE_BADGE_STORAGE_KEY);
+    if (!stored || typeof stored !== 'object') {
+      return null;
+    }
+    const snapshot = snapshotState(stored);
+    return snapshot;
+  } catch (error) {
+    console.warn('[storage-notifications] read persisted badge state failed', error);
+    return null;
+  }
+}
+
+function persistState(state) {
+  if (typeof wx === 'undefined' || !wx) {
+    return;
+  }
+  if (typeof wx.setStorageSync !== 'function') {
+    return;
+  }
+  try {
+    const snapshot = snapshotState(state);
+    wx.setStorageSync(STORAGE_BADGE_STORAGE_KEY, snapshot);
+  } catch (error) {
+    console.warn('[storage-notifications] persist badge state failed', error);
+  }
+}
 
 function getAppInstance() {
   if (typeof getApp !== 'function') {
@@ -21,6 +69,19 @@ function getAppInstance() {
 function ensureState() {
   const app = getAppInstance();
   if (!app || !app.globalData) {
+    if (!FALLBACK_STATE._hydratedFromStorage) {
+      const persisted = readPersistedState();
+      if (persisted) {
+        FALLBACK_STATE.acknowledged = persisted.acknowledged;
+        FALLBACK_STATE.latest = persisted.latest;
+        FALLBACK_STATE.initialized = persisted.initialized;
+      }
+      Object.defineProperty(FALLBACK_STATE, '_hydratedFromStorage', {
+        value: true,
+        writable: true,
+        enumerable: false
+      });
+    }
     return FALLBACK_STATE;
   }
   const globalState = app.globalData.storageBadge;
@@ -41,18 +102,42 @@ function ensureState() {
   if (typeof globalState.initialized !== 'boolean') {
     globalState.initialized = false;
   }
+  if (!globalState._hydratedFromStorage) {
+    const persisted = readPersistedState();
+    if (persisted) {
+      if (!globalState.acknowledged) {
+        globalState.acknowledged = {};
+      }
+      if (!globalState.latest) {
+        globalState.latest = {};
+      }
+      Object.assign(globalState.acknowledged, persisted.acknowledged);
+      Object.assign(globalState.latest, persisted.latest);
+      if (persisted.initialized) {
+        globalState.initialized = true;
+      }
+    }
+    Object.defineProperty(globalState, '_hydratedFromStorage', {
+      value: true,
+      writable: true,
+      enumerable: false
+    });
+  }
   return globalState;
 }
 
 function writeState(state) {
   const app = getAppInstance();
   if (!app || !app.globalData) {
-    FALLBACK_STATE.acknowledged = { ...state.acknowledged };
-    FALLBACK_STATE.latest = { ...state.latest };
-    FALLBACK_STATE.initialized = !!state.initialized;
+    const snapshot = snapshotState(state);
+    FALLBACK_STATE.acknowledged = snapshot.acknowledged;
+    FALLBACK_STATE.latest = snapshot.latest;
+    FALLBACK_STATE.initialized = snapshot.initialized;
+    persistState(snapshot);
     return;
   }
   app.globalData.storageBadge = state;
+  persistState(state);
 }
 
 function normalizeString(value) {
