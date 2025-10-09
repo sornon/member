@@ -176,14 +176,42 @@ export function extractNewStorageItemsFromMember(member) {
   return extractNewStorageItemsFromProfile(profile);
 }
 
-function ensureLatestState(state, items) {
+function ensureLatestState(state, items, options = {}) {
+  const list = Array.isArray(items) ? items : [];
   const acknowledged = state.acknowledged || {};
   const previousLatest = state.latest || {};
   const nextLatest = {};
   const seenKeys = new Set();
+  const { pruneMissing = false, initialize = list.length > 0 } = options;
   let mutated = false;
 
-  items.forEach((entry) => {
+  if (!list.length) {
+    if (pruneMissing) {
+      if (Object.keys(previousLatest).length) {
+        state.latest = {};
+        mutated = true;
+      }
+      if (Object.keys(acknowledged).length) {
+        Object.keys(acknowledged).forEach((key) => {
+          delete acknowledged[key];
+        });
+        mutated = true;
+      }
+    }
+    if (initialize && !state.initialized) {
+      state.initialized = true;
+      mutated = true;
+    }
+    if (!pruneMissing) {
+      state.latest = previousLatest;
+    }
+    if (mutated) {
+      writeState(state);
+    }
+    return;
+  }
+
+  list.forEach((entry) => {
     if (!entry || !entry.key) {
       return;
     }
@@ -209,20 +237,22 @@ function ensureLatestState(state, items) {
     }
   });
 
-  Object.keys(previousLatest).forEach((key) => {
-    if (!seenKeys.has(key)) {
-      mutated = true;
-    }
-  });
-  Object.keys(acknowledged).forEach((key) => {
-    if (!seenKeys.has(key)) {
-      delete acknowledged[key];
-      mutated = true;
-    }
-  });
+  if (pruneMissing) {
+    Object.keys(previousLatest).forEach((key) => {
+      if (!seenKeys.has(key)) {
+        mutated = true;
+      }
+    });
+    Object.keys(acknowledged).forEach((key) => {
+      if (!seenKeys.has(key)) {
+        delete acknowledged[key];
+        mutated = true;
+      }
+    });
+  }
 
   state.latest = nextLatest;
-  if (!state.initialized) {
+  if (initialize && !state.initialized) {
     state.initialized = true;
     mutated = true;
   }
@@ -268,12 +298,13 @@ export function shouldShowStorageBadge(member) {
   if (member) {
     items = extractNewStorageItemsFromMember(member);
     if (items.length) {
-      ensureLatestState(state, items);
-    } else if (state.initialized && Object.keys(state.latest || {}).length) {
-      // ensure we prune stale entries when nothing reported
-      ensureLatestState(state, items);
+      ensureLatestState(state, items, { pruneMissing: true, initialize: true });
     }
   } else {
+    const latest = state.latest || {};
+    items = Object.keys(latest).map((key) => ({ key, obtainedAt: Number(latest[key]) || 0 }));
+  }
+  if (!items.length) {
     const latest = state.latest || {};
     items = Object.keys(latest).map((key) => ({ key, obtainedAt: Number(latest[key]) || 0 }));
   }
@@ -354,7 +385,7 @@ export function acknowledgeStorageItems(items) {
 export function syncStorageBadgeStateFromProfile(profile) {
   const state = ensureState();
   const items = extractNewStorageItemsFromProfile(profile);
-  ensureLatestState(state, items);
+  ensureLatestState(state, items, { pruneMissing: true, initialize: true });
 }
 
 export function normalizeStorageItemIdForBadge(item) {
