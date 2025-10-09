@@ -37,31 +37,8 @@
       </view>
     </view>
 
-    <view class="card realm-card" wx:if="{{visibleRealms.length}}">
-      <view class="section-title">主境界进阶</view>
-      <view class="realm-grid">
-        <view class="realm-item" wx:for="{{visibleRealms}}" wx:key="realmKey">
-          <view class="realm-header">
-            <text class="realm-name">{{item.realm}}</text>
-            <text class="realm-range">{{formatCurrency(item.start)}} ~ {{formatCurrency(item.end)}}</text>
-          </view>
-          <view class="realm-desc" wx:if="{{item.description}}">{{item.description}}</view>
-          <view class="realm-milestone" wx:if="{{item.milestoneReward}}">
-            <text class="reward-label">{{item.milestoneType ? item.milestoneType + '：' : '境界大奖：'}}</text>
-            <text class="reward-text">{{item.milestoneReward}}</text>
-            <text class="milestone-threshold" wx:if="{{item.milestoneThreshold}}">（累计 {{formatCurrency(item.milestoneThreshold)}} 解锁）</text>
-          </view>
-        </view>
-      </view>
-    </view>
-
     <view class="card">
       <view class="section-title">等级列表</view>
-      <view class="level-toolbar" wx:if="{{!isAdmin}}">
-        <view class="toggle-past" bindtap="onTogglePastLevels">
-          {{showPastLevels ? '隐藏过往等级' : '查看过往等级'}}
-        </view>
-      </view>
       <view wx:for="{{visibleLevels}}" wx:key="_id" class="level-item {{item.milestoneReward ? 'level-item--milestone' : ''}}">
         <view class="level-rank" style="{{item.badgeStyle}}">
           <text class="rank-realm">{{item.realmShort}}</text>
@@ -104,6 +81,24 @@
               size="mini"
               disabled
             >未达成</button>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view class="card realm-card" wx:if="{{visibleRealms.length}}">
+      <view class="section-title">主境界进阶</view>
+      <view class="realm-grid">
+        <view class="realm-item" wx:for="{{visibleRealms}}" wx:key="realmKey">
+          <view class="realm-header">
+            <text class="realm-name">{{item.realm}}</text>
+            <text class="realm-range">{{formatCurrency(item.start)}} ~ {{formatCurrency(item.end)}}</text>
+          </view>
+          <view class="realm-desc" wx:if="{{item.description}}">{{item.description}}</view>
+          <view class="realm-milestone" wx:if="{{item.milestoneReward}}">
+            <text class="reward-label">{{item.milestoneType ? item.milestoneType + '：' : '境界大奖：'}}</text>
+            <text class="reward-text">{{item.milestoneReward}}</text>
+            <text class="milestone-threshold" wx:if="{{item.milestoneThreshold}}">（累计 {{formatCurrency(item.milestoneThreshold)}} 解锁）</text>
           </view>
         </view>
       </view>
