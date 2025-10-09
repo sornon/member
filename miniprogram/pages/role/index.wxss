@@ -105,6 +105,14 @@ page {
   gap: 16rpx;
 }
 
+.section-actions__meta {
+  display: flex;
+  align-items: center;
+  font-size: 24rpx;
+  color: rgba(198, 210, 255, 0.78);
+  white-space: nowrap;
+}
+
 .action-btn,
 .pill-btn {
   display: inline-flex;

@@ -286,6 +286,7 @@ Page({
     profile: null,
     activeTab: 'character',
     drawing: false,
+    skillDrawCredits: 0,
     resetting: false,
     stoneBalance: 0,
     formattedStoneBalance: formatStones(0),
@@ -304,7 +305,14 @@ Page({
     syncRolePendingAttributes(sanitizedProfile);
     syncStorageBadgeStateFromProfile(sanitizedProfile);
     const storageState = this.buildStorageState(sanitizedProfile);
-    const updates = { ...extraState, profile: sanitizedProfile, ...storageState };
+    const rawCredits =
+      sanitizedProfile &&
+      sanitizedProfile.skills &&
+      sanitizedProfile.skills.drawCredits !== undefined
+        ? sanitizedProfile.skills.drawCredits
+        : 0;
+    const skillDrawCredits = Math.max(0, Math.floor(Number(rawCredits) || 0));
+    const updates = { ...extraState, profile: sanitizedProfile, ...storageState, skillDrawCredits };
     const tooltip = this.data ? this.data.equipmentTooltip : null;
     if (tooltip && tooltip.item) {
       const itemId = tooltip.item.itemId;
@@ -724,6 +732,11 @@ Page({
 
   async handleDrawSkill() {
     if (this.data.drawing) return;
+    const credits = Math.max(0, Number(this.data.skillDrawCredits || 0));
+    if (!credits) {
+      wx.showToast({ title: '抽取次数不足', icon: 'none' });
+      return;
+    }
     this.setData({ drawing: true });
     try {
       const res = await PveService.drawSkill();

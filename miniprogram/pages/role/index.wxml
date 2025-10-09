@@ -364,11 +364,13 @@
         <view class="section-header">
           <view class="section-title">技能与抽卡</view>
           <view class="section-actions">
+            <text class="section-actions__meta">剩余次数：{{skillDrawCredits}}</text>
             <button
               class="action-btn action-btn--primary"
               hover-class="action-btn--primary-hover"
               size="mini"
               loading="{{drawing}}"
+              disabled="{{drawing || skillDrawCredits <= 0}}"
               bindtap="handleDrawSkill"
             >抽取灵技</button>
           </view>

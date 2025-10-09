@@ -62,6 +62,7 @@
 ### 技能体系
 
 - 技能以卡牌形式存在，按稀有度划分为常见/稀有/史诗/传说，并可通过“抽取灵技”获得。抽到重复技能会提升技能等级（上限 5 级）。【F:cloudfunctions/pve/index.js†L755-L814】【F:cloudfunctions/pve/index.js†L1756-L1779】
+- 技能抽卡受次数限制：角色档案会记录剩余抽取次数，基础档案默认赠送 1 次，后续需通过活动、道具等渠道补充。抽卡接口在次数耗尽时会返回 `SKILL_DRAW_LIMIT` 错误，前端据此禁用按钮并提示玩家。 【F:cloudfunctions/pve/index.js†L2765-L2797】【F:cloudfunctions/pve/index.js†L3169-L3236】【F:miniprogram/pages/role/index.js†L288-L347】
 - 技能提供基础数值、最终倍率、护盾、闪避等多种效果，`aggregateSkillEffects` 会把技能加成拆解为加法与乘法两部分，并与装备一同叠加到最终战斗面板。【F:cloudfunctions/pve/index.js†L1553-L1602】【F:cloudfunctions/pve/index.js†L1672-L1704】
 - 抽卡与装备更换均会写入技能历史，以便运营复盘玩家培养路径。【F:cloudfunctions/pve/index.js†L755-L860】【F:cloudfunctions/pve/index.js†L2040-L2068】
 
