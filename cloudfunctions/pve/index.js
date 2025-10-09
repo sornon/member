@@ -4965,15 +4965,11 @@ function normalizeSkills(skills, now = new Date()) {
     0,
     Math.floor(Number(defaults.drawCredits) || DEFAULT_SKILL_DRAW_CREDITS)
   );
-  const normalizedDrawCredits = Math.max(
-    0,
-    Math.floor(
-      Number(
-        Object.prototype.hasOwnProperty.call(payload, 'drawCredits')
-          ? payload.drawCredits
-          : defaultDrawCredits
-      ) || defaultDrawCredits
-    )
+  const normalizedDrawCredits = normalizeSkillDrawCreditValue(
+    Object.prototype.hasOwnProperty.call(payload, 'drawCredits')
+      ? payload.drawCredits
+      : defaultDrawCredits,
+    defaultDrawCredits
   );
 
   return {
