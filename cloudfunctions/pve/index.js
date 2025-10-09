@@ -66,6 +66,7 @@ const MAX_LEVEL = 100;
 const MAX_SKILL_SLOTS = 3;
 const MAX_BATTLE_HISTORY = 15;
 const MAX_SKILL_HISTORY = 30;
+const DEFAULT_SKILL_DRAW_CREDITS = 1;
 
 const ENEMY_COMBAT_DEFAULTS = {
   ...DEFAULT_COMBAT_STATS,
@@ -3158,11 +3159,40 @@ async function discardItem(actorId, event = {}) {
   return { profile: decorated };
 }
 
-function performSkillDraw(profile, count = 1, baseTime = new Date()) {
+function normalizeSkillDrawCreditValue(value, fallback = 0) {
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) {
+    return Math.max(0, Math.floor(numeric));
+  }
+  return Math.max(0, Math.floor(Number(fallback) || 0));
+}
+
+function performSkillDraw(profile, count = 1, baseTime = new Date(), options = {}) {
   const safeCount = Math.max(1, Math.floor(Number(count) || 1));
   const base =
     baseTime instanceof Date && !Number.isNaN(baseTime.getTime()) ? new Date(baseTime.getTime()) : new Date();
-  const inventory = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
+  profile.skills = profile.skills || buildDefaultSkills(base);
+  const skillsState = profile.skills;
+  const consumeCredits = options && options.consumeCredits !== false;
+  const availableCredits = normalizeSkillDrawCreditValue(
+    Object.prototype.hasOwnProperty.call(skillsState, 'drawCredits')
+      ? skillsState.drawCredits
+      : DEFAULT_SKILL_DRAW_CREDITS,
+    DEFAULT_SKILL_DRAW_CREDITS
+  );
+
+  if (!Object.prototype.hasOwnProperty.call(skillsState, 'drawCredits') || skillsState.drawCredits !== availableCredits) {
+    skillsState.drawCredits = availableCredits;
+  }
+
+  if (consumeCredits) {
+    if (availableCredits < safeCount) {
+      throw createError('SKILL_DRAW_LIMIT', '技能抽取次数不足');
+    }
+    skillsState.drawCredits = availableCredits - safeCount;
+  }
+
+  const inventory = Array.isArray(skillsState.inventory) ? skillsState.inventory : [];
   const results = [];
 
   for (let i = 0; i < safeCount; i += 1) {
@@ -3336,7 +3366,7 @@ async function useStorageItem(actorId, event = {}) {
     }
     case 'skillDraw': {
       const drawCount = Math.max(1, Math.floor(Number(usage.drawCount) || 1));
-      const draws = performSkillDraw(profile, drawCount, now);
+      const draws = performSkillDraw(profile, drawCount, now, { consumeCredits: false });
       result.acquiredSkills = draws.map((entry) => {
         const decorated = entry.decorated || null;
         if (decorated) {
@@ -4222,7 +4252,8 @@ function buildDefaultSkills(now = new Date()) {
     inventory: [defaultSkill],
     equipped: ['sword_breaking_clouds'],
     lastDrawAt: null,
-    drawCount: 0
+    drawCount: 0,
+    drawCredits: DEFAULT_SKILL_DRAW_CREDITS
   };
 }
 
@@ -4930,11 +4961,27 @@ function normalizeSkills(skills, now = new Date()) {
     return id;
   });
 
+  const defaultDrawCredits = Math.max(
+    0,
+    Math.floor(Number(defaults.drawCredits) || DEFAULT_SKILL_DRAW_CREDITS)
+  );
+  const normalizedDrawCredits = Math.max(
+    0,
+    Math.floor(
+      Number(
+        Object.prototype.hasOwnProperty.call(payload, 'drawCredits')
+          ? payload.drawCredits
+          : defaultDrawCredits
+      ) || defaultDrawCredits
+    )
+  );
+
   return {
     inventory,
     equipped,
     lastDrawAt: payload.lastDrawAt ? new Date(payload.lastDrawAt) : null,
-    drawCount: Math.max(0, Math.floor(Number(payload.drawCount) || defaults.drawCount || 0))
+    drawCount: Math.max(0, Math.floor(Number(payload.drawCount) || defaults.drawCount || 0)),
+    drawCredits: normalizedDrawCredits
   };
 }
 
@@ -6137,7 +6184,8 @@ function decorateSkills(profile) {
     equipped,
     lastDrawAt: skills.lastDrawAt,
     lastDrawAtText: formatDateTime(skills.lastDrawAt),
-    drawCount: skills.drawCount || 0
+    drawCount: skills.drawCount || 0,
+    drawCredits: Math.max(0, Math.floor(Number(skills.drawCredits) || 0))
   };
 }
 
