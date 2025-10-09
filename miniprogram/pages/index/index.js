@@ -1087,6 +1087,10 @@ Page({
     this.openAvatarPicker();
   },
 
+  handleCombatPowerTap() {
+    wx.navigateTo({ url: '/pages/role/index?tab=character' });
+  },
+
   handleStoneTap() {
     wx.navigateTo({ url: '/pages/stones/stones' });
   },
