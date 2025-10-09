@@ -107,51 +107,28 @@ function decorateLevels(levels = [], options = {}) {
 }
 
 function resolveVisibleLevels(levels = [], options = {}) {
-  const { isAdmin, showPastLevels, currentLevel, nextLevel } = options;
+  const { isAdmin } = options;
+  const normalizedLevels = Array.isArray(levels) ? levels.filter(Boolean) : [];
   if (isAdmin) {
-    return [...levels];
+    return [...normalizedLevels];
   }
-  if (showPastLevels) {
-    let hasIncludedLocked = false;
-    return levels.filter((level) => {
-      if (!level) {
-        return false;
-      }
-      if (level.reached) {
-        return true;
-      }
-      if (!hasIncludedLocked) {
-        hasIncludedLocked = true;
-        return true;
-      }
-      return false;
-    });
+  if (!normalizedLevels.length) {
+    return [];
   }
-  const currentId = currentLevel && currentLevel._id ? currentLevel._id : '';
-  const nextId = nextLevel && nextLevel._id ? nextLevel._id : '';
-  return levels.filter((level) => level && (level._id === currentId || level._id === nextId));
+  const firstUnclaimedIndex = normalizedLevels.findIndex(
+    (level) => level && level.hasRewards && !level.claimed
+  );
+  if (firstUnclaimedIndex === -1) {
+    return [];
+  }
+  const firstUnclaimedLevel = normalizedLevels[firstUnclaimedIndex];
+  return firstUnclaimedLevel ? [firstUnclaimedLevel] : [];
 }
 
 function resolveVisibleRealms(realms = [], options = {}) {
-  const { isAdmin, showPastLevels, currentLevel, nextLevel } = options;
+  const { isAdmin, currentLevel, nextLevel } = options;
   if (isAdmin) {
     return [...realms];
-  }
-  if (showPastLevels) {
-    let hasIncludedLocked = false;
-    return realms.filter((realm) => {
-      if (!realm) {
-        return false;
-      }
-      if (realm.reached) {
-        return true;
-      }
-      if (!hasIncludedLocked) {
-        hasIncludedLocked = true;
-        return true;
-      }
-      return false;
-    });
   }
   if (!Array.isArray(realms) || realms.length === 0) {
     return [];
@@ -201,7 +178,6 @@ Page({
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
     isAdmin: false,
-    showPastLevels: false,
     visibleLevels: [],
     claimedLevelRewards: [],
     visibleRealms: []
@@ -323,7 +299,6 @@ Page({
       const isAdmin = isAdminRoleList(mergedMember.roles);
       const visibilityOptions = {
         isAdmin,
-        showPastLevels: this.data.showPastLevels,
         currentLevel,
         nextLevel
       };
@@ -384,33 +359,12 @@ Page({
   refreshVisibility() {
     const options = {
       isAdmin: this.data.isAdmin,
-      showPastLevels: this.data.showPastLevels,
       currentLevel: this.data.currentLevel,
       nextLevel: this.data.nextLevel
     };
     const visibleLevels = resolveVisibleLevels(this.data.levels, options);
     const visibleRealms = resolveVisibleRealms(this.data.realms, options);
     this.setData({ visibleLevels, visibleRealms });
-  },
-
-  onTogglePastLevels() {
-    if (this.data.isAdmin) {
-      return;
-    }
-    const nextShow = !this.data.showPastLevels;
-    const options = {
-      isAdmin: this.data.isAdmin,
-      showPastLevels: nextShow,
-      currentLevel: this.data.currentLevel,
-      nextLevel: this.data.nextLevel
-    };
-    const visibleLevels = resolveVisibleLevels(this.data.levels, options);
-    const visibleRealms = resolveVisibleRealms(this.data.realms, options);
-    this.setData({
-      showPastLevels: nextShow,
-      visibleLevels,
-      visibleRealms
-    });
   },
 
   async onClaimReward(event) {
