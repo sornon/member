@@ -300,18 +300,22 @@ Page({
     storageUpgrading: false
   },
 
-  applyProfile(profile, extraState = {}) {
+  applyProfile(profile, extraState = {}, options = {}) {
     const sanitizedProfile = sanitizeEquipmentProfile(profile);
     syncRolePendingAttributes(sanitizedProfile);
     syncStorageBadgeStateFromProfile(sanitizedProfile);
     const storageState = this.buildStorageState(sanitizedProfile);
+    const previousCredits = Math.max(0, Math.floor(Number((this.data && this.data.skillDrawCredits) || 0)));
     const rawCredits =
       sanitizedProfile &&
       sanitizedProfile.skills &&
       sanitizedProfile.skills.drawCredits !== undefined
         ? sanitizedProfile.skills.drawCredits
-        : 0;
-    const skillDrawCredits = Math.max(0, Math.floor(Number(rawCredits) || 0));
+        : previousCredits;
+    let skillDrawCredits = Math.max(0, Math.floor(Number(rawCredits) || 0));
+    if (options && options.preserveSkillDrawCredits && skillDrawCredits > previousCredits) {
+      skillDrawCredits = previousCredits;
+    }
     const updates = { ...extraState, profile: sanitizedProfile, ...storageState, skillDrawCredits };
     const tooltip = this.data ? this.data.equipmentTooltip : null;
     if (tooltip && tooltip.item) {
@@ -761,7 +765,7 @@ Page({
     if (!skillId) return;
     try {
       const res = await PveService.equipSkill({ skillId });
-      this.applyProfile(res.profile);
+      this.applyProfile(res.profile, {}, { preserveSkillDrawCredits: true });
       wx.showToast({ title: '已装备', icon: 'success', duration: 1200 });
     } catch (error) {
       const handled = await this.tryResolveSkillSlotFull(skillId, error);
@@ -778,7 +782,7 @@ Page({
     if (!Number.isFinite(slot)) return;
     try {
       const res = await PveService.equipSkill({ skillId: '', slot });
-      this.applyProfile(res.profile);
+      this.applyProfile(res.profile, {}, { preserveSkillDrawCredits: true });
     } catch (error) {
       console.error('[role] unequip skill failed', error);
       wx.showToast({ title: error.errMsg || '操作失败', icon: 'none' });
@@ -885,7 +889,7 @@ Page({
     }
     try {
       const res = await PveService.equipSkill({ skillId, slot: target.slot });
-      this.applyProfile(res.profile);
+      this.applyProfile(res.profile, {}, { preserveSkillDrawCredits: true });
       this.closeSkillModal();
       wx.showToast({ title: '已替换', icon: 'success', duration: 1200 });
     } catch (replaceError) {
