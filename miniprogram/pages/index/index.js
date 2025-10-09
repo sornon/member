@@ -1088,7 +1088,7 @@ Page({
   },
 
   handleStoneTap() {
-    wx.navigateTo({ url: '/pages/stones/stones' });
+    wx.navigateTo({ url: '/pages/role/index?tab=character' });
   },
 
   handleLevelTap() {
