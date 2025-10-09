@@ -115,11 +115,14 @@ function resolveVisibleLevels(levels = [], options = {}) {
   if (!normalizedLevels.length) {
     return [];
   }
-  const firstUnclaimedIndex = normalizedLevels.findIndex((level) => level.hasRewards && !level.claimed);
+  const firstUnclaimedIndex = normalizedLevels.findIndex(
+    (level) => level && level.hasRewards && !level.claimed
+  );
   if (firstUnclaimedIndex === -1) {
-    return normalizedLevels;
+    return [];
   }
-  return normalizedLevels.slice(firstUnclaimedIndex);
+  const firstUnclaimedLevel = normalizedLevels[firstUnclaimedIndex];
+  return firstUnclaimedLevel ? [firstUnclaimedLevel] : [];
 }
 
 function resolveVisibleRealms(realms = [], options = {}) {
