@@ -209,6 +209,7 @@
                   <view wx:if="{{item.recommendedUpgrade}}" class="storage-slot__recommend">
                     <text class="storage-slot__recommend-icon">↑</text>
                   </view>
+                  <view wx:if="{{item.showNewBadge}}" class="storage-slot__flag">新</view>
                   <view
                     class="storage-slot__icon {{item.iconUrl ? 'storage-slot__icon--image' : ''}}"
                     style="{{item.iconUrl ? '' : 'border-color: ' + item.qualityColor + ';'}}"

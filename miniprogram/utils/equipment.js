@@ -106,6 +106,70 @@ function cloneItem(item) {
   return item && typeof item === 'object' ? { ...item } : null;
 }
 
+function normalizeBadgeKeyCandidate(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+  return '';
+}
+
+function buildStorageItemBadgeKeys(categoryKey, item, index = 0) {
+  const category = normalizeBadgeKeyCandidate(categoryKey) || 'storage';
+  if (!item || typeof item !== 'object') {
+    const fallbackId = `idx-${index}`;
+    return {
+      badgeKey: `${category}:${fallbackId}`,
+      storageKey: `${category}-${fallbackId}`
+    };
+  }
+  const candidates = [
+    item.storageBadgeKey,
+    item.storageKey,
+    item.inventoryId,
+    item.inventoryKey,
+    item.storageId,
+    item.itemId,
+    item.id,
+    item._id,
+    item.badgeKey,
+    item.badgeId,
+    item.slot
+  ];
+  let identifier = '';
+  for (let i = 0; i < candidates.length; i += 1) {
+    identifier = normalizeBadgeKeyCandidate(candidates[i]);
+    if (identifier) {
+      break;
+    }
+  }
+  if (!identifier) {
+    identifier = `idx-${index}`;
+  }
+  if (identifier.includes(':')) {
+    const parts = identifier.split(':');
+    const explicitCategory = normalizeBadgeKeyCandidate(parts[0]);
+    const explicitId = normalizeBadgeKeyCandidate(parts.slice(1).join(':'));
+    const finalCategory = explicitCategory || category;
+    const finalId = explicitId || (explicitCategory ? '' : identifier);
+    const resolvedId = finalId || `idx-${index}`;
+    return {
+      badgeKey: `${finalCategory}:${resolvedId}`,
+      storageKey: `${finalCategory}-${resolvedId}`
+    };
+  }
+  return {
+    badgeKey: `${category}:${identifier}`,
+    storageKey: `${category}-${identifier}`
+  };
+}
+
 function resolveEquipmentQualityRank(quality) {
   const key = typeof quality === 'string' ? quality : '';
   return EQUIPMENT_QUALITY_RANK_MAP[key] || 1;
@@ -304,13 +368,20 @@ export function sanitizeEquipmentProfile(profile) {
       const items = Array.isArray(category.items)
         ? category.items
             .filter((item) => item && typeof item === 'object' && item.itemId)
-            .map((item) => {
+            .map((item, index) => {
               const cloned = cloneItem(item);
               if (!cloned) {
                 return null;
               }
               if (!cloned.storageCategory) {
                 cloned.storageCategory = key;
+              }
+              const badgeKeys = buildStorageItemBadgeKeys(key, cloned, index);
+              if (!cloned.storageBadgeKey) {
+                cloned.storageBadgeKey = badgeKeys.badgeKey;
+              }
+              if (!cloned.storageKey) {
+                cloned.storageKey = badgeKeys.storageKey;
               }
               if (isDefaultEquipmentId(cloned.itemId)) {
                 cloned.isDefault = true;

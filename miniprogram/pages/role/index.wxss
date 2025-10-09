@@ -608,7 +608,7 @@ button.pill-btn[disabled] {
   border: 1rpx solid rgba(86, 116, 210, 0.34);
   box-sizing: border-box;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .storage-slot--has-icon {
@@ -658,6 +658,22 @@ button.pill-btn[disabled] {
   transform: translateY(-2rpx);
 }
 
+.storage-slot__flag {
+  position: absolute;
+  top: -6rpx;
+  right: -6rpx;
+  padding: 4rpx 18rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #ff6b6b, #ff8a5c);
+  color: #ffffff;
+  font-size: 20rpx;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 8rpx 16rpx rgba(255, 107, 107, 0.35);
+  z-index: 4;
+  pointer-events: none;
+}
+
 .storage-slot__frame {
   position: absolute;
   inset: 12rpx;
@@ -669,6 +685,7 @@ button.pill-btn[disabled] {
   justify-content: center;
   box-sizing: border-box;
   transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  overflow: visible;
 }
 
 .storage-slot__frame--icon {
