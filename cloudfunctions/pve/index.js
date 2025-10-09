@@ -4322,6 +4322,29 @@ function normalizeStorageMetadata(rawStorage) {
   return normalized;
 }
 
+function sanitizeStorageIdentifier(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.replace(/\s+/g, '-');
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+  return '';
+}
+
+function generateStorageInventoryId(category, itemId, obtainedAt = null) {
+  const safeCategory = sanitizeStorageIdentifier(category) || 'storage';
+  const safeItem = sanitizeStorageIdentifier(itemId) || 'item';
+  const timestamp =
+    obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : Date.now();
+  const random = Math.random().toString(36).slice(2, 10);
+  return `${safeCategory}-${safeItem}-${timestamp}-${random}`;
+}
+
 function normalizeStorageInventoryItem(entry, categoryKey) {
   if (!entry || typeof entry !== 'object') {
     return null;
@@ -4329,23 +4352,81 @@ function normalizeStorageInventoryItem(entry, categoryKey) {
   const normalized = { ...entry };
   const key = typeof categoryKey === 'string' && categoryKey.trim() ? categoryKey.trim() : 'consumable';
   const itemId = typeof normalized.itemId === 'string' ? normalized.itemId.trim() : '';
-  const inventoryId = typeof normalized.inventoryId === 'string' ? normalized.inventoryId.trim() : '';
+  const candidateIds = [normalized.inventoryId, normalized.id, normalized._id];
+  let inventoryId = '';
+  for (let i = 0; i < candidateIds.length; i += 1) {
+    const candidate = sanitizeStorageIdentifier(candidateIds[i]);
+    if (candidate) {
+      inventoryId = candidate;
+      break;
+    }
+  }
   if (!itemId && !inventoryId) {
     return null;
   }
   if (itemId) {
     normalized.itemId = itemId;
   }
-  if (inventoryId) {
-    normalized.inventoryId = inventoryId;
-  } else if (itemId) {
-    normalized.inventoryId = `${key}-${itemId}`;
+
+  let obtainedAt = null;
+  if (normalized.obtainedAt) {
+    const parsed = new Date(normalized.obtainedAt);
+    if (!Number.isNaN(parsed.getTime())) {
+      obtainedAt = parsed;
+    }
   }
+  if (obtainedAt) {
+    normalized.obtainedAt = obtainedAt;
+  } else if (normalized.obtainedAt) {
+    delete normalized.obtainedAt;
+  }
+
+  if (!inventoryId) {
+    const generated = generateStorageInventoryId(key, itemId || normalized.storageId || 'item', obtainedAt);
+    inventoryId = generated;
+  }
+  normalized.inventoryId = inventoryId;
+
   if (typeof normalized.storageCategory === 'string' && normalized.storageCategory.trim()) {
     normalized.storageCategory = normalized.storageCategory.trim();
   } else {
     normalized.storageCategory = key;
   }
+
+  const serialCandidates = [
+    normalized.storageSerial,
+    normalized.serialId,
+    normalized.serial,
+    normalized.sequenceId,
+    normalized.entryId,
+    normalized.badgeId,
+    inventoryId,
+    itemId && obtainedAt ? `${itemId}-${obtainedAt.getTime()}` : ''
+  ];
+  let storageSerial = '';
+  for (let i = 0; i < serialCandidates.length; i += 1) {
+    const candidate = sanitizeStorageIdentifier(serialCandidates[i]);
+    if (candidate) {
+      storageSerial = candidate;
+      break;
+    }
+  }
+  if (!storageSerial) {
+    storageSerial = generateStorageInventoryId(key, itemId || 'item', obtainedAt);
+  }
+  normalized.storageSerial = storageSerial;
+
+  const badgeCategory = sanitizeStorageIdentifier(normalized.storageCategory) || key;
+  if (
+    typeof normalized.storageBadgeKey !== 'string' ||
+    !normalized.storageBadgeKey.trim()
+  ) {
+    normalized.storageBadgeKey = `${badgeCategory}:${storageSerial}`;
+  }
+  if (typeof normalized.storageKey !== 'string' || !normalized.storageKey.trim()) {
+    normalized.storageKey = `${badgeCategory}-${storageSerial}`;
+  }
+
   if (
     typeof normalized.slotLabel !== 'string' ||
     !normalized.slotLabel.trim()
@@ -4377,14 +4458,6 @@ function normalizeStorageInventoryItem(entry, categoryKey) {
     normalized.notes = normalized.notes.filter((note) => !!note);
   } else {
     normalized.notes = [];
-  }
-  if (normalized.obtainedAt) {
-    const obtainedAt = new Date(normalized.obtainedAt);
-    if (!Number.isNaN(obtainedAt.getTime())) {
-      normalized.obtainedAt = obtainedAt;
-    } else {
-      delete normalized.obtainedAt;
-    }
   }
   normalized.locked = normalized.locked === true;
   if (!normalized.kind) {
@@ -5023,6 +5096,24 @@ function decorateStorageInventoryItem(entry, fallbackCategory = '') {
       break;
     }
   }
+  const serialCandidates = [
+    payload.storageSerial,
+    payload.serialId,
+    payload.serial,
+    payload.sequenceId,
+    payload.entryId,
+    payload.badgeId,
+    inventoryId,
+    payload.itemId && payload.obtainedAt ? `${payload.itemId}-${payload.obtainedAt}` : ''
+  ];
+  let storageSerial = '';
+  for (let i = 0; i < serialCandidates.length; i += 1) {
+    const candidate = serialCandidates[i];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      storageSerial = candidate.trim();
+      break;
+    }
+  }
   const obtainedAtRaw = payload.obtainedAt ? new Date(payload.obtainedAt) : null;
   const obtainedAt = obtainedAtRaw instanceof Date && !Number.isNaN(obtainedAtRaw.getTime()) ? obtainedAtRaw : null;
   const actions = Array.isArray(payload.actions)
@@ -5041,6 +5132,7 @@ function decorateStorageInventoryItem(entry, fallbackCategory = '') {
   const normalized = {
     ...payload,
     inventoryId,
+    storageSerial: storageSerial || inventoryId,
     storageCategory: category,
     storageCategoryLabel: payload.storageCategoryLabel || STORAGE_CATEGORY_LABEL_MAP[category] || category || '',
     name: payload.name || '道具',
@@ -5063,6 +5155,24 @@ function decorateStorageInventoryItem(entry, fallbackCategory = '') {
       payload.slotLabel ||
       (category && STORAGE_CATEGORY_LABEL_MAP[category] ? STORAGE_CATEGORY_LABEL_MAP[category] : '道具')
   };
+  if (typeof normalized.storageBadgeKey !== 'string' || !normalized.storageBadgeKey) {
+    const safeCategory = typeof normalized.storageCategory === 'string' && normalized.storageCategory
+      ? normalized.storageCategory
+      : category;
+    const serial = normalized.storageSerial || inventoryId;
+    if (serial) {
+      normalized.storageBadgeKey = `${safeCategory}:${serial}`;
+    }
+  }
+  if (typeof normalized.storageKey !== 'string' || !normalized.storageKey) {
+    const safeCategory = typeof normalized.storageCategory === 'string' && normalized.storageCategory
+      ? normalized.storageCategory
+      : category;
+    const serial = normalized.storageSerial || inventoryId;
+    if (serial) {
+      normalized.storageKey = `${safeCategory}-${serial}`;
+    }
+  }
   const quantityCandidates = [payload.quantity, payload.count, payload.amount];
   for (let i = 0; i < quantityCandidates.length; i += 1) {
     const candidate = Number(quantityCandidates[i]);

@@ -126,10 +126,17 @@ function buildStorageItemBadgeKeys(categoryKey, item, index = 0) {
     const fallbackId = `idx-${index}`;
     return {
       badgeKey: `${category}:${fallbackId}`,
-      storageKey: `${category}-${fallbackId}`
+      storageKey: `${category}-${fallbackId}`,
+      serial: fallbackId
     };
   }
   const candidates = [
+    item.storageSerial,
+    item.serialId,
+    item.serial,
+    item.sequenceId,
+    item.entryId,
+    item.badgeId,
     item.storageBadgeKey,
     item.storageKey,
     item.inventoryId,
@@ -139,7 +146,6 @@ function buildStorageItemBadgeKeys(categoryKey, item, index = 0) {
     item.id,
     item._id,
     item.badgeKey,
-    item.badgeId,
     item.slot
   ];
   let identifier = '';
@@ -161,12 +167,14 @@ function buildStorageItemBadgeKeys(categoryKey, item, index = 0) {
     const resolvedId = finalId || `idx-${index}`;
     return {
       badgeKey: `${finalCategory}:${resolvedId}`,
-      storageKey: `${finalCategory}-${resolvedId}`
+      storageKey: `${finalCategory}-${resolvedId}`,
+      serial: resolvedId
     };
   }
   return {
     badgeKey: `${category}:${identifier}`,
-    storageKey: `${category}-${identifier}`
+    storageKey: `${category}-${identifier}`,
+    serial: identifier
   };
 }
 
@@ -382,6 +390,9 @@ export function sanitizeEquipmentProfile(profile) {
               }
               if (!cloned.storageKey) {
                 cloned.storageKey = badgeKeys.storageKey;
+              }
+              if (!cloned.storageSerial) {
+                cloned.storageSerial = badgeKeys.serial;
               }
               if (isDefaultEquipmentId(cloned.itemId)) {
                 cloned.isDefault = true;

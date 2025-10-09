@@ -180,6 +180,12 @@ function collectItemKeyAliases(item) {
   }
   const category = normalizeString(item.storageCategory) || 'storage';
   const candidateFields = [
+    item.storageSerial,
+    item.serialId,
+    item.serial,
+    item.sequenceId,
+    item.entryId,
+    item.badgeId,
     item.storageBadgeKey,
     item.storageKey,
     item.inventoryId,
@@ -189,7 +195,6 @@ function collectItemKeyAliases(item) {
     item.id,
     item._id,
     item.badgeKey,
-    item.badgeId,
     item.slot
   ];
   const aliases = [];
