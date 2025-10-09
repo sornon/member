@@ -522,7 +522,7 @@ async function listMembers(openid, keyword, page, pageSize) {
       _.or([
         { nickName: regex },
         { mobile: regex },
-        { _id: regex }
+        { realName: regex }
       ])
     );
   }
@@ -1623,6 +1623,20 @@ function decorateMemberRecord(member, levelMap) {
   const cashBalance = resolveCashBalance(member);
   const stoneBalance = resolveStoneBalance(member);
   const respecStats = resolvePveRespecStats(member);
+  const totalRecharge = normalizeAmountFen(member.totalRecharge);
+  const lastConsumptionAt =
+    member.lastConsumptionAt ||
+    member.lastSpendAt ||
+    member.lastOrderAt ||
+    member.lastTransactionAt ||
+    member.lastConsumptionDate ||
+    member.lastConsumeAt ||
+    member.lastConsumeDate ||
+    member.lastSpendDate ||
+    member.lastPaymentAt ||
+    member.lastPaymentDate ||
+    null;
+  const lastConsumptionAtLabel = formatDate(lastConsumptionAt);
   return {
     _id: member._id,
     nickName: member.nickName || '',
@@ -1632,6 +1646,8 @@ function decorateMemberRecord(member, levelMap) {
     balance: cashBalance,
     cashBalance,
     cashBalanceYuan: formatFenToYuan(cashBalance),
+    totalRecharge,
+    totalRechargeYuan: formatFenToYuan(totalRecharge),
     stoneBalance,
     stoneBalanceLabel: formatStoneLabel(stoneBalance),
     experience: Number(member.experience || 0),
@@ -1645,6 +1661,8 @@ function decorateMemberRecord(member, levelMap) {
     renameHistory: formatRenameHistory(member.renameHistory),
     createdAt: formatDate(member.createdAt),
     updatedAt: formatDate(member.updatedAt),
+    lastConsumptionAt,
+    lastConsumptionAtLabel,
     avatarConfig: member.avatarConfig || {},
     roomUsageCount: normalizeUsageCount(member.roomUsageCount),
     avatarUnlocks: normalizeAvatarUnlocksList(member.avatarUnlocks),
@@ -3316,9 +3334,9 @@ async function searchMemberIdsByKeyword(keyword) {
     .collection(COLLECTIONS.MEMBERS)
     .where(
       _.or([
-        { _id: regex },
         { nickName: regex },
-        { mobile: regex }
+        { mobile: regex },
+        { realName: regex }
       ])
     )
     .limit(20)

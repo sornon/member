@@ -6,7 +6,7 @@
       <input
         class="search-input"
         value="{{keyword}}"
-        placeholder="请输入昵称 / 手机 / ID"
+        placeholder="请输入昵称 / 手机 / 真实姓名"
         confirm-type="search"
         bindinput="handleKeywordInput"
         bindconfirm="handleSearch"
