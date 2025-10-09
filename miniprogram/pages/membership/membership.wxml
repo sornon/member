@@ -10,13 +10,13 @@
       <view class="current-level">{{currentLevel ? currentLevel.displayName : '炼气期 · 一层'}}</view>
       <view class="current-summary" wx:if="{{currentLevel && currentLevel.realmDescription}}">{{currentLevel.realmDescription}}</view>
       <view class="current-stats">
-        <text class="stat">当前修为 {{formatExperience(member.experience || 0)}}</text>
+        <text class="stat">当前修为 {{currentExperience}}</text>
         <text class="stat" wx:if="{{nextLevel}}">下一级 {{nextLevel.displayName}}</text>
       </view>
       <view class="progress-bar">
         <view class="progress-inner" style="{{progressStyle}}"></view>
       </view>
-      <view class="progress-text" wx:if="{{nextLevel}}">距离 {{nextLevel.displayName}} 还差 {{formatCurrency(progress ? progress.nextDiff : 0)}}</view>
+      <view class="progress-text" wx:if="{{nextLevel}}">距离 {{nextLevel.displayName}} 还差 {{nextLevelRemainingExperience}}</view>
       <view class="progress-text" wx:else>恭喜金仙圆满，尊享终极特权</view>
       <view wx:if="{{breakthroughLevel}}" class="breakthrough-hint">
         <text class="breakthrough-hint__text">修为已圆满，请突破至 {{breakthroughLevel.displayName || breakthroughLevel.name}}。</text>

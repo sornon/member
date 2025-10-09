@@ -87,7 +87,7 @@
           <view class="progress-track">
             <view class="progress-inner" style="{{progressStyle}}"></view>
           </view>
-          <view class="progress-text">修为{{memberStats.experience}}，距下级还需 {{progress ? progress.nextDiff : 0}} </view>
+          <view class="progress-text">修为{{memberStats.experience}}，距下级还需 {{progressRemainingExperience}} </view>
         </view>
       </view>
 
