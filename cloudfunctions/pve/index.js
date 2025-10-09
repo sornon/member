@@ -4458,20 +4458,21 @@ function normalizeStorageInventoryItem(entry, categoryKey, index = 0) {
   }
   normalized.inventoryId = inventoryId;
 
+  const previousSerial = sanitizeStorageIdentifier(normalized.storageSerial);
   const serialCandidates = [
-    normalized.storageSerial,
-    normalized.serialId,
-    normalized.serial,
-    normalized.sequenceId,
-    normalized.entryId,
-    normalized.badgeId,
-    inventoryId,
-    stableIdentifier,
-    itemId && obtainedAt ? `${itemId}-${obtainedAt.getTime()}` : ''
+    sanitizeStorageIdentifier(inventoryId),
+    sanitizeStorageIdentifier(stableIdentifier),
+    itemId && obtainedAt ? sanitizeStorageIdentifier(`${itemId}-${obtainedAt.getTime()}`) : '',
+    sanitizeStorageIdentifier(normalized.serialId),
+    sanitizeStorageIdentifier(normalized.serial),
+    sanitizeStorageIdentifier(normalized.sequenceId),
+    sanitizeStorageIdentifier(normalized.entryId),
+    sanitizeStorageIdentifier(normalized.badgeId),
+    previousSerial
   ];
   let storageSerial = '';
   for (let i = 0; i < serialCandidates.length; i += 1) {
-    const candidate = sanitizeStorageIdentifier(serialCandidates[i]);
+    const candidate = serialCandidates[i];
     if (candidate) {
       storageSerial = candidate;
       break;
@@ -4480,17 +4481,42 @@ function normalizeStorageInventoryItem(entry, categoryKey, index = 0) {
   if (!storageSerial) {
     storageSerial = stableIdentifier;
   }
+  if (previousSerial && previousSerial !== storageSerial) {
+    const legacyTargets = ['serialId', 'sequenceId', 'entryId', 'badgeId'];
+    for (let i = 0; i < legacyTargets.length; i += 1) {
+      const key = legacyTargets[i];
+      const existing = sanitizeStorageIdentifier(normalized[key]);
+      if (!existing) {
+        normalized[key] = previousSerial;
+        break;
+      }
+    }
+  }
   normalized.storageSerial = storageSerial;
 
-  if (
-    typeof normalized.storageBadgeKey !== 'string' ||
-    !normalized.storageBadgeKey.trim()
-  ) {
-    normalized.storageBadgeKey = `${badgeCategory}:${storageSerial}`;
+  const previousBadgeKey =
+    typeof normalized.storageBadgeKey === 'string' ? normalized.storageBadgeKey.trim() : '';
+  const desiredBadgeKey = `${badgeCategory}:${storageSerial}`;
+  if (previousBadgeKey && previousBadgeKey !== desiredBadgeKey) {
+    if (!normalized.badgeKey) {
+      normalized.badgeKey = previousBadgeKey;
+    } else if (!normalized.storageId) {
+      normalized.storageId = previousBadgeKey;
+    }
   }
-  if (typeof normalized.storageKey !== 'string' || !normalized.storageKey.trim()) {
-    normalized.storageKey = `${badgeCategory}-${storageSerial}`;
+  normalized.storageBadgeKey = desiredBadgeKey;
+
+  const previousStorageKey =
+    typeof normalized.storageKey === 'string' ? normalized.storageKey.trim() : '';
+  const desiredStorageKey = `${badgeCategory}-${storageSerial}`;
+  if (previousStorageKey && previousStorageKey !== desiredStorageKey) {
+    if (!normalized.inventoryKey) {
+      normalized.inventoryKey = previousStorageKey;
+    } else if (!normalized.storageId) {
+      normalized.storageId = previousStorageKey;
+    }
   }
+  normalized.storageKey = desiredStorageKey;
 
   if (
     typeof normalized.slotLabel !== 'string' ||

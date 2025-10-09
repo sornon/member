@@ -421,8 +421,14 @@ Page({
         const label = typeof category.label === 'string' ? category.label : key;
         const items = Array.isArray(category.items) ? category.items : [];
         const normalizedItems = items.map((item, index) => {
-          const storageKey = `${key}-${item && item.inventoryId ? item.inventoryId : `${item && item.itemId ? item.itemId : 'item'}-${index}`}`;
-          const normalized = { ...item, storageKey };
+          const normalized = { ...item };
+          if (typeof normalized.storageKey !== 'string' || !normalized.storageKey) {
+            const fallbackId =
+              item && item.inventoryId
+                ? item.inventoryId
+                : `${item && item.itemId ? item.itemId : 'item'}-${index}`;
+            normalized.storageKey = `${key}-${fallbackId}`;
+          }
           if (!normalized.storageCategory) {
             normalized.storageCategory = key;
           }
