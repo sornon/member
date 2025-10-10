@@ -224,15 +224,15 @@ button.pill-btn[disabled] {
   text-overflow: ellipsis;
   font-size: 30rpx;
   font-weight: 600;
-  color: #f1f4ff;
+  color: rgba(192, 205, 255, 0.85);
   flex-shrink: 0;
 }
 
 .attr-row__value {
   font-size: 24rpx;
   font-weight: 500;
-  color: rgba(192, 205, 255, 0.85);
-  min-width: 80rpx;
+  color: #f1f4ff;
+  min-width: 50rpx;
   text-align: left;
 }
 
@@ -270,7 +270,7 @@ button.pill-btn[disabled] {
 }
 
 .attr-input {
-  width: 90rpx;
+  width: 50rpx;
   height: 44rpx;
   border-radius: 12rpx;
   border: 1rpx solid rgba(103, 128, 228, 0.6);
@@ -308,9 +308,9 @@ button.pill-btn[disabled] {
 
 .subsection-title {
   margin-top: 24rpx;
-  font-size: 24rpx;
-  font-weight: 600;
-  color: rgba(186, 200, 255, 0.75);
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #f3f6ff;
 }
 
 .combat-grid {
@@ -330,7 +330,7 @@ button.pill-btn[disabled] {
 .combat-label {
   font-size: 26rpx;
   font-weight: 600;
-  color: #f1f4ff;
+  color: rgba(190, 204, 255, 0.72);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -338,7 +338,7 @@ button.pill-btn[disabled] {
 
 .combat-value {
   font-size: 20rpx;
-  color: rgba(190, 204, 255, 0.72);
+  color: #f1f4ff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -32,7 +32,7 @@
     <block wx:if="{{activeTab === 'character'}}">
       <view class="section-card role-attributes">
         <view class="section-header">
-          <view class="section-title">角色属性</view>
+          <view class="section-title">基础属性</view>
           <view class="section-actions" wx:if="{{profile.attributes}}">
             <text class="section-actions__info">洗点次数 {{profile.attributes ? profile.attributes.respecAvailable : 0}}</text>
             <button
@@ -104,7 +104,7 @@
         <block
           wx:if="{{profile.attributes && profile.attributes.combatStats && profile.attributes.combatStats.length}}"
         >
-          <view class="subsection-title">战斗属性详情</view>
+          <view class="subsection-title">战斗属性</view>
           <view class="combat-grid">
             <view class="combat-item" wx:for="{{profile.attributes.combatStats}}" wx:key="key">
               <view class="combat-label">{{item.label}}</view>
