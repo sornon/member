@@ -50,8 +50,59 @@ const MALL_ITEMS = [
   }
 ];
 
-function normalizeEffectAmount(value) {
+function parseAmountNumber(value) {
+  if (value == null) {
+    return NaN;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : NaN;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return 0;
+    }
+    const sanitized = trimmed.replace(/[^0-9+.,-]/g, '').replace(/,/g, '');
+    const parsed = Number(sanitized);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  }
+  if (typeof value === 'bigint') {
+    return Number(value);
+  }
+  if (typeof value === 'object') {
+    if (typeof value.toNumber === 'function') {
+      try {
+        const numeric = value.toNumber();
+        if (Number.isFinite(numeric)) {
+          return numeric;
+        }
+      } catch (error) {
+        // ignore conversion errors
+      }
+    }
+    if (typeof value.valueOf === 'function') {
+      const primitive = value.valueOf();
+      if (typeof primitive === 'number' && Number.isFinite(primitive)) {
+        return primitive;
+      }
+      const numeric = Number(primitive);
+      if (Number.isFinite(numeric)) {
+        return numeric;
+      }
+    }
+    if (typeof value.toString === 'function') {
+      const numeric = Number(value.toString());
+      if (Number.isFinite(numeric)) {
+        return numeric;
+      }
+    }
+  }
   const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : NaN;
+}
+
+function normalizeEffectAmount(value) {
+  const numeric = parseAmountNumber(value);
   if (!Number.isFinite(numeric)) {
     return 0;
   }
@@ -257,15 +308,15 @@ function mapTransaction(txn) {
 
 function resolveStoneBalance(member) {
   if (!member) return 0;
-  const value = Number(member.stoneBalance);
-  if (Number.isFinite(value) && value >= 0) {
-    return Math.floor(value);
+  const numeric = parseAmountNumber(member.stoneBalance);
+  if (Number.isFinite(numeric) && numeric >= 0) {
+    return Math.floor(numeric);
   }
   return 0;
 }
 
 function normalizeAmount(value) {
-  const numeric = Number(value);
+  const numeric = parseAmountNumber(value);
   if (!Number.isFinite(numeric) || numeric === 0) {
     return 0;
   }
@@ -282,23 +333,27 @@ const transactionTypeLabel = {
 
 function getCatalog() {
   return {
-    items: MALL_ITEMS.map((item) => ({
-      id: item.id,
-      name: item.name,
-      icon: item.icon || '',
-      iconUrl: item.iconUrl || '',
-      price: Math.max(0, Math.floor(Number(item.price) || 0)),
-      description: item.description || '',
-      effectLabel: item.effectLabel || '',
-      category: item.category || 'general',
-      categoryLabel:
-        item.categoryLabel ||
-        (item.category === 'general' ? '奇珍异宝' : '其他道具'),
-      categoryOrder: Number.isFinite(Number(item.categoryOrder))
-        ? Number(item.categoryOrder)
-        : null,
-      order: Number.isFinite(Number(item.order)) ? Number(item.order) : null
-    }))
+    items: MALL_ITEMS.map((item) => {
+      const priceNumber = parseAmountNumber(item.price);
+      const normalizedPrice = Number.isFinite(priceNumber) ? priceNumber : 0;
+      return {
+        id: item.id,
+        name: item.name,
+        icon: item.icon || '',
+        iconUrl: item.iconUrl || '',
+        price: Math.max(0, Math.floor(normalizedPrice)),
+        description: item.description || '',
+        effectLabel: item.effectLabel || '',
+        category: item.category || 'general',
+        categoryLabel:
+          item.categoryLabel ||
+          (item.category === 'general' ? '奇珍异宝' : '其他道具'),
+        categoryOrder: Number.isFinite(Number(item.categoryOrder))
+          ? Number(item.categoryOrder)
+          : null,
+        order: Number.isFinite(Number(item.order)) ? Number(item.order) : null
+      };
+    })
   };
 }
 
@@ -320,7 +375,9 @@ async function purchaseItem(openid, itemId, quantity = 1) {
     throw createError('INVALID_QUANTITY', '兑换数量无效');
   }
   const normalizedQuantity = Math.max(1, Math.floor(quantityNumber));
-  const totalCost = Math.max(0, Math.floor(Number(item.price) || 0)) * normalizedQuantity;
+  const priceNumber = parseAmountNumber(item.price);
+  const unitPrice = Number.isFinite(priceNumber) ? Math.max(0, Math.floor(priceNumber)) : 0;
+  const totalCost = unitPrice * normalizedQuantity;
   if (totalCost <= 0) {
     throw createError('INVALID_PRICE', '该道具暂无法兑换');
   }
@@ -333,7 +390,13 @@ async function purchaseItem(openid, itemId, quantity = 1) {
   const member = existing.data;
   const balance = resolveStoneBalance(member);
   if (balance < totalCost) {
-    throw createError('STONE_INSUFFICIENT', '灵石不足');
+    const error = createError(
+      'STONE_INSUFFICIENT',
+      `灵石不足（余额 ${balance}，需 ${totalCost}）`
+    );
+    error.balance = balance;
+    error.cost = totalCost;
+    throw error;
   }
 
   const updates = {
