@@ -50,6 +50,14 @@ const MALL_ITEMS = [
   }
 ];
 
+const CHINESE_UNIT_MULTIPLIERS = {
+  万亿: 1000000000000,
+  亿: 100000000,
+  万: 10000,
+  千: 1000,
+  百: 100
+};
+
 function parseAmountNumber(value) {
   if (value == null) {
     return NaN;
@@ -62,7 +70,27 @@ function parseAmountNumber(value) {
     if (!trimmed) {
       return 0;
     }
-    const sanitized = trimmed.replace(/[^0-9+.,-]/g, '').replace(/,/g, '');
+    const normalized = trimmed.replace(/[,，\s]/g, '');
+    const unitMatch = normalized.match(/([-+]?\d+(?:\.\d+)?)(万亿|亿|万|千|百)/);
+    if (unitMatch) {
+      const base = Number(unitMatch[1]);
+      const multiplier = CHINESE_UNIT_MULTIPLIERS[unitMatch[2]] || 1;
+      const result = base * multiplier;
+      if (Number.isFinite(result)) {
+        return result;
+      }
+    }
+    const numericMatch = normalized.match(/([-+]?\d+(?:\.\d+)?)/);
+    if (numericMatch) {
+      const numeric = Number(numericMatch[1]);
+      if (Number.isFinite(numeric)) {
+        return numeric;
+      }
+    }
+    const sanitized = normalized.replace(/[^0-9+.-]/g, '');
+    if (!sanitized) {
+      return 0;
+    }
     const parsed = Number(sanitized);
     return Number.isFinite(parsed) ? parsed : NaN;
   }
@@ -187,9 +215,11 @@ exports.main = async (event) => {
 };
 
 function createError(code, message) {
-  const error = new Error(message || '发生未知错误');
+  const finalMessage = message || '发生未知错误';
+  const error = new Error(finalMessage);
   error.code = code;
   error.errCode = code;
+  error.errMsg = finalMessage;
   return error;
 }
 
