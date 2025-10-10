@@ -33,24 +33,16 @@
       <view class="section-card role-attributes">
         <view class="section-header">
           <view class="section-title">角色属性</view>
-          <view
-            class="section-actions"
-            wx:if="{{profile.attributes && profile.attributes.attributePoints > 0}}"
-          >
+          <view class="section-actions" wx:if="{{profile.attributes}}">
+            <text class="section-actions__info">洗点次数 {{profile.attributes ? profile.attributes.respecAvailable : 0}}</text>
             <button
-              class="action-btn action-btn--ghost"
-              hover-class="action-btn--hover"
+              class="pill-btn pill-btn--ghost section-actions__button"
+              hover-class="pill-btn--hover"
               size="mini"
-              data-mode="single"
-              bindtap="handleAllocate"
-            >分配属性点</button>
-            <button
-              class="action-btn action-btn--primary"
-              hover-class="action-btn--primary-hover"
-              size="mini"
-              data-mode="auto"
-              bindtap="handleAllocate"
-            >均衡分配</button>
+              loading="{{resetting}}"
+              disabled="{{resetting || !(profile.attributes && profile.attributes.respecAvailable > 0)}}"
+              bindtap="handleResetAttributes"
+            >洗点</button>
           </view>
         </view>
         <view class="attr-list">
@@ -98,18 +90,24 @@
           <text>战力 {{profile.attributes ? profile.attributes.combatPower : '--'}}</text>
           <text>剩余属性点 {{attributeAllocationRemaining}}</text>
         </view>
-        <view class="attr-respec">
-          <view class="attr-respec__info">
-            <text>洗点次数 {{profile.attributes ? profile.attributes.respecAvailable : 0}}</text>
-          </view>
+        <view
+          class="attr-actions"
+          wx:if="{{profile.attributes && profile.attributes.attributePoints > 0}}"
+        >
           <button
-            class="pill-btn pill-btn--ghost attr-respec__button"
+            class="pill-btn pill-btn--ghost attr-actions__button"
             hover-class="pill-btn--hover"
             size="mini"
-            loading="{{resetting}}"
-            disabled="{{resetting || !(profile.attributes && profile.attributes.respecAvailable > 0)}}"
-            bindtap="handleResetAttributes"
-          >洗点</button>
+            data-mode="single"
+            bindtap="handleAllocate"
+          >分配属性点</button>
+          <button
+            class="pill-btn pill-btn--primary attr-actions__button"
+            hover-class="pill-btn--primary-hover"
+            size="mini"
+            data-mode="auto"
+            bindtap="handleAllocate"
+          >均衡分配</button>
         </view>
         <block
           wx:if="{{profile.attributes && profile.attributes.combatStats && profile.attributes.combatStats.length}}"

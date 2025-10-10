@@ -109,7 +109,17 @@ page {
 
 .section-actions {
   display: flex;
-  gap: 16rpx;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.section-actions__info {
+  font-size: 24rpx;
+  color: rgba(189, 203, 255, 0.82);
+}
+
+.section-actions__button {
+  min-width: 140rpx;
 }
 
 .section-actions__meta {
@@ -286,22 +296,16 @@ button.pill-btn[disabled] {
   font-size: 24rpx;
 }
 
-.attr-respec {
+.attr-actions {
   margin-top: 20rpx;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: 20rpx;
   flex-wrap: wrap;
 }
 
-.attr-respec__info {
-  font-size: 24rpx;
-  color: rgba(189, 203, 255, 0.82);
-  flex: 1;
-}
-
-.attr-respec__button {
+.attr-actions__button {
   min-width: 150rpx;
 }
 
