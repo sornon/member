@@ -51,7 +51,14 @@
             wx:for="{{(profile.attributes && profile.attributes.attributeList) || []}}"
             wx:key="key"
           >
-            <view class="attr-row__label">{{item.label}}</view>
+            <view
+              class="attr-row__label"
+              data-key="{{item.key}}"
+              data-label="{{item.label}}"
+              bindtap="handleAttributeLabelTap"
+            >
+              {{item.label}}
+            </view>
             <view class="attr-row__value">{{item.formattedValue}}</view>
             <view
               class="attr-row__controls"
@@ -609,6 +616,32 @@
         >
           <text wx:for="{{equipmentTooltip.equippedItem.notes}}" wx:key="index">{{item}}</text>
         </view>
+      </view>
+    </view>
+  </view>
+  <view wx:if="{{attributeDetailTooltip && attributeDetailTooltip.visible}}" class="attribute-tooltip">
+    <view class="attribute-tooltip__mask" catchtouchmove="noop" bindtap="closeAttributeDetailTooltip"></view>
+    <view class="attribute-tooltip__container" catchtouchmove="noop">
+      <view class="attribute-tooltip__card">
+        <view class="attribute-tooltip__header">
+          <text class="attribute-tooltip__title">{{attributeDetailTooltip.title}}</text>
+          <view
+            class="attribute-tooltip__close"
+            hover-class="attribute-tooltip__close--hover"
+            bindtap="closeAttributeDetailTooltip"
+          >
+            ✕
+          </view>
+        </view>
+        <scroll-view scroll-y="true" class="attribute-tooltip__content">
+          <view
+            wx:for="{{attributeDetailTooltip.paragraphs}}"
+            wx:key="index"
+            class="attribute-tooltip__paragraph"
+          >
+            {{item}}
+          </view>
+        </scroll-view>
       </view>
     </view>
   </view>
