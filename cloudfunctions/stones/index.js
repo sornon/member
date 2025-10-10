@@ -23,32 +23,101 @@ const MALL_ITEMS = [
     order: 1
   },
   {
-    id: 'rename_card_bundle_5',
-    name: '改名福袋（5 张）',
-    icon: '🎁',
-    price: 550,
-    description: '限时福袋，内含 5 张改名卡，比单买更划算。',
-    effectLabel: '兑换后 +5 张改名卡',
-    effects: { renameCards: 5 },
-    category: 'rename',
-    categoryLabel: '改名道具',
-    categoryOrder: 1,
-    order: 2
+    id: 'skill_draw_token_single',
+    name: '天衍符',
+    icon: '📜',
+    price: 5000,
+    description: '用于追加一次技能抽取机会，助你锁定心仪神通。',
+    effectLabel: '兑换后 +1 次技能抽取',
+    effects: { skillDrawCredits: 1 },
+    category: 'skill',
+    categoryLabel: '神通道具',
+    categoryOrder: 2,
+    order: 1
   },
   {
-    id: 'rename_card_bundle_10',
-    name: '改名福袋（10 张）',
-    icon: '💎',
-    price: 1080,
-    description: '尊享礼包，适合频繁焕新道号的高阶仙友。',
-    effectLabel: '兑换后 +10 张改名卡',
-    effects: { renameCards: 10 },
-    category: 'rename',
-    categoryLabel: '改名道具',
-    categoryOrder: 1,
-    order: 3
+    id: 'attribute_respec_card_single',
+    name: '属性遗忘卡',
+    icon: '🧠',
+    price: 2000,
+    description: '重置属性配置的必备道具，兑换后可额外获得一次洗点机会。',
+    effectLabel: '兑换后 +1 次洗点机会',
+    effects: { respecAvailable: 1 },
+    category: 'attribute',
+    categoryLabel: '修行辅助',
+    categoryOrder: 3,
+    order: 1
   }
 ];
+
+function normalizeEffectAmount(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(numeric));
+}
+
+function ensurePlainObject(value) {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+  return { ...value };
+}
+
+function ensurePveProfile(profile) {
+  const base = ensurePlainObject(profile);
+  base.skills = ensurePlainObject(base.skills);
+  base.attributes = ensurePlainObject(base.attributes);
+  return base;
+}
+
+function applyMallProfileEffects(member, effects, quantity) {
+  if (!effects || typeof effects !== 'object') {
+    return null;
+  }
+
+  const normalizedQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
+  const skillDrawIncrease = normalizeEffectAmount(effects.skillDrawCredits) * normalizedQuantity;
+  const respecIncrease = normalizeEffectAmount(effects.respecAvailable) * normalizedQuantity;
+
+  if (skillDrawIncrease <= 0 && respecIncrease <= 0) {
+    return null;
+  }
+
+  const profile = ensurePveProfile(member && member.pveProfile);
+  let changed = false;
+
+  if (skillDrawIncrease > 0) {
+    const skills = ensurePlainObject(profile.skills);
+    const currentCredits = Math.max(0, Math.floor(Number(skills.drawCredits) || 0));
+    const nextCredits = currentCredits + skillDrawIncrease;
+    if (nextCredits !== currentCredits) {
+      skills.drawCredits = nextCredits;
+      profile.skills = skills;
+      changed = true;
+    }
+  }
+
+  if (respecIncrease > 0) {
+    const attributes = ensurePlainObject(profile.attributes);
+    const currentAvailable = Math.max(0, Math.floor(Number(attributes.respecAvailable) || 0));
+    const legacyLimit = Math.max(0, Math.floor(Number(attributes.respecLimit) || 0));
+    const legacyUsed = Math.max(0, Math.floor(Number(attributes.respecUsed) || 0));
+    const legacyAvailable = Math.max(legacyLimit - Math.min(legacyLimit, legacyUsed), 0);
+    const baseAvailable = Math.max(currentAvailable, legacyAvailable);
+    const nextAvailable = baseAvailable + respecIncrease;
+    if (nextAvailable !== baseAvailable || attributes.respecLimit || attributes.respecUsed) {
+      attributes.respecAvailable = nextAvailable;
+      attributes.respecLimit = 0;
+      attributes.respecUsed = 0;
+      profile.attributes = attributes;
+      changed = true;
+    }
+  }
+
+  return changed ? profile : null;
+}
 
 exports.main = async (event) => {
   const { OPENID } = cloud.getWXContext();
@@ -277,6 +346,11 @@ async function purchaseItem(openid, itemId, quantity = 1) {
     if (renameAmount > 0) {
       updates.renameCards = _.inc(renameAmount * normalizedQuantity);
     }
+  }
+
+  const profileWithEffects = applyMallProfileEffects(member, item.effects, normalizedQuantity);
+  if (profileWithEffects) {
+    updates.pveProfile = _.set(profileWithEffects);
   }
 
   await membersCollection.doc(openid).update({
