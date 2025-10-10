@@ -236,7 +236,7 @@ button.pill-btn[disabled] {
 }
 
 .attr-control {
-  width: 44rpx;
+  width: 44rpx!important;
   height: 44rpx;
   border-radius: 50%;
   border: 1rpx solid rgba(103, 128, 228, 0.6);
