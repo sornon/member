@@ -204,17 +204,16 @@ button.pill-btn[disabled] {
 
 
 .attr-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12rpx;
   margin-top: 12rpx;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx 16rpx;
 }
 
 .attr-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  display: flex;
   align-items: center;
-  gap: 16rpx;
+  gap: 20rpx;
   font-size: 26rpx;
   color: rgba(215, 224, 255, 0.88);
 }
@@ -223,16 +222,18 @@ button.pill-btn[disabled] {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 30rpx;
+  font-weight: 600;
   color: rgba(192, 205, 255, 0.85);
+  flex-shrink: 0;
 }
 
 .attr-row__value {
-  justify-self: end;
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: 24rpx;
+  font-weight: 500;
   color: #f1f4ff;
-  min-width: 96rpx;
-  text-align: right;
+  min-width: 50rpx;
+  text-align: left;
 }
 
 .attr-row__controls {
@@ -269,7 +270,7 @@ button.pill-btn[disabled] {
 }
 
 .attr-input {
-  width: 90rpx;
+  width: 50rpx;
   height: 44rpx;
   border-radius: 12rpx;
   border: 1rpx solid rgba(103, 128, 228, 0.6);
@@ -307,9 +308,9 @@ button.pill-btn[disabled] {
 
 .subsection-title {
   margin-top: 24rpx;
-  font-size: 24rpx;
-  font-weight: 600;
-  color: rgba(186, 200, 255, 0.75);
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #f3f6ff;
 }
 
 .combat-grid {
@@ -327,7 +328,8 @@ button.pill-btn[disabled] {
 }
 
 .combat-label {
-  font-size: 20rpx;
+  font-size: 26rpx;
+  font-weight: 600;
   color: rgba(190, 204, 255, 0.72);
   white-space: nowrap;
   overflow: hidden;
@@ -335,8 +337,7 @@ button.pill-btn[disabled] {
 }
 
 .combat-value {
-  font-size: 26rpx;
-  font-weight: 600;
+  font-size: 20rpx;
   color: #f1f4ff;
   white-space: nowrap;
   overflow: hidden;
