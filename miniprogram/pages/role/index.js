@@ -152,6 +152,38 @@ function finalizeStorageMeta(meta, categories) {
 }
 
 const ALLOCATABLE_KEYS = ['constitution', 'strength', 'spirit', 'root', 'agility', 'insight'];
+const ATTRIBUTE_DETAIL_MAP = {
+  constitution: {
+    title: '体质',
+    content:
+      '奠定生命与最终减伤的底座，直接提升基础生命值并与根骨共同提高最终减伤上限。\n\n体质越高，角色的生存能力、治疗承受与持久战表现越稳定。'
+  },
+  strength: {
+    title: '力量',
+    content:
+      '专注物理输出，提升物理攻击力并带来少量物理防御成长，可转化为破甲削减敌方护甲。\n\n适合依赖近战或物理技能的流派，能够显著提高持续输出效率。'
+  },
+  spirit: {
+    title: '灵力',
+    content:
+      '加强法术输出与治疗效果，直接提升法术攻击与治疗强化，同时换算为法术穿透与控制命中。\n\n适合法术或辅助型流派，保证爆发与团队回复能力。'
+  },
+  root: {
+    title: '根骨',
+    content:
+      '提供物理与法术双防并提升控制抗性，与体质共同决定最终减伤上限。\n\n根骨越高，越能抵挡强敌的持续打击并减少被控制的风险。'
+  },
+  agility: {
+    title: '敏捷',
+    content:
+      '主导行动速度与闪避值，决定出手顺序并降低被命中的概率。\n\n在持久战或需要抢先手的场景中，敏捷是提高生存率与节奏掌控的关键。'
+  },
+  insight: {
+    title: '悟性',
+    content:
+      '带来命中、暴击率与暴击伤害，同时提升控制命中。\n\n悟性还会提高灵石收益与装备、技能的掉落概率，是拓展资源获取的核心属性。'
+  }
+};
 const STORAGE_CATEGORY_ORDER = ['equipment', 'quest', 'material', 'consumable'];
 const STORAGE_CATEGORY_LABELS = {
   equipment: '装备',
@@ -1553,6 +1585,20 @@ Page({
   },
 
   noop() {},
+
+  handleAttributeLabelLongPress(event) {
+    const { key, label } = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    if (!key || !ATTRIBUTE_DETAIL_MAP[key] || !ATTRIBUTE_DETAIL_MAP[key].content) {
+      return;
+    }
+    const detail = ATTRIBUTE_DETAIL_MAP[key];
+    wx.showModal({
+      title: detail.title || label || '属性说明',
+      content: detail.content,
+      showCancel: false,
+      confirmColor: '#566ed2'
+    });
+  },
 
   handleSubmitAllocations() {
     const profile = this.data.profile;

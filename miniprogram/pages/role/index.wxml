@@ -51,7 +51,14 @@
             wx:for="{{(profile.attributes && profile.attributes.attributeList) || []}}"
             wx:key="key"
           >
-            <view class="attr-row__label">{{item.label}}</view>
+            <view
+              class="attr-row__label"
+              data-key="{{item.key}}"
+              data-label="{{item.label}}"
+              bindlongpress="handleAttributeLabelLongPress"
+            >
+              {{item.label}}
+            </view>
             <view class="attr-row__value">{{item.formattedValue}}</view>
             <view
               class="attr-row__controls"
