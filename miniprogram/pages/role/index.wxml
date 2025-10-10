@@ -55,7 +55,7 @@
               class="attr-row__label"
               data-key="{{item.key}}"
               data-label="{{item.label}}"
-              bindlongpress="handleAttributeLabelLongPress"
+              bindtap="handleAttributeLabelTap"
             >
               {{item.label}}
             </view>

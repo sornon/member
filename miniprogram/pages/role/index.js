@@ -1587,7 +1587,7 @@ Page({
 
   noop() {},
 
-  handleAttributeLabelLongPress(event) {
+  handleAttributeLabelTap(event) {
     const { key, label } = (event && event.currentTarget && event.currentTarget.dataset) || {};
     if (!key || !ATTRIBUTE_DETAIL_MAP[key] || !ATTRIBUTE_DETAIL_MAP[key].content) {
       return;
