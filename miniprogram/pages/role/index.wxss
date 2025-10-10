@@ -215,46 +215,87 @@ button.pill-btn[disabled] {
   gap: 6rpx;
 }
 
-.level-realm {
+.attr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-top: 12rpx;
+}
+
+.attr-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18rpx 20rpx;
+  border-radius: 16rpx;
+  background: rgba(21, 33, 80, 0.78);
+  border: 1rpx solid rgba(93, 119, 214, 0.28);
+}
+
+.attr-row__info {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.attr-row__label {
   font-size: 24rpx;
-  color: rgba(196, 206, 255, 0.8);
+  color: rgba(195, 206, 255, 0.75);
 }
 
-.level-next {
-  font-size: 22rpx;
-  color: rgba(207, 218, 255, 0.78);
-}
-
-.attr-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24rpx;
-  margin-top: 0;
-}
-
-.attr-item {
-  background: rgba(21, 33, 80, 0.86);
-  border-radius: 20rpx;
-  padding: 24rpx;
-  border: 1rpx solid rgba(93, 119, 214, 0.32);
-  color: #f1f4ff;
-}
-
-.attr-label {
-  font-size: 26rpx;
-  color: rgba(195, 206, 255, 0.78);
-}
-
-.attr-value {
-  font-size: 40rpx;
-  font-weight: 700;
+.attr-row__value {
+  font-size: 32rpx;
+  font-weight: 600;
   color: #d6deff;
-  margin: 12rpx 0;
 }
 
-.attr-detail {
-  font-size: 22rpx;
-  color: rgba(204, 214, 255, 0.78);
+.attr-row__controls {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.attr-control {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 12rpx;
+  border: 1rpx solid rgba(103, 128, 228, 0.6);
+  background: rgba(18, 28, 70, 0.9);
+  color: #dfe6ff;
+  font-size: 32rpx;
+  line-height: 54rpx;
+  text-align: center;
+  padding: 0;
+}
+
+.attr-control::after {
+  display: none;
+}
+
+.attr-control--minus {
+  color: rgba(220, 164, 182, 0.9);
+  border-color: rgba(220, 164, 182, 0.5);
+}
+
+.attr-control--plus {
+  color: rgba(164, 214, 220, 0.9);
+  border-color: rgba(164, 214, 220, 0.5);
+}
+
+.attr-input {
+  width: 120rpx;
+  height: 56rpx;
+  border-radius: 12rpx;
+  border: 1rpx solid rgba(103, 128, 228, 0.6);
+  background: rgba(10, 16, 40, 0.9);
+  color: #f5f7ff;
+  font-size: 28rpx;
+  text-align: center;
+  padding: 0 12rpx;
+}
+
+.attr-input::placeholder {
+  color: rgba(168, 184, 241, 0.5);
 }
 
 .attr-extra {
@@ -294,33 +335,33 @@ button.pill-btn[disabled] {
 .combat-grid {
   margin-top: 16rpx;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24rpx;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16rpx 12rpx;
 }
 
 .combat-item {
-  background: rgba(18, 28, 70, 0.86);
-  border-radius: 20rpx;
-  padding: 24rpx;
-  border: 1rpx solid rgba(86, 112, 210, 0.32);
-  color: #eff3ff;
+  background: rgba(18, 28, 70, 0.78);
+  border-radius: 14rpx;
+  padding: 16rpx;
+  border: 1rpx solid rgba(86, 112, 210, 0.28);
+  color: #eef2ff;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
 }
 
 .combat-label {
-  font-size: 26rpx;
-  color: rgba(195, 206, 255, 0.76);
+  font-size: 22rpx;
+  color: rgba(195, 206, 255, 0.72);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .combat-value {
-  font-size: 36rpx;
-  font-weight: 700;
+  font-size: 30rpx;
+  font-weight: 600;
   color: #d6deff;
-  margin: 10rpx 0;
-}
-
-.combat-detail {
-  font-size: 22rpx;
-  color: rgba(204, 214, 255, 0.75);
 }
 
 

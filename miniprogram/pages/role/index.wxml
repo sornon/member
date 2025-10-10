@@ -58,33 +58,54 @@
             <view class="level-name">
               {{profile.attributes ? profile.attributes.levelLabel : '--'}}
             </view>
-            <view
-              class="level-realm"
-              wx:if="{{profile.attributes && profile.attributes.realmName}}"
-            >
-              所属境界：{{profile.attributes.realmName}}
-            </view>
-            <view
-              class="level-next"
-              wx:if="{{profile.attributes && profile.attributes.nextLevelLabel}}"
-            >
-              下一阶段：{{profile.attributes.nextLevelLabel}}
-            </view>
           </view>
         </view>
-        <view class="attr-grid">
-          <view class="attr-item" wx:for="{{(profile.attributes && profile.attributes.attributeList) || []}}" wx:key="key">
-            <view class="attr-label">{{item.label}}</view>
-            <view class="attr-value">{{item.formattedValue}}</view>
-            <view class="attr-detail">
-              基础 {{item.formattedBase}} · 装备 {{item.formattedEquipment}}
-              <text wx:if="{{item.formattedSkill}}"> · 技能 {{item.formattedSkill}}</text>
+        <view class="attr-list">
+          <view
+            class="attr-row"
+            wx:for="{{(profile.attributes && profile.attributes.attributeList) || []}}"
+            wx:key="key"
+          >
+            <view class="attr-row__info">
+              <view class="attr-row__label">{{item.label}}</view>
+              <view class="attr-row__value">{{item.formattedValue}}</view>
+            </view>
+            <view
+              class="attr-row__controls"
+              wx:if="{{profile.attributes && profile.attributes.attributePoints > 0 && attributeAllocationEnabled[item.key]}}"
+            >
+              <button
+                class="attr-control attr-control--minus"
+                data-key="{{item.key}}"
+                data-direction="decrease"
+                bindtap="handleAttributeAdjustTap"
+                bindtouchstart="handleAttributeAdjustTouchStart"
+                bindtouchend="handleAttributeAdjustTouchEnd"
+                bindtouchcancel="handleAttributeAdjustTouchEnd"
+              >-</button>
+              <input
+                class="attr-input"
+                type="number"
+                placeholder="0"
+                value="{{attributeAdjustments[item.key] !== undefined ? attributeAdjustments[item.key] : ''}}"
+                data-key="{{item.key}}"
+                bindinput="handleAttributeInput"
+              />
+              <button
+                class="attr-control attr-control--plus"
+                data-key="{{item.key}}"
+                data-direction="increase"
+                bindtap="handleAttributeAdjustTap"
+                bindtouchstart="handleAttributeAdjustTouchStart"
+                bindtouchend="handleAttributeAdjustTouchEnd"
+                bindtouchcancel="handleAttributeAdjustTouchEnd"
+              >+</button>
             </view>
           </view>
         </view>
         <view class="attr-extra">
           <text>战力 {{profile.attributes ? profile.attributes.combatPower : '--'}}</text>
-          <text>剩余属性点 {{profile.attributes ? profile.attributes.attributePoints : 0}}</text>
+          <text>剩余属性点 {{attributeAllocationRemaining}}</text>
         </view>
         <view class="attr-respec">
           <view class="attr-respec__info">
@@ -102,16 +123,11 @@
         <block
           wx:if="{{profile.attributes && profile.attributes.combatStats && profile.attributes.combatStats.length}}"
         >
-          <view class="subsection-title">战斗属性映射</view>
+          <view class="subsection-title">战斗属性详情</view>
           <view class="combat-grid">
             <view class="combat-item" wx:for="{{profile.attributes.combatStats}}" wx:key="key">
               <view class="combat-label">{{item.label}}</view>
               <view class="combat-value">{{item.formattedValue}}</view>
-              <view class="combat-detail">
-                基础 {{item.formattedBase}} · 装备 {{item.formattedEquipment}}
-                <text wx:if="{{item.formattedSkill}}"> · 技能 {{item.formattedSkill}}</text>
-                <text wx:if="{{item.formattedMultiplier}}"> · 加成 {{item.formattedMultiplier}}</text>
-              </view>
             </view>
           </view>
         </block>
