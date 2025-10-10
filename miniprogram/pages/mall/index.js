@@ -81,11 +81,31 @@ Page({
     this.setData({ submittingId: id });
     try {
       const result = await StoneService.purchase(id, 1);
-      if (result && result.summary) {
-        this.applySummary(result.summary);
+      const summary = result && result.summary;
+      if (summary) {
+        this.applySummary(summary);
       } else {
         const nextBalance = Math.max(this.data.stoneBalance - item.price, 0);
         this.applySummary({ balance: nextBalance, stoneBalance: nextBalance });
+      }
+      if (!result || result.success === false) {
+        const balanceSource = summary || result || {};
+        const resolvedBalance = Number(
+          balanceSource.balance ?? balanceSource.stoneBalance ?? this.data.stoneBalance
+        );
+        const normalizedBalance = Number.isFinite(resolvedBalance)
+          ? Math.max(Math.floor(resolvedBalance), 0)
+          : this.data.stoneBalance;
+        const resolvedCost = Number((result && result.cost) || item.price || 0);
+        const normalizedCost = Number.isFinite(resolvedCost)
+          ? Math.max(Math.floor(resolvedCost), 0)
+          : item.price;
+        const shortfall = Math.max(normalizedCost - normalizedBalance, 0);
+        const message =
+          (result && result.message) ||
+          (shortfall > 0 ? `灵石不足，还差${shortfall}灵石` : '灵石不足，无法兑换');
+        wx.showToast({ title: message, icon: 'none' });
+        return;
       }
       if (this.data.detailItem && this.data.detailItem.id === id) {
         this.setData({ showDetail: false, detailItem: null });

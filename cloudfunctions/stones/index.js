@@ -420,13 +420,24 @@ async function purchaseItem(openid, itemId, quantity = 1) {
   const member = existing.data;
   const balance = resolveStoneBalance(member);
   if (balance < totalCost) {
-    const error = createError(
-      'STONE_INSUFFICIENT',
-      `灵石不足（余额 ${balance}，需 ${totalCost}）`
-    );
-    error.balance = balance;
-    error.cost = totalCost;
-    throw error;
+    const shortfall = Math.max(totalCost - balance, 0);
+    return {
+      success: false,
+      code: 'STONE_INSUFFICIENT',
+      message: '灵石不足，无法兑换该道具',
+      item: {
+        id: item.id,
+        name: item.name
+      },
+      quantity: normalizedQuantity,
+      balance,
+      cost: totalCost,
+      shortfall,
+      summary: {
+        stoneBalance: balance,
+        balance
+      }
+    };
   }
 
   const updates = {
