@@ -30,88 +30,85 @@
   <view wx:if="{{loading}}" class="loading">灵气汇聚中...</view>
   <scroll-view wx:elif="{{profile}}" scroll-y="true" class="scroll-container">
     <block wx:if="{{activeTab === 'character'}}">
-      <view class="section-card">
+      <view class="section-card role-attributes">
         <view class="section-header">
           <view class="section-title">角色属性</view>
+          <view class="section-actions" wx:if="{{profile.attributes}}">
+            <text class="section-actions__info">洗点次数 {{profile.attributes ? profile.attributes.respecAvailable : 0}}</text>
+            <button
+              class="pill-btn pill-btn--ghost section-actions__button"
+              hover-class="pill-btn--hover"
+              size="mini"
+              loading="{{resetting}}"
+              disabled="{{resetting || !(profile.attributes && profile.attributes.respecAvailable > 0)}}"
+              bindtap="handleResetAttributes"
+            >洗点</button>
+          </view>
+        </view>
+        <view class="attr-list">
           <view
-            class="section-actions"
-            wx:if="{{profile.attributes && profile.attributes.attributePoints > 0}}"
+            class="attr-row"
+            wx:for="{{(profile.attributes && profile.attributes.attributeList) || []}}"
+            wx:key="key"
           >
-            <button
-              class="action-btn action-btn--ghost"
-              hover-class="action-btn--hover"
-              size="mini"
-              data-mode="single"
-              bindtap="handleAllocate"
-            >分配属性点</button>
-            <button
-              class="action-btn action-btn--primary"
-              hover-class="action-btn--primary-hover"
-              size="mini"
-              data-mode="auto"
-              bindtap="handleAllocate"
-            >均衡分配</button>
-          </view>
-        </view>
-        <view class="level-line">
-          <view class="level-stack">
-            <view class="level-name">
-              {{profile.attributes ? profile.attributes.levelLabel : '--'}}
-            </view>
+            <view class="attr-row__label">{{item.label}}</view>
+            <view class="attr-row__value">{{item.formattedValue}}</view>
             <view
-              class="level-realm"
-              wx:if="{{profile.attributes && profile.attributes.realmName}}"
+              class="attr-row__controls"
+              wx:if="{{profile.attributes && profile.attributes.attributePoints > 0 && attributeAllocationEnabled[item.key]}}"
             >
-              所属境界：{{profile.attributes.realmName}}
-            </view>
-            <view
-              class="level-next"
-              wx:if="{{profile.attributes && profile.attributes.nextLevelLabel}}"
-            >
-              下一阶段：{{profile.attributes.nextLevelLabel}}
-            </view>
-          </view>
-        </view>
-        <view class="attr-grid">
-          <view class="attr-item" wx:for="{{(profile.attributes && profile.attributes.attributeList) || []}}" wx:key="key">
-            <view class="attr-label">{{item.label}}</view>
-            <view class="attr-value">{{item.formattedValue}}</view>
-            <view class="attr-detail">
-              基础 {{item.formattedBase}} · 装备 {{item.formattedEquipment}}
-              <text wx:if="{{item.formattedSkill}}"> · 技能 {{item.formattedSkill}}</text>
+              <button
+                class="attr-control attr-control--minus"
+                data-key="{{item.key}}"
+                data-direction="decrease"
+                bindtap="handleAttributeAdjustTap"
+                bindtouchstart="handleAttributeAdjustTouchStart"
+                bindtouchend="handleAttributeAdjustTouchEnd"
+                bindtouchcancel="handleAttributeAdjustTouchEnd"
+              >-</button>
+              <input
+                class="attr-input"
+                type="number"
+                placeholder="0"
+                value="{{attributeAdjustments[item.key] !== undefined ? attributeAdjustments[item.key] : ''}}"
+                data-key="{{item.key}}"
+                bindinput="handleAttributeInput"
+              />
+              <button
+                class="attr-control attr-control--plus"
+                data-key="{{item.key}}"
+                data-direction="increase"
+                bindtap="handleAttributeAdjustTap"
+                bindtouchstart="handleAttributeAdjustTouchStart"
+                bindtouchend="handleAttributeAdjustTouchEnd"
+                bindtouchcancel="handleAttributeAdjustTouchEnd"
+              >+</button>
             </view>
           </view>
         </view>
         <view class="attr-extra">
           <text>战力 {{profile.attributes ? profile.attributes.combatPower : '--'}}</text>
-          <text>剩余属性点 {{profile.attributes ? profile.attributes.attributePoints : 0}}</text>
+          <text>剩余属性点 {{attributeAllocationRemaining}}</text>
         </view>
-        <view class="attr-respec">
-          <view class="attr-respec__info">
-            <text>洗点次数 {{profile.attributes ? profile.attributes.respecAvailable : 0}}</text>
-          </view>
+        <view
+          class="attr-actions"
+          wx:if="{{profile.attributes && profile.attributes.attributePoints > 0}}"
+        >
           <button
-            class="pill-btn pill-btn--ghost attr-respec__button"
-            hover-class="pill-btn--hover"
+            class="pill-btn pill-btn--primary attr-actions__button"
+            hover-class="pill-btn--primary-hover"
             size="mini"
-            loading="{{resetting}}"
-            disabled="{{resetting || !(profile.attributes && profile.attributes.respecAvailable > 0)}}"
-            bindtap="handleResetAttributes"
-          >洗点</button>
+            bindtap="handleSubmitAllocations"
+          >确定</button>
         </view>
         <block
           wx:if="{{profile.attributes && profile.attributes.combatStats && profile.attributes.combatStats.length}}"
         >
-          <view class="subsection-title">战斗属性映射</view>
+          <view class="subsection-title">战斗属性详情</view>
           <view class="combat-grid">
             <view class="combat-item" wx:for="{{profile.attributes.combatStats}}" wx:key="key">
               <view class="combat-label">{{item.label}}</view>
               <view class="combat-value">{{item.formattedValue}}</view>
-              <view class="combat-detail">
-                基础 {{item.formattedBase}} · 装备 {{item.formattedEquipment}}
-                <text wx:if="{{item.formattedSkill}}"> · 技能 {{item.formattedSkill}}</text>
-                <text wx:if="{{item.formattedMultiplier}}"> · 加成 {{item.formattedMultiplier}}</text>
-              </view>
             </view>
           </view>
         </block>
