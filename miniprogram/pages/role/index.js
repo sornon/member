@@ -297,10 +297,15 @@ Page({
     activeStorageCategory: 'equipment',
     activeStorageCategoryData: null,
     activeStorageCategoryIndex: -1,
-    storageUpgrading: false
+    storageUpgrading: false,
+    attributeAdjustments: {},
+    attributeAllocationTotal: 0,
+    attributeAllocationRemaining: 0,
+    attributeAllocationEnabled: {}
   },
 
   applyProfile(profile, extraState = {}, options = {}) {
+    this.clearAllAttributeAdjustTimers();
     const sanitizedProfile = sanitizeEquipmentProfile(profile);
     syncRolePendingAttributes(sanitizedProfile);
     syncStorageBadgeStateFromProfile(sanitizedProfile);
@@ -316,7 +321,29 @@ Page({
     if (options && options.preserveSkillDrawCredits && skillDrawCredits > previousCredits) {
       skillDrawCredits = previousCredits;
     }
-    const updates = { ...extraState, profile: sanitizedProfile, ...storageState, skillDrawCredits };
+    const attributes =
+      sanitizedProfile && sanitizedProfile.attributes && typeof sanitizedProfile.attributes === 'object'
+        ? sanitizedProfile.attributes
+        : null;
+    const attributePoints = attributes ? Math.max(0, Number(attributes.attributePoints) || 0) : 0;
+    const allocationEnabled = {};
+    if (attributes && Array.isArray(attributes.attributeList)) {
+      attributes.attributeList.forEach((attr) => {
+        if (attr && ALLOCATABLE_KEYS.includes(attr.key)) {
+          allocationEnabled[attr.key] = true;
+        }
+      });
+    }
+    const updates = {
+      ...extraState,
+      profile: sanitizedProfile,
+      ...storageState,
+      skillDrawCredits,
+      attributeAdjustments: {},
+      attributeAllocationTotal: 0,
+      attributeAllocationRemaining: attributePoints,
+      attributeAllocationEnabled: allocationEnabled
+    };
     const tooltip = this.data ? this.data.equipmentTooltip : null;
     if (tooltip && tooltip.item) {
       const itemId = tooltip.item.itemId;
@@ -639,6 +666,8 @@ Page({
 
   onLoad(options = {}) {
     this.tooltipLock = null;
+    this.attributeAdjustTimers = {};
+    this.attributeAdjustTapSuppress = {};
     const initialTab = this.normalizeTab(options.tab);
     if (initialTab) {
       this.setData({ activeTab: initialTab });
@@ -648,6 +677,14 @@ Page({
   onShow() {
     this.fetchProfile();
     this.refreshStoneBalance();
+  },
+
+  onHide() {
+    this.clearAllAttributeAdjustTimers();
+  },
+
+  onUnload() {
+    this.clearAllAttributeAdjustTimers();
   },
 
   onPullDownRefresh() {
@@ -1517,33 +1554,195 @@ Page({
 
   noop() {},
 
-  handleAllocate(event) {
-    const mode = event.currentTarget.dataset.mode;
-    if (mode === 'auto') {
-      this.autoAllocate();
+  handleSubmitAllocations() {
+    const profile = this.data.profile;
+    if (!profile || !profile.attributes) {
+      wx.showToast({ title: '暂无角色属性', icon: 'none' });
       return;
     }
-    const profile = this.data.profile;
-    if (!profile || !profile.attributes || profile.attributes.attributePoints <= 0) {
+    const available = Math.max(0, Number(profile.attributes.attributePoints) || 0);
+    if (available <= 0) {
       wx.showToast({ title: '暂无可用属性点', icon: 'none' });
       return;
     }
-    const options = (profile.attributes.attributeList || []).filter((item) =>
-      ALLOCATABLE_KEYS.includes(item.key)
-    );
-    if (!options.length) {
-      wx.showToast({ title: '暂无可分配属性', icon: 'none' });
-      return;
-    }
-    wx.showActionSheet({
-      itemList: options.map((item) => `${item.label} +${item.step}`),
-      success: ({ tapIndex }) => {
-        const target = options[tapIndex];
-        if (target) {
-          this.allocatePoints({ [target.key]: 1 });
-        }
+    const adjustments = this.data.attributeAdjustments || {};
+    const allocations = {};
+    Object.keys(adjustments).forEach((key) => {
+      const value = Math.max(0, Math.floor(Number(adjustments[key]) || 0));
+      if (value > 0) {
+        allocations[key] = value;
       }
     });
+    if (!Object.keys(allocations).length) {
+      wx.showToast({ title: '请先设置分配点数', icon: 'none' });
+      return;
+    }
+    const total = Object.keys(allocations).reduce((sum, attrKey) => sum + allocations[attrKey], 0);
+    if (total > available) {
+      wx.showToast({ title: '分配点数超过可用上限', icon: 'none' });
+      return;
+    }
+    this.clearAllAttributeAdjustTimers();
+    this.allocatePoints(allocations);
+  },
+
+  updateAttributeAdjustments(key, value) {
+    if (!key || !ALLOCATABLE_KEYS.includes(key)) {
+      return;
+    }
+    const profile = this.data.profile;
+    if (!profile || !profile.attributes) {
+      return;
+    }
+    const available = Math.max(0, Number(profile.attributes.attributePoints) || 0);
+    const adjustments = { ...(this.data.attributeAdjustments || {}) };
+    const sanitized = Math.max(0, Math.floor(Number(value) || 0));
+    const keys = Object.keys(adjustments);
+    let totalOthers = 0;
+    keys.forEach((attrKey) => {
+      if (attrKey !== key) {
+        const current = Math.max(0, Math.floor(Number(adjustments[attrKey]) || 0));
+        totalOthers += current;
+      }
+    });
+    const remaining = Math.max(0, available - totalOthers);
+    let clamped = sanitized;
+    if (clamped > remaining) {
+      clamped = remaining;
+    }
+    if (clamped <= 0) {
+      delete adjustments[key];
+    } else {
+      adjustments[key] = clamped;
+    }
+    const total = Object.keys(adjustments).reduce((sum, attrKey) => {
+      const current = Math.max(0, Math.floor(Number(adjustments[attrKey]) || 0));
+      return sum + current;
+    }, 0);
+    const leftover = Math.max(0, available - total);
+    this.setData({
+      attributeAdjustments: adjustments,
+      attributeAllocationTotal: total,
+      attributeAllocationRemaining: leftover
+    });
+  },
+
+  adjustAttributeByDelta(key, delta) {
+    if (!key || !delta || !ALLOCATABLE_KEYS.includes(key)) {
+      return;
+    }
+    const adjustments = this.data.attributeAdjustments || {};
+    const current = Math.max(0, Math.floor(Number(adjustments[key]) || 0));
+    const next = Math.max(0, current + delta);
+    this.updateAttributeAdjustments(key, next);
+  },
+
+  handleAttributeAdjustTap(event) {
+    const { key, direction } = event.currentTarget.dataset || {};
+    if (!key || !direction || !ALLOCATABLE_KEYS.includes(key)) {
+      return;
+    }
+    if (this.attributeAdjustTapSuppress && this.attributeAdjustTapSuppress[key]) {
+      const expire = this.attributeAdjustTapSuppress[key];
+      if (Date.now() < expire) {
+        return;
+      }
+      delete this.attributeAdjustTapSuppress[key];
+    }
+    const state = this.attributeAdjustTimers && this.attributeAdjustTimers[key];
+    if (state && state.active) {
+      return;
+    }
+    const delta = direction === 'increase' ? 1 : -1;
+    this.adjustAttributeByDelta(key, delta);
+  },
+
+  handleAttributeInput(event) {
+    const { key } = event.currentTarget.dataset || {};
+    if (!key || !ALLOCATABLE_KEYS.includes(key)) {
+      return;
+    }
+    const value = event && event.detail ? event.detail.value : '';
+    if (value === '') {
+      this.updateAttributeAdjustments(key, 0);
+      return;
+    }
+    this.updateAttributeAdjustments(key, value);
+  },
+
+  handleAttributeAdjustTouchStart(event) {
+    const { key, direction } = event.currentTarget.dataset || {};
+    if (!key || !direction || !ALLOCATABLE_KEYS.includes(key)) {
+      return;
+    }
+    if (!this.attributeAdjustTimers) {
+      this.attributeAdjustTimers = {};
+    }
+    this.clearAttributeAdjustTimer(key);
+    const delta = direction === 'increase' ? 1 : -1;
+    const startTime = Date.now();
+    const state = {
+      direction,
+      delta,
+      startTime,
+      active: false,
+      timeout: null,
+      timer: null
+    };
+    state.timeout = setTimeout(() => {
+      state.active = true;
+      this.adjustAttributeByDelta(key, delta);
+      state.timer = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const step = elapsed >= 5000 ? delta * 5 : delta;
+        this.adjustAttributeByDelta(key, step);
+      }, 200);
+    }, 400);
+    this.attributeAdjustTimers[key] = state;
+  },
+
+  handleAttributeAdjustTouchEnd(event) {
+    const { key } = event.currentTarget.dataset || {};
+    if (!key || !ALLOCATABLE_KEYS.includes(key)) {
+      return;
+    }
+    const state = this.attributeAdjustTimers ? this.attributeAdjustTimers[key] : null;
+    const wasActive = state && state.active;
+    this.clearAttributeAdjustTimer(key);
+    if (wasActive) {
+      if (!this.attributeAdjustTapSuppress) {
+        this.attributeAdjustTapSuppress = {};
+      }
+      this.attributeAdjustTapSuppress[key] = Date.now() + 250;
+    }
+  },
+
+  clearAttributeAdjustTimer(key) {
+    if (!this.attributeAdjustTimers) {
+      this.attributeAdjustTimers = {};
+    }
+    const state = this.attributeAdjustTimers[key];
+    if (!state) {
+      return;
+    }
+    if (state.timeout) {
+      clearTimeout(state.timeout);
+    }
+    if (state.timer) {
+      clearInterval(state.timer);
+    }
+    delete this.attributeAdjustTimers[key];
+  },
+
+  clearAllAttributeAdjustTimers() {
+    if (this.attributeAdjustTimers) {
+      const keys = Object.keys(this.attributeAdjustTimers);
+      keys.forEach((key) => {
+        this.clearAttributeAdjustTimer(key);
+      });
+    }
+    this.attributeAdjustTimers = {};
+    this.attributeAdjustTapSuppress = {};
   },
 
   handleResetAttributes() {
@@ -1586,33 +1785,6 @@ Page({
       wx.showToast({ title: error.errMsg || '洗点失败', icon: 'none' });
       this.setData({ resetting: false });
     }
-  },
-
-  async autoAllocate() {
-    const profile = this.data.profile;
-    if (!profile || !profile.attributes) return;
-    const points = Number(profile.attributes.attributePoints || 0);
-    if (points <= 0) {
-      wx.showToast({ title: '暂无可用属性点', icon: 'none' });
-      return;
-    }
-    const keys = (profile.attributes.attributeList || [])
-      .filter((item) => ALLOCATABLE_KEYS.includes(item.key))
-      .map((item) => item.key);
-    if (!keys.length) {
-      wx.showToast({ title: '暂无可分配属性', icon: 'none' });
-      return;
-    }
-    const allocations = {};
-    const base = Math.floor(points / keys.length);
-    let remainder = points % keys.length;
-    keys.forEach((key) => {
-      allocations[key] = base + (remainder > 0 ? 1 : 0);
-      if (remainder > 0) {
-        remainder -= 1;
-      }
-    });
-    await this.allocatePoints(allocations);
   },
 
   async allocatePoints(allocations) {
