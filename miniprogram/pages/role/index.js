@@ -1586,6 +1586,11 @@ Page({
       wx.showToast({ title: '请先设置分配点数', icon: 'none' });
       return;
     }
+    const total = Object.keys(allocations).reduce((sum, attrKey) => sum + allocations[attrKey], 0);
+    if (total > available) {
+      wx.showToast({ title: '分配点数超过可用上限', icon: 'none' });
+      return;
+    }
     this.clearAllAttributeAdjustTimers();
     this.allocatePoints(allocations);
   },
