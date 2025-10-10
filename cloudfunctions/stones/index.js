@@ -424,7 +424,7 @@ async function purchaseItem(openid, itemId, quantity = 1) {
     return {
       success: false,
       code: 'STONE_INSUFFICIENT',
-      message: '灵石不足，无法兑换该道具',
+      message: `灵石不足，还需 ${totalCost}`,
       item: {
         id: item.id,
         name: item.name
