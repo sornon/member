@@ -323,6 +323,7 @@ Page({
     stoneBalance: 0,
     formattedStoneBalance: formatStones(0),
     equipmentTooltip: null,
+    attributeDetailTooltip: null,
     skillModal: null,
     storageCategories: [],
     storageMeta: null,
@@ -1592,12 +1593,24 @@ Page({
       return;
     }
     const detail = ATTRIBUTE_DETAIL_MAP[key];
-    wx.showModal({
-      title: detail.title || label || '属性说明',
-      content: detail.content,
-      showCancel: false,
-      confirmColor: '#566ed2'
+    const paragraphs = String(detail.content || '')
+      .split(/\n+/)
+      .map((text) => text.trim())
+      .filter((text) => text.length);
+    this.setData({
+      attributeDetailTooltip: {
+        visible: true,
+        key,
+        title: detail.title || label || '属性说明',
+        paragraphs
+      }
     });
+  },
+
+  closeAttributeDetailTooltip() {
+    if (this.data.attributeDetailTooltip) {
+      this.setData({ attributeDetailTooltip: null });
+    }
   },
 
   handleSubmitAllocations() {
