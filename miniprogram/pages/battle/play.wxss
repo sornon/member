@@ -1,0 +1,379 @@
+page {
+  background: #050921;
+}
+
+.battle-stage {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  color: #f2f6ff;
+  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+.battle-video {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.35;
+  z-index: 0;
+}
+
+.battle-fallback {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at 20% 20%, rgba(124, 167, 255, 0.35), transparent 60%),
+    radial-gradient(circle at 80% 30%, rgba(255, 127, 178, 0.3), transparent 55%),
+    linear-gradient(135deg, rgba(20, 24, 48, 0.9), rgba(5, 9, 33, 0.95));
+  animation: backgroundPulse 8s ease-in-out infinite;
+  z-index: 1;
+}
+
+@keyframes backgroundPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+}
+
+.battle-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  padding: 120rpx 48rpx 60rpx;
+  box-sizing: border-box;
+}
+
+.battle-scoreboard {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24rpx;
+}
+
+.actor-card {
+  width: 300rpx;
+  padding: 28rpx;
+  background: rgba(8, 18, 48, 0.65);
+  border: 1rpx solid rgba(126, 175, 255, 0.25);
+  border-radius: 24rpx;
+  backdrop-filter: blur(6rpx);
+}
+
+.actor-card .actor-name {
+  font-size: 32rpx;
+  font-weight: 600;
+}
+
+.actor-card .actor-meta {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: rgba(226, 235, 255, 0.7);
+}
+
+.hp-track {
+  position: relative;
+  height: 14rpx;
+  margin: 24rpx 0 12rpx;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10rpx;
+  overflow: hidden;
+}
+
+.hp-progress {
+  height: 100%;
+  border-radius: 10rpx;
+  transition: width 0.4s ease;
+}
+
+.hp-player {
+  background: linear-gradient(90deg, #4fe8a4, #38d2ff);
+}
+
+.hp-opponent {
+  background: linear-gradient(90deg, #ff8a85, #ffb347);
+}
+
+.hp-text {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.actor-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx 16rpx;
+  margin-top: 16rpx;
+  font-size: 22rpx;
+  color: rgba(226, 235, 255, 0.8);
+}
+
+.battle-center-title {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  text-align: center;
+}
+
+.round-tag {
+  padding: 8rpx 24rpx;
+  border-radius: 999rpx;
+  background: rgba(111, 176, 255, 0.22);
+  font-size: 22rpx;
+}
+
+.action-title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.battle-avatars {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 60rpx 0 40rpx;
+  gap: 24rpx;
+}
+
+.avatar-wrapper {
+  position: relative;
+  width: 280rpx;
+  height: 360rpx;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 12rpx;
+}
+
+.actor-portrait {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 16rpx 32rpx rgba(0, 0, 0, 0.5));
+}
+
+.avatar-wrapper.is-attacking .actor-portrait {
+  animation: attackPulse 0.7s ease;
+}
+
+.avatar-wrapper.is-hit .actor-portrait {
+  animation: hitShake 0.6s ease;
+}
+
+@keyframes attackPulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.08) translateY(-10rpx);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes hitShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-12rpx);
+  }
+  40% {
+    transform: translateX(10rpx);
+  }
+  60% {
+    transform: translateX(-6rpx);
+  }
+  80% {
+    transform: translateX(4rpx);
+  }
+}
+
+.action-focus {
+  flex: 1;
+  min-height: 180rpx;
+  padding: 24rpx 32rpx;
+  background: rgba(8, 18, 48, 0.6);
+  border: 1rpx solid rgba(126, 175, 255, 0.25);
+  border-radius: 24rpx;
+  backdrop-filter: blur(6rpx);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12rpx;
+}
+
+.focus-title {
+  font-size: 26rpx;
+  letter-spacing: 2rpx;
+  color: #9ecbff;
+}
+
+.focus-description {
+  font-size: 26rpx;
+  line-height: 1.4;
+}
+
+.effect-badges {
+  display: flex;
+  gap: 16rpx;
+  flex-wrap: wrap;
+}
+
+.effect-badge {
+  padding: 8rpx 20rpx;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 16rpx;
+  font-size: 22rpx;
+}
+
+.battle-log {
+  background: rgba(5, 12, 36, 0.7);
+  border-radius: 24rpx;
+  padding: 24rpx 32rpx;
+  border: 1rpx solid rgba(126, 175, 255, 0.25);
+}
+
+.log-title {
+  font-size: 26rpx;
+  margin-bottom: 16rpx;
+  color: rgba(226, 235, 255, 0.8);
+}
+
+.log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  max-height: 160rpx;
+  overflow: hidden;
+}
+
+.log-item {
+  font-size: 24rpx;
+  color: rgba(242, 246, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: logSlide 0.6s ease;
+}
+
+@keyframes logSlide {
+  from {
+    transform: translateY(20rpx);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.battle-controls {
+  display: flex;
+  justify-content: center;
+  gap: 24rpx;
+  margin-top: 28rpx;
+}
+
+.control-button {
+  padding: 0 28rpx;
+  border-radius: 999rpx;
+  background: rgba(12, 22, 52, 0.6);
+  color: #f2f6ff;
+  border: 1rpx solid rgba(158, 203, 255, 0.4);
+}
+
+.control-button[disabled] {
+  opacity: 0.6;
+}
+
+.battle-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30rpx;
+  color: rgba(230, 238, 255, 0.9);
+  z-index: 3;
+  background: rgba(5, 9, 33, 0.82);
+}
+
+.battle-result-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.result-card {
+  width: 520rpx;
+  padding: 48rpx 36rpx;
+  border-radius: 32rpx;
+  text-align: center;
+  box-shadow: 0 20rpx 48rpx rgba(0, 0, 0, 0.45);
+  background: linear-gradient(135deg, rgba(16, 28, 68, 0.95), rgba(4, 10, 30, 0.92));
+  border: 1rpx solid rgba(158, 203, 255, 0.35);
+}
+
+.result-card.victory {
+  border-color: rgba(125, 255, 199, 0.6);
+  box-shadow: 0 24rpx 64rpx rgba(74, 255, 199, 0.25);
+}
+
+.result-card.defeat {
+  border-color: rgba(255, 140, 140, 0.6);
+  box-shadow: 0 24rpx 64rpx rgba(255, 96, 112, 0.25);
+}
+
+.result-card.draw {
+  border-color: rgba(255, 211, 135, 0.6);
+  box-shadow: 0 24rpx 64rpx rgba(255, 211, 135, 0.25);
+}
+
+.result-title {
+  font-size: 40rpx;
+  font-weight: 700;
+  margin-bottom: 20rpx;
+}
+
+.result-subtitle {
+  font-size: 26rpx;
+  margin-bottom: 16rpx;
+  color: rgba(226, 235, 255, 0.85);
+}
+
+.result-summary {
+  font-size: 24rpx;
+  color: rgba(226, 235, 255, 0.7);
+}

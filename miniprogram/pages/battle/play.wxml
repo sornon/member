@@ -1,0 +1,89 @@
+<custom-nav title="{{navTitle}}" theme="dark" background="transparent"></custom-nav>
+<view class="battle-stage">
+  <video
+    class="battle-video"
+    src="{{backgroundVideo}}"
+    autoplay
+    loop
+    muted
+    controls="{{false}}"
+    show-center-play-btn="{{false}}"
+    enable-progress-gesture="{{false}}"
+    object-fit="cover"
+  ></video>
+  <view class="battle-fallback"></view>
+  <view class="battle-content" wx:if="{{!loading && player && opponent}}">
+    <view class="battle-scoreboard">
+      <view class="actor-card actor-player">
+        <view class="actor-name">{{player.name}}</view>
+        <view class="actor-meta">战力 {{player.combatPower || '???'}}</view>
+        <view class="hp-track">
+          <view class="hp-progress hp-player" style="width: {{hpState.player.percent}}%"></view>
+        </view>
+        <view class="hp-text">{{hpState.player.current}} / {{hpState.player.max}}</view>
+        <view class="actor-summary">
+          <text>造成 {{player.summary.damageDealt}}</text>
+          <text>承受 {{player.summary.damageTaken}}</text>
+          <text>回复 {{player.summary.heal}}</text>
+        </view>
+      </view>
+      <view class="battle-center-title">
+        <view class="round-tag">第{{currentRound}}回合</view>
+        <view class="action-title">{{currentAction.title || '战斗即将开始'}}</view>
+      </view>
+      <view class="actor-card actor-opponent">
+        <view class="actor-name">{{opponent.name}}</view>
+        <view class="actor-meta">战力 {{opponent.combatPower || '???'}}</view>
+        <view class="hp-track">
+          <view class="hp-progress hp-opponent" style="width: {{hpState.opponent.percent}}%"></view>
+        </view>
+        <view class="hp-text">{{hpState.opponent.current}} / {{hpState.opponent.max}}</view>
+        <view class="actor-summary">
+          <text>造成 {{opponent.summary.damageDealt}}</text>
+          <text>承受 {{opponent.summary.damageTaken}}</text>
+          <text>回复 {{opponent.summary.heal}}</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="battle-avatars">
+      <view class="avatar-wrapper player {{currentAction.actor === 'player' ? 'is-attacking' : ''}} {{currentAction.target === 'player' ? 'is-hit' : ''}}">
+        <image class="actor-portrait" src="{{player.portrait}}" mode="widthFix"></image>
+      </view>
+      <view class="action-focus">
+        <view class="focus-title">{{battleState === 'finished' ? resultTitle : '技能演绎'}}</view>
+        <view class="focus-description">{{currentAction.description || '招式蓄势待发……'}}</view>
+        <view class="effect-badges" wx:if="{{currentAction.effects && currentAction.effects.length}}">
+          <text class="effect-badge" wx:for="{{currentAction.effects}}" wx:key="label">{{item.label}}</text>
+        </view>
+      </view>
+      <view class="avatar-wrapper opponent {{currentAction.actor === 'opponent' ? 'is-attacking' : ''}} {{currentAction.target === 'opponent' ? 'is-hit' : ''}}">
+        <image class="actor-portrait" src="{{opponent.portrait}}" mode="widthFix"></image>
+      </view>
+    </view>
+
+    <view class="battle-log">
+      <view class="log-title">战斗瞬息</view>
+      <view class="log-list">
+        <view class="log-item" wx:for="{{displayedLogs}}" wx:key="id">{{item.text}}</view>
+      </view>
+    </view>
+
+    <view class="battle-controls">
+      <button class="control-button" type="default" size="mini" bindtap="handleSkip" disabled="{{skipLocked}}">
+        {{skipButtonText}}
+      </button>
+      <button class="control-button" type="primary" size="mini" bindtap="handleExit" wx:if="{{battleFinished}}">返回</button>
+    </view>
+  </view>
+  <view wx:if="{{loading}}" class="battle-loading">灵气汇聚中...</view>
+  <view wx:elif="{{error}}" class="battle-loading">{{error}}</view>
+
+  <view wx:if="{{battleFinished}}" class="battle-result-overlay">
+    <view class="result-card {{resultClass}}">
+      <view class="result-title">{{resultTitle}}</view>
+      <view class="result-subtitle">{{resultSubtitle}}</view>
+      <view class="result-summary">耗时 {{resultRounds}} 回合</view>
+    </view>
+  </view>
+</view>
