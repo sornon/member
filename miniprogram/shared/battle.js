@@ -52,16 +52,21 @@ function extractNumberFromLog(log, pattern) {
   return formatNumber(Number(match[1]));
 }
 
+const DAMAGE_BY_PLAYER_PATTERN = /你造成(?:了)?[^\d]*(\d+)/;
+const DAMAGE_BY_ENEMY_PATTERN = /敌方造成(?:了)?[^\d]*(\d+)/;
+const PLAYER_HEAL_PATTERN = /你回复了[^\d]*(\d+)/;
+const ENEMY_HEAL_PATTERN = /敌方.*回复了[^\d]*(\d+)/;
+
 function parsePveTotals(log = []) {
   return log.reduce(
     (acc, entry) => {
       if (typeof entry !== 'string') {
         return acc;
       }
-      acc.playerDamageTaken += extractNumberFromLog(entry, /敌方造成\s+(\d+)/);
-      acc.enemyDamageTaken += extractNumberFromLog(entry, /你造成\s+(\d+)/);
-      acc.playerHeal += extractNumberFromLog(entry, /你回复了\s+(\d+)/);
-      acc.enemyHeal += extractNumberFromLog(entry, /敌方.*回复了\s+(\d+)/);
+      acc.playerDamageTaken += extractNumberFromLog(entry, DAMAGE_BY_ENEMY_PATTERN);
+      acc.enemyDamageTaken += extractNumberFromLog(entry, DAMAGE_BY_PLAYER_PATTERN);
+      acc.playerHeal += extractNumberFromLog(entry, PLAYER_HEAL_PATTERN);
+      acc.enemyHeal += extractNumberFromLog(entry, ENEMY_HEAL_PATTERN);
       return acc;
     },
     { playerDamageTaken: 0, enemyDamageTaken: 0, playerHeal: 0, enemyHeal: 0 }
@@ -117,7 +122,7 @@ function buildPveActions(battle = {}, context = {}) {
     } else if (/你造成/.test(entry)) {
       actor = 'player';
       target = 'opponent';
-      damage = extractNumberFromLog(entry, /你造成\s+(\d+)/);
+      damage = extractNumberFromLog(entry, DAMAGE_BY_PLAYER_PATTERN);
       const crit = /暴击/.test(entry);
       const skillName = PLAYER_SKILL_ROTATION[playerSkillIndex % PLAYER_SKILL_ROTATION.length];
       playerSkillIndex += 1;
@@ -130,7 +135,7 @@ function buildPveActions(battle = {}, context = {}) {
     } else if (/敌方造成/.test(entry)) {
       actor = 'opponent';
       target = 'player';
-      damage = extractNumberFromLog(entry, /敌方造成\s+(\d+)/);
+      damage = extractNumberFromLog(entry, DAMAGE_BY_ENEMY_PATTERN);
       const crit = /暴击/.test(entry);
       const skillName = OPPONENT_SKILL_ROTATION[enemySkillIndex % OPPONENT_SKILL_ROTATION.length];
       enemySkillIndex += 1;
@@ -144,7 +149,7 @@ function buildPveActions(battle = {}, context = {}) {
       actor = 'player';
       target = 'player';
       type = 'heal';
-      heal = extractNumberFromLog(entry, /回复了\s+(\d+)/);
+      heal = extractNumberFromLog(entry, PLAYER_HEAL_PATTERN);
       title = `第${round}回合 · 灵血回流`;
       effects.push({ type: 'heal', label: '治疗' });
       description = `被动「灵血回流」触发，你回复了 ${heal} 点生命。`;
@@ -153,7 +158,7 @@ function buildPveActions(battle = {}, context = {}) {
       actor = 'opponent';
       target = 'opponent';
       type = 'heal';
-      heal = extractNumberFromLog(entry, /回复了\s+(\d+)/);
+      heal = extractNumberFromLog(entry, ENEMY_HEAL_PATTERN);
       title = `第${round}回合 · 吸血诀`;
       effects.push({ type: 'heal', label: '吸血' });
       description = `敌方吸取灵力，恢复 ${heal} 点生命。`;

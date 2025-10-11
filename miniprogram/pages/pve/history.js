@@ -50,7 +50,8 @@ Page({
   data: {
     loading: true,
     record: null,
-    log: []
+    log: [],
+    replayAvailable: false
   },
 
   onLoad(options = {}) {
@@ -88,7 +89,7 @@ Page({
   applyRecord(record) {
     if (!record || record.type !== 'battle') {
       this._recordResolved = true;
-      this.setData({ loading: false, record: null, log: [] });
+      this.setData({ loading: false, record: null, log: [], replayAvailable: false });
       return;
     }
     const normalizedLog = Array.isArray(record.log) ? record.log : [];
@@ -100,7 +101,114 @@ Page({
         createdAtText: record.createdAtText || formatDateTime(record.createdAt),
         combatPowerText: record.combatPowerText || formatCombatPower(record.combatPower)
       },
-      log: normalizedLog
+      log: normalizedLog,
+      replayAvailable: normalizedLog.length > 0
+    });
+  },
+
+  normalizeReplayRounds(record = {}, fallbackRounds = 0) {
+    const rawRounds = Number(record.rounds);
+    if (Number.isFinite(rawRounds) && rawRounds > 0) {
+      return Math.max(1, Math.floor(rawRounds));
+    }
+    return fallbackRounds > 0 ? fallbackRounds : 0;
+  },
+
+  normalizeCombatPowerRecord(value) {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+    const normalized = {};
+    const player = Number(value.player);
+    const enemy = Number(value.enemy);
+    if (Number.isFinite(player)) {
+      normalized.player = Math.round(player);
+    }
+    if (Number.isFinite(enemy)) {
+      normalized.enemy = Math.round(enemy);
+    }
+    return Object.keys(normalized).length ? normalized : null;
+  },
+
+  normalizeRemainingState(value) {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+    const normalized = {};
+    const playerHp = Number(value.playerHp);
+    const enemyHp = Number(value.enemyHp);
+    if (Number.isFinite(playerHp) && playerHp >= 0) {
+      normalized.playerHp = Math.max(0, Math.round(playerHp));
+    }
+    if (Number.isFinite(enemyHp) && enemyHp >= 0) {
+      normalized.enemyHp = Math.max(0, Math.round(enemyHp));
+    }
+    return Object.keys(normalized).length ? normalized : null;
+  },
+
+  buildReplayPayload(record = {}) {
+    const log = Array.isArray(record.log) ? record.log.filter((entry) => typeof entry === 'string' && entry) : [];
+    if (!log.length) {
+      return null;
+    }
+    const rounds = this.normalizeReplayRounds(record, log.length);
+    const result = typeof record.result === 'string' ? record.result : '';
+    const combatPower = this.normalizeCombatPowerRecord(record.combatPower);
+    const remaining = this.normalizeRemainingState(record.remaining);
+    const battle = {
+      victory: result === 'win',
+      draw: result === 'draw',
+      rounds,
+      log,
+      rewards: record.rewards || null
+    };
+    if (combatPower) {
+      battle.combatPower = combatPower;
+    }
+    if (remaining) {
+      battle.remaining = remaining;
+    }
+    const viewContext = {
+      playerName: record.playerName || '你',
+      opponentName: record.enemyName || '秘境之敌'
+    };
+    if (record.playerPortrait) {
+      viewContext.playerPortrait = record.playerPortrait;
+    }
+    if (record.opponentPortrait) {
+      viewContext.opponentPortrait = record.opponentPortrait;
+    }
+    if (record.backgroundVideo) {
+      viewContext.backgroundVideo = record.backgroundVideo;
+    }
+    return { battle, viewContext };
+  },
+
+  handleReplayTap() {
+    const { record } = this.data;
+    if (!record) {
+      return;
+    }
+    const payload = this.buildReplayPayload(record);
+    if (!payload) {
+      wx.showToast({ title: '暂无战斗回放', icon: 'none' });
+      return;
+    }
+    wx.navigateTo({
+      url: '/pages/battle/play?mode=pve&replay=1',
+      success: (res) => {
+        if (res && res.eventChannel && typeof res.eventChannel.emit === 'function') {
+          res.eventChannel.emit('battleContext', {
+            mode: 'pve',
+            source: 'replay',
+            battle: payload.battle,
+            viewContext: payload.viewContext
+          });
+        }
+      },
+      fail: () => {
+        wx.showToast({ title: '战斗画面加载失败', icon: 'none' });
+      }
     });
   }
 });

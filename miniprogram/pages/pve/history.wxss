@@ -175,6 +175,24 @@ page {
   color: rgba(255, 238, 193, 0.9);
 }
 
+.summary-actions {
+  margin-top: 20rpx;
+}
+
+.replay-button {
+  width: 100%;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #4e7cff, #7c9dff);
+  color: #fff;
+  border: none;
+  padding: 20rpx 0;
+  font-size: 28rpx;
+}
+
+.replay-button::after {
+  border: none;
+}
+
 .log-card {
   display: flex;
   flex-direction: column;

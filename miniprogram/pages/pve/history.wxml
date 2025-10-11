@@ -59,6 +59,9 @@
         </view>
       </view>
       <view wx:if="{{record.rewardsText}}" class="summary-reward">{{record.rewardsText}}</view>
+      <view wx:if="{{replayAvailable}}" class="summary-actions">
+        <button class="replay-button" type="primary" bindtap="handleReplayTap">观看战斗回放</button>
+      </view>
     </view>
     <view class="card log-card">
       <view class="log-title">战斗过程</view>

@@ -74,6 +74,15 @@ page {
   border: 1rpx solid rgba(126, 175, 255, 0.25);
   border-radius: 24rpx;
   backdrop-filter: blur(6rpx);
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  align-items: flex-start;
+}
+
+.actor-card.actor-player {
+  text-align: right;
+  align-items: flex-end;
 }
 
 .actor-card .actor-name {
@@ -94,6 +103,8 @@ page {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 10rpx;
   overflow: hidden;
+  width: 100%;
+  align-self: stretch;
 }
 
 .hp-progress {
@@ -115,35 +126,9 @@ page {
   color: rgba(255, 255, 255, 0.85);
 }
 
-.actor-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10rpx 16rpx;
-  margin-top: 16rpx;
-  font-size: 22rpx;
-  color: rgba(226, 235, 255, 0.8);
-}
-
-.battle-center-title {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12rpx;
-  text-align: center;
-}
-
-.round-tag {
-  padding: 8rpx 24rpx;
-  border-radius: 999rpx;
-  background: rgba(111, 176, 255, 0.22);
-  font-size: 22rpx;
-}
-
-.action-title {
-  font-size: 30rpx;
-  font-weight: 600;
+.actor-card.actor-player .actor-meta,
+.actor-card.actor-player .hp-text {
+  align-self: flex-end;
 }
 
 .battle-avatars {
@@ -164,6 +149,15 @@ page {
   padding-bottom: 12rpx;
 }
 
+.avatar-inner {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  transform-origin: bottom center;
+}
+
 .actor-portrait {
   width: 100%;
   height: 100%;
@@ -171,12 +165,16 @@ page {
   filter: drop-shadow(0 16rpx 32rpx rgba(0, 0, 0, 0.5));
 }
 
-.avatar-wrapper.is-attacking .actor-portrait {
+.avatar-wrapper.is-attacking .avatar-inner {
   animation: attackPulse 0.7s ease;
 }
 
-.avatar-wrapper.is-hit .actor-portrait {
+.avatar-wrapper.is-hit .avatar-inner {
   animation: hitShake 0.6s ease;
+}
+
+.avatar-wrapper.opponent .actor-portrait {
+  transform: scaleX(-1);
 }
 
 @keyframes attackPulse {
@@ -210,30 +208,6 @@ page {
   }
 }
 
-
-.action-description {
-  font-size: 24rpx;
-  line-height: 1.5;
-  max-width: 520rpx;
-  color: rgba(226, 235, 255, 0.82);
-}
-
-.battle-center-title .effect-badges {
-  justify-content: center;
-}
-
-.effect-badges {
-  display: flex;
-  gap: 16rpx;
-  flex-wrap: wrap;
-}
-
-.effect-badge {
-  padding: 8rpx 20rpx;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 16rpx;
-  font-size: 22rpx;
-}
 
 .battle-log {
   background: rgba(5, 12, 36, 0.7);
