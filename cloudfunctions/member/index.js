@@ -11,7 +11,7 @@ const {
   resolveHighestUnlockedBackgroundByRealmOrder,
   resolveBackgroundByRealmName,
   resolveBackgroundById
-} = require('./shared/backgrounds.js');
+} = require('common-config/backgrounds');
 const { COLLECTIONS, realmConfigs, subLevelLabels } = require('common-config');
 
 const db = cloud.database();
