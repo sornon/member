@@ -8,15 +8,25 @@ const commonConfig = require('common-config');
 const {
   normalizeBackgroundId: importedNormalizeBackgroundId,
   getDefaultBackgroundId: importedGetDefaultBackgroundId,
-  isBackgroundUnlocked,
-  resolveHighestUnlockedBackgroundByRealmOrder,
-  resolveBackgroundByRealmName,
-  resolveBackgroundById,
-  listBackgrounds,
+  isBackgroundUnlocked: importedIsBackgroundUnlocked,
+  resolveHighestUnlockedBackgroundByRealmOrder: importedResolveHighestUnlockedBackgroundByRealmOrder,
+  resolveBackgroundByRealmName: importedResolveBackgroundByRealmName,
+  resolveBackgroundById: importedResolveBackgroundById,
+  listBackgrounds: importedListBackgrounds,
   COLLECTIONS,
-  realmConfigs,
+  realmConfigs: importedRealmConfigs,
   subLevelLabels
 } = commonConfig;
+
+const listBackgroundsFn =
+  typeof importedListBackgrounds === 'function'
+    ? importedListBackgrounds
+    : () => [];
+
+const getBackgroundCatalog = () => {
+  const list = listBackgroundsFn();
+  return Array.isArray(list) ? list : [];
+};
 
 const normalizeBackgroundId =
   typeof importedNormalizeBackgroundId === 'function'
@@ -29,28 +39,115 @@ const normalizeBackgroundId =
       if (!trimmed) {
         return '';
       }
-      if (typeof listBackgrounds === 'function') {
-        const backgrounds = listBackgrounds();
-        if (!Array.isArray(backgrounds)) {
-          return '';
-        }
-        return backgrounds.some((background) => background && background.id === trimmed) ? trimmed : '';
-      }
-      return trimmed;
+      const backgrounds = getBackgroundCatalog();
+      return backgrounds.some((background) => background && background.id === trimmed) ? trimmed : '';
     };
 
 const getDefaultBackgroundId =
   typeof importedGetDefaultBackgroundId === 'function'
     ? importedGetDefaultBackgroundId
     : () => {
-      if (typeof listBackgrounds === 'function') {
-        const backgrounds = listBackgrounds();
-        if (Array.isArray(backgrounds) && backgrounds.length && backgrounds[0] && backgrounds[0].id) {
-          return backgrounds[0].id;
-        }
+      const backgrounds = getBackgroundCatalog();
+      if (backgrounds.length && backgrounds[0] && backgrounds[0].id) {
+        return backgrounds[0].id;
       }
       return '';
     };
+
+const resolveBackgroundByIdFn =
+  typeof importedResolveBackgroundById === 'function'
+    ? importedResolveBackgroundById
+    : (id) => {
+      if (!id) {
+        return null;
+      }
+      const normalized = normalizeBackgroundId(id);
+      if (!normalized) {
+        return null;
+      }
+      const backgrounds = getBackgroundCatalog();
+      return backgrounds.find((background) => background && background.id === normalized) || null;
+    };
+
+const resolveBackgroundByRealmNameFn =
+  typeof importedResolveBackgroundByRealmName === 'function'
+    ? importedResolveBackgroundByRealmName
+    : (realmName) => {
+      if (typeof realmName !== 'string' || !realmName.trim()) {
+        return null;
+      }
+      const lower = realmName.trim().toLowerCase();
+      const backgrounds = getBackgroundCatalog();
+      return (
+        backgrounds.find((background) => {
+          if (!background) {
+            return false;
+          }
+          if (typeof background.realmName === 'string' && background.realmName.toLowerCase() === lower) {
+            return true;
+          }
+          if (typeof background.realm === 'string' && background.realm.toLowerCase() === lower) {
+            return true;
+          }
+          return false;
+        }) || null
+      );
+    };
+
+const isBackgroundUnlockedFn =
+  typeof importedIsBackgroundUnlocked === 'function'
+    ? importedIsBackgroundUnlocked
+    : (backgroundId, realmOrder, unlocks = []) => {
+      const normalized = normalizeBackgroundId(backgroundId);
+      if (!normalized) {
+        return false;
+      }
+      if (Array.isArray(unlocks) && unlocks.includes(normalized)) {
+        return true;
+      }
+      const background = resolveBackgroundByIdFn(normalized);
+      if (background && typeof background.realmOrder === 'number') {
+        return background.realmOrder <= Math.max(1, Number.isFinite(realmOrder) ? Math.floor(realmOrder) : 1);
+      }
+      return false;
+    };
+
+const resolveHighestUnlockedBackgroundByRealmOrderFn =
+  typeof importedResolveHighestUnlockedBackgroundByRealmOrder === 'function'
+    ? importedResolveHighestUnlockedBackgroundByRealmOrder
+    : (realmOrder, unlocks = []) => {
+      const safeRealmOrder = Math.max(1, Number.isFinite(realmOrder) ? Math.floor(realmOrder) : 1);
+      const catalog = getBackgroundCatalog();
+      const unlockedSet = new Set(Array.isArray(unlocks) ? unlocks.map((id) => normalizeBackgroundId(id)).filter(Boolean) : []);
+      let fallback = null;
+      for (const background of catalog) {
+        if (!background) {
+          continue;
+        }
+        const normalizedId = normalizeBackgroundId(background.id || '');
+        if (!normalizedId) {
+          continue;
+        }
+        const backgroundRealmOrder = Number.isFinite(background.realmOrder)
+          ? Math.max(1, Math.floor(background.realmOrder))
+          : 1;
+        if (backgroundRealmOrder > safeRealmOrder) {
+          continue;
+        }
+        if (unlockedSet.has(normalizedId)) {
+          if (!fallback || backgroundRealmOrder > fallback.realmOrder) {
+            fallback = { ...background, id: normalizedId };
+          }
+          continue;
+        }
+        if (!fallback || backgroundRealmOrder > fallback.realmOrder) {
+          fallback = { ...background, id: normalizedId };
+        }
+      }
+      return fallback;
+    };
+
+const realmConfigsList = Array.isArray(importedRealmConfigs) ? importedRealmConfigs : [];
 
 const db = cloud.database();
 const _ = db.command;
@@ -1046,39 +1143,39 @@ function resolveSubLevel(level) {
 }
 
 function findRealmConfigForLevel(level) {
-  if (!level || !Array.isArray(realmConfigs) || !realmConfigs.length) {
+  if (!level || !Array.isArray(realmConfigsList) || !realmConfigsList.length) {
     return null;
   }
 
   const realmId = typeof level.realmId === 'string' ? level.realmId.trim() : '';
   if (realmId) {
-    const indexById = realmConfigs.findIndex((realm) => realm && realm.id === realmId);
+    const indexById = realmConfigsList.findIndex((realm) => realm && realm.id === realmId);
     if (indexById >= 0) {
-      return { config: realmConfigs[indexById], index: indexById };
+      return { config: realmConfigsList[indexById], index: indexById };
     }
   }
 
   const realmName = typeof level.realm === 'string' ? level.realm.trim() : '';
   if (realmName) {
-    const indexByName = realmConfigs.findIndex(
+    const indexByName = realmConfigsList.findIndex(
       (realm) => realm && (realm.name === realmName || realm.shortName === realmName)
     );
     if (indexByName >= 0) {
-      return { config: realmConfigs[indexByName], index: indexByName };
+      return { config: realmConfigsList[indexByName], index: indexByName };
     }
   }
 
   if (typeof level.realmOrder === 'number' && Number.isFinite(level.realmOrder)) {
     const realmIndex = Math.max(0, Math.floor(level.realmOrder) - 1);
-    if (realmConfigs[realmIndex]) {
-      return { config: realmConfigs[realmIndex], index: realmIndex };
+    if (realmConfigsList[realmIndex]) {
+      return { config: realmConfigsList[realmIndex], index: realmIndex };
     }
   }
 
   if (typeof level.order === 'number' && Number.isFinite(level.order) && SUB_LEVEL_COUNT > 0) {
     const realmIndex = Math.max(0, Math.floor((Math.floor(level.order) - 1) / SUB_LEVEL_COUNT));
-    if (realmConfigs[realmIndex]) {
-      return { config: realmConfigs[realmIndex], index: realmIndex };
+    if (realmConfigsList[realmIndex]) {
+      return { config: realmConfigsList[realmIndex], index: realmIndex };
     }
   }
 
@@ -1425,14 +1522,14 @@ function resolveMemberRealmOrder(member, levels = []) {
     }
   }
   if (member.level && typeof member.level.realm === 'string') {
-    const matchedBackground = resolveBackgroundByRealmName(member.level.realm);
+    const matchedBackground = resolveBackgroundByRealmNameFn(member.level.realm);
     if (matchedBackground) {
       return matchedBackground.realmOrder;
     }
   }
   const appearanceBackground = normalizeBackgroundId(member.appearanceBackground || '');
   if (appearanceBackground) {
-    const background = resolveBackgroundById(appearanceBackground);
+    const background = resolveBackgroundByIdFn(appearanceBackground);
     if (background) {
       return background.realmOrder;
     }
@@ -1516,10 +1613,10 @@ async function ensureArchiveDefaults(member) {
   const backgroundId = normalizeBackgroundId(member.appearanceBackground || '');
   const realmOrder = resolveMemberRealmOrder(member, []);
   const unlockedBackgroundId =
-    backgroundId && isBackgroundUnlocked(backgroundId, realmOrder, backgroundUnlocks)
+    backgroundId && isBackgroundUnlockedFn(backgroundId, realmOrder, backgroundUnlocks)
       ? backgroundId
       : '';
-  const fallbackBackground = resolveHighestUnlockedBackgroundByRealmOrder(realmOrder);
+  const fallbackBackground = resolveHighestUnlockedBackgroundByRealmOrderFn(realmOrder, backgroundUnlocks);
   const safeBackgroundId =
     unlockedBackgroundId || (fallbackBackground ? fallbackBackground.id : getDefaultBackgroundId());
   if (!Object.is(safeBackgroundId, member.appearanceBackground || '')) {
@@ -1672,14 +1769,14 @@ async function updateArchive(openid, updates = {}) {
   if (typeof updates.appearanceBackground === 'string') {
     const desiredBackgroundId = normalizeBackgroundId(updates.appearanceBackground || '');
     if (desiredBackgroundId) {
-      if (!isBackgroundUnlocked(desiredBackgroundId, realmOrder, backgroundUnlocks)) {
+      if (!isBackgroundUnlockedFn(desiredBackgroundId, realmOrder, backgroundUnlocks)) {
         throw createError('BACKGROUND_NOT_UNLOCKED', '该背景尚未解锁');
       }
       if (desiredBackgroundId !== (member.appearanceBackground || '')) {
         patch.appearanceBackground = desiredBackgroundId;
       }
     } else {
-      const fallback = resolveHighestUnlockedBackgroundByRealmOrder(realmOrder);
+      const fallback = resolveHighestUnlockedBackgroundByRealmOrderFn(realmOrder, backgroundUnlocks);
       const fallbackId = fallback ? fallback.id : getDefaultBackgroundId();
       if (fallbackId && fallbackId !== (member.appearanceBackground || '')) {
         patch.appearanceBackground = fallbackId;
