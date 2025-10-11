@@ -14,27 +14,6 @@
   <view class="battle-fallback"></view>
   <view class="battle-content" wx:if="{{!loading && player && opponent}}">
     <view class="battle-scoreboard">
-      <view class="actor-card actor-player">
-        <view class="actor-name">{{player.name}}</view>
-        <view class="actor-meta">战力 {{player.combatPower || '???'}}</view>
-        <view class="hp-track">
-          <view class="hp-progress hp-player" style="width: {{hpState.player.percent}}%"></view>
-        </view>
-        <view class="hp-text">{{hpState.player.current}} / {{hpState.player.max}}</view>
-        <view class="actor-summary">
-          <text>造成 {{player.summary.damageDealt}}</text>
-          <text>承受 {{player.summary.damageTaken}}</text>
-          <text>回复 {{player.summary.heal}}</text>
-        </view>
-      </view>
-      <view class="battle-center-title">
-        <view class="round-tag">第{{currentRound}}回合</view>
-        <view class="action-title">{{currentAction.title || '战斗即将开始'}}</view>
-        <view class="action-description">{{currentAction.description || '招式蓄势待发……'}}</view>
-        <view class="effect-badges" wx:if="{{currentAction.effects && currentAction.effects.length}}">
-          <text class="effect-badge" wx:for="{{currentAction.effects}}" wx:key="label">{{item.label}}</text>
-        </view>
-      </view>
       <view class="actor-card actor-opponent">
         <view class="actor-name">{{opponent.name}}</view>
         <view class="actor-meta">战力 {{opponent.combatPower || '???'}}</view>
@@ -48,14 +27,39 @@
           <text>回复 {{opponent.summary.heal}}</text>
         </view>
       </view>
+      <view class="battle-center-title">
+        <view class="round-tag">第{{currentRound}}回合</view>
+        <view class="action-title">{{currentAction.title || '战斗即将开始'}}</view>
+        <view class="action-description">{{currentAction.description || '招式蓄势待发……'}}</view>
+        <view class="effect-badges" wx:if="{{currentAction.effects && currentAction.effects.length}}">
+          <text class="effect-badge" wx:for="{{currentAction.effects}}" wx:key="label">{{item.label}}</text>
+        </view>
+      </view>
+      <view class="actor-card actor-player">
+        <view class="actor-name">{{player.name}}</view>
+        <view class="actor-meta">战力 {{player.combatPower || '???'}}</view>
+        <view class="hp-track">
+          <view class="hp-progress hp-player" style="width: {{hpState.player.percent}}%"></view>
+        </view>
+        <view class="hp-text">{{hpState.player.current}} / {{hpState.player.max}}</view>
+        <view class="actor-summary">
+          <text>造成 {{player.summary.damageDealt}}</text>
+          <text>承受 {{player.summary.damageTaken}}</text>
+          <text>回复 {{player.summary.heal}}</text>
+        </view>
+      </view>
     </view>
 
     <view class="battle-avatars">
-      <view class="avatar-wrapper player {{currentAction.actor === 'player' ? 'is-attacking' : ''}} {{currentAction.target === 'player' ? 'is-hit' : ''}}">
-        <image class="actor-portrait" src="{{player.portrait}}" mode="widthFix"></image>
+      <view class="avatar-wrapper opponent {{currentAction.actor === 'opponent' ? 'is-attacking' : ''}} {{currentAction.target == 'opponent' ? 'is-hit' : ''}}">
+        <view class="avatar-inner">
+          <image class="actor-portrait" src="{{opponent.portrait}}" mode="widthFix"></image>
+        </view>
       </view>
-      <view class="avatar-wrapper opponent {{currentAction.actor === 'opponent' ? 'is-attacking' : ''}} {{currentAction.target === 'opponent' ? 'is-hit' : ''}}">
-        <image class="actor-portrait" src="{{opponent.portrait}}" mode="widthFix"></image>
+      <view class="avatar-wrapper player {{currentAction.actor === 'player' ? 'is-attacking' : ''}} {{currentAction.target === 'player' ? 'is-hit' : ''}}">
+        <view class="avatar-inner">
+          <image class="actor-portrait" src="{{player.portrait}}" mode="widthFix"></image>
+        </view>
       </view>
     </view>
 
