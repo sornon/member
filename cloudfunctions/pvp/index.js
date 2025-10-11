@@ -3,8 +3,8 @@ const crypto = require('crypto');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
-const { COLLECTIONS } = require('common-config');
-const { resolveBackgroundById, normalizeBackgroundId } = require('common-config/backgrounds');
+const commonConfig = require('common-config');
+const { COLLECTIONS, resolveBackgroundById, normalizeBackgroundId } = commonConfig;
 const {
   DEFAULT_COMBAT_STATS,
   DEFAULT_SPECIAL_STATS,
