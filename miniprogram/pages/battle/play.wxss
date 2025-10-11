@@ -151,7 +151,7 @@ page {
   align-items: center;
   justify-content: space-between;
   margin: 60rpx 0 40rpx;
-  gap: 24rpx;
+  gap: 64rpx;
 }
 
 .avatar-wrapper {
@@ -210,29 +210,16 @@ page {
   }
 }
 
-.action-focus {
-  flex: 1;
-  min-height: 180rpx;
-  padding: 24rpx 32rpx;
-  background: rgba(8, 18, 48, 0.6);
-  border: 1rpx solid rgba(126, 175, 255, 0.25);
-  border-radius: 24rpx;
-  backdrop-filter: blur(6rpx);
-  display: flex;
-  flex-direction: column;
+
+.action-description {
+  font-size: 24rpx;
+  line-height: 1.5;
+  max-width: 520rpx;
+  color: rgba(226, 235, 255, 0.82);
+}
+
+.battle-center-title .effect-badges {
   justify-content: center;
-  gap: 12rpx;
-}
-
-.focus-title {
-  font-size: 26rpx;
-  letter-spacing: 2rpx;
-  color: #9ecbff;
-}
-
-.focus-description {
-  font-size: 26rpx;
-  line-height: 1.4;
 }
 
 .effect-badges {

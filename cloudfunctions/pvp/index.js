@@ -4,6 +4,7 @@ const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { COLLECTIONS } = require('common-config');
+const { resolveBackgroundById, normalizeBackgroundId } = require('../member/shared/backgrounds.js');
 const {
   DEFAULT_COMBAT_STATS,
   DEFAULT_SPECIAL_STATS,
@@ -54,6 +55,25 @@ const REQUIRED_PVP_COLLECTIONS = [
   COLLECTIONS.PVP_LEADERBOARD,
   COLLECTIONS.PVP_INVITES
 ];
+
+function buildBackgroundPayloadFromId(backgroundId, animatedFlag) {
+  const normalized = normalizeBackgroundId(backgroundId || '');
+  const animated = !!animatedFlag;
+  if (!normalized) {
+    return null;
+  }
+  const definition = resolveBackgroundById(normalized);
+  if (!definition) {
+    return { id: normalized, animated };
+  }
+  return {
+    id: normalized,
+    name: definition.name,
+    image: definition.image,
+    video: definition.video,
+    animated
+  };
+}
 
 let collectionsReady = false;
 let ensuringCollectionsPromise = null;
@@ -484,6 +504,8 @@ async function resolveBattle(memberId, member, profile, opponentDescriptor, seas
   });
 
   const simulation = simulateBattle(playerEntry, opponentEntry, seed);
+  const initiatorId = options && options.inviteMatch ? opponentEntry.memberId : playerEntry.memberId;
+  const defenderEntry = initiatorId === playerEntry.memberId ? opponentEntry : playerEntry;
   const resultPayload = await persistBattleResult({
     season,
     player: playerEntry,
@@ -491,7 +513,9 @@ async function resolveBattle(memberId, member, profile, opponentDescriptor, seas
     profile,
     opponentProfile,
     simulation,
-    options
+    options,
+    initiatorId,
+    defenderId: defenderEntry.memberId
   });
   const opponentPreview = {
     memberId: opponentEntry.memberId,
@@ -507,6 +531,9 @@ async function resolveBattle(memberId, member, profile, opponentDescriptor, seas
       draws: opponentProfile.draws
     }
   };
+  if (defenderEntry && defenderEntry.background && defenderEntry.background.id) {
+    opponentPreview.defenderBackground = defenderEntry.background;
+  }
   return { result: resultPayload, opponentPreview };
 }
 
@@ -559,7 +586,17 @@ function simulateBattle(player, opponent, seed) {
   };
 }
 
-async function persistBattleResult({ season, player, opponent, profile, opponentProfile, simulation, options }) {
+async function persistBattleResult({
+  season,
+  player,
+  opponent,
+  profile,
+  opponentProfile,
+  simulation,
+  options,
+  initiatorId,
+  defenderId
+}) {
   const now = new Date();
   const result = determineOutcome(simulation, player.memberId);
   const playerUpdate = applyMatchOutcome({
@@ -613,7 +650,10 @@ async function persistBattleResult({ season, player, opponent, profile, opponent
     options: {
       isBot: opponent.isBot || false,
       friendMatch: !!options.friendMatch,
-      inviteMatch: !!options.inviteMatch
+      inviteMatch: !!options.inviteMatch,
+      inviteId: options && options.inviteId ? options.inviteId : null,
+      initiatorId: initiatorId || player.memberId,
+      defenderId: defenderId || opponent.memberId
     }
   };
   const collection = db.collection(COLLECTIONS.PVP_MATCHES);
@@ -632,11 +672,15 @@ async function persistBattleResult({ season, player, opponent, profile, opponent
     rounds: simulation.rounds,
     signature: matchRecord.signature,
     player: matchRecord.player,
-    opponent: matchRecord.opponent
+    opponent: matchRecord.opponent,
+    options: matchRecord.options
   };
 }
 
 function buildParticipantSnapshot(profile, delta, actor) {
+  const backgroundId = normalizeBackgroundId(actor.appearanceBackgroundId || '');
+  const backgroundAnimated = !!actor.appearanceBackgroundAnimated;
+  const backgroundPayload = actor.background || buildBackgroundPayloadFromId(backgroundId, backgroundAnimated);
   return {
     memberId: actor.memberId,
     displayName: actor.displayName,
@@ -650,7 +694,10 @@ function buildParticipantSnapshot(profile, delta, actor) {
     draws: profile.draws,
     streak: profile.currentStreak,
     longestStreak: profile.longestStreak,
-    isBot: !!actor.isBot
+    isBot: !!actor.isBot,
+    appearanceBackgroundId: backgroundId,
+    appearanceBackgroundAnimated: backgroundAnimated,
+    ...(backgroundPayload ? { background: backgroundPayload } : {})
   };
 }
 
@@ -1001,7 +1048,8 @@ function decorateMatchReplay(match) {
     player: match.player,
     opponent: match.opponent,
     signature: match.signature,
-    createdAt: match.createdAt || null
+    createdAt: match.createdAt || null,
+    options: match.options || {}
   };
 }
 
@@ -1260,6 +1308,9 @@ function normalizeCombatSnapshot(snapshot) {
 function buildBattleActor({ memberId, member, profile, combat, isBot }) {
   const tier = resolveTierByPoints(profile.points);
   const normalized = normalizeCombatSnapshot(combat);
+  const backgroundId = buildBackgroundIdFromMember(member);
+  const backgroundAnimated = !!(member && member.appearanceBackgroundAnimated);
+  const background = buildBackgroundPayloadFromId(backgroundId, backgroundAnimated);
   return {
     memberId: memberId || profile.memberId,
     displayName: profile.memberSnapshot && profile.memberSnapshot.nickName ? profile.memberSnapshot.nickName : member ? member.nickName || '无名仙友' : '神秘对手',
@@ -1269,8 +1320,18 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
     stats: normalized.stats,
     special: normalized.special,
     combatPower: normalized.combatPower,
-    isBot: !!isBot
+    isBot: !!isBot,
+    appearanceBackgroundId: backgroundId,
+    appearanceBackgroundAnimated: backgroundAnimated,
+    ...(background ? { background } : {})
   };
+}
+
+function buildBackgroundIdFromMember(member) {
+  if (!member || typeof member.appearanceBackground !== 'string') {
+    return '';
+  }
+  return normalizeBackgroundId(member.appearanceBackground);
 }
 
 function buildActorState(actor) {

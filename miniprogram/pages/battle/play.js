@@ -5,8 +5,145 @@ const {
   DEFAULT_PLAYER_IMAGE,
   DEFAULT_OPPONENT_IMAGE
 } = require('../../shared/battle');
+const {
+  resolveBackgroundByRealmName,
+  resolveBackgroundById,
+  normalizeBackgroundId
+} = require('../../shared/backgrounds');
 
 const MIN_SKIP_SECONDS = 10;
+
+function resolveBackgroundVideoById(backgroundId) {
+  const normalized = normalizeBackgroundId(backgroundId || '');
+  if (!normalized) {
+    return '';
+  }
+  const background = resolveBackgroundById(normalized);
+  if (!background || !background.video) {
+    return '';
+  }
+  return background.video;
+}
+
+function extractRealmName(enemy = {}) {
+  if (enemy && typeof enemy.realmName === 'string' && enemy.realmName.trim()) {
+    return enemy.realmName.trim();
+  }
+  if (enemy && typeof enemy.stageName === 'string') {
+    const parts = enemy.stageName.split('·');
+    if (parts.length && parts[0].trim()) {
+      return parts[0].trim();
+    }
+  }
+  return '';
+}
+
+function resolvePveSceneBackground(enemy = {}) {
+  if (!enemy || typeof enemy !== 'object') {
+    return '';
+  }
+  const scene = enemy.scene || enemy.environment || {};
+  if (scene && typeof scene.video === 'string' && scene.video) {
+    return scene.video;
+  }
+  if (scene && typeof scene.backgroundVideo === 'string' && scene.backgroundVideo) {
+    return scene.backgroundVideo;
+  }
+  if (typeof enemy.backgroundVideo === 'string' && enemy.backgroundVideo) {
+    return enemy.backgroundVideo;
+  }
+  const sceneBackgroundId =
+    (scene && scene.backgroundId) ||
+    (enemy.background && enemy.background.id) ||
+    enemy.backgroundId ||
+    '';
+  const resolvedById = resolveBackgroundVideoById(sceneBackgroundId);
+  if (resolvedById) {
+    return resolvedById;
+  }
+  const realmName = extractRealmName(enemy);
+  if (realmName) {
+    const background = resolveBackgroundByRealmName(realmName);
+    if (background && background.video) {
+      return background.video;
+    }
+  }
+  return '';
+}
+
+function extractBackgroundVideoFromSource(source) {
+  if (!source) {
+    return '';
+  }
+  if (typeof source === 'string') {
+    return source;
+  }
+  if (source.background && typeof source.background.video === 'string' && source.background.video) {
+    return source.background.video;
+  }
+  if (typeof source.backgroundVideo === 'string' && source.backgroundVideo) {
+    return source.backgroundVideo;
+  }
+  if (typeof source.video === 'string' && source.video) {
+    return source.video;
+  }
+  if (source.defenderBackground) {
+    return extractBackgroundVideoFromSource(source.defenderBackground);
+  }
+  if (typeof source.appearanceBackgroundId === 'string') {
+    const resolved = resolveBackgroundVideoById(source.appearanceBackgroundId);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  if (source.background && typeof source.background.id === 'string') {
+    const resolved = resolveBackgroundVideoById(source.background.id);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  if (typeof source.backgroundId === 'string') {
+    const resolved = resolveBackgroundVideoById(source.backgroundId);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return '';
+}
+
+function resolvePvpDefenderBackgroundVideo({ battle = {}, preview = null, source = '' } = {}) {
+  const candidates = [];
+  const options = battle && battle.options ? battle.options : {};
+  const player = battle && battle.player ? battle.player : {};
+  const opponent = battle && battle.opponent ? battle.opponent : {};
+  const defenderId = options.defenderId || '';
+  if (defenderId) {
+    if (player && player.memberId === defenderId) {
+      candidates.push(player);
+    } else if (opponent && opponent.memberId === defenderId) {
+      candidates.push(opponent);
+    }
+  }
+  if (!candidates.length) {
+    if (source === 'acceptInvite') {
+      candidates.push(player);
+    } else if (options.inviteMatch && options.initiatorId && options.initiatorId !== player.memberId) {
+      candidates.push(player);
+    } else if (opponent && Object.keys(opponent).length) {
+      candidates.push(opponent);
+    }
+  }
+  if (preview) {
+    candidates.push(preview);
+  }
+  for (let i = 0; i < candidates.length; i += 1) {
+    const video = extractBackgroundVideoFromSource(candidates[i]);
+    if (video) {
+      return video;
+    }
+  }
+  return '';
+}
 
 Page({
   data: {
@@ -98,6 +235,12 @@ Page({
             playerPower: battleData.player ? battleData.player.pointsAfter : '',
             opponentPower: battleData.opponent ? battleData.opponent.pointsAfter : ''
           };
+          const replayBackground =
+            resolvePvpDefenderBackgroundVideo({
+              battle: battleData,
+              source: context.source || this.contextOptions.source || ''
+            }) || DEFAULT_BACKGROUND_VIDEO;
+          viewContext.backgroundVideo = replayBackground;
         } else {
           battleData = context.battle || null;
           viewContext = context.viewContext || {};
@@ -115,12 +258,13 @@ Page({
         const profile = serviceResult.profile || {};
         const member = profile.memberSnapshot || profile.member || {};
         const enemy = context.enemyPreview || {};
+        const sceneBackground = resolvePveSceneBackground(enemy);
         viewContext = {
           playerName: member.nickName || member.name || '你',
           playerPortrait: member.avatarUrl || member.portrait || DEFAULT_PLAYER_IMAGE,
           opponentName: enemy.name || '秘境之敌',
           opponentPortrait: enemy.portrait || enemy.avatarUrl || DEFAULT_OPPONENT_IMAGE,
-          backgroundVideo: context.backgroundVideo || DEFAULT_BACKGROUND_VIDEO
+          backgroundVideo: sceneBackground || context.backgroundVideo || DEFAULT_BACKGROUND_VIDEO
         };
         this.parentPayload = {
           type: 'pve',
@@ -153,6 +297,13 @@ Page({
           opponentPower:
             (battleData && battleData.opponent && battleData.opponent.pointsAfter) || opponent.points || ''
         };
+        const liveBackground =
+          resolvePvpDefenderBackgroundVideo({
+            battle: battleData,
+            preview: serviceResult.opponent,
+            source: context.source || this.contextOptions.source || ''
+          }) || DEFAULT_BACKGROUND_VIDEO;
+        viewContext.backgroundVideo = liveBackground;
         this.parentPayload = {
           type: 'pvp',
           profile: serviceResult.profile || null,
