@@ -86,6 +86,7 @@
           class="enemy-action"
           data-id="{{item.id}}"
           data-locked="{{item.locked}}"
+          data-index="{{index}}"
           loading="{{battleLoading && selectedEnemyId === item.id}}"
           bindtap="handleBattle"
           disabled="{{item.locked}}"

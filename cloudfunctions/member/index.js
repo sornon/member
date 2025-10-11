@@ -4,15 +4,18 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { listAvatarIds } = require('./avatar-catalog.js');
 const { normalizeAvatarFrameValue } = require('./avatar-frames.js');
+const commonConfig = require('common-config');
 const {
   normalizeBackgroundId,
   getDefaultBackgroundId,
   isBackgroundUnlocked,
   resolveHighestUnlockedBackgroundByRealmOrder,
   resolveBackgroundByRealmName,
-  resolveBackgroundById
-} = require('./shared/backgrounds.js');
-const { COLLECTIONS, realmConfigs, subLevelLabels } = require('common-config');
+  resolveBackgroundById,
+  COLLECTIONS,
+  realmConfigs,
+  subLevelLabels
+} = commonConfig;
 
 const db = cloud.database();
 const _ = db.command;
