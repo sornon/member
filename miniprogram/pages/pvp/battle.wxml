@@ -1,31 +1,121 @@
 <custom-nav title="战报回放" theme="dark"></custom-nav>
-<view class="container battle-page">
-  <view wx:if="{{loading}}" class="card battle-state">战报加载中...</view>
-  <block wx:elif="{{battle}}">
-    <view class="card battle-header">
-      <view class="battle-result">{{battle.result.draw ? '平局' : battle.result.winnerId === battle.player.memberId ? '主角胜利' : '对手胜利'}}</view>
-      <view class="battle-meta">{{battle.player.displayName}} VS {{battle.opponent.displayName}}</view>
-      <view class="battle-meta">{{battle.createdAtText}}</view>
-    </view>
-    <view class="card battle-summary">
-      <view class="battle-summary__item">
-        <text class="battle-summary__label">我方积分</text>
-        <text class="battle-summary__value">{{battle.player.pointsAfter}}（{{battle.player.pointsDelta >= 0 ? '+' : ''}}{{battle.player.pointsDelta}}）</text>
-      </view>
-      <view class="battle-summary__item">
-        <text class="battle-summary__label">对手积分</text>
-        <text class="battle-summary__value">{{battle.opponent.pointsAfter}}（{{battle.opponent.pointsDelta >= 0 ? '+' : ''}}{{battle.opponent.pointsDelta}}）</text>
-      </view>
-    </view>
-    <view class="card battle-rounds">
-      <block wx:for="{{rounds}}" wx:key="index">
-        <view class="round-item">
-          <view class="round-title">第 {{item.round}} 回合</view>
-          <view class="round-description">{{item.description}}</view>
-          <view class="round-meta">对手剩余血量：{{item.targetRemainingHp}}</view>
+<view class="battle-wrapper">
+  <video
+    class="battle-background"
+    autoplay
+    loop
+    muted
+    controls="{{false}}"
+    show-center-play-btn="{{false}}"
+    show-mute-btn="{{false}}"
+    enable-progress-gesture="{{false}}"
+    object-fit="cover"
+    poster="{{videoPoster}}"
+    src="{{videoSrc}}"
+  ></video>
+  <view class="battle-overlay">
+    <view wx:if="{{loading}}" class="card battle-state">战报加载中...</view>
+    <block wx:elif="{{battle}}">
+      <view class="card battle-header">
+        <view class="battle-result-tag">
+          {{battle.result.draw ? '平局' : battle.result.winnerId === battle.player.memberId ? '主角胜利' : '对手胜利'}}
         </view>
-      </block>
-    </view>
-  </block>
-  <view wx:else class="card battle-state">未找到战报</view>
+        <view class="battle-meta">{{battle.player.displayName}} VS {{battle.opponent.displayName}}</view>
+        <view class="battle-meta">{{battle.createdAtText}}</view>
+      </view>
+
+      <view class="fighters">
+        <view wx:if="{{playerState}}" class="card fighter-card fighter-card--player">
+          <view class="fighter-header">
+            <view class="fighter-name">{{playerState.displayName}}</view>
+            <view class="fighter-tier">{{playerState.tierName}}</view>
+          </view>
+          <image class="fighter-portrait" mode="widthFix" src="{{playerState.sprite}}" lazy-load="{{true}}"></image>
+          <view class="hp-bar">
+            <view class="hp-bar__value" style="width: {{playerState.hpPercent}}%"></view>
+          </view>
+          <view class="hp-text">{{playerState.remainingHp}} / {{playerState.maxHp}}</view>
+          <view class="fighter-stats">
+            <view class="fighter-stat">
+              <text class="label">造成伤害</text>
+              <text class="value">{{playerState.damageDealt}}</text>
+            </view>
+            <view class="fighter-stat">
+              <text class="label">承受伤害</text>
+              <text class="value">{{playerState.damageTaken}}</text>
+            </view>
+            <view class="fighter-stat">
+              <text class="label">赢得回合</text>
+              <text class="value">{{playerState.roundsWon}}</text>
+            </view>
+          </view>
+        </view>
+
+        <view class="vs-badge">VS</view>
+
+        <view wx:if="{{opponentState}}" class="card fighter-card fighter-card--opponent">
+          <view class="fighter-header">
+            <view class="fighter-name">{{opponentState.displayName}}</view>
+            <view class="fighter-tier">{{opponentState.tierName}}</view>
+          </view>
+          <image class="fighter-portrait" mode="widthFix" src="{{opponentState.sprite}}" lazy-load="{{true}}"></image>
+          <view class="hp-bar">
+            <view class="hp-bar__value" style="width: {{opponentState.hpPercent}}%"></view>
+          </view>
+          <view class="hp-text">{{opponentState.remainingHp}} / {{opponentState.maxHp}}</view>
+          <view class="fighter-stats">
+            <view class="fighter-stat">
+              <text class="label">造成伤害</text>
+              <text class="value">{{opponentState.damageDealt}}</text>
+            </view>
+            <view class="fighter-stat">
+              <text class="label">承受伤害</text>
+              <text class="value">{{opponentState.damageTaken}}</text>
+            </view>
+            <view class="fighter-stat">
+              <text class="label">赢得回合</text>
+              <text class="value">{{opponentState.roundsWon}}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view wx:if="{{playerState && opponentState}}" class="card battle-summary">
+        <view class="battle-summary__item">
+          <text class="battle-summary__label">我方积分</text>
+          <view class="battle-summary__value">
+            {{playerState.pointsAfter}}
+            <text class="points-delta">（{{playerState.pointsDelta >= 0 ? '+' : ''}}{{playerState.pointsDelta}}）</text>
+          </view>
+        </view>
+        <view class="battle-summary__item">
+          <text class="battle-summary__label">对手积分</text>
+          <view class="battle-summary__value">
+            {{opponentState.pointsAfter}}
+            <text class="points-delta">（{{opponentState.pointsDelta >= 0 ? '+' : ''}}{{opponentState.pointsDelta}}）</text>
+          </view>
+        </view>
+      </view>
+
+      <scroll-view scroll-y class="card battle-rounds" enable-flex="true">
+        <view wx:if="{{!rounds.length}}" class="round-empty">暂无战斗回合数据</view>
+        <block wx:for="{{rounds}}" wx:key="index">
+          <view class="round-item {{item.isPlayerAction ? 'round-item--player' : 'round-item--opponent'}}">
+            <view class="round-header">
+              <view class="round-index">第 {{item.round}} 回合</view>
+              <view class="round-actor">{{item.actorName}}</view>
+              <view class="round-tag round-tag--{{item.tagType}}">{{item.statusText}}</view>
+            </view>
+            <view class="round-description">{{item.description}}</view>
+            <view class="round-meta">
+              <text wx:if="{{item.damage > 0}}" class="round-meta__item">造成伤害：{{item.damage}}</text>
+              <text wx:if="{{item.heal > 0}}" class="round-meta__item">治疗：{{item.heal}}</text>
+              <text class="round-meta__item">目标剩余血量：{{item.targetHpAfter}}（{{item.remainingPercent}}%）</text>
+            </view>
+          </view>
+        </block>
+      </scroll-view>
+    </block>
+    <view wx:else class="card battle-state">未找到战报</view>
+  </view>
 </view>
