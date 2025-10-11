@@ -27,14 +27,6 @@
           <text>回复 {{opponent.summary.heal}}</text>
         </view>
       </view>
-      <view class="battle-center-title">
-        <view class="round-tag">第{{currentRound}}回合</view>
-        <view class="action-title">{{currentAction.title || '战斗即将开始'}}</view>
-        <view class="action-description">{{currentAction.description || '招式蓄势待发……'}}</view>
-        <view class="effect-badges" wx:if="{{currentAction.effects && currentAction.effects.length}}">
-          <text class="effect-badge" wx:for="{{currentAction.effects}}" wx:key="label">{{item.label}}</text>
-        </view>
-      </view>
       <view class="actor-card actor-player">
         <view class="actor-name">{{player.name}}</view>
         <view class="actor-meta">战力 {{player.combatPower || '???'}}</view>

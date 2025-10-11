@@ -144,28 +144,6 @@ page {
   align-self: flex-end;
 }
 
-.battle-center-title {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12rpx;
-  text-align: center;
-}
-
-.round-tag {
-  padding: 8rpx 24rpx;
-  border-radius: 999rpx;
-  background: rgba(111, 176, 255, 0.22);
-  font-size: 22rpx;
-}
-
-.action-title {
-  font-size: 30rpx;
-  font-weight: 600;
-}
-
 .battle-avatars {
   display: flex;
   align-items: center;
@@ -243,30 +221,6 @@ page {
   }
 }
 
-
-.action-description {
-  font-size: 24rpx;
-  line-height: 1.5;
-  max-width: 520rpx;
-  color: rgba(226, 235, 255, 0.82);
-}
-
-.battle-center-title .effect-badges {
-  justify-content: center;
-}
-
-.effect-badges {
-  display: flex;
-  gap: 16rpx;
-  flex-wrap: wrap;
-}
-
-.effect-badge {
-  padding: 8rpx 20rpx;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 16rpx;
-  font-size: 22rpx;
-}
 
 .battle-log {
   background: rgba(5, 12, 36, 0.7);
