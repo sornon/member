@@ -102,5 +102,35 @@ Page({
       },
       log: normalizedLog
     });
+  },
+
+  handleWatchBattle() {
+    const { record } = this.data;
+    if (!record || record.type !== 'battle') {
+      wx.showToast({ title: '暂无战斗详情', icon: 'none' });
+      return;
+    }
+    const battlePayload = {
+      mode: 'pveReplay',
+      playbackMode: 'replay',
+      battle: {
+        ...record,
+        log: Array.isArray(record.log) ? record.log : [],
+        rounds: record.battleRounds || record.rounds || [],
+        remaining: record.remaining || record.resultRemaining || record.finalState || {},
+        rewards: record.rewards || record.resultRewards || {}
+      },
+      playerProfile: record.playerProfile || record.profile || record.player || {},
+      opponent: record.enemy || record.opponent || {},
+      log: Array.isArray(record.log) ? record.log : []
+    };
+    wx.navigateTo({
+      url: '/pages/pvp/battle?mode=pveReplay',
+      success: (res) => {
+        if (res && res.eventChannel && typeof res.eventChannel.emit === 'function') {
+          res.eventChannel.emit('battle:data', battlePayload);
+        }
+      }
+    });
   }
 });

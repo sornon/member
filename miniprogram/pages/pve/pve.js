@@ -39,27 +39,49 @@ Page({
     return null;
   },
 
-  async handleBattle(event) {
+  handleBattle(event) {
     const { id: enemyId, locked } = event.currentTarget.dataset || {};
     if (!enemyId || locked) return;
+    const enemies = (this.data.profile && this.data.profile.enemies) || [];
+    const enemy = enemies.find((item) => item.id === enemyId) || null;
     this.setData({ battleLoading: true, selectedEnemyId: enemyId });
-    try {
-      const res = await PveService.battle(enemyId);
-      this.setData({
-        profile: res.profile,
-        battleResult: res.battle,
-        battleLoading: false,
-        selectedEnemyId: ''
-      });
-      wx.showToast({
-        title: res.battle && res.battle.victory ? '秘境胜利' : '战斗结束',
-        icon: 'success'
-      });
-    } catch (error) {
-      console.error('[pve] battle failed', error);
-      wx.showToast({ title: error.errMsg || '挑战失败', icon: 'none' });
-      this.setData({ battleLoading: false, selectedEnemyId: '' });
-    }
+    wx.navigateTo({
+      url: `/pages/pvp/battle?mode=pve&enemyId=${enemyId}`,
+      events: {
+        battleComplete: (payload = {}) => {
+          if (payload.mode !== 'pve') {
+            return;
+          }
+          const nextState = {};
+          if (payload.profile) {
+            nextState.profile = payload.profile;
+          }
+          if (payload.battle) {
+            nextState.battleResult = payload.battle;
+          }
+          if (Object.keys(nextState).length) {
+            this.setData(nextState);
+          }
+        }
+      },
+      success: (res) => {
+        if (res && res.eventChannel && typeof res.eventChannel.emit === 'function') {
+          res.eventChannel.emit('battle:launch', {
+            mode: 'pve',
+            enemyId,
+            enemy,
+            playerProfile: this.data.profile
+          });
+        }
+      },
+      fail: (error) => {
+        console.error('[pve] navigate to battle failed', error);
+        wx.showToast({ title: '无法进入战斗', icon: 'none' });
+      },
+      complete: () => {
+        this.setData({ battleLoading: false, selectedEnemyId: '' });
+      }
+    });
   },
 
   handleHistoryTap(event) {
