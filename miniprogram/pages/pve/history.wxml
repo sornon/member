@@ -59,6 +59,7 @@
         </view>
       </view>
       <view wx:if="{{record.rewardsText}}" class="summary-reward">{{record.rewardsText}}</view>
+      <button class="watch-button" bindtap="handleWatchBattle">观看战斗回放</button>
     </view>
     <view class="card log-card">
       <view class="log-title">战斗过程</view>

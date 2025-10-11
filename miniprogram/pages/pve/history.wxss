@@ -175,6 +175,18 @@ page {
   color: rgba(255, 238, 193, 0.9);
 }
 
+.watch-button {
+  margin-top: 20rpx;
+  padding: 18rpx 0;
+  border-radius: 999rpx;
+  border: none;
+  background: linear-gradient(90deg, #7af4ff, #5880ff);
+  color: #040714;
+  font-size: 26rpx;
+  font-weight: 600;
+  box-shadow: 0 14rpx 36rpx rgba(32, 56, 128, 0.45);
+}
+
 .log-card {
   display: flex;
   flex-direction: column;

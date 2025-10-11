@@ -1,31 +1,122 @@
-<custom-nav title="战报回放" theme="dark"></custom-nav>
-<view class="container battle-page">
-  <view wx:if="{{loading}}" class="card battle-state">战报加载中...</view>
-  <block wx:elif="{{battle}}">
-    <view class="card battle-header">
-      <view class="battle-result">{{battle.result.draw ? '平局' : battle.result.winnerId === battle.player.memberId ? '主角胜利' : '对手胜利'}}</view>
-      <view class="battle-meta">{{battle.player.displayName}} VS {{battle.opponent.displayName}}</view>
-      <view class="battle-meta">{{battle.createdAtText}}</view>
+<custom-nav title="{{title}}" theme="dark"></custom-nav>
+<view class="battle-wrapper">
+  <view class="battle-background">
+    <video
+      wx:if="{{background.video}}"
+      class="background-video"
+      src="{{background.video}}"
+      autoplay
+      loop
+      muted
+      show-center-play-btn="false"
+      show-fullscreen-btn="false"
+      show-mute-btn="false"
+      controls="false"
+      enable-progress-gesture="false"
+      object-fit="cover"
+      binderror="handleVideoError"
+    ></video>
+    <image
+      wx:else
+      class="background-image"
+      src="{{background.image}}"
+      mode="aspectFill"
+    ></image>
+  </view>
+  <view class="battle-overlay">
+    <view wx:if="{{error}}" class="error-banner">{{error}}</view>
+    <view class="status-bar">
+      <text class="status-text">{{statusText}}</text>
+      <button class="skip-button" bindtap="handleSkip" disabled="{{!canSkip}}">
+        <block wx:if="{{state === 'finished'}}">返回</block>
+        <block wx:elif="{{canSkip}}">跳过战斗</block>
+        <block wx:else>跳过（{{skipCountdown}}s）</block>
+      </button>
     </view>
-    <view class="card battle-summary">
-      <view class="battle-summary__item">
-        <text class="battle-summary__label">我方积分</text>
-        <text class="battle-summary__value">{{battle.player.pointsAfter}}（{{battle.player.pointsDelta >= 0 ? '+' : ''}}{{battle.player.pointsDelta}}）</text>
+    <view class="combatant-panel">
+      <view class="combatant combatant-player">
+        <image class="combatant-avatar" src="{{actors.player.image}}" mode="widthFix"></image>
+        <view class="combatant-info">
+          <view class="combatant-name">{{actors.player.name}}</view>
+          <view wx:if="{{actors.player.title}}" class="combatant-title">{{actors.player.title}}</view>
+          <view class="hp-bar">
+            <view class="hp-fill" style="width: {{actors.player.hpPercent}}%;"></view>
+          </view>
+          <view class="hp-text">{{actors.player.hp}} / {{actors.player.maxHp}}</view>
+          <view class="attribute-list">
+            <text wx:for="{{actors.player.attributes}}" wx:key="label">{{item.label}} {{item.value}}</text>
+          </view>
+        </view>
       </view>
-      <view class="battle-summary__item">
-        <text class="battle-summary__label">对手积分</text>
-        <text class="battle-summary__value">{{battle.opponent.pointsAfter}}（{{battle.opponent.pointsDelta >= 0 ? '+' : ''}}{{battle.opponent.pointsDelta}}）</text>
+      <view class="combatant combatant-opponent">
+        <image class="combatant-avatar" src="{{actors.opponent.image}}" mode="widthFix"></image>
+        <view class="combatant-info">
+          <view class="combatant-name">{{actors.opponent.name}}</view>
+          <view wx:if="{{actors.opponent.title}}" class="combatant-title">{{actors.opponent.title}}</view>
+          <view class="hp-bar">
+            <view class="hp-fill" style="width: {{actors.opponent.hpPercent}}%;"></view>
+          </view>
+          <view class="hp-text">{{actors.opponent.hp}} / {{actors.opponent.maxHp}}</view>
+          <view class="attribute-list">
+            <text wx:for="{{actors.opponent.attributes}}" wx:key="label">{{item.label}} {{item.value}}</text>
+          </view>
+        </view>
       </view>
     </view>
-    <view class="card battle-rounds">
-      <block wx:for="{{rounds}}" wx:key="index">
-        <view class="round-item">
-          <view class="round-title">第 {{item.round}} 回合</view>
-          <view class="round-description">{{item.description}}</view>
-          <view class="round-meta">对手剩余血量：{{item.targetRemainingHp}}</view>
+    <view class="battle-stage">
+      <image class="fighter fighter-player {{actors.player.animation}}" src="{{actors.player.image}}" mode="widthFix"></image>
+      <image class="fighter fighter-opponent {{actors.opponent.animation}}" src="{{actors.opponent.image}}" mode="widthFix"></image>
+    </view>
+    <scroll-view class="event-log" scroll-y="true" scroll-into-view="{{lastEventId}}">
+      <block wx:if="{{displayedEvents.length}}">
+        <view wx:for="{{displayedEvents}}" wx:key="id" class="event-card" id="{{item.id}}">
+          <view class="event-header">
+            <view class="event-round">回合 {{item.round}}</view>
+            <view class="event-actor">{{item.actorName}}</view>
+            <view wx:if="{{item.skillName}}" class="event-skill">{{item.skillName}}</view>
+          </view>
+          <view class="event-body">
+            <text class="event-description">{{item.description}}</text>
+            <view wx:if="{{item.tags && item.tags.length}}" class="event-tags">
+              <text wx:for="{{item.tags}}" wx:key="*this" class="event-tag">{{item}}</text>
+            </view>
+            <view class="event-effects">
+              <text wx:if="{{item.damageText}}" class="event-damage">{{item.damageText}}</text>
+              <text wx:if="{{item.healText}}" class="event-heal">{{item.healText}}</text>
+            </view>
+            <view wx:if="{{item.passives && item.passives.length}}" class="event-extra">
+              <text class="extra-label">被动</text>
+              <text wx:for="{{item.passives}}" wx:key="*this" class="extra-item">{{item}}</text>
+            </view>
+            <view wx:if="{{item.buffs && item.buffs.length}}" class="event-extra">
+              <text class="extra-label">增益</text>
+              <text wx:for="{{item.buffs}}" wx:key="*this" class="extra-item">{{item}}</text>
+            </view>
+            <view wx:if="{{item.debuffs && item.debuffs.length}}" class="event-extra">
+              <text class="extra-label">减益</text>
+              <text wx:for="{{item.debuffs}}" wx:key="*this" class="extra-item extra-item-debuff">{{item}}</text>
+            </view>
+          </view>
         </view>
       </block>
+      <view wx:else class="event-placeholder">战斗演算中...</view>
+    </scroll-view>
+    <view wx:if="{{summary && state === 'finished'}}" class="battle-summary-card">
+      <view class="summary-title">{{summary.title}}</view>
+      <view wx:if="{{summary.subtitle}}" class="summary-subtitle">{{summary.subtitle}}</view>
+      <view class="summary-grid">
+        <view wx:for="{{summary.highlights}}" wx:key="label" class="summary-item">
+          <text class="summary-label">{{item.label}}</text>
+          <text class="summary-value">{{item.value}}</text>
+        </view>
+      </view>
+      <button
+        class="return-button"
+        bindtap="handleReturn"
+        disabled="{{!canSkip && skipCountdown > 0}}"
+      >
+        {{!canSkip && skipCountdown > 0 ? ('等待 ' + skipCountdown + 's') : '返回'}}
+      </button>
     </view>
-  </block>
-  <view wx:else class="card battle-state">未找到战报</view>
+  </view>
 </view>

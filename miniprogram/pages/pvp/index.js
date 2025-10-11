@@ -93,59 +93,64 @@ Page({
     }
   },
 
-  async handleMatch() {
+  handleMatch() {
     if (this.data.matching) return;
     this.setData({ matching: true });
-    try {
-      const res = await PvpService.matchRandom();
-      const profile = res.profile || this.data.profile;
-      this.setData({
-        profile,
-        recentMatches: res.recentMatches || this.data.recentMatches,
-        leaderboardPreview: res.leaderboardPreview || this.data.leaderboardPreview,
-        leaderboardUpdatedAt: res.leaderboardUpdatedAt || this.data.leaderboardUpdatedAt,
-        battleResult: res.battle || null,
-        season: res.season || this.data.season,
-        matching: false
-      });
-      const victory = res.battle && !res.battle.draw && res.battle.winnerId === (profile ? profile.memberId : '');
-      wx.showToast({
-        title: res.battle ? (res.battle.draw ? '平局收场' : victory ? '切磋胜利' : '战斗结束') : '战斗结束',
-        icon: 'success'
-      });
-    } catch (error) {
-      console.error('[pvp] match random failed', error);
-      wx.showToast({ title: error.errMsg || '匹配失败', icon: 'none' });
-      this.setData({ matching: false });
-    }
+    wx.navigateTo({
+      url: '/pages/pvp/battle?mode=pvp&operation=random',
+      events: {
+        battleComplete: (payload = {}) => {
+          this.applyBattleUpdates(payload);
+        }
+      },
+      success: (res) => {
+        if (res && res.eventChannel && typeof res.eventChannel.emit === 'function') {
+          res.eventChannel.emit('battle:launch', {
+            mode: 'pvp',
+            operation: 'random'
+          });
+        }
+      },
+      fail: (error) => {
+        console.error('[pvp] navigate to battle failed', error);
+        wx.showToast({ title: '无法进入战斗', icon: 'none' });
+      },
+      complete: () => {
+        this.setData({ matching: false });
+      }
+    });
   },
 
-  async handleAcceptInvite() {
+  handleAcceptInvite() {
     const { pendingInviteId, acceptingInvite } = this.data;
     if (!pendingInviteId || acceptingInvite) {
       return;
     }
     this.setData({ acceptingInvite: true });
-    try {
-      const res = await PvpService.acceptInvite(pendingInviteId);
-      const profile = res.profile || this.data.profile;
-      this.setData({
-        profile,
-        recentMatches: res.recentMatches || this.data.recentMatches,
-        leaderboardPreview: res.leaderboardPreview || this.data.leaderboardPreview,
-        leaderboardUpdatedAt: res.leaderboardUpdatedAt || this.data.leaderboardUpdatedAt,
-        battleResult: res.battle || null,
-        season: res.season || this.data.season,
-        pendingInviteId: '',
-        acceptingInvite: false
-      });
-      const victory = res.battle && !res.battle.draw && res.battle.winnerId === (profile ? profile.memberId : '');
-      wx.showToast({ title: res.battle ? (res.battle.draw ? '平局收场' : victory ? '比武胜利' : '比武结束') : '比武完成', icon: 'success' });
-    } catch (error) {
-      console.error('[pvp] accept invite failed', error);
-      wx.showToast({ title: error.errMsg || '挑战失败', icon: 'none' });
-      this.setData({ acceptingInvite: false });
-    }
+    wx.navigateTo({
+      url: '/pages/pvp/battle?mode=pvp&operation=acceptInvite',
+      events: {
+        battleComplete: (payload = {}) => {
+          this.applyBattleUpdates({ ...payload, clearInvite: true });
+        }
+      },
+      success: (res) => {
+        if (res && res.eventChannel && typeof res.eventChannel.emit === 'function') {
+          res.eventChannel.emit('battle:launch', {
+            mode: 'pvp',
+            operation: 'acceptInvite',
+            inviteId: pendingInviteId
+          });
+        }
+      },
+      fail: (error) => {
+        console.error('[pvp] navigate to invite battle failed', error);
+        wx.showToast({ title: '无法进入战斗', icon: 'none' });
+      },
+      complete: () => {
+        this.setData({ acceptingInvite: false });
+      }
+    });
   },
 
   clearPendingInvite() {
@@ -192,32 +197,36 @@ Page({
     }
   },
 
-  async handleChallengeConfirm() {
+  handleChallengeConfirm() {
     const challenge = this.data.targetChallenge;
     if (!challenge || this.data.matching) {
       return;
     }
     this.setData({ matching: true });
-    try {
-      const res = await PvpService.matchFriend(challenge.id);
-      const profile = res.profile || this.data.profile;
-      this.setData({
-        profile,
-        recentMatches: res.recentMatches || this.data.recentMatches,
-        leaderboardPreview: res.leaderboardPreview || this.data.leaderboardPreview,
-        leaderboardUpdatedAt: res.leaderboardUpdatedAt || this.data.leaderboardUpdatedAt,
-        battleResult: res.battle || null,
-        season: res.season || this.data.season,
-        matching: false,
-        targetChallenge: null
-      });
-      const victory = res.battle && !res.battle.draw && res.battle.winnerId === (profile ? profile.memberId : '');
-      wx.showToast({ title: res.battle ? (res.battle.draw ? '平局收场' : victory ? '切磋胜利' : '切磋结束') : '切磋完成', icon: 'success' });
-    } catch (error) {
-      console.error('[pvp] challenge friend failed', error);
-      wx.showToast({ title: error.errMsg || '挑战失败', icon: 'none' });
-      this.setData({ matching: false });
-    }
+    wx.navigateTo({
+      url: `/pages/pvp/battle?mode=pvp&operation=friend&targetId=${challenge.id}`,
+      events: {
+        battleComplete: (payload = {}) => {
+          this.applyBattleUpdates({ ...payload, clearChallenge: true });
+        }
+      },
+      success: (res) => {
+        if (res && res.eventChannel && typeof res.eventChannel.emit === 'function') {
+          res.eventChannel.emit('battle:launch', {
+            mode: 'pvp',
+            operation: 'friend',
+            targetId: challenge.id
+          });
+        }
+      },
+      fail: (error) => {
+        console.error('[pvp] navigate to challenge battle failed', error);
+        wx.showToast({ title: '无法进入战斗', icon: 'none' });
+      },
+      complete: () => {
+        this.setData({ matching: false });
+      }
+    });
   },
 
   handleCancelChallenge() {
@@ -231,7 +240,44 @@ Page({
   handleReplay(event) {
     const matchId = event.currentTarget.dataset.id;
     if (!matchId) return;
-    wx.navigateTo({ url: `/pages/pvp/battle?matchId=${matchId}` });
+    wx.navigateTo({ url: `/pages/pvp/battle?mode=pvpReplay&matchId=${matchId}` });
+  },
+
+  applyBattleUpdates(payload = {}) {
+    if (!payload || payload.mode !== 'pvp') {
+      return;
+    }
+    const nextState = {};
+    if (payload.profile) {
+      nextState.profile = payload.profile;
+    }
+    if (payload.recentMatches) {
+      nextState.recentMatches = payload.recentMatches;
+    }
+    if (payload.leaderboardPreview) {
+      nextState.leaderboardPreview = payload.leaderboardPreview;
+    }
+    if (payload.leaderboardUpdatedAt) {
+      nextState.leaderboardUpdatedAt = payload.leaderboardUpdatedAt;
+    }
+    if (payload.season) {
+      nextState.season = payload.season;
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'battle')) {
+      nextState.battleResult = payload.battle || null;
+    }
+    if (payload.clearInvite) {
+      nextState.pendingInviteId = '';
+    }
+    if (payload.clearChallenge) {
+      nextState.targetChallenge = null;
+    }
+    if (Object.keys(nextState).length) {
+      this.setData(nextState);
+    }
+    if (payload.toast) {
+      wx.showToast({ title: payload.toast, icon: payload.toastIcon || 'success' });
+    }
   },
 
   onShareAppMessage() {
