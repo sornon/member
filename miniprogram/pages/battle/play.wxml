@@ -21,11 +21,6 @@
           <view class="hp-progress hp-opponent" style="width: {{hpState.opponent.percent}}%"></view>
         </view>
         <view class="hp-text">{{hpState.opponent.current}} / {{hpState.opponent.max}}</view>
-        <view class="actor-summary">
-          <text>造成 {{opponent.summary.damageDealt}}</text>
-          <text>承受 {{opponent.summary.damageTaken}}</text>
-          <text>回复 {{opponent.summary.heal}}</text>
-        </view>
       </view>
       <view class="actor-card actor-player">
         <view class="actor-name">{{player.name}}</view>
@@ -34,11 +29,6 @@
           <view class="hp-progress hp-player" style="width: {{hpState.player.percent}}%"></view>
         </view>
         <view class="hp-text">{{hpState.player.current}} / {{hpState.player.max}}</view>
-        <view class="actor-summary">
-          <text>造成 {{player.summary.damageDealt}}</text>
-          <text>承受 {{player.summary.damageTaken}}</text>
-          <text>回复 {{player.summary.heal}}</text>
-        </view>
       </view>
     </view>
 

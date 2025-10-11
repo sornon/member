@@ -126,21 +126,6 @@ page {
   color: rgba(255, 255, 255, 0.85);
 }
 
-.actor-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10rpx 16rpx;
-  margin-top: 16rpx;
-  font-size: 22rpx;
-  color: rgba(226, 235, 255, 0.8);
-  justify-content: flex-start;
-  width: 100%;
-}
-
-.actor-card.actor-player .actor-summary {
-  justify-content: flex-end;
-}
-
 .actor-card.actor-player .actor-meta,
 .actor-card.actor-player .hp-text {
   align-self: flex-end;
