@@ -6,16 +6,51 @@ const { listAvatarIds } = require('./avatar-catalog.js');
 const { normalizeAvatarFrameValue } = require('./avatar-frames.js');
 const commonConfig = require('common-config');
 const {
-  normalizeBackgroundId,
-  getDefaultBackgroundId,
+  normalizeBackgroundId: importedNormalizeBackgroundId,
+  getDefaultBackgroundId: importedGetDefaultBackgroundId,
   isBackgroundUnlocked,
   resolveHighestUnlockedBackgroundByRealmOrder,
   resolveBackgroundByRealmName,
   resolveBackgroundById,
+  listBackgrounds,
   COLLECTIONS,
   realmConfigs,
   subLevelLabels
 } = commonConfig;
+
+const normalizeBackgroundId =
+  typeof importedNormalizeBackgroundId === 'function'
+    ? importedNormalizeBackgroundId
+    : (id) => {
+      if (typeof id !== 'string') {
+        return '';
+      }
+      const trimmed = id.trim();
+      if (!trimmed) {
+        return '';
+      }
+      if (typeof listBackgrounds === 'function') {
+        const backgrounds = listBackgrounds();
+        if (!Array.isArray(backgrounds)) {
+          return '';
+        }
+        return backgrounds.some((background) => background && background.id === trimmed) ? trimmed : '';
+      }
+      return trimmed;
+    };
+
+const getDefaultBackgroundId =
+  typeof importedGetDefaultBackgroundId === 'function'
+    ? importedGetDefaultBackgroundId
+    : () => {
+      if (typeof listBackgrounds === 'function') {
+        const backgrounds = listBackgrounds();
+        if (Array.isArray(backgrounds) && backgrounds.length && backgrounds[0] && backgrounds[0].id) {
+          return backgrounds[0].id;
+        }
+      }
+      return '';
+    };
 
 const db = cloud.database();
 const _ = db.command;
