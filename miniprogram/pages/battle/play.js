@@ -24,6 +24,214 @@ function buildCharacterImageMap() {
 const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
 
+const PLAYER_SIDE_ALIASES = ['player', 'self', 'attacker', 'initiator', 'ally', 'member'];
+const OPPONENT_SIDE_ALIASES = ['opponent', 'enemy', 'defender', 'target', 'foe'];
+const ENTITY_ID_KEYS = [
+  'id',
+  'memberId',
+  'characterId',
+  'roleId',
+  'playerId',
+  'opponentId',
+  'userId',
+  'targetId',
+  'defenderId',
+  'initiatorId',
+  'attackerId',
+  'uid'
+];
+const NESTED_ENTITY_KEYS = [
+  'profile',
+  'player',
+  'self',
+  'opponent',
+  'enemy',
+  'character',
+  'member',
+  'owner',
+  'target',
+  'defender',
+  'initiator',
+  'attacker',
+  'source'
+];
+
+function addIdToSet(set, value) {
+  if (value === null || value === undefined) {
+    return;
+  }
+  const stringified = String(value).trim();
+  if (!stringified) {
+    return;
+  }
+  set.add(stringified);
+  set.add(stringified.toLowerCase());
+}
+
+function hasId(idSet, value) {
+  if (value === null || value === undefined) {
+    return false;
+  }
+  const stringified = String(value).trim();
+  if (!stringified) {
+    return false;
+  }
+  return idSet.has(stringified) || idSet.has(stringified.toLowerCase());
+}
+
+function collectIdsFromEntity(entity, set, visited = new Set()) {
+  if (!entity || typeof entity !== 'object') {
+    return;
+  }
+  if (visited.has(entity)) {
+    return;
+  }
+  visited.add(entity);
+  ENTITY_ID_KEYS.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(entity, key)) {
+      addIdToSet(set, entity[key]);
+    }
+  });
+  if (Array.isArray(entity.ids)) {
+    entity.ids.forEach((value) => addIdToSet(set, value));
+  }
+  if (Array.isArray(entity.aliases)) {
+    entity.aliases.forEach((value) => addIdToSet(set, value));
+  }
+  if (typeof entity.side === 'string') {
+    addIdToSet(set, entity.side);
+  }
+  for (let i = 0; i < NESTED_ENTITY_KEYS.length; i += 1) {
+    const nested = entity[NESTED_ENTITY_KEYS[i]];
+    if (!nested) {
+      continue;
+    }
+    if (Array.isArray(nested)) {
+      for (let j = 0; j < nested.length; j += 1) {
+        collectIdsFromEntity(nested[j], set, visited);
+      }
+    } else if (typeof nested === 'object') {
+      collectIdsFromEntity(nested, set, visited);
+    }
+  }
+}
+
+function buildParticipantIdSet(baseKey, entities = []) {
+  const set = new Set();
+  const aliases =
+    baseKey === 'player'
+      ? PLAYER_SIDE_ALIASES
+      : baseKey === 'opponent'
+      ? OPPONENT_SIDE_ALIASES
+      : baseKey
+      ? [baseKey]
+      : [];
+  aliases.forEach((alias) => addIdToSet(set, alias));
+  const visited = new Set();
+  entities.forEach((entity) => {
+    if (entity === null || entity === undefined) {
+      return;
+    }
+    if (typeof entity === 'string' || typeof entity === 'number') {
+      addIdToSet(set, entity);
+      return;
+    }
+    if (Array.isArray(entity)) {
+      entity.forEach((item) => {
+        if (item === null || item === undefined) {
+          return;
+        }
+        if (typeof item === 'string' || typeof item === 'number') {
+          addIdToSet(set, item);
+        } else if (typeof item === 'object') {
+          collectIdsFromEntity(item, set, visited);
+        }
+      });
+      return;
+    }
+    if (typeof entity === 'object') {
+      collectIdsFromEntity(entity, set, visited);
+    }
+  });
+  return set;
+}
+
+function resolveSideFromCandidate(candidate, playerIds, opponentIds, visited = new Set()) {
+  if (candidate === null || candidate === undefined) {
+    return '';
+  }
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      const side = resolveSideFromCandidate(candidate[i], playerIds, opponentIds, visited);
+      if (side) {
+        return side;
+      }
+    }
+    return '';
+  }
+  if (typeof candidate === 'object') {
+    if (visited.has(candidate)) {
+      return '';
+    }
+    visited.add(candidate);
+    if (typeof candidate.side === 'string') {
+      const sideLabel = candidate.side.trim();
+      if (sideLabel === 'player' || sideLabel === 'opponent') {
+        return sideLabel;
+      }
+    }
+    for (let i = 0; i < ENTITY_ID_KEYS.length; i += 1) {
+      const value = candidate[ENTITY_ID_KEYS[i]];
+      if (hasId(playerIds, value)) {
+        return 'player';
+      }
+      if (hasId(opponentIds, value)) {
+        return 'opponent';
+      }
+    }
+    if (Array.isArray(candidate.ids)) {
+      for (let i = 0; i < candidate.ids.length; i += 1) {
+        const value = candidate.ids[i];
+        if (hasId(playerIds, value)) {
+          return 'player';
+        }
+        if (hasId(opponentIds, value)) {
+          return 'opponent';
+        }
+      }
+    }
+    if (Array.isArray(candidate.aliases)) {
+      for (let i = 0; i < candidate.aliases.length; i += 1) {
+        const value = candidate.aliases[i];
+        if (hasId(playerIds, value)) {
+          return 'player';
+        }
+        if (hasId(opponentIds, value)) {
+          return 'opponent';
+        }
+      }
+    }
+    for (let i = 0; i < NESTED_ENTITY_KEYS.length; i += 1) {
+      const nested = candidate[NESTED_ENTITY_KEYS[i]];
+      if (!nested) {
+        continue;
+      }
+      const side = resolveSideFromCandidate(nested, playerIds, opponentIds, visited);
+      if (side) {
+        return side;
+      }
+    }
+    return '';
+  }
+  if (hasId(playerIds, candidate)) {
+    return 'player';
+  }
+  if (hasId(opponentIds, candidate)) {
+    return 'opponent';
+  }
+  return '';
+}
+
 function extractAvatarIdFromUrl(url) {
   if (typeof url !== 'string') {
     return '';
@@ -102,6 +310,8 @@ function createBattleStageState(overrides = {}) {
       player: { max: 1, current: 1, percent: 100 },
       opponent: { max: 1, current: 1, percent: 100 }
     },
+    attackerKey: 'player',
+    defenderKey: 'opponent',
     currentAction: {},
     displayedLogs: [],
     skipLocked: true,
@@ -464,6 +674,9 @@ Page({
 
   applyBattleViewModel(viewModel) {
     const skipLocked = !this.isReplay;
+    const alignment = this.resolveBattleAlignment(viewModel);
+    const defenderBackground = this.resolveDefenderBackgroundVideo(alignment, viewModel);
+    const backgroundVideo = defenderBackground || viewModel.backgroundVideo || DEFAULT_BACKGROUND_VIDEO;
     this.initialHp = {
       player: viewModel.player.hp,
       opponent: viewModel.opponent.hp
@@ -471,13 +684,15 @@ Page({
     this.setBattleStageData({
       loading: false,
       error: '',
-      backgroundVideo: viewModel.backgroundVideo || DEFAULT_BACKGROUND_VIDEO,
+      backgroundVideo,
       player: viewModel.player,
       opponent: viewModel.opponent,
       hpState: {
         player: viewModel.player.hp,
         opponent: viewModel.opponent.hp
       },
+      attackerKey: alignment.attackerKey,
+      defenderKey: alignment.defenderKey,
       currentAction: {},
       displayedLogs: [],
       skipLocked,
@@ -501,6 +716,221 @@ Page({
       this.startSkipCountdown();
     }
     this.scheduleNextAction(600);
+  },
+
+  resolveBattleAlignment(viewModel = {}) {
+    const battle = this.latestBattle || {};
+    const participants = (battle && battle.participants) || {};
+    const context = this.contextPayload || {};
+    const parentPayload = this.parentPayload || {};
+    const options = (battle && battle.options) || {};
+    const metadata = (battle && battle.metadata) || {};
+    const viewOptions = this.contextOptions || {};
+
+    const playerEntities = [
+      battle.player,
+      participants.player,
+      participants.self,
+      context.player,
+      context.profile,
+      context.playerParticipant,
+      context.self,
+      parentPayload.profile,
+      parentPayload.player,
+      parentPayload.self,
+      parentPayload.battle && parentPayload.battle.player,
+      viewModel.player
+    ];
+
+    const opponentEntities = [
+      battle.opponent,
+      participants.opponent,
+      participants.enemy,
+      participants.target,
+      context.opponent,
+      context.enemy,
+      context.target,
+      context.enemyPreview,
+      context.opponentPreview,
+      parentPayload.opponent,
+      parentPayload.enemy,
+      parentPayload.battle && parentPayload.battle.opponent,
+      parentPayload.opponentPreview,
+      viewModel.opponent
+    ];
+
+    const playerIds = buildParticipantIdSet('player', playerEntities);
+    const opponentIds = buildParticipantIdSet('opponent', opponentEntities);
+
+    const defenderCandidates = [
+      options.defenderId,
+      options.targetId,
+      options.defender,
+      participants.defender,
+      metadata.defenderId,
+      metadata.defender,
+      context.defender,
+      context.defenderId,
+      parentPayload.defender,
+      parentPayload.defenderId
+    ];
+    if (context.preview && typeof context.preview === 'object') {
+      defenderCandidates.push(context.preview.defender, context.preview.defenderId);
+    }
+    if (parentPayload.preview && typeof parentPayload.preview === 'object') {
+      defenderCandidates.push(parentPayload.preview.defender, parentPayload.preview.defenderId);
+    }
+
+    for (let i = 0; i < defenderCandidates.length; i += 1) {
+      const side = resolveSideFromCandidate(defenderCandidates[i], playerIds, opponentIds);
+      if (side) {
+        return {
+          attackerKey: side === 'player' ? 'opponent' : 'player',
+          defenderKey: side
+        };
+      }
+    }
+
+    const attackerCandidates = [
+      options.attackerId,
+      options.initiatorId,
+      options.attacker,
+      options.initiator,
+      participants.attacker,
+      participants.initiator,
+      metadata.attackerId,
+      metadata.attacker,
+      metadata.initiatorId,
+      metadata.initiator,
+      context.attacker,
+      context.attackerId,
+      context.initiator,
+      context.initiatorId,
+      parentPayload.attacker,
+      parentPayload.attackerId
+    ];
+    if (context.preview && typeof context.preview === 'object') {
+      attackerCandidates.push(context.preview.attacker, context.preview.initiatorId);
+    }
+    if (parentPayload.preview && typeof parentPayload.preview === 'object') {
+      attackerCandidates.push(parentPayload.preview.attacker, parentPayload.preview.initiatorId);
+    }
+
+    for (let i = 0; i < attackerCandidates.length; i += 1) {
+      const side = resolveSideFromCandidate(attackerCandidates[i], playerIds, opponentIds);
+      if (side) {
+        return {
+          attackerKey: side,
+          defenderKey: side === 'player' ? 'opponent' : 'player'
+        };
+      }
+    }
+
+    const source = context.source || viewOptions.source || '';
+    if (source === 'acceptInvite') {
+      return { attackerKey: 'opponent', defenderKey: 'player' };
+    }
+
+    const initiatorHint =
+      options.initiatorId || metadata.initiatorId || context.initiatorId || parentPayload.initiatorId;
+    if (hasId(playerIds, initiatorHint)) {
+      return { attackerKey: 'player', defenderKey: 'opponent' };
+    }
+    if (hasId(opponentIds, initiatorHint)) {
+      return { attackerKey: 'opponent', defenderKey: 'player' };
+    }
+
+    if (options.inviteMatch && options.initiatorId) {
+      if (hasId(playerIds, options.initiatorId)) {
+        return { attackerKey: 'player', defenderKey: 'opponent' };
+      }
+      if (hasId(opponentIds, options.initiatorId)) {
+        return { attackerKey: 'opponent', defenderKey: 'player' };
+      }
+    }
+
+    if (this.mode === 'pve') {
+      return { attackerKey: 'player', defenderKey: 'opponent' };
+    }
+
+    return { attackerKey: 'player', defenderKey: 'opponent' };
+  },
+
+  resolveDefenderBackgroundVideo(alignment = {}, viewModel = {}) {
+    const defenderKey = alignment && alignment.defenderKey ? alignment.defenderKey : 'opponent';
+    const battle = this.latestBattle || {};
+    const participants = (battle && battle.participants) || {};
+    const context = this.contextPayload || {};
+    const parentPayload = this.parentPayload || {};
+    const options = (battle && battle.options) || {};
+    const metadata = (battle && battle.metadata) || {};
+
+    const candidateSources = [];
+    if (defenderKey === 'player') {
+      candidateSources.push(
+        viewModel.player,
+        battle.player,
+        participants.player,
+        participants.self,
+        context.player,
+        context.profile,
+        context.playerParticipant,
+        context.self,
+        parentPayload.profile,
+        parentPayload.player,
+        parentPayload.self,
+        parentPayload.battle && parentPayload.battle.player,
+        options.player,
+        options.attacker,
+        options.initiator,
+        metadata.player,
+        metadata.attacker,
+        metadata.initiator
+      );
+      if (context.preview && typeof context.preview === 'object') {
+        candidateSources.push(context.preview.player, context.preview.attacker);
+      }
+      if (parentPayload.preview && typeof parentPayload.preview === 'object') {
+        candidateSources.push(parentPayload.preview.player, parentPayload.preview.attacker);
+      }
+    } else {
+      candidateSources.push(
+        viewModel.opponent,
+        battle.opponent,
+        participants.opponent,
+        participants.enemy,
+        participants.target,
+        context.opponent,
+        context.enemy,
+        context.target,
+        context.enemyPreview,
+        context.opponentPreview,
+        context.defenderBackground,
+        parentPayload.opponent,
+        parentPayload.enemy,
+        parentPayload.battle && parentPayload.battle.opponent,
+        parentPayload.opponentPreview,
+        options.defender,
+        options.target,
+        options.defenderBackground,
+        metadata.defender,
+        metadata.target
+      );
+      if (context.preview && typeof context.preview === 'object') {
+        candidateSources.push(context.preview.opponent, context.preview.defenderBackground);
+      }
+      if (parentPayload.preview && typeof parentPayload.preview === 'object') {
+        candidateSources.push(parentPayload.preview.opponent, parentPayload.preview.defenderBackground);
+      }
+    }
+
+    for (let i = 0; i < candidateSources.length; i += 1) {
+      const video = extractBackgroundVideoFromSource(candidateSources[i]);
+      if (video) {
+        return video;
+      }
+    }
+    return '';
   },
 
   scheduleNextAction(delay = 1200) {
