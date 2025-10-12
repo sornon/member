@@ -14,53 +14,23 @@
     <view class="battle-fallback"></view>
     <view class="battle-content" wx:if="{{!loading && player && opponent}}">
       <view class="battle-scoreboard">
-        <view
-          class="actor-card attacker-card {{attackerKey === 'player' ? 'actor-player' : 'actor-opponent'}}"
-        >
+        <view class="actor-card attacker-card {{attackerKey === 'player' ? 'actor-player' : 'actor-opponent'}}">
           <view class="actor-header">
             <view class="actor-avatar">
-              <image
-                class="actor-avatar__image"
-                src="{{attackerKey === 'player' ? (player && player.portrait || '') : (opponent && opponent.portrait || '')}}"
-                mode="aspectFill"
-              ></image>
-              <image
-                wx:if="{{attackerKey === 'player' ? (player && player.avatarFrame) : (opponent && opponent.avatarFrame)}}"
-                class="actor-avatar__frame"
-                src="{{attackerKey === 'player' ? player.avatarFrame : opponent.avatarFrame}}"
-                mode="scaleToFill"
-              ></image>
+              <image class="actor-avatar__image" src="{{attackerKey === 'player' ? ((player && player.portrait) || '') : ((opponent && opponent.portrait) || '')}}" mode="aspectFill"></image>
+              <image wx:if="{{attackerKey === 'player' ? (player && player.avatarFrame) : (opponent && opponent.avatarFrame)}}" class="actor-avatar__frame" src="{{attackerKey === 'player' ? player.avatarFrame : opponent.avatarFrame}}" mode="scaleToFill"></image>
             </view>
             <view class="actor-details">
               <view class="actor-name">
-                {{attackerKey === 'player' ? (player && player.name || '我方') : (opponent && opponent.name || '对手')}}
+                {{attackerKey === 'player' ? ((player && player.name) || '我方') : ((opponent && opponent.name) || '对手')}}
               </view>
-              <view
-                class="actor-title"
-                wx:if="{{attackerKey === 'player'
-                  ? (player && (player.titleImage || player.titleName))
-                  : (opponent && (opponent.titleImage || opponent.titleName))}}"
-              >
-                <image
-                  wx:if="{{attackerKey === 'player' ? player.titleImage : opponent.titleImage}}"
-                  class="actor-title__image"
-                  src="{{attackerKey === 'player' ? player.titleImage : opponent.titleImage}}"
-                  mode="heightFix"
-                ></image>
-                <text
-                  wx:else
-                  class="actor-title__text"
-                >
-                  {{attackerKey === 'player' ? player.titleName : opponent.titleName}}
-                </text>
+              <view class="actor-title" wx:if="{{(attackerKey === 'player' && player && (player.titleImage || player.titleName)) || (attackerKey !== 'player' && opponent && (opponent.titleImage || opponent.titleName))}}">
+                <image wx:if="{{attackerKey === 'player' ? (player && player.titleImage) : (opponent && opponent.titleImage)}}" class="actor-title__image" src="{{attackerKey === 'player' ? player.titleImage : opponent.titleImage}}" mode="heightFix"></image>
+                <text wx:else class="actor-title__text">{{attackerKey === 'player' ? player.titleName : opponent.titleName}}</text>
               </view>
             </view>
           </view>
-          <view class="actor-meta">
-            战力 {{attackerKey === 'player'
-              ? ((player && player.combatPower) || '???')
-              : ((opponent && opponent.combatPower) || '???')}}
-          </view>
+          <view class="actor-meta">战力 {{attackerKey === 'player' ? ((player && player.combatPower) || '???') : ((opponent && opponent.combatPower) || '???')}}</view>
           <view class="hp-track">
             <view
               class="hp-progress {{attackerKey === 'player' ? 'hp-player' : 'hp-opponent'}}"
@@ -72,53 +42,23 @@
             {{hpState[attackerKey] ? hpState[attackerKey].max : 0}}
           </view>
         </view>
-        <view
-          class="actor-card defender-card {{defenderKey === 'player' ? 'actor-player' : 'actor-opponent'}}"
-        >
+        <view class="actor-card defender-card {{defenderKey === 'player' ? 'actor-player' : 'actor-opponent'}}">
           <view class="actor-header">
             <view class="actor-avatar">
-              <image
-                class="actor-avatar__image"
-                src="{{defenderKey === 'player' ? (player && player.portrait || '') : (opponent && opponent.portrait || '')}}"
-                mode="aspectFill"
-              ></image>
-              <image
-                wx:if="{{defenderKey === 'player' ? (player && player.avatarFrame) : (opponent && opponent.avatarFrame)}}"
-                class="actor-avatar__frame"
-                src="{{defenderKey === 'player' ? player.avatarFrame : opponent.avatarFrame}}"
-                mode="scaleToFill"
-              ></image>
+              <image class="actor-avatar__image" src="{{defenderKey === 'player' ? ((player && player.portrait) || '') : ((opponent && opponent.portrait) || '')}}" mode="aspectFill"></image>
+              <image wx:if="{{defenderKey === 'player' ? (player && player.avatarFrame) : (opponent && opponent.avatarFrame)}}" class="actor-avatar__frame" src="{{defenderKey === 'player' ? player.avatarFrame : opponent.avatarFrame}}" mode="scaleToFill"></image>
             </view>
             <view class="actor-details">
               <view class="actor-name">
-                {{defenderKey === 'player' ? (player && player.name || '我方') : (opponent && opponent.name || '对手')}}
+                {{defenderKey === 'player' ? ((player && player.name) || '我方') : ((opponent && opponent.name) || '对手')}}
               </view>
-              <view
-                class="actor-title"
-                wx:if="{{defenderKey === 'player'
-                  ? (player && (player.titleImage || player.titleName))
-                  : (opponent && (opponent.titleImage || opponent.titleName))}}"
-              >
-                <image
-                  wx:if="{{defenderKey === 'player' ? player.titleImage : opponent.titleImage}}"
-                  class="actor-title__image"
-                  src="{{defenderKey === 'player' ? player.titleImage : opponent.titleImage}}"
-                  mode="heightFix"
-                ></image>
-                <text
-                  wx:else
-                  class="actor-title__text"
-                >
-                  {{defenderKey === 'player' ? player.titleName : opponent.titleName}}
-                </text>
+              <view class="actor-title" wx:if="{{(defenderKey === 'player' && player && (player.titleImage || player.titleName)) || (defenderKey !== 'player' && opponent && (opponent.titleImage || opponent.titleName))}}">
+                <image wx:if="{{defenderKey === 'player' ? (player && player.titleImage) : (opponent && opponent.titleImage)}}" class="actor-title__image" src="{{defenderKey === 'player' ? player.titleImage : opponent.titleImage}}" mode="heightFix"></image>
+                <text wx:else class="actor-title__text">{{defenderKey === 'player' ? player.titleName : opponent.titleName}}</text>
               </view>
             </view>
           </view>
-          <view class="actor-meta">
-            战力 {{defenderKey === 'player'
-              ? ((player && player.combatPower) || '???')
-              : ((opponent && opponent.combatPower) || '???')}}
-          </view>
+          <view class="actor-meta">战力 {{defenderKey === 'player' ? ((player && player.combatPower) || '???') : ((opponent && opponent.combatPower) || '???')}}</view>
           <view class="hp-track">
             <view
               class="hp-progress {{defenderKey === 'player' ? 'hp-player' : 'hp-opponent'}}"
@@ -133,9 +73,7 @@
       </view>
 
       <view class="battle-avatars">
-        <view
-          class="avatar-wrapper attacker {{attackerKey}} {{currentAction.actor === attackerKey ? 'is-attacking' : ''}} {{currentAction.target === attackerKey ? 'is-hit' : ''}}"
-        >
+        <view class="avatar-wrapper attacker {{attackerKey}} {{currentAction.actor === attackerKey ? 'is-attacking' : ''}} {{currentAction.target === attackerKey ? 'is-hit' : ''}}">
           <view class="avatar-inner">
             <image
               class="actor-portrait"
@@ -144,9 +82,7 @@
             ></image>
           </view>
         </view>
-        <view
-          class="avatar-wrapper defender {{defenderKey}} {{currentAction.actor === defenderKey ? 'is-attacking' : ''}} {{currentAction.target === defenderKey ? 'is-hit' : ''}}"
-        >
+        <view class="avatar-wrapper defender {{defenderKey}} {{currentAction.actor === defenderKey ? 'is-attacking' : ''}} {{currentAction.target === defenderKey ? 'is-hit' : ''}}">
           <view class="avatar-inner">
             <image
               class="actor-portrait"
