@@ -1,22 +1,3 @@
 <import src="../../shared/templates/battle-stage.wxml" />
 <custom-nav title="{{navTitle}}" theme="dark" background="transparent"></custom-nav>
-<template
-  is="battle-stage"
-  data="{{
-    backgroundVideo: backgroundVideo,
-    loading: loading,
-    player: player,
-    opponent: opponent,
-    hpState: hpState,
-    currentAction: currentAction,
-    displayedLogs: displayedLogs,
-    skipLocked: skipLocked,
-    skipButtonText: skipButtonText,
-    battleFinished: battleFinished,
-    resultClass: resultClass,
-    resultTitle: resultTitle,
-    resultSubtitle: resultSubtitle,
-    resultRounds: resultRounds,
-    error: error
-  }}"
-/>
+<template is="battle-stage" data="{{...battleStage}}" />
