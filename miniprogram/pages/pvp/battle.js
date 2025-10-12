@@ -14,19 +14,98 @@ function formatDateTime(date) {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
+function formatInteger(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    return 0;
+  }
+  return Math.max(0, Math.round(num));
+}
+
+function describeTimelineEntry(entry, actorName, targetName) {
+  if (entry && entry.summary && entry.summary.text) {
+    return entry.summary.text;
+  }
+  const events = Array.isArray(entry && entry.events) ? entry.events : [];
+  const damageEvent = events.find((event) => event && event.type === 'damage');
+  if (damageEvent) {
+    const value = formatInteger(damageEvent.value);
+    const critText = damageEvent.crit ? '（暴击）' : '';
+    return `${actorName} 对 ${targetName} 造成 ${value} 点伤害${critText}`;
+  }
+  const healEvent = events.find((event) => event && event.type === 'heal');
+  if (healEvent) {
+    const value = formatInteger(healEvent.value);
+    return `${actorName} 为 ${targetName} 回复 ${value} 点生命`;
+  }
+  const dodgeEvent = events.find((event) => event && event.type === 'dodge');
+  if (dodgeEvent) {
+    return `${targetName} 闪避了 ${actorName} 的攻击`;
+  }
+  return `${actorName} 与 ${targetName} 交锋。`;
+}
+
 function transformRounds(battle) {
   if (!battle) return [];
   const playerId = battle.player ? battle.player.memberId : '';
   const opponentId = battle.opponent ? battle.opponent.memberId : '';
-  return (battle.rounds || []).map((round, idx) => {
-    const actorName = round.actorId === playerId ? battle.player.displayName : battle.opponent.displayName;
-    const targetName = round.targetId === playerId ? battle.player.displayName : battle.opponent.displayName;
+  const playerName = (battle.player && battle.player.displayName) || '我方';
+  const opponentName = (battle.opponent && battle.opponent.displayName) || '对手';
+  const timeline = Array.isArray(battle.timeline)
+    ? battle.timeline.filter((entry) => entry && typeof entry === 'object')
+    : [];
+  if (timeline.length) {
+    return timeline.map((entry, idx) => {
+      const actorId = entry.actorId || (entry.actor && entry.actor.id) || '';
+      const actorSide = entry.actorSide || (entry.actor && entry.actor.side) || (actorId === opponentId ? 'opponent' : 'player');
+      const targetId = entry.targetId || (entry.target && entry.target.id) || '';
+      const targetSide = (entry.target && entry.target.side) || (actorSide === 'player' ? 'opponent' : 'player');
+      const actorName =
+        actorId === playerId
+          ? playerName
+          : actorId === opponentId
+          ? opponentName
+          : actorSide === 'player'
+          ? playerName
+          : opponentName;
+      const targetName =
+        targetId === playerId
+          ? playerName
+          : targetId === opponentId
+          ? opponentName
+          : targetSide === 'player'
+          ? playerName
+          : opponentName;
+      const state = entry.state && typeof entry.state === 'object' ? entry.state : {};
+      const targetState = targetSide === 'player' ? state.player : state.opponent || state.enemy || {};
+      const targetHp = targetState && targetState.hp ? targetState.hp : {};
+      const remainingHp = Number.isFinite(targetHp.after) ? Math.max(0, Math.round(targetHp.after)) : '';
+      return {
+        index: idx,
+        round: entry.round || idx + 1,
+        actorName,
+        targetName,
+        description: describeTimelineEntry(entry, actorName, targetName),
+        targetRemainingHp: remainingHp
+      };
+    });
+  }
+  const legacyRounds = Array.isArray(battle.legacyRounds)
+    ? battle.legacyRounds
+    : Array.isArray(battle.rounds) && !Number.isFinite(battle.rounds)
+    ? battle.rounds
+    : [];
+  return legacyRounds.map((round, idx) => {
+    const actorName = round.actorId === playerId ? playerName : opponentName;
+    const targetName = round.targetId === playerId ? playerName : opponentName;
     return {
       ...round,
       index: idx,
       actorName,
       targetName,
-      description: round.dodged ? `${actorName} 的攻击被 ${targetName} 闪避` : `${actorName} 对 ${targetName} 造成 ${round.damage} 点伤害${round.crit ? '（暴击）' : ''}`
+      description: round.dodged
+        ? `${actorName} 的攻击被 ${targetName} 闪避`
+        : `${actorName} 对 ${targetName} 造成 ${formatInteger(round.damage)} 点伤害${round.crit ? '（暴击）' : ''}`
     };
   });
 }

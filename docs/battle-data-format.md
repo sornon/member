@@ -122,10 +122,7 @@
       "buffs": [{ "id": "sword_echo", "stacks": 1, "duration": 2 }],
       "attributes": {
         "attack": 3420,
-        "defense": 1275,
-        "speed": 186,
-        "critRate": 0.26,
-        "critDamage": 1.78
+        "speed": 186
       }
     },
     "opponent": {
@@ -133,11 +130,8 @@
       "shield": { "before": 0, "after": 0 },
       "debuffs": [{ "id": "def_down", "duration": 2 }],
       "attributes": {
-        "attack": 3980,
         "defense": 1520,
-        "speed": 165,
-        "critRate": 0.18,
-        "critDamage": 1.65
+        "speed": 165
       }
     }
   },
@@ -161,8 +155,7 @@
   - `shield`：护盾值变化，使用 `change`、`before`、`after` 表示增减。
   - `resource`：妖气/怒气等战斗资源的收支。
   - `dodge`、`block`：闪避或格挡判定，可单独成事件也可与 `damage` 共存。
-- `state`：动作结算后的战斗状态快照，至少包含双方的 `hp.before/after/max`，并需附带 `attributes` 快照。若技能或被动临时改变属性，需在对应结算节点更新
-  该字段。除此之外，可扩展 `shield`、`buffs/debuffs`、`combo` 等信息。
+- `state`：动作结算后的战斗状态快照，至少包含双方的 `hp.before/after/max`，并需附带 `attributes` 快照。`state.*.attributes` 仅返回相较上一节点发生变化的字段（无变化时为空对象），前端应结合上一条时间线或 `participants.attributes` 合并以还原完整面板。若技能或被动临时改变属性，需在对应结算节点更新该字段。除此之外，可扩展 `shield`、`buffs/debuffs`、`combo` 等信息。
 - `summary`：前端可直接使用的标题与描述；若为空，前端会根据结构化数据自动拼装句子。
 - `tags`：动作标签（如 `aoe`、`finisher`、`counter`），便于筛选与可视化。
 

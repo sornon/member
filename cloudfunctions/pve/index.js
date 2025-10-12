@@ -2748,13 +2748,8 @@ async function simulateBattle(actorId, enemyId) {
     await recordStoneTransaction(actorId, result, enemy, now).catch(() => {});
   }
 
-  const decorated = decorateProfile(
-    { ...member, stoneBalance: (member.stoneBalance || 0) + (result.rewards ? result.rewards.stones : 0) },
-    updatedProfile
-  );
   return {
-    battle: formatBattleResult(result),
-    profile: decorated
+    battle: formatBattleResult(result)
   };
 }
 
@@ -7229,6 +7224,9 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
     }
   };
 
+  let previousPlayerAttributesSnapshot = null;
+  let previousEnemyAttributesSnapshot = null;
+
   while (playerHp > 0 && enemyHp > 0 && round <= maxRounds) {
     if (attacker === 'player') {
       const result = performCombatAttack(playerStats, playerSpecial, enemyStats, enemySpecial);
@@ -7287,9 +7285,15 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
         enemyMaxHp,
         playerAttributesSnapshot,
         enemyAttributesSnapshot,
+        previousAttributes: {
+          player: previousPlayerAttributesSnapshot,
+          opponent: previousEnemyAttributesSnapshot
+        },
         summaryText: actionSummary
       });
       timeline.push(entry);
+      previousPlayerAttributesSnapshot = playerAttributesSnapshot ? { ...playerAttributesSnapshot } : null;
+      previousEnemyAttributesSnapshot = enemyAttributesSnapshot ? { ...enemyAttributesSnapshot } : null;
       sequence += 1;
       attacker = 'enemy';
       if (enemyHp <= 0) {
@@ -7349,9 +7353,15 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
         enemyMaxHp,
         playerAttributesSnapshot,
         enemyAttributesSnapshot,
+        previousAttributes: {
+          player: previousPlayerAttributesSnapshot,
+          opponent: previousEnemyAttributesSnapshot
+        },
         summaryText: actionSummary
       });
       timeline.push(entry);
+      previousPlayerAttributesSnapshot = playerAttributesSnapshot ? { ...playerAttributesSnapshot } : null;
+      previousEnemyAttributesSnapshot = enemyAttributesSnapshot ? { ...enemyAttributesSnapshot } : null;
       sequence += 1;
       attacker = 'player';
       round += 1;
@@ -7487,6 +7497,7 @@ function buildTimelineEntry({
   enemyMaxHp,
   playerAttributesSnapshot,
   enemyAttributesSnapshot,
+  previousAttributes = {},
   summaryText
 }) {
   const beforePlayer = before.player;
@@ -7508,13 +7519,15 @@ function buildTimelineEntry({
         before: beforePlayer,
         after: afterPlayer,
         maxHp: playerMaxHp,
-        attributes: playerAttributesSnapshot
+        attributes: playerAttributesSnapshot,
+        previousAttributes: previousAttributes ? previousAttributes.player : null
       }),
       opponent: buildTimelineStateSide({
         before: beforeEnemy,
         after: afterEnemy,
         maxHp: enemyMaxHp,
-        attributes: enemyAttributesSnapshot
+        attributes: enemyAttributesSnapshot,
+        previousAttributes: previousAttributes ? previousAttributes.opponent : null
       })
     },
     summary: summaryText
@@ -7527,7 +7540,7 @@ function buildTimelineEntry({
   return entry;
 }
 
-function buildTimelineStateSide({ before, after, maxHp, attributes }) {
+function buildTimelineStateSide({ before, after, maxHp, attributes, previousAttributes }) {
   const max = Math.max(1, Math.round(maxHp || 1));
   const beforeValue = Number.isFinite(before) ? before : max;
   const afterValue = Number.isFinite(after) ? after : Math.min(beforeValue, max);
@@ -7535,13 +7548,14 @@ function buildTimelineStateSide({ before, after, maxHp, attributes }) {
   const afterHp = Math.max(0, Math.round(Math.min(afterValue, max)));
   const shieldBefore = Math.max(0, Math.round(beforeValue - max));
   const shieldAfter = Math.max(0, Math.round(afterValue - max));
+  const changedAttributes = extractChangedAttributes(attributes, previousAttributes);
   const state = {
     hp: {
       before: beforeHp,
       after: afterHp,
       max
     },
-    attributes: { ...attributes }
+    attributes: changedAttributes
   };
   if (shieldBefore > 0 || shieldAfter > 0) {
     state.shield = {
@@ -7550,6 +7564,28 @@ function buildTimelineStateSide({ before, after, maxHp, attributes }) {
     };
   }
   return state;
+}
+
+function extractChangedAttributes(current, previous) {
+  if (!current || typeof current !== 'object') {
+    return {};
+  }
+  const previousAttributes = previous && typeof previous === 'object' ? previous : null;
+  const changed = {};
+  const keys = Object.keys(current);
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    const value = current[key];
+    const previousValue = previousAttributes ? previousAttributes[key] : undefined;
+    if (typeof value === 'number') {
+      if (!Number.isFinite(previousValue) || Number(value) !== Number(previousValue)) {
+        changed[key] = Number(value);
+      }
+    } else if (value !== undefined && value !== previousValue) {
+      changed[key] = value;
+    }
+  }
+  return changed;
 }
 
 function createPlayerCombatant(attributes) {
