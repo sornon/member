@@ -12,6 +12,7 @@ const {
 } = require('../../shared/backgrounds');
 const { CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths');
 const { listAvatarIds } = require('../../shared/avatar-catalog');
+const { buildTitleImageUrl, normalizeTitleId, resolveTitleById } = require('../../shared/titles');
 
 function buildCharacterImageMap() {
   const ids = listAvatarIds();
@@ -55,6 +56,322 @@ const NESTED_ENTITY_KEYS = [
   'attacker',
   'source'
 ];
+
+function compactCandidates(values = []) {
+  const result = [];
+  if (!Array.isArray(values)) {
+    values = [values];
+  }
+  values.forEach((value) => {
+    if (value === null || typeof value === 'undefined') {
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item === null || typeof item === 'undefined') {
+          return;
+        }
+        result.push(item);
+      });
+      return;
+    }
+    result.push(value);
+  });
+  return result;
+}
+
+function looksLikeTitleId(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (/^title[_-]/i.test(trimmed)) {
+    return true;
+  }
+  return /^[a-z0-9_]{3,}$/i.test(trimmed);
+}
+
+function mergeTitleInfo(target, source) {
+  if (!source) {
+    return target;
+  }
+  if (source.id && !target.id) {
+    target.id = normalizeTitleId(source.id);
+  }
+  if (source.name && !target.name) {
+    target.name = source.name.trim();
+  }
+  if (source.image && !target.image) {
+    target.image = source.image.trim();
+  }
+  return target;
+}
+
+function resolveTitleInfo(candidate, visited = new Set()) {
+  const info = { id: '', name: '', image: '' };
+  if (candidate === null || typeof candidate === 'undefined') {
+    return info;
+  }
+  if (visited.has(candidate)) {
+    return info;
+  }
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      mergeTitleInfo(info, resolveTitleInfo(candidate[i], visited));
+      if (info.id && info.image && info.name) {
+        break;
+      }
+    }
+    return info;
+  }
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    if (!trimmed) {
+      return info;
+    }
+    if (/^https?:\/\//.test(trimmed) || trimmed.startsWith('cloud://')) {
+      info.image = trimmed;
+      return info;
+    }
+    if (looksLikeTitleId(trimmed)) {
+      info.id = normalizeTitleId(trimmed);
+      return info;
+    }
+    info.name = trimmed;
+    return info;
+  }
+  if (typeof candidate !== 'object') {
+    return info;
+  }
+  visited.add(candidate);
+
+  const directTitle = candidate.title;
+  if (typeof directTitle !== 'undefined') {
+    mergeTitleInfo(info, resolveTitleInfo(directTitle, visited));
+  }
+
+  const idKeys = ['appearanceTitle', 'activeTitle', 'currentTitle', 'titleId', 'titleCode', 'titleKey', 'id'];
+  for (let i = 0; i < idKeys.length; i += 1) {
+    const key = idKeys[i];
+    const value = candidate[key];
+    if (!value) {
+      continue;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        continue;
+      }
+      if (looksLikeTitleId(trimmed)) {
+        info.id = info.id || normalizeTitleId(trimmed);
+      } else if (!info.name) {
+        info.name = trimmed;
+      }
+      continue;
+    }
+    mergeTitleInfo(info, resolveTitleInfo(value, visited));
+  }
+
+  const nameKeys = ['titleName', 'appearanceTitleName', 'currentTitleName', 'name', 'label'];
+  for (let i = 0; i < nameKeys.length; i += 1) {
+    const key = nameKeys[i];
+    const value = candidate[key];
+    if (typeof value === 'string' && value.trim()) {
+      info.name = info.name || value.trim();
+    }
+  }
+
+  const imageKeys = ['titleImage', 'appearanceTitleImage', 'currentTitleImage', 'image', 'icon', 'badge'];
+  for (let i = 0; i < imageKeys.length; i += 1) {
+    const key = imageKeys[i];
+    const value = candidate[key];
+    if (typeof value === 'string' && value.trim()) {
+      info.image = info.image || value.trim();
+    }
+  }
+
+  const nestedKeys = [
+    'appearance',
+    'profile',
+    'member',
+    'memberSnapshot',
+    'player',
+    'self',
+    'character',
+    'owner',
+    'source',
+    'opponent',
+    'enemy',
+    'meta'
+  ];
+  for (let i = 0; i < nestedKeys.length; i += 1) {
+    const key = nestedKeys[i];
+    if (!candidate[key]) {
+      continue;
+    }
+    mergeTitleInfo(info, resolveTitleInfo(candidate[key], visited));
+    if (info.id && info.image && info.name) {
+      break;
+    }
+  }
+
+  return info;
+}
+
+function finalizeTitleInfo(info) {
+  const result = { ...info };
+  if (result.id) {
+    if (!result.image) {
+      result.image = buildTitleImageUrl(result.id);
+    }
+    if (!result.name) {
+      const definition = resolveTitleById(result.id);
+      if (definition && definition.name) {
+        result.name = definition.name;
+      }
+    }
+  }
+  return result;
+}
+
+function pickTitleInfo(...candidates) {
+  const info = { id: '', name: '', image: '' };
+  const flatCandidates = compactCandidates(candidates);
+  for (let i = 0; i < flatCandidates.length; i += 1) {
+    mergeTitleInfo(info, resolveTitleInfo(flatCandidates[i]));
+    if (info.id && info.image && info.name) {
+      break;
+    }
+  }
+  return finalizeTitleInfo(info);
+}
+
+function resolveAvatarFrame(candidate, visited = new Set()) {
+  if (candidate === null || typeof candidate === 'undefined') {
+    return '';
+  }
+  if (visited.has(candidate)) {
+    return '';
+  }
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      const frame = resolveAvatarFrame(candidate[i], visited);
+      if (frame) {
+        return frame;
+      }
+    }
+    return '';
+  }
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    return trimmed;
+  }
+  if (typeof candidate !== 'object') {
+    return '';
+  }
+  visited.add(candidate);
+  const directKeys = ['avatarFrame', 'frame', 'portraitFrame', 'avatar_frame'];
+  for (let i = 0; i < directKeys.length; i += 1) {
+    const key = directKeys[i];
+    const value = candidate[key];
+    if (!value) {
+      continue;
+    }
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+    if (value && typeof value === 'object') {
+      const nested = resolveAvatarFrame(value, visited);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  const nestedKeys = [
+    'avatar',
+    'appearance',
+    'profile',
+    'member',
+    'memberSnapshot',
+    'player',
+    'self',
+    'character',
+    'owner',
+    'source',
+    'opponent',
+    'enemy'
+  ];
+  for (let i = 0; i < nestedKeys.length; i += 1) {
+    const key = nestedKeys[i];
+    if (!candidate[key]) {
+      continue;
+    }
+    const nested = resolveAvatarFrame(candidate[key], visited);
+    if (nested) {
+      return nested;
+    }
+  }
+  return '';
+}
+
+function pickAvatarFrame(...candidates) {
+  const flatCandidates = compactCandidates(candidates);
+  for (let i = 0; i < flatCandidates.length; i += 1) {
+    const frame = resolveAvatarFrame(flatCandidates[i]);
+    if (frame) {
+      return frame;
+    }
+  }
+  return '';
+}
+
+function assignAppearanceCandidates(target, { playerAvatar = [], playerTitle = [], opponentAvatar = [], opponentTitle = [] } = {}) {
+  if (!target || typeof target !== 'object') {
+    return;
+  }
+  const playerAvatarCandidates = compactCandidates(playerAvatar);
+  if (playerAvatarCandidates.length) {
+    target.playerAvatarCandidates = playerAvatarCandidates;
+  }
+  const playerTitleCandidates = compactCandidates(playerTitle);
+  if (playerTitleCandidates.length) {
+    target.playerTitleCandidates = playerTitleCandidates;
+  }
+  const opponentAvatarCandidates = compactCandidates(opponentAvatar);
+  if (opponentAvatarCandidates.length) {
+    target.opponentAvatarCandidates = opponentAvatarCandidates;
+  }
+  const opponentTitleCandidates = compactCandidates(opponentTitle);
+  if (opponentTitleCandidates.length) {
+    target.opponentTitleCandidates = opponentTitleCandidates;
+  }
+}
+
+function applyAppearanceDecorations(target, options = {}) {
+  if (!target || typeof target !== 'object') {
+    return;
+  }
+  assignAppearanceCandidates(target, options);
+  const playerTitle = pickTitleInfo(target.playerTitleCandidates || []);
+  if (playerTitle.id || playerTitle.name || playerTitle.image) {
+    target.playerTitle = playerTitle;
+  }
+  const opponentTitle = pickTitleInfo(target.opponentTitleCandidates || []);
+  if (opponentTitle.id || opponentTitle.name || opponentTitle.image) {
+    target.opponentTitle = opponentTitle;
+  }
+  const playerAvatarFrame = pickAvatarFrame(target.playerAvatarCandidates || []);
+  if (playerAvatarFrame) {
+    target.playerAvatarFrame = playerAvatarFrame;
+  }
+  const opponentAvatarFrame = pickAvatarFrame(target.opponentAvatarCandidates || []);
+  if (opponentAvatarFrame) {
+    target.opponentAvatarFrame = opponentAvatarFrame;
+  }
+}
 
 function addIdToSet(set, value) {
   if (value === null || value === undefined) {
@@ -548,12 +865,92 @@ Page({
               source: context.source || this.contextOptions.source || ''
             }) || DEFAULT_BACKGROUND_VIDEO;
           viewContext.backgroundVideo = replayBackground;
+          applyAppearanceDecorations(viewContext, {
+            playerAvatar: [
+              context.playerAvatarCandidates,
+              context.playerAvatarFrame,
+              context.player,
+              context.profile,
+              context.self,
+              playerParticipant,
+              battleData.player
+            ],
+            playerTitle: [
+              context.playerTitleCandidates,
+              context.playerTitle,
+              context.playerTitleId,
+              context.playerTitleImage,
+              context.player,
+              context.profile,
+              context.self,
+              playerParticipant,
+              battleData.player
+            ],
+            opponentAvatar: [
+              context.opponentAvatarCandidates,
+              context.opponentAvatarFrame,
+              context.opponent,
+              context.enemy,
+              context.target,
+              opponentParticipant,
+              battleData.opponent
+            ],
+            opponentTitle: [
+              context.opponentTitleCandidates,
+              context.opponentTitle,
+              context.opponentTitleId,
+              context.opponentTitleImage,
+              context.opponent,
+              context.enemy,
+              context.target,
+              opponentParticipant,
+              battleData.opponent
+            ]
+          });
         } else {
           battleData = context.battle || null;
           viewContext = context.viewContext || {};
           if (!battleData) {
             throw new Error('暂无战斗回放数据');
           }
+          applyAppearanceDecorations(viewContext, {
+            playerAvatar: [
+              context.playerAvatarCandidates,
+              context.playerAvatarFrame,
+              context.player,
+              context.profile,
+              context.self,
+              battleData && battleData.player
+            ],
+            playerTitle: [
+              context.playerTitleCandidates,
+              context.playerTitle,
+              context.playerTitleId,
+              context.playerTitleImage,
+              context.player,
+              context.profile,
+              context.self,
+              battleData && battleData.player
+            ],
+            opponentAvatar: [
+              context.opponentAvatarCandidates,
+              context.opponentAvatarFrame,
+              context.opponent,
+              context.enemy,
+              context.target,
+              battleData && (battleData.opponent || battleData.enemy)
+            ],
+            opponentTitle: [
+              context.opponentTitleCandidates,
+              context.opponentTitle,
+              context.opponentTitleId,
+              context.opponentTitleImage,
+              context.opponent,
+              context.enemy,
+              context.target,
+              battleData && (battleData.opponent || battleData.enemy)
+            ]
+          });
         }
       } else if (this.mode === 'pve') {
         const enemyId = context.enemyId || this.contextOptions.enemyId;
@@ -597,6 +994,54 @@ Page({
           ),
           backgroundVideo: sceneBackground || context.backgroundVideo || DEFAULT_BACKGROUND_VIDEO
         };
+        applyAppearanceDecorations(viewContext, {
+          playerAvatar: [
+            context.playerAvatarCandidates,
+            context.playerAvatarFrame,
+            context.player,
+            context.profile,
+            context.self,
+            playerParticipant,
+            serviceResult && serviceResult.profile,
+            serviceResult && serviceResult.member,
+            battleData && battleData.player
+          ],
+          playerTitle: [
+            context.playerTitleCandidates,
+            context.playerTitle,
+            context.playerTitleId,
+            context.playerTitleImage,
+            context.player,
+            context.profile,
+            context.self,
+            playerParticipant,
+            serviceResult && serviceResult.profile,
+            serviceResult && serviceResult.member,
+            battleData && battleData.player
+          ],
+          opponentAvatar: [
+            context.opponentAvatarCandidates,
+            context.opponentAvatarFrame,
+            context.opponent,
+            context.enemy,
+            context.target,
+            context.enemyPreview,
+            enemy,
+            battleData && battleData.opponent
+          ],
+          opponentTitle: [
+            context.opponentTitleCandidates,
+            context.opponentTitle,
+            context.opponentTitleId,
+            context.opponentTitleImage,
+            context.opponent,
+            context.enemy,
+            context.target,
+            context.enemyPreview,
+            enemy,
+            battleData && battleData.opponent
+          ]
+        });
         this.parentPayload = {
           type: 'pve',
           battle: serviceResult.battle || null
@@ -644,6 +1089,52 @@ Page({
             source: context.source || this.contextOptions.source || ''
           }) || DEFAULT_BACKGROUND_VIDEO;
         viewContext.backgroundVideo = liveBackground;
+        applyAppearanceDecorations(viewContext, {
+          playerAvatar: [
+            context.playerAvatarCandidates,
+            context.playerAvatarFrame,
+            context.player,
+            context.profile,
+            context.self,
+            member,
+            serviceResult.profile,
+            battleData && battleData.player
+          ],
+          playerTitle: [
+            context.playerTitleCandidates,
+            context.playerTitle,
+            context.playerTitleId,
+            context.playerTitleImage,
+            context.player,
+            context.profile,
+            context.self,
+            member,
+            serviceResult.profile,
+            battleData && battleData.player
+          ],
+          opponentAvatar: [
+            context.opponentAvatarCandidates,
+            context.opponentAvatarFrame,
+            context.opponent,
+            context.enemy,
+            context.target,
+            serviceResult.opponent,
+            opponent,
+            battleData && battleData.opponent
+          ],
+          opponentTitle: [
+            context.opponentTitleCandidates,
+            context.opponentTitle,
+            context.opponentTitleId,
+            context.opponentTitleImage,
+            context.opponent,
+            context.enemy,
+            context.target,
+            serviceResult.opponent,
+            opponent,
+            battleData && battleData.opponent
+          ]
+        });
         this.parentPayload = {
           type: 'pvp',
           profile: serviceResult.profile || null,

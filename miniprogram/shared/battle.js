@@ -1,4 +1,5 @@
 const { buildCloudAssetUrl, CHARACTER_IMAGE_BASE_PATH } = require('./asset-paths');
+const { buildTitleImageUrl, normalizeTitleId, resolveTitleById } = require('./titles');
 
 const DEFAULT_BACKGROUND_VIDEO = buildCloudAssetUrl('video', 'battle_default.mp4');
 const DEFAULT_PLAYER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/male-b-1.png`;
@@ -49,6 +50,300 @@ function resolvePortrait(source, fallback) {
     return source.portrait;
   }
   return fallback;
+}
+
+function compactCandidates(values = []) {
+  const result = [];
+  if (!Array.isArray(values)) {
+    values = [values];
+  }
+  values.forEach((value) => {
+    if (value === null || typeof value === 'undefined') {
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item === null || typeof item === 'undefined') {
+          return;
+        }
+        result.push(item);
+      });
+      return;
+    }
+    result.push(value);
+  });
+  return result;
+}
+
+function looksLikeTitleId(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (/^title[_-]/i.test(trimmed)) {
+    return true;
+  }
+  return /^[a-z0-9_]{3,}$/i.test(trimmed);
+}
+
+function mergeTitleInfo(target, source) {
+  if (!source) {
+    return target;
+  }
+  if (source.id && !target.id) {
+    target.id = normalizeTitleId(source.id);
+  }
+  if (source.name && !target.name) {
+    target.name = source.name.trim();
+  }
+  if (source.image && !target.image) {
+    target.image = source.image.trim();
+  }
+  return target;
+}
+
+function resolveTitleCandidate(candidate, visited = new Set()) {
+  const info = { id: '', name: '', image: '' };
+  if (candidate === null || typeof candidate === 'undefined') {
+    return info;
+  }
+  if (visited.has(candidate)) {
+    return info;
+  }
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      mergeTitleInfo(info, resolveTitleCandidate(candidate[i], visited));
+      if (info.id && info.image && info.name) {
+        break;
+      }
+    }
+    return info;
+  }
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    if (!trimmed) {
+      return info;
+    }
+    if (/^https?:\/\//.test(trimmed) || trimmed.startsWith('cloud://')) {
+      info.image = trimmed;
+      return info;
+    }
+    if (looksLikeTitleId(trimmed)) {
+      info.id = normalizeTitleId(trimmed);
+      return info;
+    }
+    info.name = trimmed;
+    return info;
+  }
+  if (typeof candidate !== 'object') {
+    return info;
+  }
+  visited.add(candidate);
+
+  const directTitle = candidate.title;
+  if (typeof directTitle !== 'undefined') {
+    mergeTitleInfo(info, resolveTitleCandidate(directTitle, visited));
+  }
+
+  const idKeys = ['appearanceTitle', 'activeTitle', 'currentTitle', 'titleId', 'titleCode', 'titleKey', 'id'];
+  for (let i = 0; i < idKeys.length; i += 1) {
+    const key = idKeys[i];
+    const value = candidate[key];
+    if (!value) {
+      continue;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        continue;
+      }
+      if (looksLikeTitleId(trimmed)) {
+        info.id = info.id || normalizeTitleId(trimmed);
+      } else if (!info.name) {
+        info.name = trimmed;
+      }
+      continue;
+    }
+    mergeTitleInfo(info, resolveTitleCandidate(value, visited));
+  }
+
+  const nameKeys = ['titleName', 'appearanceTitleName', 'currentTitleName', 'name', 'label'];
+  for (let i = 0; i < nameKeys.length; i += 1) {
+    const key = nameKeys[i];
+    const value = candidate[key];
+    if (typeof value === 'string' && value.trim()) {
+      info.name = info.name || value.trim();
+    }
+  }
+
+  const imageKeys = ['titleImage', 'appearanceTitleImage', 'currentTitleImage', 'image', 'icon', 'badge'];
+  for (let i = 0; i < imageKeys.length; i += 1) {
+    const key = imageKeys[i];
+    const value = candidate[key];
+    if (typeof value === 'string' && value.trim()) {
+      info.image = info.image || value.trim();
+    }
+  }
+
+  const nestedKeys = [
+    'appearance',
+    'profile',
+    'member',
+    'memberSnapshot',
+    'player',
+    'self',
+    'character',
+    'owner',
+    'source',
+    'opponent',
+    'enemy',
+    'meta'
+  ];
+  for (let i = 0; i < nestedKeys.length; i += 1) {
+    const key = nestedKeys[i];
+    if (!candidate[key]) {
+      continue;
+    }
+    mergeTitleInfo(info, resolveTitleCandidate(candidate[key], visited));
+    if (info.id && info.image && info.name) {
+      break;
+    }
+  }
+
+  return info;
+}
+
+function finalizeTitleInfo(info) {
+  const result = { ...info };
+  if (result.id) {
+    if (!result.image) {
+      result.image = buildTitleImageUrl(result.id);
+    }
+    if (!result.name) {
+      const definition = resolveTitleById(result.id);
+      if (definition && definition.name) {
+        result.name = definition.name;
+      }
+    }
+  }
+  return result;
+}
+
+function pickTitleInfo(...candidates) {
+  const info = { id: '', name: '', image: '' };
+  const flatCandidates = compactCandidates(candidates);
+  for (let i = 0; i < flatCandidates.length; i += 1) {
+    mergeTitleInfo(info, resolveTitleCandidate(flatCandidates[i]));
+    if (info.id && info.image && info.name) {
+      break;
+    }
+  }
+  return finalizeTitleInfo(info);
+}
+
+function resolveAvatarFrameCandidate(candidate, visited = new Set()) {
+  if (candidate === null || typeof candidate === 'undefined') {
+    return '';
+  }
+  if (visited.has(candidate)) {
+    return '';
+  }
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      const frame = resolveAvatarFrameCandidate(candidate[i], visited);
+      if (frame) {
+        return frame;
+      }
+    }
+    return '';
+  }
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    return trimmed;
+  }
+  if (typeof candidate !== 'object') {
+    return '';
+  }
+  visited.add(candidate);
+  const directKeys = ['avatarFrame', 'frame', 'portraitFrame', 'avatar_frame'];
+  for (let i = 0; i < directKeys.length; i += 1) {
+    const key = directKeys[i];
+    const value = candidate[key];
+    if (!value) {
+      continue;
+    }
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+    if (value && typeof value === 'object') {
+      const nested = resolveAvatarFrameCandidate(value, visited);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  const nestedKeys = [
+    'avatar',
+    'appearance',
+    'profile',
+    'member',
+    'memberSnapshot',
+    'player',
+    'self',
+    'character',
+    'owner',
+    'source',
+    'opponent',
+    'enemy'
+  ];
+  for (let i = 0; i < nestedKeys.length; i += 1) {
+    const key = nestedKeys[i];
+    if (!candidate[key]) {
+      continue;
+    }
+    const nested = resolveAvatarFrameCandidate(candidate[key], visited);
+    if (nested) {
+      return nested;
+    }
+  }
+  return '';
+}
+
+function pickAvatarFrame(...candidates) {
+  const flatCandidates = compactCandidates(candidates);
+  for (let i = 0; i < flatCandidates.length; i += 1) {
+    const frame = resolveAvatarFrameCandidate(flatCandidates[i]);
+    if (frame) {
+      return frame;
+    }
+  }
+  return '';
+}
+
+function decorateParticipantAppearance(target, options = {}) {
+  if (!target || typeof target !== 'object') {
+    return;
+  }
+  const avatarFrame = pickAvatarFrame(options.avatarCandidates || []);
+  if (avatarFrame) {
+    target.avatarFrame = avatarFrame;
+  }
+  const title = pickTitleInfo(options.titleCandidates || []);
+  if (title.id || title.name || title.image) {
+    target.title = title;
+    if (title.id) {
+      target.titleId = title.id;
+    }
+    if (title.name) {
+      target.titleName = title.name;
+    }
+    if (title.image) {
+      target.titleImage = title.image;
+    }
+  }
 }
 
 function buildHpState(maxHp, currentHp) {
@@ -926,33 +1221,86 @@ function buildStructuredBattleViewModel({
     backgroundVideo = defaults.backgroundVideo || DEFAULT_BACKGROUND_VIDEO;
   }
 
+  const playerData = {
+    id: playerId || 'player',
+    name: playerName,
+    hp: buildHpState(playerMaxHp, playerMaxHp),
+    portrait: playerPortrait,
+    combatPower: toNumber((playerSource && playerSource.combatPower) || context.playerPower),
+    attributes: playerAttributes ? { ...playerAttributes } : null,
+    summary: {
+      damageDealt: Math.round(totals.playerDamageDealt),
+      damageTaken: Math.round(totals.playerDamageTaken),
+      heal: Math.round(totals.playerHeal)
+    }
+  };
+  const opponentData = {
+    id: opponentId || 'opponent',
+    name: opponentName,
+    hp: buildHpState(opponentMaxHp, opponentMaxHp),
+    portrait: opponentPortrait,
+    combatPower: toNumber((opponentSource && opponentSource.combatPower) || context.opponentPower),
+    attributes: opponentAttributes ? { ...opponentAttributes } : null,
+    summary: {
+      damageDealt: Math.round(totals.enemyDamageDealt),
+      damageTaken: Math.round(totals.enemyDamageTaken),
+      heal: Math.round(totals.enemyHeal)
+    }
+  };
+
+  decorateParticipantAppearance(playerData, {
+    avatarCandidates: [
+      context.playerAvatarFrame,
+      context.playerAvatarCandidates,
+      context.player,
+      context.profile,
+      context.self,
+      playerSource,
+      battle.player,
+      fallbackParticipants.player
+    ],
+    titleCandidates: [
+      context.playerTitle,
+      context.playerTitleCandidates,
+      context.playerTitleId,
+      context.playerTitleImage,
+      context.player,
+      context.profile,
+      context.self,
+      playerSource,
+      battle.player,
+      fallbackParticipants.player
+    ]
+  });
+
+  decorateParticipantAppearance(opponentData, {
+    avatarCandidates: [
+      context.opponentAvatarFrame,
+      context.opponentAvatarCandidates,
+      context.opponent,
+      context.enemy,
+      context.target,
+      opponentSource,
+      battle.opponent || battle.enemy,
+      fallbackParticipants.opponent
+    ],
+    titleCandidates: [
+      context.opponentTitle,
+      context.opponentTitleCandidates,
+      context.opponentTitleId,
+      context.opponentTitleImage,
+      context.opponent,
+      context.enemy,
+      context.target,
+      opponentSource,
+      battle.opponent || battle.enemy,
+      fallbackParticipants.opponent
+    ]
+  });
+
   return {
-    player: {
-      id: playerId || 'player',
-      name: playerName,
-      hp: buildHpState(playerMaxHp, playerMaxHp),
-      portrait: playerPortrait,
-      combatPower: toNumber((playerSource && playerSource.combatPower) || context.playerPower),
-      attributes: playerAttributes ? { ...playerAttributes } : null,
-      summary: {
-        damageDealt: Math.round(totals.playerDamageDealt),
-        damageTaken: Math.round(totals.playerDamageTaken),
-        heal: Math.round(totals.playerHeal)
-      }
-    },
-    opponent: {
-      id: opponentId || 'opponent',
-      name: opponentName,
-      hp: buildHpState(opponentMaxHp, opponentMaxHp),
-      portrait: opponentPortrait,
-      combatPower: toNumber((opponentSource && opponentSource.combatPower) || context.opponentPower),
-      attributes: opponentAttributes ? { ...opponentAttributes } : null,
-      summary: {
-        damageDealt: Math.round(totals.enemyDamageDealt),
-        damageTaken: Math.round(totals.enemyDamageTaken),
-        heal: Math.round(totals.enemyHeal)
-      }
-    },
+    player: playerData,
+    opponent: opponentData,
     actions,
     backgroundVideo,
     result: {
@@ -1167,33 +1515,82 @@ function buildPveActions(battle = {}, context = {}) {
   const playerName = (context && context.playerName) || '你';
   const opponentName = (context && context.opponentName) || '秘境之敌';
 
+  const playerData = {
+    id: 'player',
+    name: playerName,
+    hp: buildHpState(playerMaxHp, playerMaxHp),
+    portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
+    combatPower: toNumber(battle.combatPower && battle.combatPower.player),
+    attributes: ensureAttributesObject(context && context.playerAttributes),
+    summary: {
+      damageDealt: totals.enemyDamageTaken,
+      damageTaken: totals.playerDamageTaken,
+      heal: totals.playerHeal
+    }
+  };
+  const opponentData = {
+    id: 'opponent',
+    name: opponentName,
+    hp: buildHpState(enemyMaxHp, enemyMaxHp),
+    portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
+    combatPower: toNumber(battle.combatPower && battle.combatPower.enemy),
+    attributes: ensureAttributesObject(context && context.opponentAttributes),
+    summary: {
+      damageDealt: totals.playerDamageTaken,
+      damageTaken: totals.enemyDamageTaken,
+      heal: totals.enemyHeal
+    }
+  };
+
+  decorateParticipantAppearance(playerData, {
+    avatarCandidates: [
+      context.playerAvatarFrame,
+      context.playerAvatarCandidates,
+      context.player,
+      context.profile,
+      context.self,
+      battle.player,
+      battle.participants && (battle.participants.player || battle.participants.self)
+    ],
+    titleCandidates: [
+      context.playerTitle,
+      context.playerTitleCandidates,
+      context.playerTitleId,
+      context.playerTitleImage,
+      context.player,
+      context.profile,
+      context.self,
+      battle.player,
+      battle.participants && (battle.participants.player || battle.participants.self)
+    ]
+  });
+
+  decorateParticipantAppearance(opponentData, {
+    avatarCandidates: [
+      context.opponentAvatarFrame,
+      context.opponentAvatarCandidates,
+      context.opponent,
+      context.enemy,
+      context.target,
+      battle.opponent,
+      battle.participants && (battle.participants.opponent || battle.participants.enemy)
+    ],
+    titleCandidates: [
+      context.opponentTitle,
+      context.opponentTitleCandidates,
+      context.opponentTitleId,
+      context.opponentTitleImage,
+      context.opponent,
+      context.enemy,
+      context.target,
+      battle.opponent,
+      battle.participants && (battle.participants.opponent || battle.participants.enemy)
+    ]
+  });
+
   return {
-    player: {
-      id: 'player',
-      name: playerName,
-      hp: buildHpState(playerMaxHp, playerMaxHp),
-      portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
-      combatPower: toNumber(battle.combatPower && battle.combatPower.player),
-      attributes: ensureAttributesObject(context && context.playerAttributes),
-      summary: {
-        damageDealt: totals.enemyDamageTaken,
-        damageTaken: totals.playerDamageTaken,
-        heal: totals.playerHeal
-      }
-    },
-    opponent: {
-      id: 'opponent',
-      name: opponentName,
-      hp: buildHpState(enemyMaxHp, enemyMaxHp),
-      portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
-      combatPower: toNumber(battle.combatPower && battle.combatPower.enemy),
-      attributes: ensureAttributesObject(context && context.opponentAttributes),
-      summary: {
-        damageDealt: totals.playerDamageTaken,
-        damageTaken: totals.enemyDamageTaken,
-        heal: totals.enemyHeal
-      }
-    },
+    player: playerData,
+    opponent: opponentData,
     actions,
     backgroundVideo: context && context.backgroundVideo ? context.backgroundVideo : DEFAULT_BACKGROUND_VIDEO,
     result: {
@@ -1363,33 +1760,82 @@ function buildPvpActions(battle = {}, context = {}) {
     }
   });
 
+  const playerData = {
+    id: playerId || 'player',
+    name: playerName,
+    hp: buildHpState(playerMaxHp, playerMaxHp),
+    portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
+    combatPower: toNumber(context && context.playerPower),
+    attributes: ensureAttributesObject(context && context.playerAttributes),
+    summary: {
+      damageDealt: rounds.reduce((total, entry) => (entry.actorId === playerId ? total + formatNumber(entry.damage) : total), 0),
+      damageTaken: rounds.reduce((total, entry) => (entry.targetId === playerId ? total + formatNumber(entry.damage) : total), 0),
+      heal: rounds.reduce((total, entry) => (entry.actorId === playerId ? total + formatNumber(entry.heal) : total), 0)
+    }
+  };
+  const opponentData = {
+    id: opponentId || 'opponent',
+    name: opponentName,
+    hp: buildHpState(opponentMaxHp, opponentMaxHp),
+    portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
+    combatPower: toNumber(context && context.opponentPower),
+    attributes: ensureAttributesObject(context && context.opponentAttributes),
+    summary: {
+      damageDealt: rounds.reduce((total, entry) => (entry.actorId === opponentId ? total + formatNumber(entry.damage) : total), 0),
+      damageTaken: rounds.reduce((total, entry) => (entry.targetId === opponentId ? total + formatNumber(entry.damage) : total), 0),
+      heal: rounds.reduce((total, entry) => (entry.actorId === opponentId ? total + formatNumber(entry.heal) : total), 0)
+    }
+  };
+
+  decorateParticipantAppearance(playerData, {
+    avatarCandidates: [
+      context.playerAvatarFrame,
+      context.playerAvatarCandidates,
+      context.player,
+      context.profile,
+      context.self,
+      battle.player,
+      battle.participants && (battle.participants.player || battle.participants.self)
+    ],
+    titleCandidates: [
+      context.playerTitle,
+      context.playerTitleCandidates,
+      context.playerTitleId,
+      context.playerTitleImage,
+      context.player,
+      context.profile,
+      context.self,
+      battle.player,
+      battle.participants && (battle.participants.player || battle.participants.self)
+    ]
+  });
+
+  decorateParticipantAppearance(opponentData, {
+    avatarCandidates: [
+      context.opponentAvatarFrame,
+      context.opponentAvatarCandidates,
+      context.opponent,
+      context.enemy,
+      context.target,
+      battle.opponent,
+      battle.participants && (battle.participants.opponent || battle.participants.enemy)
+    ],
+    titleCandidates: [
+      context.opponentTitle,
+      context.opponentTitleCandidates,
+      context.opponentTitleId,
+      context.opponentTitleImage,
+      context.opponent,
+      context.enemy,
+      context.target,
+      battle.opponent,
+      battle.participants && (battle.participants.opponent || battle.participants.enemy)
+    ]
+  });
+
   return {
-    player: {
-      id: playerId || 'player',
-      name: playerName,
-      hp: buildHpState(playerMaxHp, playerMaxHp),
-      portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
-      combatPower: toNumber(context && context.playerPower),
-      attributes: ensureAttributesObject(context && context.playerAttributes),
-      summary: {
-        damageDealt: rounds.reduce((total, entry) => (entry.actorId === playerId ? total + formatNumber(entry.damage) : total), 0),
-        damageTaken: rounds.reduce((total, entry) => (entry.targetId === playerId ? total + formatNumber(entry.damage) : total), 0),
-        heal: rounds.reduce((total, entry) => (entry.actorId === playerId ? total + formatNumber(entry.heal) : total), 0)
-      }
-    },
-    opponent: {
-      id: opponentId || 'opponent',
-      name: opponentName,
-      hp: buildHpState(opponentMaxHp, opponentMaxHp),
-      portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
-      combatPower: toNumber(context && context.opponentPower),
-      attributes: ensureAttributesObject(context && context.opponentAttributes),
-      summary: {
-        damageDealt: rounds.reduce((total, entry) => (entry.actorId === opponentId ? total + formatNumber(entry.damage) : total), 0),
-        damageTaken: rounds.reduce((total, entry) => (entry.targetId === opponentId ? total + formatNumber(entry.damage) : total), 0),
-        heal: rounds.reduce((total, entry) => (entry.actorId === opponentId ? total + formatNumber(entry.heal) : total), 0)
-      }
-    },
+    player: playerData,
+    opponent: opponentData,
     actions,
     backgroundVideo: context && context.backgroundVideo ? context.backgroundVideo : DEFAULT_BACKGROUND_VIDEO,
     result: {

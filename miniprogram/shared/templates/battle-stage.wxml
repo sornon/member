@@ -17,8 +17,44 @@
         <view
           class="actor-card attacker-card {{attackerKey === 'player' ? 'actor-player' : 'actor-opponent'}}"
         >
-          <view class="actor-name">
-            {{attackerKey === 'player' ? (player && player.name || '我方') : (opponent && opponent.name || '对手')}}
+          <view class="actor-header">
+            <view class="actor-avatar">
+              <image
+                class="actor-avatar__image"
+                src="{{attackerKey === 'player' ? (player && player.portrait || '') : (opponent && opponent.portrait || '')}}"
+                mode="aspectFill"
+              ></image>
+              <image
+                wx:if="{{attackerKey === 'player' ? (player && player.avatarFrame) : (opponent && opponent.avatarFrame)}}"
+                class="actor-avatar__frame"
+                src="{{attackerKey === 'player' ? player.avatarFrame : opponent.avatarFrame}}"
+                mode="scaleToFill"
+              ></image>
+            </view>
+            <view class="actor-details">
+              <view class="actor-name">
+                {{attackerKey === 'player' ? (player && player.name || '我方') : (opponent && opponent.name || '对手')}}
+              </view>
+              <view
+                class="actor-title"
+                wx:if="{{attackerKey === 'player'
+                  ? (player && (player.titleImage || player.titleName))
+                  : (opponent && (opponent.titleImage || opponent.titleName))}}"
+              >
+                <image
+                  wx:if="{{attackerKey === 'player' ? player.titleImage : opponent.titleImage}}"
+                  class="actor-title__image"
+                  src="{{attackerKey === 'player' ? player.titleImage : opponent.titleImage}}"
+                  mode="heightFix"
+                ></image>
+                <text
+                  wx:else
+                  class="actor-title__text"
+                >
+                  {{attackerKey === 'player' ? player.titleName : opponent.titleName}}
+                </text>
+              </view>
+            </view>
           </view>
           <view class="actor-meta">
             战力 {{attackerKey === 'player'
@@ -39,8 +75,44 @@
         <view
           class="actor-card defender-card {{defenderKey === 'player' ? 'actor-player' : 'actor-opponent'}}"
         >
-          <view class="actor-name">
-            {{defenderKey === 'player' ? (player && player.name || '我方') : (opponent && opponent.name || '对手')}}
+          <view class="actor-header">
+            <view class="actor-avatar">
+              <image
+                class="actor-avatar__image"
+                src="{{defenderKey === 'player' ? (player && player.portrait || '') : (opponent && opponent.portrait || '')}}"
+                mode="aspectFill"
+              ></image>
+              <image
+                wx:if="{{defenderKey === 'player' ? (player && player.avatarFrame) : (opponent && opponent.avatarFrame)}}"
+                class="actor-avatar__frame"
+                src="{{defenderKey === 'player' ? player.avatarFrame : opponent.avatarFrame}}"
+                mode="scaleToFill"
+              ></image>
+            </view>
+            <view class="actor-details">
+              <view class="actor-name">
+                {{defenderKey === 'player' ? (player && player.name || '我方') : (opponent && opponent.name || '对手')}}
+              </view>
+              <view
+                class="actor-title"
+                wx:if="{{defenderKey === 'player'
+                  ? (player && (player.titleImage || player.titleName))
+                  : (opponent && (opponent.titleImage || opponent.titleName))}}"
+              >
+                <image
+                  wx:if="{{defenderKey === 'player' ? player.titleImage : opponent.titleImage}}"
+                  class="actor-title__image"
+                  src="{{defenderKey === 'player' ? player.titleImage : opponent.titleImage}}"
+                  mode="heightFix"
+                ></image>
+                <text
+                  wx:else
+                  class="actor-title__text"
+                >
+                  {{defenderKey === 'player' ? player.titleName : opponent.titleName}}
+                </text>
+              </view>
+            </view>
           </view>
           <view class="actor-meta">
             战力 {{defenderKey === 'player'
