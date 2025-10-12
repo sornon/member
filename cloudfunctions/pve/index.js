@@ -2724,7 +2724,7 @@ async function simulateBattle(actorId, enemyId) {
     secretRealmState && secretRealmState.floors ? secretRealmState.floors[enemy.id] : null;
   const alreadyCleared = !!(floorState && floorState.clearedAt);
 
-  const battleSetup = buildBattleSetup(profile, enemy);
+  const battleSetup = buildBattleSetup(profile, enemy, member);
   const result = runBattleSimulation(battleSetup);
 
   if (alreadyCleared && result && result.rewards) {
@@ -7058,71 +7058,304 @@ function formatStatsText(stats) {
   });
   return texts;
 }
-function buildBattleSetup(profile, enemy) {
+function buildBattleSetup(profile, enemy, member) {
   const attributes = calculateAttributes(profile.attributes, profile.equipment, profile.skills);
   const player = createPlayerCombatant(attributes);
   const enemyCombatant = createEnemyCombatant(enemy);
-  return { player, enemy: enemyCombatant, attributes };
+  const playerInfo = buildPlayerBattleInfo(profile, member, attributes, player);
+  const enemyInfo = buildEnemyBattleInfo(enemy, enemyCombatant);
+  return { player, enemy: enemyCombatant, attributes, playerInfo, enemyInfo };
 }
 
-function runBattleSimulation({ player, enemy, attributes }) {
+function buildPlayerBattleInfo(profile, member, attributes, combatant) {
+  const memberIdCandidates = [
+    profile && profile.memberId,
+    profile && profile.id,
+    profile && profile.member && profile.member._id,
+    member && member._id,
+    member && member.id,
+    member && member.openid,
+    member && member.openId
+  ];
+  const displayNameCandidates = [
+    profile && profile.displayName,
+    profile && profile.nickname,
+    profile && profile.nickName,
+    member && member.nickName,
+    member && member.nickname,
+    member && member.name
+  ];
+  const portraitCandidates = [
+    profile && profile.avatarUrl,
+    profile && profile.portrait,
+    member && member.avatarUrl,
+    member && member.avatar
+  ];
+  let resolvedId = 'player';
+  memberIdCandidates.forEach((candidate) => {
+    if (resolvedId !== 'player') {
+      return;
+    }
+    if (typeof candidate === 'string' && candidate.trim()) {
+      resolvedId = candidate.trim();
+    }
+  });
+  let displayName = '你';
+  displayNameCandidates.forEach((candidate) => {
+    if (displayName !== '你') {
+      return;
+    }
+    if (typeof candidate === 'string' && candidate.trim()) {
+      displayName = candidate.trim();
+    }
+  });
+  let portrait = '';
+  portraitCandidates.forEach((candidate) => {
+    if (portrait) {
+      return;
+    }
+    if (typeof candidate === 'string' && candidate.trim()) {
+      portrait = candidate.trim();
+    }
+  });
+  const hpSnapshot = buildParticipantHpSnapshot(
+    combatant.stats,
+    combatant.special,
+    attributes && attributes.finalStats
+  );
+  return {
+    id: resolvedId,
+    displayName,
+    portrait,
+    level: attributes.level,
+    realmId: attributes.realmId,
+    realmName: attributes.realmName,
+    realmShort: attributes.realmShort,
+    combatPower: attributes.combatPower,
+    hp: hpSnapshot
+  };
+}
+
+function buildEnemyBattleInfo(enemy, combatant) {
+  const idCandidates = [enemy && enemy.id, enemy && enemy.enemyId, enemy && enemy._id];
+  let resolvedId = 'opponent';
+  idCandidates.forEach((candidate) => {
+    if (resolvedId !== 'opponent') {
+      return;
+    }
+    if (typeof candidate === 'string' && candidate.trim()) {
+      resolvedId = candidate.trim();
+    }
+  });
+  const displayName =
+    (enemy && (enemy.displayName || enemy.name || enemy.stageName || enemy.realmName)) || '敌方';
+  const portrait = (enemy && (enemy.portrait || enemy.avatarUrl || enemy.image)) || '';
+  const hpSnapshot = buildParticipantHpSnapshot(combatant.stats, combatant.special, enemy && enemy.stats);
+  return {
+    id: resolvedId,
+    displayName,
+    portrait,
+    level: enemy && enemy.level,
+    realmId: enemy && enemy.realmId,
+    realmName: enemy && enemy.realmName,
+    realmShort: enemy && enemy.realmShort,
+    combatPower: calculateCombatPower(combatant.stats, combatant.special),
+    hp: hpSnapshot
+  };
+}
+
+function buildParticipantHpSnapshot(stats = {}, special = {}, sourceStats = {}) {
+  const maxHp = Math.max(0, Math.round(Number(stats.maxHp || sourceStats.maxHp || 0)));
+  const shield = Math.max(0, Math.round(Number(special.shield || sourceStats.shield || 0)));
+  const current = Math.max(0, Math.round(maxHp));
+  const payload = { current, max: maxHp };
+  if (shield > 0) {
+    payload.shield = shield;
+  }
+  return payload;
+}
+
+function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemyInfo = {} }) {
   const log = [];
+  const timeline = [];
   const playerStats = player.stats;
   const enemyStats = enemy.stats;
   const playerSpecial = player.special || {};
   const enemySpecial = enemy.special || {};
-  let playerHp = playerStats.maxHp + (playerSpecial.shield || 0);
-  let enemyHp = enemyStats.maxHp + (enemySpecial.shield || 0);
+  const playerAttributesSnapshot = buildCombatAttributesSnapshot(playerStats);
+  const enemyAttributesSnapshot = buildCombatAttributesSnapshot(enemyStats);
+  const playerMaxHp = Math.max(1, Number(playerStats.maxHp || 1));
+  const enemyMaxHp = Math.max(1, Number(enemyStats.maxHp || 1));
+  let playerHp = playerMaxHp + Math.max(0, Number(playerSpecial.shield || 0));
+  let enemyHp = enemyMaxHp + Math.max(0, Number(enemySpecial.shield || 0));
   let round = 1;
+  let sequence = 1;
   const maxRounds = 15;
   const playerFirst = playerStats.speed >= enemyStats.speed;
   let attacker = playerFirst ? 'player' : 'enemy';
+  const playerId = (playerInfo && playerInfo.id) || 'player';
+  const enemyId = (enemyInfo && enemyInfo.id) || 'opponent';
+  const playerName = (playerInfo && playerInfo.displayName) || '你';
+  const enemyName = (enemyInfo && enemyInfo.displayName) || '敌方';
+
+  const playerShield = Math.max(0, Math.round(playerHp - playerMaxHp));
+  const enemyShield = Math.max(0, Math.round(enemyHp - enemyMaxHp));
+  const participants = {
+    player: {
+      id: playerId,
+      displayName: playerName,
+      portrait: playerInfo.portrait || '',
+      maxHp: Math.round(playerMaxHp),
+      hp: {
+        current: Math.max(0, Math.round(Math.min(playerHp, playerMaxHp))),
+        max: Math.round(playerMaxHp),
+        ...(playerShield > 0 ? { shield: playerShield } : {})
+      },
+      combatPower: attributes.combatPower,
+      attributes: { ...playerAttributesSnapshot }
+    },
+    opponent: {
+      id: enemyId,
+      displayName: enemyName,
+      portrait: enemyInfo.portrait || '',
+      maxHp: Math.round(enemyMaxHp),
+      hp: {
+        current: Math.max(0, Math.round(Math.min(enemyHp, enemyMaxHp))),
+        max: Math.round(enemyMaxHp),
+        ...(enemyShield > 0 ? { shield: enemyShield } : {})
+      },
+      combatPower: calculateCombatPower(enemyStats, enemySpecial),
+      attributes: { ...enemyAttributesSnapshot }
+    }
+  };
 
   while (playerHp > 0 && enemyHp > 0 && round <= maxRounds) {
     if (attacker === 'player') {
       const result = performCombatAttack(playerStats, playerSpecial, enemyStats, enemySpecial);
+      const beforePlayerHp = playerHp;
+      const beforeEnemyHp = enemyHp;
+      const events = [];
+      let actionSummary = '';
       if (result.dodged) {
-        log.push(`第${round}回合：敌方闪避了你的攻势`);
+        actionSummary = `第${round}回合：敌方闪避了你的攻势`;
+        log.push(actionSummary);
+        events.push({ type: 'dodge', targetId: enemyId, targetSide: 'opponent' });
       } else {
-        enemyHp -= result.damage;
-        log.push(
-          `第${round}回合：你造成 ${Math.max(0, Math.round(result.damage))} 点伤害${
-            result.crit ? '（暴击）' : ''
-          }，敌方剩余 ${Math.max(0, Math.round(enemyHp))}`
-        );
+        enemyHp = Math.max(0, enemyHp - result.damage);
+        const damage = Math.max(0, Math.round(result.damage));
+        actionSummary = `第${round}回合：你造成 ${damage} 点伤害${
+          result.crit ? '（暴击）' : ''
+        }，敌方剩余 ${Math.max(0, Math.round(enemyHp))}`;
+        log.push(actionSummary);
+        events.push({
+          type: 'damage',
+          targetId: enemyId,
+          targetSide: 'opponent',
+          value: damage,
+          crit: !!result.crit
+        });
         if (result.heal > 0) {
-          const healed = Math.min(result.heal, Math.max(0, playerStats.maxHp - playerHp));
-          playerHp = Math.min(playerStats.maxHp, playerHp + result.heal);
-          if (healed > 0) {
-            log.push(`灵血回流，你回复了 ${Math.round(healed)} 点生命`);
+          const healApplied = Math.max(
+            0,
+            Math.min(result.heal, Math.max(0, playerMaxHp - beforePlayerHp))
+          );
+          playerHp = Math.min(playerMaxHp, beforePlayerHp + result.heal);
+          if (healApplied > 0) {
+            const healText = `灵血回流，你回复了 ${Math.round(healApplied)} 点生命`;
+            log.push(healText);
+            events.push({
+              type: 'heal',
+              targetId: playerId,
+              targetSide: 'player',
+              value: Math.round(healApplied)
+            });
           }
         }
       }
+      const entry = buildTimelineEntry({
+        round,
+        sequence,
+        actorId: playerId,
+        actorName: playerName,
+        actorSide: 'player',
+        targetId: enemyId,
+        targetName: enemyName,
+        events,
+        before: { player: beforePlayerHp, enemy: beforeEnemyHp },
+        after: { player: playerHp, enemy: enemyHp },
+        playerMaxHp,
+        enemyMaxHp,
+        playerAttributesSnapshot,
+        enemyAttributesSnapshot,
+        summaryText: actionSummary
+      });
+      timeline.push(entry);
+      sequence += 1;
       attacker = 'enemy';
       if (enemyHp <= 0) {
         break;
       }
     } else {
       const result = performCombatAttack(enemyStats, enemySpecial, playerStats, playerSpecial);
+      const beforePlayerHp = playerHp;
+      const beforeEnemyHp = enemyHp;
+      const events = [];
+      let actionSummary = '';
       if (result.dodged) {
-        log.push(`第${round}回合：你闪避了敌方的攻势`);
+        actionSummary = `第${round}回合：你闪避了敌方的攻势`;
+        log.push(actionSummary);
+        events.push({ type: 'dodge', targetId: playerId, targetSide: 'player' });
       } else {
-        playerHp -= result.damage;
-        log.push(
-          `第${round}回合：敌方造成 ${Math.max(0, Math.round(result.damage))} 点伤害${
-            result.crit ? '（暴击）' : ''
-          }，你剩余 ${Math.max(0, Math.round(playerHp))}`
-        );
+        playerHp = Math.max(0, playerHp - result.damage);
+        const damage = Math.max(0, Math.round(result.damage));
+        actionSummary = `第${round}回合：敌方造成 ${damage} 点伤害${
+          result.crit ? '（暴击）' : ''
+        }，你剩余 ${Math.max(0, Math.round(playerHp))}`;
+        log.push(actionSummary);
+        events.push({
+          type: 'damage',
+          targetId: playerId,
+          targetSide: 'player',
+          value: damage,
+          crit: !!result.crit
+        });
         if (result.heal > 0) {
-          const healed = Math.min(result.heal, Math.max(0, enemyStats.maxHp - enemyHp));
-          enemyHp = Math.min(enemyStats.maxHp, enemyHp + result.heal);
-          if (healed > 0) {
-            log.push(`敌方吸取灵力，回复了 ${Math.round(healed)} 点生命`);
+          const healApplied = Math.max(0, Math.min(result.heal, Math.max(0, enemyMaxHp - beforeEnemyHp)));
+          enemyHp = Math.min(enemyMaxHp, beforeEnemyHp + result.heal);
+          if (healApplied > 0) {
+            const healText = `敌方吸取灵力，回复了 ${Math.round(healApplied)} 点生命`;
+            log.push(healText);
+            events.push({
+              type: 'heal',
+              targetId: enemyId,
+              targetSide: 'opponent',
+              value: Math.round(healApplied)
+            });
           }
         }
       }
+      const entry = buildTimelineEntry({
+        round,
+        sequence,
+        actorId: enemyId,
+        actorName: enemyName,
+        actorSide: 'opponent',
+        targetId: playerId,
+        targetName: playerName,
+        events,
+        before: { player: beforePlayerHp, enemy: beforeEnemyHp },
+        after: { player: playerHp, enemy: enemyHp },
+        playerMaxHp,
+        enemyMaxHp,
+        playerAttributesSnapshot,
+        enemyAttributesSnapshot,
+        summaryText: actionSummary
+      });
+      timeline.push(entry);
+      sequence += 1;
       attacker = 'player';
       round += 1;
+      sequence = 1;
     }
   }
 
@@ -7135,22 +7368,188 @@ function runBattleSimulation({ player, enemy, attributes }) {
   const draw = !victory && !timeout && playerHp > 0 && enemyHp > 0;
 
   const rewards = calculateBattleRewards(attributes, enemy.meta || enemy, { victory, draw });
+  const roundsCompleted = Math.min(round, maxRounds);
+  const outcome = buildBattleOutcome({
+    victory,
+    draw,
+    rounds: roundsCompleted,
+    rewards,
+    playerId,
+    enemyId,
+    playerName,
+    enemyName,
+    remaining: {
+      playerHp: Math.max(0, Math.round(playerHp)),
+      enemyHp: Math.max(0, Math.round(enemyHp))
+    }
+  });
+  const metadata = {
+    mode: 'pve',
+    generatedAt: Date.now()
+  };
 
   return {
     victory,
     draw,
-    rounds: Math.min(round, maxRounds),
+    rounds: roundsCompleted,
     log,
     rewards,
-    remaining: {
-      playerHp: Math.max(0, Math.round(playerHp)),
-      enemyHp: Math.max(0, Math.round(enemyHp))
-    },
+    remaining: outcome.remaining,
     combatPower: {
       player: attributes.combatPower,
       enemy: calculateCombatPower(enemyStats, enemySpecial)
-    }
+    },
+    timeline,
+    participants,
+    outcome,
+    metadata
   };
+}
+
+function buildBattleOutcome({ victory, draw, rounds, rewards, playerId, enemyId, playerName, enemyName, remaining }) {
+  const result = victory ? 'victory' : draw ? 'draw' : 'defeat';
+  const winnerId = victory ? playerId : draw ? null : enemyId;
+  const loserId = victory ? enemyId : draw ? null : playerId;
+  const summaryText =
+    result === 'victory'
+      ? `你击败了${enemyName}。`
+      : result === 'defeat'
+      ? `${enemyName} 击败了你。`
+      : `与 ${enemyName} 的对决以平局收场。`;
+  return {
+    winnerId,
+    loserId,
+    result,
+    rounds,
+    rewards: { ...rewards },
+    summary: {
+      title: result === 'victory' ? '战斗结果 · 胜利' : result === 'defeat' ? '战斗结果 · 惜败' : '战斗结果 · 平局',
+      text: summaryText
+    },
+    remaining
+  };
+}
+
+function buildCombatAttributesSnapshot(stats = {}) {
+  const keys = [
+    'maxHp',
+    'physicalAttack',
+    'magicAttack',
+    'physicalDefense',
+    'magicDefense',
+    'speed',
+    'accuracy',
+    'dodge',
+    'critRate',
+    'critDamage',
+    'critResist',
+    'finalDamageBonus',
+    'finalDamageReduction',
+    'lifeSteal',
+    'healingBonus',
+    'healingReduction',
+    'controlHit',
+    'controlResist',
+    'physicalPenetration',
+    'magicPenetration',
+    'comboRate',
+    'block',
+    'counterRate',
+    'damageReduction',
+    'healingReceived',
+    'rageGain',
+    'controlStrength',
+    'shieldPower',
+    'summonPower',
+    'elementalVulnerability'
+  ];
+  const snapshot = {};
+  keys.forEach((key) => {
+    if (typeof stats[key] === 'number' && !Number.isNaN(stats[key])) {
+      snapshot[key] = Number(stats[key]);
+    }
+  });
+  return snapshot;
+}
+
+function buildTimelineEntry({
+  round,
+  sequence,
+  actorId,
+  actorName,
+  actorSide,
+  targetId,
+  targetName,
+  events,
+  before,
+  after,
+  playerMaxHp,
+  enemyMaxHp,
+  playerAttributesSnapshot,
+  enemyAttributesSnapshot,
+  summaryText
+}) {
+  const beforePlayer = before.player;
+  const beforeEnemy = before.enemy;
+  const afterPlayer = after.player;
+  const afterEnemy = after.enemy;
+  const entry = {
+    id: `round-${round}-action-${sequence}`,
+    round,
+    sequence,
+    actorId,
+    actorSide,
+    actor: { id: actorId, side: actorSide, displayName: actorName },
+    target: { id: targetId, side: actorSide === 'player' ? 'opponent' : 'player', displayName: targetName },
+    skill: { id: 'basic_attack', name: '普攻', type: 'basic' },
+    events: events.filter(Boolean),
+    state: {
+      player: buildTimelineStateSide({
+        before: beforePlayer,
+        after: afterPlayer,
+        maxHp: playerMaxHp,
+        attributes: playerAttributesSnapshot
+      }),
+      opponent: buildTimelineStateSide({
+        before: beforeEnemy,
+        after: afterEnemy,
+        maxHp: enemyMaxHp,
+        attributes: enemyAttributesSnapshot
+      })
+    },
+    summary: summaryText
+      ? {
+          title: `第${round}回合`,
+          text: summaryText
+        }
+      : undefined
+  };
+  return entry;
+}
+
+function buildTimelineStateSide({ before, after, maxHp, attributes }) {
+  const max = Math.max(1, Math.round(maxHp || 1));
+  const beforeValue = Number.isFinite(before) ? before : max;
+  const afterValue = Number.isFinite(after) ? after : Math.min(beforeValue, max);
+  const beforeHp = Math.max(0, Math.round(Math.min(beforeValue, max)));
+  const afterHp = Math.max(0, Math.round(Math.min(afterValue, max)));
+  const shieldBefore = Math.max(0, Math.round(beforeValue - max));
+  const shieldAfter = Math.max(0, Math.round(afterValue - max));
+  const state = {
+    hp: {
+      before: beforeHp,
+      after: afterHp,
+      max
+    },
+    attributes: { ...attributes }
+  };
+  if (shieldBefore > 0 || shieldAfter > 0) {
+    state.shield = {
+      before: shieldBefore,
+      after: shieldAfter
+    };
+  }
+  return state;
 }
 
 function createPlayerCombatant(attributes) {
@@ -7287,6 +7686,10 @@ function applyBattleOutcome(profile, result, enemy, now, member, levels = []) {
       rounds: result.rounds,
       rewards: result.rewards,
       log: result.log,
+      timeline: Array.isArray(result.timeline) ? result.timeline : [],
+      participants: result.participants,
+      outcome: result.outcome,
+      metadata: result.metadata,
       combatPower: result.combatPower
     },
     MAX_BATTLE_HISTORY
@@ -7396,11 +7799,19 @@ function formatBattleResult(result) {
     attributePoints: rawRewards.attributePoints || 0,
     loot: Array.isArray(rawRewards.loot) ? rawRewards.loot : []
   };
+  const timeline = Array.isArray(result.timeline) ? result.timeline : [];
+  const participants = result.participants && typeof result.participants === 'object' ? result.participants : {};
+  const outcome = result.outcome && typeof result.outcome === 'object' ? result.outcome : null;
+  const metadata = result.metadata && typeof result.metadata === 'object' ? result.metadata : { mode: 'pve' };
   return {
     victory: result.victory,
     draw: result.draw,
     rounds: result.rounds,
     log: result.log,
+    timeline,
+    participants,
+    outcome,
+    metadata,
     rewards: {
       exp: rewards.exp,
       stones: rewards.stones,
