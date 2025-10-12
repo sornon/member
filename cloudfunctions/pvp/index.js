@@ -4,8 +4,23 @@ const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const commonConfig = require('common-config');
-const { COLLECTIONS, resolveBackgroundById, normalizeBackgroundId, normalizeAvatarFrameValue } =
-  commonConfig;
+const {
+  COLLECTIONS,
+  resolveBackgroundById,
+  normalizeBackgroundId,
+  AVATAR_FRAME_BASE_PATH,
+  AVATAR_FRAME_IDS,
+  AVATAR_FRAME_URLS,
+  buildAvatarFrameUrlById,
+  normalizeAvatarFrameValue: sharedNormalizeAvatarFrameValue
+} = commonConfig;
+const normalizeAvatarFrameValue = ensureNormalizeAvatarFrameValue({
+  AVATAR_FRAME_BASE_PATH,
+  AVATAR_FRAME_IDS,
+  AVATAR_FRAME_URLS,
+  buildAvatarFrameUrlById,
+  normalizeAvatarFrameValue: sharedNormalizeAvatarFrameValue
+});
 const {
   DEFAULT_COMBAT_STATS,
   DEFAULT_SPECIAL_STATS,
@@ -28,6 +43,77 @@ const DEFAULT_RATING = 1200;
 
 const AVATAR_FRAME_FIELDS = ['avatarFrame', 'appearanceFrame', 'frame', 'border', 'avatarBorder', 'avatar_frame'];
 const AVATAR_NESTED_FIELDS = ['avatar', 'profile', 'memberSnapshot', 'member', 'self', 'player', 'source', 'data', 'info'];
+
+function ensureNormalizeAvatarFrameValue(frames = {}) {
+  const {
+    AVATAR_FRAME_BASE_PATH: basePath = '/assets/border',
+    AVATAR_FRAME_IDS: frameIds = [],
+    AVATAR_FRAME_URLS: frameUrls = [],
+    buildAvatarFrameUrlById,
+    normalizeAvatarFrameValue
+  } = frames;
+
+  const normalizedUrls = Array.isArray(frameUrls)
+    ? frameUrls.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+    : [];
+  const normalizedIds = Array.isArray(frameIds)
+    ? frameIds.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
+    : [];
+  const safeBasePath = typeof basePath === 'string' && basePath.trim() ? basePath : '/assets/border';
+
+  const safeBuildById =
+    typeof buildAvatarFrameUrlById === 'function'
+      ? (id) => {
+          const built = buildAvatarFrameUrlById(id);
+          if (typeof built === 'string') {
+            const trimmedBuilt = built.trim();
+            if (trimmedBuilt) {
+              return trimmedBuilt;
+            }
+          }
+          return '';
+        }
+      : (id) => {
+          if (typeof id !== 'string') {
+            return '';
+          }
+          const trimmed = id.trim();
+          if (!trimmed || !normalizedIds.includes(trimmed)) {
+            return '';
+          }
+          return `${safeBasePath}/${trimmed}.png`;
+        };
+
+  const fallbackNormalize = (value) => {
+    if (typeof value !== 'string') {
+      return '';
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return '';
+    }
+    if (normalizedUrls.includes(trimmed)) {
+      return trimmed;
+    }
+    const byId = safeBuildById(trimmed);
+    return typeof byId === 'string' ? byId : '';
+  };
+
+  if (typeof normalizeAvatarFrameValue === 'function') {
+    return (value) => {
+      const normalized = normalizeAvatarFrameValue(value);
+      if (typeof normalized === 'string') {
+        const trimmed = normalized.trim();
+        if (trimmed) {
+          return trimmed;
+        }
+      }
+      return fallbackNormalize(value);
+    };
+  }
+
+  return fallbackNormalize;
+}
 
 function toTrimmedString(value) {
   if (typeof value !== 'string') {
