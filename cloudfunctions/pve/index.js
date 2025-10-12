@@ -13,6 +13,7 @@ const {
   calculateCombatPower
 } = require('combat-system');
 const { createBattlePayload } = require('battle-schema');
+const { normalizeAvatarFrameValue } = require('../member/avatar-frames.local.js');
 const {
   BASE_ATTRIBUTE_KEYS,
   COMBAT_STAT_KEYS,
@@ -68,6 +69,80 @@ const MAX_SKILL_SLOTS = 3;
 const MAX_BATTLE_HISTORY = 15;
 const MAX_SKILL_HISTORY = 30;
 const DEFAULT_SKILL_DRAW_CREDITS = 1;
+
+const AVATAR_FRAME_FIELDS = ['avatarFrame', 'appearanceFrame', 'frame', 'border', 'avatarBorder', 'avatar_frame'];
+const AVATAR_NESTED_FIELDS = ['avatar', 'profile', 'memberSnapshot', 'member', 'self', 'player', 'source', 'data', 'info'];
+
+function toTrimmedString(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.trim();
+}
+
+function resolveAvatarFrame(...sources) {
+  const queue = [];
+  const visited = new Set();
+  sources.forEach((source) => {
+    if (source !== undefined && source !== null) {
+      queue.push(source);
+    }
+  });
+  while (queue.length) {
+    const candidate = queue.shift();
+    if (typeof candidate === 'string') {
+      const normalized = normalizeAvatarFrameValue(candidate);
+      if (normalized) {
+        return normalized;
+      }
+      continue;
+    }
+    if (Array.isArray(candidate)) {
+      candidate.forEach((item) => {
+        if (item !== undefined && item !== null) {
+          queue.push(item);
+        }
+      });
+      continue;
+    }
+    if (!candidate || typeof candidate !== 'object') {
+      continue;
+    }
+    if (visited.has(candidate)) {
+      continue;
+    }
+    visited.add(candidate);
+    for (let i = 0; i < AVATAR_FRAME_FIELDS.length; i += 1) {
+      const field = AVATAR_FRAME_FIELDS[i];
+      if (Object.prototype.hasOwnProperty.call(candidate, field)) {
+        const normalized = normalizeAvatarFrameValue(candidate[field]);
+        if (normalized) {
+          return normalized;
+        }
+      }
+    }
+    for (let i = 0; i < AVATAR_NESTED_FIELDS.length; i += 1) {
+      const nestedKey = AVATAR_NESTED_FIELDS[i];
+      if (Object.prototype.hasOwnProperty.call(candidate, nestedKey)) {
+        const nestedValue = candidate[nestedKey];
+        if (nestedValue !== undefined && nestedValue !== null) {
+          queue.push(nestedValue);
+        }
+      }
+    }
+  }
+  return '';
+}
+
+function buildAvatarPayload(image, frame) {
+  const avatarImage = toTrimmedString(image);
+  const avatarFrame = normalizeAvatarFrameValue(frame || '');
+  return {
+    image: avatarImage,
+    url: avatarImage,
+    frame: avatarFrame
+  };
+}
 
 const ENEMY_COMBAT_DEFAULTS = {
   ...DEFAULT_COMBAT_STATS,
@@ -7096,6 +7171,18 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
     member && member.avatarUrl,
     member && member.avatar
   ];
+  const frameCandidates = [
+    profile && profile.avatarFrame,
+    profile && profile.appearanceFrame,
+    profile && profile.memberSnapshot && profile.memberSnapshot.avatarFrame,
+    profile && profile.memberSnapshot,
+    profile,
+    member && member.avatarFrame,
+    member && member.appearanceFrame,
+    member,
+    profile && profile.avatar,
+    member && member.avatar
+  ];
   let resolvedId = 'player';
   memberIdCandidates.forEach((candidate) => {
     if (resolvedId !== 'player') {
@@ -7123,6 +7210,8 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
       portrait = candidate.trim();
     }
   });
+  const avatarFrame = resolveAvatarFrame(frameCandidates);
+  const avatar = buildAvatarPayload(portrait, avatarFrame);
   const hpSnapshot = buildParticipantHpSnapshot(
     combatant.stats,
     combatant.special,
@@ -7132,6 +7221,8 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
     id: resolvedId,
     displayName,
     portrait,
+    avatarFrame: avatar.frame,
+    avatar,
     level: attributes.level,
     realmId: attributes.realmId,
     realmName: attributes.realmName,
@@ -7155,11 +7246,15 @@ function buildEnemyBattleInfo(enemy, combatant) {
   const displayName =
     (enemy && (enemy.displayName || enemy.name || enemy.stageName || enemy.realmName)) || '敌方';
   const portrait = (enemy && (enemy.portrait || enemy.avatarUrl || enemy.image)) || '';
+  const avatarFrame = resolveAvatarFrame(enemy);
+  const avatar = buildAvatarPayload(portrait, avatarFrame);
   const hpSnapshot = buildParticipantHpSnapshot(combatant.stats, combatant.special, enemy && enemy.stats);
   return {
     id: resolvedId,
     displayName,
     portrait,
+    avatarFrame: avatar.frame,
+    avatar,
     level: enemy && enemy.level,
     realmId: enemy && enemy.realmId,
     realmName: enemy && enemy.realmName,
@@ -7210,6 +7305,8 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
       id: playerId,
       displayName: playerName,
       portrait: playerInfo.portrait || '',
+      avatarFrame: playerInfo.avatarFrame || '',
+      avatar: buildAvatarPayload(playerInfo.portrait || '', playerInfo.avatarFrame || ''),
       maxHp: Math.round(playerMaxHp),
       hp: {
         current: Math.max(0, Math.round(Math.min(playerHp, playerMaxHp))),
@@ -7223,6 +7320,8 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
       id: enemyId,
       displayName: enemyName,
       portrait: enemyInfo.portrait || '',
+      avatarFrame: enemyInfo.avatarFrame || '',
+      avatar: buildAvatarPayload(enemyInfo.portrait || '', enemyInfo.avatarFrame || ''),
       maxHp: Math.round(enemyMaxHp),
       hp: {
         current: Math.max(0, Math.round(Math.min(enemyHp, enemyMaxHp))),

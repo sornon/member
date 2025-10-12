@@ -16,6 +16,7 @@ const {
 } = require('combat-system');
 const { aggregateSkillEffects } = require('skill-model');
 const { createBattlePayload, decorateBattleReplay } = require('battle-schema');
+const { normalizeAvatarFrameValue } = require('../member/avatar-frames.local.js');
 
 const db = cloud.database();
 const _ = db.command;
@@ -25,6 +26,80 @@ const MATCH_ROUND_LIMIT = 15;
 const LEADERBOARD_CACHE_SIZE = 100;
 const RECENT_MATCH_LIMIT = 10;
 const DEFAULT_RATING = 1200;
+
+const AVATAR_FRAME_FIELDS = ['avatarFrame', 'appearanceFrame', 'frame', 'border', 'avatarBorder', 'avatar_frame'];
+const AVATAR_NESTED_FIELDS = ['avatar', 'profile', 'memberSnapshot', 'member', 'self', 'player', 'source', 'data', 'info'];
+
+function toTrimmedString(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.trim();
+}
+
+function resolveAvatarFrame(...sources) {
+  const queue = [];
+  const visited = new Set();
+  sources.forEach((source) => {
+    if (source !== undefined && source !== null) {
+      queue.push(source);
+    }
+  });
+  while (queue.length) {
+    const candidate = queue.shift();
+    if (typeof candidate === 'string') {
+      const normalized = normalizeAvatarFrameValue(candidate);
+      if (normalized) {
+        return normalized;
+      }
+      continue;
+    }
+    if (Array.isArray(candidate)) {
+      candidate.forEach((item) => {
+        if (item !== undefined && item !== null) {
+          queue.push(item);
+        }
+      });
+      continue;
+    }
+    if (!candidate || typeof candidate !== 'object') {
+      continue;
+    }
+    if (visited.has(candidate)) {
+      continue;
+    }
+    visited.add(candidate);
+    for (let i = 0; i < AVATAR_FRAME_FIELDS.length; i += 1) {
+      const field = AVATAR_FRAME_FIELDS[i];
+      if (Object.prototype.hasOwnProperty.call(candidate, field)) {
+        const normalized = normalizeAvatarFrameValue(candidate[field]);
+        if (normalized) {
+          return normalized;
+        }
+      }
+    }
+    for (let i = 0; i < AVATAR_NESTED_FIELDS.length; i += 1) {
+      const nestedKey = AVATAR_NESTED_FIELDS[i];
+      if (Object.prototype.hasOwnProperty.call(candidate, nestedKey)) {
+        const nestedValue = candidate[nestedKey];
+        if (nestedValue !== undefined && nestedValue !== null) {
+          queue.push(nestedValue);
+        }
+      }
+    }
+  }
+  return '';
+}
+
+function buildAvatarPayload(image, frame) {
+  const avatarImage = toTrimmedString(image);
+  const avatarFrame = normalizeAvatarFrameValue(frame || '');
+  return {
+    image: avatarImage,
+    url: avatarImage,
+    frame: avatarFrame
+  };
+}
 
 const PVP_TIERS = [
   { id: 'bronze', name: '青铜', min: 0, max: 999, color: '#c4723a', rewardKey: 'bronze' },
@@ -814,6 +889,9 @@ function buildParticipantSnapshot(profile, delta, actor) {
   const backgroundId = normalizeBackgroundId(actor.appearanceBackgroundId || '');
   const backgroundAnimated = !!actor.appearanceBackgroundAnimated;
   const backgroundPayload = actor.background || buildBackgroundPayloadFromId(backgroundId, backgroundAnimated);
+  const avatarFrame = resolveAvatarFrame(actor, profile && profile.memberSnapshot, profile);
+  const avatarImage = actor.portrait || actor.avatarUrl || '';
+  const avatar = buildAvatarPayload(avatarImage, avatarFrame);
   return {
     memberId: actor.memberId,
     displayName: actor.displayName,
@@ -830,6 +908,8 @@ function buildParticipantSnapshot(profile, delta, actor) {
     isBot: !!actor.isBot,
     appearanceBackgroundId: backgroundId,
     appearanceBackgroundAnimated: backgroundAnimated,
+    avatarFrame: avatar.frame,
+    avatar,
     ...(backgroundPayload ? { background: backgroundPayload } : {})
   };
 }
@@ -1450,6 +1530,16 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
     (member && (member.portrait || member.avatarUrl)) ||
     avatarUrl ||
     '';
+  const avatarFrame = resolveAvatarFrame(
+    profile && profile.memberSnapshot,
+    member,
+    profile,
+    profile && profile.avatar,
+    member && member.avatar,
+    profile && profile.avatarFrame,
+    member && member.avatarFrame
+  );
+  const avatar = buildAvatarPayload(portrait || avatarUrl, avatarFrame);
   return {
     memberId: memberId || profile.memberId,
     displayName: profile.memberSnapshot && profile.memberSnapshot.nickName ? profile.memberSnapshot.nickName : member ? member.nickName || '无名仙友' : '神秘对手',
@@ -1464,6 +1554,8 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
     appearanceBackgroundAnimated: backgroundAnimated,
     avatarUrl,
     portrait,
+    avatarFrame,
+    avatar,
     ...(background ? { background } : {})
   };
 }
@@ -1593,6 +1685,11 @@ function buildBattleParticipantPayload({ state, actor, side, baseMaxHp, attribut
   if (actor.avatarUrl) {
     payload.avatarUrl = actor.avatarUrl;
   }
+  const avatarFrame = resolveAvatarFrame(actor, actor.avatar, state, payload);
+  const avatarImage = actor.portrait || actor.avatarUrl || payload.portrait || payload.avatarUrl || '';
+  const avatar = buildAvatarPayload(avatarImage, avatarFrame);
+  payload.avatarFrame = avatar.frame;
+  payload.avatar = avatar;
   if (actor.appearanceBackgroundId) {
     payload.appearanceBackgroundId = actor.appearanceBackgroundId;
   }
