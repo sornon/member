@@ -209,16 +209,12 @@ page {
   animation: hitShake 0.6s ease;
 }
 
-.avatar-wrapper.opponent .actor-portrait {
-  transform: scaleX(-1);
-}
-
 .avatar-wrapper.attacker .actor-portrait {
-  transform: scaleX(1);
+  transform: scaleX(-1);
 }
 
 .avatar-wrapper.defender .actor-portrait {
-  transform: scaleX(-1);
+  transform: scaleX(1);
 }
 
 @keyframes attackPulse {
