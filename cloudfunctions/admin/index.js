@@ -56,7 +56,9 @@ const ACTIONS = {
   ADD_WINE_STORAGE: 'addWineStorage',
   REMOVE_WINE_STORAGE: 'removeWineStorage',
   CLEANUP_ORPHAN_DATA: 'cleanupOrphanData',
-  PREVIEW_CLEANUP_ORPHAN_DATA: 'previewCleanupOrphanData'
+  PREVIEW_CLEANUP_ORPHAN_DATA: 'previewCleanupOrphanData',
+  CLEANUP_BATTLE_RECORDS: 'cleanupBattleRecords',
+  PREVIEW_CLEANUP_BATTLE_RECORDS: 'previewCleanupBattleRecords'
 };
 
 const ACTION_CANONICAL_MAP = Object.values(ACTIONS).reduce((map, name) => {
@@ -100,7 +102,13 @@ const ACTION_ALIASES = {
   cleanupdata: ACTIONS.CLEANUP_ORPHAN_DATA,
   previewcleanuporphandata: ACTIONS.PREVIEW_CLEANUP_ORPHAN_DATA,
   previewcleanupdata: ACTIONS.PREVIEW_CLEANUP_ORPHAN_DATA,
-  scandataorphans: ACTIONS.PREVIEW_CLEANUP_ORPHAN_DATA
+  scandataorphans: ACTIONS.PREVIEW_CLEANUP_ORPHAN_DATA,
+  cleanupbattlerecords: ACTIONS.CLEANUP_BATTLE_RECORDS,
+  cleanbattles: ACTIONS.CLEANUP_BATTLE_RECORDS,
+  battlecleanup: ACTIONS.CLEANUP_BATTLE_RECORDS,
+  previewcleanupbattlerecords: ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS,
+  scanbattlerecords: ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS,
+  previewbattlerecords: ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS
 };
 
 function normalizeAction(action) {
@@ -183,7 +191,9 @@ const ACTION_HANDLERS = {
   [ACTIONS.REMOVE_WINE_STORAGE]: (openid, event) =>
     removeWineStorage(openid, event.memberId, event.entryId || event.storageId || ''),
   [ACTIONS.CLEANUP_ORPHAN_DATA]: (openid) => cleanupResidualMemberData(openid),
-  [ACTIONS.PREVIEW_CLEANUP_ORPHAN_DATA]: (openid) => previewCleanupResidualData(openid)
+  [ACTIONS.PREVIEW_CLEANUP_ORPHAN_DATA]: (openid) => previewCleanupResidualData(openid),
+  [ACTIONS.CLEANUP_BATTLE_RECORDS]: (openid) => cleanupBattleRecords(openid),
+  [ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS]: (openid) => previewCleanupBattleRecords(openid)
 };
 
 async function resolveMemberExtras(memberId) {
@@ -1826,6 +1836,49 @@ async function previewCleanupResidualData(openid) {
   return cleanupResidualMemberData(openid, { previewOnly: true });
 }
 
+async function previewCleanupBattleRecords(openid) {
+  return cleanupBattleRecords(openid, { previewOnly: true });
+}
+
+async function cleanupBattleRecords(openid, options = {}) {
+  await ensureAdmin(openid);
+
+  const previewOnly = Boolean(options && options.previewOnly);
+  const summary = { removed: {}, errors: [], preview: {} };
+  const processedCollections = new Set();
+  let totalRemoved = 0;
+
+  const cleanupTargets = [
+    { collection: COLLECTIONS.MEMBER_PVE_HISTORY, key: 'memberPveHistory' },
+    { collection: COLLECTIONS.PVP_MATCHES, key: 'pvpMatches' },
+    { collection: COLLECTIONS.PVP_INVITES, key: 'pvpInvites' },
+    { collection: COLLECTIONS.PVP_PROFILES, key: 'pvpProfiles' },
+    { collection: COLLECTIONS.PVP_LEADERBOARD, key: 'pvpLeaderboard' },
+    { collection: COLLECTIONS.PVP_SEASONS, key: 'pvpSeasons' }
+  ];
+
+  for (const target of cleanupTargets) {
+    processedCollections.add(target.key);
+    const removed = await cleanupCollectionDocuments(target.collection, summary, {
+      previewOnly,
+      counterKey: target.key
+    });
+    totalRemoved += removed;
+  }
+
+  processedCollections.add('pveProfileHistory');
+  const pveProfileCount = await cleanupPveProfileHistory(summary, { previewOnly });
+  totalRemoved += pveProfileCount;
+
+  return {
+    memberCount: 0,
+    totalRemoved,
+    processedCollections: Array.from(processedCollections),
+    summary,
+    previewOnly
+  };
+}
+
 async function cleanupResidualMemberData(openid, options = {}) {
   await ensureAdmin(openid);
 
@@ -2153,6 +2206,91 @@ async function cleanupCollectionOrphans(collectionName, memberIdPaths, memberIds
   return removed;
 }
 
+async function cleanupCollectionDocuments(collectionName, summary, options = {}) {
+  const previewOnly = Boolean(options && options.previewOnly);
+  const counterKey = options && options.counterKey ? options.counterKey : collectionName;
+  const limit = Number.isFinite(options.limit) && options.limit > 0 ? Math.floor(options.limit) : 100;
+  const collection = db.collection(collectionName);
+
+  if (previewOnly) {
+    try {
+      const snapshot = await collection.count();
+      const total = snapshot && Number.isFinite(snapshot.total) ? Math.max(0, Math.floor(snapshot.total)) : 0;
+      if (total > 0) {
+        if (!summary.preview || typeof summary.preview !== 'object') {
+          summary.preview = {};
+        }
+        summary.preview[counterKey] = (summary.preview[counterKey] || 0) + total;
+      }
+      return total;
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return 0;
+      }
+      pushCleanupError(summary, collectionName, error);
+      return 0;
+    }
+  }
+
+  let removed = 0;
+  let hasMore = true;
+  let lastId = '';
+
+  while (hasMore) {
+    let query = collection;
+    if (lastId) {
+      query = query.where({ _id: _.gt(lastId) });
+    }
+    const snapshot = await query
+      .orderBy('_id', 'asc')
+      .limit(limit)
+      .field({ _id: true })
+      .get()
+      .catch((error) => {
+        if (!isNotFoundError(error)) {
+          pushCleanupError(summary, collectionName, error);
+        }
+        return { data: [] };
+      });
+    const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+    lastId = docs[docs.length - 1]._id || lastId;
+
+    const tasks = docs.map((doc) =>
+      collection
+        .doc(doc._id)
+        .remove()
+        .then(() => {
+          removed += 1;
+        })
+        .catch((error) => {
+          if (!isNotFoundError(error)) {
+            pushCleanupError(summary, collectionName, error, doc._id);
+          }
+        })
+    );
+
+    if (tasks.length) {
+      await Promise.all(tasks);
+    }
+
+    if (docs.length < limit) {
+      hasMore = false;
+    }
+  }
+
+  if (removed > 0) {
+    if (!summary.removed || typeof summary.removed !== 'object') {
+      summary.removed = {};
+    }
+    summary.removed[counterKey] = (summary.removed[counterKey] || 0) + removed;
+  }
+
+  return removed;
+}
+
 async function removeOrphanedDocumentsById(collectionName, memberIds, summary, options = {}) {
   const previewOnly = Boolean(options && options.previewOnly);
   const collection = db.collection(collectionName);
@@ -2311,6 +2449,100 @@ async function cleanupPvpLeaderboardOrphans(memberIds, summary, options = {}) {
   }
 
   return cleanedEntries;
+}
+
+async function cleanupPveProfileHistory(summary, options = {}) {
+  const previewOnly = Boolean(options && options.previewOnly);
+  const collection = db.collection(COLLECTIONS.MEMBERS);
+  const condition = _.or([
+    { 'pveProfile.battleHistory': _.exists(true) },
+    { 'pveProfile.skillHistory': _.exists(true) },
+    { 'pveProfile.__historyDoc': _.exists(true) }
+  ]);
+
+  if (previewOnly) {
+    try {
+      const snapshot = await collection.where(condition).count();
+      const total = snapshot && Number.isFinite(snapshot.total) ? Math.max(0, Math.floor(snapshot.total)) : 0;
+      if (total > 0) {
+        if (!summary.preview || typeof summary.preview !== 'object') {
+          summary.preview = {};
+        }
+        summary.preview.pveProfileHistory = (summary.preview.pveProfileHistory || 0) + total;
+      }
+      return total;
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        return 0;
+      }
+      pushCleanupError(summary, COLLECTIONS.MEMBERS, error);
+      return 0;
+    }
+  }
+
+  const limit = 100;
+  let offset = 0;
+  let processed = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    const snapshot = await collection
+      .where(condition)
+      .skip(offset)
+      .limit(limit)
+      .field({ _id: true })
+      .get()
+      .catch((error) => {
+        if (!isNotFoundError(error)) {
+          pushCleanupError(summary, COLLECTIONS.MEMBERS, error);
+        }
+        return { data: [] };
+      });
+    const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+
+    offset += docs.length;
+
+    const tasks = docs.map((doc) =>
+      collection
+        .doc(doc._id)
+        .update({
+          data: {
+            'pveProfile.battleHistory': _.remove(),
+            'pveProfile.skillHistory': _.remove(),
+            'pveProfile.__historyDoc': _.remove(),
+            updatedAt: new Date()
+          }
+        })
+        .then(() => {
+          processed += 1;
+        })
+        .catch((error) => {
+          if (!isNotFoundError(error)) {
+            pushCleanupError(summary, COLLECTIONS.MEMBERS, error, doc._id);
+          }
+        })
+    );
+
+    if (tasks.length) {
+      await Promise.all(tasks);
+    }
+
+    if (docs.length < limit) {
+      hasMore = false;
+    }
+  }
+
+  if (processed > 0) {
+    if (!summary.removed || typeof summary.removed !== 'object') {
+      summary.removed = {};
+    }
+    summary.removed.pveProfileHistory = (summary.removed.pveProfileHistory || 0) + processed;
+  }
+
+  return processed;
 }
 
 function extractMemberIdsByPath(doc, path) {

@@ -5,6 +5,7 @@ const COLLECTION_LABELS = {
   memberTimeline: '会员动态',
   memberExtras: '会员扩展信息',
   memberPveHistory: 'PVE 战斗记录',
+  pveProfileHistory: 'PVE 档案缓存',
   reservations: '预约记录',
   memberRights: '会员权益',
   walletTransactions: '钱包流水',
@@ -18,7 +19,8 @@ const COLLECTION_LABELS = {
   pvpMatches: 'PVP 对战记录',
   pvpProfiles: 'PVP 资料',
   pvpLeaderboard: 'PVP 排行榜',
-  pvpLeaderboardEntries: 'PVP 排行榜条目'
+  pvpLeaderboardEntries: 'PVP 排行榜条目',
+  pvpSeasons: 'PVP 赛季'
 };
 
 const CLEANUP_COLLECTION_METADATA = {
@@ -39,6 +41,12 @@ const CLEANUP_COLLECTION_METADATA = {
     indexes: ['_id'],
     description: 'PVE 模式战斗历史记录',
     reason: '关联会员不存在，历史战斗记录失去意义'
+  },
+  pveProfileHistory: {
+    collection: 'members',
+    indexes: ['pveProfile.battleHistory', 'pveProfile.skillHistory'],
+    description: '会员 PVE 档案中缓存的战斗与技能历史',
+    reason: '清空战斗记录时需同步移除缓存，避免前端展示残留数据'
   },
   reservations: {
     collection: 'reservations',
@@ -112,11 +120,23 @@ const CLEANUP_COLLECTION_METADATA = {
     description: 'PVP 模式玩家档案',
     reason: '玩家会员已删除，档案信息需要移除'
   },
+  pvpLeaderboard: {
+    collection: 'pvpLeaderboard',
+    indexes: ['seasonId'],
+    description: 'PVP 排行榜缓存快照',
+    reason: '战斗记录重置后需要清空旧有排名数据'
+  },
   pvpLeaderboardEntries: {
     collection: 'pvpLeaderboard',
     indexes: ['entries[].memberId'],
     description: 'PVP 排行榜条目与排名',
     reason: '排行榜成员对应的会员已删除，需要更新榜单'
+  },
+  pvpSeasons: {
+    collection: 'pvpSeasons',
+    indexes: ['status', 'seasonId'],
+    description: 'PVP 赛季与排名周期配置',
+    reason: '重建战斗环境时需要清空历史赛季数据以便重新初始化'
   }
 };
 
@@ -245,7 +265,11 @@ Page({
     finishedAt: '',
     previewAt: '',
     preview: null,
-    result: null
+    result: null,
+    battlePreviewAt: '',
+    battleFinishedAt: '',
+    battlePreview: null,
+    battleResult: null
   },
 
   handleScanTap() {
@@ -326,6 +350,92 @@ Page({
       this.setData({ loading: false, loadingAction: '' });
       wx.showToast({
         title: error && (error.errMsg || error.message) ? error.errMsg || error.message : '清理失败，请稍后再试',
+        icon: 'none'
+      });
+    }
+  },
+
+  handleBattleScanTap() {
+    if (this.data.loading) {
+      return;
+    }
+    this.runBattleScan();
+  },
+
+  async runBattleScan() {
+    this.setData({ loading: true, loadingAction: 'scanBattle' });
+    try {
+      const response = await AdminService.previewCleanupBattleRecords();
+      const battlePreview = normalizePreviewResult(response || {});
+      this.setData({
+        loading: false,
+        loadingAction: '',
+        battlePreview,
+        battlePreviewAt: formatTimestamp(new Date()),
+        battleResult: null,
+        battleFinishedAt: ''
+      });
+      wx.showToast({
+        title: battlePreview.total > 0 ? '战斗记录扫描完成' : '未发现战斗记录',
+        icon: battlePreview.total > 0 ? 'success' : 'none'
+      });
+    } catch (error) {
+      console.error('[admin:data-cleanup:battle-scan]', error);
+      this.setData({ loading: false, loadingAction: '' });
+      wx.showToast({
+        title:
+          error && (error.errMsg || error.message)
+            ? error.errMsg || error.message
+            : '战斗记录扫描失败，请稍后再试',
+        icon: 'none'
+      });
+    }
+  },
+
+  handleBattleCleanupTap() {
+    if (this.data.loading) {
+      return;
+    }
+    const battlePreview = this.data.battlePreview;
+    if (!battlePreview || !Array.isArray(battlePreview.items) || !battlePreview.items.length) {
+      wx.showToast({ title: '请先扫描战斗记录', icon: 'none' });
+      return;
+    }
+    wx.showModal({
+      title: '确认清理所有战斗记录？',
+      content: '系统将移除全部 PVE / PVP 战斗记录及衍生数据，该操作不可撤销。',
+      confirmText: '确认清理',
+      cancelText: '再考虑下',
+      success: (res) => {
+        if (res.confirm) {
+          this.runBattleCleanup();
+        }
+      }
+    });
+  },
+
+  async runBattleCleanup() {
+    this.setData({ loading: true, loadingAction: 'cleanupBattle' });
+    try {
+      const response = await AdminService.cleanupBattleRecords();
+      const battleResult = normalizeCleanupResult(response || {});
+      this.setData({
+        loading: false,
+        loadingAction: '',
+        battleResult,
+        battleFinishedAt: formatTimestamp(new Date()),
+        battlePreview: null,
+        battlePreviewAt: ''
+      });
+      wx.showToast({ title: '战斗记录清理完成', icon: 'success' });
+    } catch (error) {
+      console.error('[admin:data-cleanup:battle]', error);
+      this.setData({ loading: false, loadingAction: '' });
+      wx.showToast({
+        title:
+          error && (error.errMsg || error.message)
+            ? error.errMsg || error.message
+            : '战斗记录清理失败，请稍后再试',
         icon: 'none'
       });
     }
