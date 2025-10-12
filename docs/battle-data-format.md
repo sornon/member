@@ -4,6 +4,8 @@
 
 为了摆脱“根据文字描述再反推动画”的低效流程，本规范将战斗过程抽象为结构化数据。云函数在结算战斗时需直接生成下述 JSON 结构，前端与运营工具均可依据同一份数据渲染动画、统计伤害与复盘异常。
 
+> **实现提示**：仓库已在 `cloudfunctions/nodejs-layer/node_modules/battle-schema` 提供 `createBattlePayload`/`decorateBattleReplay` 等工具函数，`pve` 与 `pvp` 云函数均应调用该模块输出完全同构的战斗结果与回放数据，避免重复拼装字段或出现命名不一致的问题。
+
 ## 顶层结构
 
 ```jsonc
