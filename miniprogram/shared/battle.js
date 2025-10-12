@@ -1,4 +1,5 @@
 const { buildCloudAssetUrl, CHARACTER_IMAGE_BASE_PATH } = require('./asset-paths');
+const { buildTitleImageUrl, resolveTitleById, normalizeTitleId } = require('./titles');
 
 const DEFAULT_BACKGROUND_VIDEO = buildCloudAssetUrl('video', 'battle_default.mp4');
 const DEFAULT_PLAYER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/male-b-1.png`;
@@ -21,6 +22,46 @@ const ACTION_EFFECT_LABELS = {
   heal: '治疗'
 };
 
+const AVATAR_FIELD_NAMES = ['avatarUrl', 'avatar', 'avatarImage', 'headImage', 'icon', 'image', 'portrait'];
+const AVATAR_FRAME_FIELD_NAMES = ['avatarFrame', 'avatarFrameUrl', 'frame', 'frameUrl', 'frameImage', 'avatarBorder', 'avatarRing'];
+const TITLE_ID_FIELD_NAMES = ['appearanceTitle', 'titleId', 'title', 'activeTitle', 'equippedTitle', 'currentTitle'];
+const TITLE_NAME_FIELD_NAMES = [
+  'appearanceTitleName',
+  'titleName',
+  'displayTitle',
+  'titleLabel',
+  'titleText',
+  'appearanceTitleLabel'
+];
+const TITLE_IMAGE_FIELD_NAMES = [
+  'appearanceTitleImage',
+  'titleImage',
+  'titleIcon',
+  'appearanceTitleIcon',
+  'titleBadge',
+  'appearanceTitleBadge'
+];
+const PARTICIPANT_ASSET_NESTED_KEYS = [
+  'profile',
+  'member',
+  'memberSnapshot',
+  'player',
+  'opponent',
+  'self',
+  'ally',
+  'enemy',
+  'target',
+  'character',
+  'source',
+  'owner',
+  'appearance',
+  'snapshot',
+  'context',
+  'data',
+  'info',
+  'participant'
+];
+
 function clamp(value, min, max) {
   if (Number.isNaN(value)) return min;
   return Math.max(min, Math.min(max, value));
@@ -33,6 +74,121 @@ function toNumber(value, fallback = 0) {
 
 function formatNumber(value) {
   return Number.isFinite(value) ? Math.round(value) : 0;
+}
+
+function collectCandidateSources(...items) {
+  const sources = [];
+  for (let i = 0; i < items.length; i += 1) {
+    const item = items[i];
+    if (item === null || typeof item === 'undefined') {
+      continue;
+    }
+    if (Array.isArray(item)) {
+      for (let j = 0; j < item.length; j += 1) {
+        if (item[j] === null || typeof item[j] === 'undefined') {
+          continue;
+        }
+        sources.push(item[j]);
+      }
+      continue;
+    }
+    sources.push(item);
+  }
+  return sources;
+}
+
+function resolveStringFromCandidate(candidate, fieldNames = [], nestedKeys = [], visited = new Set()) {
+  if (candidate === null || typeof candidate === 'undefined') {
+    return '';
+  }
+  if (typeof candidate === 'string' || typeof candidate === 'number' || typeof candidate === 'boolean') {
+    const value = String(candidate).trim();
+    return value;
+  }
+  if (typeof candidate !== 'object') {
+    return '';
+  }
+  if (visited.has(candidate)) {
+    return '';
+  }
+  visited.add(candidate);
+  for (let i = 0; i < fieldNames.length; i += 1) {
+    const value = candidate[fieldNames[i]];
+    if (value === null || typeof value === 'undefined') {
+      continue;
+    }
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      const stringValue = String(value).trim();
+      if (stringValue) {
+        return stringValue;
+      }
+    }
+  }
+  for (let i = 0; i < nestedKeys.length; i += 1) {
+    const nested = candidate[nestedKeys[i]];
+    if (!nested) {
+      continue;
+    }
+    if (Array.isArray(nested)) {
+      for (let j = 0; j < nested.length; j += 1) {
+        const resolved = resolveStringFromCandidate(nested[j], fieldNames, nestedKeys, visited);
+        if (resolved) {
+          return resolved;
+        }
+      }
+    } else {
+      const resolved = resolveStringFromCandidate(nested, fieldNames, nestedKeys, visited);
+      if (resolved) {
+        return resolved;
+      }
+    }
+  }
+  return '';
+}
+
+function resolveParticipantField(sources, fieldNames = [], nestedKeys = [], fallback = '') {
+  if (!Array.isArray(sources)) {
+    return fallback;
+  }
+  for (let i = 0; i < sources.length; i += 1) {
+    const resolved = resolveStringFromCandidate(sources[i], fieldNames, nestedKeys, new Set());
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return fallback;
+}
+
+function buildTitlePayload({ id = '', name = '', image = '' } = {}) {
+  const normalizedId = normalizeTitleId(id || '');
+  let resolvedName = typeof name === 'string' ? name.trim() : '';
+  let resolvedImage = typeof image === 'string' ? image.trim() : '';
+  if (normalizedId) {
+    const definition = resolveTitleById(normalizedId);
+    if (definition) {
+      if (!resolvedName && definition.name) {
+        resolvedName = definition.name;
+      }
+      if (!resolvedImage && definition.image) {
+        resolvedImage = definition.image;
+      }
+    } else if (!resolvedImage) {
+      resolvedImage = buildTitleImageUrl(normalizedId);
+    }
+    if (!resolvedImage) {
+      resolvedImage = buildTitleImageUrl(normalizedId);
+    }
+  }
+  const hasName = typeof resolvedName === 'string' && resolvedName.trim();
+  const hasImage = typeof resolvedImage === 'string' && resolvedImage.trim();
+  if (!normalizedId && !hasName && !hasImage) {
+    return null;
+  }
+  return {
+    id: normalizedId,
+    name: hasName ? resolvedName : '',
+    image: hasImage ? resolvedImage : ''
+  };
 }
 
 function resolvePortrait(source, fallback) {
@@ -668,6 +824,146 @@ function buildStructuredBattleViewModel({
     defaults.opponentPortrait || DEFAULT_OPPONENT_IMAGE
   );
 
+  const playerObjectSources = collectCandidateSources(
+    context.player,
+    context.playerParticipant,
+    context.profile,
+    context.profile && context.profile.member,
+    context.profile && context.profile.memberSnapshot,
+    context.member,
+    context.memberSnapshot,
+    context.self,
+    context.preview && context.preview.player,
+    participants.player,
+    participants.self,
+    battle.player,
+    battle.self,
+    playerSource,
+    fallbackParticipants.player
+  );
+  const opponentObjectSources = collectCandidateSources(
+    context.opponent,
+    context.opponentParticipant,
+    context.enemy,
+    context.target,
+    context.enemyPreview,
+    context.opponentPreview,
+    context.preview && context.preview.opponent,
+    participants.opponent,
+    participants.enemy,
+    participants.target,
+    battle.opponent,
+    battle.enemy,
+    opponentSource,
+    fallbackParticipants.opponent
+  );
+
+  const playerAvatar = resolveParticipantField(
+    collectCandidateSources(
+      context.playerAvatar,
+      context.playerAvatarUrl,
+      context.playerAvatarImage,
+      playerObjectSources
+    ),
+    AVATAR_FIELD_NAMES,
+    PARTICIPANT_ASSET_NESTED_KEYS,
+    ''
+  );
+  const opponentAvatar = resolveParticipantField(
+    collectCandidateSources(
+      context.opponentAvatar,
+      context.opponentAvatarUrl,
+      context.opponentAvatarImage,
+      opponentObjectSources
+    ),
+    AVATAR_FIELD_NAMES,
+    PARTICIPANT_ASSET_NESTED_KEYS,
+    ''
+  );
+
+  const playerAvatarFrame = resolveParticipantField(
+    collectCandidateSources(context.playerAvatarFrame, playerObjectSources),
+    AVATAR_FRAME_FIELD_NAMES,
+    PARTICIPANT_ASSET_NESTED_KEYS,
+    ''
+  );
+  const opponentAvatarFrame = resolveParticipantField(
+    collectCandidateSources(context.opponentAvatarFrame, opponentObjectSources),
+    AVATAR_FRAME_FIELD_NAMES,
+    PARTICIPANT_ASSET_NESTED_KEYS,
+    ''
+  );
+
+  const playerTitleId = resolveParticipantField(
+    collectCandidateSources(
+      context.playerTitleId,
+      context.playerAppearanceTitle,
+      context.playerTitle,
+      context.appearanceTitle,
+      playerObjectSources
+    ),
+    TITLE_ID_FIELD_NAMES,
+    PARTICIPANT_ASSET_NESTED_KEYS,
+    ''
+  );
+  const opponentTitleId = resolveParticipantField(
+    collectCandidateSources(
+      context.opponentTitleId,
+      context.opponentAppearanceTitle,
+      context.opponentTitle,
+      opponentObjectSources
+    ),
+    TITLE_ID_FIELD_NAMES,
+    PARTICIPANT_ASSET_NESTED_KEYS,
+    ''
+  );
+
+  const playerTitleName = resolveParticipantField(
+    collectCandidateSources(
+      context.playerTitleName,
+      context.playerTitleText,
+      context.appearanceTitleName,
+      playerObjectSources
+    ),
+    TITLE_NAME_FIELD_NAMES,
+    PARTICIPANT_ASSET_NESTED_KEYS,
+    ''
+  );
+  const opponentTitleName = resolveParticipantField(
+    collectCandidateSources(
+      context.opponentTitleName,
+      context.opponentTitleText,
+      opponentObjectSources
+    ),
+    TITLE_NAME_FIELD_NAMES,
+    PARTICIPANT_ASSET_NESTED_KEYS,
+    ''
+  );
+
+  const playerTitleImage = resolveParticipantField(
+    collectCandidateSources(
+      context.playerTitleImage,
+      context.playerTitleIcon,
+      playerObjectSources
+    ),
+    TITLE_IMAGE_FIELD_NAMES,
+    PARTICIPANT_ASSET_NESTED_KEYS,
+    ''
+  );
+  const opponentTitleImage = resolveParticipantField(
+    collectCandidateSources(
+      context.opponentTitleImage,
+      context.opponentTitleIcon,
+      opponentObjectSources
+    ),
+    TITLE_IMAGE_FIELD_NAMES,
+    PARTICIPANT_ASSET_NESTED_KEYS,
+    ''
+  );
+
+  const playerTitle = buildTitlePayload({ id: playerTitleId, name: playerTitleName, image: playerTitleImage });
+  const opponentTitle = buildTitlePayload({ id: opponentTitleId, name: opponentTitleName, image: opponentTitleImage });
+
   const playerBaseMax = extractParticipantMaxHp(playerSource, defaults.playerMaxHp);
   const opponentBaseMax = extractParticipantMaxHp(opponentSource, defaults.opponentMaxHp);
   let playerMaxHp = collectMaxHpFromTimeline(timeline, 'player', playerBaseMax);
@@ -932,6 +1228,9 @@ function buildStructuredBattleViewModel({
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
       portrait: playerPortrait,
+      avatar: playerAvatar || '',
+      avatarFrame: playerAvatarFrame || '',
+      title: playerTitle,
       combatPower: toNumber((playerSource && playerSource.combatPower) || context.playerPower),
       attributes: playerAttributes ? { ...playerAttributes } : null,
       summary: {
@@ -945,6 +1244,9 @@ function buildStructuredBattleViewModel({
       name: opponentName,
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
       portrait: opponentPortrait,
+      avatar: opponentAvatar || '',
+      avatarFrame: opponentAvatarFrame || '',
+      title: opponentTitle,
       combatPower: toNumber((opponentSource && opponentSource.combatPower) || context.opponentPower),
       attributes: opponentAttributes ? { ...opponentAttributes } : null,
       summary: {
