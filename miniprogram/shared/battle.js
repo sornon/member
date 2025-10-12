@@ -7,6 +7,20 @@ const DEFAULT_OPPONENT_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/female-c-1.png`;
 const PLAYER_SKILL_ROTATION = ['流云剑诀', '星河落斩', '落霞破影', '雷霆贯体'];
 const OPPONENT_SKILL_ROTATION = ['幽影突袭', '寒魄碎骨', '血焰冲锋', '枯藤缠袭'];
 
+const PARTICIPANT_ALIASES = {
+  player: ['player', 'self', 'attacker', 'initiator', 'ally', 'member'],
+  opponent: ['opponent', 'enemy', 'defender', 'target', 'foe']
+};
+
+const ACTION_EFFECT_LABELS = {
+  crit: '暴击',
+  dodge: '闪避',
+  block: '格挡',
+  shield: '护盾',
+  status: '状态',
+  heal: '治疗'
+};
+
 function clamp(value, min, max) {
   if (Number.isNaN(value)) return min;
   return Math.max(min, Math.min(max, value));
@@ -42,6 +56,778 @@ function buildHpState(maxHp, currentHp) {
   const normalizedCurrent = clamp(toNumber(currentHp, normalizedMax), 0, normalizedMax);
   const percent = clamp(Math.round((normalizedCurrent / normalizedMax) * 100), 0, 100);
   return { max: normalizedMax, current: normalizedCurrent, percent };
+}
+
+function isStructuredTimelineEntry(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return false;
+  }
+  if (Array.isArray(entry.events) && entry.events.length) {
+    return true;
+  }
+  if (Array.isArray(entry.targets)) {
+    for (let i = 0; i < entry.targets.length; i += 1) {
+      const target = entry.targets[i];
+      if (!target) continue;
+      if (Array.isArray(target.events) && target.events.length) {
+        return true;
+      }
+      if (Array.isArray(target.effects) && target.effects.length) {
+        return true;
+      }
+    }
+  }
+  if (entry.state && (entry.state.player || entry.state.opponent)) {
+    return true;
+  }
+  if (entry.summary && (entry.summary.title || entry.summary.text)) {
+    return true;
+  }
+  return false;
+}
+
+function findParticipantByAliases(collection, aliases) {
+  if (!collection || typeof collection !== 'object') {
+    return null;
+  }
+  for (let i = 0; i < aliases.length; i += 1) {
+    const alias = aliases[i];
+    if (alias && collection[alias]) {
+      return collection[alias];
+    }
+  }
+  return null;
+}
+
+function resolveParticipantSource(participants, fallbackParticipants, aliases) {
+  const primary = findParticipantByAliases(participants, aliases);
+  if (primary) {
+    return primary;
+  }
+  const fallback = findParticipantByAliases(fallbackParticipants, aliases);
+  if (fallback) {
+    return fallback;
+  }
+  return {};
+}
+
+function toParticipantName(source, fallback) {
+  if (!source) {
+    return fallback;
+  }
+  if (typeof source === 'string') {
+    return source;
+  }
+  if (source.displayName) {
+    return source.displayName;
+  }
+  if (source.name) {
+    return source.name;
+  }
+  if (source.nickname) {
+    return source.nickname;
+  }
+  return fallback;
+}
+
+function extractParticipantId(source, fallback) {
+  if (!source || typeof source !== 'object') {
+    return fallback;
+  }
+  return source.id || source.memberId || source.characterId || source.roleId || fallback;
+}
+
+function extractParticipantHp(source, defaultHp) {
+  if (!source || typeof source !== 'object') {
+    return defaultHp;
+  }
+  if (typeof source.hp === 'number') {
+    return source.hp;
+  }
+  const hpData = source.hp || source.health || {};
+  if (typeof hpData.current === 'number') {
+    return hpData.current;
+  }
+  if (typeof hpData.value === 'number') {
+    return hpData.value;
+  }
+  if (typeof hpData.after === 'number') {
+    return hpData.after;
+  }
+  if (typeof hpData.before === 'number') {
+    return hpData.before;
+  }
+  if (typeof hpData.max === 'number') {
+    return hpData.max;
+  }
+  return defaultHp;
+}
+
+function extractParticipantMaxHp(source, defaultMaxHp) {
+  if (!source || typeof source !== 'object') {
+    return defaultMaxHp;
+  }
+  if (typeof source.maxHp === 'number') {
+    return source.maxHp;
+  }
+  const hpData = source.hp || source.health || {};
+  if (typeof hpData.max === 'number') {
+    return hpData.max;
+  }
+  if (typeof hpData.before === 'number') {
+    return hpData.before;
+  }
+  if (typeof hpData.current === 'number') {
+    return hpData.current;
+  }
+  if (typeof hpData.after === 'number') {
+    return hpData.after;
+  }
+  return defaultMaxHp;
+}
+
+function resolveEventTargets(event) {
+  const targets = [];
+  if (!event || typeof event !== 'object') {
+    return targets;
+  }
+  if (event.targetId) {
+    targets.push({ id: event.targetId, side: event.targetSide || null });
+  }
+  if (event.target) {
+    const target = event.target;
+    if (typeof target === 'string') {
+      targets.push({ id: target, side: null });
+    } else if (target && typeof target === 'object') {
+      targets.push({ id: target.id || target.memberId || null, side: target.side || null });
+    }
+  }
+  if (Array.isArray(event.targets)) {
+    for (let i = 0; i < event.targets.length; i += 1) {
+      const targetItem = event.targets[i];
+      if (!targetItem) continue;
+      if (typeof targetItem === 'string') {
+        targets.push({ id: targetItem, side: null });
+      } else if (typeof targetItem === 'object') {
+        targets.push({ id: targetItem.id || targetItem.memberId || null, side: targetItem.side || null });
+      }
+    }
+  }
+  if (event.side) {
+    targets.push({ id: null, side: event.side });
+  }
+  if (event.team) {
+    targets.push({ id: null, side: event.team });
+  }
+  return targets;
+}
+
+function eventTargetsSide(event, sideKey, sideId) {
+  const targets = resolveEventTargets(event);
+  for (let i = 0; i < targets.length; i += 1) {
+    const target = targets[i];
+    if (target.side && target.side === sideKey) {
+      return true;
+    }
+    if (sideId && target.id && target.id === sideId) {
+      return true;
+    }
+  }
+  if (event.targetType) {
+    if (event.targetType === sideKey) {
+      return true;
+    }
+    if (sideKey === 'player' && event.targetType === 'self') {
+      return true;
+    }
+    if (sideKey === 'opponent' && event.targetType === 'enemy') {
+      return true;
+    }
+  }
+  return false;
+}
+
+function collectMaxHpFromTimeline(timeline, sideKey, fallbackMax) {
+  let maxHp = toNumber(fallbackMax, 0);
+  for (let i = 0; i < timeline.length; i += 1) {
+    const entry = timeline[i];
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    const state = entry.state && entry.state[sideKey];
+    if (!state) {
+      continue;
+    }
+    const hpData = state.hp || state.health || {};
+    const candidates = [hpData.max, hpData.before, hpData.after, hpData.current, state.maxHp];
+    for (let j = 0; j < candidates.length; j += 1) {
+      const candidate = toNumber(candidates[j], NaN);
+      if (Number.isFinite(candidate) && candidate > maxHp) {
+        maxHp = candidate;
+      }
+    }
+  }
+  return Math.max(1, toNumber(maxHp, 1));
+}
+
+function collectInitialHpFromTimeline(timeline, sideKey, fallbackHp, maxHp) {
+  let initial = toNumber(fallbackHp, NaN);
+  for (let i = 0; i < timeline.length; i += 1) {
+    const entry = timeline[i];
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    const state = entry.state && entry.state[sideKey];
+    if (!state) {
+      continue;
+    }
+    const hpData = state.hp || state.health || {};
+    if (typeof hpData.before === 'number' && hpData.before > 0) {
+      initial = hpData.before;
+      break;
+    }
+    if (typeof hpData.current === 'number' && hpData.current > 0) {
+      initial = hpData.current;
+      break;
+    }
+    if (typeof hpData.max === 'number' && hpData.max > 0) {
+      initial = hpData.max;
+      break;
+    }
+  }
+  if (!Number.isFinite(initial) || initial <= 0) {
+    initial = toNumber(maxHp, 1);
+  }
+  return Math.max(1, toNumber(initial, 1));
+}
+
+function pushEffect(effects, type) {
+  if (!type || !ACTION_EFFECT_LABELS[type]) {
+    return;
+  }
+  for (let i = 0; i < effects.length; i += 1) {
+    if (effects[i] && effects[i].type === type) {
+      return;
+    }
+  }
+  effects.push({ type, label: ACTION_EFFECT_LABELS[type] });
+}
+
+function buildEffectsFromStructuredEntry(events) {
+  const effects = [];
+  if (!Array.isArray(events)) {
+    return effects;
+  }
+  for (let i = 0; i < events.length; i += 1) {
+    const event = events[i];
+    if (!event || typeof event !== 'object') {
+      continue;
+    }
+    if (event.type === 'dodge') {
+      pushEffect(effects, 'dodge');
+    }
+    if (event.type === 'block') {
+      pushEffect(effects, 'block');
+    }
+    if (event.type === 'shield' && toNumber(event.change, 0) > 0) {
+      pushEffect(effects, 'shield');
+    }
+    if (event.type === 'status' && (event.operation === 'apply' || toNumber(event.stackChange, 0) > 0)) {
+      pushEffect(effects, 'status');
+    }
+    if (event.type === 'heal' && toNumber(event.value, 0) > 0) {
+      pushEffect(effects, 'heal');
+    }
+    const critFlag = event.crit || event.critical || (Array.isArray(event.tags) && event.tags.indexOf('crit') >= 0);
+    if (event.type === 'damage' && critFlag) {
+      pushEffect(effects, 'crit');
+    }
+  }
+  return effects;
+}
+
+function buildDescriptionFromStructuredEntry({
+  actorName,
+  targetName,
+  skillName,
+  damage,
+  heal,
+  events
+}) {
+  const parts = [];
+  if (Array.isArray(events)) {
+    for (let i = 0; i < events.length; i += 1) {
+      const event = events[i];
+      if (event && event.type === 'dodge') {
+        return `${targetName} 成功闪避了 ${actorName} 的攻势。`;
+      }
+    }
+  }
+  if (skillName) {
+    parts.push(`${actorName} 施展「${skillName}」`);
+  } else {
+    parts.push(`${actorName} 发动攻击`);
+  }
+  if (typeof damage === 'number' && damage > 0) {
+    let damageText = `，对 ${targetName} 造成 ${damage} 点伤害`;
+    if (Array.isArray(events)) {
+      const hasCrit = events.some((event) => event && event.type === 'damage' && (event.crit || event.critical || (Array.isArray(event.tags) && event.tags.indexOf('crit') >= 0)));
+      if (hasCrit) {
+        damageText += '（暴击）';
+      }
+      const hasBlock = events.some((event) => event && event.type === 'block');
+      if (hasBlock) {
+        damageText += '，部分伤害被格挡';
+      }
+      const elements = [];
+      events.forEach((event) => {
+        if (event && event.type === 'damage') {
+          if (event.element && elements.indexOf(event.element) === -1) {
+            elements.push(event.element);
+          }
+          if (event.damageType && elements.indexOf(event.damageType) === -1) {
+            elements.push(event.damageType);
+          }
+        }
+      });
+      if (elements.length) {
+        damageText += `（${elements.join(' / ')}）`;
+      }
+    }
+    damageText += '。';
+    parts.push(damageText);
+  } else {
+    parts.push('，但未造成有效伤害。');
+  }
+  if (typeof heal === 'number' && heal > 0) {
+    parts.push(` ${actorName} 借势恢复 ${heal} 点生命。`);
+  }
+  if (Array.isArray(events)) {
+    const statuses = [];
+    events.forEach((event) => {
+      if (event && event.type === 'status' && (event.operation === 'apply' || toNumber(event.stackChange, 0) > 0)) {
+        const label = event.statusName || event.label || event.statusId;
+        if (label && statuses.indexOf(label) === -1) {
+          statuses.push(label);
+        }
+      }
+    });
+    if (statuses.length) {
+      parts.push(` ${targetName} 陷入 ${statuses.join('、')} 状态。`);
+    }
+  }
+  return parts.join('');
+}
+
+function updateSideHpFromEntry({
+  entry,
+  sideKey,
+  currentHp,
+  currentMaxHp,
+  damageTaken,
+  healGained
+}) {
+  let nextHp = toNumber(currentHp, currentMaxHp);
+  let nextMax = toNumber(currentMaxHp, 1);
+  if (entry && typeof entry === 'object') {
+    const state = entry.state && entry.state[sideKey];
+    if (state) {
+      const hpData = state.hp || state.health || {};
+      const maxCandidate = toNumber(hpData.max, state.maxHp);
+      if (Number.isFinite(maxCandidate) && maxCandidate > nextMax) {
+        nextMax = maxCandidate;
+      }
+      const after = toNumber(hpData.after, hpData.current);
+      if (Number.isFinite(after)) {
+        nextHp = after;
+      } else {
+        const before = toNumber(hpData.before, hpData.max);
+        if (Number.isFinite(before)) {
+          nextHp = clamp(before - damageTaken + healGained, 0, Math.max(nextMax, before));
+        }
+      }
+    } else {
+      nextHp = clamp(nextHp - damageTaken + healGained, 0, Math.max(1, nextMax));
+    }
+  }
+  return {
+    hp: clamp(toNumber(nextHp, nextMax), 0, Math.max(1, nextMax)),
+    max: Math.max(1, toNumber(nextMax, 1))
+  };
+}
+
+function resolveActorSide(entry, playerId, opponentId) {
+  if (!entry || typeof entry !== 'object') {
+    return 'neutral';
+  }
+  const actor = entry.actor || {};
+  if (entry.actorSide) {
+    return entry.actorSide;
+  }
+  if (actor.side) {
+    return actor.side;
+  }
+  if (entry.team) {
+    return entry.team;
+  }
+  if (entry.actorTeam) {
+    return entry.actorTeam;
+  }
+  const actorId = entry.actorId || actor.id || actor.memberId || actor.roleId;
+  if (actorId === playerId) {
+    return 'player';
+  }
+  if (actorId === opponentId) {
+    return 'opponent';
+  }
+  if (actorId && typeof actorId === 'string') {
+    if (actorId.indexOf('player') >= 0) {
+      return 'player';
+    }
+    if (actorId.indexOf('opponent') >= 0 || actorId.indexOf('enemy') >= 0) {
+      return 'opponent';
+    }
+  }
+  if (entry.side) {
+    return entry.side;
+  }
+  return 'neutral';
+}
+
+function extractEventsFromEntry(entry) {
+  const events = [];
+  if (!entry || typeof entry !== 'object') {
+    return events;
+  }
+  if (Array.isArray(entry.events)) {
+    for (let i = 0; i < entry.events.length; i += 1) {
+      const event = entry.events[i];
+      if (event && typeof event === 'object') {
+        events.push(event);
+      }
+    }
+  }
+  if (Array.isArray(entry.targets)) {
+    for (let i = 0; i < entry.targets.length; i += 1) {
+      const target = entry.targets[i];
+      if (!target || typeof target !== 'object') {
+        continue;
+      }
+      if (Array.isArray(target.events)) {
+        for (let j = 0; j < target.events.length; j += 1) {
+          const targetEvent = target.events[j];
+          if (targetEvent && typeof targetEvent === 'object') {
+            if (!targetEvent.targetId && (target.id || target.memberId)) {
+              targetEvent.targetId = target.id || target.memberId;
+            }
+            if (!targetEvent.targetSide && target.side) {
+              targetEvent.targetSide = target.side;
+            }
+            events.push(targetEvent);
+          }
+        }
+      }
+      if (Array.isArray(target.effects)) {
+        for (let k = 0; k < target.effects.length; k += 1) {
+          const effectEvent = target.effects[k];
+          if (effectEvent && typeof effectEvent === 'object') {
+            if (!effectEvent.type) {
+              effectEvent.type = effectEvent.effectType || 'effect';
+            }
+            if (!effectEvent.targetId && (target.id || target.memberId)) {
+              effectEvent.targetId = target.id || target.memberId;
+            }
+            if (!effectEvent.targetSide && target.side) {
+              effectEvent.targetSide = target.side;
+            }
+            events.push(effectEvent);
+          }
+        }
+      }
+    }
+  }
+  return events;
+}
+
+function buildStructuredBattleViewModel({
+  battle = {},
+  timeline = [],
+  context = {},
+  defaults = {},
+  fallbackParticipants = {}
+} = {}) {
+  if (!Array.isArray(timeline) || !timeline.length) {
+    return null;
+  }
+  const participants = battle.participants || {};
+  const playerSource = resolveParticipantSource(participants, fallbackParticipants, PARTICIPANT_ALIASES.player);
+  const opponentSource = resolveParticipantSource(participants, fallbackParticipants, PARTICIPANT_ALIASES.opponent);
+  const defaultPlayerName = defaults.playerName || '你';
+  const defaultOpponentName = defaults.opponentName || '敌方';
+  const playerName = toParticipantName(
+    typeof context.playerName !== 'undefined' && context.playerName !== null ? context.playerName : playerSource,
+    defaultPlayerName
+  );
+  const opponentName = toParticipantName(
+    typeof context.opponentName !== 'undefined' && context.opponentName !== null ? context.opponentName : opponentSource,
+    defaultOpponentName
+  );
+  const playerId = context.playerId || extractParticipantId(playerSource, 'player');
+  const opponentId = context.opponentId || extractParticipantId(opponentSource, 'opponent');
+  const playerPortrait = resolvePortrait(
+    context.playerPortrait || (playerSource && (playerSource.portrait || playerSource.avatarUrl)) || playerSource,
+    defaults.playerPortrait || DEFAULT_PLAYER_IMAGE
+  );
+  const opponentPortrait = resolvePortrait(
+    context.opponentPortrait || (opponentSource && (opponentSource.portrait || opponentSource.avatarUrl)) || opponentSource,
+    defaults.opponentPortrait || DEFAULT_OPPONENT_IMAGE
+  );
+
+  const playerBaseMax = extractParticipantMaxHp(playerSource, defaults.playerMaxHp);
+  const opponentBaseMax = extractParticipantMaxHp(opponentSource, defaults.opponentMaxHp);
+  let playerMaxHp = collectMaxHpFromTimeline(timeline, 'player', playerBaseMax);
+  let opponentMaxHp = collectMaxHpFromTimeline(timeline, 'opponent', opponentBaseMax);
+  const playerBaseHp = extractParticipantHp(playerSource, playerBaseMax);
+  const opponentBaseHp = extractParticipantHp(opponentSource, opponentBaseMax);
+  let playerHp = collectInitialHpFromTimeline(timeline, 'player', playerBaseHp, playerMaxHp);
+  let opponentHp = collectInitialHpFromTimeline(timeline, 'opponent', opponentBaseHp, opponentMaxHp);
+
+  const totals = {
+    playerDamageDealt: 0,
+    playerDamageTaken: 0,
+    playerHeal: 0,
+    enemyDamageDealt: 0,
+    enemyDamageTaken: 0,
+    enemyHeal: 0
+  };
+
+  const actions = [];
+  let maxRound = 0;
+  let hasResultEntry = false;
+
+  for (let i = 0; i < timeline.length; i += 1) {
+    const entry = timeline[i];
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    if (entry.type === 'result') {
+      hasResultEntry = true;
+    }
+    const round = toNumber(entry.round, i + 1);
+    if (round > maxRound) {
+      maxRound = round;
+    }
+    const events = extractEventsFromEntry(entry);
+    const actorSide = resolveActorSide(entry, playerId, opponentId);
+    const actorIsPlayer = actorSide === 'player';
+    const actorInfo = entry.actor || {};
+    const actorName = actorIsPlayer
+      ? playerName
+      : actorSide === 'opponent'
+      ? opponentName
+      : actorInfo.displayName || actorInfo.name || actorInfo.label || playerName;
+    const targetCandidate = entry.target || entry.primaryTarget || {};
+    const targetName = actorIsPlayer
+      ? opponentName
+      : actorSide === 'opponent'
+      ? playerName
+      : targetCandidate.displayName || targetCandidate.name || targetCandidate.label || opponentName;
+    const skillName = entry.skill ? entry.skill.name || entry.skill.label : entry.summary && entry.summary.label;
+
+    let damageToOpponent = 0;
+    let damageToPlayer = 0;
+    let healOnPlayer = 0;
+    let healOnOpponent = 0;
+    for (let j = 0; j < events.length; j += 1) {
+      const event = events[j];
+      if (!event || typeof event !== 'object') {
+        continue;
+      }
+      if (event.type === 'damage') {
+        const value = Math.max(0, toNumber(event.value, event.amount));
+        if (eventTargetsSide(event, 'opponent', opponentId)) {
+          damageToOpponent += value;
+        }
+        if (eventTargetsSide(event, 'player', playerId)) {
+          damageToPlayer += value;
+        }
+      }
+      if (event.type === 'heal') {
+        const healValue = Math.max(0, toNumber(event.value, event.amount));
+        if (eventTargetsSide(event, 'player', playerId)) {
+          healOnPlayer += healValue;
+        }
+        if (eventTargetsSide(event, 'opponent', opponentId)) {
+          healOnOpponent += healValue;
+        }
+      }
+    }
+
+    totals.playerDamageDealt += damageToOpponent;
+    totals.enemyDamageTaken += damageToOpponent;
+    totals.enemyDamageDealt += damageToPlayer;
+    totals.playerDamageTaken += damageToPlayer;
+    totals.playerHeal += healOnPlayer;
+    totals.enemyHeal += healOnOpponent;
+
+    const damage = actorIsPlayer ? damageToOpponent : actorSide === 'opponent' ? damageToPlayer : 0;
+    const heal = actorIsPlayer ? healOnPlayer : actorSide === 'opponent' ? healOnOpponent : 0;
+
+    const playerState = updateSideHpFromEntry({
+      entry,
+      sideKey: 'player',
+      currentHp: playerHp,
+      currentMaxHp: playerMaxHp,
+      damageTaken: damageToPlayer,
+      healGained: healOnPlayer
+    });
+    const opponentState = updateSideHpFromEntry({
+      entry,
+      sideKey: 'opponent',
+      currentHp: opponentHp,
+      currentMaxHp: opponentMaxHp,
+      damageTaken: damageToOpponent,
+      healGained: healOnOpponent
+    });
+    playerHp = playerState.hp;
+    opponentHp = opponentState.hp;
+    playerMaxHp = Math.max(playerMaxHp, playerState.max);
+    opponentMaxHp = Math.max(opponentMaxHp, opponentState.max);
+
+    const effects = buildEffectsFromStructuredEntry(events);
+    let actionType = entry.actionType || entry.type || (entry.skill ? 'skill' : 'attack');
+    for (let j = 0; j < effects.length; j += 1) {
+      if (effects[j].type === 'dodge') {
+        actionType = 'dodge';
+        break;
+      }
+    }
+
+    const description = entry.summary && entry.summary.text
+      ? entry.summary.text
+      : buildDescriptionFromStructuredEntry({
+          actorName,
+          targetName,
+          skillName,
+          damage,
+          heal,
+          events
+        });
+    const title = entry.summary && entry.summary.title
+      ? entry.summary.title
+      : `第${round}回合 · ${skillName || (actionType === 'dodge' ? '闪避应对' : '攻势')}`;
+
+    actions.push({
+      id: entry.id || `structured-${i}`,
+      round,
+      actor: actorIsPlayer ? 'player' : actorSide === 'opponent' ? 'opponent' : 'neutral',
+      target: actorIsPlayer ? 'opponent' : actorSide === 'opponent' ? 'player' : 'neutral',
+      type: actionType,
+      damage: Math.round(damage),
+      heal: Math.round(heal),
+      description,
+      title,
+      effects,
+      hp: {
+        player: buildHpState(playerMaxHp, playerHp),
+        opponent: buildHpState(opponentMaxHp, opponentHp)
+      },
+      raw: entry
+    });
+  }
+
+  const outcome = battle.outcome || {};
+  const hasDraw = !!outcome.draw || outcome.result === 'draw' || battle.draw;
+  const playerIsWinner = outcome.winnerId
+    ? outcome.winnerId === playerId
+    : outcome.result === 'victory' || (!!battle.victory && !hasDraw);
+  const victory = !hasDraw && playerIsWinner;
+  const draw = hasDraw;
+  const resultRounds = toNumber(outcome.rounds, maxRound || actions.length);
+  const resultRewards = outcome.rewards || battle.rewards || null;
+  const resultSummary = outcome.summary || {};
+
+  if (!hasResultEntry) {
+    actions.push({
+      id: outcome.id || 'structured-result',
+      round: resultRounds || (actions.length ? actions[actions.length - 1].round : 1),
+      actor: draw ? 'neutral' : victory ? 'player' : 'opponent',
+      target: 'neutral',
+      type: 'result',
+      damage: 0,
+      heal: 0,
+      title: resultSummary.title
+        ? resultSummary.title
+        : `战斗结果 · ${draw ? '平局' : victory ? '胜利' : '惜败'}`,
+      description: resultSummary.text
+        ? resultSummary.text
+        : draw
+        ? '双方势均力敌，本场战斗以平局结束。'
+        : victory
+        ? '你技高一筹，成功取得这场战斗的胜利。'
+        : '对手更胜一筹，继续修炼再战。',
+      effects: [],
+      hp: {
+        player: buildHpState(playerMaxHp, playerHp),
+        opponent: buildHpState(opponentMaxHp, opponentHp)
+      },
+      raw: outcome
+    });
+  }
+
+  const backgroundCandidates = [
+    context.backgroundVideo,
+    battle.backgroundVideo,
+    battle.background && battle.background.video,
+    battle.scene && battle.scene.video,
+    battle.options && battle.options.backgroundVideo
+  ];
+  let backgroundVideo = '';
+  for (let i = 0; i < backgroundCandidates.length; i += 1) {
+    const candidate = backgroundCandidates[i];
+    if (typeof candidate === 'string' && candidate) {
+      backgroundVideo = candidate;
+      break;
+    }
+  }
+  if (!backgroundVideo) {
+    backgroundVideo = defaults.backgroundVideo || DEFAULT_BACKGROUND_VIDEO;
+  }
+
+  return {
+    player: {
+      id: playerId || 'player',
+      name: playerName,
+      hp: buildHpState(playerMaxHp, playerMaxHp),
+      portrait: playerPortrait,
+      combatPower: toNumber((playerSource && playerSource.combatPower) || context.playerPower),
+      summary: {
+        damageDealt: Math.round(totals.playerDamageDealt),
+        damageTaken: Math.round(totals.playerDamageTaken),
+        heal: Math.round(totals.playerHeal)
+      }
+    },
+    opponent: {
+      id: opponentId || 'opponent',
+      name: opponentName,
+      hp: buildHpState(opponentMaxHp, opponentMaxHp),
+      portrait: opponentPortrait,
+      combatPower: toNumber((opponentSource && opponentSource.combatPower) || context.opponentPower),
+      summary: {
+        damageDealt: Math.round(totals.enemyDamageDealt),
+        damageTaken: Math.round(totals.enemyDamageTaken),
+        heal: Math.round(totals.enemyHeal)
+      }
+    },
+    actions,
+    backgroundVideo,
+    result: {
+      victory: !!victory,
+      draw: !!draw,
+      rounds: Math.max(1, resultRounds || actions.length),
+      rewards: resultRewards
+    }
+  };
 }
 
 function extractNumberFromLog(log, pattern) {
@@ -82,6 +868,35 @@ function parseRoundFromLog(entry, fallback) {
 }
 
 function buildPveActions(battle = {}, context = {}) {
+  const timeline = Array.isArray(battle.timeline)
+    ? battle.timeline.filter((entry) => entry && typeof entry === 'object')
+    : [];
+  if (timeline.length && timeline.some((entry) => isStructuredTimelineEntry(entry))) {
+    const structured = buildStructuredBattleViewModel({
+      battle,
+      timeline,
+      context,
+      defaults: {
+        playerName: (context && context.playerName) || '你',
+        opponentName: (context && context.opponentName) || '秘境之敌',
+        playerPortrait: (context && context.playerPortrait) || DEFAULT_PLAYER_IMAGE,
+        opponentPortrait: (context && context.opponentPortrait) || DEFAULT_OPPONENT_IMAGE,
+        backgroundVideo: (context && context.backgroundVideo) || DEFAULT_BACKGROUND_VIDEO,
+        mode: 'pve'
+      },
+      fallbackParticipants: {
+        player: battle.player || (battle.participants && battle.participants.player) || null,
+        opponent:
+          battle.enemy ||
+          battle.opponent ||
+          (battle.participants && (battle.participants.opponent || battle.participants.enemy)) ||
+          null
+      }
+    });
+    if (structured) {
+      return structured;
+    }
+  }
   const log = Array.isArray(battle.log) ? battle.log : [];
   const remainingPlayerHp = toNumber(battle.remaining && battle.remaining.playerHp, 0);
   const remainingEnemyHp = toNumber(battle.remaining && battle.remaining.enemyHp, 0);
@@ -255,6 +1070,41 @@ function buildPveActions(battle = {}, context = {}) {
 }
 
 function buildPvpActions(battle = {}, context = {}) {
+  const timeline = Array.isArray(battle.timeline)
+    ? battle.timeline.filter((entry) => entry && typeof entry === 'object')
+    : [];
+  if (timeline.length && timeline.some((entry) => isStructuredTimelineEntry(entry))) {
+    const structured = buildStructuredBattleViewModel({
+      battle,
+      timeline,
+      context,
+      defaults: {
+        playerName:
+          (context && context.playerName) ||
+          (battle.player && (battle.player.displayName || battle.player.name)) ||
+          '我方',
+        opponentName:
+          (context && context.opponentName) ||
+          (battle.opponent && (battle.opponent.displayName || battle.opponent.name)) ||
+          '对手',
+        playerPortrait:
+          (context && context.playerPortrait) ||
+          resolvePortrait(battle.player, DEFAULT_PLAYER_IMAGE),
+        opponentPortrait:
+          (context && context.opponentPortrait) ||
+          resolvePortrait(battle.opponent, DEFAULT_OPPONENT_IMAGE),
+        backgroundVideo: (context && context.backgroundVideo) || DEFAULT_BACKGROUND_VIDEO,
+        mode: 'pvp'
+      },
+      fallbackParticipants: {
+        player: battle.player || null,
+        opponent: battle.opponent || null
+      }
+    });
+    if (structured) {
+      return structured;
+    }
+  }
   const rounds = Array.isArray(battle.rounds) ? battle.rounds : [];
   const playerName = (battle.player && battle.player.displayName) || (context && context.playerName) || '我方';
   const opponentName = (battle.opponent && battle.opponent.displayName) || (context && context.opponentName) || '对手';
