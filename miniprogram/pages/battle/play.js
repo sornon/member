@@ -72,6 +72,23 @@ function pickBattlePortrait(fallback, ...candidates) {
   return fallback;
 }
 
+function resolveParticipantByAliases(participants, aliases = []) {
+  if (!participants || typeof participants !== 'object' || !Array.isArray(aliases)) {
+    return null;
+  }
+  for (let i = 0; i < aliases.length; i += 1) {
+    const key = aliases[i];
+    if (!key) {
+      continue;
+    }
+    const candidate = participants[key];
+    if (candidate) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
 const MIN_SKIP_SECONDS = 10;
 
 function createBattleStageState(overrides = {}) {
@@ -292,15 +309,22 @@ Page({
             throw new Error('未找到战报');
           }
           battleData = await PvpService.battleReplay(matchId);
+          const participants = (battleData && battleData.participants) || {};
+          const playerParticipant =
+            resolveParticipantByAliases(participants, ['player', 'self', 'attacker', 'initiator', 'ally', 'member']) || null;
+          const opponentParticipant =
+            resolveParticipantByAliases(participants, ['opponent', 'enemy', 'defender', 'target', 'foe']) || null;
           viewContext = {
             playerPortrait: pickBattlePortrait(
               DEFAULT_PLAYER_IMAGE,
               context.playerPortrait,
+              playerParticipant,
               battleData.player
             ),
             opponentPortrait: pickBattlePortrait(
               DEFAULT_OPPONENT_IMAGE,
               context.opponentPortrait,
+              opponentParticipant,
               battleData.opponent
             ),
             playerName: battleData.player ? battleData.player.displayName : '我方',
