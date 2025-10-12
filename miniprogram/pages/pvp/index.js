@@ -266,8 +266,11 @@ Page({
     if (payload.battle) {
       const profile = nextState.profile || this.data.profile || {};
       const memberId = profile ? profile.memberId : '';
-      const draw = !!payload.battle.draw;
-      const victory = !draw && payload.battle.winnerId === memberId;
+      const outcome = (payload.battle && payload.battle.outcome) || {};
+      const draw = !!(outcome.draw || outcome.result === 'draw');
+      const victory = outcome.winnerId
+        ? outcome.winnerId === memberId
+        : outcome.result === 'victory';
       wx.showToast({
         title: draw ? '平局收场' : victory ? '比武胜利' : '比武结束',
         icon: 'success'
