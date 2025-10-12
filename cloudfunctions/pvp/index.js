@@ -546,6 +546,8 @@ function simulateBattle(player, opponent, seed) {
   const playerAttributesSnapshot = buildCombatAttributesSnapshot(playerState.stats);
   const opponentAttributesSnapshot = buildCombatAttributesSnapshot(opponentState.stats);
   const timeline = [];
+  let previousPlayerAttributes = null;
+  let previousOpponentAttributes = null;
   const participants = [playerState, opponentState];
   const firstIndex = playerState.stats.speed >= opponentState.stats.speed ? 0 : 1;
 
@@ -606,9 +608,15 @@ function simulateBattle(player, opponent, seed) {
         opponentMaxHp: opponentBaseMaxHp,
         playerAttributesSnapshot,
         opponentAttributesSnapshot,
+        previousAttributes: {
+          player: previousPlayerAttributes,
+          opponent: previousOpponentAttributes
+        },
         summaryText: summaryParts.join('，')
       });
       timeline.push(entry);
+      previousPlayerAttributes = playerAttributesSnapshot ? { ...playerAttributesSnapshot } : null;
+      previousOpponentAttributes = opponentAttributesSnapshot ? { ...opponentAttributesSnapshot } : null;
       sequence += 1;
 
       if (defender.hp <= 0) {
@@ -1639,6 +1647,7 @@ function buildTimelineEntry({
   opponentMaxHp,
   playerAttributesSnapshot,
   opponentAttributesSnapshot,
+  previousAttributes = {},
   summaryText
 }) {
   const entry = {
@@ -1656,13 +1665,15 @@ function buildTimelineEntry({
         before: before && Number.isFinite(before.player) ? before.player : undefined,
         after: after && Number.isFinite(after.player) ? after.player : undefined,
         maxHp: playerMaxHp,
-        attributes: playerAttributesSnapshot
+        attributes: playerAttributesSnapshot,
+        previousAttributes: previousAttributes ? previousAttributes.player : null
       }),
       opponent: buildTimelineStateSide({
         before: before && Number.isFinite(before.opponent) ? before.opponent : undefined,
         after: after && Number.isFinite(after.opponent) ? after.opponent : undefined,
         maxHp: opponentMaxHp,
-        attributes: opponentAttributesSnapshot
+        attributes: opponentAttributesSnapshot,
+        previousAttributes: previousAttributes ? previousAttributes.opponent : null
       })
     }
   };
@@ -1677,7 +1688,7 @@ function buildTimelineEntry({
   return entry;
 }
 
-function buildTimelineStateSide({ before, after, maxHp, attributes }) {
+function buildTimelineStateSide({ before, after, maxHp, attributes, previousAttributes }) {
   const max = Math.max(1, Math.round(maxHp || 1));
   const beforeValue = Number.isFinite(before) ? before : max;
   const afterValue = Number.isFinite(after) ? after : Math.min(beforeValue, max);
@@ -1685,13 +1696,14 @@ function buildTimelineStateSide({ before, after, maxHp, attributes }) {
   const afterHp = Math.max(0, Math.round(Math.min(afterValue, max)));
   const shieldBefore = Math.max(0, Math.round(beforeValue - max));
   const shieldAfter = Math.max(0, Math.round(afterValue - max));
+  const changedAttributes = extractChangedAttributes(attributes, previousAttributes);
   const state = {
     hp: {
       before: beforeHp,
       after: afterHp,
       max
     },
-    attributes: { ...(attributes || {}) }
+    attributes: changedAttributes
   };
   if (shieldBefore > 0 || shieldAfter > 0) {
     state.shield = {
@@ -1700,6 +1712,28 @@ function buildTimelineStateSide({ before, after, maxHp, attributes }) {
     };
   }
   return state;
+}
+
+function extractChangedAttributes(current, previous) {
+  if (!current || typeof current !== 'object') {
+    return {};
+  }
+  const previousAttributes = previous && typeof previous === 'object' ? previous : null;
+  const changed = {};
+  const keys = Object.keys(current);
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    const value = current[key];
+    const previousValue = previousAttributes ? previousAttributes[key] : undefined;
+    if (typeof value === 'number') {
+      if (!Number.isFinite(previousValue) || Number(value) !== Number(previousValue)) {
+        changed[key] = Number(value);
+      }
+    } else if (value !== undefined && value !== previousValue) {
+      changed[key] = value;
+    }
+  }
+  return changed;
 }
 
 function buildStructuredBattleOutcome({

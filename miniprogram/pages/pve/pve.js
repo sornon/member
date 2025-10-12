@@ -61,8 +61,11 @@ Page({
       events: {
         battleFinished: (payload = {}) => {
           const nextState = {};
+          let refreshProfile = false;
           if (payload.profile) {
             nextState.profile = payload.profile;
+          } else if (payload.type === 'pve') {
+            refreshProfile = true;
           }
           if (payload.battle) {
             nextState.battleResult = payload.battle;
@@ -75,6 +78,9 @@ Page({
           }
           if (Object.keys(nextState).length) {
             this.setData(nextState);
+          }
+          if (refreshProfile) {
+            this.fetchProfile(false).catch(() => {});
           }
         }
       },

@@ -5,6 +5,7 @@
 - 结构化数据允许动画、数值统计与客服工具共享同一份时间线，无需再根据描述文本逆向推导动作，大幅降低回放失真与维护成本。
 - 在迁移阶段可同时输出 `log` 与 `timeline`，待客户端完成灰度后逐步废弃文字日志。
 - 时间线节点必须包含攻受双方的属性快照（`participants.attributes` 与 `timeline.state.*.attributes`），以确保回放展示与战斗发生当时保持一致，避免角色成长或削弱导致的“历史战斗数值错位”。
+- 为降低数据量，`timeline.state.*.attributes` 仅返回相较上一节点发生变化的字段。客户端在渲染时需结合上一条时间线或顶层 `participants.attributes` 进行合并，还原出完整的属性面板。
 
 ## 秘境（PVE）场景
 - 战斗页面会优先读取敌人概要中的 `scene` 或 `backgroundVideo` 字段，如果没有显式配置，则根据关卡所属境界自动匹配 `common-config` 中的同名场景视频。

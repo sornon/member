@@ -203,7 +203,8 @@ function ensureAttributesObject(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return null;
   }
-  return { ...value };
+  const normalized = { ...value };
+  return Object.keys(normalized).length ? normalized : null;
 }
 
 function extractAttributesSnapshot(source) {
@@ -223,10 +224,28 @@ function extractAttributesSnapshot(source) {
   for (let i = 0; i < keys.length; i += 1) {
     const key = keys[i];
     if (ATTRIBUTE_HINT_KEYS.includes(key)) {
-      return ensureAttributesObject(source);
+      const normalized = ensureAttributesObject(source);
+      if (normalized) {
+        return normalized;
+      }
     }
   }
   return null;
+}
+
+function mergeAttributeSnapshots(previous, updates) {
+  const base = previous && typeof previous === 'object' ? previous : null;
+  const next = updates && typeof updates === 'object' ? updates : null;
+  if (!base && !next) {
+    return null;
+  }
+  if (!base) {
+    return { ...next };
+  }
+  if (!next) {
+    return { ...base };
+  }
+  return { ...base, ...next };
 }
 
 function resolveTimelineStateSide(state, sideKey) {
@@ -718,12 +737,12 @@ function buildStructuredBattleViewModel({
     if (actorIsPlayer) {
       const actorAttributes = extractAttributesSnapshot(actorInfo);
       if (actorAttributes) {
-        playerAttributes = actorAttributes;
+        playerAttributes = mergeAttributeSnapshots(playerAttributes, actorAttributes);
       }
     } else if (actorSide === 'opponent') {
       const actorAttributes = extractAttributesSnapshot(actorInfo);
       if (actorAttributes) {
-        opponentAttributes = actorAttributes;
+        opponentAttributes = mergeAttributeSnapshots(opponentAttributes, actorAttributes);
       }
     }
 
@@ -732,11 +751,11 @@ function buildStructuredBattleViewModel({
     const opponentStateSnapshot = resolveTimelineStateSide(entryState, 'opponent');
     const playerStateAttributes = extractAttributesSnapshot(playerStateSnapshot);
     if (playerStateAttributes) {
-      playerAttributes = playerStateAttributes;
+      playerAttributes = mergeAttributeSnapshots(playerAttributes, playerStateAttributes);
     }
     const opponentStateAttributes = extractAttributesSnapshot(opponentStateSnapshot);
     if (opponentStateAttributes) {
-      opponentAttributes = opponentStateAttributes;
+      opponentAttributes = mergeAttributeSnapshots(opponentAttributes, opponentStateAttributes);
     }
 
     let damageToOpponent = 0;
@@ -838,8 +857,8 @@ function buildStructuredBattleViewModel({
         opponent: buildHpState(opponentMaxHp, opponentHp)
       },
       attributes: {
-        player: playerStateAttributes || (playerAttributes ? { ...playerAttributes } : null),
-        opponent: opponentStateAttributes || (opponentAttributes ? { ...opponentAttributes } : null)
+        player: playerAttributes ? { ...playerAttributes } : null,
+        opponent: opponentAttributes ? { ...opponentAttributes } : null
       },
       raw: entry
     });

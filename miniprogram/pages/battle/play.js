@@ -255,20 +255,39 @@ Page({
         }
         serviceResult = await PveService.battle(enemyId);
         battleData = serviceResult.battle;
-        const profile = serviceResult.profile || {};
-        const member = profile.memberSnapshot || profile.member || {};
+        const participants = (battleData && battleData.participants) || {};
+        const playerParticipant = participants.player || participants.self || {};
+        const playerCombatPower = playerParticipant ? playerParticipant.combatPower : undefined;
+        let playerPowerValue = '';
+        if (Number.isFinite(playerCombatPower)) {
+          playerPowerValue = Math.round(playerCombatPower);
+        } else if (typeof playerCombatPower === 'string' && playerCombatPower.trim()) {
+          playerPowerValue = playerCombatPower.trim();
+        } else if (Number.isFinite(context.playerPower)) {
+          playerPowerValue = Math.round(context.playerPower);
+        } else if (typeof context.playerPower === 'string' && context.playerPower.trim()) {
+          playerPowerValue = context.playerPower.trim();
+        }
         const enemy = context.enemyPreview || {};
         const sceneBackground = resolvePveSceneBackground(enemy);
         viewContext = {
-          playerName: member.nickName || member.name || '你',
-          playerPortrait: member.avatarUrl || member.portrait || DEFAULT_PLAYER_IMAGE,
+          playerName:
+            playerParticipant.displayName ||
+            playerParticipant.name ||
+            context.playerName ||
+            '你',
+          playerPortrait:
+            playerParticipant.portrait ||
+            playerParticipant.avatarUrl ||
+            context.playerPortrait ||
+            DEFAULT_PLAYER_IMAGE,
+          playerPower: playerPowerValue,
           opponentName: enemy.name || '秘境之敌',
           opponentPortrait: enemy.portrait || enemy.avatarUrl || DEFAULT_OPPONENT_IMAGE,
           backgroundVideo: sceneBackground || context.backgroundVideo || DEFAULT_BACKGROUND_VIDEO
         };
         this.parentPayload = {
           type: 'pve',
-          profile: serviceResult.profile || null,
           battle: serviceResult.battle || null
         };
         this.notifyParent();
