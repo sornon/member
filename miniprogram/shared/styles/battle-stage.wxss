@@ -67,6 +67,14 @@ page {
   gap: 24rpx;
 }
 
+.actor-card.attacker-card {
+  order: 0;
+}
+
+.actor-card.defender-card {
+  order: 1;
+}
+
 .actor-card {
   width: 300rpx;
   padding: 28rpx;
@@ -83,6 +91,26 @@ page {
 .actor-card.actor-player {
   text-align: right;
   align-items: flex-end;
+}
+
+.actor-card.attacker-card.actor-player {
+  text-align: left;
+  align-items: flex-start;
+}
+
+.actor-card.attacker-card.actor-player .actor-meta,
+.actor-card.attacker-card.actor-player .hp-text {
+  align-self: flex-start;
+}
+
+.actor-card.defender-card.actor-opponent {
+  text-align: right;
+  align-items: flex-end;
+}
+
+.actor-card.defender-card.actor-opponent .actor-meta,
+.actor-card.defender-card.actor-opponent .hp-text {
+  align-self: flex-end;
 }
 
 .actor-card .actor-name {
@@ -149,6 +177,14 @@ page {
   padding-bottom: 12rpx;
 }
 
+.avatar-wrapper.attacker {
+  order: 0;
+}
+
+.avatar-wrapper.defender {
+  order: 1;
+}
+
 .avatar-inner {
   width: 100%;
   height: 100%;
@@ -174,6 +210,14 @@ page {
 }
 
 .avatar-wrapper.opponent .actor-portrait {
+  transform: scaleX(-1);
+}
+
+.avatar-wrapper.attacker .actor-portrait {
+  transform: scaleX(1);
+}
+
+.avatar-wrapper.defender .actor-portrait {
   transform: scaleX(-1);
 }
 
