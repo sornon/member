@@ -1,4 +1,5 @@
 const { buildCloudAssetUrl, CHARACTER_IMAGE_BASE_PATH } = require('./asset-paths');
+const { buildTitleImageUrl, resolveTitleById, normalizeTitleId } = require('./titles');
 
 const DEFAULT_BACKGROUND_VIDEO = buildCloudAssetUrl('video', 'battle_default.mp4');
 const DEFAULT_PLAYER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/male-b-1.png`;
@@ -20,6 +21,304 @@ const ACTION_EFFECT_LABELS = {
   status: '状态',
   heal: '治疗'
 };
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+function isLikelyTitleId(value) {
+  if (!isNonEmptyString(value)) {
+    return false;
+  }
+  return /^title[_a-z0-9]+$/i.test(value.trim());
+}
+
+function extractImageFromSource(source, visited = new Set()) {
+  if (!source || visited.has(source)) {
+    return '';
+  }
+  if (typeof source === 'string') {
+    return source.trim();
+  }
+  if (Array.isArray(source)) {
+    for (let i = 0; i < source.length; i += 1) {
+      const candidate = extractImageFromSource(source[i], visited);
+      if (candidate) {
+        return candidate;
+      }
+    }
+    return '';
+  }
+  if (typeof source !== 'object') {
+    return '';
+  }
+  visited.add(source);
+  const directKeys = ['image', 'url', 'src', 'icon', 'avatar', 'avatarUrl', 'portrait', 'head', 'headImage', 'headUrl'];
+  for (let i = 0; i < directKeys.length; i += 1) {
+    const key = directKeys[i];
+    if (Object.prototype.hasOwnProperty.call(source, key) && isNonEmptyString(source[key])) {
+      return source[key].trim();
+    }
+  }
+  const nestedKeys = [
+    'profile',
+    'appearance',
+    'member',
+    'memberSnapshot',
+    'owner',
+    'player',
+    'opponent',
+    'self',
+    'target',
+    'source',
+    'data',
+    'extras',
+    'info',
+    'identity'
+  ];
+  for (let i = 0; i < nestedKeys.length; i += 1) {
+    const key = nestedKeys[i];
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      const nested = extractImageFromSource(source[key], visited);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return '';
+}
+
+function resolveAvatarImage(fallback, ...candidates) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const resolved = extractImageFromSource(candidates[i]);
+    if (isNonEmptyString(resolved)) {
+      return resolved;
+    }
+  }
+  return fallback;
+}
+
+function extractAvatarFrameFromSource(source, visited = new Set()) {
+  if (!source || visited.has(source)) {
+    return '';
+  }
+  if (typeof source === 'string') {
+    return source.trim();
+  }
+  if (Array.isArray(source)) {
+    for (let i = 0; i < source.length; i += 1) {
+      const nested = extractAvatarFrameFromSource(source[i], visited);
+      if (nested) {
+        return nested;
+      }
+    }
+    return '';
+  }
+  if (typeof source !== 'object') {
+    return '';
+  }
+  visited.add(source);
+  if (isNonEmptyString(source.avatarFrame)) {
+    return source.avatarFrame.trim();
+  }
+  const frameKeys = [
+    'frame',
+    'frameUrl',
+    'frameImage',
+    'frameSrc',
+    'avatarFrameUrl',
+    'avatarFrameImage',
+    'avatar_frame',
+    'portraitFrame'
+  ];
+  for (let i = 0; i < frameKeys.length; i += 1) {
+    const key = frameKeys[i];
+    if (!Object.prototype.hasOwnProperty.call(source, key)) {
+      continue;
+    }
+    const value = source[key];
+    if (isNonEmptyString(value)) {
+      return value.trim();
+    }
+    const nested = extractAvatarFrameFromSource(value, visited);
+    if (nested) {
+      return nested;
+    }
+  }
+  const nestedKeys = [
+    'profile',
+    'appearance',
+    'member',
+    'memberSnapshot',
+    'owner',
+    'player',
+    'opponent',
+    'self',
+    'target',
+    'source',
+    'data',
+    'extras',
+    'identity'
+  ];
+  for (let i = 0; i < nestedKeys.length; i += 1) {
+    const key = nestedKeys[i];
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      const nested = extractAvatarFrameFromSource(source[key], visited);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return '';
+}
+
+function resolveAvatarFrame(...candidates) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const resolved = extractAvatarFrameFromSource(candidates[i]);
+    if (isNonEmptyString(resolved)) {
+      return resolved;
+    }
+  }
+  return '';
+}
+
+const TITLE_NAME_CONTEXT_KEYS = new Set([
+  'title',
+  'appearanceTitle',
+  'activeTitle',
+  'currentTitle',
+  'equippedTitle',
+  'direct'
+]);
+
+function extractTitleDetails(source, visited = new Set(), contextKey = 'direct') {
+  if (!source || (typeof source === 'object' && visited.has(source))) {
+    return null;
+  }
+  if (typeof source === 'string') {
+    const trimmed = source.trim();
+    if (!trimmed) {
+      return null;
+    }
+    if (isLikelyTitleId(trimmed)) {
+      return { id: normalizeTitleId(trimmed), name: '', image: '' };
+    }
+    return { id: '', name: trimmed, image: '' };
+  }
+  if (Array.isArray(source)) {
+    for (let i = 0; i < source.length; i += 1) {
+      const detail = extractTitleDetails(source[i], visited, contextKey);
+      if (detail) {
+        return detail;
+      }
+    }
+    return null;
+  }
+  if (typeof source !== 'object') {
+    return null;
+  }
+  visited.add(source);
+  const detail = { id: '', name: '', image: '' };
+  const idKeys = ['id', 'titleId', 'appearanceTitle', 'activeTitleId', 'currentTitleId', 'equippedTitleId'];
+  for (let i = 0; i < idKeys.length; i += 1) {
+    const key = idKeys[i];
+    if (!Object.prototype.hasOwnProperty.call(source, key)) {
+      continue;
+    }
+    const value = source[key];
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (isLikelyTitleId(trimmed)) {
+        detail.id = detail.id || normalizeTitleId(trimmed);
+      } else if (!detail.name && trimmed && TITLE_NAME_CONTEXT_KEYS.has(contextKey)) {
+        detail.name = trimmed;
+      }
+    } else if (value && typeof value === 'object') {
+      const nested = extractTitleDetails(value, visited, key);
+      if (nested) {
+        detail.id = detail.id || nested.id;
+        detail.name = detail.name || nested.name;
+        detail.image = detail.image || nested.image;
+      }
+    }
+  }
+  const nameKeys = ['titleName', 'appearanceTitleName', 'titleLabel', 'label', 'displayName', 'name'];
+  for (let i = 0; i < nameKeys.length; i += 1) {
+    const key = nameKeys[i];
+    if (!Object.prototype.hasOwnProperty.call(source, key)) {
+      continue;
+    }
+    const value = source[key];
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed && (!detail.name || TITLE_NAME_CONTEXT_KEYS.has(contextKey) || key !== 'name')) {
+        detail.name = detail.name || trimmed;
+      }
+    }
+  }
+  const imageKeys = ['titleImage', 'appearanceTitleImage', 'image', 'url', 'src'];
+  for (let i = 0; i < imageKeys.length; i += 1) {
+    const key = imageKeys[i];
+    if (Object.prototype.hasOwnProperty.call(source, key) && isNonEmptyString(source[key])) {
+      detail.image = detail.image || source[key].trim();
+    }
+  }
+  const nestedKeys = ['title', 'appearanceTitle', 'activeTitle', 'currentTitle', 'equippedTitle'];
+  for (let i = 0; i < nestedKeys.length; i += 1) {
+    const key = nestedKeys[i];
+    if (!Object.prototype.hasOwnProperty.call(source, key)) {
+      continue;
+    }
+    const nested = extractTitleDetails(source[key], visited, key);
+    if (nested) {
+      detail.id = detail.id || nested.id;
+      detail.name = detail.name || nested.name;
+      detail.image = detail.image || nested.image;
+    }
+  }
+  if (!detail.id && !detail.name && !detail.image) {
+    return null;
+  }
+  return detail;
+}
+
+function resolveTitleDetails(...candidates) {
+  const detail = { id: '', name: '', image: '' };
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = candidates[i];
+    const resolved = extractTitleDetails(candidate);
+    if (!resolved) {
+      continue;
+    }
+    if (!detail.id && resolved.id) {
+      detail.id = resolved.id;
+    }
+    if (!detail.name && resolved.name) {
+      detail.name = resolved.name;
+    }
+    if (!detail.image && resolved.image) {
+      detail.image = resolved.image;
+    }
+    if (detail.id && detail.name && detail.image) {
+      break;
+    }
+  }
+  if (detail.id) {
+    const normalized = normalizeTitleId(detail.id);
+    const titleDefinition = resolveTitleById(normalized);
+    if (!detail.name && titleDefinition && titleDefinition.name) {
+      detail.name = titleDefinition.name;
+    }
+    if (!detail.image && titleDefinition && titleDefinition.image) {
+      detail.image = titleDefinition.image;
+    }
+    if (!detail.image) {
+      detail.image = buildTitleImageUrl(normalized);
+    }
+    detail.id = normalized;
+  }
+  return detail;
+}
 
 function clamp(value, min, max) {
   if (Number.isNaN(value)) return min;
@@ -667,6 +966,65 @@ function buildStructuredBattleViewModel({
     context.opponentPortrait || (opponentSource && (opponentSource.portrait || opponentSource.avatarUrl)) || opponentSource,
     defaults.opponentPortrait || DEFAULT_OPPONENT_IMAGE
   );
+  const playerAvatar = resolveAvatarImage(
+    playerPortrait,
+    context.playerAvatar,
+    context.playerAvatarUrl,
+    playerSource,
+    battle.player,
+    fallbackParticipants.player
+  );
+  const opponentAvatar = resolveAvatarImage(
+    opponentPortrait,
+    context.opponentAvatar,
+    context.opponentAvatarUrl,
+    opponentSource,
+    battle.opponent || battle.enemy,
+    fallbackParticipants.opponent
+  );
+  const playerAvatarFrame = resolveAvatarFrame(
+    context.playerAvatarFrame,
+    context.playerFrame,
+    playerSource,
+    battle.player,
+    fallbackParticipants.player
+  );
+  const opponentAvatarFrame = resolveAvatarFrame(
+    context.opponentAvatarFrame,
+    context.opponentFrame,
+    opponentSource,
+    battle.opponent || battle.enemy,
+    fallbackParticipants.opponent
+  );
+  const playerTitle = resolveTitleDetails(
+    context.playerTitle,
+    context.playerTitleId,
+    context.playerTitleInfo,
+    context.playerTitleName,
+    context.playerTitleImage,
+    context.playerAppearanceTitle,
+    playerSource && playerSource.title,
+    playerSource && playerSource.appearanceTitle,
+    playerSource && playerSource.appearance,
+    battle.player && battle.player.title,
+    battle.player && battle.player.appearanceTitle,
+    fallbackParticipants.player && fallbackParticipants.player.title
+  );
+  const opponentTitle = resolveTitleDetails(
+    context.opponentTitle,
+    context.opponentTitleId,
+    context.opponentTitleInfo,
+    context.opponentTitleName,
+    context.opponentTitleImage,
+    context.opponentAppearanceTitle,
+    opponentSource && opponentSource.title,
+    opponentSource && opponentSource.appearanceTitle,
+    opponentSource && opponentSource.appearance,
+    battle.opponent && battle.opponent.title,
+    battle.opponent && battle.opponent.appearanceTitle,
+    battle.enemy && battle.enemy.title,
+    fallbackParticipants.opponent && fallbackParticipants.opponent.title
+  );
 
   const playerBaseMax = extractParticipantMaxHp(playerSource, defaults.playerMaxHp);
   const opponentBaseMax = extractParticipantMaxHp(opponentSource, defaults.opponentMaxHp);
@@ -932,6 +1290,11 @@ function buildStructuredBattleViewModel({
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
       portrait: playerPortrait,
+      avatar: playerAvatar,
+      avatarFrame: playerAvatarFrame,
+      titleId: playerTitle.id,
+      titleName: playerTitle.name,
+      titleImage: playerTitle.image,
       combatPower: toNumber((playerSource && playerSource.combatPower) || context.playerPower),
       attributes: playerAttributes ? { ...playerAttributes } : null,
       summary: {
@@ -945,6 +1308,11 @@ function buildStructuredBattleViewModel({
       name: opponentName,
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
       portrait: opponentPortrait,
+      avatar: opponentAvatar,
+      avatarFrame: opponentAvatarFrame,
+      titleId: opponentTitle.id,
+      titleName: opponentTitle.name,
+      titleImage: opponentTitle.image,
       combatPower: toNumber((opponentSource && opponentSource.combatPower) || context.opponentPower),
       attributes: opponentAttributes ? { ...opponentAttributes } : null,
       summary: {
@@ -1166,13 +1534,64 @@ function buildPveActions(battle = {}, context = {}) {
 
   const playerName = (context && context.playerName) || '你';
   const opponentName = (context && context.opponentName) || '秘境之敌';
+  const pvePlayerPortrait = resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE);
+  const pveOpponentPortrait = resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE);
+  const pvePlayerAvatar = resolveAvatarImage(
+    pvePlayerPortrait,
+    context && context.playerAvatar,
+    context && context.playerAvatarUrl,
+    battle.player,
+    context && context.player
+  );
+  const pveOpponentAvatar = resolveAvatarImage(
+    pveOpponentPortrait,
+    context && context.opponentAvatar,
+    context && context.opponentAvatarUrl,
+    battle.enemy,
+    context && context.opponent
+  );
+  const pvePlayerAvatarFrame = resolveAvatarFrame(
+    context && context.playerAvatarFrame,
+    context && context.playerFrame,
+    battle.player,
+    context && context.player
+  );
+  const pveOpponentAvatarFrame = resolveAvatarFrame(
+    context && context.opponentAvatarFrame,
+    context && context.opponentFrame,
+    battle.enemy,
+    context && context.opponent
+  );
+  const pvePlayerTitle = resolveTitleDetails(
+    context && context.playerTitle,
+    context && context.playerTitleId,
+    context && context.playerTitleInfo,
+    context && context.playerTitleName,
+    context && context.playerTitleImage,
+    battle.player && battle.player.title,
+    context && context.player && context.player.title
+  );
+  const pveOpponentTitle = resolveTitleDetails(
+    context && context.opponentTitle,
+    context && context.opponentTitleId,
+    context && context.opponentTitleInfo,
+    context && context.opponentTitleName,
+    context && context.opponentTitleImage,
+    battle.enemy && battle.enemy.title,
+    context && context.opponent && context.opponent.title
+  );
 
   return {
     player: {
       id: 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
-      portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
+      portrait: pvePlayerPortrait,
+      avatar: pvePlayerAvatar,
+      avatarFrame: pvePlayerAvatarFrame,
+      titleId: pvePlayerTitle.id,
+      titleName: pvePlayerTitle.name,
+      titleImage: pvePlayerTitle.image,
       combatPower: toNumber(battle.combatPower && battle.combatPower.player),
       attributes: ensureAttributesObject(context && context.playerAttributes),
       summary: {
@@ -1185,7 +1604,12 @@ function buildPveActions(battle = {}, context = {}) {
       id: 'opponent',
       name: opponentName,
       hp: buildHpState(enemyMaxHp, enemyMaxHp),
-      portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
+      portrait: pveOpponentPortrait,
+      avatar: pveOpponentAvatar,
+      avatarFrame: pveOpponentAvatarFrame,
+      titleId: pveOpponentTitle.id,
+      titleName: pveOpponentTitle.name,
+      titleImage: pveOpponentTitle.image,
       combatPower: toNumber(battle.combatPower && battle.combatPower.enemy),
       attributes: ensureAttributesObject(context && context.opponentAttributes),
       summary: {
@@ -1363,12 +1787,64 @@ function buildPvpActions(battle = {}, context = {}) {
     }
   });
 
+  const pvpPlayerPortrait = resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE);
+  const pvpOpponentPortrait = resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE);
+  const pvpPlayerAvatar = resolveAvatarImage(
+    pvpPlayerPortrait,
+    context && context.playerAvatar,
+    context && context.playerAvatarUrl,
+    battle.player,
+    context && context.player
+  );
+  const pvpOpponentAvatar = resolveAvatarImage(
+    pvpOpponentPortrait,
+    context && context.opponentAvatar,
+    context && context.opponentAvatarUrl,
+    battle.opponent,
+    context && context.opponent
+  );
+  const pvpPlayerAvatarFrame = resolveAvatarFrame(
+    context && context.playerAvatarFrame,
+    context && context.playerFrame,
+    battle.player,
+    context && context.player
+  );
+  const pvpOpponentAvatarFrame = resolveAvatarFrame(
+    context && context.opponentAvatarFrame,
+    context && context.opponentFrame,
+    battle.opponent,
+    context && context.opponent
+  );
+  const pvpPlayerTitle = resolveTitleDetails(
+    context && context.playerTitle,
+    context && context.playerTitleId,
+    context && context.playerTitleInfo,
+    context && context.playerTitleName,
+    context && context.playerTitleImage,
+    battle.player && battle.player.title,
+    context && context.player && context.player.title
+  );
+  const pvpOpponentTitle = resolveTitleDetails(
+    context && context.opponentTitle,
+    context && context.opponentTitleId,
+    context && context.opponentTitleInfo,
+    context && context.opponentTitleName,
+    context && context.opponentTitleImage,
+    battle.opponent && battle.opponent.title,
+    context && context.opponent && context.opponent.title
+  );
+
   return {
     player: {
       id: playerId || 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
-      portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
+      portrait: pvpPlayerPortrait,
+      avatar: pvpPlayerAvatar,
+      avatarFrame: pvpPlayerAvatarFrame,
+      titleId: pvpPlayerTitle.id,
+      titleName: pvpPlayerTitle.name,
+      titleImage: pvpPlayerTitle.image,
       combatPower: toNumber(context && context.playerPower),
       attributes: ensureAttributesObject(context && context.playerAttributes),
       summary: {
@@ -1381,7 +1857,12 @@ function buildPvpActions(battle = {}, context = {}) {
       id: opponentId || 'opponent',
       name: opponentName,
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
-      portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
+      portrait: pvpOpponentPortrait,
+      avatar: pvpOpponentAvatar,
+      avatarFrame: pvpOpponentAvatarFrame,
+      titleId: pvpOpponentTitle.id,
+      titleName: pvpOpponentTitle.name,
+      titleImage: pvpOpponentTitle.image,
       combatPower: toNumber(context && context.opponentPower),
       attributes: ensureAttributesObject(context && context.opponentAttributes),
       summary: {

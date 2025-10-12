@@ -12,6 +12,7 @@ const {
 } = require('../../shared/backgrounds');
 const { CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths');
 const { listAvatarIds } = require('../../shared/avatar-catalog');
+const { buildTitleImageUrl, resolveTitleById, normalizeTitleId } = require('../../shared/titles');
 
 function buildCharacterImageMap() {
   const ids = listAvatarIds();
@@ -23,6 +24,238 @@ function buildCharacterImageMap() {
 
 const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
+
+function getGlobalMemberInfo() {
+  try {
+    if (typeof getApp === 'function') {
+      const app = getApp();
+      if (app && app.globalData && app.globalData.memberInfo) {
+        return app.globalData.memberInfo;
+      }
+    }
+  } catch (error) {
+    console.warn('[battle/play] failed to resolve global member info', error);
+  }
+  return {};
+}
+
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+function isLikelyTitleId(value) {
+  if (!isNonEmptyString(value)) {
+    return false;
+  }
+  return /^title[_a-z0-9]+$/i.test(value.trim());
+}
+
+function resolveAvatarFrameValue(source) {
+  if (!source) {
+    return '';
+  }
+  if (typeof source === 'string') {
+    return source.trim();
+  }
+  if (Array.isArray(source)) {
+    for (let i = 0; i < source.length; i += 1) {
+      const resolved = resolveAvatarFrameValue(source[i]);
+      if (resolved) {
+        return resolved;
+      }
+    }
+    return '';
+  }
+  if (typeof source !== 'object') {
+    return '';
+  }
+  if (isNonEmptyString(source.avatarFrame)) {
+    return source.avatarFrame.trim();
+  }
+  const keys = [
+    'frameUrl',
+    'frameImage',
+    'frameSrc',
+    'avatarFrameUrl',
+    'avatarFrameImage',
+    'avatar_frame'
+  ];
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    if (isNonEmptyString(source[key])) {
+      return source[key].trim();
+    }
+  }
+  if (source.frame) {
+    const nestedFrame = resolveAvatarFrameValue(source.frame);
+    if (nestedFrame) {
+      return nestedFrame;
+    }
+  }
+  if (source.profile) {
+    const nestedProfile = resolveAvatarFrameValue(source.profile);
+    if (nestedProfile) {
+      return nestedProfile;
+    }
+  }
+  if (source.appearance) {
+    const nestedAppearance = resolveAvatarFrameValue(source.appearance);
+    if (nestedAppearance) {
+      return nestedAppearance;
+    }
+  }
+  return '';
+}
+
+function resolveTitleMeta(source) {
+  const meta = { id: '', name: '', image: '' };
+  const assign = (value) => {
+    if (!value && value !== 0) {
+      return;
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return;
+      }
+      if (isLikelyTitleId(trimmed)) {
+        if (!meta.id) {
+          meta.id = normalizeTitleId(trimmed);
+        }
+      } else if (!meta.name) {
+        meta.name = trimmed;
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(assign);
+      return;
+    }
+    if (typeof value !== 'object') {
+      return;
+    }
+    if (isNonEmptyString(value.appearanceTitle)) {
+      assign(value.appearanceTitle);
+    }
+    if (isNonEmptyString(value.titleId)) {
+      assign(value.titleId);
+    }
+    if (isNonEmptyString(value.activeTitleId)) {
+      assign(value.activeTitleId);
+    }
+    if (isNonEmptyString(value.currentTitleId)) {
+      assign(value.currentTitleId);
+    }
+    if (isNonEmptyString(value.titleName) && !meta.name) {
+      meta.name = value.titleName.trim();
+    }
+    if (isNonEmptyString(value.appearanceTitleName) && !meta.name) {
+      meta.name = value.appearanceTitleName.trim();
+    }
+    if (isNonEmptyString(value.titleLabel) && !meta.name) {
+      meta.name = value.titleLabel.trim();
+    }
+    if (isNonEmptyString(value.name) && !meta.name && isLikelyTitleId(value.id || '')) {
+      meta.name = value.name.trim();
+    }
+    if (isNonEmptyString(value.titleImage) && !meta.image) {
+      meta.image = value.titleImage.trim();
+    }
+    if (isNonEmptyString(value.appearanceTitleImage) && !meta.image) {
+      meta.image = value.appearanceTitleImage.trim();
+    }
+    if (isNonEmptyString(value.image) && !meta.image && isLikelyTitleId(value.id || '')) {
+      meta.image = value.image.trim();
+    }
+    if (value.title) {
+      assign(value.title);
+    }
+    if (value.appearance) {
+      assign(value.appearance);
+    }
+  };
+  assign(source);
+  if (meta.id) {
+    const definition = resolveTitleById(meta.id);
+    if (!meta.name && definition && definition.name) {
+      meta.name = definition.name;
+    }
+    if (!meta.image && definition && definition.image) {
+      meta.image = definition.image;
+    }
+    if (!meta.image) {
+      meta.image = buildTitleImageUrl(meta.id);
+    }
+  }
+  return meta;
+}
+
+function hasMeaningfulValue(value) {
+  if (value === null || value === undefined) {
+    return false;
+  }
+  if (typeof value === 'string') {
+    return value.trim() !== '';
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (typeof value === 'object') {
+    return Object.keys(value).length > 0;
+  }
+  return true;
+}
+
+function assignIfMeaningful(target, key, value) {
+  if (!target || !key || !hasMeaningfulValue(value)) {
+    return;
+  }
+  if (hasMeaningfulValue(target[key])) {
+    return;
+  }
+  target[key] = value;
+}
+
+function applyIdentityToViewContext(target, prefix, identity = {}) {
+  if (!target || !prefix) {
+    return;
+  }
+  const base = prefix;
+  if (hasMeaningfulValue(identity.avatar)) {
+    assignIfMeaningful(target, `${base}Avatar`, identity.avatar);
+    assignIfMeaningful(target, `${base}AvatarUrl`, identity.avatar);
+  }
+  if (hasMeaningfulValue(identity.avatarFrame)) {
+    assignIfMeaningful(target, `${base}AvatarFrame`, identity.avatarFrame);
+  }
+  if (hasMeaningfulValue(identity.titleId)) {
+    assignIfMeaningful(target, `${base}TitleId`, identity.titleId);
+    assignIfMeaningful(target, `${base}AppearanceTitle`, identity.titleId);
+  }
+  if (hasMeaningfulValue(identity.titleName)) {
+    assignIfMeaningful(target, `${base}TitleName`, identity.titleName);
+  }
+  if (hasMeaningfulValue(identity.titleImage)) {
+    assignIfMeaningful(target, `${base}TitleImage`, identity.titleImage);
+  }
+  if (hasMeaningfulValue(identity.title)) {
+    assignIfMeaningful(target, `${base}Title`, identity.title);
+  }
+}
+
+function buildTitleObject(meta = {}) {
+  const title = {};
+  if (isNonEmptyString(meta.id)) {
+    title.id = meta.id;
+  }
+  if (isNonEmptyString(meta.name)) {
+    title.name = meta.name;
+  }
+  if (isNonEmptyString(meta.image)) {
+    title.image = meta.image;
+  }
+  return hasMeaningfulValue(title) ? title : null;
+}
 
 const PLAYER_SIDE_ALIASES = ['player', 'self', 'attacker', 'initiator', 'ally', 'member'];
 const OPPONENT_SIDE_ALIASES = ['opponent', 'enemy', 'defender', 'target', 'foe'];
@@ -508,6 +741,7 @@ Page({
     this.setBattleStageData({ loading: true, error: '', battleFinished: false });
     this.setData({ battleState: 'loading' });
     const context = this.contextPayload || {};
+    const globalMember = getGlobalMemberInfo();
     try {
       let serviceResult = null;
       let battleData = null;
@@ -542,6 +776,67 @@ Page({
             playerPower: battleData.player ? battleData.player.pointsAfter : '',
             opponentPower: battleData.opponent ? battleData.opponent.pointsAfter : ''
           };
+          const replayPlayerAvatar = pickBattlePortrait(
+            DEFAULT_PLAYER_IMAGE,
+            context.playerAvatar,
+            globalMember && globalMember.avatarUrl,
+            playerParticipant,
+            battleData.player
+          );
+          const replayOpponentAvatar = pickBattlePortrait(
+            DEFAULT_OPPONENT_IMAGE,
+            context.opponentAvatar,
+            opponentParticipant,
+            battleData.opponent
+          );
+          const replayPlayerAvatarFrame = resolveAvatarFrameValue([
+            context.playerAvatarFrame,
+            context.playerFrame,
+            playerParticipant,
+            battleData.player,
+            globalMember
+          ]);
+          const replayOpponentAvatarFrame = resolveAvatarFrameValue([
+            context.opponentAvatarFrame,
+            context.opponentFrame,
+            opponentParticipant,
+            battleData.opponent
+          ]);
+          const replayPlayerTitleMeta = resolveTitleMeta([
+            context.playerTitle,
+            context.playerTitleId,
+            context.playerTitleInfo,
+            context.playerTitleName,
+            context.playerTitleImage,
+            playerParticipant,
+            battleData.player,
+            globalMember
+          ]);
+          const replayOpponentTitleMeta = resolveTitleMeta([
+            context.opponentTitle,
+            context.opponentTitleId,
+            context.opponentTitleInfo,
+            context.opponentTitleName,
+            context.opponentTitleImage,
+            opponentParticipant,
+            battleData.opponent
+          ]);
+          applyIdentityToViewContext(viewContext, 'player', {
+            avatar: replayPlayerAvatar,
+            avatarFrame: replayPlayerAvatarFrame,
+            titleId: replayPlayerTitleMeta.id,
+            titleName: replayPlayerTitleMeta.name,
+            titleImage: replayPlayerTitleMeta.image,
+            title: buildTitleObject(replayPlayerTitleMeta)
+          });
+          applyIdentityToViewContext(viewContext, 'opponent', {
+            avatar: replayOpponentAvatar,
+            avatarFrame: replayOpponentAvatarFrame,
+            titleId: replayOpponentTitleMeta.id,
+            titleName: replayOpponentTitleMeta.name,
+            titleImage: replayOpponentTitleMeta.image,
+            title: buildTitleObject(replayOpponentTitleMeta)
+          });
           const replayBackground =
             resolvePvpDefenderBackgroundVideo({
               battle: battleData,
@@ -554,6 +849,30 @@ Page({
           if (!battleData) {
             throw new Error('暂无战斗回放数据');
           }
+          const fallbackReplayPlayerTitle = resolveTitleMeta([
+            viewContext.playerTitle,
+            viewContext.playerTitleId,
+            context.playerTitle,
+            globalMember
+          ]);
+          applyIdentityToViewContext(viewContext, 'player', {
+            avatar: pickBattlePortrait(
+              DEFAULT_PLAYER_IMAGE,
+              viewContext.playerAvatar,
+              context.playerAvatar,
+              globalMember && globalMember.avatarUrl,
+              globalMember
+            ),
+            avatarFrame: resolveAvatarFrameValue([
+              viewContext.playerAvatarFrame,
+              context.playerAvatarFrame,
+              globalMember
+            ]),
+            titleId: fallbackReplayPlayerTitle.id,
+            titleName: fallbackReplayPlayerTitle.name,
+            titleImage: fallbackReplayPlayerTitle.image,
+            title: buildTitleObject(fallbackReplayPlayerTitle)
+          });
         }
       } else if (this.mode === 'pve') {
         const enemyId = context.enemyId || this.contextOptions.enemyId;
@@ -597,6 +916,62 @@ Page({
           ),
           backgroundVideo: sceneBackground || context.backgroundVideo || DEFAULT_BACKGROUND_VIDEO
         };
+        const pvePlayerAvatar = pickBattlePortrait(
+          DEFAULT_PLAYER_IMAGE,
+          context.playerAvatar,
+          globalMember && globalMember.avatarUrl,
+          playerParticipant,
+          globalMember
+        );
+        const pveOpponentAvatar = pickBattlePortrait(
+          DEFAULT_OPPONENT_IMAGE,
+          context.opponentAvatar,
+          enemy
+        );
+        const pvePlayerAvatarFrame = resolveAvatarFrameValue([
+          context.playerAvatarFrame,
+          context.playerFrame,
+          playerParticipant,
+          globalMember
+        ]);
+        const pveOpponentAvatarFrame = resolveAvatarFrameValue([
+          context.opponentAvatarFrame,
+          context.opponentFrame,
+          enemy
+        ]);
+        const pvePlayerTitleMeta = resolveTitleMeta([
+          context.playerTitle,
+          context.playerTitleId,
+          context.playerTitleInfo,
+          context.playerTitleName,
+          context.playerTitleImage,
+          playerParticipant,
+          globalMember
+        ]);
+        const pveOpponentTitleMeta = resolveTitleMeta([
+          context.opponentTitle,
+          context.opponentTitleId,
+          context.opponentTitleInfo,
+          context.opponentTitleName,
+          context.opponentTitleImage,
+          enemy
+        ]);
+        applyIdentityToViewContext(viewContext, 'player', {
+          avatar: pvePlayerAvatar,
+          avatarFrame: pvePlayerAvatarFrame,
+          titleId: pvePlayerTitleMeta.id,
+          titleName: pvePlayerTitleMeta.name,
+          titleImage: pvePlayerTitleMeta.image,
+          title: buildTitleObject(pvePlayerTitleMeta)
+        });
+        applyIdentityToViewContext(viewContext, 'opponent', {
+          avatar: pveOpponentAvatar,
+          avatarFrame: pveOpponentAvatarFrame,
+          titleId: pveOpponentTitleMeta.id,
+          titleName: pveOpponentTitleMeta.name,
+          titleImage: pveOpponentTitleMeta.image,
+          title: buildTitleObject(pveOpponentTitleMeta)
+        });
         this.parentPayload = {
           type: 'pve',
           battle: serviceResult.battle || null
@@ -637,6 +1012,69 @@ Page({
           opponentPower:
             (battleData && battleData.opponent && battleData.opponent.pointsAfter) || opponent.points || ''
         };
+        const memberSource = hasMeaningfulValue(member) ? member : globalMember;
+        const pvpPlayerAvatar = pickBattlePortrait(
+          DEFAULT_PLAYER_IMAGE,
+          context.playerAvatar,
+          memberSource && memberSource.avatarUrl,
+          member,
+          battleData && battleData.player,
+          globalMember
+        );
+        const pvpOpponentAvatar = pickBattlePortrait(
+          DEFAULT_OPPONENT_IMAGE,
+          context.opponentAvatar,
+          opponent,
+          battleData && battleData.opponent
+        );
+        const pvpPlayerAvatarFrame = resolveAvatarFrameValue([
+          context.playerAvatarFrame,
+          context.playerFrame,
+          member,
+          battleData && battleData.player,
+          globalMember
+        ]);
+        const pvpOpponentAvatarFrame = resolveAvatarFrameValue([
+          context.opponentAvatarFrame,
+          context.opponentFrame,
+          opponent,
+          battleData && battleData.opponent
+        ]);
+        const pvpPlayerTitleMeta = resolveTitleMeta([
+          context.playerTitle,
+          context.playerTitleId,
+          context.playerTitleInfo,
+          context.playerTitleName,
+          context.playerTitleImage,
+          member,
+          battleData && battleData.player,
+          globalMember
+        ]);
+        const pvpOpponentTitleMeta = resolveTitleMeta([
+          context.opponentTitle,
+          context.opponentTitleId,
+          context.opponentTitleInfo,
+          context.opponentTitleName,
+          context.opponentTitleImage,
+          opponent,
+          battleData && battleData.opponent
+        ]);
+        applyIdentityToViewContext(viewContext, 'player', {
+          avatar: pvpPlayerAvatar,
+          avatarFrame: pvpPlayerAvatarFrame,
+          titleId: pvpPlayerTitleMeta.id,
+          titleName: pvpPlayerTitleMeta.name,
+          titleImage: pvpPlayerTitleMeta.image,
+          title: buildTitleObject(pvpPlayerTitleMeta)
+        });
+        applyIdentityToViewContext(viewContext, 'opponent', {
+          avatar: pvpOpponentAvatar,
+          avatarFrame: pvpOpponentAvatarFrame,
+          titleId: pvpOpponentTitleMeta.id,
+          titleName: pvpOpponentTitleMeta.name,
+          titleImage: pvpOpponentTitleMeta.image,
+          title: buildTitleObject(pvpOpponentTitleMeta)
+        });
         const liveBackground =
           resolvePvpDefenderBackgroundVideo({
             battle: battleData,
