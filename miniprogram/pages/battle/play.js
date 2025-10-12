@@ -56,6 +56,94 @@ const NESTED_ENTITY_KEYS = [
   'source'
 ];
 
+function pickFirstString(...values) {
+  for (let i = 0; i < values.length; i += 1) {
+    const candidate = values[i];
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+  }
+  return '';
+}
+
+function resolveActorAvatarImage(actor = {}) {
+  if (!actor || typeof actor !== 'object') {
+    return '';
+  }
+  const avatar = actor.avatar;
+  if (typeof avatar === 'string') {
+    const trimmed = avatar.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  } else if (avatar && typeof avatar === 'object') {
+    const resolved = pickFirstString(avatar.image, avatar.url, avatar.src, avatar.path);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return pickFirstString(
+    actor.avatarImage,
+    actor.avatarUrl,
+    actor.avatar_path,
+    actor.avatar,
+    actor.headImage,
+    actor.headImg,
+    actor.headimg,
+    actor.headImgUrl,
+    actor.headimgurl,
+    actor.headUrl,
+    actor.icon,
+    actor.iconUrl,
+    actor.iconURL
+  );
+}
+
+function resolveActorAvatarFrame(actor = {}) {
+  if (!actor || typeof actor !== 'object') {
+    return '';
+  }
+  const avatar = actor.avatar;
+  if (avatar && typeof avatar === 'object') {
+    const resolved = pickFirstString(avatar.frame, avatar.border, avatar.avatarFrame);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return pickFirstString(actor.avatarFrame, actor.frame, actor.avatarBorder, actor.appearanceFrame);
+}
+
+function deriveStageAvatarFields(stage = {}) {
+  const playerActor = stage && stage.player ? stage.player : null;
+  const opponentActor = stage && stage.opponent ? stage.opponent : null;
+  const attackerKey = stage && stage.attackerKey === 'opponent' ? 'opponent' : 'player';
+  const defenderKey = stage && stage.defenderKey === 'player' ? 'player' : 'opponent';
+
+  const playerAvatarImage = resolveActorAvatarImage(playerActor);
+  const playerAvatarFrame = resolveActorAvatarFrame(playerActor);
+  const opponentAvatarImage = resolveActorAvatarImage(opponentActor);
+  const opponentAvatarFrame = resolveActorAvatarFrame(opponentActor);
+
+  const attackerAvatarImage = attackerKey === 'player' ? playerAvatarImage : opponentAvatarImage;
+  const attackerAvatarFrame = attackerKey === 'player' ? playerAvatarFrame : opponentAvatarFrame;
+  const defenderAvatarImage = defenderKey === 'player' ? playerAvatarImage : opponentAvatarImage;
+  const defenderAvatarFrame = defenderKey === 'player' ? playerAvatarFrame : opponentAvatarFrame;
+
+  return {
+    playerAvatarImage,
+    playerAvatarFrame,
+    opponentAvatarImage,
+    opponentAvatarFrame,
+    attackerAvatarImage,
+    attackerAvatarFrame,
+    defenderAvatarImage,
+    defenderAvatarFrame
+  };
+}
+
 function addIdToSet(set, value) {
   if (value === null || value === undefined) {
     return;
@@ -306,6 +394,14 @@ function createBattleStageState(overrides = {}) {
     backgroundVideo: DEFAULT_BACKGROUND_VIDEO,
     player: null,
     opponent: null,
+    playerAvatarImage: '',
+    playerAvatarFrame: '',
+    opponentAvatarImage: '',
+    opponentAvatarFrame: '',
+    attackerAvatarImage: '',
+    attackerAvatarFrame: '',
+    defenderAvatarImage: '',
+    defenderAvatarFrame: '',
     hpState: {
       player: { max: 1, current: 1, percent: 100 },
       opponent: { max: 1, current: 1, percent: 100 }
@@ -1117,10 +1213,19 @@ Page({
       ...this.data.battleStage,
       ...updates
     };
+    Object.assign(nextStage, deriveStageAvatarFields(nextStage));
     const dataUpdates = { battleStage: nextStage };
     Object.keys(updates).forEach((key) => {
       dataUpdates[key] = nextStage[key];
     });
+    dataUpdates.playerAvatarImage = nextStage.playerAvatarImage;
+    dataUpdates.playerAvatarFrame = nextStage.playerAvatarFrame;
+    dataUpdates.opponentAvatarImage = nextStage.opponentAvatarImage;
+    dataUpdates.opponentAvatarFrame = nextStage.opponentAvatarFrame;
+    dataUpdates.attackerAvatarImage = nextStage.attackerAvatarImage;
+    dataUpdates.attackerAvatarFrame = nextStage.attackerAvatarFrame;
+    dataUpdates.defenderAvatarImage = nextStage.defenderAvatarImage;
+    dataUpdates.defenderAvatarFrame = nextStage.defenderAvatarFrame;
     this.setData(dataUpdates);
   }
 });

@@ -21,19 +21,13 @@
             <view class="actor-card__avatar">
               <image
                 class="actor-card__avatar-image"
-                src="{{attackerKey === 'player'
-                  ? (player && player.avatar && (player.avatar.image || player.avatar.url) || '')
-                  : (opponent && opponent.avatar && (opponent.avatar.image || opponent.avatar.url) || '')}}"
+                src="{{attackerAvatarImage || ''}}"
                 mode="cover"
               ></image>
               <image
-                wx:if="{{attackerKey === 'player'
-                  ? (player && ((player.avatar && player.avatar.frame) || player.avatarFrame))
-                  : (opponent && ((opponent.avatar && opponent.avatar.frame) || opponent.avatarFrame))}}"
+                wx:if="{{attackerAvatarFrame}}"
                 class="actor-card__avatar-frame"
-                src="{{attackerKey === 'player'
-                  ? (player && ((player.avatar && player.avatar.frame) || player.avatarFrame) || '')
-                  : (opponent && ((opponent.avatar && opponent.avatar.frame) || opponent.avatarFrame) || '')}}"
+                src="{{attackerAvatarFrame || ''}}"
                 mode="scaleToFill"
               ></image>
             </view>
@@ -83,19 +77,13 @@
             <view class="actor-card__avatar">
               <image
                 class="actor-card__avatar-image"
-                src="{{defenderKey === 'player'
-                  ? (player && player.avatar && (player.avatar.image || player.avatar.url) || '')
-                  : (opponent && opponent.avatar && (opponent.avatar.image || opponent.avatar.url) || '')}}"
+                src="{{defenderAvatarImage || ''}}"
                 mode="cover"
               ></image>
               <image
-                wx:if="{{defenderKey === 'player'
-                  ? (player && ((player.avatar && player.avatar.frame) || player.avatarFrame))
-                  : (opponent && ((opponent.avatar && opponent.avatar.frame) || opponent.avatarFrame))}}"
+                wx:if="{{defenderAvatarFrame}}"
                 class="actor-card__avatar-frame"
-                src="{{defenderKey === 'player'
-                  ? (player && ((player.avatar && player.avatar.frame) || player.avatarFrame) || '')
-                  : (opponent && ((opponent.avatar && opponent.avatar.frame) || opponent.avatarFrame) || '')}}"
+                src="{{defenderAvatarFrame || ''}}"
                 mode="scaleToFill"
               ></image>
             </view>
