@@ -11,11 +11,11 @@ const {
   resolveHighestUnlockedBackgroundByRealmOrder,
   resolveBackgroundByRealmName,
   resolveBackgroundById,
-  normalizeAvatarFrameValue,
   COLLECTIONS,
   realmConfigs,
   subLevelLabels
 } = commonConfig;
+const { normalizeAvatarFrameValue } = require('./avatar-frames.js');
 
 const db = cloud.database();
 const _ = db.command;
