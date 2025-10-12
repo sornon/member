@@ -1,31 +1,6 @@
 <custom-nav title="战报回放" theme="dark"></custom-nav>
-<view class="container battle-page">
-  <view wx:if="{{loading}}" class="card battle-state">战报加载中...</view>
-  <block wx:elif="{{battle}}">
-    <view class="card battle-header">
-      <view class="battle-result">{{battle.result.draw ? '平局' : battle.result.winnerId === battle.player.memberId ? '主角胜利' : '对手胜利'}}</view>
-      <view class="battle-meta">{{battle.player.displayName}} VS {{battle.opponent.displayName}}</view>
-      <view class="battle-meta">{{battle.createdAtText}}</view>
-    </view>
-    <view class="card battle-summary">
-      <view class="battle-summary__item">
-        <text class="battle-summary__label">我方积分</text>
-        <text class="battle-summary__value">{{battle.player.pointsAfter}}（{{battle.player.pointsDelta >= 0 ? '+' : ''}}{{battle.player.pointsDelta}}）</text>
-      </view>
-      <view class="battle-summary__item">
-        <text class="battle-summary__label">对手积分</text>
-        <text class="battle-summary__value">{{battle.opponent.pointsAfter}}（{{battle.opponent.pointsDelta >= 0 ? '+' : ''}}{{battle.opponent.pointsDelta}}）</text>
-      </view>
-    </view>
-    <view class="card battle-rounds">
-      <block wx:for="{{rounds}}" wx:key="index">
-        <view class="round-item">
-          <view class="round-title">第 {{item.round}} 回合</view>
-          <view class="round-description">{{item.description}}</view>
-          <view class="round-meta">对手剩余血量：{{item.targetRemainingHp}}</view>
-        </view>
-      </block>
-    </view>
-  </block>
-  <view wx:else class="card battle-state">未找到战报</view>
+<view class="container redirect-page">
+  <view wx:if="{{redirecting}}" class="redirect-state">战斗画面加载中...</view>
+  <view wx:elif="{{error}}" class="redirect-state">{{error}}</view>
+  <view wx:else class="redirect-state">战斗画面已迁移，请返回上一页重试</view>
 </view>
