@@ -3,8 +3,9 @@
   <view wx:if="{{loading}}" class="card battle-state">战报加载中...</view>
   <block wx:elif="{{battle}}">
     <view class="card battle-header">
-      <view class="battle-result">{{battle.result.draw ? '平局' : battle.result.winnerId === battle.player.memberId ? '主角胜利' : '对手胜利'}}</view>
-      <view class="battle-meta">{{battle.player.displayName}} VS {{battle.opponent.displayName}}</view>
+      <view class="battle-result">{{battle.header.title}}</view>
+      <view class="battle-meta">{{(battle.participants.player && battle.participants.player.displayName) || '我方'}} VS {{(battle.participants.opponent && battle.participants.opponent.displayName) || '对手'}}</view>
+      <view wx:if="{{battle.header.subtitle}}" class="battle-meta">{{battle.header.subtitle}}</view>
       <view class="battle-meta">{{battle.createdAtText}}</view>
     </view>
     <view class="card battle-summary">
@@ -22,7 +23,15 @@
         <view class="round-item">
           <view class="round-title">第 {{item.round}} 回合</view>
           <view class="round-description">{{item.description}}</view>
-          <view class="round-meta">对手剩余血量：{{item.targetRemainingHp}}</view>
+          <view
+            wx:if="{{item.hpSummary && (item.hpSummary.player !== null || item.hpSummary.opponent !== null)}}"
+            class="round-meta"
+          >
+            我方血量：{{item.hpSummary.player !== null ? item.hpSummary.player : '-'}} · 对手血量：{{
+              item.hpSummary.opponent !== null ? item.hpSummary.opponent : '-'
+            }}
+          </view>
+          <view wx:elif="{{item.targetRemainingHp != null}}" class="round-meta">对手剩余血量：{{item.targetRemainingHp}}</view>
         </view>
       </block>
     </view>

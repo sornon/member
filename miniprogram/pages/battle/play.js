@@ -317,6 +317,32 @@ Page({
         this.notifyParent();
       }
 
+      const battleParticipants = (battleData && battleData.participants) || {};
+      const playerParticipant = battleParticipants.player || {};
+      const opponentParticipant =
+        battleParticipants.opponent || battleParticipants.enemy || {};
+      const defaultPlayerName = this.mode === 'pvp' ? '我方' : '你';
+      const defaultOpponentName = this.mode === 'pvp' ? '对手' : '秘境之敌';
+      if (!viewContext.playerName) {
+        viewContext.playerName = playerParticipant.displayName || defaultPlayerName;
+      }
+      if (!viewContext.opponentName) {
+        viewContext.opponentName = opponentParticipant.displayName || defaultOpponentName;
+      }
+      if (playerParticipant.portrait) {
+        viewContext.playerPortrait = playerParticipant.portrait;
+      } else if (!viewContext.playerPortrait) {
+        viewContext.playerPortrait = DEFAULT_PLAYER_IMAGE;
+      }
+      if (opponentParticipant.portrait) {
+        viewContext.opponentPortrait = opponentParticipant.portrait;
+      } else if (!viewContext.opponentPortrait) {
+        viewContext.opponentPortrait = DEFAULT_OPPONENT_IMAGE;
+      }
+      if (!viewContext.backgroundVideo) {
+        viewContext.backgroundVideo = DEFAULT_BACKGROUND_VIDEO;
+      }
+
       if (!battleData) {
         throw new Error('战斗数据为空');
       }

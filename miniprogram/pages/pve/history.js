@@ -147,6 +147,38 @@ Page({
   },
 
   buildReplayPayload(record = {}) {
+    const structuredTimeline = Array.isArray(record.timeline)
+      ? record.timeline.filter((entry) => entry && typeof entry === 'object')
+      : [];
+    if (structuredTimeline.length) {
+      const battle = {
+        timeline: structuredTimeline,
+        participants: record.participants || null,
+        outcome: record.outcome || null,
+        metadata: record.metadata || null,
+        rewards: record.rewards || null
+      };
+      const viewContext = {
+        playerName:
+          record.playerName ||
+          (record.participants && record.participants.player && record.participants.player.displayName) ||
+          '你',
+        opponentName:
+          record.enemyName ||
+          (record.participants && record.participants.opponent && record.participants.opponent.displayName) ||
+          '秘境之敌',
+        playerPortrait:
+          record.playerPortrait ||
+          (record.participants && record.participants.player && record.participants.player.portrait) ||
+          '',
+        opponentPortrait:
+          record.opponentPortrait ||
+          (record.participants && record.participants.opponent && record.participants.opponent.portrait) ||
+          '',
+        backgroundVideo: record.backgroundVideo || ''
+      };
+      return { battle, viewContext };
+    }
     const log = Array.isArray(record.log) ? record.log.filter((entry) => typeof entry === 'string' && entry) : [];
     if (!log.length) {
       return null;

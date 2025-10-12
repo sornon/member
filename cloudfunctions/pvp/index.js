@@ -4,7 +4,12 @@ const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const commonConfig = require('common-config');
-const { COLLECTIONS, resolveBackgroundById, normalizeBackgroundId } = commonConfig;
+const {
+  COLLECTIONS,
+  resolveBackgroundById,
+  normalizeBackgroundId,
+  CHARACTER_IMAGE_BASE_PATH
+} = commonConfig;
 const {
   DEFAULT_COMBAT_STATS,
   DEFAULT_SPECIAL_STATS,
@@ -55,6 +60,58 @@ const REQUIRED_PVP_COLLECTIONS = [
   COLLECTIONS.PVP_LEADERBOARD,
   COLLECTIONS.PVP_INVITES
 ];
+
+const AVATAR_ID_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png$/i;
+
+function normalizeBattlePortrait(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  const lower = trimmed.toLowerCase();
+  if (lower.includes('/assets/character/')) {
+    return trimmed;
+  }
+  const match = lower.match(AVATAR_ID_PATTERN);
+  if (match && match[1]) {
+    return `${CHARACTER_IMAGE_BASE_PATH}/${match[1]}.png`;
+  }
+  return trimmed;
+}
+
+function resolveBattlePortrait(candidates = []) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = candidates[i];
+    if (!candidate) {
+      continue;
+    }
+    if (typeof candidate === 'string') {
+      const normalized = normalizeBattlePortrait(candidate);
+      if (normalized) {
+        return normalized;
+      }
+      continue;
+    }
+    if (candidate && typeof candidate === 'object') {
+      if (typeof candidate.url === 'string') {
+        const normalized = normalizeBattlePortrait(candidate.url);
+        if (normalized) {
+          return normalized;
+        }
+      }
+      if (typeof candidate.portrait === 'string') {
+        const normalized = normalizeBattlePortrait(candidate.portrait);
+        if (normalized) {
+          return normalized;
+        }
+      }
+    }
+  }
+  return '';
+}
 
 function buildBackgroundPayloadFromId(backgroundId, animatedFlag) {
   const normalized = normalizeBackgroundId(backgroundId || '');
@@ -517,6 +574,11 @@ async function resolveBattle(memberId, member, profile, opponentDescriptor, seas
     initiatorId,
     defenderId: defenderEntry.memberId
   });
+  const opponentPortrait = resolveBattlePortrait([
+    opponentEntry && opponentEntry.portrait,
+    opponentMember && opponentMember.portrait,
+    opponentMember && opponentMember.avatarUrl
+  ]);
   const opponentPreview = {
     memberId: opponentEntry.memberId,
     isBot: !!opponentEntry.isBot,
@@ -524,7 +586,8 @@ async function resolveBattle(memberId, member, profile, opponentDescriptor, seas
     tierId: opponentProfile.tierId,
     tierName: opponentProfile.tierName,
     points: opponentProfile.points,
-    avatarUrl: opponentMember ? opponentMember.avatarUrl || '' : '',
+    avatarUrl: opponentPortrait,
+    portrait: opponentPortrait,
     summary: {
       wins: opponentProfile.wins,
       losses: opponentProfile.losses,
@@ -731,7 +794,6 @@ async function persistBattleResult({
     opponent: opponent.isBot
       ? buildParticipantSnapshot(opponentUpdate ? opponentUpdate.after : opponentProfile, opponentUpdate ? opponentUpdate.delta : { points: 0 }, opponent)
       : buildParticipantSnapshot(opponentUpdate.after, opponentUpdate.delta, opponent),
-    rounds: timeline,
     timeline,
     participants,
     outcome,
@@ -769,7 +831,6 @@ async function persistBattleResult({
     winnerId: simulation.winnerId,
     loserId: simulation.loserId,
     draw: simulation.draw,
-    rounds: timeline,
     timeline,
     participants,
     outcome,
@@ -1143,12 +1204,16 @@ function decorateMatchSummary(match, memberId) {
 }
 
 function decorateMatchReplay(match) {
+  const legacyTimeline = Array.isArray(match.timeline)
+    ? match.timeline
+    : Array.isArray(match.rounds)
+    ? match.rounds
+    : [];
   return {
     matchId: match.matchId || match._id,
     seasonId: match.seasonId,
     seed: match.seed,
-    rounds: match.rounds || [],
-    timeline: Array.isArray(match.timeline) ? match.timeline : match.rounds || [],
+    timeline: legacyTimeline,
     participants: match.participants || null,
     outcome: match.outcome || null,
     metadata: match.metadata || null,
@@ -1419,13 +1484,15 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
   const backgroundId = buildBackgroundIdFromMember(member);
   const backgroundAnimated = !!(member && member.appearanceBackgroundAnimated);
   const background = buildBackgroundPayloadFromId(backgroundId, backgroundAnimated);
-  const avatarUrl =
-    (profile.memberSnapshot && profile.memberSnapshot.avatarUrl) || (member && member.avatarUrl) || '';
-  const portrait =
-    (profile.memberSnapshot && profile.memberSnapshot.portrait) ||
-    (member && (member.portrait || member.avatarUrl)) ||
-    avatarUrl ||
-    '';
+  const portrait = resolveBattlePortrait([
+    profile && profile.memberSnapshot && profile.memberSnapshot.portrait,
+    profile && profile.memberSnapshot && profile.memberSnapshot.avatarUrl,
+    profile && profile.portrait,
+    profile && profile.avatarUrl,
+    member && member.portrait,
+    member && member.avatarUrl
+  ]);
+  const avatarUrl = portrait;
   return {
     memberId: memberId || profile.memberId,
     displayName: profile.memberSnapshot && profile.memberSnapshot.nickName ? profile.memberSnapshot.nickName : member ? member.nickName || '无名仙友' : '神秘对手',

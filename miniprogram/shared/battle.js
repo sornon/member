@@ -3,6 +3,7 @@ const { buildCloudAssetUrl, CHARACTER_IMAGE_BASE_PATH } = require('./asset-paths
 const DEFAULT_BACKGROUND_VIDEO = buildCloudAssetUrl('video', 'battle_default.mp4');
 const DEFAULT_PLAYER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/male-b-1.png`;
 const DEFAULT_OPPONENT_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/female-c-1.png`;
+const AVATAR_ID_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png$/i;
 
 const PLAYER_SKILL_ROTATION = ['流云剑诀', '星河落斩', '落霞破影', '雷霆贯体'];
 const OPPONENT_SKILL_ROTATION = ['幽影突袭', '寒魄碎骨', '血焰冲锋', '枯藤缠袭'];
@@ -35,18 +36,50 @@ function formatNumber(value) {
   return Number.isFinite(value) ? Math.round(value) : 0;
 }
 
+function normalizePortraitUrl(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  const lower = trimmed.toLowerCase();
+  if (lower.includes('/assets/character/')) {
+    return trimmed;
+  }
+  const match = lower.match(AVATAR_ID_PATTERN);
+  if (match && match[1]) {
+    return `${CHARACTER_IMAGE_BASE_PATH}/${match[1]}.png`;
+  }
+  return trimmed;
+}
+
 function resolvePortrait(source, fallback) {
   if (!source) {
     return fallback;
   }
-  if (typeof source === 'string' && source.trim()) {
-    return source;
-  }
-  if (source.avatarUrl) {
-    return source.avatarUrl;
+  if (typeof source === 'string') {
+    const normalized = normalizePortraitUrl(source);
+    return normalized || fallback;
   }
   if (source.portrait) {
-    return source.portrait;
+    const normalized = normalizePortraitUrl(source.portrait);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  if (source.avatarUrl) {
+    const normalized = normalizePortraitUrl(source.avatarUrl);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  if (source.url) {
+    const normalized = normalizePortraitUrl(source.url);
+    if (normalized) {
+      return normalized;
+    }
   }
   return fallback;
 }
@@ -846,10 +879,17 @@ function buildStructuredBattleViewModel({
   }
 
   const outcome = battle.outcome || {};
-  const hasDraw = !!outcome.draw || outcome.result === 'draw' || battle.draw;
-  const playerIsWinner = outcome.winnerId
-    ? outcome.winnerId === playerId
-    : outcome.result === 'victory' || (!!battle.victory && !hasDraw);
+  const legacyVictory = !!battle.victory;
+  const legacyDraw = !!battle.draw;
+  const hasDraw = typeof outcome.draw === 'boolean' ? outcome.draw : outcome.result === 'draw' || legacyDraw;
+  let playerIsWinner = false;
+  if (outcome.winnerId) {
+    playerIsWinner = outcome.winnerId === playerId;
+  } else if (outcome.result === 'victory') {
+    playerIsWinner = true;
+  } else if (legacyVictory && !legacyDraw) {
+    playerIsWinner = true;
+  }
   const victory = !hasDraw && playerIsWinner;
   const draw = hasDraw;
   const resultRounds = toNumber(outcome.rounds, maxRound || actions.length);
@@ -1013,8 +1053,13 @@ function buildPveActions(battle = {}, context = {}) {
     }
   }
   const log = Array.isArray(battle.log) ? battle.log : [];
-  const remainingPlayerHp = toNumber(battle.remaining && battle.remaining.playerHp, 0);
-  const remainingEnemyHp = toNumber(battle.remaining && battle.remaining.enemyHp, 0);
+  const outcome = battle.outcome || {};
+  const remainingState = outcome.remaining || battle.remaining || {};
+  const remainingPlayerHp = toNumber(remainingState.playerHp, 0);
+  const remainingEnemyHp = toNumber(
+    remainingState.opponentHp != null ? remainingState.opponentHp : remainingState.enemyHp,
+    0
+  );
   const totals = parsePveTotals(log);
   const playerMaxHp = Math.max(remainingPlayerHp + totals.playerDamageTaken - totals.playerHeal, remainingPlayerHp, 1);
   const enemyMaxHp = Math.max(remainingEnemyHp + totals.enemyDamageTaken - totals.enemyHeal, remainingEnemyHp, 1);
@@ -1122,31 +1167,44 @@ function buildPveActions(battle = {}, context = {}) {
     });
   });
 
-  if (battle.victory || battle.draw || log.length) {
-    const outcomeTitle = battle.victory ? '胜利' : battle.draw ? '势均力敌' : '惜败';
+  const outcomeResult = outcome.result || (battle.victory ? 'victory' : battle.draw ? 'draw' : '');
+  const outcomeSummary = outcome.summary || {};
+  const outcomeRewards = outcome.rewards || battle.rewards || null;
+  const victoryFallback = outcomeResult === 'victory' || (!!battle.victory && !battle.draw);
+  const drawFallback = outcomeResult === 'draw' || !!battle.draw;
+  if (outcomeResult || battle.victory || battle.draw || log.length) {
+    const outcomeTitle = drawFallback ? '势均力敌' : victoryFallback ? '胜利' : '惜败';
     const hp = {
       player: buildHpState(playerMaxHp, remainingPlayerHp || playerHp),
       opponent: buildHpState(enemyMaxHp, remainingEnemyHp || enemyHp)
     };
     actions.push({
       id: 'pve-result',
-      round: toNumber(battle.rounds, actions.length + 1),
-      actor: battle.victory ? 'player' : battle.draw ? 'neutral' : 'opponent',
+      round: toNumber(outcome.rounds, actions.length + 1),
+      actor: drawFallback ? 'neutral' : victoryFallback ? 'player' : 'opponent',
       target: 'neutral',
       type: 'result',
-      description: battle.victory
-        ? '你成功击败敌人，秘境更进一步。'
-        : battle.draw
-        ? '双方筋疲力尽，战斗以平局告终。'
-        : '战斗告一段落，敌人仍旧伺机而动。',
-      title: `战斗结果 · ${outcomeTitle}`,
+      description:
+        outcomeSummary.text ||
+        (victoryFallback
+          ? '你成功击败敌人，秘境更进一步。'
+          : drawFallback
+          ? '双方筋疲力尽，战斗以平局告终。'
+          : '战斗告一段落，敌人仍旧伺机而动。'),
+      title: outcomeSummary.title || `战斗结果 · ${outcomeTitle}`,
       effects: [],
-      hp
+      hp,
+      rewards: outcomeRewards || null
     });
   }
 
+  const outcome = battle.outcome || {};
   const playerName = (context && context.playerName) || '你';
   const opponentName = (context && context.opponentName) || '秘境之敌';
+  const victoryFlag = outcome.result === 'victory' || (!!battle.victory && !battle.draw);
+  const drawFlag = outcome.draw || outcome.result === 'draw' || !!battle.draw;
+  const roundsValue = toNumber(outcome.rounds, actions.length);
+  const rewardsPayload = outcome.rewards || battle.rewards || null;
 
   return {
     player: {
@@ -1178,10 +1236,10 @@ function buildPveActions(battle = {}, context = {}) {
     actions,
     backgroundVideo: context && context.backgroundVideo ? context.backgroundVideo : DEFAULT_BACKGROUND_VIDEO,
     result: {
-      victory: !!battle.victory,
-      draw: !!battle.draw,
-      rounds: toNumber(battle.rounds, actions.length),
-      rewards: battle.rewards || null
+      victory: !!victoryFlag,
+      draw: !!drawFlag,
+      rounds: Math.max(1, roundsValue),
+      rewards: rewardsPayload
     }
   };
 }
@@ -1318,20 +1376,35 @@ function buildPvpActions(battle = {}, context = {}) {
     opponent: buildHpState(opponentMaxHp, toNumber(battle.opponent && battle.opponent.remainingHp, opponentHp))
   };
 
+  const outcomeFallback = battle.outcome || {};
+  const outcomeSummary = outcomeFallback.summary || {};
+  const outcomeResult = outcomeFallback.result || (battle.draw ? 'draw' : '');
+  const drawFlag = typeof outcomeFallback.draw === 'boolean'
+    ? outcomeFallback.draw
+    : outcomeResult === 'draw' || !!battle.draw;
+  const playerWins = outcomeFallback.winnerId
+    ? outcomeFallback.winnerId === playerId
+    : outcomeResult === 'victory' || (!!battle.winnerId && battle.winnerId === playerId);
+  const resultTitle = outcomeSummary.title
+    ? outcomeSummary.title
+    : `战斗结果 · ${drawFlag ? '平局' : playerWins ? '胜利' : '惜败'}`;
+  const resultDescription = outcomeSummary.text
+    ? outcomeSummary.text
+    : drawFlag
+    ? '双方斗得难分难解，本场切磋以平局收场。'
+    : playerWins
+    ? '你技高一筹，成功拿下这场比武。'
+    : '对手更胜一筹，继续修炼再战。';
   actions.push({
     id: 'pvp-result',
     round: actions.length ? actions[actions.length - 1].round : 1,
-    actor: battle.draw ? 'neutral' : battle.winnerId === playerId ? 'player' : 'opponent',
+    actor: drawFlag ? 'neutral' : playerWins ? 'player' : 'opponent',
     target: 'neutral',
     type: 'result',
     damage: 0,
     heal: 0,
-    title: battle.draw ? '战斗结果 · 平局' : battle.winnerId === playerId ? '战斗结果 · 胜利' : '战斗结果 · 惜败',
-    description: battle.draw
-      ? '双方斗得难分难解，本场切磋以平局收场。'
-      : battle.winnerId === playerId
-      ? '你技高一筹，成功拿下这场比武。'
-      : '对手更胜一筹，继续修炼再战。',
+    title: resultTitle,
+    description: resultDescription,
     effects: [],
     hp,
     attributes: {
@@ -1370,10 +1443,10 @@ function buildPvpActions(battle = {}, context = {}) {
     actions,
     backgroundVideo: context && context.backgroundVideo ? context.backgroundVideo : DEFAULT_BACKGROUND_VIDEO,
     result: {
-      victory: !!(!battle.draw && battle.winnerId === playerId),
-      draw: !!battle.draw,
-      rounds: actions.length,
-      rewards: null
+      victory: !!(!drawFlag && playerWins),
+      draw: !!drawFlag,
+      rounds: Math.max(1, toNumber(outcomeFallback.rounds, actions.length)),
+      rewards: outcomeFallback.rewards || battle.rewards || null
     }
   };
 }
