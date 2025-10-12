@@ -90,82 +90,89 @@ const DEFAULT_SKILL_DRAW_CREDITS = 1;
 const AVATAR_FRAME_FIELDS = ['avatarFrame', 'appearanceFrame', 'frame', 'border', 'avatarBorder', 'avatar_frame'];
 const AVATAR_NESTED_FIELDS = ['avatar', 'profile', 'memberSnapshot', 'member', 'self', 'player', 'source', 'data', 'info'];
 
+const DEFAULT_AVATAR_FRAME_BASE_PATH = '/assets/border';
+const DEFAULT_AVATAR_FRAME_IDS = ['1', '2', '3'];
+
+function toTrimmedString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeFrameBasePath(basePath) {
+  const trimmed = toTrimmedString(basePath);
+  const normalized = (trimmed || DEFAULT_AVATAR_FRAME_BASE_PATH).replace(/\/+$/u, '');
+  return normalized || DEFAULT_AVATAR_FRAME_BASE_PATH;
+}
+
+function buildFrameUrl(basePath, id) {
+  const trimmedId = toTrimmedString(id);
+  if (!trimmedId) {
+    return '';
+  }
+  return `${normalizeFrameBasePath(basePath)}/${trimmedId}.png`;
+}
+
 function ensureNormalizeAvatarFrameValue(frames = {}) {
-  const {
-    AVATAR_FRAME_BASE_PATH: basePath = '/assets/border',
-    AVATAR_FRAME_IDS: frameIds = [],
-    AVATAR_FRAME_URLS: frameUrls = [],
-    buildAvatarFrameUrlById,
-    normalizeAvatarFrameValue
-  } = frames;
+  const basePath = normalizeFrameBasePath(frames.AVATAR_FRAME_BASE_PATH);
+  const rawIds = Array.isArray(frames.AVATAR_FRAME_IDS) ? frames.AVATAR_FRAME_IDS : [];
+  const normalizedIds = rawIds.map(toTrimmedString).filter(Boolean);
+  const effectiveIds = normalizedIds.length ? normalizedIds : DEFAULT_AVATAR_FRAME_IDS;
 
-  const normalizedUrls = Array.isArray(frameUrls)
-    ? frameUrls.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
-    : [];
-  const normalizedIds = Array.isArray(frameIds)
-    ? frameIds.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean)
-    : [];
-  const safeBasePath = typeof basePath === 'string' && basePath.trim() ? basePath : '/assets/border';
+  const rawUrls = Array.isArray(frames.AVATAR_FRAME_URLS) ? frames.AVATAR_FRAME_URLS : [];
+  const normalizedUrls = rawUrls.map(toTrimmedString).filter(Boolean);
+  const knownUrls = normalizedUrls.length ? normalizedUrls.slice() : effectiveIds.map((id) => buildFrameUrl(basePath, id));
+  const knownUrlSet = new Set(knownUrls);
 
-  const safeBuildById =
-    typeof buildAvatarFrameUrlById === 'function'
-      ? (id) => {
-          const built = buildAvatarFrameUrlById(id);
-          if (typeof built === 'string') {
-            const trimmedBuilt = built.trim();
-            if (trimmedBuilt) {
-              return trimmedBuilt;
-            }
-          }
-          return '';
-        }
-      : (id) => {
-          if (typeof id !== 'string') {
-            return '';
-          }
-          const trimmed = id.trim();
-          if (!trimmed || !normalizedIds.includes(trimmed)) {
-            return '';
-          }
-          return `${safeBasePath}/${trimmed}.png`;
-        };
+  function rememberUrl(url) {
+    const trimmed = toTrimmedString(url);
+    if (trimmed && !knownUrlSet.has(trimmed)) {
+      knownUrlSet.add(trimmed);
+      knownUrls.push(trimmed);
+    }
+    return trimmed;
+  }
 
-  const fallbackNormalize = (value) => {
-    if (typeof value !== 'string') {
+  const fallbackBuildById = (id) => {
+    const trimmedId = toTrimmedString(id);
+    if (!trimmedId || !effectiveIds.includes(trimmedId)) {
       return '';
     }
-    const trimmed = value.trim();
+    return rememberUrl(buildFrameUrl(basePath, trimmedId));
+  };
+
+  const safeBuildById =
+    typeof frames.buildAvatarFrameUrlById === 'function'
+      ? (id) => {
+          const built = frames.buildAvatarFrameUrlById(id);
+          const trimmedBuilt = rememberUrl(built);
+          if (trimmedBuilt) {
+            return trimmedBuilt;
+          }
+          return fallbackBuildById(id);
+        }
+      : fallbackBuildById;
+
+  const fallbackNormalize = (value) => {
+    const trimmed = toTrimmedString(value);
     if (!trimmed) {
       return '';
     }
-    if (normalizedUrls.includes(trimmed)) {
+    if (knownUrlSet.has(trimmed)) {
       return trimmed;
     }
-    const byId = safeBuildById(trimmed);
-    return typeof byId === 'string' ? byId : '';
+    return toTrimmedString(safeBuildById(trimmed));
   };
 
-  if (typeof normalizeAvatarFrameValue === 'function') {
+  if (typeof frames.normalizeAvatarFrameValue === 'function') {
     return (value) => {
-      const normalized = normalizeAvatarFrameValue(value);
-      if (typeof normalized === 'string') {
-        const trimmed = normalized.trim();
-        if (trimmed) {
-          return trimmed;
-        }
+      const normalized = rememberUrl(frames.normalizeAvatarFrameValue(value));
+      if (normalized) {
+        return normalized;
       }
       return fallbackNormalize(value);
     };
   }
 
   return fallbackNormalize;
-}
-
-function toTrimmedString(value) {
-  if (typeof value !== 'string') {
-    return '';
-  }
-  return value.trim();
 }
 
 function resolveAvatarFrame(...sources) {
