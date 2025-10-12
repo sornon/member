@@ -66,15 +66,8 @@ Page({
           }
           if (payload.battle) {
             nextState.battleResult = payload.battle;
-            const outcome = (payload.battle && payload.battle.outcome) || {};
-            const participants = (payload.battle && payload.battle.participants) || {};
-            const playerId = participants.player ? participants.player.id || participants.player.memberId : '';
-            const draw = !!(outcome.draw || outcome.result === 'draw');
-            const victory = outcome.result
-              ? outcome.result === 'victory'
-              : !draw && outcome.winnerId
-              ? outcome.winnerId === playerId || !playerId
-              : false;
+            const victory = !!payload.battle.victory;
+            const draw = !!payload.battle.draw;
             wx.showToast({
               title: draw ? '势均力敌' : victory ? '秘境胜利' : '战斗结束',
               icon: 'success'

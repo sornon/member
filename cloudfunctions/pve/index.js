@@ -2,13 +2,7 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
-const {
-  COLLECTIONS,
-  realmConfigs,
-  subLevelLabels,
-  DEFAULT_ADMIN_ROLES,
-  CHARACTER_IMAGE_BASE_PATH
-} = require('common-config');
+const { COLLECTIONS, realmConfigs, subLevelLabels, DEFAULT_ADMIN_ROLES } = require('common-config');
 const {
   DEFAULT_COMBAT_STATS,
   clamp,
@@ -7064,58 +7058,6 @@ function formatStatsText(stats) {
   });
   return texts;
 }
-const AVATAR_ID_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png$/i;
-
-function normalizeBattlePortraitUrl(value) {
-  if (typeof value !== 'string') {
-    return '';
-  }
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return '';
-  }
-  const lower = trimmed.toLowerCase();
-  if (lower.includes('/assets/character/')) {
-    return trimmed;
-  }
-  const match = lower.match(AVATAR_ID_PATTERN);
-  if (match && match[1]) {
-    return `${CHARACTER_IMAGE_BASE_PATH}/${match[1]}.png`;
-  }
-  return trimmed;
-}
-
-function resolveBattlePortrait(candidates = []) {
-  for (let i = 0; i < candidates.length; i += 1) {
-    const candidate = candidates[i];
-    if (!candidate) {
-      continue;
-    }
-    if (typeof candidate === 'string') {
-      const normalized = normalizeBattlePortraitUrl(candidate);
-      if (normalized) {
-        return normalized;
-      }
-      continue;
-    }
-    if (candidate && typeof candidate === 'object') {
-      if (typeof candidate.url === 'string') {
-        const normalized = normalizeBattlePortraitUrl(candidate.url);
-        if (normalized) {
-          return normalized;
-        }
-      }
-      if (typeof candidate.portrait === 'string') {
-        const normalized = normalizeBattlePortraitUrl(candidate.portrait);
-        if (normalized) {
-          return normalized;
-        }
-      }
-    }
-  }
-  return '';
-}
-
 function buildBattleSetup(profile, enemy, member) {
   const attributes = calculateAttributes(profile.attributes, profile.equipment, profile.skills);
   const player = createPlayerCombatant(attributes);
@@ -7143,15 +7085,12 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
     member && member.nickname,
     member && member.name
   ];
-  const portrait = resolveBattlePortrait([
-    profile && profile.portrait,
-    profile && profile.memberSnapshot && profile.memberSnapshot.portrait,
+  const portraitCandidates = [
     profile && profile.avatarUrl,
-    profile && profile.memberSnapshot && profile.memberSnapshot.avatarUrl,
-    member && member.portrait,
+    profile && profile.portrait,
     member && member.avatarUrl,
     member && member.avatar
-  ]);
+  ];
   let resolvedId = 'player';
   memberIdCandidates.forEach((candidate) => {
     if (resolvedId !== 'player') {
@@ -7168,6 +7107,15 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
     }
     if (typeof candidate === 'string' && candidate.trim()) {
       displayName = candidate.trim();
+    }
+  });
+  let portrait = '';
+  portraitCandidates.forEach((candidate) => {
+    if (portrait) {
+      return;
+    }
+    if (typeof candidate === 'string' && candidate.trim()) {
+      portrait = candidate.trim();
     }
   });
   const hpSnapshot = buildParticipantHpSnapshot(
@@ -7201,11 +7149,7 @@ function buildEnemyBattleInfo(enemy, combatant) {
   });
   const displayName =
     (enemy && (enemy.displayName || enemy.name || enemy.stageName || enemy.realmName)) || '敌方';
-  const portrait = resolveBattlePortrait([
-    enemy && enemy.portrait,
-    enemy && enemy.avatarUrl,
-    enemy && enemy.image
-  ]);
+  const portrait = (enemy && (enemy.portrait || enemy.avatarUrl || enemy.image)) || '';
   const hpSnapshot = buildParticipantHpSnapshot(combatant.stats, combatant.special, enemy && enemy.stats);
   return {
     id: resolvedId,
@@ -7855,173 +7799,66 @@ function formatBattleResult(result) {
     attributePoints: rawRewards.attributePoints || 0,
     loot: Array.isArray(rawRewards.loot) ? rawRewards.loot : []
   };
-  const normalizedLoot = rewards.loot.map((item) => {
-    if (item.type === 'equipment') {
-      const def = EQUIPMENT_MAP[item.itemId];
-      return {
-        type: 'equipment',
-        itemId: item.itemId,
-        name: def ? def.name : '装备',
-        quality: def ? def.quality : 'mortal',
-        qualityLabel: def ? resolveEquipmentQualityLabel(def.quality) : resolveEquipmentQualityLabel('mortal'),
-        qualityColor: def ? resolveEquipmentQualityColor(def.quality) : resolveEquipmentQualityColor('mortal')
-      };
-    }
-    if (item.type === 'skill') {
-      const def = SKILL_MAP[item.skillId];
-      const quality = def ? def.quality : 'linggan';
-      return {
-        type: 'skill',
-        skillId: item.skillId,
-        name: def ? def.name : '技能',
-        quality,
-        qualityLabel: resolveSkillQualityLabel(quality)
-      };
-    }
-    if (item.type === 'consumable') {
-      const def = CONSUMABLE_MAP[item.consumableId];
-      return {
-        type: 'consumable',
-        consumableId: item.consumableId,
-        name: def ? def.name : '道具',
-        description: def ? def.description : ''
-      };
-    }
-    return item;
-  });
-  const normalizedRewards = {
-    exp: rewards.exp,
-    stones: rewards.stones,
-    attributePoints: rewards.attributePoints,
-    loot: normalizedLoot
-  };
   const timeline = Array.isArray(result.timeline) ? result.timeline : [];
   const participants = result.participants && typeof result.participants === 'object' ? result.participants : {};
-  const metadataSource = result.metadata && typeof result.metadata === 'object' ? result.metadata : {};
-  const metadata = { ...metadataSource };
-  if (!metadata.mode) {
-    metadata.mode = 'pve';
-  }
-  if (!metadata.generatedAt) {
-    metadata.generatedAt = Date.now();
-  }
-  const outcomeSource = result.outcome && typeof result.outcome === 'object' ? result.outcome : null;
-  const outcome = buildNormalizedBattleOutcome({
-    source: outcomeSource,
-    fallback: result,
-    participants,
-    rewards: normalizedRewards
-  });
-  const summary = buildBattleSummaryPayload(result);
-  const payload = {
-    participants,
+  const outcome = result.outcome && typeof result.outcome === 'object' ? result.outcome : null;
+  const metadata = result.metadata && typeof result.metadata === 'object' ? result.metadata : { mode: 'pve' };
+  return {
+    victory: result.victory,
+    draw: result.draw,
+    rounds: result.rounds,
+    log: result.log,
     timeline,
+    participants,
     outcome,
     metadata,
-    rewards: normalizedRewards,
-    rewardsText: formatRewardText(normalizedRewards)
+    rewards: {
+      exp: rewards.exp,
+      stones: rewards.stones,
+      attributePoints: rewards.attributePoints,
+      loot: rewards.loot.map((item) => {
+        if (item.type === 'equipment') {
+          const def = EQUIPMENT_MAP[item.itemId];
+          return {
+            type: 'equipment',
+            itemId: item.itemId,
+            name: def ? def.name : '装备',
+            quality: def ? def.quality : 'mortal',
+            qualityLabel: def
+              ? resolveEquipmentQualityLabel(def.quality)
+              : resolveEquipmentQualityLabel('mortal'),
+            qualityColor: def
+              ? resolveEquipmentQualityColor(def.quality)
+              : resolveEquipmentQualityColor('mortal')
+          };
+        }
+        if (item.type === 'skill') {
+          const def = SKILL_MAP[item.skillId];
+          const quality = def ? def.quality : 'linggan';
+          return {
+            type: 'skill',
+            skillId: item.skillId,
+            name: def ? def.name : '技能',
+            quality,
+            qualityLabel: resolveSkillQualityLabel(quality)
+          };
+        }
+        if (item.type === 'consumable') {
+          const def = CONSUMABLE_MAP[item.consumableId];
+          return {
+            type: 'consumable',
+            consumableId: item.consumableId,
+            name: def ? def.name : '道具',
+            description: def ? def.description : ''
+          };
+        }
+        return item;
+      })
+    },
+    rewardsText: formatRewardText(rewards),
+    remaining: result.remaining,
+    combatPower: result.combatPower
   };
-  if (summary) {
-    payload.summary = summary;
-  }
-  return payload;
-}
-
-function normalizeRemainingStateSnapshot(source = {}) {
-  if (!source || typeof source !== 'object') {
-    return null;
-  }
-  const normalized = {};
-  const playerHp = Number(
-    source.playerHp != null ? source.playerHp : source.selfHp != null ? source.selfHp : source.hp != null ? source.hp : null
-  );
-  if (Number.isFinite(playerHp)) {
-    normalized.playerHp = Math.max(0, Math.round(playerHp));
-  }
-  const opponentSource =
-    source.opponentHp != null
-      ? source.opponentHp
-      : source.enemyHp != null
-      ? source.enemyHp
-      : source.targetHp != null
-      ? source.targetHp
-      : null;
-  const opponentHp = Number(opponentSource);
-  if (Number.isFinite(opponentHp)) {
-    normalized.opponentHp = Math.max(0, Math.round(opponentHp));
-  }
-  return Object.keys(normalized).length ? normalized : null;
-}
-
-function buildNormalizedBattleOutcome({ source, fallback, participants, rewards }) {
-  if (source) {
-    const outcome = { ...source };
-    const remaining = normalizeRemainingStateSnapshot(outcome.remaining);
-    if (remaining) {
-      outcome.remaining = remaining;
-    } else if (outcome.remaining) {
-      delete outcome.remaining;
-    }
-    outcome.rewards = rewards;
-    if (outcome.result) {
-      outcome.draw = outcome.draw || outcome.result === 'draw';
-    }
-    return outcome;
-  }
-
-  const player = participants.player || {};
-  const opponent = participants.opponent || participants.enemy || {};
-  const victory = !!fallback.victory;
-  const draw = !victory && !!fallback.draw;
-  const resultLabel = victory ? 'victory' : draw ? 'draw' : 'defeat';
-  const playerId = player.id || player.memberId || null;
-  const opponentId = opponent.id || opponent.memberId || null;
-  const playerName = player.displayName || '我方';
-  const opponentName = opponent.displayName || '对手';
-  const remaining = normalizeRemainingStateSnapshot(fallback.remaining);
-  const roundsValue = Number(fallback.rounds);
-  const rounds = Number.isFinite(roundsValue) && roundsValue > 0 ? Math.floor(roundsValue) : null;
-  const outcome = {
-    result: resultLabel,
-    draw,
-    winnerId: victory ? playerId : draw ? null : opponentId,
-    loserId: victory ? opponentId : draw ? null : playerId,
-    rounds: rounds || undefined,
-    rewards,
-    summary: {
-      title: victory ? '战斗结果 · 胜利' : draw ? '战斗结果 · 平局' : '战斗结果 · 惜败',
-      text: draw
-        ? `${playerName}与${opponentName}的对决以平局收场。`
-        : victory
-        ? `${playerName}击败了${opponentName}。`
-        : `${opponentName}击败了${playerName}。`
-    }
-  };
-  if (remaining) {
-    outcome.remaining = remaining;
-  }
-  return outcome;
-}
-
-function buildBattleSummaryPayload(result) {
-  const combatPower = result.combatPower;
-  if (!combatPower || typeof combatPower !== 'object') {
-    return null;
-  }
-  const summary = {};
-  const normalized = {};
-  const player = Number(combatPower.player);
-  if (Number.isFinite(player)) {
-    normalized.player = Math.round(player);
-  }
-  const enemy = Number(combatPower.enemy);
-  if (Number.isFinite(enemy)) {
-    normalized.opponent = Math.round(enemy);
-  }
-  if (Object.keys(normalized).length) {
-    summary.combatPower = normalized;
-  }
-  return Object.keys(summary).length ? summary : null;
 }
 function rollSkill() {
   const quality = selectSkillQuality();
