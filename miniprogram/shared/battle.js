@@ -1,4 +1,5 @@
 const { buildCloudAssetUrl, CHARACTER_IMAGE_BASE_PATH } = require('./asset-paths');
+const { buildTitleImageUrl, resolveTitleById, normalizeTitleId } = require('./titles');
 
 const DEFAULT_BACKGROUND_VIDEO = buildCloudAssetUrl('video', 'battle_default.mp4');
 const DEFAULT_PLAYER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/male-b-1.png`;
@@ -49,6 +50,344 @@ function resolvePortrait(source, fallback) {
     return source.portrait;
   }
   return fallback;
+}
+
+function extractFromCandidates(candidates, extractor) {
+  const list = Array.isArray(candidates) ? candidates : [candidates];
+  for (let i = 0; i < list.length; i += 1) {
+    const resolved = extractor(list[i]);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return '';
+}
+
+function extractAvatarImageCandidate(candidate, visited = new Set()) {
+  if (!candidate || visited.has(candidate)) {
+    return '';
+  }
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      const resolved = extractAvatarImageCandidate(candidate[i], visited);
+      if (resolved) {
+        return resolved;
+      }
+    }
+    return '';
+  }
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    return trimmed || '';
+  }
+  if (typeof candidate !== 'object') {
+    return '';
+  }
+  visited.add(candidate);
+  const directKeys = ['avatarUrl', 'avatar', 'headImage'];
+  for (let i = 0; i < directKeys.length; i += 1) {
+    const key = directKeys[i];
+    if (Object.prototype.hasOwnProperty.call(candidate, key)) {
+      const resolved = extractAvatarImageCandidate(candidate[key], visited);
+      if (resolved) {
+        return resolved;
+      }
+    }
+  }
+  if (typeof candidate.portrait === 'string' && candidate.portrait.trim()) {
+    return candidate.portrait.trim();
+  }
+  const nestedKeys = [...NESTED_ENTITY_KEYS, 'profile', 'participant', 'member', 'owner'];
+  for (let i = 0; i < nestedKeys.length; i += 1) {
+    const key = nestedKeys[i];
+    if (!Object.prototype.hasOwnProperty.call(candidate, key)) {
+      continue;
+    }
+    const resolved = extractAvatarImageCandidate(candidate[key], visited);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return '';
+}
+
+function resolveAvatarImage(candidates, fallback) {
+  const resolved = extractFromCandidates(candidates, (candidate) =>
+    extractAvatarImageCandidate(candidate, new Set())
+  );
+  return resolved || fallback;
+}
+
+function extractAvatarFrameCandidate(candidate, visited = new Set()) {
+  if (!candidate || visited.has(candidate)) {
+    return '';
+  }
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      const resolved = extractAvatarFrameCandidate(candidate[i], visited);
+      if (resolved) {
+        return resolved;
+      }
+    }
+    return '';
+  }
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    return trimmed || '';
+  }
+  if (typeof candidate !== 'object') {
+    return '';
+  }
+  visited.add(candidate);
+  const directKeys = ['avatarFrame', 'frame', 'frameUrl', 'frameImage'];
+  for (let i = 0; i < directKeys.length; i += 1) {
+    const key = directKeys[i];
+    if (Object.prototype.hasOwnProperty.call(candidate, key)) {
+      const resolved = extractAvatarFrameCandidate(candidate[key], visited);
+      if (resolved) {
+        return resolved;
+      }
+    }
+  }
+  const nestedKeys = [...NESTED_ENTITY_KEYS, 'profile', 'participant', 'member', 'owner'];
+  for (let i = 0; i < nestedKeys.length; i += 1) {
+    const key = nestedKeys[i];
+    if (!Object.prototype.hasOwnProperty.call(candidate, key)) {
+      continue;
+    }
+    const resolved = extractAvatarFrameCandidate(candidate[key], visited);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return '';
+}
+
+function resolveAvatarFrame(candidates) {
+  return extractFromCandidates(candidates, (candidate) =>
+    extractAvatarFrameCandidate(candidate, new Set())
+  );
+}
+
+function isTitleIdentifier(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+  return /^title[_a-z0-9]+$/i.test(trimmed);
+}
+
+function extractTitleIdCandidate(candidate, visited = new Set()) {
+  if (!candidate || visited.has(candidate)) {
+    return '';
+  }
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      const resolved = extractTitleIdCandidate(candidate[i], visited);
+      if (resolved) {
+        return resolved;
+      }
+    }
+    return '';
+  }
+  if (typeof candidate === 'string') {
+    if (isTitleIdentifier(candidate)) {
+      return normalizeTitleId(candidate);
+    }
+    return '';
+  }
+  if (typeof candidate !== 'object') {
+    return '';
+  }
+  visited.add(candidate);
+  const directKeys = [
+    'appearanceTitle',
+    'titleId',
+    'title_id',
+    'titleKey',
+    'titleCode',
+    'title'
+  ];
+  for (let i = 0; i < directKeys.length; i += 1) {
+    const key = directKeys[i];
+    if (!Object.prototype.hasOwnProperty.call(candidate, key)) {
+      continue;
+    }
+    const resolved = extractTitleIdCandidate(candidate[key], visited);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  if (typeof candidate.id === 'string' && isTitleIdentifier(candidate.id)) {
+    return normalizeTitleId(candidate.id);
+  }
+  const nestedKeys = [...NESTED_ENTITY_KEYS, 'profile', 'participant', 'member', 'owner'];
+  for (let i = 0; i < nestedKeys.length; i += 1) {
+    const key = nestedKeys[i];
+    if (!Object.prototype.hasOwnProperty.call(candidate, key)) {
+      continue;
+    }
+    const resolved = extractTitleIdCandidate(candidate[key], visited);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return '';
+}
+
+function extractTitleImageCandidate(candidate, visited = new Set()) {
+  if (!candidate || visited.has(candidate)) {
+    return '';
+  }
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      const resolved = extractTitleImageCandidate(candidate[i], visited);
+      if (resolved) {
+        return resolved;
+      }
+    }
+    return '';
+  }
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    if (!trimmed) {
+      return '';
+    }
+    if (isTitleIdentifier(trimmed)) {
+      const normalized = normalizeTitleId(trimmed);
+      return normalized ? buildTitleImageUrl(normalized) : '';
+    }
+    if (/\.(png|jpg|jpeg|webp)$/i.test(trimmed) || /^https?:\/\//i.test(trimmed)) {
+      return trimmed;
+    }
+    return '';
+  }
+  if (typeof candidate !== 'object') {
+    return '';
+  }
+  visited.add(candidate);
+  const directKeys = ['titleImage', 'image', 'badge', 'icon'];
+  for (let i = 0; i < directKeys.length; i += 1) {
+    const key = directKeys[i];
+    if (!Object.prototype.hasOwnProperty.call(candidate, key)) {
+      continue;
+    }
+    const resolved = extractTitleImageCandidate(candidate[key], visited);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  const nestedKeys = ['title', 'appearance', ...NESTED_ENTITY_KEYS, 'profile', 'participant', 'member', 'owner'];
+  for (let i = 0; i < nestedKeys.length; i += 1) {
+    const key = nestedKeys[i];
+    if (!Object.prototype.hasOwnProperty.call(candidate, key)) {
+      continue;
+    }
+    const resolved = extractTitleImageCandidate(candidate[key], visited);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return '';
+}
+
+function extractTitleNameCandidate(candidate, visited = new Set()) {
+  if (!candidate || visited.has(candidate)) {
+    return '';
+  }
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      const resolved = extractTitleNameCandidate(candidate[i], visited);
+      if (resolved) {
+        return resolved;
+      }
+    }
+    return '';
+  }
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    if (!trimmed) {
+      return '';
+    }
+    if (isTitleIdentifier(trimmed)) {
+      const normalized = normalizeTitleId(trimmed);
+      if (!normalized) {
+        return '';
+      }
+      const resolved = resolveTitleById(normalized);
+      return (resolved && resolved.name) || '';
+    }
+    return trimmed;
+  }
+  if (typeof candidate !== 'object') {
+    return '';
+  }
+  visited.add(candidate);
+  const nameKeys = ['titleName', 'name', 'label', 'displayName', 'text'];
+  for (let i = 0; i < nameKeys.length; i += 1) {
+    const key = nameKeys[i];
+    if (typeof candidate[key] === 'string' && candidate[key].trim()) {
+      const value = candidate[key].trim();
+      if (isTitleIdentifier(value)) {
+        const normalized = normalizeTitleId(value);
+        if (normalized) {
+          const resolved = resolveTitleById(normalized);
+          if (resolved && resolved.name) {
+            return resolved.name;
+          }
+        }
+        continue;
+      }
+      return value;
+    }
+  }
+  const nestedKeys = ['title', 'appearance', ...NESTED_ENTITY_KEYS, 'profile', 'participant', 'member', 'owner'];
+  for (let i = 0; i < nestedKeys.length; i += 1) {
+    const key = nestedKeys[i];
+    if (!Object.prototype.hasOwnProperty.call(candidate, key)) {
+      continue;
+    }
+    const resolved = extractTitleNameCandidate(candidate[key], visited);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return '';
+}
+
+function resolveParticipantTitleInfo(candidates = []) {
+  const list = Array.isArray(candidates) ? candidates : [candidates];
+  const titleId = extractFromCandidates(list, (candidate) =>
+    extractTitleIdCandidate(candidate, new Set())
+  );
+  let titleImage = extractFromCandidates(list, (candidate) =>
+    extractTitleImageCandidate(candidate, new Set())
+  );
+  let titleName = extractFromCandidates(list, (candidate) =>
+    extractTitleNameCandidate(candidate, new Set())
+  );
+  if (titleId) {
+    const normalized = normalizeTitleId(titleId);
+    const resolved = resolveTitleById(normalized);
+    if (resolved) {
+      if (!titleName) {
+        titleName = resolved.name || '';
+      }
+      if (!titleImage) {
+        titleImage = resolved.image || buildTitleImageUrl(normalized);
+      }
+    } else if (!titleImage) {
+      titleImage = buildTitleImageUrl(normalized);
+    }
+  }
+  return {
+    id: titleId || '',
+    name: titleName || '',
+    image: titleImage || ''
+  };
 }
 
 function buildHpState(maxHp, currentHp) {
@@ -668,6 +1007,59 @@ function buildStructuredBattleViewModel({
     defaults.opponentPortrait || DEFAULT_OPPONENT_IMAGE
   );
 
+  const playerAvatar = resolveAvatarImage(
+    [
+      context.playerAvatar,
+      context.playerAvatarUrl,
+      playerSource,
+      battle.player,
+      fallbackParticipants.player
+    ],
+    playerPortrait
+  );
+  const opponentAvatar = resolveAvatarImage(
+    [
+      context.opponentAvatar,
+      context.opponentAvatarUrl,
+      opponentSource,
+      battle.opponent || battle.enemy,
+      fallbackParticipants.opponent
+    ],
+    opponentPortrait
+  );
+  const playerAvatarFrame = resolveAvatarFrame([
+    context.playerAvatarFrame,
+    playerSource,
+    battle.player,
+    fallbackParticipants.player
+  ]);
+  const opponentAvatarFrame = resolveAvatarFrame([
+    context.opponentAvatarFrame,
+    opponentSource,
+    battle.opponent || battle.enemy,
+    fallbackParticipants.opponent
+  ]);
+  const playerTitleInfo = resolveParticipantTitleInfo([
+    context.playerTitle,
+    context.playerTitleId,
+    context.playerTitleName,
+    context.playerTitleImage,
+    context.playerAppearanceTitle,
+    playerSource,
+    battle.player,
+    fallbackParticipants.player
+  ]);
+  const opponentTitleInfo = resolveParticipantTitleInfo([
+    context.opponentTitle,
+    context.opponentTitleId,
+    context.opponentTitleName,
+    context.opponentTitleImage,
+    context.opponentAppearanceTitle,
+    opponentSource,
+    battle.opponent || battle.enemy,
+    fallbackParticipants.opponent
+  ]);
+
   const playerBaseMax = extractParticipantMaxHp(playerSource, defaults.playerMaxHp);
   const opponentBaseMax = extractParticipantMaxHp(opponentSource, defaults.opponentMaxHp);
   let playerMaxHp = collectMaxHpFromTimeline(timeline, 'player', playerBaseMax);
@@ -930,6 +1322,11 @@ function buildStructuredBattleViewModel({
     player: {
       id: playerId || 'player',
       name: playerName,
+      avatar: playerAvatar,
+      avatarFrame: playerAvatarFrame,
+      titleId: playerTitleInfo.id,
+      titleName: playerTitleInfo.name,
+      titleImage: playerTitleInfo.image,
       hp: buildHpState(playerMaxHp, playerMaxHp),
       portrait: playerPortrait,
       combatPower: toNumber((playerSource && playerSource.combatPower) || context.playerPower),
@@ -943,6 +1340,11 @@ function buildStructuredBattleViewModel({
     opponent: {
       id: opponentId || 'opponent',
       name: opponentName,
+      avatar: opponentAvatar,
+      avatarFrame: opponentAvatarFrame,
+      titleId: opponentTitleInfo.id,
+      titleName: opponentTitleInfo.name,
+      titleImage: opponentTitleInfo.image,
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
       portrait: opponentPortrait,
       combatPower: toNumber((opponentSource && opponentSource.combatPower) || context.opponentPower),
@@ -1166,13 +1568,66 @@ function buildPveActions(battle = {}, context = {}) {
 
   const playerName = (context && context.playerName) || '你';
   const opponentName = (context && context.opponentName) || '秘境之敌';
+  const participants = (battle && battle.participants) || {};
+  const playerPortrait = resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE);
+  const opponentPortrait = resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE);
+  const playerAvatar = resolveAvatarImage(
+    [
+      context && (context.playerAvatar || context.playerAvatarUrl),
+      participants.player,
+      participants.self,
+      battle.player
+    ],
+    playerPortrait
+  );
+  const opponentAvatar = resolveAvatarImage(
+    [
+      context && (context.opponentAvatar || context.opponentAvatarUrl),
+      participants.opponent,
+      participants.enemy,
+      battle.opponent,
+      battle.enemy
+    ],
+    opponentPortrait
+  );
+  const playerAvatarFrame = resolveAvatarFrame([
+    context && context.playerAvatarFrame,
+    participants.player,
+    participants.self,
+    battle.player
+  ]);
+  const opponentAvatarFrame = resolveAvatarFrame([
+    context && context.opponentAvatarFrame,
+    participants.opponent,
+    participants.enemy,
+    battle.opponent,
+    battle.enemy
+  ]);
+  const playerTitleInfo = resolveParticipantTitleInfo([
+    context && (context.playerTitle || context.playerTitleId || context.playerTitleName || context.playerAppearanceTitle),
+    participants.player,
+    participants.self,
+    battle.player
+  ]);
+  const opponentTitleInfo = resolveParticipantTitleInfo([
+    context && (context.opponentTitle || context.opponentTitleId || context.opponentTitleName || context.opponentAppearanceTitle),
+    participants.opponent,
+    participants.enemy,
+    battle.opponent,
+    battle.enemy
+  ]);
 
   return {
     player: {
       id: 'player',
       name: playerName,
+      avatar: playerAvatar,
+      avatarFrame: playerAvatarFrame,
+      titleId: playerTitleInfo.id,
+      titleName: playerTitleInfo.name,
+      titleImage: playerTitleInfo.image,
       hp: buildHpState(playerMaxHp, playerMaxHp),
-      portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
+      portrait: playerPortrait,
       combatPower: toNumber(battle.combatPower && battle.combatPower.player),
       attributes: ensureAttributesObject(context && context.playerAttributes),
       summary: {
@@ -1184,8 +1639,13 @@ function buildPveActions(battle = {}, context = {}) {
     opponent: {
       id: 'opponent',
       name: opponentName,
+      avatar: opponentAvatar,
+      avatarFrame: opponentAvatarFrame,
+      titleId: opponentTitleInfo.id,
+      titleName: opponentTitleInfo.name,
+      titleImage: opponentTitleInfo.image,
       hp: buildHpState(enemyMaxHp, enemyMaxHp),
-      portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
+      portrait: opponentPortrait,
       combatPower: toNumber(battle.combatPower && battle.combatPower.enemy),
       attributes: ensureAttributesObject(context && context.opponentAttributes),
       summary: {
@@ -1363,12 +1823,66 @@ function buildPvpActions(battle = {}, context = {}) {
     }
   });
 
+  const participants = (battle && battle.participants) || {};
+  const playerPortrait = resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE);
+  const opponentPortrait = resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE);
+  const playerAvatar = resolveAvatarImage(
+    [
+      context && (context.playerAvatar || context.playerAvatarUrl),
+      participants.player,
+      participants.self,
+      battle.player
+    ],
+    playerPortrait
+  );
+  const opponentAvatar = resolveAvatarImage(
+    [
+      context && (context.opponentAvatar || context.opponentAvatarUrl),
+      participants.opponent,
+      participants.enemy,
+      battle.opponent,
+      battle.enemy
+    ],
+    opponentPortrait
+  );
+  const playerAvatarFrame = resolveAvatarFrame([
+    context && context.playerAvatarFrame,
+    participants.player,
+    participants.self,
+    battle.player
+  ]);
+  const opponentAvatarFrame = resolveAvatarFrame([
+    context && context.opponentAvatarFrame,
+    participants.opponent,
+    participants.enemy,
+    battle.opponent,
+    battle.enemy
+  ]);
+  const playerTitleInfo = resolveParticipantTitleInfo([
+    context && (context.playerTitle || context.playerTitleId || context.playerTitleName || context.playerAppearanceTitle),
+    participants.player,
+    participants.self,
+    battle.player
+  ]);
+  const opponentTitleInfo = resolveParticipantTitleInfo([
+    context && (context.opponentTitle || context.opponentTitleId || context.opponentTitleName || context.opponentAppearanceTitle),
+    participants.opponent,
+    participants.enemy,
+    battle.opponent,
+    battle.enemy
+  ]);
+
   return {
     player: {
       id: playerId || 'player',
       name: playerName,
+      avatar: playerAvatar,
+      avatarFrame: playerAvatarFrame,
+      titleId: playerTitleInfo.id,
+      titleName: playerTitleInfo.name,
+      titleImage: playerTitleInfo.image,
       hp: buildHpState(playerMaxHp, playerMaxHp),
-      portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
+      portrait: playerPortrait,
       combatPower: toNumber(context && context.playerPower),
       attributes: ensureAttributesObject(context && context.playerAttributes),
       summary: {
@@ -1380,8 +1894,13 @@ function buildPvpActions(battle = {}, context = {}) {
     opponent: {
       id: opponentId || 'opponent',
       name: opponentName,
+      avatar: opponentAvatar,
+      avatarFrame: opponentAvatarFrame,
+      titleId: opponentTitleInfo.id,
+      titleName: opponentTitleInfo.name,
+      titleImage: opponentTitleInfo.image,
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
-      portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
+      portrait: opponentPortrait,
       combatPower: toNumber(context && context.opponentPower),
       attributes: ensureAttributesObject(context && context.opponentAttributes),
       summary: {

@@ -67,33 +67,134 @@ page {
   gap: 24rpx;
 }
 
+.actor-card.attacker-card {
+  order: 0;
+}
+
+.actor-card.defender-card {
+  order: 1;
+}
+
 .actor-card {
-  width: 300rpx;
-  padding: 28rpx;
+  width: 320rpx;
+  padding: 24rpx;
   background: rgba(8, 18, 48, 0.65);
   border: 1rpx solid rgba(126, 175, 255, 0.25);
   border-radius: 24rpx;
   backdrop-filter: blur(6rpx);
   display: flex;
   flex-direction: column;
-  gap: 12rpx;
-  align-items: flex-start;
+  gap: 16rpx;
+  align-items: stretch;
 }
 
 .actor-card.actor-player {
   text-align: right;
-  align-items: flex-end;
+}
+
+.actor-card.attacker-card.actor-player {
+  text-align: left;
+}
+
+.actor-card.attacker-card.actor-player .actor-meta,
+.actor-card.attacker-card.actor-player .hp-text {
+  align-self: flex-start;
+}
+
+.actor-card.defender-card.actor-opponent {
+  text-align: right;
+}
+
+.actor-card.defender-card.actor-opponent .actor-meta,
+.actor-card.defender-card.actor-opponent .hp-text {
+  align-self: flex-end;
 }
 
 .actor-card .actor-name {
   font-size: 32rpx;
   font-weight: 600;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .actor-card .actor-meta {
   margin-top: 8rpx;
   font-size: 24rpx;
   color: rgba(226, 235, 255, 0.7);
+}
+
+.actor-header {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  width: 100%;
+}
+
+.actor-card.defender-card .actor-header {
+  flex-direction: row-reverse;
+}
+
+.actor-avatar {
+  position: relative;
+  width: 96rpx;
+  height: 96rpx;
+  flex-shrink: 0;
+}
+
+.actor-avatar-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.actor-avatar-frame {
+  position: absolute;
+  top: -18%;
+  left: -18%;
+  width: 136%;
+  height: 136%;
+  pointer-events: none;
+}
+
+.actor-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  flex: 1;
+  min-width: 0;
+  align-items: flex-start;
+}
+
+.actor-card.defender-card .actor-summary {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.actor-title {
+  display: flex;
+  align-items: center;
+  gap: 6rpx;
+  min-height: 32rpx;
+}
+
+.actor-card.defender-card .actor-title {
+  justify-content: flex-end;
+}
+
+.actor-title-image {
+  height: 44rpx;
+  width: auto;
+  display: block;
+}
+
+.actor-title-text {
+  font-size: 22rpx;
+  color: rgba(226, 235, 255, 0.75);
+  white-space: nowrap;
 }
 
 .hp-track {
@@ -149,6 +250,14 @@ page {
   padding-bottom: 12rpx;
 }
 
+.avatar-wrapper.attacker {
+  order: 0;
+}
+
+.avatar-wrapper.defender {
+  order: 1;
+}
+
 .avatar-inner {
   width: 100%;
   height: 100%;
@@ -173,8 +282,12 @@ page {
   animation: hitShake 0.6s ease;
 }
 
-.avatar-wrapper.opponent .actor-portrait {
+.avatar-wrapper.attacker .actor-portrait {
   transform: scaleX(-1);
+}
+
+.avatar-wrapper.defender .actor-portrait {
+  transform: scaleX(1);
 }
 
 @keyframes attackPulse {
