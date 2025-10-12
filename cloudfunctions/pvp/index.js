@@ -4,12 +4,7 @@ const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const commonConfig = require('common-config');
-const {
-  COLLECTIONS,
-  resolveBackgroundById,
-  normalizeBackgroundId,
-  CHARACTER_IMAGE_BASE_PATH
-} = commonConfig;
+const { COLLECTIONS, resolveBackgroundById, normalizeBackgroundId } = commonConfig;
 const {
   DEFAULT_COMBAT_STATS,
   DEFAULT_SPECIAL_STATS,
@@ -60,58 +55,6 @@ const REQUIRED_PVP_COLLECTIONS = [
   COLLECTIONS.PVP_LEADERBOARD,
   COLLECTIONS.PVP_INVITES
 ];
-
-const AVATAR_ID_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png$/i;
-
-function normalizeBattlePortrait(value) {
-  if (typeof value !== 'string') {
-    return '';
-  }
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return '';
-  }
-  const lower = trimmed.toLowerCase();
-  if (lower.includes('/assets/character/')) {
-    return trimmed;
-  }
-  const match = lower.match(AVATAR_ID_PATTERN);
-  if (match && match[1]) {
-    return `${CHARACTER_IMAGE_BASE_PATH}/${match[1]}.png`;
-  }
-  return trimmed;
-}
-
-function resolveBattlePortrait(candidates = []) {
-  for (let i = 0; i < candidates.length; i += 1) {
-    const candidate = candidates[i];
-    if (!candidate) {
-      continue;
-    }
-    if (typeof candidate === 'string') {
-      const normalized = normalizeBattlePortrait(candidate);
-      if (normalized) {
-        return normalized;
-      }
-      continue;
-    }
-    if (candidate && typeof candidate === 'object') {
-      if (typeof candidate.url === 'string') {
-        const normalized = normalizeBattlePortrait(candidate.url);
-        if (normalized) {
-          return normalized;
-        }
-      }
-      if (typeof candidate.portrait === 'string') {
-        const normalized = normalizeBattlePortrait(candidate.portrait);
-        if (normalized) {
-          return normalized;
-        }
-      }
-    }
-  }
-  return '';
-}
 
 function buildBackgroundPayloadFromId(backgroundId, animatedFlag) {
   const normalized = normalizeBackgroundId(backgroundId || '');
@@ -574,11 +517,6 @@ async function resolveBattle(memberId, member, profile, opponentDescriptor, seas
     initiatorId,
     defenderId: defenderEntry.memberId
   });
-  const opponentPortrait = resolveBattlePortrait([
-    opponentEntry && opponentEntry.portrait,
-    opponentMember && opponentMember.portrait,
-    opponentMember && opponentMember.avatarUrl
-  ]);
   const opponentPreview = {
     memberId: opponentEntry.memberId,
     isBot: !!opponentEntry.isBot,
@@ -586,8 +524,7 @@ async function resolveBattle(memberId, member, profile, opponentDescriptor, seas
     tierId: opponentProfile.tierId,
     tierName: opponentProfile.tierName,
     points: opponentProfile.points,
-    avatarUrl: opponentPortrait,
-    portrait: opponentPortrait,
+    avatarUrl: opponentMember ? opponentMember.avatarUrl || '' : '',
     summary: {
       wins: opponentProfile.wins,
       losses: opponentProfile.losses,
@@ -604,76 +541,18 @@ function simulateBattle(player, opponent, seed) {
   const rng = createRandomGenerator(seed);
   const playerState = buildActorState(player);
   const opponentState = buildActorState(opponent);
-  const playerBaseMaxHp = Math.max(1, Math.round(playerState.stats.maxHp || DEFAULT_COMBAT_STATS.maxHp));
-  const opponentBaseMaxHp = Math.max(1, Math.round(opponentState.stats.maxHp || DEFAULT_COMBAT_STATS.maxHp));
-  const playerAttributesSnapshot = buildCombatAttributesSnapshot(playerState.stats);
-  const opponentAttributesSnapshot = buildCombatAttributesSnapshot(opponentState.stats);
   const timeline = [];
   const participants = [playerState, opponentState];
   const firstIndex = playerState.stats.speed >= opponentState.stats.speed ? 0 : 1;
-
   for (let round = 1; round <= MATCH_ROUND_LIMIT; round += 1) {
-    let sequence = 1;
     for (let turn = 0; turn < participants.length; turn += 1) {
       const attacker = participants[(firstIndex + turn + round - 1) % participants.length];
       const defender = attacker === playerState ? opponentState : playerState;
       if (attacker.hp <= 0 || defender.hp <= 0) {
         continue;
       }
-
-      const actorSide = attacker === playerState ? 'player' : 'opponent';
-      const targetSide = defender === playerState ? 'player' : 'opponent';
-      const beforePlayerHp = playerState.hp;
-      const beforeOpponentHp = opponentState.hp;
-      const result = resolveAttack(attacker, defender, rng, round);
-      const events = [];
-      const actorName = attacker.displayName || (actorSide === 'player' ? '我方' : '对手');
-      const targetName = defender.displayName || (targetSide === 'player' ? '我方' : '对手');
-      const summaryParts = [];
-
-      if (result.dodged) {
-        events.push({ type: 'dodge', targetId: defender.memberId, targetSide });
-        summaryParts.push(`${targetName}闪避了${actorName}的攻势`);
-      } else {
-        const damageValue = Math.max(0, Math.round(result.damage));
-        events.push({
-          type: 'damage',
-          targetId: defender.memberId,
-          targetSide,
-          value: damageValue,
-          crit: !!result.crit,
-          remainingHp: Math.max(0, Math.round(defender.hp))
-        });
-        summaryParts.push(
-          `${actorName}对${targetName}造成${damageValue}点伤害${result.crit ? '（暴击）' : ''}`
-        );
-      }
-
-      if (!result.dodged && result.heal > 0) {
-        events.push({ type: 'heal', targetId: attacker.memberId, targetSide: actorSide, value: Math.round(result.heal) });
-        summaryParts.push(`${actorName}回复${Math.round(result.heal)}点生命`);
-      }
-
-      const entry = buildTimelineEntry({
-        round,
-        sequence,
-        actorId: attacker.memberId,
-        actorName,
-        actorSide,
-        targetId: defender.memberId,
-        targetName,
-        events,
-        before: { player: beforePlayerHp, opponent: beforeOpponentHp },
-        after: { player: playerState.hp, opponent: opponentState.hp },
-        playerMaxHp: playerBaseMaxHp,
-        opponentMaxHp: opponentBaseMaxHp,
-        playerAttributesSnapshot,
-        opponentAttributesSnapshot,
-        summaryText: summaryParts.join('，')
-      });
-      timeline.push(entry);
-      sequence += 1;
-
+      const log = resolveAttack(attacker, defender, rng, round);
+      timeline.push(log);
       if (defender.hp <= 0) {
         defender.hp = 0;
         attacker.roundsWon += 1;
@@ -684,7 +563,6 @@ function simulateBattle(player, opponent, seed) {
       break;
     }
   }
-
   const draw = playerState.hp > 0 && opponentState.hp > 0;
   let winnerId = null;
   let loserId = null;
@@ -697,40 +575,11 @@ function simulateBattle(player, opponent, seed) {
       loserId = player.memberId;
     }
   }
-
-  const participantsSnapshot = buildBattleParticipants({
-    playerState,
-    opponentState,
-    playerEntry: player,
-    opponentEntry: opponent,
-    playerMaxHp: playerBaseMaxHp,
-    opponentMaxHp: opponentBaseMaxHp,
-    playerAttributesSnapshot,
-    opponentAttributesSnapshot
-  });
-  const outcome = buildStructuredBattleOutcome({
-    playerState,
-    opponentState,
-    playerEntry: player,
-    opponentEntry: opponent,
-    draw,
-    winnerId,
-    loserId,
-    timeline
-  });
-  const metadata = {
-    mode: 'pvp',
-    seed,
-    generatedAt: Date.now()
-  };
-
   return {
     seed,
     rounds: timeline,
-    timeline,
-    participants: participantsSnapshot,
-    outcome,
-    metadata,
+    player: summarizeActor(playerState),
+    opponent: summarizeActor(opponentState),
     draw,
     winnerId,
     loserId
@@ -750,14 +599,6 @@ async function persistBattleResult({
 }) {
   const now = new Date();
   const result = determineOutcome(simulation, player.memberId);
-  const timeline = Array.isArray(simulation.timeline)
-    ? simulation.timeline
-    : Array.isArray(simulation.rounds)
-    ? simulation.rounds
-    : [];
-  const participants = simulation.participants || null;
-  const outcome = simulation.outcome || null;
-  const metadata = simulation.metadata || { mode: 'pvp', seed: simulation.seed };
   const playerUpdate = applyMatchOutcome({
     season,
     profile,
@@ -794,10 +635,7 @@ async function persistBattleResult({
     opponent: opponent.isBot
       ? buildParticipantSnapshot(opponentUpdate ? opponentUpdate.after : opponentProfile, opponentUpdate ? opponentUpdate.delta : { points: 0 }, opponent)
       : buildParticipantSnapshot(opponentUpdate.after, opponentUpdate.delta, opponent),
-    timeline,
-    participants,
-    outcome,
-    metadata,
+    rounds: simulation.rounds,
     signature: signBattlePayload({
       seasonId: season._id,
       seed: simulation.seed,
@@ -831,10 +669,7 @@ async function persistBattleResult({
     winnerId: simulation.winnerId,
     loserId: simulation.loserId,
     draw: simulation.draw,
-    timeline,
-    participants,
-    outcome,
-    metadata,
+    rounds: simulation.rounds,
     signature: matchRecord.signature,
     player: matchRecord.player,
     opponent: matchRecord.opponent,
@@ -1204,19 +1039,11 @@ function decorateMatchSummary(match, memberId) {
 }
 
 function decorateMatchReplay(match) {
-  const legacyTimeline = Array.isArray(match.timeline)
-    ? match.timeline
-    : Array.isArray(match.rounds)
-    ? match.rounds
-    : [];
   return {
     matchId: match.matchId || match._id,
     seasonId: match.seasonId,
     seed: match.seed,
-    timeline: legacyTimeline,
-    participants: match.participants || null,
-    outcome: match.outcome || null,
-    metadata: match.metadata || null,
+    rounds: match.rounds || [],
     result: match.result || {},
     player: match.player,
     opponent: match.opponent,
@@ -1484,15 +1311,6 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
   const backgroundId = buildBackgroundIdFromMember(member);
   const backgroundAnimated = !!(member && member.appearanceBackgroundAnimated);
   const background = buildBackgroundPayloadFromId(backgroundId, backgroundAnimated);
-  const portrait = resolveBattlePortrait([
-    profile && profile.memberSnapshot && profile.memberSnapshot.portrait,
-    profile && profile.memberSnapshot && profile.memberSnapshot.avatarUrl,
-    profile && profile.portrait,
-    profile && profile.avatarUrl,
-    member && member.portrait,
-    member && member.avatarUrl
-  ]);
-  const avatarUrl = portrait;
   return {
     memberId: memberId || profile.memberId,
     displayName: profile.memberSnapshot && profile.memberSnapshot.nickName ? profile.memberSnapshot.nickName : member ? member.nickName || '无名仙友' : '神秘对手',
@@ -1505,8 +1323,6 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
     isBot: !!isBot,
     appearanceBackgroundId: backgroundId,
     appearanceBackgroundAnimated: backgroundAnimated,
-    avatarUrl,
-    portrait,
     ...(background ? { background } : {})
   };
 }
@@ -1540,6 +1356,20 @@ function buildActorState(actor) {
   };
 }
 
+function summarizeActor(state) {
+  return {
+    memberId: state.memberId,
+    displayName: state.displayName,
+    tierId: state.tierId,
+    tierName: state.tierName,
+    remainingHp: Math.max(0, Math.round(state.hp)),
+    maxHp: state.maxHp,
+    damageDealt: Math.round(state.damageDealt),
+    damageTaken: Math.round(state.damageTaken),
+    roundsWon: state.roundsWon
+  };
+}
+
 function resolveAttack(attacker, defender, rng, round) {
   const result = performCombatAttack(attacker.stats, attacker.special, defender.stats, defender.special, rng);
   let damage = 0;
@@ -1569,248 +1399,6 @@ function resolveAttack(attacker, defender, rng, round) {
     crit: !!result.crit,
     heal: healApplied,
     targetRemainingHp: Math.max(0, Math.round(defender.hp))
-  };
-}
-
-function buildBattleParticipants({
-  playerState,
-  opponentState,
-  playerEntry,
-  opponentEntry,
-  playerMaxHp,
-  opponentMaxHp,
-  playerAttributesSnapshot,
-  opponentAttributesSnapshot
-}) {
-  return {
-    player: buildBattleParticipantPayload({
-      state: playerState,
-      actor: playerEntry,
-      side: 'player',
-      baseMaxHp: playerMaxHp,
-      attributes: playerAttributesSnapshot
-    }),
-    opponent: buildBattleParticipantPayload({
-      state: opponentState,
-      actor: opponentEntry,
-      side: 'opponent',
-      baseMaxHp: opponentMaxHp,
-      attributes: opponentAttributesSnapshot
-    })
-  };
-}
-
-function buildBattleParticipantPayload({ state, actor, side, baseMaxHp, attributes }) {
-  const hpValue = Number.isFinite(state.hp) ? state.hp : baseMaxHp;
-  const currentHp = Math.max(0, Math.round(Math.min(hpValue, baseMaxHp)));
-  const shield = Math.max(0, Math.round(hpValue - baseMaxHp));
-  const payload = {
-    id: state.memberId,
-    memberId: state.memberId,
-    side,
-    displayName: state.displayName,
-    tierId: state.tierId,
-    tierName: state.tierName,
-    combatPower: Math.round(Number(actor.combatPower || 0)),
-    maxHp: baseMaxHp,
-    hp: {
-      current: currentHp,
-      max: baseMaxHp
-    },
-    attributes: { ...attributes },
-    isBot: !!actor.isBot
-  };
-
-  const pointsValue = Number(actor.points);
-  if (Number.isFinite(pointsValue)) {
-    payload.points = pointsValue;
-  }
-
-  if (shield > 0) {
-    payload.hp.shield = shield;
-  }
-
-  if (actor.portrait) {
-    payload.portrait = actor.portrait;
-  }
-  if (actor.avatarUrl) {
-    payload.avatarUrl = actor.avatarUrl;
-  }
-  if (actor.appearanceBackgroundId) {
-    payload.appearanceBackgroundId = actor.appearanceBackgroundId;
-  }
-  if (typeof actor.appearanceBackgroundAnimated === 'boolean') {
-    payload.appearanceBackgroundAnimated = actor.appearanceBackgroundAnimated;
-  }
-  if (actor.background) {
-    payload.background = actor.background;
-  }
-
-  return payload;
-}
-
-function buildCombatAttributesSnapshot(stats = {}) {
-  const keys = [
-    'maxHp',
-    'physicalAttack',
-    'magicAttack',
-    'physicalDefense',
-    'magicDefense',
-    'speed',
-    'accuracy',
-    'dodge',
-    'critRate',
-    'critDamage',
-    'critResist',
-    'finalDamageBonus',
-    'finalDamageReduction',
-    'lifeSteal',
-    'healingBonus',
-    'healingReduction',
-    'controlHit',
-    'controlResist',
-    'physicalPenetration',
-    'magicPenetration',
-    'comboRate',
-    'block',
-    'counterRate',
-    'damageReduction',
-    'healingReceived',
-    'rageGain',
-    'controlStrength',
-    'shieldPower',
-    'summonPower',
-    'elementalVulnerability'
-  ];
-  const snapshot = {};
-  keys.forEach((key) => {
-    if (typeof stats[key] === 'number' && !Number.isNaN(stats[key])) {
-      snapshot[key] = Number(stats[key]);
-    }
-  });
-  return snapshot;
-}
-
-function buildTimelineEntry({
-  round,
-  sequence,
-  actorId,
-  actorName,
-  actorSide,
-  targetId,
-  targetName,
-  events,
-  before,
-  after,
-  playerMaxHp,
-  opponentMaxHp,
-  playerAttributesSnapshot,
-  opponentAttributesSnapshot,
-  summaryText
-}) {
-  const entry = {
-    id: `round-${round}-action-${sequence}`,
-    round,
-    sequence,
-    actorId,
-    actorSide,
-    actor: { id: actorId, side: actorSide, displayName: actorName },
-    target: { id: targetId, side: actorSide === 'player' ? 'opponent' : 'player', displayName: targetName },
-    skill: { id: 'basic_attack', name: '普攻', type: 'basic' },
-    events: Array.isArray(events) ? events.filter(Boolean) : [],
-    state: {
-      player: buildTimelineStateSide({
-        before: before && Number.isFinite(before.player) ? before.player : undefined,
-        after: after && Number.isFinite(after.player) ? after.player : undefined,
-        maxHp: playerMaxHp,
-        attributes: playerAttributesSnapshot
-      }),
-      opponent: buildTimelineStateSide({
-        before: before && Number.isFinite(before.opponent) ? before.opponent : undefined,
-        after: after && Number.isFinite(after.opponent) ? after.opponent : undefined,
-        maxHp: opponentMaxHp,
-        attributes: opponentAttributesSnapshot
-      })
-    }
-  };
-
-  if (summaryText) {
-    entry.summary = {
-      title: `第${round}回合`,
-      text: summaryText
-    };
-  }
-
-  return entry;
-}
-
-function buildTimelineStateSide({ before, after, maxHp, attributes }) {
-  const max = Math.max(1, Math.round(maxHp || 1));
-  const beforeValue = Number.isFinite(before) ? before : max;
-  const afterValue = Number.isFinite(after) ? after : Math.min(beforeValue, max);
-  const beforeHp = Math.max(0, Math.round(Math.min(beforeValue, max)));
-  const afterHp = Math.max(0, Math.round(Math.min(afterValue, max)));
-  const shieldBefore = Math.max(0, Math.round(beforeValue - max));
-  const shieldAfter = Math.max(0, Math.round(afterValue - max));
-  const state = {
-    hp: {
-      before: beforeHp,
-      after: afterHp,
-      max
-    },
-    attributes: { ...(attributes || {}) }
-  };
-  if (shieldBefore > 0 || shieldAfter > 0) {
-    state.shield = {
-      before: shieldBefore,
-      after: shieldAfter
-    };
-  }
-  return state;
-}
-
-function buildStructuredBattleOutcome({
-  playerState,
-  opponentState,
-  playerEntry,
-  opponentEntry,
-  draw,
-  winnerId,
-  loserId,
-  timeline
-}) {
-  const roundsCompleted = Array.isArray(timeline) && timeline.length
-    ? timeline[timeline.length - 1].round || timeline.length
-    : 0;
-  const playerName = playerState.displayName || playerEntry.displayName || '我方';
-  const opponentName = opponentState.displayName || opponentEntry.displayName || '对手';
-  const result = draw ? 'draw' : winnerId === playerEntry.memberId ? 'victory' : 'defeat';
-  const winnerName = winnerId === playerState.memberId ? playerName : winnerId === opponentState.memberId ? opponentName : '';
-  const loserName = loserId === playerState.memberId ? playerName : loserId === opponentState.memberId ? opponentName : '';
-  let summaryText;
-  if (draw) {
-    summaryText = `${playerName}与${opponentName}的对决以平局收场。`;
-  } else if (winnerName && loserName) {
-    summaryText = `${winnerName}击败了${loserName}。`;
-  } else {
-    summaryText = '战斗已结束。';
-  }
-  const summaryTitle =
-    result === 'victory' ? '战斗结果 · 胜利' : result === 'defeat' ? '战斗结果 · 惜败' : '战斗结果 · 平局';
-  return {
-    winnerId,
-    loserId,
-    result,
-    draw,
-    rounds: roundsCompleted,
-    summary: {
-      title: summaryTitle,
-      text: summaryText
-    },
-    remaining: {
-      playerHp: Math.max(0, Math.round(playerState.hp)),
-      opponentHp: Math.max(0, Math.round(opponentState.hp))
-    }
   };
 }
 
