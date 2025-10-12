@@ -10,6 +10,84 @@ const {
   resolveBackgroundById,
   normalizeBackgroundId
 } = require('../../shared/backgrounds');
+const { CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths');
+const { listAvatarIds } = require('../../shared/avatar-catalog');
+
+function buildCharacterImageMap() {
+  const ids = listAvatarIds();
+  return ids.reduce((acc, id) => {
+    acc[id] = `${CHARACTER_IMAGE_BASE_PATH}/${id}.png`;
+    return acc;
+  }, {});
+}
+
+const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
+const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
+
+function extractAvatarIdFromUrl(url) {
+  if (typeof url !== 'string') {
+    return '';
+  }
+  const match = url.trim().toLowerCase().match(AVATAR_URL_PATTERN);
+  return match ? match[1] : '';
+}
+
+function resolveCharacterPortraitFromAvatarUrl(url) {
+  const avatarId = extractAvatarIdFromUrl(url);
+  if (avatarId && CHARACTER_IMAGE_MAP[avatarId]) {
+    return CHARACTER_IMAGE_MAP[avatarId];
+  }
+  return '';
+}
+
+function resolvePortraitCandidate(candidate) {
+  if (!candidate) {
+    return '';
+  }
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    if (!trimmed) {
+      return '';
+    }
+    const characterPortrait = resolveCharacterPortraitFromAvatarUrl(trimmed);
+    return characterPortrait || trimmed;
+  }
+  if (typeof candidate === 'object') {
+    const directPortrait = resolvePortraitCandidate(candidate.portrait);
+    if (directPortrait) {
+      return directPortrait;
+    }
+    return resolvePortraitCandidate(candidate.avatarUrl);
+  }
+  return '';
+}
+
+function pickBattlePortrait(fallback, ...candidates) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const resolved = resolvePortraitCandidate(candidates[i]);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return fallback;
+}
+
+function resolveParticipantByAliases(participants, aliases = []) {
+  if (!participants || typeof participants !== 'object' || !Array.isArray(aliases)) {
+    return null;
+  }
+  for (let i = 0; i < aliases.length; i += 1) {
+    const key = aliases[i];
+    if (!key) {
+      continue;
+    }
+    const candidate = participants[key];
+    if (candidate) {
+      return candidate;
+    }
+  }
+  return null;
+}
 
 const MIN_SKIP_SECONDS = 10;
 
@@ -231,9 +309,24 @@ Page({
             throw new Error('未找到战报');
           }
           battleData = await PvpService.battleReplay(matchId);
+          const participants = (battleData && battleData.participants) || {};
+          const playerParticipant =
+            resolveParticipantByAliases(participants, ['player', 'self', 'attacker', 'initiator', 'ally', 'member']) || null;
+          const opponentParticipant =
+            resolveParticipantByAliases(participants, ['opponent', 'enemy', 'defender', 'target', 'foe']) || null;
           viewContext = {
-            playerPortrait: (battleData.player && battleData.player.avatarUrl) || DEFAULT_PLAYER_IMAGE,
-            opponentPortrait: (battleData.opponent && battleData.opponent.avatarUrl) || DEFAULT_OPPONENT_IMAGE,
+            playerPortrait: pickBattlePortrait(
+              DEFAULT_PLAYER_IMAGE,
+              context.playerPortrait,
+              playerParticipant,
+              battleData.player
+            ),
+            opponentPortrait: pickBattlePortrait(
+              DEFAULT_OPPONENT_IMAGE,
+              context.opponentPortrait,
+              opponentParticipant,
+              battleData.opponent
+            ),
             playerName: battleData.player ? battleData.player.displayName : '我方',
             opponentName: battleData.opponent ? battleData.opponent.displayName : '对手',
             playerPower: battleData.player ? battleData.player.pointsAfter : '',
@@ -280,14 +373,18 @@ Page({
             playerParticipant.name ||
             context.playerName ||
             '你',
-          playerPortrait:
-            playerParticipant.portrait ||
-            playerParticipant.avatarUrl ||
-            context.playerPortrait ||
+          playerPortrait: pickBattlePortrait(
             DEFAULT_PLAYER_IMAGE,
+            context.playerPortrait,
+            playerParticipant
+          ),
           playerPower: playerPowerValue,
           opponentName: enemy.name || '秘境之敌',
-          opponentPortrait: enemy.portrait || enemy.avatarUrl || DEFAULT_OPPONENT_IMAGE,
+          opponentPortrait: pickBattlePortrait(
+            DEFAULT_OPPONENT_IMAGE,
+            context.opponentPortrait,
+            enemy
+          ),
           backgroundVideo: sceneBackground || context.backgroundVideo || DEFAULT_BACKGROUND_VIDEO
         };
         this.parentPayload = {
@@ -310,13 +407,23 @@ Page({
         const opponent = (serviceResult.opponent && serviceResult.opponent) || {};
         viewContext = {
           playerName: member.nickName || member.name || '我方',
-          playerPortrait: member.avatarUrl || member.portrait || DEFAULT_PLAYER_IMAGE,
+          playerPortrait: pickBattlePortrait(
+            DEFAULT_PLAYER_IMAGE,
+            context.playerPortrait,
+            member,
+            battleData && battleData.player
+          ),
           playerPower:
             (battleData && battleData.player && battleData.player.pointsAfter) ||
             (serviceResult.profile ? serviceResult.profile.points : ''),
           opponentName:
             opponent.nickName || (battleData && battleData.opponent && battleData.opponent.displayName) || '对手',
-          opponentPortrait: opponent.avatarUrl || DEFAULT_OPPONENT_IMAGE,
+          opponentPortrait: pickBattlePortrait(
+            DEFAULT_OPPONENT_IMAGE,
+            context.opponentPortrait,
+            opponent,
+            battleData && battleData.opponent
+          ),
           opponentPower:
             (battleData && battleData.opponent && battleData.opponent.pointsAfter) || opponent.points || ''
         };
