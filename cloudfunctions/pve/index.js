@@ -12,6 +12,7 @@ const {
   executeAttack: performCombatAttack,
   calculateCombatPower
 } = require('combat-system');
+const { createBattlePayload } = require('battle-schema');
 const {
   BASE_ATTRIBUTE_KEYS,
   COMBAT_STAT_KEYS,
@@ -2731,8 +2732,17 @@ async function simulateBattle(actorId, enemyId) {
     result.rewards = { exp: 0, stones: 0, attributePoints: 0, loot: [] };
   }
 
+  const formattedBattle = formatBattleResult(result, {
+    actorId,
+    player: result && result.participants ? result.participants.player : null,
+    opponent:
+      result && result.participants
+        ? result.participants.opponent || result.participants.enemy || null
+        : null
+  });
+
   const now = new Date();
-  const updatedProfile = applyBattleOutcome(profile, result, enemy, now, member, levels);
+  const updatedProfile = applyBattleOutcome(profile, result, enemy, now, member, levels, formattedBattle);
   const extraUpdates = {};
   if (result.rewards && result.rewards.stones > 0) {
     extraUpdates.stoneBalance = _.inc(result.rewards.stones);
@@ -2749,7 +2759,7 @@ async function simulateBattle(actorId, enemyId) {
   }
 
   return {
-    battle: formatBattleResult(result)
+    battle: formattedBattle
   };
 }
 
@@ -7648,7 +7658,7 @@ function resolveBattleLoot(loot, insight) {
   return results;
 }
 
-function applyBattleOutcome(profile, result, enemy, now, member, levels = []) {
+function applyBattleOutcome(profile, result, enemy, now, member, levels = [], battlePayload = null) {
   const updated = normalizeProfile(profile, now);
   updated.attributes.attributePoints =
     (updated.attributes.attributePoints || 0) + (result.rewards.attributePoints || 0);
@@ -7703,33 +7713,49 @@ function applyBattleOutcome(profile, result, enemy, now, member, levels = []) {
     updated.secretRealm = progress;
   }
 
-  updated.battleHistory = appendHistory(
-    updated.battleHistory,
-    {
-      type: 'battle',
-      createdAt: now,
-      enemyId: enemy.id,
-      enemyName: enemy.name,
-      enemyStageName: enemy.stageName,
-      enemyRealmName: enemy.realmName,
-      enemyType: enemy.type,
-      enemyLevel: enemy.level,
-      enemyFloor: enemy.floor,
-      enemyArchetype: enemy.archetype,
-      enemyAttributes: enemy.attributes,
-      enemySnapshot: captureEnemySnapshot(enemy),
-      result: result.victory ? 'win' : result.draw ? 'draw' : 'lose',
-      rounds: result.rounds,
-      rewards: result.rewards,
-      log: result.log,
-      timeline: Array.isArray(result.timeline) ? result.timeline : [],
-      participants: result.participants,
-      outcome: result.outcome,
-      metadata: result.metadata,
-      combatPower: result.combatPower
-    },
-    MAX_BATTLE_HISTORY
-  );
+  const battleRecord = battlePayload && typeof battlePayload === 'object' ? battlePayload : null;
+  const historyTimeline = battleRecord && Array.isArray(battleRecord.timeline)
+    ? battleRecord.timeline
+    : Array.isArray(result.timeline)
+    ? result.timeline
+    : [];
+  const historyParticipants =
+    (battleRecord && battleRecord.participants) || result.participants || {};
+  const historyOutcome = (battleRecord && battleRecord.outcome) || result.outcome || null;
+  const historyMetadata = (battleRecord && battleRecord.metadata) || result.metadata || { mode: 'pve' };
+  const historyRewards = (battleRecord && battleRecord.rewards) || result.rewards;
+  const historyLog = battleRecord && Array.isArray(battleRecord.log) ? battleRecord.log : result.log;
+  const historyCombatPower = (battleRecord && battleRecord.combatPower) || result.combatPower;
+
+  const historyEntry = {
+    type: 'battle',
+    createdAt: now,
+    enemyId: enemy.id,
+    enemyName: enemy.name,
+    enemyStageName: enemy.stageName,
+    enemyRealmName: enemy.realmName,
+    enemyType: enemy.type,
+    enemyLevel: enemy.level,
+    enemyFloor: enemy.floor,
+    enemyArchetype: enemy.archetype,
+    enemyAttributes: enemy.attributes,
+    enemySnapshot: captureEnemySnapshot(enemy),
+    result: result.victory ? 'win' : result.draw ? 'draw' : 'lose',
+    rounds: result.rounds,
+    rewards: historyRewards,
+    log: historyLog,
+    timeline: historyTimeline,
+    participants: historyParticipants,
+    outcome: historyOutcome,
+    metadata: historyMetadata,
+    combatPower: historyCombatPower
+  };
+
+  if (battleRecord) {
+    historyEntry.battle = battleRecord;
+  }
+
+  updated.battleHistory = appendHistory(updated.battleHistory, historyEntry, MAX_BATTLE_HISTORY);
 
   refreshAttributeSummary(updated);
 
@@ -7827,74 +7853,119 @@ async function recordStoneTransaction(actorId, result, enemy, now) {
   });
 }
 
-function formatBattleResult(result) {
+function formatBattleResult(result, context = {}) {
   const rawRewards = result.rewards || {};
+  const lootItems = Array.isArray(rawRewards.loot) ? rawRewards.loot : [];
+  const decoratedLoot = lootItems.map((item) => {
+    if (item.type === 'equipment') {
+      const def = EQUIPMENT_MAP[item.itemId];
+      return {
+        type: 'equipment',
+        itemId: item.itemId,
+        name: def ? def.name : '装备',
+        quality: def ? def.quality : 'mortal',
+        qualityLabel: def ? resolveEquipmentQualityLabel(def.quality) : resolveEquipmentQualityLabel('mortal'),
+        qualityColor: def ? resolveEquipmentQualityColor(def.quality) : resolveEquipmentQualityColor('mortal')
+      };
+    }
+    if (item.type === 'skill') {
+      const def = SKILL_MAP[item.skillId];
+      const quality = def ? def.quality : 'linggan';
+      return {
+        type: 'skill',
+        skillId: item.skillId,
+        name: def ? def.name : '技能',
+        quality,
+        qualityLabel: resolveSkillQualityLabel(quality)
+      };
+    }
+    if (item.type === 'consumable') {
+      const def = CONSUMABLE_MAP[item.consumableId];
+      return {
+        type: 'consumable',
+        consumableId: item.consumableId,
+        name: def ? def.name : '道具',
+        description: def ? def.description : ''
+      };
+    }
+    return item;
+  });
+
   const rewards = {
     exp: rawRewards.exp || 0,
     stones: rawRewards.stones || 0,
     attributePoints: rawRewards.attributePoints || 0,
-    loot: Array.isArray(rawRewards.loot) ? rawRewards.loot : []
+    loot: decoratedLoot
   };
-  const timeline = Array.isArray(result.timeline) ? result.timeline : [];
-  const participants = result.participants && typeof result.participants === 'object' ? result.participants : {};
-  const outcome = result.outcome && typeof result.outcome === 'object' ? result.outcome : null;
-  const metadata = result.metadata && typeof result.metadata === 'object' ? result.metadata : { mode: 'pve' };
-  return {
-    victory: result.victory,
-    draw: result.draw,
+
+  const metadataSource = result.metadata && typeof result.metadata === 'object' ? result.metadata : {};
+  const metadata = { ...metadataSource };
+  if (typeof metadata.mode !== 'string' || !metadata.mode) {
+    metadata.mode = 'pve';
+  }
+
+  const playerParticipant = result.participants && result.participants.player ? result.participants.player : null;
+  const opponentParticipant = result.participants
+    ? result.participants.opponent || result.participants.enemy || null
+    : null;
+  const extractId = (source) => {
+    if (!source || typeof source !== 'object') {
+      return null;
+    }
+    if (typeof source.memberId === 'string' && source.memberId) {
+      return source.memberId;
+    }
+    if (typeof source.id === 'string' && source.id) {
+      return source.id;
+    }
+    if (typeof source.characterId === 'string' && source.characterId) {
+      return source.characterId;
+    }
+    if (typeof source.roleId === 'string' && source.roleId) {
+      return source.roleId;
+    }
+    return null;
+  };
+
+  const playerId = extractId(playerParticipant);
+  const opponentId = extractId(opponentParticipant);
+  const winnerId = result.draw ? null : result.victory ? playerId : opponentId;
+  const loserId = result.draw ? null : result.victory ? opponentId : playerId;
+
+  const battlePayload = createBattlePayload({
+    mode: 'pve',
     rounds: result.rounds,
-    log: result.log,
-    timeline,
-    participants,
-    outcome,
+    timeline: result.timeline,
+    participants: result.participants,
+    outcome: result.outcome,
     metadata,
-    rewards: {
-      exp: rewards.exp,
-      stones: rewards.stones,
-      attributePoints: rewards.attributePoints,
-      loot: rewards.loot.map((item) => {
-        if (item.type === 'equipment') {
-          const def = EQUIPMENT_MAP[item.itemId];
-          return {
-            type: 'equipment',
-            itemId: item.itemId,
-            name: def ? def.name : '装备',
-            quality: def ? def.quality : 'mortal',
-            qualityLabel: def
-              ? resolveEquipmentQualityLabel(def.quality)
-              : resolveEquipmentQualityLabel('mortal'),
-            qualityColor: def
-              ? resolveEquipmentQualityColor(def.quality)
-              : resolveEquipmentQualityColor('mortal')
-          };
-        }
-        if (item.type === 'skill') {
-          const def = SKILL_MAP[item.skillId];
-          const quality = def ? def.quality : 'linggan';
-          return {
-            type: 'skill',
-            skillId: item.skillId,
-            name: def ? def.name : '技能',
-            quality,
-            qualityLabel: resolveSkillQualityLabel(quality)
-          };
-        }
-        if (item.type === 'consumable') {
-          const def = CONSUMABLE_MAP[item.consumableId];
-          return {
-            type: 'consumable',
-            consumableId: item.consumableId,
-            name: def ? def.name : '道具',
-            description: def ? def.description : ''
-          };
-        }
-        return item;
-      })
-    },
-    rewardsText: formatRewardText(rewards),
+    log: result.log,
+    rewards,
     remaining: result.remaining,
-    combatPower: result.combatPower
-  };
+    combatPower: result.combatPower,
+    draw: result.draw,
+    victory: result.victory,
+    actorId: context.actorId || playerId,
+    player: context.player || null,
+    opponent: context.opponent || null,
+    winnerId,
+    loserId
+  });
+
+  battlePayload.rewards = rewards;
+  battlePayload.rewardsText = formatRewardText(rewards);
+  battlePayload.log = Array.isArray(result.log) ? result.log : [];
+  battlePayload.remaining = result.remaining || battlePayload.remaining;
+  battlePayload.combatPower = result.combatPower || battlePayload.combatPower;
+  battlePayload.victory = !!result.victory;
+  battlePayload.draw = !!result.draw;
+  if (!battlePayload.metadata || typeof battlePayload.metadata !== 'object') {
+    battlePayload.metadata = { mode: 'pve' };
+  } else if (!battlePayload.metadata.mode) {
+    battlePayload.metadata.mode = 'pve';
+  }
+
+  return battlePayload;
 }
 function rollSkill() {
   const quality = selectSkillQuality();

@@ -93,6 +93,10 @@ Page({
       return;
     }
     const normalizedLog = Array.isArray(record.log) ? record.log : [];
+    const battleSource = record && typeof record.battle === 'object' ? record.battle : null;
+    const structuredTimeline = battleSource && Array.isArray(battleSource.timeline)
+      ? battleSource.timeline.filter((entry) => entry && typeof entry === 'object')
+      : [];
     this._recordResolved = true;
     this.setData({
       loading: false,
@@ -102,7 +106,7 @@ Page({
         combatPowerText: record.combatPowerText || formatCombatPower(record.combatPower)
       },
       log: normalizedLog,
-      replayAvailable: normalizedLog.length > 0
+      replayAvailable: structuredTimeline.length > 0 || normalizedLog.length > 0
     });
   },
 
@@ -147,7 +151,94 @@ Page({
   },
 
   buildReplayPayload(record = {}) {
-    const log = Array.isArray(record.log) ? record.log.filter((entry) => typeof entry === 'string' && entry) : [];
+    if (!record || typeof record !== 'object') {
+      return null;
+    }
+    const battleSource = record.battle && typeof record.battle === 'object' ? record.battle : record;
+    const structuredTimeline = Array.isArray(battleSource.timeline)
+      ? battleSource.timeline.filter((entry) => entry && typeof entry === 'object')
+      : [];
+    if (structuredTimeline.length) {
+      const participants = battleSource.participants || record.participants || {};
+      const outcome = battleSource.outcome || record.outcome || null;
+      const metadata = battleSource.metadata || record.metadata || { mode: 'pve' };
+      const battle = {
+        ...battleSource,
+        timeline: structuredTimeline,
+        participants,
+        outcome,
+        metadata,
+        log: Array.isArray(battleSource.log)
+          ? battleSource.log
+          : Array.isArray(record.log)
+          ? record.log
+          : [],
+        rewards: battleSource.rewards || record.rewards || null,
+        remaining: battleSource.remaining || record.remaining || null,
+        combatPower: battleSource.combatPower || record.combatPower || null
+      };
+      const rounds = Number.isFinite(battle.rounds)
+        ? Math.max(1, Math.floor(battle.rounds))
+        : this.normalizeReplayRounds(battleSource, structuredTimeline.length);
+      battle.rounds = rounds;
+      if (typeof battle.victory !== 'boolean') {
+        const rawResult = typeof record.result === 'string' ? record.result : '';
+        battle.victory = rawResult === 'win';
+      }
+      if (typeof battle.draw !== 'boolean') {
+        const rawResult = typeof record.result === 'string' ? record.result : '';
+        battle.draw = rawResult === 'draw';
+      }
+      const combatPower = this.normalizeCombatPowerRecord(battle.combatPower);
+      if (combatPower) {
+        battle.combatPower = combatPower;
+      }
+      const remaining = this.normalizeRemainingState(battle.remaining);
+      if (remaining) {
+        battle.remaining = remaining;
+      }
+      const playerSource = participants.player || battle.player || {};
+      const opponentSource =
+        participants.opponent || participants.enemy || battle.opponent || battle.enemy || {};
+      const viewContext = {
+        playerName:
+          record.playerName || playerSource.displayName || playerSource.name || '你',
+        opponentName:
+          record.enemyName || opponentSource.displayName || opponentSource.name || '秘境之敌'
+      };
+      const resolvePortrait = (source, fallback) => {
+        if (typeof fallback === 'string' && fallback) {
+          return fallback;
+        }
+        if (!source || typeof source !== 'object') {
+          return '';
+        }
+        return source.portrait || source.avatarUrl || '';
+      };
+      const playerPortrait = resolvePortrait(playerSource, record.playerPortrait);
+      const opponentPortrait = resolvePortrait(opponentSource, record.opponentPortrait);
+      if (playerPortrait) {
+        viewContext.playerPortrait = playerPortrait;
+      }
+      if (opponentPortrait) {
+        viewContext.opponentPortrait = opponentPortrait;
+      }
+      const backgroundVideo =
+        record.backgroundVideo ||
+        (battle.background && battle.background.video) ||
+        metadata.backgroundVideo ||
+        '';
+      if (backgroundVideo) {
+        viewContext.backgroundVideo = backgroundVideo;
+      }
+      return { battle, viewContext };
+    }
+
+    const log = Array.isArray(battleSource.log)
+      ? battleSource.log.filter((entry) => typeof entry === 'string' && entry)
+      : Array.isArray(record.log)
+      ? record.log.filter((entry) => typeof entry === 'string' && entry)
+      : [];
     if (!log.length) {
       return null;
     }

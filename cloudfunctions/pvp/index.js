@@ -15,6 +15,7 @@ const {
   executeAttack: performCombatAttack
 } = require('combat-system');
 const { aggregateSkillEffects } = require('skill-model');
+const { createBattlePayload, decorateBattleReplay } = require('battle-schema');
 
 const db = cloud.database();
 const _ = db.command;
@@ -781,23 +782,32 @@ async function persistBattleResult({
     .doc(matchId)
     .update({ data: { matchId } })
     .catch(() => {});
-  return {
+  const payload = createBattlePayload({
+    battleId: matchId,
     matchId,
     seasonId: season._id,
-    winnerId: simulation.winnerId,
-    loserId: simulation.loserId,
-    draw: simulation.draw,
+    seed: simulation.seed,
+    mode: 'pvp',
     rounds: roundsCount,
+    legacyRounds,
     timeline,
-    ...(legacyRounds.length && !timeline.length ? { legacyRounds } : {}),
     participants,
     outcome,
     metadata,
-    signature: matchRecord.signature,
+    result: matchRecord.result,
     player: matchRecord.player,
     opponent: matchRecord.opponent,
-    options: matchRecord.options
-  };
+    options: matchRecord.options,
+    createdAt: now,
+    winnerId: simulation.winnerId,
+    loserId: simulation.loserId,
+    draw: simulation.draw,
+    signature: matchRecord.signature
+  });
+  payload.seasonId = season._id;
+  payload.signature = matchRecord.signature;
+  payload.seed = simulation.seed;
+  return payload;
 }
 
 function buildParticipantSnapshot(profile, delta, actor) {
@@ -1162,37 +1172,17 @@ function decorateMatchSummary(match, memberId) {
 }
 
 function decorateMatchReplay(match) {
-  const rawTimeline = Array.isArray(match.timeline) ? match.timeline : [];
-  const timeline = rawTimeline.filter((entry) => entry && typeof entry === 'object');
-  const legacyRounds = Array.isArray(match.legacyRounds)
-    ? match.legacyRounds
-    : !timeline.length && Array.isArray(match.rounds) && !Number.isFinite(match.rounds)
-    ? match.rounds
-    : [];
-  const roundsCount = Number.isFinite(match.rounds)
-    ? Math.max(0, Math.floor(Number(match.rounds)))
-    : match.outcome && Number.isFinite(match.outcome.rounds)
-    ? Math.max(0, Math.floor(Number(match.outcome.rounds)))
-    : timeline.length
-    ? Math.max(0, Math.floor(Number(timeline[timeline.length - 1].round || timeline.length)))
-    : legacyRounds.length;
-  return {
-    matchId: match.matchId || match._id,
-    seasonId: match.seasonId,
-    seed: match.seed,
-    rounds: roundsCount,
-    timeline,
-    legacyRounds,
-    participants: match.participants || null,
-    outcome: match.outcome || null,
-    metadata: match.metadata || null,
-    result: match.result || {},
-    player: match.player,
-    opponent: match.opponent,
-    signature: match.signature,
-    createdAt: match.createdAt || null,
-    options: match.options || {}
-  };
+  const replay = decorateBattleReplay(match, { defaultMode: 'pvp' });
+  if (match.seasonId) {
+    replay.seasonId = match.seasonId;
+  }
+  if (match.seasonName) {
+    replay.seasonName = match.seasonName;
+  }
+  if (match.seed && !replay.seed) {
+    replay.seed = match.seed;
+  }
+  return replay;
 }
 
 async function ensureActiveSeason() {
