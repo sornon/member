@@ -84,7 +84,7 @@ page {
   backdrop-filter: blur(6rpx);
   display: flex;
   flex-direction: column;
-  gap: 12rpx;
+  gap: 16rpx;
   align-items: flex-start;
 }
 
@@ -116,10 +116,14 @@ page {
 .actor-card .actor-name {
   font-size: 32rpx;
   font-weight: 600;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .actor-card .actor-meta {
-  margin-top: 8rpx;
+  margin-top: 0;
   font-size: 24rpx;
   color: rgba(226, 235, 255, 0.7);
 }
@@ -152,6 +156,107 @@ page {
 .hp-text {
   font-size: 24rpx;
   color: rgba(255, 255, 255, 0.85);
+}
+
+.actor-card__header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16rpx;
+}
+
+.actor-card.actor-player .actor-card__header {
+  flex-direction: row-reverse;
+}
+
+.actor-card.attacker-card.actor-player .actor-card__header {
+  flex-direction: row;
+}
+
+.actor-card.defender-card.actor-opponent .actor-card__header {
+  flex-direction: row-reverse;
+}
+
+.actor-card__avatar {
+  position: relative;
+  width: 88rpx;
+  height: 88rpx;
+  flex-shrink: 0;
+}
+
+.actor-card__avatar-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: block;
+}
+
+.actor-card__avatar-frame {
+  position: absolute;
+  top: -20%;
+  left: -20%;
+  width: 140%;
+  height: 140%;
+  pointer-events: none;
+}
+
+.actor-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  flex: 1;
+  min-width: 0;
+}
+
+.actor-card.actor-player .actor-card__info {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.actor-card.attacker-card.actor-player .actor-card__info {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.actor-card.defender-card.actor-opponent .actor-card__info {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.actor-title {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  max-width: 100%;
+}
+
+.actor-card.actor-player .actor-title {
+  justify-content: flex-end;
+}
+
+.actor-card.attacker-card.actor-player .actor-title {
+  justify-content: flex-start;
+}
+
+.actor-card.defender-card.actor-opponent .actor-title {
+  justify-content: flex-end;
+}
+
+.actor-title__image {
+  height: 36rpx;
+  max-width: 180rpx;
+  width: auto;
+  display: block;
+}
+
+.actor-title__text {
+  font-size: 22rpx;
+  color: rgba(226, 235, 255, 0.7);
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .actor-card.actor-player .actor-meta,

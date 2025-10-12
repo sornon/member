@@ -1,4 +1,6 @@
 const { buildCloudAssetUrl, CHARACTER_IMAGE_BASE_PATH } = require('./asset-paths');
+const { normalizeAvatarFrameValue } = require('./avatar-frames');
+const { buildTitleImageUrl, normalizeTitleId, resolveTitleById } = require('./titles');
 
 const DEFAULT_BACKGROUND_VIDEO = buildCloudAssetUrl('video', 'battle_default.mp4');
 const DEFAULT_PLAYER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/male-b-1.png`;
@@ -20,6 +22,225 @@ const ACTION_EFFECT_LABELS = {
   status: '状态',
   heal: '治疗'
 };
+
+const AVATAR_FRAME_FIELDS = ['avatarFrame', 'appearanceFrame', 'frame', 'border', 'avatarBorder', 'avatar_frame'];
+
+const TITLE_ID_FIELDS = [
+  'appearanceTitle',
+  'titleId',
+  'titleKey',
+  'titleCode',
+  'activeTitle',
+  'activeTitleId',
+  'currentTitle',
+  'currentTitleId',
+  'title'
+];
+
+const TITLE_IMAGE_FIELDS = [
+  'titleImage',
+  'titleIcon',
+  'titleUrl',
+  'titleImageUrl',
+  'appearanceTitleImage',
+  'activeTitleImage'
+];
+
+const TITLE_NAME_FIELDS = [
+  'titleName',
+  'titleLabel',
+  'titleDisplay',
+  'titleText',
+  'appearanceTitleName',
+  'appearanceTitleLabel',
+  'activeTitleName',
+  'currentTitleName'
+];
+
+function toTrimmedString(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  return trimmed;
+}
+
+function pushUnique(collection, value) {
+  if (!collection || !Array.isArray(collection)) {
+    return;
+  }
+  if (!value) {
+    return;
+  }
+  if (!collection.includes(value)) {
+    collection.push(value);
+  }
+}
+
+function looksLikeUrl(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+  return (
+    /^https?:\/\//.test(trimmed) ||
+    trimmed.startsWith('cloud://') ||
+    trimmed.startsWith('/') ||
+    trimmed.startsWith('wxfile://')
+  );
+}
+
+function resolveAvatarFrameValue(...candidates) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = toTrimmedString(candidates[i]);
+    if (!candidate) {
+      continue;
+    }
+    const normalized = normalizeAvatarFrameValue(candidate);
+    if (normalized) {
+      return normalized;
+    }
+    if (looksLikeUrl(candidate)) {
+      return candidate;
+    }
+  }
+  return '';
+}
+
+function resolveAvatarFrameFromSources({ direct = [], sources = [] } = {}) {
+  const candidates = [];
+  for (let i = 0; i < direct.length; i += 1) {
+    const directValue = toTrimmedString(direct[i]);
+    if (directValue) {
+      candidates.push(directValue);
+    }
+  }
+  for (let i = 0; i < sources.length; i += 1) {
+    const source = sources[i];
+    if (!source || typeof source !== 'object') {
+      continue;
+    }
+    for (let j = 0; j < AVATAR_FRAME_FIELDS.length; j += 1) {
+      const field = AVATAR_FRAME_FIELDS[j];
+      if (Object.prototype.hasOwnProperty.call(source, field)) {
+        const value = toTrimmedString(source[field]);
+        if (value) {
+          candidates.push(value);
+        }
+      }
+    }
+  }
+  return resolveAvatarFrameValue(...candidates);
+}
+
+function pickFirstUrl(candidates = []) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = toTrimmedString(candidates[i]);
+    if (looksLikeUrl(candidate)) {
+      return candidate;
+    }
+  }
+  return '';
+}
+
+function pickNormalizedTitleId(values = []) {
+  for (let i = 0; i < values.length; i += 1) {
+    const normalized = normalizeTitleId(values[i]);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return '';
+}
+
+function categorizeTitleValue(value, target) {
+  const candidate = toTrimmedString(value);
+  if (!candidate) {
+    return;
+  }
+  if (looksLikeUrl(candidate)) {
+    pushUnique(target.images, candidate);
+    return;
+  }
+  if (candidate.indexOf('_') >= 0 || /^title[\w-]*/.test(candidate)) {
+    const normalized = normalizeTitleId(candidate);
+    if (normalized) {
+      pushUnique(target.ids, normalized);
+    }
+    return;
+  }
+  if (/[\u4e00-\u9fa5]/.test(candidate)) {
+    pushUnique(target.names, candidate);
+    return;
+  }
+  pushUnique(target.names, candidate);
+}
+
+function collectTitleCandidatesFromSource(target, source) {
+  if (!source || typeof source !== 'object') {
+    return;
+  }
+  for (let i = 0; i < TITLE_ID_FIELDS.length; i += 1) {
+    const field = TITLE_ID_FIELDS[i];
+    if (Object.prototype.hasOwnProperty.call(source, field)) {
+      categorizeTitleValue(source[field], target);
+    }
+  }
+  for (let i = 0; i < TITLE_IMAGE_FIELDS.length; i += 1) {
+    const field = TITLE_IMAGE_FIELDS[i];
+    if (Object.prototype.hasOwnProperty.call(source, field)) {
+      const value = toTrimmedString(source[field]);
+      if (value && looksLikeUrl(value)) {
+        pushUnique(target.images, value);
+      }
+    }
+  }
+  for (let i = 0; i < TITLE_NAME_FIELDS.length; i += 1) {
+    const field = TITLE_NAME_FIELDS[i];
+    if (Object.prototype.hasOwnProperty.call(source, field)) {
+      const value = toTrimmedString(source[field]);
+      if (value) {
+        pushUnique(target.names, value);
+      }
+    }
+  }
+}
+
+function resolveTitleSnapshotFromSources({ direct = [], sources = [] } = {}) {
+  const candidates = { ids: [], images: [], names: [] };
+  for (let i = 0; i < direct.length; i += 1) {
+    categorizeTitleValue(direct[i], candidates);
+  }
+  for (let i = 0; i < sources.length; i += 1) {
+    collectTitleCandidatesFromSource(candidates, sources[i]);
+  }
+  const id = pickNormalizedTitleId(candidates.ids);
+  let image = pickFirstUrl(candidates.images);
+  let name = '';
+  for (let i = 0; i < candidates.names.length; i += 1) {
+    const candidate = toTrimmedString(candidates.names[i]);
+    if (candidate) {
+      name = candidate;
+      break;
+    }
+  }
+  if (!image && id) {
+    const built = buildTitleImageUrl(id);
+    if (built) {
+      image = built;
+    }
+  }
+  if (!name && id) {
+    const resolved = resolveTitleById(id);
+    if (resolved && resolved.name) {
+      name = resolved.name;
+    }
+  }
+  return { id, image, name };
+}
 
 function clamp(value, min, max) {
   if (Number.isNaN(value)) return min;
@@ -926,6 +1147,92 @@ function buildStructuredBattleViewModel({
     backgroundVideo = defaults.backgroundVideo || DEFAULT_BACKGROUND_VIDEO;
   }
 
+  const playerRelatedSources = [
+    playerSource,
+    battle.player,
+    participants.player,
+    participants.self,
+    fallbackParticipants.player,
+    context.player,
+    context.profile,
+    context.profile && context.profile.member,
+    context.profile && context.profile.memberSnapshot,
+    context.self,
+    context.member,
+    context.playerParticipant
+  ].filter(Boolean);
+
+  const opponentRelatedSources = [
+    opponentSource,
+    battle.opponent,
+    battle.enemy,
+    participants.opponent,
+    participants.enemy,
+    fallbackParticipants.opponent,
+    context.opponent,
+    context.enemy,
+    context.target,
+    context.opponentParticipant,
+    context.enemyParticipant,
+    context.opponentPreview,
+    context.enemyPreview
+  ].filter(Boolean);
+
+  const playerAvatarFrame = resolveAvatarFrameFromSources({
+    direct: [
+      context.playerAvatarFrame,
+      context.playerFrame,
+      context.playerAppearanceFrame,
+      context.playerAvatarBorder,
+      context.playerBorder,
+      context.avatarFrame
+    ],
+    sources: playerRelatedSources
+  });
+
+  const opponentAvatarFrame = resolveAvatarFrameFromSources({
+    direct: [
+      context.opponentAvatarFrame,
+      context.opponentFrame,
+      context.opponentAppearanceFrame,
+      context.opponentAvatarBorder,
+      context.opponentBorder,
+      context.enemyAvatarFrame,
+      context.enemyFrame
+    ],
+    sources: opponentRelatedSources
+  });
+
+  const playerTitle = resolveTitleSnapshotFromSources({
+    direct: [
+      context.playerTitle,
+      context.playerTitleId,
+      context.playerTitleName,
+      context.playerTitleImage,
+      context.playerAppearanceTitle,
+      context.appearanceTitle,
+      context.title,
+      context.titleId,
+      context.titleName
+    ],
+    sources: playerRelatedSources
+  });
+
+  const opponentTitle = resolveTitleSnapshotFromSources({
+    direct: [
+      context.opponentTitle,
+      context.opponentTitleId,
+      context.opponentTitleName,
+      context.opponentTitleImage,
+      context.opponentAppearanceTitle,
+      context.enemyTitle,
+      context.enemyTitleId,
+      context.enemyTitleName,
+      context.enemyTitleImage
+    ],
+    sources: opponentRelatedSources
+  });
+
   return {
     player: {
       id: playerId || 'player',
@@ -933,6 +1240,10 @@ function buildStructuredBattleViewModel({
       hp: buildHpState(playerMaxHp, playerMaxHp),
       portrait: playerPortrait,
       combatPower: toNumber((playerSource && playerSource.combatPower) || context.playerPower),
+      avatarFrame: playerAvatarFrame,
+      titleId: playerTitle.id,
+      titleImage: playerTitle.image,
+      titleName: playerTitle.name,
       attributes: playerAttributes ? { ...playerAttributes } : null,
       summary: {
         damageDealt: Math.round(totals.playerDamageDealt),
@@ -946,6 +1257,10 @@ function buildStructuredBattleViewModel({
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
       portrait: opponentPortrait,
       combatPower: toNumber((opponentSource && opponentSource.combatPower) || context.opponentPower),
+      avatarFrame: opponentAvatarFrame,
+      titleId: opponentTitle.id,
+      titleImage: opponentTitle.image,
+      titleName: opponentTitle.name,
       attributes: opponentAttributes ? { ...opponentAttributes } : null,
       summary: {
         damageDealt: Math.round(totals.enemyDamageDealt),
