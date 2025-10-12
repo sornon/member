@@ -546,6 +546,8 @@ function simulateBattle(player, opponent, seed) {
   const playerAttributesSnapshot = buildCombatAttributesSnapshot(playerState.stats);
   const opponentAttributesSnapshot = buildCombatAttributesSnapshot(opponentState.stats);
   const timeline = [];
+  let previousPlayerAttributes = null;
+  let previousOpponentAttributes = null;
   const participants = [playerState, opponentState];
   const firstIndex = playerState.stats.speed >= opponentState.stats.speed ? 0 : 1;
 
@@ -606,9 +608,15 @@ function simulateBattle(player, opponent, seed) {
         opponentMaxHp: opponentBaseMaxHp,
         playerAttributesSnapshot,
         opponentAttributesSnapshot,
+        previousAttributes: {
+          player: previousPlayerAttributes,
+          opponent: previousOpponentAttributes
+        },
         summaryText: summaryParts.join('，')
       });
       timeline.push(entry);
+      previousPlayerAttributes = playerAttributesSnapshot ? { ...playerAttributesSnapshot } : null;
+      previousOpponentAttributes = opponentAttributesSnapshot ? { ...opponentAttributesSnapshot } : null;
       sequence += 1;
 
       if (defender.hp <= 0) {
@@ -660,10 +668,13 @@ function simulateBattle(player, opponent, seed) {
     seed,
     generatedAt: Date.now()
   };
+  const roundsCompleted = Number.isFinite(outcome.rounds)
+    ? Math.max(0, Math.floor(outcome.rounds))
+    : Math.max(0, timeline.length);
 
   return {
     seed,
-    rounds: timeline,
+    rounds: roundsCompleted,
     timeline,
     participants: participantsSnapshot,
     outcome,
@@ -689,12 +700,18 @@ async function persistBattleResult({
   const result = determineOutcome(simulation, player.memberId);
   const timeline = Array.isArray(simulation.timeline)
     ? simulation.timeline
-    : Array.isArray(simulation.rounds)
-    ? simulation.rounds
     : [];
+  const legacyRounds = Array.isArray(simulation.rounds) ? simulation.rounds : [];
   const participants = simulation.participants || null;
   const outcome = simulation.outcome || null;
   const metadata = simulation.metadata || { mode: 'pvp', seed: simulation.seed };
+  const roundsCount = Number.isFinite(simulation.rounds) && !Array.isArray(simulation.rounds)
+    ? Math.max(0, Math.floor(Number(simulation.rounds)))
+    : outcome && Number.isFinite(outcome.rounds)
+    ? Math.max(0, Math.floor(Number(outcome.rounds)))
+    : timeline.length
+    ? Math.max(0, Math.floor(Number(timeline[timeline.length - 1].round || timeline.length)))
+    : legacyRounds.length;
   const playerUpdate = applyMatchOutcome({
     season,
     profile,
@@ -731,8 +748,9 @@ async function persistBattleResult({
     opponent: opponent.isBot
       ? buildParticipantSnapshot(opponentUpdate ? opponentUpdate.after : opponentProfile, opponentUpdate ? opponentUpdate.delta : { points: 0 }, opponent)
       : buildParticipantSnapshot(opponentUpdate.after, opponentUpdate.delta, opponent),
-    rounds: timeline,
+    rounds: roundsCount,
     timeline,
+    ...(legacyRounds.length && !timeline.length ? { legacyRounds } : {}),
     participants,
     outcome,
     metadata,
@@ -769,8 +787,9 @@ async function persistBattleResult({
     winnerId: simulation.winnerId,
     loserId: simulation.loserId,
     draw: simulation.draw,
-    rounds: timeline,
+    rounds: roundsCount,
     timeline,
+    ...(legacyRounds.length && !timeline.length ? { legacyRounds } : {}),
     participants,
     outcome,
     metadata,
@@ -1143,12 +1162,27 @@ function decorateMatchSummary(match, memberId) {
 }
 
 function decorateMatchReplay(match) {
+  const rawTimeline = Array.isArray(match.timeline) ? match.timeline : [];
+  const timeline = rawTimeline.filter((entry) => entry && typeof entry === 'object');
+  const legacyRounds = Array.isArray(match.legacyRounds)
+    ? match.legacyRounds
+    : !timeline.length && Array.isArray(match.rounds) && !Number.isFinite(match.rounds)
+    ? match.rounds
+    : [];
+  const roundsCount = Number.isFinite(match.rounds)
+    ? Math.max(0, Math.floor(Number(match.rounds)))
+    : match.outcome && Number.isFinite(match.outcome.rounds)
+    ? Math.max(0, Math.floor(Number(match.outcome.rounds)))
+    : timeline.length
+    ? Math.max(0, Math.floor(Number(timeline[timeline.length - 1].round || timeline.length)))
+    : legacyRounds.length;
   return {
     matchId: match.matchId || match._id,
     seasonId: match.seasonId,
     seed: match.seed,
-    rounds: match.rounds || [],
-    timeline: Array.isArray(match.timeline) ? match.timeline : match.rounds || [],
+    rounds: roundsCount,
+    timeline,
+    legacyRounds,
     participants: match.participants || null,
     outcome: match.outcome || null,
     metadata: match.metadata || null,
@@ -1639,6 +1673,7 @@ function buildTimelineEntry({
   opponentMaxHp,
   playerAttributesSnapshot,
   opponentAttributesSnapshot,
+  previousAttributes = {},
   summaryText
 }) {
   const entry = {
@@ -1656,13 +1691,15 @@ function buildTimelineEntry({
         before: before && Number.isFinite(before.player) ? before.player : undefined,
         after: after && Number.isFinite(after.player) ? after.player : undefined,
         maxHp: playerMaxHp,
-        attributes: playerAttributesSnapshot
+        attributes: playerAttributesSnapshot,
+        previousAttributes: previousAttributes ? previousAttributes.player : null
       }),
       opponent: buildTimelineStateSide({
         before: before && Number.isFinite(before.opponent) ? before.opponent : undefined,
         after: after && Number.isFinite(after.opponent) ? after.opponent : undefined,
         maxHp: opponentMaxHp,
-        attributes: opponentAttributesSnapshot
+        attributes: opponentAttributesSnapshot,
+        previousAttributes: previousAttributes ? previousAttributes.opponent : null
       })
     }
   };
@@ -1677,7 +1714,7 @@ function buildTimelineEntry({
   return entry;
 }
 
-function buildTimelineStateSide({ before, after, maxHp, attributes }) {
+function buildTimelineStateSide({ before, after, maxHp, attributes, previousAttributes }) {
   const max = Math.max(1, Math.round(maxHp || 1));
   const beforeValue = Number.isFinite(before) ? before : max;
   const afterValue = Number.isFinite(after) ? after : Math.min(beforeValue, max);
@@ -1685,13 +1722,14 @@ function buildTimelineStateSide({ before, after, maxHp, attributes }) {
   const afterHp = Math.max(0, Math.round(Math.min(afterValue, max)));
   const shieldBefore = Math.max(0, Math.round(beforeValue - max));
   const shieldAfter = Math.max(0, Math.round(afterValue - max));
+  const changedAttributes = extractChangedAttributes(attributes, previousAttributes);
   const state = {
     hp: {
       before: beforeHp,
       after: afterHp,
       max
     },
-    attributes: { ...(attributes || {}) }
+    attributes: changedAttributes
   };
   if (shieldBefore > 0 || shieldAfter > 0) {
     state.shield = {
@@ -1700,6 +1738,28 @@ function buildTimelineStateSide({ before, after, maxHp, attributes }) {
     };
   }
   return state;
+}
+
+function extractChangedAttributes(current, previous) {
+  if (!current || typeof current !== 'object') {
+    return {};
+  }
+  const previousAttributes = previous && typeof previous === 'object' ? previous : null;
+  const changed = {};
+  const keys = Object.keys(current);
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    const value = current[key];
+    const previousValue = previousAttributes ? previousAttributes[key] : undefined;
+    if (typeof value === 'number') {
+      if (!Number.isFinite(previousValue) || Number(value) !== Number(previousValue)) {
+        changed[key] = Number(value);
+      }
+    } else if (value !== undefined && value !== previousValue) {
+      changed[key] = value;
+    }
+  }
+  return changed;
 }
 
 function buildStructuredBattleOutcome({
