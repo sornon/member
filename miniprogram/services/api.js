@@ -623,6 +623,16 @@ export const AdminService = {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'cleanupOrphanData'
     });
+  },
+  async previewCleanupBattleRecords() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'previewCleanupBattleRecords'
+    });
+  },
+  async cleanupBattleRecords() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'cleanupBattleRecords'
+    });
   }
 };
 

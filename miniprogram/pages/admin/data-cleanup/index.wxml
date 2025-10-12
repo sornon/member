@@ -63,4 +63,68 @@
       <view wx:for="{{result.errors}}" wx:key="index" class="error-item">{{item}}</view>
     </view>
   </view>
+
+  <view class="intro-card">
+    <view class="intro-title">清理战斗记录与衍生数据</view>
+    <view class="intro-desc">该操作会扫描系统内所有 PVE / PVP 战斗产生的记录，包括战报、赛季档案与排行榜缓存，帮助在必要时重置战斗环境。</view>
+    <view class="intro-note">清理动作将同步移除战斗相关的派生缓存。建议在停服或维护时执行，并确认不会影响现有运营数据。</view>
+    <button
+      class="cleanup-button primary"
+      bindtap="handleBattleScanTap"
+      loading="{{loading && loadingAction === 'scanBattle'}}"
+      disabled="{{loading}}"
+    >
+      {{loading && loadingAction === 'scanBattle' ? '扫描中…' : '扫描战斗记录'}}
+    </button>
+    <button
+      wx:if="{{battlePreview && battlePreview.items.length}}"
+      class="cleanup-button danger"
+      bindtap="handleBattleCleanupTap"
+      loading="{{loading && loadingAction === 'cleanupBattle'}}"
+      disabled="{{loading}}"
+    >
+      {{loading && loadingAction === 'cleanupBattle' ? '清理中…' : '确认清理战斗记录'}}
+    </button>
+  </view>
+
+  <view wx:if="{{battlePreview}}" class="preview-card">
+    <view class="preview-header">
+      <view class="preview-title">战斗记录扫描结果</view>
+      <view wx:if="{{battlePreviewAt}}" class="preview-time">{{battlePreviewAt}}</view>
+    </view>
+    <view wx:if="{{battlePreview.total > 0}}" class="preview-summary">发现 {{battlePreview.total}} 条战斗相关数据</view>
+    <view wx:else class="preview-summary muted">未发现需处理的战斗记录</view>
+    <view wx:if="{{battlePreview.items.length}}" class="preview-list">
+      <view wx:for="{{battlePreview.items}}" wx:key="key" class="preview-item">
+        <view class="preview-name">
+          <text class="preview-collection">{{item.collection}}</text>
+          <text class="preview-label">{{item.label}}</text>
+        </view>
+        <view class="preview-field">索引字段：{{item.indexes}}</view>
+        <view class="preview-desc">数据功能：{{item.description}}</view>
+        <view class="preview-reason">清理原因：{{item.reason}}</view>
+      </view>
+    </view>
+    <view wx:else class="preview-empty">当前战斗记录无需清理。</view>
+  </view>
+
+  <view wx:if="{{battleResult}}" class="result-card">
+    <view class="result-header">
+      <view class="result-title">战斗记录清理结果</view>
+      <view wx:if="{{battleFinishedAt}}" class="result-time">{{battleFinishedAt}}</view>
+    </view>
+    <view class="result-summary">共清理 {{battleResult.totalRemoved}} 条战斗相关数据</view>
+    <view wx:if="{{battleResult.memberCount}}" class="result-members">受影响会员：{{battleResult.memberCount}} 人</view>
+    <view wx:if="{{battleResult.details.length}}" class="detail-list">
+      <view wx:for="{{battleResult.details}}" wx:key="key" class="detail-item">
+        <view class="detail-name">{{item.label}}</view>
+        <view class="detail-count">{{item.count}}</view>
+      </view>
+    </view>
+    <view wx:else class="detail-empty">未发现需要清理的战斗记录，系统状态良好。</view>
+    <view wx:if="{{battleResult.errors.length}}" class="error-block">
+      <view class="error-title">部分战斗数据未能成功清理：</view>
+      <view wx:for="{{battleResult.errors}}" wx:key="index" class="error-item">{{item}}</view>
+    </view>
+  </view>
 </view>
