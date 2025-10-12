@@ -13,6 +13,30 @@ const {
 
 const MIN_SKIP_SECONDS = 10;
 
+function createBattleStageState(overrides = {}) {
+  return {
+    loading: true,
+    error: '',
+    backgroundVideo: DEFAULT_BACKGROUND_VIDEO,
+    player: null,
+    opponent: null,
+    hpState: {
+      player: { max: 1, current: 1, percent: 100 },
+      opponent: { max: 1, current: 1, percent: 100 }
+    },
+    currentAction: {},
+    displayedLogs: [],
+    skipLocked: true,
+    skipButtonText: `跳过（${MIN_SKIP_SECONDS}）`,
+    battleFinished: false,
+    resultTitle: '',
+    resultSubtitle: '',
+    resultClass: '',
+    resultRounds: 0,
+    ...overrides
+  };
+}
+
 function resolveBackgroundVideoById(backgroundId) {
   const normalized = normalizeBackgroundId(backgroundId || '');
   if (!normalized) {
@@ -148,28 +172,12 @@ function resolvePvpDefenderBackgroundVideo({ battle = {}, preview = null, source
 Page({
   data: {
     navTitle: '战斗演武',
-    loading: true,
-    error: '',
-    backgroundVideo: DEFAULT_BACKGROUND_VIDEO,
-    player: null,
-    opponent: null,
+    ...createBattleStageState(),
     actions: [],
-    hpState: {
-      player: { max: 1, current: 1, percent: 100 },
-      opponent: { max: 1, current: 1, percent: 100 }
-    },
-    currentAction: {},
     currentRound: 1,
-    displayedLogs: [],
-    skipLocked: true,
     skipCountdown: MIN_SKIP_SECONDS,
-    skipButtonText: `跳过（${MIN_SKIP_SECONDS}）`,
     battleState: 'loading',
-    battleFinished: false,
-    resultTitle: '',
-    resultSubtitle: '',
-    resultClass: '',
-    resultRounds: 0
+    battleStage: createBattleStageState()
   },
 
   onLoad(options = {}) {
@@ -209,12 +217,8 @@ Page({
 
   async loadBattle() {
     this.clearTimers();
-    this.setData({
-      loading: true,
-      error: '',
-      battleFinished: false,
-      battleState: 'loading'
-    });
+    this.setBattleStageData({ loading: true, error: '', battleFinished: false });
+    this.setData({ battleState: 'loading' });
     const context = this.contextPayload || {};
     try {
       let serviceResult = null;
@@ -346,7 +350,8 @@ Page({
       console.error('[battle/play] load battle failed', error);
       const message = error && (error.errMsg || error.message) ? error.errMsg || error.message : '战斗加载失败';
       wx.showToast({ title: message, icon: 'none' });
-      this.setData({ loading: false, error: message, battleState: 'error' });
+      this.setBattleStageData({ loading: false, error: message });
+      this.setData({ battleState: 'error' });
     }
   },
 
@@ -356,29 +361,31 @@ Page({
       player: viewModel.player.hp,
       opponent: viewModel.opponent.hp
     };
-    this.setData({
+    this.setBattleStageData({
       loading: false,
       error: '',
       backgroundVideo: viewModel.backgroundVideo || DEFAULT_BACKGROUND_VIDEO,
       player: viewModel.player,
       opponent: viewModel.opponent,
-      actions: viewModel.actions,
       hpState: {
         player: viewModel.player.hp,
         opponent: viewModel.opponent.hp
       },
       currentAction: {},
-      currentRound: 1,
       displayedLogs: [],
       skipLocked,
-      skipCountdown: skipLocked ? MIN_SKIP_SECONDS : 0,
       skipButtonText: skipLocked ? `跳过（${MIN_SKIP_SECONDS}）` : '跳过战斗',
-      battleState: 'ready',
       battleFinished: false,
       resultTitle: '',
       resultSubtitle: '',
       resultClass: '',
       resultRounds: viewModel.result.rounds || viewModel.actions.length
+    });
+    this.setData({
+      actions: viewModel.actions,
+      currentRound: 1,
+      skipCountdown: skipLocked ? MIN_SKIP_SECONDS : 0,
+      battleState: 'ready'
     });
     this.battleResultMeta = viewModel.result || {};
     this.clearTimers();
@@ -412,13 +419,12 @@ Page({
     const nextLogs = [...this.data.displayedLogs, { id: action.id, text: action.description }].slice(-5);
     const nextHpState = action.hp || this.data.hpState;
     this.timelineIndex = nextIndex;
-    this.setData({
-      battleState: 'playing',
+    this.setBattleStageData({
       currentAction: action,
-      currentRound: action.round || this.data.currentRound,
       displayedLogs: nextLogs,
       hpState: nextHpState
     });
+    this.setData({ battleState: 'playing', currentRound: action.round || this.data.currentRound });
     const delay = action.type === 'result' ? 2200 : 1400;
     this.scheduleNextAction(delay);
   },
@@ -458,8 +464,7 @@ Page({
       }
     }
     const resultClass = draw ? 'draw' : victory ? 'victory' : 'defeat';
-    this.setData({
-      battleState: 'finished',
+    this.setBattleStageData({
       battleFinished: true,
       resultTitle,
       resultSubtitle,
@@ -468,6 +473,7 @@ Page({
       skipLocked: false,
       skipButtonText: '重播战斗'
     });
+    this.setData({ battleState: 'finished' });
   },
 
   handleSkip() {
@@ -482,12 +488,12 @@ Page({
     const actions = this.data.actions || [];
     if (actions.length) {
       const lastAction = actions[actions.length - 1];
-      this.setData({
+      this.setBattleStageData({
         currentAction: lastAction,
-        currentRound: lastAction.round || this.data.currentRound,
         displayedLogs: [...this.data.displayedLogs, { id: lastAction.id, text: lastAction.description }].slice(-5),
         hpState: lastAction.hp || this.data.hpState
       });
+      this.setData({ currentRound: lastAction.round || this.data.currentRound });
     }
     this.finishBattle();
   },
@@ -503,34 +509,35 @@ Page({
     }
     this.clearTimers();
     this.timelineIndex = -1;
-    this.setData({
+    this.setBattleStageData({
       battleFinished: false,
-      battleState: 'playing',
       currentAction: {},
-      currentRound: 1,
       displayedLogs: [],
       hpState: {
         player: this.initialHp ? this.initialHp.player : this.data.hpState.player,
         opponent: this.initialHp ? this.initialHp.opponent : this.data.hpState.opponent
       },
       skipLocked: false,
-      skipCountdown: 0,
       skipButtonText: '跳过战斗'
     });
+    this.setData({ battleState: 'playing', currentRound: 1, skipCountdown: 0 });
     this.scheduleNextAction(400);
   },
 
   startSkipCountdown() {
     this.clearSkipTimer();
-    this.setData({ skipLocked: true, skipCountdown: MIN_SKIP_SECONDS, skipButtonText: `跳过（${MIN_SKIP_SECONDS}）` });
+    this.setBattleStageData({ skipLocked: true, skipButtonText: `跳过（${MIN_SKIP_SECONDS}）` });
+    this.setData({ skipCountdown: MIN_SKIP_SECONDS });
     let remaining = MIN_SKIP_SECONDS;
     this._skipTimer = setInterval(() => {
       remaining -= 1;
       if (remaining <= 0) {
         this.clearSkipTimer();
-        this.setData({ skipLocked: false, skipCountdown: 0, skipButtonText: '跳过战斗' });
+        this.setBattleStageData({ skipLocked: false, skipButtonText: '跳过战斗' });
+        this.setData({ skipCountdown: 0 });
       } else {
-        this.setData({ skipCountdown: remaining, skipButtonText: `跳过（${remaining}）` });
+        this.setBattleStageData({ skipButtonText: `跳过（${remaining}）` });
+        this.setData({ skipCountdown: remaining });
       }
     }, 1000);
   },
@@ -563,5 +570,20 @@ Page({
       clearInterval(this._skipTimer);
       this._skipTimer = null;
     }
+  },
+
+  setBattleStageData(updates = {}) {
+    if (!updates || typeof updates !== 'object') {
+      return;
+    }
+    const nextStage = {
+      ...this.data.battleStage,
+      ...updates
+    };
+    const dataUpdates = { battleStage: nextStage };
+    Object.keys(updates).forEach((key) => {
+      dataUpdates[key] = nextStage[key];
+    });
+    this.setData(dataUpdates);
   }
 });
