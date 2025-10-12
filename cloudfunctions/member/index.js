@@ -3,7 +3,6 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { listAvatarIds } = require('./avatar-catalog.js');
-const { normalizeAvatarFrameValue } = require('./avatar-frames.js');
 const commonConfig = require('common-config');
 const {
   normalizeBackgroundId,
@@ -12,6 +11,7 @@ const {
   resolveHighestUnlockedBackgroundByRealmOrder,
   resolveBackgroundByRealmName,
   resolveBackgroundById,
+  normalizeAvatarFrameValue,
   COLLECTIONS,
   realmConfigs,
   subLevelLabels
