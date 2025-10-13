@@ -16,6 +16,7 @@ const {
 } = require('combat-system');
 const { aggregateSkillEffects } = require('skill-model');
 const { createBattlePayload, decorateBattleReplay } = require('battle-schema');
+const { pickPortraitUrl } = require('../shared/avatar-utils.js');
 
 const db = cloud.database();
 const _ = db.command;
@@ -1445,11 +1446,13 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
   const background = buildBackgroundPayloadFromId(backgroundId, backgroundAnimated);
   const avatarUrl =
     (profile.memberSnapshot && profile.memberSnapshot.avatarUrl) || (member && member.avatarUrl) || '';
-  const portrait =
-    (profile.memberSnapshot && profile.memberSnapshot.portrait) ||
-    (member && (member.portrait || member.avatarUrl)) ||
-    avatarUrl ||
-    '';
+  const portrait = pickPortraitUrl(
+    profile.memberSnapshot && profile.memberSnapshot.portrait,
+    profile.memberSnapshot && profile.memberSnapshot.avatarUrl,
+    member && member.portrait,
+    member && member.avatarUrl,
+    avatarUrl
+  );
   return {
     memberId: memberId || profile.memberId,
     displayName: profile.memberSnapshot && profile.memberSnapshot.nickName ? profile.memberSnapshot.nickName : member ? member.nickName || '无名仙友' : '神秘对手',

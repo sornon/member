@@ -13,6 +13,7 @@ const {
   calculateCombatPower
 } = require('combat-system');
 const { createBattlePayload } = require('battle-schema');
+const { pickPortraitUrl } = require('../shared/avatar-utils.js');
 const {
   BASE_ATTRIBUTE_KEYS,
   COMBAT_STAT_KEYS,
@@ -7090,12 +7091,6 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
     member && member.nickname,
     member && member.name
   ];
-  const portraitCandidates = [
-    profile && profile.avatarUrl,
-    profile && profile.portrait,
-    member && member.avatarUrl,
-    member && member.avatar
-  ];
   let resolvedId = 'player';
   memberIdCandidates.forEach((candidate) => {
     if (resolvedId !== 'player') {
@@ -7114,15 +7109,13 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
       displayName = candidate.trim();
     }
   });
-  let portrait = '';
-  portraitCandidates.forEach((candidate) => {
-    if (portrait) {
-      return;
-    }
-    if (typeof candidate === 'string' && candidate.trim()) {
-      portrait = candidate.trim();
-    }
-  });
+  const portrait = pickPortraitUrl(
+    profile && profile.portrait,
+    profile && profile.avatarUrl,
+    member && member.portrait,
+    member && member.avatarUrl,
+    member && member.avatar
+  );
   const hpSnapshot = buildParticipantHpSnapshot(
     combatant.stats,
     combatant.special,
@@ -7154,7 +7147,11 @@ function buildEnemyBattleInfo(enemy, combatant) {
   });
   const displayName =
     (enemy && (enemy.displayName || enemy.name || enemy.stageName || enemy.realmName)) || '敌方';
-  const portrait = (enemy && (enemy.portrait || enemy.avatarUrl || enemy.image)) || '';
+  const portrait = pickPortraitUrl(
+    enemy && enemy.portrait,
+    enemy && enemy.avatarUrl,
+    enemy && enemy.image
+  );
   const hpSnapshot = buildParticipantHpSnapshot(combatant.stats, combatant.special, enemy && enemy.stats);
   return {
     id: resolvedId,
