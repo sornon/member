@@ -21,7 +21,9 @@
             <view class="actor-card__avatar">
               <image
                 class="actor-card__avatar-image"
-                src="{{attackerKey === 'player' ? (player && player.portrait || '') : (opponent && opponent.portrait || '')}}"
+                src="{{attackerKey === 'player'
+                  ? (player && (player.avatar || player.portrait) || '')
+                  : (opponent && (opponent.avatar || opponent.portrait) || '')}}"
                 mode="cover"
               ></image>
               <image
@@ -77,7 +79,9 @@
             <view class="actor-card__avatar">
               <image
                 class="actor-card__avatar-image"
-                src="{{defenderKey === 'player' ? (player && player.portrait || '') : (opponent && opponent.portrait || '')}}"
+                src="{{defenderKey === 'player'
+                  ? (player && (player.avatar || player.portrait) || '')
+                  : (opponent && (opponent.avatar || opponent.portrait) || '')}}"
                 mode="cover"
               ></image>
               <image

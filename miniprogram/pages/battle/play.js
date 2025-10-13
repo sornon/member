@@ -301,43 +301,56 @@ function resolvePortraitCandidate(candidate, options = {}) {
     return normalizePortraitUrl(candidate, options);
   }
   if (typeof candidate === 'object') {
-    const avatarUrl = resolvePortraitCandidate(candidate.avatarUrl, { type: 'avatar' });
-    if (avatarUrl) {
-      return avatarUrl;
-    }
-    const avatarAlt = resolvePortraitCandidate(candidate.avatar, { type: 'avatar' });
-    if (avatarAlt) {
-      return avatarAlt;
-    }
-    const directPortrait = resolvePortraitCandidate(candidate.portrait, { type: 'character' });
-    if (directPortrait) {
-      return directPortrait;
-    }
-    const iconPortrait = resolvePortraitCandidate(candidate.icon, options);
-    if (iconPortrait) {
-      return iconPortrait;
-    }
-    const imagePortrait = resolvePortraitCandidate(candidate.image, options);
-    if (imagePortrait) {
-      return imagePortrait;
-    }
-    const fallbackUrl = resolvePortraitCandidate(candidate.url, options);
-    if (fallbackUrl) {
-      return fallbackUrl;
+    const type = (options && options.type) || 'avatar';
+    const fieldOrder =
+      type === 'character'
+        ? [
+            ['portrait', { type: 'character' }],
+            ['image', options],
+            ['icon', options],
+            ['url', options],
+            ['avatarUrl', { type: 'avatar' }],
+            ['avatar', { type: 'avatar' }]
+          ]
+        : [
+            ['avatarUrl', { type: 'avatar' }],
+            ['avatar', { type: 'avatar' }],
+            ['portrait', { type: 'character' }],
+            ['icon', options],
+            ['image', options],
+            ['url', options]
+          ];
+    for (let i = 0; i < fieldOrder.length; i += 1) {
+      const [field, fieldOptions] = fieldOrder[i];
+      if (!Object.prototype.hasOwnProperty.call(candidate, field)) {
+        continue;
+      }
+      const resolved = resolvePortraitCandidate(candidate[field], fieldOptions || options);
+      if (resolved) {
+        return resolved;
+      }
     }
     return '';
   }
   return '';
 }
 
-function pickBattlePortrait(fallback, ...candidates) {
+function pickBattleImage(fallback, candidates, options) {
   for (let i = 0; i < candidates.length; i += 1) {
-    const resolved = resolvePortraitCandidate(candidates[i]);
+    const resolved = resolvePortraitCandidate(candidates[i], options);
     if (resolved) {
       return resolved;
     }
   }
   return fallback;
+}
+
+function pickBattleAvatar(fallback, ...candidates) {
+  return pickBattleImage(fallback, candidates, { type: 'avatar' });
+}
+
+function pickBattlePortrait(fallback, ...candidates) {
+  return pickBattleImage(fallback, candidates, { type: 'character' });
 }
 
 function resolveParticipantByAliases(participants, aliases = []) {
@@ -584,19 +597,43 @@ Page({
             resolveParticipantByAliases(participants, ['player', 'self', 'attacker', 'initiator', 'ally', 'member']) || null;
           const opponentParticipant =
             resolveParticipantByAliases(participants, ['opponent', 'enemy', 'defender', 'target', 'foe']) || null;
+          const playerPortrait = pickBattlePortrait(
+            DEFAULT_PLAYER_IMAGE,
+            context.playerPortrait,
+            playerParticipant,
+            battleData.player
+          );
+          const opponentPortrait = pickBattlePortrait(
+            DEFAULT_OPPONENT_IMAGE,
+            context.opponentPortrait,
+            opponentParticipant,
+            battleData.opponent
+          );
+          const playerAvatar = pickBattleAvatar(
+            playerPortrait,
+            context.playerAvatar,
+            context.playerAvatarUrl,
+            context.playerIcon,
+            context.playerImage,
+            playerParticipant,
+            battleData.player,
+            context.playerPortrait
+          );
+          const opponentAvatar = pickBattleAvatar(
+            opponentPortrait,
+            context.opponentAvatar,
+            context.opponentAvatarUrl,
+            context.opponentIcon,
+            context.opponentImage,
+            opponentParticipant,
+            battleData.opponent,
+            context.opponentPortrait
+          );
           viewContext = {
-            playerPortrait: pickBattlePortrait(
-              DEFAULT_PLAYER_IMAGE,
-              context.playerPortrait,
-              playerParticipant,
-              battleData.player
-            ),
-            opponentPortrait: pickBattlePortrait(
-              DEFAULT_OPPONENT_IMAGE,
-              context.opponentPortrait,
-              opponentParticipant,
-              battleData.opponent
-            ),
+            playerPortrait,
+            opponentPortrait,
+            playerAvatar,
+            opponentAvatar,
             playerName: battleData.player ? battleData.player.displayName : '我方',
             opponentName: battleData.opponent ? battleData.opponent.displayName : '对手',
             playerPower: battleData.player ? battleData.player.pointsAfter : '',
@@ -637,24 +674,46 @@ Page({
         }
         const enemy = context.enemyPreview || {};
         const sceneBackground = resolvePveSceneBackground(enemy);
+        const playerPortrait = pickBattlePortrait(
+          DEFAULT_PLAYER_IMAGE,
+          context.playerPortrait,
+          playerParticipant
+        );
+        const opponentPortrait = pickBattlePortrait(
+          DEFAULT_OPPONENT_IMAGE,
+          context.opponentPortrait,
+          enemy
+        );
+        const playerAvatar = pickBattleAvatar(
+          playerPortrait,
+          context.playerAvatar,
+          context.playerAvatarUrl,
+          context.playerIcon,
+          context.playerImage,
+          playerParticipant,
+          context.playerPortrait
+        );
+        const opponentAvatar = pickBattleAvatar(
+          opponentPortrait,
+          context.opponentAvatar,
+          context.opponentAvatarUrl,
+          context.opponentIcon,
+          context.opponentImage,
+          enemy,
+          context.opponentPortrait
+        );
         viewContext = {
           playerName:
             playerParticipant.displayName ||
             playerParticipant.name ||
             context.playerName ||
             '你',
-          playerPortrait: pickBattlePortrait(
-            DEFAULT_PLAYER_IMAGE,
-            context.playerPortrait,
-            playerParticipant
-          ),
+          playerPortrait,
+          playerAvatar,
           playerPower: playerPowerValue,
           opponentName: enemy.name || '秘境之敌',
-          opponentPortrait: pickBattlePortrait(
-            DEFAULT_OPPONENT_IMAGE,
-            context.opponentPortrait,
-            enemy
-          ),
+          opponentPortrait,
+          opponentAvatar,
           backgroundVideo: sceneBackground || context.backgroundVideo || DEFAULT_BACKGROUND_VIDEO
         };
         this.parentPayload = {
@@ -675,25 +734,49 @@ Page({
         const profile = serviceResult.profile || {};
         const member = profile.memberSnapshot || profile.member || {};
         const opponent = (serviceResult.opponent && serviceResult.opponent) || {};
+        const playerPortrait = pickBattlePortrait(
+          DEFAULT_PLAYER_IMAGE,
+          context.playerPortrait,
+          member,
+          battleData && battleData.player
+        );
+        const opponentPortrait = pickBattlePortrait(
+          DEFAULT_OPPONENT_IMAGE,
+          context.opponentPortrait,
+          opponent,
+          battleData && battleData.opponent
+        );
+        const playerAvatar = pickBattleAvatar(
+          playerPortrait,
+          context.playerAvatar,
+          context.playerAvatarUrl,
+          context.playerIcon,
+          context.playerImage,
+          member,
+          battleData && battleData.player,
+          context.playerPortrait
+        );
+        const opponentAvatar = pickBattleAvatar(
+          opponentPortrait,
+          context.opponentAvatar,
+          context.opponentAvatarUrl,
+          context.opponentIcon,
+          context.opponentImage,
+          opponent,
+          battleData && battleData.opponent,
+          context.opponentPortrait
+        );
         viewContext = {
           playerName: member.nickName || member.name || '我方',
-          playerPortrait: pickBattlePortrait(
-            DEFAULT_PLAYER_IMAGE,
-            context.playerPortrait,
-            member,
-            battleData && battleData.player
-          ),
+          playerPortrait,
+          playerAvatar,
           playerPower:
             (battleData && battleData.player && battleData.player.pointsAfter) ||
             (serviceResult.profile ? serviceResult.profile.points : ''),
           opponentName:
             opponent.nickName || (battleData && battleData.opponent && battleData.opponent.displayName) || '对手',
-          opponentPortrait: pickBattlePortrait(
-            DEFAULT_OPPONENT_IMAGE,
-            context.opponentPortrait,
-            opponent,
-            battleData && battleData.opponent
-          ),
+          opponentPortrait,
+          opponentAvatar,
           opponentPower:
             (battleData && battleData.opponent && battleData.opponent.pointsAfter) || opponent.points || ''
         };

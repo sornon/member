@@ -272,6 +272,55 @@ function resolvePortrait(source, fallback) {
   return fallback;
 }
 
+const AVATAR_FIELD_PRIORITY = ['avatarUrl', 'avatar', 'icon', 'image', 'portrait'];
+
+function resolveAvatarValue(candidate, visited = new Set()) {
+  if (!candidate) {
+    return '';
+  }
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    return trimmed || '';
+  }
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      const resolved = resolveAvatarValue(candidate[i], visited);
+      if (resolved) {
+        return resolved;
+      }
+    }
+    return '';
+  }
+  if (typeof candidate !== 'object') {
+    return '';
+  }
+  if (visited.has(candidate)) {
+    return '';
+  }
+  visited.add(candidate);
+  for (let i = 0; i < AVATAR_FIELD_PRIORITY.length; i += 1) {
+    const field = AVATAR_FIELD_PRIORITY[i];
+    if (!Object.prototype.hasOwnProperty.call(candidate, field)) {
+      continue;
+    }
+    const resolved = resolveAvatarValue(candidate[field], visited);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return '';
+}
+
+function resolveAvatarFromCandidates(candidates = [], fallback = '') {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const resolved = resolveAvatarValue(candidates[i]);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return fallback;
+}
+
 function buildHpState(maxHp, currentHp) {
   const normalizedMax = Math.max(1, toNumber(maxHp, currentHp || 1));
   const normalizedCurrent = clamp(toNumber(currentHp, normalizedMax), 0, normalizedMax);
@@ -888,6 +937,49 @@ function buildStructuredBattleViewModel({
     context.opponentPortrait || (opponentSource && (opponentSource.portrait || opponentSource.avatarUrl)) || opponentSource,
     defaults.opponentPortrait || DEFAULT_OPPONENT_IMAGE
   );
+  const playerAvatar = resolveAvatarFromCandidates(
+    [
+      context.playerAvatar,
+      context.playerAvatarUrl,
+      context.playerIcon,
+      context.playerImage,
+      context.playerPortrait,
+      playerSource,
+      participants.player,
+      participants.self,
+      battle.player,
+      fallbackParticipants.player,
+      context.player,
+      context.profile,
+      context.profile && context.profile.member,
+      context.profile && context.profile.memberSnapshot,
+      context.playerParticipant
+    ].filter(Boolean),
+    playerPortrait
+  );
+  const opponentAvatar = resolveAvatarFromCandidates(
+    [
+      context.opponentAvatar,
+      context.opponentAvatarUrl,
+      context.opponentIcon,
+      context.opponentImage,
+      context.opponentPortrait,
+      opponentSource,
+      participants.opponent,
+      participants.enemy,
+      battle.opponent,
+      battle.enemy,
+      fallbackParticipants.opponent,
+      context.opponent,
+      context.enemy,
+      context.target,
+      context.opponentParticipant,
+      context.enemyParticipant,
+      context.opponentPreview,
+      context.enemyPreview
+    ].filter(Boolean),
+    opponentPortrait
+  );
 
   const playerBaseMax = extractParticipantMaxHp(playerSource, defaults.playerMaxHp);
   const opponentBaseMax = extractParticipantMaxHp(opponentSource, defaults.opponentMaxHp);
@@ -1238,6 +1330,7 @@ function buildStructuredBattleViewModel({
       id: playerId || 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
+      avatar: playerAvatar,
       portrait: playerPortrait,
       combatPower: toNumber((playerSource && playerSource.combatPower) || context.playerPower),
       avatarFrame: playerAvatarFrame,
@@ -1255,6 +1348,7 @@ function buildStructuredBattleViewModel({
       id: opponentId || 'opponent',
       name: opponentName,
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
+      avatar: opponentAvatar,
       portrait: opponentPortrait,
       combatPower: toNumber((opponentSource && opponentSource.combatPower) || context.opponentPower),
       avatarFrame: opponentAvatarFrame,
@@ -1481,13 +1575,43 @@ function buildPveActions(battle = {}, context = {}) {
 
   const playerName = (context && context.playerName) || '你';
   const opponentName = (context && context.opponentName) || '秘境之敌';
+  const playerPortrait = resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE);
+  const opponentPortrait = resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE);
+  const playerAvatar = resolveAvatarFromCandidates(
+    [
+      context && context.playerAvatar,
+      context && context.playerAvatarUrl,
+      context && context.playerIcon,
+      context && context.playerImage,
+      context && context.playerPortrait,
+      battle.player,
+      battle.participants && battle.participants.player,
+      battle.participants && battle.participants.self
+    ].filter(Boolean),
+    playerPortrait
+  );
+  const opponentAvatar = resolveAvatarFromCandidates(
+    [
+      context && context.opponentAvatar,
+      context && context.opponentAvatarUrl,
+      context && context.opponentIcon,
+      context && context.opponentImage,
+      context && context.opponentPortrait,
+      battle.enemy,
+      battle.opponent,
+      battle.participants && battle.participants.opponent,
+      battle.participants && battle.participants.enemy
+    ].filter(Boolean),
+    opponentPortrait
+  );
 
   return {
     player: {
       id: 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
-      portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
+      avatar: playerAvatar,
+      portrait: playerPortrait,
       combatPower: toNumber(battle.combatPower && battle.combatPower.player),
       attributes: ensureAttributesObject(context && context.playerAttributes),
       summary: {
@@ -1500,7 +1624,8 @@ function buildPveActions(battle = {}, context = {}) {
       id: 'opponent',
       name: opponentName,
       hp: buildHpState(enemyMaxHp, enemyMaxHp),
-      portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
+      avatar: opponentAvatar,
+      portrait: opponentPortrait,
       combatPower: toNumber(battle.combatPower && battle.combatPower.enemy),
       attributes: ensureAttributesObject(context && context.opponentAttributes),
       summary: {
@@ -1678,12 +1803,38 @@ function buildPvpActions(battle = {}, context = {}) {
     }
   });
 
+  const playerPortrait = resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE);
+  const opponentPortrait = resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE);
+  const playerAvatar = resolveAvatarFromCandidates(
+    [
+      context && context.playerAvatar,
+      context && context.playerAvatarUrl,
+      context && context.playerIcon,
+      context && context.playerImage,
+      context && context.playerPortrait,
+      battle.player
+    ].filter(Boolean),
+    playerPortrait
+  );
+  const opponentAvatar = resolveAvatarFromCandidates(
+    [
+      context && context.opponentAvatar,
+      context && context.opponentAvatarUrl,
+      context && context.opponentIcon,
+      context && context.opponentImage,
+      context && context.opponentPortrait,
+      battle.opponent
+    ].filter(Boolean),
+    opponentPortrait
+  );
+
   return {
     player: {
       id: playerId || 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
-      portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
+      avatar: playerAvatar,
+      portrait: playerPortrait,
       combatPower: toNumber(context && context.playerPower),
       attributes: ensureAttributesObject(context && context.playerAttributes),
       summary: {
@@ -1696,7 +1847,8 @@ function buildPvpActions(battle = {}, context = {}) {
       id: opponentId || 'opponent',
       name: opponentName,
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
-      portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
+      avatar: opponentAvatar,
+      portrait: opponentPortrait,
       combatPower: toNumber(context && context.opponentPower),
       attributes: ensureAttributesObject(context && context.opponentAttributes),
       summary: {
