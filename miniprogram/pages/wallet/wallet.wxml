@@ -27,13 +27,7 @@
 
   <view class="card">
     <view class="section-title">快捷充值</view>
-    <view class="presets">
-      <view class="preset {{amount === item ? 'active' : ''}}" wx:for="{{presets}}" wx:key="value" data-value="{{item}}" bindtap="handlePresetTap">¥{{item}}</view>
-    </view>
-    <view class="input-box">
-      <input type="number" placeholder="输入自定义金额" value="{{amount}}" bindinput="handleAmountInput"/>
-    </view>
-    <button type="primary" bindtap="handleRecharge">立即充值</button>
+    <view class="disabled-tip">目前只支持收款台线下充值</view>
   </view>
 
   <view class="card">
