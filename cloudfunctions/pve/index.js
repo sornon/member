@@ -7110,11 +7110,18 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
   });
   const portrait = pickPortraitUrl(
     profile && profile.portrait,
+    profile && profile.avatarPortrait,
+    profile && profile.avatar,
     profile && profile.avatarUrl,
     member && member.portrait,
-    member && member.avatarUrl,
-    member && member.avatar
+    member && member.avatarPortrait,
+    member && member.avatar,
+    member && member.avatarUrl
   );
+  const avatarUrl =
+    (profile && (profile.avatarUrl || profile.avatar)) ||
+    (member && (member.avatarUrl || member.avatar)) ||
+    '';
   const hpSnapshot = buildParticipantHpSnapshot(
     combatant.stats,
     combatant.special,
@@ -7124,6 +7131,7 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
     id: resolvedId,
     displayName,
     portrait,
+    avatarUrl,
     level: attributes.level,
     realmId: attributes.realmId,
     realmName: attributes.realmName,
@@ -7148,14 +7156,20 @@ function buildEnemyBattleInfo(enemy, combatant) {
     (enemy && (enemy.displayName || enemy.name || enemy.stageName || enemy.realmName)) || '敌方';
   const portrait = pickPortraitUrl(
     enemy && enemy.portrait,
+    enemy && enemy.avatarPortrait,
+    enemy && enemy.avatar,
     enemy && enemy.avatarUrl,
     enemy && enemy.image
   );
+  const avatarUrl =
+    (enemy && (enemy.avatarUrl || enemy.avatar)) ||
+    '';
   const hpSnapshot = buildParticipantHpSnapshot(combatant.stats, combatant.special, enemy && enemy.stats);
   return {
     id: resolvedId,
     displayName,
     portrait,
+    avatarUrl,
     level: enemy && enemy.level,
     realmId: enemy && enemy.realmId,
     realmName: enemy && enemy.realmName,
@@ -7206,6 +7220,7 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
       id: playerId,
       displayName: playerName,
       portrait: playerInfo.portrait || '',
+      avatarUrl: playerInfo.avatarUrl || '',
       maxHp: Math.round(playerMaxHp),
       hp: {
         current: Math.max(0, Math.round(Math.min(playerHp, playerMaxHp))),
@@ -7219,6 +7234,7 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
       id: enemyId,
       displayName: enemyName,
       portrait: enemyInfo.portrait || '',
+      avatarUrl: enemyInfo.avatarUrl || '',
       maxHp: Math.round(enemyMaxHp),
       hp: {
         current: Math.max(0, Math.round(Math.min(enemyHp, enemyMaxHp))),
