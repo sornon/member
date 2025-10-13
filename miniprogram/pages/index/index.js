@@ -1684,5 +1684,12 @@ Page({
       path: '/pages/index/index',
       imageUrl: SHARE_COVER_IMAGE_URL
     };
+  },
+
+  onShareTimeline() {
+    return {
+      title: '酒隐之茄 · 仙界生活',
+      imageUrl: SHARE_COVER_IMAGE_URL
+    };
   }
 });
