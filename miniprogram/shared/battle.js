@@ -1,10 +1,13 @@
 const { buildCloudAssetUrl, CHARACTER_IMAGE_BASE_PATH } = require('./asset-paths');
 const { normalizeAvatarFrameValue } = require('./avatar-frames');
+const { listAvatarIds } = require('./avatar-catalog');
 const { buildTitleImageUrl, normalizeTitleId, resolveTitleById } = require('./titles');
 
 const DEFAULT_BACKGROUND_VIDEO = buildCloudAssetUrl('video', 'battle_default.mp4');
 const DEFAULT_PLAYER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/male-b-1.png`;
 const DEFAULT_OPPONENT_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/female-c-1.png`;
+const AVATAR_ASSET_BASE_PATH = '/assets/avatar';
+const KNOWN_AVATAR_IDS = new Set(listAvatarIds().map((id) => (typeof id === 'string' ? id.toLowerCase() : id)));
 
 const PLAYER_SKILL_ROTATION = ['流云剑诀', '星河落斩', '落霞破影', '雷霆贯体'];
 const OPPONENT_SKILL_ROTATION = ['幽影突袭', '寒魄碎骨', '血焰冲锋', '枯藤缠袭'];
@@ -24,6 +27,36 @@ const ACTION_EFFECT_LABELS = {
 };
 
 const AVATAR_FRAME_FIELDS = ['avatarFrame', 'appearanceFrame', 'frame', 'border', 'avatarBorder', 'avatar_frame'];
+const AVATAR_URL_FIELDS = [
+  'avatarUrl',
+  'avatar',
+  'avatarImage',
+  'avatarPath',
+  'avatarIcon',
+  'avatarURL',
+  'avatar_url',
+  'appearanceAvatar',
+  'appearanceAvatarUrl',
+  'appearanceAvatarImage',
+  'head',
+  'headUrl',
+  'headImage',
+  'headIcon',
+  'profileAvatar',
+  'profileAvatarUrl',
+  'profileAvatarImage',
+  'memberAvatar',
+  'memberAvatarUrl',
+  'userAvatar',
+  'userAvatarUrl'
+];
+const AVATAR_ID_FIELDS = [
+  'avatarId',
+  'avatar_id',
+  'appearanceAvatarId',
+  'avatarCode',
+  'avatarKey'
+];
 
 const TITLE_ID_FIELDS = [
   'appearanceTitle',
@@ -91,6 +124,100 @@ function looksLikeUrl(value) {
     trimmed.startsWith('/') ||
     trimmed.startsWith('wxfile://')
   );
+}
+
+function buildAvatarUrlById(id) {
+  if (typeof id !== 'string') {
+    return '';
+  }
+  const trimmed = id.trim().toLowerCase();
+  if (!trimmed) {
+    return '';
+  }
+  const withoutExtension = trimmed.endsWith('.png') ? trimmed.slice(0, -4) : trimmed;
+  if (!KNOWN_AVATAR_IDS.has(withoutExtension)) {
+    return '';
+  }
+  return `${AVATAR_ASSET_BASE_PATH}/${withoutExtension}.png`;
+}
+
+function normalizeAvatarString(value) {
+  const candidate = toTrimmedString(value);
+  if (!candidate) {
+    return '';
+  }
+  if (looksLikeUrl(candidate) || candidate.startsWith('data:')) {
+    return candidate;
+  }
+  if (candidate.startsWith('assets/avatar/')) {
+    return `/${candidate}`;
+  }
+  if (candidate.startsWith('/assets/avatar/')) {
+    return candidate;
+  }
+  const byId = buildAvatarUrlById(candidate);
+  if (byId) {
+    return byId;
+  }
+  return '';
+}
+
+function resolveAvatarValue(candidate) {
+  if (!candidate) {
+    return '';
+  }
+  if (typeof candidate === 'string') {
+    return normalizeAvatarString(candidate);
+  }
+  if (candidate && typeof candidate === 'object') {
+    if (typeof candidate.url === 'string') {
+      const fromUrl = normalizeAvatarString(candidate.url);
+      if (fromUrl) {
+        return fromUrl;
+      }
+    }
+    for (let i = 0; i < AVATAR_URL_FIELDS.length; i += 1) {
+      const field = AVATAR_URL_FIELDS[i];
+      if (!Object.prototype.hasOwnProperty.call(candidate, field)) {
+        continue;
+      }
+      const resolved = resolveAvatarValue(candidate[field]);
+      if (resolved) {
+        return resolved;
+      }
+    }
+    for (let i = 0; i < AVATAR_ID_FIELDS.length; i += 1) {
+      const field = AVATAR_ID_FIELDS[i];
+      if (!Object.prototype.hasOwnProperty.call(candidate, field)) {
+        continue;
+      }
+      const resolved = buildAvatarUrlById(candidate[field]);
+      if (resolved) {
+        return resolved;
+      }
+    }
+  }
+  return '';
+}
+
+function resolveAvatarFromSources({ direct = [], sources = [] } = {}) {
+  for (let i = 0; i < direct.length; i += 1) {
+    const resolved = resolveAvatarValue(direct[i]);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  for (let i = 0; i < sources.length; i += 1) {
+    const source = sources[i];
+    if (!source) {
+      continue;
+    }
+    const resolved = resolveAvatarValue(source);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return '';
 }
 
 function resolveAvatarFrameValue(...candidates) {
@@ -1203,6 +1330,34 @@ function buildStructuredBattleViewModel({
     sources: opponentRelatedSources
   });
 
+  const playerAvatar =
+    resolveAvatarFromSources({
+      direct: [
+        context.playerAvatar,
+        context.playerAvatarUrl,
+        context.playerAvatarImage,
+        context.avatar,
+        context.avatarUrl,
+        context.playerAppearance && context.playerAppearance.avatar,
+        context.playerAppearance && context.playerAppearance.avatarUrl
+      ],
+      sources: playerRelatedSources
+    }) || resolveAvatarValue(defaults.playerAvatar);
+
+  const opponentAvatar =
+    resolveAvatarFromSources({
+      direct: [
+        context.opponentAvatar,
+        context.opponentAvatarUrl,
+        context.opponentAvatarImage,
+        context.enemyAvatar,
+        context.enemyAvatarUrl,
+        context.opponentAppearance && context.opponentAppearance.avatar,
+        context.opponentAppearance && context.opponentAppearance.avatarUrl
+      ],
+      sources: opponentRelatedSources
+    }) || resolveAvatarValue(defaults.opponentAvatar);
+
   const playerTitle = resolveTitleSnapshotFromSources({
     direct: [
       context.playerTitle,
@@ -1238,6 +1393,7 @@ function buildStructuredBattleViewModel({
       id: playerId || 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
+      avatar: playerAvatar || playerPortrait,
       portrait: playerPortrait,
       combatPower: toNumber((playerSource && playerSource.combatPower) || context.playerPower),
       avatarFrame: playerAvatarFrame,
@@ -1255,6 +1411,7 @@ function buildStructuredBattleViewModel({
       id: opponentId || 'opponent',
       name: opponentName,
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
+      avatar: opponentAvatar || opponentPortrait,
       portrait: opponentPortrait,
       combatPower: toNumber((opponentSource && opponentSource.combatPower) || context.opponentPower),
       avatarFrame: opponentAvatarFrame,
@@ -1482,12 +1639,51 @@ function buildPveActions(battle = {}, context = {}) {
   const playerName = (context && context.playerName) || '你';
   const opponentName = (context && context.opponentName) || '秘境之敌';
 
+  const playerAvatar =
+    resolveAvatarFromSources({
+      direct: [
+        context && context.playerAvatar,
+        context && context.playerAvatarUrl,
+        context && context.avatar,
+        context && context.avatarUrl
+      ],
+      sources: [
+        context && context.player,
+        context && context.profile,
+        context && context.profile && context.profile.member,
+        battle.player
+      ]
+    }) || '';
+
+  const opponentAvatar =
+    resolveAvatarFromSources({
+      direct: [
+        context && context.opponentAvatar,
+        context && context.opponentAvatarUrl,
+        context && context.enemyAvatar,
+        context && context.enemyAvatarUrl
+      ],
+      sources: [
+        context && context.opponent,
+        context && context.enemy,
+        context && context.target,
+        context && context.profile,
+        context && context.profile && context.profile.opponent,
+        battle.opponent,
+        battle.enemy
+      ]
+    }) || '';
+
+  const playerPortrait = resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE);
+  const opponentPortrait = resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE);
+
   return {
     player: {
       id: 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
-      portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
+      avatar: playerAvatar || resolveAvatarValue(context && context.playerAvatar) || playerPortrait,
+      portrait: playerPortrait,
       combatPower: toNumber(battle.combatPower && battle.combatPower.player),
       attributes: ensureAttributesObject(context && context.playerAttributes),
       summary: {
@@ -1500,7 +1696,11 @@ function buildPveActions(battle = {}, context = {}) {
       id: 'opponent',
       name: opponentName,
       hp: buildHpState(enemyMaxHp, enemyMaxHp),
-      portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
+      avatar:
+        opponentAvatar ||
+        resolveAvatarValue(context && (context.opponentAvatar || context.enemyAvatar)) ||
+        opponentPortrait,
+      portrait: opponentPortrait,
       combatPower: toNumber(battle.combatPower && battle.combatPower.enemy),
       attributes: ensureAttributesObject(context && context.opponentAttributes),
       summary: {
@@ -1571,6 +1771,43 @@ function buildPvpActions(battle = {}, context = {}) {
   let opponentHp = opponentMaxHp;
   let playerSkillIndex = 0;
   let opponentSkillIndex = 0;
+
+  const playerAvatar =
+    resolveAvatarFromSources({
+      direct: [
+        context && context.playerAvatar,
+        context && context.playerAvatarUrl,
+        context && context.avatar,
+        context && context.avatarUrl
+      ],
+      sources: [
+        battle.player,
+        context && context.player,
+        context && context.profile,
+        context && context.profile && context.profile.member
+      ]
+    }) || '';
+
+  const opponentAvatar =
+    resolveAvatarFromSources({
+      direct: [
+        context && context.opponentAvatar,
+        context && context.opponentAvatarUrl,
+        context && context.enemyAvatar,
+        context && context.enemyAvatarUrl
+      ],
+      sources: [
+        battle.opponent,
+        context && context.opponent,
+        context && context.enemy,
+        context && context.target,
+        context && context.profile,
+        context && context.profile && context.profile.opponent
+      ]
+    }) || '';
+
+  const playerPortrait = resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE);
+  const opponentPortrait = resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE);
 
   const actions = rounds.map((entry, index) => {
     const roundNumber = toNumber(entry.round, Math.floor(index / 2) + 1);
@@ -1683,7 +1920,8 @@ function buildPvpActions(battle = {}, context = {}) {
       id: playerId || 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
-      portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
+      avatar: playerAvatar || resolveAvatarValue(context && context.playerAvatar) || playerPortrait,
+      portrait: playerPortrait,
       combatPower: toNumber(context && context.playerPower),
       attributes: ensureAttributesObject(context && context.playerAttributes),
       summary: {
@@ -1696,7 +1934,11 @@ function buildPvpActions(battle = {}, context = {}) {
       id: opponentId || 'opponent',
       name: opponentName,
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
-      portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
+      avatar:
+        opponentAvatar ||
+        resolveAvatarValue(context && (context.opponentAvatar || context.enemyAvatar)) ||
+        opponentPortrait,
+      portrait: opponentPortrait,
       combatPower: toNumber(context && context.opponentPower),
       attributes: ensureAttributesObject(context && context.opponentAttributes),
       summary: {
