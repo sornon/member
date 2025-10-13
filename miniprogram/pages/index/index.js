@@ -22,6 +22,7 @@ const {
 const { CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
 const { buildTitleImageUrl, resolveTitleById, normalizeTitleId } = require('../../shared/titles.js');
 const { listAvatarIds: listAllAvatarIds } = require('../../shared/avatar-catalog.js');
+const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
 
 function buildCharacterImageMap() {
   const ids = listAllAvatarIds();
@@ -1675,5 +1676,13 @@ Page({
   handleNavTap(event) {
     const { url } = event.currentTarget.dataset;
     wx.navigateTo({ url });
+  },
+
+  onShareAppMessage() {
+    return {
+      title: '酒隐之茄 · 仙界生活',
+      path: '/pages/index/index',
+      imageUrl: SHARE_COVER_IMAGE_URL
+    };
   }
 });
