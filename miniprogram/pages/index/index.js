@@ -1682,12 +1682,10 @@ Page({
     const member = this.data.member || {};
     const nickName = typeof member.nickName === 'string' && member.nickName.trim() ? member.nickName.trim() : '';
     const title = nickName ? `${nickName}邀请你加入酒隐之茄` : '酒隐之茄会员中心';
-    const heroImage = typeof this.data.heroImage === 'string' ? this.data.heroImage.trim() : '';
-    const imageUrl = heroImage || SHARE_COVER_IMAGE_URL;
     return {
       title,
       path: '/pages/index/index',
-      imageUrl: imageUrl || undefined
+      imageUrl: SHARE_COVER_IMAGE_URL
     };
   }
 });
