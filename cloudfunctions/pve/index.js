@@ -2,7 +2,7 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
-const { COLLECTIONS, realmConfigs, subLevelLabels, DEFAULT_ADMIN_ROLES } = require('common-config');
+const { COLLECTIONS, realmConfigs, subLevelLabels, DEFAULT_ADMIN_ROLES, pickPortraitUrl } = require('common-config');
 const {
   DEFAULT_COMBAT_STATS,
   clamp,
@@ -13,7 +13,6 @@ const {
   calculateCombatPower
 } = require('combat-system');
 const { createBattlePayload } = require('battle-schema');
-const { pickPortraitUrl } = require('../shared/avatar-utils.js');
 const {
   BASE_ATTRIBUTE_KEYS,
   COMBAT_STAT_KEYS,

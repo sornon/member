@@ -4,7 +4,7 @@ const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const commonConfig = require('common-config');
-const { COLLECTIONS, resolveBackgroundById, normalizeBackgroundId } = commonConfig;
+const { COLLECTIONS, resolveBackgroundById, normalizeBackgroundId, pickPortraitUrl } = commonConfig;
 const {
   DEFAULT_COMBAT_STATS,
   DEFAULT_SPECIAL_STATS,
@@ -16,7 +16,6 @@ const {
 } = require('combat-system');
 const { aggregateSkillEffects } = require('skill-model');
 const { createBattlePayload, decorateBattleReplay } = require('battle-schema');
-const { pickPortraitUrl } = require('../shared/avatar-utils.js');
 
 const db = cloud.database();
 const _ = db.command;
