@@ -306,11 +306,16 @@ function resolvePortraitCandidate(candidate, options = {}) {
       type === 'character'
         ? [
             ['portrait', { type: 'character' }],
+            ['character', { type: 'character' }],
+            ['characterImage', { type: 'character' }],
+            ['characterUrl', { type: 'character' }],
+            ['figure', { type: 'character' }],
+            ['fullImage', { type: 'character' }],
+            ['fullBody', { type: 'character' }],
+            ['fullPortrait', { type: 'character' }],
             ['image', options],
             ['icon', options],
-            ['url', options],
-            ['avatarUrl', { type: 'avatar' }],
-            ['avatar', { type: 'avatar' }]
+            ['url', options]
           ]
         : [
             ['avatarUrl', { type: 'avatar' }],
