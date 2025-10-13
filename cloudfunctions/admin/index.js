@@ -2,12 +2,12 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
-const { listAvatarIds } = require('./avatar-catalog.js');
 const {
   EXPERIENCE_PER_YUAN,
   COLLECTIONS,
   EXCLUDED_TRANSACTION_STATUSES,
-  DEFAULT_ADMIN_ROLES
+  DEFAULT_ADMIN_ROLES,
+  listAvatarIds
 } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 
 const db = cloud.database();

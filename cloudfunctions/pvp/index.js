@@ -4,7 +4,7 @@ const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const commonConfig = require('common-config');
-const { COLLECTIONS, resolveBackgroundById, normalizeBackgroundId } = commonConfig;
+const { COLLECTIONS, resolveBackgroundById, normalizeBackgroundId, pickPortraitUrl } = commonConfig;
 const {
   DEFAULT_COMBAT_STATS,
   DEFAULT_SPECIAL_STATS,
@@ -1445,11 +1445,13 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
   const background = buildBackgroundPayloadFromId(backgroundId, backgroundAnimated);
   const avatarUrl =
     (profile.memberSnapshot && profile.memberSnapshot.avatarUrl) || (member && member.avatarUrl) || '';
-  const portrait =
-    (profile.memberSnapshot && profile.memberSnapshot.portrait) ||
-    (member && (member.portrait || member.avatarUrl)) ||
-    avatarUrl ||
-    '';
+  const portrait = pickPortraitUrl(
+    profile.memberSnapshot && profile.memberSnapshot.portrait,
+    profile.memberSnapshot && profile.memberSnapshot.avatarUrl,
+    member && member.portrait,
+    member && member.avatarUrl,
+    avatarUrl
+  );
   return {
     memberId: memberId || profile.memberId,
     displayName: profile.memberSnapshot && profile.memberSnapshot.nickName ? profile.memberSnapshot.nickName : member ? member.nickName || '无名仙友' : '神秘对手',

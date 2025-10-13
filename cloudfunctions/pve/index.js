@@ -2,7 +2,7 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
-const { COLLECTIONS, realmConfigs, subLevelLabels, DEFAULT_ADMIN_ROLES } = require('common-config');
+const { COLLECTIONS, realmConfigs, subLevelLabels, DEFAULT_ADMIN_ROLES, pickPortraitUrl } = require('common-config');
 const {
   DEFAULT_COMBAT_STATS,
   clamp,
@@ -7090,12 +7090,6 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
     member && member.nickname,
     member && member.name
   ];
-  const portraitCandidates = [
-    profile && profile.avatarUrl,
-    profile && profile.portrait,
-    member && member.avatarUrl,
-    member && member.avatar
-  ];
   let resolvedId = 'player';
   memberIdCandidates.forEach((candidate) => {
     if (resolvedId !== 'player') {
@@ -7114,15 +7108,13 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
       displayName = candidate.trim();
     }
   });
-  let portrait = '';
-  portraitCandidates.forEach((candidate) => {
-    if (portrait) {
-      return;
-    }
-    if (typeof candidate === 'string' && candidate.trim()) {
-      portrait = candidate.trim();
-    }
-  });
+  const portrait = pickPortraitUrl(
+    profile && profile.portrait,
+    profile && profile.avatarUrl,
+    member && member.portrait,
+    member && member.avatarUrl,
+    member && member.avatar
+  );
   const hpSnapshot = buildParticipantHpSnapshot(
     combatant.stats,
     combatant.special,
@@ -7154,7 +7146,11 @@ function buildEnemyBattleInfo(enemy, combatant) {
   });
   const displayName =
     (enemy && (enemy.displayName || enemy.name || enemy.stageName || enemy.realmName)) || '敌方';
-  const portrait = (enemy && (enemy.portrait || enemy.avatarUrl || enemy.image)) || '';
+  const portrait = pickPortraitUrl(
+    enemy && enemy.portrait,
+    enemy && enemy.avatarUrl,
+    enemy && enemy.image
+  );
   const hpSnapshot = buildParticipantHpSnapshot(combatant.stats, combatant.special, enemy && enemy.stats);
   return {
     id: resolvedId,
