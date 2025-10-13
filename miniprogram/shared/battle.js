@@ -256,18 +256,72 @@ function formatNumber(value) {
   return Number.isFinite(value) ? Math.round(value) : 0;
 }
 
+const CHARACTER_PORTRAIT_FIELD_PRIORITY = [
+  'portrait',
+  'character',
+  'characterImage',
+  'characterUrl',
+  'figure',
+  'fullImage',
+  'fullBody',
+  'fullPortrait',
+  'image',
+  'icon',
+  'url'
+];
+
+function resolveCharacterPortraitValue(candidate, visited = new Set()) {
+  if (!candidate) {
+    return '';
+  }
+  if (typeof candidate === 'string') {
+    const trimmed = candidate.trim();
+    return trimmed || '';
+  }
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      const resolved = resolveCharacterPortraitValue(candidate[i], visited);
+      if (resolved) {
+        return resolved;
+      }
+    }
+    return '';
+  }
+  if (typeof candidate !== 'object') {
+    return '';
+  }
+  if (visited.has(candidate)) {
+    return '';
+  }
+  visited.add(candidate);
+  for (let i = 0; i < CHARACTER_PORTRAIT_FIELD_PRIORITY.length; i += 1) {
+    const field = CHARACTER_PORTRAIT_FIELD_PRIORITY[i];
+    if (!Object.prototype.hasOwnProperty.call(candidate, field)) {
+      continue;
+    }
+    const resolved = resolveCharacterPortraitValue(candidate[field], visited);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return '';
+}
+
 function resolvePortrait(source, fallback) {
   if (!source) {
     return fallback;
   }
-  if (typeof source === 'string' && source.trim()) {
-    return source;
+  const resolvedPortrait = resolveCharacterPortraitValue(source);
+  if (resolvedPortrait) {
+    return resolvedPortrait;
   }
-  if (source.avatarUrl) {
-    return source.avatarUrl;
+  const avatarFallback = resolveAvatarValue(source);
+  if (avatarFallback) {
+    return avatarFallback;
   }
-  if (source.portrait) {
-    return source.portrait;
+  if (typeof fallback === 'string') {
+    const trimmedFallback = fallback.trim();
+    return trimmedFallback || fallback;
   }
   return fallback;
 }
