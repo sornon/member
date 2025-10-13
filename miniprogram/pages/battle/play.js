@@ -10,19 +10,9 @@ const {
   resolveBackgroundById,
   normalizeBackgroundId
 } = require('../../shared/backgrounds');
-const { CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths');
-const { listAvatarIds } = require('../../shared/avatar-catalog');
+const { buildCloudAssetUrl } = require('../../shared/asset-paths');
 
-function buildCharacterImageMap() {
-  const ids = listAvatarIds();
-  return ids.reduce((acc, id) => {
-    acc[id] = `${CHARACTER_IMAGE_BASE_PATH}/${id}.png`;
-    return acc;
-  }, {});
-}
-
-const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
-const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
+const ABSOLUTE_URL_PATTERN = /^(https?:\/\/|cloud:\/\/|wxfile:\/\/)/i;
 
 const PLAYER_SIDE_ALIASES = ['player', 'self', 'attacker', 'initiator', 'ally', 'member'];
 const OPPONENT_SIDE_ALIASES = ['opponent', 'enemy', 'defender', 'target', 'foe'];
@@ -232,40 +222,110 @@ function resolveSideFromCandidate(candidate, playerIds, opponentIds, visited = n
   return '';
 }
 
-function extractAvatarIdFromUrl(url) {
-  if (typeof url !== 'string') {
+function normalizePortraitUrl(value, { type = 'avatar' } = {}) {
+  if (typeof value !== 'string') {
     return '';
   }
-  const match = url.trim().toLowerCase().match(AVATAR_URL_PATTERN);
-  return match ? match[1] : '';
-}
-
-function resolveCharacterPortraitFromAvatarUrl(url) {
-  const avatarId = extractAvatarIdFromUrl(url);
-  if (avatarId && CHARACTER_IMAGE_MAP[avatarId]) {
-    return CHARACTER_IMAGE_MAP[avatarId];
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
   }
-  return '';
+  if (ABSOLUTE_URL_PATTERN.test(trimmed)) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('/')) {
+    const queryIndex = trimmed.indexOf('?');
+    let path = trimmed;
+    let suffix = '';
+    if (queryIndex >= 0) {
+      path = trimmed.slice(0, queryIndex);
+      suffix = trimmed.slice(queryIndex);
+    }
+    const normalized = `/${path.replace(/^\/+/, '')}`;
+    return suffix ? `${normalized}${suffix}` : normalized;
+  }
+  let working = trimmed;
+  let suffix = '';
+  const queryIndex = working.indexOf('?');
+  if (queryIndex >= 0) {
+    suffix = working.slice(queryIndex);
+    working = working.slice(0, queryIndex);
+  }
+  while (working.startsWith('./')) {
+    working = working.slice(2);
+  }
+  working = working.replace(/^\/+/, '');
+  if (!working) {
+    return '';
+  }
+  const lower = working.toLowerCase();
+  if (lower.startsWith('assets/')) {
+    const path = `/${working.replace(/^assets\//i, 'assets/')}`;
+    return suffix ? `${path}${suffix}` : path;
+  }
+  if (lower.startsWith('avatar/')) {
+    const rest = working.slice(7);
+    if (!rest) {
+      return '';
+    }
+    const built = buildCloudAssetUrl('avatar', rest);
+    return suffix ? `${built}${suffix}` : built;
+  }
+  if (lower.startsWith('character/')) {
+    const rest = working.slice(10);
+    if (!rest) {
+      return '';
+    }
+    const built = buildCloudAssetUrl('character', rest);
+    return suffix ? `${built}${suffix}` : built;
+  }
+  const folder = type === 'character' ? 'character' : 'avatar';
+  const built = buildCloudAssetUrl(folder, working);
+  return suffix ? `${built}${suffix}` : built;
 }
 
-function resolvePortraitCandidate(candidate) {
+function resolvePortraitCandidate(candidate, options = {}) {
   if (!candidate) {
     return '';
   }
-  if (typeof candidate === 'string') {
-    const trimmed = candidate.trim();
-    if (!trimmed) {
-      return '';
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      const resolved = resolvePortraitCandidate(candidate[i], options);
+      if (resolved) {
+        return resolved;
+      }
     }
-    const characterPortrait = resolveCharacterPortraitFromAvatarUrl(trimmed);
-    return characterPortrait || trimmed;
+    return '';
+  }
+  if (typeof candidate === 'string') {
+    return normalizePortraitUrl(candidate, options);
   }
   if (typeof candidate === 'object') {
-    const directPortrait = resolvePortraitCandidate(candidate.portrait);
+    const avatarUrl = resolvePortraitCandidate(candidate.avatarUrl, { type: 'avatar' });
+    if (avatarUrl) {
+      return avatarUrl;
+    }
+    const avatarAlt = resolvePortraitCandidate(candidate.avatar, { type: 'avatar' });
+    if (avatarAlt) {
+      return avatarAlt;
+    }
+    const directPortrait = resolvePortraitCandidate(candidate.portrait, { type: 'character' });
     if (directPortrait) {
       return directPortrait;
     }
-    return resolvePortraitCandidate(candidate.avatarUrl);
+    const iconPortrait = resolvePortraitCandidate(candidate.icon, options);
+    if (iconPortrait) {
+      return iconPortrait;
+    }
+    const imagePortrait = resolvePortraitCandidate(candidate.image, options);
+    if (imagePortrait) {
+      return imagePortrait;
+    }
+    const fallbackUrl = resolvePortraitCandidate(candidate.url, options);
+    if (fallbackUrl) {
+      return fallbackUrl;
+    }
+    return '';
   }
   return '';
 }
