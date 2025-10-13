@@ -1122,5 +1122,6 @@ Page({
       dataUpdates[key] = nextStage[key];
     });
     this.setData(dataUpdates);
+    console.log('[battle] battleStage state:', nextStage);
   }
 });
