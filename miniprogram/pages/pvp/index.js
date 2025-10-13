@@ -1,4 +1,5 @@
 import { PvpService } from '../../services/api';
+const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
 
 const app = getApp();
 
@@ -15,8 +16,6 @@ function formatDateTime(date) {
   const mi = String(parsed.getMinutes()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
-
-const SHARE_COVER_IMAGE_URL = 'cloud://cloud1-8gyoxq651fcc92c2.636c-cloud1-8gyoxq651fcc92c2-1380371219/assets/background/share_cover_1000x800.png';
 
 Page({
   data: {

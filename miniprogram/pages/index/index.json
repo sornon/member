@@ -1,4 +1,5 @@
 {
+  "enableShareAppMessage": true,
   "usingComponents": {
     "custom-nav": "/components/custom-nav/custom-nav"
   }
