@@ -126,7 +126,7 @@ Page({
   },
 
   onUnload() {
-    this.stopRealtimeNotifications();
+    this.stopRealtimeNotifications({ resetKnown: true });
   },
 
   refreshQuickActions() {
@@ -145,9 +145,10 @@ Page({
     this.startReservationNotificationWatcher();
   },
 
-  stopRealtimeNotifications() {
-    this.stopMenuOrderNotificationWatcher();
-    this.stopReservationNotificationWatcher();
+  stopRealtimeNotifications(options = {}) {
+    const { resetKnown = false } = options;
+    this.stopMenuOrderNotificationWatcher({ resetKnown });
+    this.stopReservationNotificationWatcher({ resetKnown });
   },
 
   startMenuOrderNotificationWatcher() {
@@ -177,7 +178,8 @@ Page({
     }
   },
 
-  stopMenuOrderNotificationWatcher() {
+  stopMenuOrderNotificationWatcher(options = {}) {
+    const { resetKnown = true } = options;
     if (this.menuOrderNotificationWatcher && typeof this.menuOrderNotificationWatcher.close === 'function') {
       try {
         this.menuOrderNotificationWatcher.close();
@@ -187,8 +189,11 @@ Page({
     }
     this.menuOrderNotificationWatcher = null;
     this.menuOrderNotificationInitialized = false;
-    if (this.menuOrderNotificationKnownIds && typeof this.menuOrderNotificationKnownIds.clear === 'function') {
+    if (resetKnown && this.menuOrderNotificationKnownIds && typeof this.menuOrderNotificationKnownIds.clear === 'function') {
       this.menuOrderNotificationKnownIds.clear();
+    }
+    if (resetKnown) {
+      this.menuOrderNotificationHasEverInitialized = false;
     }
     if (this.menuOrderNotificationRestartTimer) {
       clearTimeout(this.menuOrderNotificationRestartTimer);
@@ -200,7 +205,7 @@ Page({
     if (this.menuOrderNotificationRestartTimer) {
       return;
     }
-    this.stopMenuOrderNotificationWatcher();
+    this.stopMenuOrderNotificationWatcher({ resetKnown: false });
     this.menuOrderNotificationRestartTimer = setTimeout(() => {
       this.menuOrderNotificationRestartTimer = null;
       this.startMenuOrderNotificationWatcher();
@@ -213,11 +218,22 @@ Page({
     }
     this.menuOrderNotificationKnownIds = this.menuOrderNotificationKnownIds || new Set();
     const docChanges = Array.isArray(snapshot.docChanges) ? snapshot.docChanges : [];
+    const hasEverInitialized = !!this.menuOrderNotificationHasEverInitialized;
     if (snapshot.type === 'init') {
+      const previouslyKnownIds = new Set(this.menuOrderNotificationKnownIds);
+      const newIds = new Set();
+      this.menuOrderNotificationKnownIds.clear();
       if (Array.isArray(snapshot.docs)) {
         snapshot.docs.forEach((doc) => {
-          if (doc && doc._id && doc.status === 'submitted') {
-            this.menuOrderNotificationKnownIds.add(doc._id);
+          const docId = doc && doc._id;
+          if (!docId) {
+            return;
+          }
+          if (doc && doc.status === 'submitted') {
+            this.menuOrderNotificationKnownIds.add(docId);
+            if (hasEverInitialized && !previouslyKnownIds.has(docId)) {
+              newIds.add(docId);
+            }
           }
         });
       }
@@ -229,14 +245,22 @@ Page({
         }
         if (doc && doc.status === 'submitted') {
           this.menuOrderNotificationKnownIds.add(docId);
+          if (hasEverInitialized && !previouslyKnownIds.has(docId)) {
+            newIds.add(docId);
+          }
         } else {
           this.menuOrderNotificationKnownIds.delete(docId);
         }
       });
       this.menuOrderNotificationInitialized = true;
+      this.menuOrderNotificationHasEverInitialized = true;
+      if (newIds.size) {
+        playAdminNotificationSound();
+      }
       return;
     }
     this.menuOrderNotificationInitialized = true;
+    this.menuOrderNotificationHasEverInitialized = true;
     if (docChanges.length) {
       docChanges.forEach((change) => this.processMenuOrderNotificationChange(change));
       return;
@@ -268,7 +292,7 @@ Page({
       doc.status === 'submitted' &&
       change.updatedFields &&
       Object.prototype.hasOwnProperty.call(change.updatedFields, 'status');
-    const isAddition = change.dataType === 'add' || (!wasKnown && doc.status === 'submitted');
+    const isAddition = !wasKnown && doc.status === 'submitted';
     if (isAddition || statusChangedToSubmitted) {
       this.menuOrderNotificationKnownIds.add(docId);
       if (this.menuOrderNotificationInitialized) {
@@ -306,7 +330,8 @@ Page({
     }
   },
 
-  stopReservationNotificationWatcher() {
+  stopReservationNotificationWatcher(options = {}) {
+    const { resetKnown = true } = options;
     if (this.reservationNotificationWatcher && typeof this.reservationNotificationWatcher.close === 'function') {
       try {
         this.reservationNotificationWatcher.close();
@@ -316,8 +341,11 @@ Page({
     }
     this.reservationNotificationWatcher = null;
     this.reservationNotificationInitialized = false;
-    if (this.reservationNotificationKnownIds && typeof this.reservationNotificationKnownIds.clear === 'function') {
+    if (resetKnown && this.reservationNotificationKnownIds && typeof this.reservationNotificationKnownIds.clear === 'function') {
       this.reservationNotificationKnownIds.clear();
+    }
+    if (resetKnown) {
+      this.reservationNotificationHasEverInitialized = false;
     }
     if (this.reservationNotificationRestartTimer) {
       clearTimeout(this.reservationNotificationRestartTimer);
@@ -329,7 +357,7 @@ Page({
     if (this.reservationNotificationRestartTimer) {
       return;
     }
-    this.stopReservationNotificationWatcher();
+    this.stopReservationNotificationWatcher({ resetKnown: false });
     this.reservationNotificationRestartTimer = setTimeout(() => {
       this.reservationNotificationRestartTimer = null;
       this.startReservationNotificationWatcher();
@@ -342,11 +370,22 @@ Page({
     }
     this.reservationNotificationKnownIds = this.reservationNotificationKnownIds || new Set();
     const docChanges = Array.isArray(snapshot.docChanges) ? snapshot.docChanges : [];
+    const hasEverInitialized = !!this.reservationNotificationHasEverInitialized;
     if (snapshot.type === 'init') {
+      const previouslyKnownIds = new Set(this.reservationNotificationKnownIds);
+      const newIds = new Set();
+      this.reservationNotificationKnownIds.clear();
       if (Array.isArray(snapshot.docs)) {
         snapshot.docs.forEach((doc) => {
-          if (doc && doc._id && doc.status === 'pendingApproval') {
-            this.reservationNotificationKnownIds.add(doc._id);
+          const docId = doc && doc._id;
+          if (!docId) {
+            return;
+          }
+          if (doc && doc.status === 'pendingApproval') {
+            this.reservationNotificationKnownIds.add(docId);
+            if (hasEverInitialized && !previouslyKnownIds.has(docId)) {
+              newIds.add(docId);
+            }
           }
         });
       }
@@ -358,14 +397,22 @@ Page({
         }
         if (doc && doc.status === 'pendingApproval') {
           this.reservationNotificationKnownIds.add(docId);
+          if (hasEverInitialized && !previouslyKnownIds.has(docId)) {
+            newIds.add(docId);
+          }
         } else {
           this.reservationNotificationKnownIds.delete(docId);
         }
       });
       this.reservationNotificationInitialized = true;
+      this.reservationNotificationHasEverInitialized = true;
+      if (newIds.size) {
+        playAdminNotificationSound();
+      }
       return;
     }
     this.reservationNotificationInitialized = true;
+    this.reservationNotificationHasEverInitialized = true;
     if (docChanges.length) {
       docChanges.forEach((change) => this.processReservationNotificationChange(change));
       return;
@@ -397,7 +444,7 @@ Page({
       doc.status === 'pendingApproval' &&
       change.updatedFields &&
       Object.prototype.hasOwnProperty.call(change.updatedFields, 'status');
-    const isAddition = change.dataType === 'add' || (!wasKnown && doc.status === 'pendingApproval');
+    const isAddition = !wasKnown && doc.status === 'pendingApproval';
     if (isAddition || statusChangedToPending) {
       this.reservationNotificationKnownIds.add(docId);
       if (this.reservationNotificationInitialized) {
