@@ -1,6 +1,7 @@
 import { MemberService, TaskService } from '../../services/api';
 import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../services/member-realtime';
 import { formatCombatPower, formatCurrency, formatExperience, formatStones } from '../../utils/format';
+import { SHARE_COVER_IMAGE_URL } from '../../utils/common';
 import { shouldShowRoleBadge } from '../../utils/pending-attributes';
 import {
   buildAvatarUrlById,
@@ -1681,11 +1682,12 @@ Page({
     const member = this.data.member || {};
     const nickName = typeof member.nickName === 'string' && member.nickName.trim() ? member.nickName.trim() : '';
     const title = nickName ? `${nickName}邀请你加入酒隐之茄` : '酒隐之茄会员中心';
-    const heroImage = typeof this.data.heroImage === 'string' ? this.data.heroImage : '';
+    const heroImage = typeof this.data.heroImage === 'string' ? this.data.heroImage.trim() : '';
+    const imageUrl = heroImage || SHARE_COVER_IMAGE_URL;
     return {
       title,
       path: '/pages/index/index',
-      imageUrl: heroImage
+      imageUrl: imageUrl || undefined
     };
   }
 });
