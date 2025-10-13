@@ -6476,6 +6476,56 @@ function decorateBattleHistory(history, profile, options = {}) {
       const adminEnemyDetails = viewerIsAdmin
         ? buildBattleEnemyDetails(entry, enemy)
         : null;
+      const participants = entry.participants || (entry.battle && entry.battle.participants) || {};
+      const playerParticipant =
+        participants.player ||
+        participants.self ||
+        participants.attacker ||
+        participants.ally ||
+        participants.member ||
+        null;
+      const opponentParticipant =
+        participants.opponent ||
+        participants.enemy ||
+        participants.defender ||
+        participants.target ||
+        participants.foe ||
+        null;
+      const playerPortrait = pickPortraitUrl(
+        entry.playerPortrait,
+        playerParticipant && playerParticipant.portrait,
+        playerParticipant && playerParticipant.avatarPortrait,
+        playerParticipant && playerParticipant.avatarUrl,
+        playerParticipant && playerParticipant.avatar,
+        profile && profile.portrait,
+        profile && profile.avatarPortrait,
+        profile && profile.avatarUrl,
+        profile && profile.avatar
+      );
+      const opponentPortrait = pickPortraitUrl(
+        entry.opponentPortrait,
+        opponentParticipant && opponentParticipant.portrait,
+        opponentParticipant && opponentParticipant.avatarPortrait,
+        opponentParticipant && opponentParticipant.avatarUrl,
+        opponentParticipant && opponentParticipant.avatar,
+        enemy && enemy.portrait,
+        enemy && enemy.avatarPortrait,
+        enemy && enemy.avatarUrl,
+        enemy && enemy.avatar,
+        enemy && enemy.image
+      );
+      const playerAvatarUrl =
+        (playerParticipant && (playerParticipant.avatarUrl || playerParticipant.avatar)) ||
+        entry.playerAvatarUrl ||
+        entry.playerAvatar ||
+        (profile && (profile.avatarUrl || profile.avatar)) ||
+        '';
+      const opponentAvatarUrl =
+        (opponentParticipant && (opponentParticipant.avatarUrl || opponentParticipant.avatar)) ||
+        entry.opponentAvatarUrl ||
+        entry.opponentAvatar ||
+        (enemy && (enemy.avatarUrl || enemy.avatar)) ||
+        '';
       return {
         type: 'battle',
         id: entry.id || entry.createdAt || `${entry.enemyId || 'battle'}-${index}`,
@@ -6491,6 +6541,21 @@ function decorateBattleHistory(history, profile, options = {}) {
         rounds: entry.rounds,
         combatPower: entry.combatPower,
         log: Array.isArray(entry.log) ? entry.log : [],
+        timeline: Array.isArray(entry.timeline) ? entry.timeline : [],
+        participants: participants && Object.keys(participants).length ? participants : null,
+        playerPortrait: playerPortrait || '',
+        opponentPortrait: opponentPortrait || '',
+        playerAvatarUrl,
+        opponentAvatarUrl,
+        playerName:
+          entry.playerName ||
+          (playerParticipant && (playerParticipant.displayName || playerParticipant.name)) ||
+          (profile && (profile.displayName || profile.nickname || profile.nickName)) ||
+          '你',
+        opponentName:
+          entry.opponentName ||
+          (opponentParticipant && (opponentParticipant.displayName || opponentParticipant.name)) ||
+          enemy.name,
         ...(adminEnemyDetails ? { adminEnemyDetails } : {})
       };
     }
