@@ -1,4 +1,5 @@
 import { AdminService } from '../../../services/api';
+import { playAdminNotificationSound } from '../../../services/notification';
 import { formatMemberDisplayName } from '../../../utils/format';
 
 const STATUS_OPTIONS = [
@@ -10,6 +11,23 @@ const STATUS_OPTIONS = [
 ];
 
 const CANCELABLE_STATUSES = ['approved', 'reserved', 'confirmed', 'pendingPayment'];
+
+function resolveDatabaseInstance() {
+  if (!wx || !wx.cloud || typeof wx.cloud.database !== 'function') {
+    return null;
+  }
+  try {
+    if (typeof getApp === 'function') {
+      const app = getApp();
+      if (app && app.globalData && app.globalData.env) {
+        return wx.cloud.database({ env: app.globalData.env });
+      }
+    }
+  } catch (error) {
+    console.error('[admin:reservations] resolve database failed', error);
+  }
+  return wx.cloud.database();
+}
 
 Page({
   data: {
@@ -29,7 +47,16 @@ Page({
 
   onShow() {
     this.markReservationUpdatesAsRead();
+    this.startReservationWatcher();
     this.fetchReservations(true);
+  },
+
+  onHide() {
+    this.stopReservationWatcher();
+  },
+
+  onUnload() {
+    this.stopReservationWatcher();
   },
 
   onPullDownRefresh() {
@@ -90,6 +117,135 @@ Page({
       });
       wx.showToast({ title: '加载失败，请稍后重试', icon: 'none' });
     }
+  },
+
+  startReservationWatcher() {
+    if (this.reservationWatcher || this.reservationWatcherRestartTimer) {
+      return;
+    }
+    const db = resolveDatabaseInstance();
+    if (!db || typeof db.collection !== 'function') {
+      return;
+    }
+    this.reservationKnownIds = this.reservationKnownIds || new Set();
+    this.reservationWatcherInitialized = false;
+    try {
+      this.reservationWatcher = db
+        .collection('reservations')
+        .where({ status: 'pendingApproval' })
+        .watch({
+          onChange: (snapshot) => this.handleReservationWatcherChange(snapshot),
+          onError: (error) => {
+            console.error('[admin:reservations] watcher error', error);
+            this.scheduleReservationWatcherRestart();
+          }
+        });
+    } catch (error) {
+      console.error('[admin:reservations] start watcher failed', error);
+      this.scheduleReservationWatcherRestart();
+    }
+  },
+
+  stopReservationWatcher() {
+    if (this.reservationWatcher && typeof this.reservationWatcher.close === 'function') {
+      try {
+        this.reservationWatcher.close();
+      } catch (error) {
+        console.error('[admin:reservations] close watcher failed', error);
+      }
+    }
+    this.reservationWatcher = null;
+    this.reservationWatcherInitialized = false;
+    if (this.reservationKnownIds && typeof this.reservationKnownIds.clear === 'function') {
+      this.reservationKnownIds.clear();
+    }
+    if (this.reservationWatcherRestartTimer) {
+      clearTimeout(this.reservationWatcherRestartTimer);
+      this.reservationWatcherRestartTimer = null;
+    }
+  },
+
+  scheduleReservationWatcherRestart() {
+    if (this.reservationWatcherRestartTimer) {
+      return;
+    }
+    this.stopReservationWatcher();
+    this.reservationWatcherRestartTimer = setTimeout(() => {
+      this.reservationWatcherRestartTimer = null;
+      this.startReservationWatcher();
+    }, 5000);
+  },
+
+  handleReservationWatcherChange(snapshot) {
+    if (!snapshot) {
+      return;
+    }
+    this.reservationKnownIds = this.reservationKnownIds || new Set();
+    const docChanges = Array.isArray(snapshot.docChanges) ? snapshot.docChanges : [];
+    if (snapshot.type === 'init') {
+      if (Array.isArray(snapshot.docs)) {
+        snapshot.docs.forEach((doc) => {
+          if (doc && doc._id && doc.status === 'pendingApproval') {
+            this.reservationKnownIds.add(doc._id);
+          }
+        });
+      }
+      docChanges.forEach((change) => {
+        const doc = change && change.doc ? change.doc : null;
+        const docId = (doc && doc._id) || (change && change.docId) || '';
+        if (!docId) {
+          return;
+        }
+        if (doc && doc.status === 'pendingApproval') {
+          this.reservationKnownIds.add(docId);
+        } else {
+          this.reservationKnownIds.delete(docId);
+        }
+      });
+      this.reservationWatcherInitialized = true;
+      return;
+    }
+    this.reservationWatcherInitialized = true;
+    if (docChanges.length) {
+      docChanges.forEach((change) => this.processReservationWatcherChange(change));
+      return;
+    }
+    if (Array.isArray(snapshot.docs)) {
+      snapshot.docs.forEach((doc) => {
+        this.processReservationWatcherChange({ dataType: 'update', doc, docId: doc && doc._id });
+      });
+    }
+  },
+
+  processReservationWatcherChange(change) {
+    if (!change) {
+      return;
+    }
+    const doc = change.doc || null;
+    const docId = change.docId || (doc && doc._id) || '';
+    if (!docId) {
+      return;
+    }
+    this.reservationKnownIds = this.reservationKnownIds || new Set();
+    if (change.dataType === 'remove' || !doc || doc.status !== 'pendingApproval') {
+      this.reservationKnownIds.delete(docId);
+      return;
+    }
+    const wasKnown = this.reservationKnownIds.has(docId);
+    const statusChangedToPending =
+      change.dataType === 'update' &&
+      doc.status === 'pendingApproval' &&
+      change.updatedFields &&
+      Object.prototype.hasOwnProperty.call(change.updatedFields, 'status');
+    const isAddition = change.dataType === 'add' || (!wasKnown && doc.status === 'pendingApproval');
+    if (isAddition || statusChangedToPending) {
+      this.reservationKnownIds.add(docId);
+      if (this.reservationWatcherInitialized) {
+        playAdminNotificationSound();
+      }
+      return;
+    }
+    this.reservationKnownIds.add(docId);
   },
 
   decorateReservation(item) {

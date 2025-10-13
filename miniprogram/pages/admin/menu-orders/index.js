@@ -1,4 +1,5 @@
 import { AdminMenuOrderService } from '../../../services/api';
+import { playAdminNotificationSound } from '../../../services/notification';
 import { formatCurrency, formatMemberDisplayName } from '../../../utils/format';
 
 const STATUS_TABS = [
@@ -155,6 +156,23 @@ function showConfirmDialog({ title = '提示', content = '', confirmText = '确�
   });
 }
 
+function resolveDatabaseInstance() {
+  if (!wx || !wx.cloud || typeof wx.cloud.database !== 'function') {
+    return null;
+  }
+  try {
+    if (typeof getApp === 'function') {
+      const app = getApp();
+      if (app && app.globalData && app.globalData.env) {
+        return wx.cloud.database({ env: app.globalData.env });
+      }
+    }
+  } catch (error) {
+    console.error('[admin:menu-orders] resolve database failed', error);
+  }
+  return wx.cloud.database();
+}
+
 Page({
   data: {
     statusTabs: STATUS_TABS,
@@ -166,7 +184,16 @@ Page({
   },
 
   onShow() {
+    this.startOrderWatcher();
     this.loadOrders();
+  },
+
+  onHide() {
+    this.stopOrderWatcher();
+  },
+
+  onUnload() {
+    this.stopOrderWatcher();
   },
 
   onPullDownRefresh() {
@@ -197,6 +224,135 @@ Page({
     } finally {
       this.setData({ loading: false });
     }
+  },
+
+  startOrderWatcher() {
+    if (this.orderWatcher || this.orderWatcherRestartTimer) {
+      return;
+    }
+    const db = resolveDatabaseInstance();
+    if (!db || typeof db.collection !== 'function') {
+      return;
+    }
+    this.orderWatcherKnownIds = this.orderWatcherKnownIds || new Set();
+    this.orderWatcherInitialized = false;
+    try {
+      this.orderWatcher = db
+        .collection('menuOrders')
+        .where({ status: 'submitted' })
+        .watch({
+          onChange: (snapshot) => this.handleOrderWatcherChange(snapshot),
+          onError: (error) => {
+            console.error('[admin:menu-orders] watcher error', error);
+            this.scheduleOrderWatcherRestart();
+          }
+        });
+    } catch (error) {
+      console.error('[admin:menu-orders] start watcher failed', error);
+      this.scheduleOrderWatcherRestart();
+    }
+  },
+
+  stopOrderWatcher() {
+    if (this.orderWatcher && typeof this.orderWatcher.close === 'function') {
+      try {
+        this.orderWatcher.close();
+      } catch (error) {
+        console.error('[admin:menu-orders] close watcher failed', error);
+      }
+    }
+    this.orderWatcher = null;
+    this.orderWatcherInitialized = false;
+    if (this.orderWatcherKnownIds && typeof this.orderWatcherKnownIds.clear === 'function') {
+      this.orderWatcherKnownIds.clear();
+    }
+    if (this.orderWatcherRestartTimer) {
+      clearTimeout(this.orderWatcherRestartTimer);
+      this.orderWatcherRestartTimer = null;
+    }
+  },
+
+  scheduleOrderWatcherRestart() {
+    if (this.orderWatcherRestartTimer) {
+      return;
+    }
+    this.stopOrderWatcher();
+    this.orderWatcherRestartTimer = setTimeout(() => {
+      this.orderWatcherRestartTimer = null;
+      this.startOrderWatcher();
+    }, 5000);
+  },
+
+  handleOrderWatcherChange(snapshot) {
+    if (!snapshot) {
+      return;
+    }
+    this.orderWatcherKnownIds = this.orderWatcherKnownIds || new Set();
+    const docChanges = Array.isArray(snapshot.docChanges) ? snapshot.docChanges : [];
+    if (snapshot.type === 'init') {
+      if (Array.isArray(snapshot.docs)) {
+        snapshot.docs.forEach((doc) => {
+          if (doc && doc._id && doc.status === 'submitted') {
+            this.orderWatcherKnownIds.add(doc._id);
+          }
+        });
+      }
+      docChanges.forEach((change) => {
+        const doc = change && change.doc ? change.doc : null;
+        const docId = (doc && doc._id) || (change && change.docId) || '';
+        if (!docId) {
+          return;
+        }
+        if (doc && doc.status === 'submitted') {
+          this.orderWatcherKnownIds.add(docId);
+        } else {
+          this.orderWatcherKnownIds.delete(docId);
+        }
+      });
+      this.orderWatcherInitialized = true;
+      return;
+    }
+    this.orderWatcherInitialized = true;
+    if (docChanges.length) {
+      docChanges.forEach((change) => this.processOrderWatcherChange(change));
+      return;
+    }
+    if (Array.isArray(snapshot.docs)) {
+      snapshot.docs.forEach((doc) => {
+        this.processOrderWatcherChange({ dataType: 'update', doc, docId: doc && doc._id });
+      });
+    }
+  },
+
+  processOrderWatcherChange(change) {
+    if (!change) {
+      return;
+    }
+    const doc = change.doc || null;
+    const docId = change.docId || (doc && doc._id) || '';
+    if (!docId) {
+      return;
+    }
+    this.orderWatcherKnownIds = this.orderWatcherKnownIds || new Set();
+    if (change.dataType === 'remove' || !doc || doc.status !== 'submitted') {
+      this.orderWatcherKnownIds.delete(docId);
+      return;
+    }
+    const wasKnown = this.orderWatcherKnownIds.has(docId);
+    const statusChangedToSubmitted =
+      change.dataType === 'update' &&
+      doc.status === 'submitted' &&
+      change.updatedFields &&
+      Object.prototype.hasOwnProperty.call(change.updatedFields, 'status');
+    const isAddition = change.dataType === 'add' || (!wasKnown && doc.status === 'submitted');
+    if (isAddition || statusChangedToSubmitted) {
+      this.orderWatcherKnownIds.add(docId);
+      if (this.orderWatcherInitialized) {
+        playAdminNotificationSound();
+      }
+      return;
+    }
+    this.orderWatcherKnownIds.add(docId);
   },
 
   handleStatusChange(event) {
