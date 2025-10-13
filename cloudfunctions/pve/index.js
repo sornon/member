@@ -6476,6 +6476,56 @@ function decorateBattleHistory(history, profile, options = {}) {
       const adminEnemyDetails = viewerIsAdmin
         ? buildBattleEnemyDetails(entry, enemy)
         : null;
+      const participants = entry.participants || (entry.battle && entry.battle.participants) || {};
+      const playerParticipant =
+        participants.player ||
+        participants.self ||
+        participants.attacker ||
+        participants.ally ||
+        participants.member ||
+        null;
+      const opponentParticipant =
+        participants.opponent ||
+        participants.enemy ||
+        participants.defender ||
+        participants.target ||
+        participants.foe ||
+        null;
+      const playerPortrait = pickPortraitUrl(
+        entry.playerPortrait,
+        playerParticipant && playerParticipant.portrait,
+        playerParticipant && playerParticipant.avatarPortrait,
+        playerParticipant && playerParticipant.avatarUrl,
+        playerParticipant && playerParticipant.avatar,
+        profile && profile.portrait,
+        profile && profile.avatarPortrait,
+        profile && profile.avatarUrl,
+        profile && profile.avatar
+      );
+      const opponentPortrait = pickPortraitUrl(
+        entry.opponentPortrait,
+        opponentParticipant && opponentParticipant.portrait,
+        opponentParticipant && opponentParticipant.avatarPortrait,
+        opponentParticipant && opponentParticipant.avatarUrl,
+        opponentParticipant && opponentParticipant.avatar,
+        enemy && enemy.portrait,
+        enemy && enemy.avatarPortrait,
+        enemy && enemy.avatarUrl,
+        enemy && enemy.avatar,
+        enemy && enemy.image
+      );
+      const playerAvatarUrl =
+        (playerParticipant && (playerParticipant.avatarUrl || playerParticipant.avatar)) ||
+        entry.playerAvatarUrl ||
+        entry.playerAvatar ||
+        (profile && (profile.avatarUrl || profile.avatar)) ||
+        '';
+      const opponentAvatarUrl =
+        (opponentParticipant && (opponentParticipant.avatarUrl || opponentParticipant.avatar)) ||
+        entry.opponentAvatarUrl ||
+        entry.opponentAvatar ||
+        (enemy && (enemy.avatarUrl || enemy.avatar)) ||
+        '';
       return {
         type: 'battle',
         id: entry.id || entry.createdAt || `${entry.enemyId || 'battle'}-${index}`,
@@ -6491,6 +6541,21 @@ function decorateBattleHistory(history, profile, options = {}) {
         rounds: entry.rounds,
         combatPower: entry.combatPower,
         log: Array.isArray(entry.log) ? entry.log : [],
+        timeline: Array.isArray(entry.timeline) ? entry.timeline : [],
+        participants: participants && Object.keys(participants).length ? participants : null,
+        playerPortrait: playerPortrait || '',
+        opponentPortrait: opponentPortrait || '',
+        playerAvatarUrl,
+        opponentAvatarUrl,
+        playerName:
+          entry.playerName ||
+          (playerParticipant && (playerParticipant.displayName || playerParticipant.name)) ||
+          (profile && (profile.displayName || profile.nickname || profile.nickName)) ||
+          '你',
+        opponentName:
+          entry.opponentName ||
+          (opponentParticipant && (opponentParticipant.displayName || opponentParticipant.name)) ||
+          enemy.name,
         ...(adminEnemyDetails ? { adminEnemyDetails } : {})
       };
     }
@@ -7110,11 +7175,18 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
   });
   const portrait = pickPortraitUrl(
     profile && profile.portrait,
+    profile && profile.avatarPortrait,
+    profile && profile.avatar,
     profile && profile.avatarUrl,
     member && member.portrait,
-    member && member.avatarUrl,
-    member && member.avatar
+    member && member.avatarPortrait,
+    member && member.avatar,
+    member && member.avatarUrl
   );
+  const avatarUrl =
+    (profile && (profile.avatarUrl || profile.avatar)) ||
+    (member && (member.avatarUrl || member.avatar)) ||
+    '';
   const hpSnapshot = buildParticipantHpSnapshot(
     combatant.stats,
     combatant.special,
@@ -7124,6 +7196,7 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
     id: resolvedId,
     displayName,
     portrait,
+    avatarUrl,
     level: attributes.level,
     realmId: attributes.realmId,
     realmName: attributes.realmName,
@@ -7148,14 +7221,20 @@ function buildEnemyBattleInfo(enemy, combatant) {
     (enemy && (enemy.displayName || enemy.name || enemy.stageName || enemy.realmName)) || '敌方';
   const portrait = pickPortraitUrl(
     enemy && enemy.portrait,
+    enemy && enemy.avatarPortrait,
+    enemy && enemy.avatar,
     enemy && enemy.avatarUrl,
     enemy && enemy.image
   );
+  const avatarUrl =
+    (enemy && (enemy.avatarUrl || enemy.avatar)) ||
+    '';
   const hpSnapshot = buildParticipantHpSnapshot(combatant.stats, combatant.special, enemy && enemy.stats);
   return {
     id: resolvedId,
     displayName,
     portrait,
+    avatarUrl,
     level: enemy && enemy.level,
     realmId: enemy && enemy.realmId,
     realmName: enemy && enemy.realmName,
@@ -7206,6 +7285,7 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
       id: playerId,
       displayName: playerName,
       portrait: playerInfo.portrait || '',
+      avatarUrl: playerInfo.avatarUrl || '',
       maxHp: Math.round(playerMaxHp),
       hp: {
         current: Math.max(0, Math.round(Math.min(playerHp, playerMaxHp))),
@@ -7219,6 +7299,7 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
       id: enemyId,
       displayName: enemyName,
       portrait: enemyInfo.portrait || '',
+      avatarUrl: enemyInfo.avatarUrl || '',
       maxHp: Math.round(enemyMaxHp),
       hp: {
         current: Math.max(0, Math.round(Math.min(enemyHp, enemyMaxHp))),
