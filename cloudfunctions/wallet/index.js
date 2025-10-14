@@ -10,6 +10,79 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 
+const FEATURE_TOGGLE_DOC_ID = 'feature_toggles';
+const DEFAULT_FEATURE_TOGGLES = { cashierEnabled: true };
+
+function resolveToggleBoolean(value, defaultValue = true) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return defaultValue;
+    }
+    return value !== 0;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return defaultValue;
+    }
+    const normalized = trimmed.toLowerCase();
+    if (
+      ['false', '0', 'off', 'no', '关闭', '否', '禁用', '停用', 'disabled'].includes(normalized)
+    ) {
+      return false;
+    }
+    if (['true', '1', 'on', 'yes', '开启', '启用', 'enable', 'enabled'].includes(normalized)) {
+      return true;
+    }
+    return defaultValue;
+  }
+  if (value == null) {
+    return defaultValue;
+  }
+  if (typeof value.valueOf === 'function') {
+    try {
+      const primitive = value.valueOf();
+      if (primitive !== value) {
+        return resolveToggleBoolean(primitive, defaultValue);
+      }
+    } catch (error) {
+      return defaultValue;
+    }
+  }
+  return Boolean(value);
+}
+
+function normalizeFeatureToggles(documentData) {
+  const toggles = { ...DEFAULT_FEATURE_TOGGLES };
+  if (documentData && typeof documentData === 'object') {
+    if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
+      toggles.cashierEnabled = resolveToggleBoolean(documentData.cashierEnabled, true);
+    }
+  }
+  return toggles;
+}
+
+async function loadFeatureToggles() {
+  try {
+    const snapshot = await db
+      .collection(COLLECTIONS.SYSTEM_SETTINGS)
+      .doc(FEATURE_TOGGLE_DOC_ID)
+      .get();
+    if (snapshot && snapshot.data) {
+      return normalizeFeatureToggles(snapshot.data);
+    }
+  } catch (error) {
+    if (error && error.errMsg && /not exist|not found/i.test(error.errMsg)) {
+      return { ...DEFAULT_FEATURE_TOGGLES };
+    }
+    console.error('[wallet] loadFeatureToggles failed', error);
+  }
+  return { ...DEFAULT_FEATURE_TOGGLES };
+}
+
 function normalizeWineStorageEntries(list = []) {
   const normalized = [];
   (Array.isArray(list) ? list : []).forEach((entry, index) => {
@@ -94,7 +167,7 @@ exports.main = async (event, context) => {
 async function getSummary(openid) {
   const transactionsCollection = db.collection(COLLECTIONS.WALLET_TRANSACTIONS);
   const totalsPromise = resolveEffectiveTotals(transactionsCollection, openid);
-  const [memberDoc, transactionsSnapshot, totals, extrasDoc] = await Promise.all([
+  const [memberDoc, transactionsSnapshot, totals, extrasDoc, featureToggles] = await Promise.all([
     db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null),
     transactionsCollection
       .where({ memberId: openid })
@@ -102,7 +175,8 @@ async function getSummary(openid) {
       .limit(20)
       .get(),
     totalsPromise,
-    db.collection(COLLECTIONS.MEMBER_EXTRAS).doc(openid).get().catch(() => null)
+    db.collection(COLLECTIONS.MEMBER_EXTRAS).doc(openid).get().catch(() => null),
+    loadFeatureToggles()
   ]);
 
   const member = memberDoc && memberDoc.data ? memberDoc.data : { cashBalance: 0 };
@@ -134,6 +208,7 @@ async function getSummary(openid) {
     totalSpend: normalizedTotals.totalSpend,
     wineStorage: wineStorageEntries.map((entry) => serializeWineStorageEntry(entry)),
     wineStorageTotal,
+    features: featureToggles,
     transactions: transactions.map((txn) => {
       const amount = resolveAmountNumber(txn.amount);
       const status = normalizeTransactionStatus(txn.status);
@@ -253,6 +328,10 @@ function resolveTransactionType(type, amount) {
 }
 
 async function createRecharge(openid, amount) {
+  const featureToggles = await loadFeatureToggles();
+  if (!featureToggles.cashierEnabled) {
+    throw new Error('线上充值暂不可用，请前往收款台线下充值');
+  }
   if (!amount || amount <= 0) {
     throw new Error('充值金额无效');
   }

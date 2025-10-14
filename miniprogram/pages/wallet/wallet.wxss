@@ -136,3 +136,14 @@
 .txn-amount.expense {
   color: #ff8484;
 }
+
+.recharge-disabled {
+  padding: 36rpx 24rpx;
+  border-radius: 20rpx;
+  background: rgba(12, 20, 54, 0.72);
+  border: 1rpx dashed rgba(149, 168, 255, 0.38);
+  color: rgba(210, 220, 255, 0.86);
+  font-size: 26rpx;
+  text-align: center;
+  line-height: 1.6;
+}

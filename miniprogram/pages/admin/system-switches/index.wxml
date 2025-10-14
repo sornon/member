@@ -1,0 +1,31 @@
+<custom-nav title="系统功能开关" theme="dark"></custom-nav>
+<view class="system-switch-page container">
+  <view wx:if="{{loading}}" class="card loading-card">加载中…</view>
+  <block wx:else>
+    <view class="card intro-card">
+      <view class="intro-title">全局功能控制</view>
+      <view class="intro-desc">用于快速启用或关闭对会员开放的关键功能，及时响应运营需求。</view>
+    </view>
+
+    <view class="card switch-card">
+      <view class="switch-row">
+        <view class="switch-info">
+          <view class="switch-name">收银台</view>
+          <view class="switch-desc">控制会员钱包内的在线快捷充值入口。</view>
+        </view>
+        <switch
+          checked="{{features.cashierEnabled}}"
+          data-key="cashierEnabled"
+          bindchange="handleFeatureToggle"
+          disabled="{{updating.cashierEnabled}}"
+          color="#566aff"
+        ></switch>
+      </view>
+      <view wx:if="{{updating.cashierEnabled}}" class="switch-hint">保存中…</view>
+      <view wx:elif="{{!features.cashierEnabled}}" class="switch-hint warning">关闭后，会员钱包将提示“目前只支持收款台线下充值”。</view>
+      <view wx:else class="switch-hint">开启后，会员可直接在钱包中完成微信充值。</view>
+    </view>
+
+    <view wx:if="{{error}}" class="error-banner">{{error}}</view>
+  </block>
+</view>

@@ -7,6 +7,10 @@ import { formatCurrency, formatDate } from '../../utils/format';
 
 const presets = [200, 500, 1000, 2000, 5000];
 
+const DEFAULT_FEATURES = {
+  cashierEnabled: true
+};
+
 function toNumeric(value, fallback = 0) {
   if (value == null || value === '') {
     return fallback;
@@ -24,6 +28,46 @@ function toNumeric(value, fallback = 0) {
     return Number.isFinite(parsed) ? parsed : fallback;
   }
   return fallback;
+}
+
+function toBoolean(value, defaultValue = true) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return defaultValue;
+    }
+    return value !== 0;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return defaultValue;
+    }
+    const normalized = trimmed.toLowerCase();
+    if (['false', '0', 'off', 'no', '关闭', '否', '禁用', '停用', 'disabled'].includes(normalized)) {
+      return false;
+    }
+    if (['true', '1', 'on', 'yes', '开启', '启用', 'enable', 'enabled'].includes(normalized)) {
+      return true;
+    }
+    return defaultValue;
+  }
+  if (value == null) {
+    return defaultValue;
+  }
+  if (typeof value.valueOf === 'function') {
+    try {
+      const primitive = value.valueOf();
+      if (primitive !== value) {
+        return toBoolean(primitive, defaultValue);
+      }
+    } catch (error) {
+      return defaultValue;
+    }
+  }
+  return Boolean(value);
 }
 
 function formatTransactionAmount(amount) {
@@ -98,7 +142,8 @@ function decorateSummary(summary) {
       totalSpendText: formatCurrency(0),
       transactions: [],
       wineStorage: [],
-      totalWineQuantity: 0
+      totalWineQuantity: 0,
+      features: { ...DEFAULT_FEATURES }
     };
   }
 
@@ -121,6 +166,7 @@ function decorateSummary(summary) {
   const totalWineQuantity = Number.isFinite(summary.wineStorageTotal)
     ? Math.max(0, Math.floor(summary.wineStorageTotal))
     : wineStorage.reduce((sum, entry) => sum + (Number.isFinite(entry.quantity) ? entry.quantity : 0), 0);
+  const features = normalizeFeatures(summary.features);
 
   return {
     ...summary,
@@ -133,8 +179,19 @@ function decorateSummary(summary) {
     totalSpendText: formatCurrency(totalSpend),
     transactions,
     wineStorage,
-    totalWineQuantity
+    totalWineQuantity,
+    features
   };
+}
+
+function normalizeFeatures(features) {
+  const normalized = { ...DEFAULT_FEATURES };
+  if (features && typeof features === 'object') {
+    if (Object.prototype.hasOwnProperty.call(features, 'cashierEnabled')) {
+      normalized.cashierEnabled = toBoolean(features.cashierEnabled, true);
+    }
+  }
+  return normalized;
 }
 
 Page({
@@ -208,15 +265,25 @@ Page({
   },
 
   handleAmountInput(event) {
+    if (!this.isCashierEnabled()) {
+      return;
+    }
     this.setData({ amount: Number(event.detail.value) || 0 });
   },
 
   handlePresetTap(event) {
+    if (!this.isCashierEnabled()) {
+      return;
+    }
     const { value } = event.currentTarget.dataset;
     this.setData({ amount: value });
   },
 
   async handleRecharge() {
+    if (!this.isCashierEnabled()) {
+      wx.showToast({ title: '目前只支持收款台线下充值', icon: 'none' });
+      return;
+    }
     const amount = Number(this.data.amount);
     if (!amount || amount < 1) {
       wx.showToast({ title: '请输入充值金额', icon: 'none' });
@@ -253,6 +320,14 @@ Page({
     } catch (error) {
       wx.hideLoading();
     }
+  },
+
+  isCashierEnabled() {
+    const { summary } = this.data;
+    if (!summary || !summary.features) {
+      return true;
+    }
+    return summary.features.cashierEnabled !== false;
   },
 
   async handleScanCharge() {
