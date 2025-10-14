@@ -654,6 +654,21 @@ export const AdminService = {
       action: 'updateImmortalTournamentSettings',
       updates
     });
+  },
+  async resetImmortalTournament(options = {}) {
+    const payload = { action: 'resetImmortalTournament' };
+    if (options && typeof options === 'object') {
+      if (options.scope) {
+        payload.scope = options.scope;
+      }
+      if (options.seasonId) {
+        payload.seasonId = options.seasonId;
+      }
+      if (typeof options.seasonIndex !== 'undefined') {
+        payload.seasonIndex = options.seasonIndex;
+      }
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   }
 };
 

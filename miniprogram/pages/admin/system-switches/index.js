@@ -21,6 +21,24 @@ const DEFAULT_FEATURES = {
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
 };
 
+function showConfirmationModal({ title = '确认操作', content = '确认执行该操作？', confirmText = '确认', cancelText = '取消' } = {}) {
+  return new Promise((resolve) => {
+    wx.showModal({
+      title,
+      content,
+      confirmText,
+      cancelText,
+      confirmColor: '#566aff',
+      success: (res) => {
+        resolve(!!(res && res.confirm));
+      },
+      fail: () => {
+        resolve(false);
+      }
+    });
+  });
+}
+
 function toBoolean(value, defaultValue = true) {
   if (typeof value === 'boolean') {
     return value;
@@ -159,6 +177,9 @@ Page({
     tournamentDraft: buildTournamentDraft(DEFAULT_FEATURES.immortalTournament),
     tournamentSaving: false,
     tournamentError: '',
+    tournamentResetting: false,
+    tournamentResetScope: '',
+    tournamentResetError: '',
     updating: {},
     error: ''
   },
@@ -185,6 +206,9 @@ Page({
         tournamentDraft: buildTournamentDraft(features.immortalTournament),
         tournamentSaving: false,
         tournamentError: '',
+        tournamentResetting: false,
+        tournamentResetScope: '',
+        tournamentResetError: '',
         error: '',
         updating: {}
       });
@@ -194,6 +218,9 @@ Page({
         error: resolveErrorMessage(error, '加载失败，请稍后重试'),
         tournamentSaving: false,
         tournamentError: '',
+        tournamentResetting: false,
+        tournamentResetScope: '',
+        tournamentResetError: '',
         updating: {}
       });
     } finally {
@@ -249,7 +276,7 @@ Page({
   },
 
   handleTournamentToggle(event) {
-    if (this.data.tournamentSaving) {
+    if (this.data.tournamentSaving || this.data.tournamentResetting) {
       wx.showToast({ title: '正在保存，请稍候', icon: 'none', duration: 1000 });
       return;
     }
@@ -288,7 +315,7 @@ Page({
   },
 
   handleTournamentSubmit() {
-    if (this.data.tournamentSaving) {
+    if (this.data.tournamentSaving || this.data.tournamentResetting) {
       return;
     }
     const previousConfig = cloneImmortalTournament(this.data.features.immortalTournament);
@@ -347,7 +374,7 @@ Page({
       ? cloneImmortalTournament(options.previousTournament)
       : cloneImmortalTournament(this.data.features.immortalTournament);
 
-    if (this.data.tournamentSaving) {
+    if (this.data.tournamentSaving || this.data.tournamentResetting) {
       wx.showToast({ title: '正在保存，请稍候', icon: 'none', duration: 1000 });
       return null;
     }
@@ -381,6 +408,51 @@ Page({
       });
       wx.showToast({ title: '保存失败', icon: 'none', duration: 1200 });
       throw error;
+    }
+  },
+
+  async handleTournamentReset(event) {
+    const { scope } = event.currentTarget.dataset || {};
+    const normalizedScope = scope === 'all' ? 'all' : 'season';
+    if (this.data.tournamentResetting || this.data.tournamentSaving) {
+      wx.showToast({ title: '正在处理中，请稍候', icon: 'none', duration: 1000 });
+      return;
+    }
+
+    const confirm = await showConfirmationModal({
+      title: normalizedScope === 'all' ? '重置所有届' : '重置当前届',
+      content:
+        normalizedScope === 'all'
+          ? '此操作会清除所有届的比赛记录、赛季档案与榜单数据，并从第一届重新开始。是否继续？'
+          : '将清空本届的比赛记录、邀战与榜单数据，并重置赛季档案。是否继续？',
+      confirmText: '确认重置'
+    });
+    if (!confirm) {
+      return;
+    }
+
+    this.setData({
+      tournamentResetting: true,
+      tournamentResetScope: normalizedScope,
+      tournamentResetError: ''
+    });
+
+    try {
+      await AdminService.resetImmortalTournament({ scope: normalizedScope === 'all' ? 'all' : 'season' });
+      this.setData({ tournamentResetting: false, tournamentResetScope: '', tournamentResetError: '' });
+      wx.showToast({
+        title: normalizedScope === 'all' ? '已清空记录' : '已重置本届',
+        icon: 'success',
+        duration: 1000
+      });
+      this.loadFeatures({ showLoading: false });
+    } catch (error) {
+      this.setData({
+        tournamentResetting: false,
+        tournamentResetScope: '',
+        tournamentResetError: resolveErrorMessage(error, '重置失败，请稍后重试')
+      });
+      wx.showToast({ title: '重置失败', icon: 'none', duration: 1200 });
     }
   }
 });

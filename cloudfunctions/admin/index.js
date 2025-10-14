@@ -41,6 +41,10 @@ const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
 };
+const DEFAULT_PVP_RATING = 1200;
+const DEFAULT_PVP_TIER = { id: 'bronze', name: '青铜' };
+const DEFAULT_PVP_SEASON_LENGTH_DAYS = 56;
+
 const FEATURE_KEY_ALIASES = {
   cashier: 'cashierEnabled',
   cashierenabled: 'cashierEnabled',
@@ -81,7 +85,8 @@ const ACTIONS = {
   PREVIEW_CLEANUP_BATTLE_RECORDS: 'previewCleanupBattleRecords',
   GET_SYSTEM_FEATURES: 'getSystemFeatures',
   UPDATE_SYSTEM_FEATURE: 'updateSystemFeature',
-  UPDATE_IMMORTAL_TOURNAMENT_SETTINGS: 'updateImmortalTournamentSettings'
+  UPDATE_IMMORTAL_TOURNAMENT_SETTINGS: 'updateImmortalTournamentSettings',
+  RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament'
 };
 
 const ACTION_CANONICAL_MAP = Object.values(ACTIONS).reduce((map, name) => {
@@ -139,7 +144,12 @@ const ACTION_ALIASES = {
   setfeaturetoggle: ACTIONS.UPDATE_SYSTEM_FEATURE,
   updateimmortaltournamentsettings: ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS,
   immortaltournamentsettings: ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS,
-  updatetournamentsettings: ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS
+  updatetournamentsettings: ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS,
+  resetimmortaltournament: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
+  resetimmortaltournaments: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
+  cleartournament: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
+  resetimmortaltournamentseason: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
+  resetimmortaltournamentdata: ACTIONS.RESET_IMMORTAL_TOURNAMENT
 };
 
 function normalizeAction(action) {
@@ -228,7 +238,9 @@ const ACTION_HANDLERS = {
   [ACTIONS.GET_SYSTEM_FEATURES]: (openid) => getSystemFeatures(openid),
   [ACTIONS.UPDATE_SYSTEM_FEATURE]: (openid, event) => updateSystemFeature(openid, event),
   [ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS]: (openid, event = {}) =>
-    updateImmortalTournamentSettings(openid, event.updates || event)
+    updateImmortalTournamentSettings(openid, event.updates || event),
+  [ACTIONS.RESET_IMMORTAL_TOURNAMENT]: (openid, event) =>
+    resetImmortalTournament(openid, event || {})
 };
 
 async function resolveMemberExtras(memberId) {
@@ -891,6 +903,365 @@ async function updateImmortalTournamentSettings(openid, updates = {}) {
     features,
     updatedAt: now
   };
+}
+
+async function resetImmortalTournament(openid, options = {}) {
+  await ensureAdmin(openid);
+
+  const scope = normalizeTournamentResetScope(options.scope);
+  if (scope === 'all') {
+    const summary = await resetAllImmortalTournamentData();
+    const featureDocument = await loadSystemFeatureDocument();
+    return {
+      success: true,
+      scope: 'all',
+      summary,
+      features: normalizeFeatureToggles(featureDocument)
+    };
+  }
+
+  const season = await resolveTournamentSeasonForReset(options);
+  if (!season) {
+    const featureDocument = await loadSystemFeatureDocument();
+    return {
+      success: true,
+      scope: 'season',
+      season: null,
+      summary: {
+        message: '暂无可重置的赛季数据'
+      },
+      features: normalizeFeatureToggles(featureDocument)
+    };
+  }
+
+  const summary = await resetImmortalTournamentSeason(season);
+  const featureDocument = await loadSystemFeatureDocument();
+  return {
+    success: true,
+    scope: 'season',
+    season: {
+      id: season._id,
+      index: season.index || null,
+      name: season.name || ''
+    },
+    summary,
+    features: normalizeFeatureToggles(featureDocument)
+  };
+}
+
+function normalizeTournamentResetScope(scope) {
+  if (typeof scope === 'string') {
+    const normalized = scope.trim().toLowerCase();
+    if (!normalized) {
+      return 'season';
+    }
+    if (['all', 'allseasons', 'full', 'global', 'allseason', 'resetall'].includes(normalized)) {
+      return 'all';
+    }
+  }
+  return 'season';
+}
+
+function normalizeSeasonIdValue(value) {
+  if (!value) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(Math.floor(value));
+  }
+  return '';
+}
+
+function normalizeSeasonIndexValue(value) {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const numeric = Number(trimmed);
+    if (!Number.isFinite(numeric)) {
+      return null;
+    }
+    const integer = Math.round(numeric);
+    return integer > 0 ? integer : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const integer = Math.round(value);
+    return integer > 0 ? integer : null;
+  }
+  return null;
+}
+
+async function resolveTournamentSeasonForReset(options = {}) {
+  const collection = db.collection(COLLECTIONS.PVP_SEASONS);
+  const seasonId = normalizeSeasonIdValue(
+    options.seasonId || options.id || options.season || options.seasonKey
+  );
+  if (seasonId) {
+    const snapshot = await collection
+      .doc(seasonId)
+      .get()
+      .catch(() => null);
+    if (snapshot && snapshot.data) {
+      return snapshot.data;
+    }
+  }
+
+  const seasonIndex = normalizeSeasonIndexValue(options.seasonIndex || options.index);
+  if (seasonIndex) {
+    const snapshot = await collection
+      .where({ index: seasonIndex })
+      .limit(1)
+      .get()
+      .catch(() => ({ data: [] }));
+    if (snapshot.data && snapshot.data.length) {
+      return snapshot.data[0];
+    }
+  }
+
+  const activeSnapshot = await collection
+    .where({ status: 'active' })
+    .orderBy('startAt', 'desc')
+    .limit(1)
+    .get()
+    .catch(() => ({ data: [] }));
+  if (activeSnapshot.data && activeSnapshot.data.length) {
+    return activeSnapshot.data[0];
+  }
+
+  const latestSnapshot = await collection
+    .orderBy('startAt', 'desc')
+    .limit(1)
+    .get()
+    .catch(() => ({ data: [] }));
+  if (latestSnapshot.data && latestSnapshot.data.length) {
+    return latestSnapshot.data[0];
+  }
+  return null;
+}
+
+async function resetImmortalTournamentSeason(season) {
+  if (!season || !season._id) {
+    return {
+      message: '赛季信息缺失'
+    };
+  }
+  const seasonId = season._id;
+  const summary = { removed: {}, errors: [] };
+
+  const removedInvites = await removeCollectionDocumentsByCondition(
+    COLLECTIONS.PVP_INVITES,
+    { seasonId },
+    'pvpInvites',
+    summary
+  );
+  const removedMatches = await removeCollectionDocumentsByCondition(
+    COLLECTIONS.PVP_MATCHES,
+    { seasonId },
+    'pvpMatches',
+    summary
+  );
+  const removedLeaderboards = await removeCollectionDocumentsByCondition(
+    COLLECTIONS.PVP_LEADERBOARD,
+    { seasonId },
+    'pvpLeaderboard',
+    summary
+  );
+
+  const profileUpdates = await resetPvpProfilesForSeason(season, summary);
+
+  const now = new Date();
+  const endAt = new Date(now.getTime() + DEFAULT_PVP_SEASON_LENGTH_DAYS * 24 * 60 * 60 * 1000);
+  await db
+    .collection(COLLECTIONS.PVP_SEASONS)
+    .doc(seasonId)
+    .update({
+      data: {
+        status: 'active',
+        startAt: now,
+        endAt,
+        updatedAt: now,
+        seasonId,
+        name: season.name || `第${season.index || ''}赛季`
+      }
+    })
+    .then(() => {
+      summary.seasonReset = true;
+    })
+    .catch((error) => {
+      if (!isNotFoundError(error)) {
+        pushCleanupError(summary, COLLECTIONS.PVP_SEASONS, error, seasonId);
+      }
+    });
+
+  return {
+    removedInvites,
+    removedMatches,
+    removedLeaderboards,
+    updatedProfiles: profileUpdates,
+    summary
+  };
+}
+
+async function resetAllImmortalTournamentData() {
+  const summary = { removed: {}, errors: [] };
+  const targets = [
+    { collection: COLLECTIONS.PVP_INVITES, key: 'pvpInvites' },
+    { collection: COLLECTIONS.PVP_MATCHES, key: 'pvpMatches' },
+    { collection: COLLECTIONS.PVP_LEADERBOARD, key: 'pvpLeaderboard' },
+    { collection: COLLECTIONS.PVP_PROFILES, key: 'pvpProfiles' },
+    { collection: COLLECTIONS.PVP_SEASONS, key: 'pvpSeasons' }
+  ];
+
+  for (const target of targets) {
+    await cleanupCollectionDocuments(target.collection, summary, { counterKey: target.key });
+  }
+
+  return summary;
+}
+
+async function removeCollectionDocumentsByCondition(collectionName, condition, counterKey, summary) {
+  const collection = db.collection(collectionName);
+  const limit = 100;
+  let removed = 0;
+  let hasMore = true;
+  let guard = 0;
+
+  while (hasMore && guard < 200) {
+    const snapshot = await collection
+      .where(condition)
+      .orderBy('_id', 'asc')
+      .limit(limit)
+      .field({ _id: true })
+      .get()
+      .catch(() => ({ data: [] }));
+    const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+    await Promise.all(
+      docs.map((doc) => {
+        if (!doc || !doc._id) {
+          return Promise.resolve();
+        }
+        return collection
+          .doc(doc._id)
+          .remove()
+          .then(() => {
+            removed += 1;
+          })
+          .catch((error) => {
+            if (!isNotFoundError(error)) {
+              pushCleanupError(summary, collectionName, error, doc._id);
+            }
+          });
+      })
+    );
+    if (docs.length < limit) {
+      hasMore = false;
+    }
+    guard += 1;
+  }
+
+  if (removed > 0) {
+    if (!summary.removed || typeof summary.removed !== 'object') {
+      summary.removed = {};
+    }
+    summary.removed[counterKey || collectionName] =
+      (summary.removed[counterKey || collectionName] || 0) + removed;
+  }
+
+  return removed;
+}
+
+async function resetPvpProfilesForSeason(season, summary) {
+  const collection = db.collection(COLLECTIONS.PVP_PROFILES);
+  const seasonId = season._id;
+  const limit = 100;
+  let updated = 0;
+  let hasMore = true;
+  let guard = 0;
+  let lastId = '';
+
+  while (hasMore && guard < 200) {
+    const condition = lastId ? _.and([{ seasonId }, { _id: _.gt(lastId) }]) : { seasonId };
+    const snapshot = await collection
+      .where(condition)
+      .orderBy('_id', 'asc')
+      .limit(limit)
+      .get()
+      .catch(() => ({ data: [] }));
+    const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+    lastId = docs[docs.length - 1]._id || lastId;
+    guard += 1;
+
+    const tasks = docs.map((doc) => {
+      if (!doc) {
+        return Promise.resolve();
+      }
+      const docId = doc._id || doc.memberId;
+      if (!docId) {
+        return Promise.resolve();
+      }
+      const now = new Date();
+      const history = Array.isArray(doc.seasonHistory)
+        ? doc.seasonHistory.filter((entry) => entry && entry.seasonId !== seasonId)
+        : [];
+      return collection
+        .doc(docId)
+        .update({
+          data: {
+            seasonId,
+            seasonName: season.name || `第${season.index || ''}赛季`,
+            tierId: DEFAULT_PVP_TIER.id,
+            tierName: DEFAULT_PVP_TIER.name,
+            points: DEFAULT_PVP_RATING,
+            wins: 0,
+            losses: 0,
+            draws: 0,
+            currentStreak: 0,
+            longestStreak: 0,
+            bestPoints: DEFAULT_PVP_RATING,
+            claimedSeasonReward: false,
+            lastMatchedAt: null,
+            lastResultAt: null,
+            updatedAt: now,
+            seasonHistory: history
+          }
+        })
+        .then(() => {
+          updated += 1;
+        })
+        .catch((error) => {
+          if (!isNotFoundError(error)) {
+            pushCleanupError(summary, COLLECTIONS.PVP_PROFILES, error, docId);
+          }
+        });
+    });
+
+    if (tasks.length) {
+      await Promise.all(tasks);
+    }
+
+    if (docs.length < limit) {
+      hasMore = false;
+    }
+  }
+
+  if (updated > 0) {
+    if (!summary.updatedProfiles || typeof summary.updatedProfiles !== 'number') {
+      summary.updatedProfiles = 0;
+    }
+    summary.updatedProfiles += updated;
+  }
+
+  return updated;
 }
 
 async function listMembers(openid, keyword, page, pageSize) {

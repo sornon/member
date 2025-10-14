@@ -39,7 +39,7 @@
           checked="{{tournamentDraft.enabled}}"
           data-field="enabled"
           bindchange="handleTournamentToggle"
-          disabled="{{tournamentSaving}}"
+          disabled="{{tournamentSaving || tournamentResetting}}"
           color="#566aff"
         ></switch>
       </view>
@@ -56,7 +56,7 @@
             value="{{tournamentDraft.registrationStart}}"
             data-field="registrationStart"
             bindinput="handleTournamentFieldChange"
-            disabled="{{tournamentSaving}}"
+            disabled="{{tournamentSaving || tournamentResetting}}"
           />
           <view class="field-hint">用于在前台公告报名开始时间。</view>
         </view>
@@ -68,7 +68,7 @@
             value="{{tournamentDraft.registrationEnd}}"
             data-field="registrationEnd"
             bindinput="handleTournamentFieldChange"
-            disabled="{{tournamentSaving}}"
+            disabled="{{tournamentSaving || tournamentResetting}}"
           />
           <view class="field-hint">会在会员端报名须知中同步展示。</view>
         </view>
@@ -80,7 +80,7 @@
             value="{{tournamentDraft.ruleLink}}"
             data-field="ruleLink"
             bindinput="handleTournamentFieldChange"
-            disabled="{{tournamentSaving}}"
+            disabled="{{tournamentSaving || tournamentResetting}}"
           />
           <view class="field-hint">会员端可跳转查看完整规则细节。</view>
         </view>
@@ -95,7 +95,7 @@
           show-confirm-bar="false"
           data-field="announcement"
           bindinput="handleTournamentFieldChange"
-          disabled="{{tournamentSaving}}"
+          disabled="{{tournamentSaving || tournamentResetting}}"
         ></textarea>
         <view class="field-hint">支持换行，将直接同步到会员端的说明区块。</view>
       </view>
@@ -105,12 +105,36 @@
           class="primary-button"
           bindtap="handleTournamentSubmit"
           loading="{{tournamentSaving}}"
-          disabled="{{tournamentSaving}}"
+          disabled="{{tournamentSaving || tournamentResetting}}"
         >保存大会设置</button>
         <view class="action-hint">点击保存后统一提交报名窗口及公告内容。</view>
       </view>
 
       <view wx:if="{{tournamentError}}" class="error-banner">{{tournamentError}}</view>
+
+      <view class="reset-section">
+        <view class="reset-title">比赛数据重置</view>
+        <view class="reset-desc">清空战报与赛季档案，用于测试或异常恢复。</view>
+        <view class="reset-actions">
+          <button
+            class="ghost-button"
+            bindtap="handleTournamentReset"
+            data-scope="season"
+            loading="{{tournamentResetting && tournamentResetScope==='season'}}"
+            disabled="{{tournamentResetting || tournamentSaving}}"
+          >重置当前届</button>
+          <button
+            class="danger-button"
+            bindtap="handleTournamentReset"
+            data-scope="all"
+            loading="{{tournamentResetting && tournamentResetScope==='all'}}"
+            disabled="{{tournamentResetting || tournamentSaving}}"
+          >重置所有届</button>
+        </view>
+        <view class="reset-hint">操作会永久清除对应届的比赛记录与榜单，请谨慎执行。</view>
+      </view>
+
+      <view wx:if="{{tournamentResetError}}" class="error-banner">{{tournamentResetError}}</view>
     </view>
 
     <view wx:if="{{error}}" class="error-banner">{{error}}</view>
