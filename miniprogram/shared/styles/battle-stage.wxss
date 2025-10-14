@@ -329,8 +329,9 @@ page {
 
 .floating-text.floating-crit {
   color: #ffd46d;
-  font-size: 40rpx;
-  animation-duration: 0.9s;
+  font-size: 56rpx;
+  animation-name: floatingCritBurst;
+  animation-duration: 0.75s;
 }
 
 @keyframes floatingTextRise {
@@ -349,6 +350,25 @@ page {
   100% {
     opacity: 0;
     transform: translateY(-60rpx) scale(0.95);
+  }
+}
+
+@keyframes floatingCritBurst {
+  0% {
+    opacity: 0;
+    transform: translateY(20rpx) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-4rpx) scale(1.25);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-46rpx) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-78rpx) scale(0.85);
   }
 }
 
