@@ -2,27 +2,32 @@
 <view class="container pvp-page">
   <view wx:if="{{loading}}" class="card pvp-state">比武场布阵中...</view>
   <block wx:elif="{{profile}}">
-    <view class="card pvp-header">
-      <view class="tier-badge" style="border-color: {{profile.tier.color}};">
-        <text class="tier-badge__name">{{profile.tier.name}}</text>
-        <text class="tier-badge__score">{{profile.points}} 分</text>
-      </view>
-      <view class="pvp-stats">
-        <view class="stat-item">
-          <text class="stat-item__label">胜场</text>
-          <text class="stat-item__value">{{profile.wins}}</text>
-        </view>
-        <view class="stat-item">
-          <text class="stat-item__label">败场</text>
-          <text class="stat-item__value">{{profile.losses}}</text>
-        </view>
-        <view class="stat-item">
-          <text class="stat-item__label">平局</text>
-          <text class="stat-item__value">{{profile.draws}}</text>
-        </view>
-        <view class="stat-item">
-          <text class="stat-item__label">连胜</text>
-          <text class="stat-item__value">{{profile.currentStreak}}</text>
+    <view class="pvp-hero">
+      <image class="pvp-hero__background" src="{{heroBackgroundUrl}}" mode="aspectFill"></image>
+      <view class="pvp-hero__content">
+        <view class="pvp-header">
+          <view class="tier-badge" style="border-color: {{profile.tier.color}};">
+            <text class="tier-badge__name">{{profile.tier.name}}</text>
+            <text class="tier-badge__score">{{profile.points}} 分</text>
+          </view>
+          <view class="pvp-stats">
+            <view class="stat-item">
+              <text class="stat-item__label">胜场</text>
+              <text class="stat-item__value">{{profile.wins}}</text>
+            </view>
+            <view class="stat-item">
+              <text class="stat-item__label">败场</text>
+              <text class="stat-item__value">{{profile.losses}}</text>
+            </view>
+            <view class="stat-item">
+              <text class="stat-item__label">平局</text>
+              <text class="stat-item__value">{{profile.draws}}</text>
+            </view>
+            <view class="stat-item">
+              <text class="stat-item__label">连胜</text>
+              <text class="stat-item__value">{{profile.currentStreak}}</text>
+            </view>
+          </view>
         </view>
       </view>
     </view>

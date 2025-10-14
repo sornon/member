@@ -1,5 +1,6 @@
 import { MemberService, PvpService } from '../../services/api';
 const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
+const { buildCloudAssetUrl } = require('../../shared/asset-paths.js');
 
 const app = getApp();
 
@@ -35,7 +36,8 @@ Page({
     acceptingInvite: false,
     targetChallenge: null,
     claimingReward: false,
-    autoMatchIntent: false
+    autoMatchIntent: false,
+    heroBackgroundUrl: buildCloudAssetUrl('background', 'battle-s1.jpg')
   },
 
   onLoad(options = {}) {
