@@ -633,6 +633,18 @@ export const AdminService = {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'cleanupBattleRecords'
     });
+  },
+  async getSystemFeatures() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'getSystemFeatures'
+    });
+  },
+  async updateSystemFeature(featureKey, enabled) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'updateSystemFeature',
+      featureKey,
+      enabled
+    });
   }
 };
 

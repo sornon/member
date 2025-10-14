@@ -48,6 +48,12 @@ const BASE_ACTIONS = [
     label: '数据清理',
     description: '清理删除会员遗留数据',
     url: '/pages/admin/data-cleanup/index'
+  },
+  {
+    icon: '⚙️',
+    label: '系统开关',
+    description: '配置全局功能开关',
+    url: '/pages/admin/system-switches/index'
   }
 ];
 

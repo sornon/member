@@ -17,7 +17,8 @@ exports.main = async () => {
     ensureCollection(COLLECTIONS.CHARGE_ORDERS),
     ensureCollection(COLLECTIONS.ERROR_LOGS),
     ensureCollection(COLLECTIONS.MEMBER_EXTRAS),
-    ensureCollection(COLLECTIONS.MEMBER_TIMELINE)
+    ensureCollection(COLLECTIONS.MEMBER_TIMELINE),
+    ensureCollection(COLLECTIONS.SYSTEM_SETTINGS)
   ]);
 
   await Promise.all([
@@ -29,6 +30,8 @@ exports.main = async () => {
     seedCollection(COLLECTIONS.AVATAR_CATEGORIES, avatarCategories),
     seedCollection(COLLECTIONS.AVATARS, avatars)
   ]);
+
+  await seedSystemSettings();
 
   return { success: true };
 };
@@ -58,6 +61,35 @@ async function seedCollection(name, dataList) {
       await collection.doc(_id).set({ data: payload });
     })
   );
+}
+
+const FEATURE_TOGGLE_DOC_ID = 'feature_toggles';
+const DEFAULT_FEATURE_TOGGLES = { cashierEnabled: true };
+
+async function seedSystemSettings() {
+  const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);
+  const existing = await collection
+    .doc(FEATURE_TOGGLE_DOC_ID)
+    .get()
+    .catch((error) => {
+      if (error && error.errMsg && /not exist|not found/i.test(error.errMsg)) {
+        return null;
+      }
+      throw error;
+    });
+
+  if (existing && existing.data) {
+    return;
+  }
+
+  const now = new Date();
+  await collection.doc(FEATURE_TOGGLE_DOC_ID).set({
+    data: {
+      ...DEFAULT_FEATURE_TOGGLES,
+      createdAt: now,
+      updatedAt: now
+    }
+  });
 }
 
 const membershipLevels = buildMembershipLevels();

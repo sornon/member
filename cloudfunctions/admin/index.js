@@ -29,6 +29,16 @@ const WINE_EXPIRY_PRESETS = {
 
 const DEFAULT_WINE_EXPIRY = '3m';
 
+const FEATURE_TOGGLE_DOC_ID = 'feature_toggles';
+const DEFAULT_FEATURE_TOGGLES = { cashierEnabled: true };
+const FEATURE_KEY_ALIASES = {
+  cashier: 'cashierEnabled',
+  cashierenabled: 'cashierEnabled',
+  cashiernabled: 'cashierEnabled',
+  'cashier-enabled': 'cashierEnabled',
+  'cashier_enabled': 'cashierEnabled'
+};
+
 const ACTIONS = {
   LIST_MEMBERS: 'listMembers',
   GET_MEMBER_DETAIL: 'getMemberDetail',
@@ -58,7 +68,9 @@ const ACTIONS = {
   CLEANUP_ORPHAN_DATA: 'cleanupOrphanData',
   PREVIEW_CLEANUP_ORPHAN_DATA: 'previewCleanupOrphanData',
   CLEANUP_BATTLE_RECORDS: 'cleanupBattleRecords',
-  PREVIEW_CLEANUP_BATTLE_RECORDS: 'previewCleanupBattleRecords'
+  PREVIEW_CLEANUP_BATTLE_RECORDS: 'previewCleanupBattleRecords',
+  GET_SYSTEM_FEATURES: 'getSystemFeatures',
+  UPDATE_SYSTEM_FEATURE: 'updateSystemFeature'
 };
 
 const ACTION_CANONICAL_MAP = Object.values(ACTIONS).reduce((map, name) => {
@@ -108,7 +120,12 @@ const ACTION_ALIASES = {
   battlecleanup: ACTIONS.CLEANUP_BATTLE_RECORDS,
   previewcleanupbattlerecords: ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS,
   scanbattlerecords: ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS,
-  previewbattlerecords: ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS
+  previewbattlerecords: ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS,
+  getsystemfeatures: ACTIONS.GET_SYSTEM_FEATURES,
+  systemfeatures: ACTIONS.GET_SYSTEM_FEATURES,
+  updatesystemfeature: ACTIONS.UPDATE_SYSTEM_FEATURE,
+  togglesystemfeature: ACTIONS.UPDATE_SYSTEM_FEATURE,
+  setfeaturetoggle: ACTIONS.UPDATE_SYSTEM_FEATURE
 };
 
 function normalizeAction(action) {
@@ -193,7 +210,9 @@ const ACTION_HANDLERS = {
   [ACTIONS.CLEANUP_ORPHAN_DATA]: (openid) => cleanupResidualMemberData(openid),
   [ACTIONS.PREVIEW_CLEANUP_ORPHAN_DATA]: (openid) => previewCleanupResidualData(openid),
   [ACTIONS.CLEANUP_BATTLE_RECORDS]: (openid) => cleanupBattleRecords(openid),
-  [ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS]: (openid) => previewCleanupBattleRecords(openid)
+  [ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS]: (openid) => previewCleanupBattleRecords(openid),
+  [ACTIONS.GET_SYSTEM_FEATURES]: (openid) => getSystemFeatures(openid),
+  [ACTIONS.UPDATE_SYSTEM_FEATURE]: (openid, event) => updateSystemFeature(openid, event)
 };
 
 async function resolveMemberExtras(memberId) {
@@ -512,6 +531,194 @@ async function ensureAdmin(openid) {
     throw new Error('无权访问管理员功能');
   }
   return member;
+}
+
+function normalizeFeatureKey(input) {
+  if (typeof input !== 'string') {
+    return '';
+  }
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (trimmed === 'cashierEnabled') {
+    return 'cashierEnabled';
+  }
+  const compact = trimmed.replace(/[\s_-]+/g, '').toLowerCase();
+  if (FEATURE_KEY_ALIASES[compact]) {
+    return FEATURE_KEY_ALIASES[compact];
+  }
+  const lowercase = trimmed.toLowerCase();
+  if (FEATURE_KEY_ALIASES[lowercase]) {
+    return FEATURE_KEY_ALIASES[lowercase];
+  }
+  return '';
+}
+
+function resolveBoolean(value, defaultValue = false) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return defaultValue;
+    }
+    return value !== 0;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return defaultValue;
+    }
+    const normalized = trimmed.toLowerCase();
+    if (
+      ['false', '0', 'off', 'no', '关闭', '否', '禁用', '停用', 'disabled'].includes(normalized)
+    ) {
+      return false;
+    }
+    if (['true', '1', 'on', 'yes', '开启', '启用', 'enable', 'enabled'].includes(normalized)) {
+      return true;
+    }
+    return defaultValue;
+  }
+  if (value == null) {
+    return defaultValue;
+  }
+  if (typeof value.valueOf === 'function') {
+    try {
+      const primitive = value.valueOf();
+      if (primitive !== value) {
+        return resolveBoolean(primitive, defaultValue);
+      }
+    } catch (error) {
+      return defaultValue;
+    }
+  }
+  return Boolean(value);
+}
+
+function normalizeFeatureToggles(documentData) {
+  const toggles = { ...DEFAULT_FEATURE_TOGGLES };
+  if (documentData && typeof documentData === 'object') {
+    if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
+      toggles.cashierEnabled = resolveBoolean(documentData.cashierEnabled, true);
+    }
+  }
+  return toggles;
+}
+
+async function loadSystemFeatureDocument() {
+  const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);
+  const snapshot = await collection
+    .doc(FEATURE_TOGGLE_DOC_ID)
+    .get()
+    .catch((error) => {
+      if (error && error.errMsg && /not exist|not found/i.test(error.errMsg)) {
+        return null;
+      }
+      throw error;
+    });
+  return snapshot && snapshot.data ? snapshot.data : null;
+}
+
+async function getSystemFeatures(openid) {
+  await ensureAdmin(openid);
+  const documentData = await loadSystemFeatureDocument();
+  return {
+    features: normalizeFeatureToggles(documentData),
+    updatedAt: documentData && documentData.updatedAt ? documentData.updatedAt : null
+  };
+}
+
+function resolveFeatureEventKey(event = {}) {
+  if (!event || typeof event !== 'object') {
+    return '';
+  }
+  const candidates = [
+    event.featureKey,
+    event.key,
+    event.name,
+    event.field,
+    event.id,
+    event.code
+  ];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const key = normalizeFeatureKey(candidates[i]);
+    if (key) {
+      return key;
+    }
+  }
+  return '';
+}
+
+function resolveFeatureEventValue(event = {}, key, fallback) {
+  if (!event || typeof event !== 'object') {
+    return fallback;
+  }
+  if (Object.prototype.hasOwnProperty.call(event, 'enabled')) {
+    return resolveBoolean(event.enabled, fallback);
+  }
+  if (Object.prototype.hasOwnProperty.call(event, 'value')) {
+    return resolveBoolean(event.value, fallback);
+  }
+  if (Object.prototype.hasOwnProperty.call(event, 'open')) {
+    return resolveBoolean(event.open, fallback);
+  }
+  if (Object.prototype.hasOwnProperty.call(event, 'checked')) {
+    return resolveBoolean(event.checked, fallback);
+  }
+  if (Object.prototype.hasOwnProperty.call(event, 'state')) {
+    return resolveBoolean(event.state, fallback);
+  }
+  if (Object.prototype.hasOwnProperty.call(event, 'active')) {
+    return resolveBoolean(event.active, fallback);
+  }
+  if (typeof key === 'string' && key) {
+    if (Object.prototype.hasOwnProperty.call(event, key)) {
+      return resolveBoolean(event[key], fallback);
+    }
+  }
+  return fallback;
+}
+
+async function updateSystemFeature(openid, event = {}) {
+  await ensureAdmin(openid);
+  const key = resolveFeatureEventKey(event);
+  if (!key) {
+    throw new Error('未知功能开关');
+  }
+
+  const existingDocument = await loadSystemFeatureDocument();
+  const currentToggles = normalizeFeatureToggles(existingDocument);
+  const nextValue = resolveFeatureEventValue(event, key, currentToggles[key]);
+
+  if (currentToggles[key] === nextValue && existingDocument) {
+    return {
+      success: true,
+      features: currentToggles,
+      updatedAt: existingDocument.updatedAt || null
+    };
+  }
+
+  const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);
+  const now = new Date();
+  const payload = {
+    ...(existingDocument && typeof existingDocument === 'object' ? existingDocument : {}),
+    cashierEnabled: key === 'cashierEnabled' ? nextValue : currentToggles.cashierEnabled,
+    updatedAt: now
+  };
+  if (!payload.createdAt) {
+    payload.createdAt = now;
+  }
+
+  await collection.doc(FEATURE_TOGGLE_DOC_ID).set({ data: payload });
+
+  const features = normalizeFeatureToggles(payload);
+  return {
+    success: true,
+    features,
+    updatedAt: now
+  };
 }
 
 async function listMembers(openid, keyword, page, pageSize) {
