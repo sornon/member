@@ -33,6 +33,7 @@ Page({
     inviteInfo: null,
     pendingInviteId: '',
     acceptingInvite: false,
+    inviteAutoBattling: false,
     targetChallenge: null,
     claimingReward: false
   },
@@ -140,6 +141,7 @@ Page({
     if (!pendingInviteId || acceptingInvite) {
       return;
     }
+    const inviteId = pendingInviteId;
     try {
       await this.ensureMemberReady();
     } catch (error) {
@@ -147,12 +149,12 @@ Page({
       wx.showToast({ title: error.errMsg || '进入战斗失败', icon: 'none' });
       return;
     }
-    this.setData({ acceptingInvite: true });
+    this.setData({ acceptingInvite: true, inviteAutoBattling: true, pendingInviteId: '' });
     let inspectResult = null;
     let fallbackToRandom = false;
     let fallbackReason = '';
     try {
-      inspectResult = await PvpService.inspectInvite(pendingInviteId);
+      inspectResult = await PvpService.inspectInvite(inviteId);
       if (!inspectResult || inspectResult.valid !== true) {
         fallbackToRandom = true;
         fallbackReason = inspectResult && inspectResult.reason ? inspectResult.reason : 'invalid';
@@ -167,14 +169,14 @@ Page({
       ? {
           mode: 'pvp',
           source: 'random',
-          inviteId: pendingInviteId,
+          inviteId,
           fallbackFromInvite: true,
           inviteFallbackReason: fallbackReason
         }
       : {
           mode: 'pvp',
           source: 'acceptInvite',
-          inviteId: pendingInviteId
+          inviteId
         };
 
     if (fallbackToRandom) {
@@ -193,7 +195,7 @@ Page({
       events: {
         battleFinished: (payload = {}) => {
           this.applyBattlePayload(payload);
-          this.setData({ pendingInviteId: '', acceptingInvite: false });
+          this.setData({ pendingInviteId: '', acceptingInvite: false, inviteAutoBattling: false });
         }
       },
       success: (res) => {
@@ -205,10 +207,11 @@ Page({
         wx.showToast({ title: '战斗画面加载失败', icon: 'none' });
         this._inviteEntryActive = false;
         this._inviteEntryFallback = false;
-        this.setData({ acceptingInvite: false });
+        this._inviteAutoTriggered = false;
+        this.setData({ acceptingInvite: false, inviteAutoBattling: false, pendingInviteId: inviteId });
       },
       complete: () => {
-        this.setData({ acceptingInvite: false });
+        this.setData({ acceptingInvite: false, inviteAutoBattling: false });
       }
     });
   },
