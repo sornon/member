@@ -36,6 +36,8 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 
 const DEFAULT_CHARACTER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
+const WECHAT_DEFAULT_AVATAR_URL =
+  'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
 
 const app = getApp();
 
@@ -565,6 +567,10 @@ function sanitizeAvatarUrl(url) {
       const [base, query] = sanitized.split('?');
       const normalizedBase = base.replace(/\/(0|46|64|96)$/, '/132');
       sanitized = query ? `${normalizedBase}?${query}` : normalizedBase;
+      const normalizedWithoutQuery = normalizedBase;
+      if (normalizedWithoutQuery === WECHAT_DEFAULT_AVATAR_URL) {
+        return '';
+      }
     }
   }
   return sanitized;
@@ -1526,11 +1532,13 @@ Page({
       success: (res) => {
         const info = res && res.userInfo ? res.userInfo : {};
         const avatarUrl = sanitizeAvatarUrl(info.avatarUrl || '');
+        const resolvedAvatarUrl =
+          avatarUrl || this.data.onboarding.avatarUrl || this.data.defaultAvatar;
         this.setData({
           onboarding: {
             ...this.data.onboarding,
             nickName: info.nickName || this.data.onboarding.nickName,
-            avatarUrl: avatarUrl || this.data.onboarding.avatarUrl
+            avatarUrl: resolvedAvatarUrl
           },
           'authorizationStatus.profileAuthorized': true
         });
