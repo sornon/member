@@ -6,7 +6,7 @@
 
 .pvp-hero-header__background {
   position: absolute;
-  top: 0;
+  top: -168rpx;
   left: 0;
   width: 100%;
   height: 440rpx;
