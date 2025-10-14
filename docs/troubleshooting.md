@@ -105,3 +105,19 @@ Error: TencentCloud API error: {
    - 无需重新打包图片到主包内，从而保持主包体积稳定在 1.5M 以下。
 
 > 若需要临时回退为本地资源，可在 `asset-paths.js` 中调整基础路径为本地 `assets` 目录，但请注意这会再次增加主包体积。
+
+## 点击“授权获取微信昵称”未弹出授权弹窗
+
+**现象**
+
+在入门引导页点击“授权获取微信昵称”后，直接提示“已获取微信昵称”或同步成功，但微信未再弹出用户授权确认窗口。
+
+**原因分析**
+
+1. 小程序使用 `wx.getUserProfile` 主动获取头像昵称信息（`pages/index/index.js` 的 `handleRequestUserProfile` 与 `handleAvatarPickerSyncWechat`）。该接口只要在按钮点击等用户触发场景中调用，就会返回 `userInfo`。【F:miniprogram/pages/index/index.js†L1366-L1393】【F:miniprogram/pages/index/index.js†L1529-L1565】
+2. 当用户首次同意授权后，微信会缓存授权结果，再次调用 `wx.getUserProfile` 时直接返回上次授权的数据，不会重复弹窗；项目也会把 `authorizationStatus.profileAuthorized` 置为 `true`，在引导界面展示“已授权微信昵称”的状态。【F:miniprogram/pages/index/index.js†L1548-L1565】【F:miniprogram/pages/index/index.js†L968-L1008】
+
+**处理建议**
+
+- 若需要调试弹窗，可使用未授权过的小程序账号（或在微信 → 设置 → 隐私 → 授权管理中找到该小程序，撤销“头像、昵称”授权后重新进入）。
+- 一般业务场景无需强制弹窗，只要 `userInfo` 正常返回即可继续保存会员资料；若前端确实未能拿到 `userInfo`，请检查按钮点击事件是否触发了 `wx.getUserProfile` 调用，或留意接口回调中的错误信息。
