@@ -13,6 +13,7 @@ const {
 const { CHARACTER_IMAGE_BASE_PATH, buildCloudAssetUrl } = require('../../shared/asset-paths');
 
 const ARENA_BACKGROUND_VIDEO = buildCloudAssetUrl('background', 'battle-stage.mp4');
+const SECRET_REALM_BACKGROUND_VIDEO = buildCloudAssetUrl('background', 'mijing.mp4');
 const BATTLE_BOT_AVATAR_IMAGE = buildCloudAssetUrl('avatar', 'battle-bot.png');
 const BATTLE_BOT_PORTRAIT_IMAGE = buildCloudAssetUrl('character', 'battle-bot.png');
 const { listAvatarIds } = require('../../shared/avatar-catalog');
@@ -452,7 +453,7 @@ function extractRealmName(enemy = {}) {
 
 function resolvePveSceneBackground(enemy = {}) {
   if (!enemy || typeof enemy !== 'object') {
-    return '';
+    return SECRET_REALM_BACKGROUND_VIDEO;
   }
   const scene = enemy.scene || enemy.environment || {};
   if (scene && typeof scene.video === 'string' && scene.video) {
@@ -480,7 +481,7 @@ function resolvePveSceneBackground(enemy = {}) {
       return background.video;
     }
   }
-  return '';
+  return SECRET_REALM_BACKGROUND_VIDEO;
 }
 
 function extractBackgroundVideoFromSource(source) {
@@ -676,6 +677,8 @@ Page({
         }
         const enemy = context.enemyPreview || {};
         const sceneBackground = resolvePveSceneBackground(enemy);
+        const resolvedBackgroundVideo =
+          sceneBackground || context.backgroundVideo || SECRET_REALM_BACKGROUND_VIDEO;
         viewContext = {
           playerName:
             playerParticipant.displayName ||
@@ -694,7 +697,7 @@ Page({
             context.opponentPortrait,
             enemy
           ),
-          backgroundVideo: sceneBackground || context.backgroundVideo || DEFAULT_BACKGROUND_VIDEO
+          backgroundVideo: resolvedBackgroundVideo
         };
         this.parentPayload = {
           type: 'pve',
