@@ -364,12 +364,11 @@ Page({
       const draw = !!payload.battle.draw;
       const victory = !draw && payload.battle.winnerId === memberId;
       const battleSource = payload.battleSource || payload.source || '';
-      if (!draw && !victory && this.isInviteBattleSource(battleSource)) {
-        wx.showToast({
-          title: '您在仙界的实力太弱了，赶快开始现实灰茄提升仙界功力吧。',
-          icon: 'none',
-          duration: 4000
-        });
+      if (this.isInviteBattleSource(battleSource)) {
+        const message = victory
+          ? '您在仙界的实力相当过硬，继续灰茄提升功力吧。'
+          : '赶快开始灰茄提升仙界功力吧，您在仙界的实力太弱了。';
+        wx.showToast({ title: message, icon: 'none', duration: 4000 });
       } else {
         wx.showToast({
           title: draw ? '平局收场' : victory ? '比武胜利' : '比武结束',
