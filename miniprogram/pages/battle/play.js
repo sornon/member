@@ -524,6 +524,10 @@ function extractBackgroundVideoFromSource(source) {
   return '';
 }
 
+function isInviteSource(source) {
+  return source === 'acceptInvite' || source === 'autoInvite';
+}
+
 function resolvePvpDefenderBackgroundVideo({ battle = {}, preview = null, source = '' } = {}) {
   const candidates = [];
   const options = battle && battle.options ? battle.options : {};
@@ -538,7 +542,7 @@ function resolvePvpDefenderBackgroundVideo({ battle = {}, preview = null, source
     }
   }
   if (!candidates.length) {
-    if (source === 'acceptInvite') {
+    if (isInviteSource(source)) {
       candidates.push(player);
     } else if (options.inviteMatch && options.initiatorId && options.initiatorId !== player.memberId) {
       candidates.push(player);
@@ -940,7 +944,7 @@ Page({
     }
 
     const source = context.source || viewOptions.source || '';
-    if (source === 'acceptInvite') {
+    if (isInviteSource(source)) {
       return { attackerKey: 'opponent', defenderKey: 'player' };
     }
 
