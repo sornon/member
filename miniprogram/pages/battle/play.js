@@ -620,6 +620,7 @@ Page({
     this.resetFloatingTexts();
     this.setBattleStageData({ loading: true, error: '', battleFinished: false });
     this.setData({ battleState: 'loading' });
+    this._parentNotified = false;
     const context = this.contextPayload || {};
     try {
       let serviceResult = null;
@@ -711,7 +712,6 @@ Page({
           type: 'pve',
           battle: serviceResult.battle || null
         };
-        this.notifyParent();
       } else {
         const action = context.source || 'random';
         if (action === 'acceptInvite') {
@@ -759,7 +759,6 @@ Page({
           leaderboardPreview: serviceResult.leaderboardPreview || null,
           leaderboardUpdatedAt: serviceResult.leaderboardUpdatedAt || null
         };
-        this.notifyParent();
       }
 
       if (!battleData) {
@@ -1271,6 +1270,7 @@ Page({
       skipButtonText: '重播战斗'
     });
     this.setData({ battleState: 'finished' });
+    this.notifyParent();
   },
 
   handleSkip() {
