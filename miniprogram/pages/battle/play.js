@@ -337,7 +337,7 @@ function cloneFloatingTextState(source = {}) {
   };
 }
 
-const INVALID_SKILL_LABELS = ['战斗流转', '连击未果', '身法化解', '持久战', '战斗结果', '攻势'];
+const INVALID_SKILL_LABELS = ['战斗流转', '连击未果', '身法化解', '持久战', '战斗结果'];
 
 function sanitizeSkillText(text) {
   if (!text && text !== 0) {
@@ -410,6 +410,9 @@ function extractSkillTextFromAction(action = {}) {
     if (sanitized) {
       return sanitized;
     }
+  }
+  if (action.type === 'attack') {
+    return '普攻';
   }
   return '';
 }
