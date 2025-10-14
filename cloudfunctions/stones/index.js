@@ -8,6 +8,12 @@ const db = cloud.database();
 const $ = db.command.aggregate;
 const _ = db.command;
 
+const STORAGE_CATEGORY_DEFAULT_LABELS = Object.freeze({
+  quest: '任务',
+  material: '材料',
+  consumable: '道具'
+});
+
 const MALL_ITEMS = [
   {
     id: 'rename_card_single',
@@ -17,6 +23,16 @@ const MALL_ITEMS = [
     description: '兑换额外的改名次数，随时焕新道号。',
     effectLabel: '兑换后 +1 张改名卡',
     effects: { renameCards: 1 },
+    storageReward: {
+      itemId: 'mall_rename_card_single',
+      name: '改名卡',
+      shortName: '改名卡',
+      description: '使用后立即增加 1 次改名机会。',
+      slotLabel: '改名',
+      storageCategory: 'consumable',
+      notes: ['兑换后可在档案页使用，改名次数 +1'],
+      usage: { type: 'grantRenameCredits', amount: 1 }
+    },
     category: 'rename',
     categoryLabel: '改名道具',
     categoryOrder: 1,
@@ -29,7 +45,16 @@ const MALL_ITEMS = [
     price: 5000,
     description: '用于追加一次技能抽取机会，助你锁定心仪神通。',
     effectLabel: '兑换后 +1 次技能抽取',
-    effects: { skillDrawCredits: 1 },
+    storageReward: {
+      itemId: 'mall_skill_draw_token_single',
+      name: '天衍符',
+      shortName: '天衍符',
+      description: '使用后获得 1 次技能抽取次数，可前往神通界面进行抽取。',
+      slotLabel: '神通',
+      storageCategory: 'consumable',
+      notes: ['兑换后存入纳戒，使用可获得技能抽取次数'],
+      usage: { type: 'grantSkillDrawCredits', amount: 1 }
+    },
     category: 'skill',
     categoryLabel: '神通道具',
     categoryOrder: 2,
@@ -42,7 +67,16 @@ const MALL_ITEMS = [
     price: 2000,
     description: '重置属性配置的必备道具，兑换后可额外获得一次洗点机会。',
     effectLabel: '兑换后 +1 次洗点机会',
-    effects: { respecAvailable: 1 },
+    storageReward: {
+      itemId: 'mall_attribute_respec_card_single',
+      name: '属性遗忘卡',
+      shortName: '遗忘卡',
+      description: '使用后恢复 1 次洗点机会，洗炼属性更自由。',
+      slotLabel: '洗点',
+      storageCategory: 'consumable',
+      notes: ['兑换后存入纳戒，使用后洗点次数 +1'],
+      usage: { type: 'grantRespec', amount: 1 }
+    },
     category: 'attribute',
     categoryLabel: '修行辅助',
     categoryOrder: 3,
@@ -149,6 +183,146 @@ function ensurePveProfile(profile) {
   base.skills = ensurePlainObject(base.skills);
   base.attributes = ensurePlainObject(base.attributes);
   return base;
+}
+
+function ensureMallRewardProfile(profile) {
+  const base = profile && typeof profile === 'object' ? { ...profile } : {};
+  const equipment = base.equipment && typeof base.equipment === 'object' ? { ...base.equipment } : {};
+  equipment.inventory = Array.isArray(equipment.inventory)
+    ? equipment.inventory.map((item) => ({ ...item }))
+    : [];
+  const storage = equipment.storage && typeof equipment.storage === 'object' ? { ...equipment.storage } : {};
+  storage.categories = Array.isArray(storage.categories)
+    ? storage.categories.map((category) => ({
+        ...(category || {}),
+        items: Array.isArray(category && category.items)
+          ? category.items.map((item) => ({ ...item }))
+          : []
+      }))
+    : [];
+  equipment.storage = storage;
+  base.equipment = equipment;
+
+  const skills = base.skills && typeof base.skills === 'object' ? { ...base.skills } : {};
+  skills.inventory = Array.isArray(skills.inventory)
+    ? skills.inventory.map((item) => ({ ...item }))
+    : [];
+  skills.equipped = Array.isArray(skills.equipped) ? skills.equipped.slice() : [];
+  base.skills = skills;
+
+  base.attributes = base.attributes && typeof base.attributes === 'object' ? { ...base.attributes } : {};
+
+  return base;
+}
+
+function resolveStorageCategoryLabel(key) {
+  return STORAGE_CATEGORY_DEFAULT_LABELS[key] || key || '道具';
+}
+
+function ensureStorageCategoryEntry(storage, key) {
+  if (!storage || typeof storage !== 'object') {
+    return { key, label: resolveStorageCategoryLabel(key), items: [] };
+  }
+  const categories = Array.isArray(storage.categories) ? storage.categories : [];
+  let entry = categories.find((category) => category && category.key === key);
+  if (!entry) {
+    entry = { key, label: resolveStorageCategoryLabel(key), items: [] };
+    categories.push(entry);
+    storage.categories = categories;
+  } else if (!Array.isArray(entry.items)) {
+    entry.items = [];
+  }
+  entry.label = entry.label || resolveStorageCategoryLabel(key);
+  return entry;
+}
+
+function generateStorageInventoryId(itemId, obtainedAt = new Date()) {
+  const base = typeof itemId === 'string' && itemId ? itemId : 'storage';
+  const timestamp =
+    obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : Date.now();
+  const random = Math.random().toString(36).slice(2, 8);
+  return `st-${base}-${timestamp}-${random}`;
+}
+
+function sanitizeStorageActions(actions) {
+  if (!Array.isArray(actions)) {
+    return [{ key: 'use', label: '使用', primary: true }];
+  }
+  const normalized = actions
+    .map((action) => ({
+      key: typeof action.key === 'string' ? action.key : '',
+      label: typeof action.label === 'string' ? action.label : '',
+      primary: !!action.primary
+    }))
+    .filter((action) => action.key && action.label);
+  if (!normalized.length) {
+    normalized.push({ key: 'use', label: '使用', primary: true });
+  }
+  return normalized;
+}
+
+function createStorageItemFromDefinition(definition, obtainedAt = new Date()) {
+  if (!definition || typeof definition !== 'object') {
+    return null;
+  }
+  const safeObtainedAt =
+    obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt : new Date();
+  const itemId =
+    typeof definition.itemId === 'string' && definition.itemId.trim()
+      ? definition.itemId.trim()
+      : definition.id || 'mall-item';
+  const storageCategory = typeof definition.storageCategory === 'string' && definition.storageCategory
+    ? definition.storageCategory
+    : 'consumable';
+  const item = {
+    inventoryId: generateStorageInventoryId(itemId, safeObtainedAt),
+    itemId,
+    name: definition.name || '道具',
+    shortName: definition.shortName || definition.name || '道具',
+    description: definition.description || '',
+    iconUrl: definition.iconUrl || '',
+    iconFallbackUrl: definition.iconFallbackUrl || '',
+    quality: definition.quality || '',
+    qualityLabel: definition.qualityLabel || '',
+    qualityColor: definition.qualityColor || '',
+    storageCategory,
+    slotLabel: definition.slotLabel || resolveStorageCategoryLabel(storageCategory),
+    obtainedAt: safeObtainedAt,
+    usage: definition.usage && typeof definition.usage === 'object' ? { ...definition.usage } : null,
+    actions: sanitizeStorageActions(definition.actions),
+    notes: Array.isArray(definition.notes) ? definition.notes.filter(Boolean) : [],
+    kind: 'storage'
+  };
+  item.primaryAction = item.actions.find((action) => action.primary) || item.actions[0] || null;
+  return item;
+}
+
+function appendStorageReward(profile, definition, quantity = 1) {
+  if (!profile || !definition) {
+    return 0;
+  }
+  const safeQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
+  const equipment = profile.equipment && typeof profile.equipment === 'object' ? profile.equipment : null;
+  const storage = equipment && typeof equipment.storage === 'object' ? equipment.storage : null;
+  if (!storage) {
+    return 0;
+  }
+  const categoryKey =
+    typeof definition.storageCategory === 'string' && definition.storageCategory
+      ? definition.storageCategory
+      : 'consumable';
+  const category = ensureStorageCategoryEntry(storage, categoryKey);
+  const added = [];
+  for (let i = 0; i < safeQuantity; i += 1) {
+    const obtainedAt = new Date(Date.now() + i);
+    const item = createStorageItemFromDefinition(definition, obtainedAt);
+    if (!item) {
+      continue;
+    }
+    category.items.push(item);
+    added.push(item);
+  }
+  return added.length;
 }
 
 function applyMallProfileEffects(member, effects, quantity) {
@@ -452,9 +626,25 @@ async function purchaseItem(openid, itemId, quantity = 1) {
     }
   }
 
+  let profileForUpdate = null;
+  let profileChanged = false;
+
   const profileWithEffects = applyMallProfileEffects(member, item.effects, normalizedQuantity);
   if (profileWithEffects) {
-    updates.pveProfile = _.set(profileWithEffects);
+    profileForUpdate = profileWithEffects;
+    profileChanged = true;
+  }
+
+  if (item.storageReward) {
+    profileForUpdate = ensureMallRewardProfile(profileForUpdate || member && member.pveProfile);
+    const addedCount = appendStorageReward(profileForUpdate, item.storageReward, normalizedQuantity);
+    if (addedCount > 0) {
+      profileChanged = true;
+    }
+  }
+
+  if (profileChanged && profileForUpdate) {
+    updates.pveProfile = _.set(profileForUpdate);
   }
 
   await membersCollection.doc(openid).update({

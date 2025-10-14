@@ -381,6 +381,38 @@ function appendStorageItemToProfile(profile, item) {
   return profile;
 }
 
+function removeStorageItemsByItemId(profile, itemId, quantity = 1) {
+  if (!profile || !itemId) {
+    return 0;
+  }
+  const equipment = profile.equipment && typeof profile.equipment === 'object' ? profile.equipment : null;
+  if (!equipment) {
+    return 0;
+  }
+  const storage = equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : null;
+  if (!storage || !Array.isArray(storage.categories)) {
+    return 0;
+  }
+  const normalizedQuantity = Math.max(1, Math.floor(Number(quantity) || 1));
+  let remaining = normalizedQuantity;
+  const categories = storage.categories.map((category) => {
+    if (!category || !Array.isArray(category.items) || remaining <= 0) {
+      return category;
+    }
+    const items = [];
+    category.items.forEach((entry) => {
+      if (remaining > 0 && entry && entry.itemId === itemId) {
+        remaining -= 1;
+      } else if (entry) {
+        items.push(entry);
+      }
+    });
+    return { ...category, items };
+  });
+  storage.categories = categories;
+  return normalizedQuantity - remaining;
+}
+
 async function resolveMemberExtras(memberId) {
   if (!memberId) {
     return { avatarUnlocks: [], claimedLevelRewards: [] };
@@ -1713,12 +1745,20 @@ async function redeemRenameCard(openid, count = 1) {
     throw createError('RENAME_CARD_INSUFFICIENT', '改名卡数量不足');
   }
 
+  const profile = ensurePveRewardProfile(member.pveProfile);
+  const removedFromStorage = removeStorageItemsByItemId(profile, 'mall_rename_card_single', quantity);
+
+  const updatePayload = {
+    renameCards: _.inc(-quantity),
+    renameCredits: _.inc(quantity),
+    updatedAt: new Date()
+  };
+  if (removedFromStorage > 0) {
+    updatePayload.pveProfile = _.set(profile);
+  }
+
   await membersCollection.doc(openid).update({
-    data: {
-      renameCards: _.inc(-quantity),
-      renameCredits: _.inc(quantity),
-      updatedAt: new Date()
-    }
+    data: updatePayload
   });
 
   return getProfile(openid);
