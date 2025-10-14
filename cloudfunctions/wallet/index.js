@@ -11,7 +11,15 @@ const db = cloud.database();
 const _ = db.command;
 
 const FEATURE_TOGGLE_DOC_ID = 'feature_toggles';
-const DEFAULT_FEATURE_TOGGLES = { cashierEnabled: true };
+const DEFAULT_IMMORTAL_TOURNAMENT = {
+  enabled: false,
+  registrationStart: '',
+  registrationEnd: ''
+};
+const DEFAULT_FEATURE_TOGGLES = {
+  cashierEnabled: true,
+  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
+};
 
 function resolveToggleBoolean(value, defaultValue = true) {
   if (typeof value === 'boolean') {
@@ -55,11 +63,50 @@ function resolveToggleBoolean(value, defaultValue = true) {
   return Boolean(value);
 }
 
+function trimToString(value) {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (value == null) {
+    return '';
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  try {
+    return String(value).trim();
+  } catch (error) {
+    return '';
+  }
+}
+
+function normalizeImmortalTournament(config) {
+  const normalized = { ...DEFAULT_IMMORTAL_TOURNAMENT };
+  if (config && typeof config === 'object') {
+    if (Object.prototype.hasOwnProperty.call(config, 'enabled')) {
+      normalized.enabled = resolveToggleBoolean(config.enabled, normalized.enabled);
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'registrationStart')) {
+      normalized.registrationStart = trimToString(config.registrationStart);
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'registrationEnd')) {
+      normalized.registrationEnd = trimToString(config.registrationEnd);
+    }
+  }
+  return normalized;
+}
+
 function normalizeFeatureToggles(documentData) {
-  const toggles = { ...DEFAULT_FEATURE_TOGGLES };
+  const toggles = {
+    cashierEnabled: DEFAULT_FEATURE_TOGGLES.cashierEnabled,
+    immortalTournament: { ...DEFAULT_FEATURE_TOGGLES.immortalTournament }
+  };
   if (documentData && typeof documentData === 'object') {
     if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
       toggles.cashierEnabled = resolveToggleBoolean(documentData.cashierEnabled, true);
+    }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'immortalTournament')) {
+      toggles.immortalTournament = normalizeImmortalTournament(documentData.immortalTournament);
     }
   }
   return toggles;

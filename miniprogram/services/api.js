@@ -639,12 +639,36 @@ export const AdminService = {
       action: 'getSystemFeatures'
     });
   },
+  async getSystemSettings() {
+    return this.getSystemFeatures();
+  },
   async updateSystemFeature(featureKey, enabled) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'updateSystemFeature',
       featureKey,
       enabled
     });
+  },
+  async updateImmortalTournamentSettings(updates = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'updateImmortalTournamentSettings',
+      updates
+    });
+  },
+  async resetImmortalTournament(options = {}) {
+    const payload = { action: 'resetImmortalTournament' };
+    if (options && typeof options === 'object') {
+      if (options.scope) {
+        payload.scope = options.scope;
+      }
+      if (options.seasonId) {
+        payload.seasonId = options.seasonId;
+      }
+      if (typeof options.seasonIndex !== 'undefined') {
+        payload.seasonIndex = options.seasonIndex;
+      }
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   }
 };
 

@@ -30,7 +30,19 @@ const WINE_EXPIRY_PRESETS = {
 const DEFAULT_WINE_EXPIRY = '3m';
 
 const FEATURE_TOGGLE_DOC_ID = 'feature_toggles';
-const DEFAULT_FEATURE_TOGGLES = { cashierEnabled: true };
+const DEFAULT_IMMORTAL_TOURNAMENT = {
+  enabled: false,
+  registrationStart: '',
+  registrationEnd: ''
+};
+const DEFAULT_FEATURE_TOGGLES = {
+  cashierEnabled: true,
+  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
+};
+const DEFAULT_PVP_RATING = 1200;
+const DEFAULT_PVP_TIER = { id: 'bronze', name: '青铜' };
+const DEFAULT_PVP_SEASON_LENGTH_DAYS = 56;
+
 const FEATURE_KEY_ALIASES = {
   cashier: 'cashierEnabled',
   cashierenabled: 'cashierEnabled',
@@ -70,7 +82,9 @@ const ACTIONS = {
   CLEANUP_BATTLE_RECORDS: 'cleanupBattleRecords',
   PREVIEW_CLEANUP_BATTLE_RECORDS: 'previewCleanupBattleRecords',
   GET_SYSTEM_FEATURES: 'getSystemFeatures',
-  UPDATE_SYSTEM_FEATURE: 'updateSystemFeature'
+  UPDATE_SYSTEM_FEATURE: 'updateSystemFeature',
+  UPDATE_IMMORTAL_TOURNAMENT_SETTINGS: 'updateImmortalTournamentSettings',
+  RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament'
 };
 
 const ACTION_CANONICAL_MAP = Object.values(ACTIONS).reduce((map, name) => {
@@ -125,7 +139,15 @@ const ACTION_ALIASES = {
   systemfeatures: ACTIONS.GET_SYSTEM_FEATURES,
   updatesystemfeature: ACTIONS.UPDATE_SYSTEM_FEATURE,
   togglesystemfeature: ACTIONS.UPDATE_SYSTEM_FEATURE,
-  setfeaturetoggle: ACTIONS.UPDATE_SYSTEM_FEATURE
+  setfeaturetoggle: ACTIONS.UPDATE_SYSTEM_FEATURE,
+  updateimmortaltournamentsettings: ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS,
+  immortaltournamentsettings: ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS,
+  updatetournamentsettings: ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS,
+  resetimmortaltournament: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
+  resetimmortaltournaments: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
+  cleartournament: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
+  resetimmortaltournamentseason: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
+  resetimmortaltournamentdata: ACTIONS.RESET_IMMORTAL_TOURNAMENT
 };
 
 function normalizeAction(action) {
@@ -212,7 +234,11 @@ const ACTION_HANDLERS = {
   [ACTIONS.CLEANUP_BATTLE_RECORDS]: (openid) => cleanupBattleRecords(openid),
   [ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS]: (openid) => previewCleanupBattleRecords(openid),
   [ACTIONS.GET_SYSTEM_FEATURES]: (openid) => getSystemFeatures(openid),
-  [ACTIONS.UPDATE_SYSTEM_FEATURE]: (openid, event) => updateSystemFeature(openid, event)
+  [ACTIONS.UPDATE_SYSTEM_FEATURE]: (openid, event) => updateSystemFeature(openid, event),
+  [ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS]: (openid, event = {}) =>
+    updateImmortalTournamentSettings(openid, event.updates || event),
+  [ACTIONS.RESET_IMMORTAL_TOURNAMENT]: (openid, event) =>
+    resetImmortalTournament(openid, event || {})
 };
 
 async function resolveMemberExtras(memberId) {
@@ -597,11 +623,73 @@ function resolveBoolean(value, defaultValue = false) {
   return Boolean(value);
 }
 
+function trimToString(value) {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (value == null) {
+    return '';
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  try {
+    const text = String(value);
+    return text.trim();
+  } catch (error) {
+    return '';
+  }
+}
+
+function normalizeImmortalTournament(config) {
+  const normalized = { ...DEFAULT_IMMORTAL_TOURNAMENT };
+  if (config && typeof config === 'object') {
+    if (Object.prototype.hasOwnProperty.call(config, 'enabled')) {
+      normalized.enabled = resolveBoolean(config.enabled, normalized.enabled);
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'registrationStart')) {
+      normalized.registrationStart = trimToString(config.registrationStart);
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'registrationEnd')) {
+      normalized.registrationEnd = trimToString(config.registrationEnd);
+    }
+  }
+  return normalized;
+}
+
+function cloneImmortalTournament(config) {
+  const normalized = normalizeImmortalTournament(config);
+  return { ...normalized };
+}
+
+function serializeImmortalTournament(config) {
+  return cloneImmortalTournament(config);
+}
+
+function sanitizeFeatureDocument(documentData) {
+  if (!documentData || typeof documentData !== 'object') {
+    return {};
+  }
+  return Object.keys(documentData).reduce((acc, key) => {
+    if (key === '_id' || key === '_openid') {
+      return acc;
+    }
+    acc[key] = documentData[key];
+    return acc;
+  }, {});
+}
+
 function normalizeFeatureToggles(documentData) {
-  const toggles = { ...DEFAULT_FEATURE_TOGGLES };
+  const toggles = {
+    cashierEnabled: DEFAULT_FEATURE_TOGGLES.cashierEnabled,
+    immortalTournament: cloneImmortalTournament(DEFAULT_FEATURE_TOGGLES.immortalTournament)
+  };
   if (documentData && typeof documentData === 'object') {
     if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
       toggles.cashierEnabled = resolveBoolean(documentData.cashierEnabled, true);
+    }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'immortalTournament')) {
+      toggles.immortalTournament = cloneImmortalTournament(documentData.immortalTournament);
     }
   }
   return toggles;
@@ -702,20 +790,12 @@ async function updateSystemFeature(openid, event = {}) {
 
   const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);
   const now = new Date();
-  const sanitizedExisting =
-    existingDocument && typeof existingDocument === 'object'
-      ? Object.keys(existingDocument).reduce((acc, key) => {
-          if (key === '_id' || key === '_openid') {
-            return acc;
-          }
-          acc[key] = existingDocument[key];
-          return acc;
-        }, {})
-      : {};
+  const sanitizedExisting = sanitizeFeatureDocument(existingDocument);
 
   const payload = {
     ...sanitizedExisting,
     cashierEnabled: key === 'cashierEnabled' ? nextValue : currentToggles.cashierEnabled,
+    immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
     updatedAt: now
   };
   if (!payload.createdAt) {
@@ -730,6 +810,359 @@ async function updateSystemFeature(openid, event = {}) {
     features,
     updatedAt: now
   };
+}
+
+async function updateImmortalTournamentSettings(openid, updates = {}) {
+  await ensureAdmin(openid);
+  if (!updates || typeof updates !== 'object') {
+    throw new Error('无效的配置参数');
+  }
+
+  const existingDocument = await loadSystemFeatureDocument();
+  const currentToggles = normalizeFeatureToggles(existingDocument);
+  const currentTournament = cloneImmortalTournament(currentToggles.immortalTournament);
+
+  let changed = false;
+  const nextTournament = { ...currentTournament };
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'enabled')) {
+    const nextEnabled = resolveBoolean(updates.enabled, currentTournament.enabled);
+    if (nextEnabled !== currentTournament.enabled) {
+      nextTournament.enabled = nextEnabled;
+      changed = true;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'registrationStart')) {
+    const value = trimToString(updates.registrationStart);
+    if (value !== currentTournament.registrationStart) {
+      nextTournament.registrationStart = value;
+      changed = true;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'registrationEnd')) {
+    const value = trimToString(updates.registrationEnd);
+    if (value !== currentTournament.registrationEnd) {
+      nextTournament.registrationEnd = value;
+      changed = true;
+    }
+  }
+
+  if (!changed && existingDocument) {
+    return {
+      success: true,
+      features: currentToggles,
+      updatedAt: existingDocument.updatedAt || null
+    };
+  }
+
+  const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);
+  const now = new Date();
+  const sanitizedExisting = sanitizeFeatureDocument(existingDocument);
+
+  const payload = {
+    ...sanitizedExisting,
+    cashierEnabled: currentToggles.cashierEnabled,
+    immortalTournament: serializeImmortalTournament(nextTournament),
+    updatedAt: now
+  };
+  if (!payload.createdAt) {
+    payload.createdAt = now;
+  }
+
+  await collection.doc(FEATURE_TOGGLE_DOC_ID).set({ data: payload });
+
+  const features = normalizeFeatureToggles(payload);
+  return {
+    success: true,
+    features,
+    updatedAt: now
+  };
+}
+
+async function resetImmortalTournament(openid, options = {}) {
+  await ensureAdmin(openid);
+
+  const scope = normalizeTournamentResetScope(options.scope);
+  if (scope === 'all') {
+    const summary = await resetAllImmortalTournamentData();
+    const featureDocument = await loadSystemFeatureDocument();
+    return {
+      success: true,
+      scope: 'all',
+      summary,
+      features: normalizeFeatureToggles(featureDocument)
+    };
+  }
+
+  const season = await resolveTournamentSeasonForReset(options);
+  if (!season) {
+    const featureDocument = await loadSystemFeatureDocument();
+    return {
+      success: true,
+      scope: 'season',
+      season: null,
+      summary: {
+        message: '暂无可重置的赛季数据'
+      },
+      features: normalizeFeatureToggles(featureDocument)
+    };
+  }
+
+  const summary = await resetImmortalTournamentSeason(season);
+  const featureDocument = await loadSystemFeatureDocument();
+  return {
+    success: true,
+    scope: 'season',
+    season: {
+      id: season._id,
+      index: season.index || null,
+      name: season.name || ''
+    },
+    summary,
+    features: normalizeFeatureToggles(featureDocument)
+  };
+}
+
+function normalizeTournamentResetScope(scope) {
+  if (typeof scope === 'string') {
+    const normalized = scope.trim().toLowerCase();
+    if (!normalized) {
+      return 'season';
+    }
+    if (['all', 'allseasons', 'full', 'global', 'allseason', 'resetall'].includes(normalized)) {
+      return 'all';
+    }
+  }
+  return 'season';
+}
+
+function normalizeSeasonIdValue(value) {
+  if (!value) {
+    return '';
+  }
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(Math.floor(value));
+  }
+  return '';
+}
+
+function normalizeSeasonIndexValue(value) {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const numeric = Number(trimmed);
+    if (!Number.isFinite(numeric)) {
+      return null;
+    }
+    const integer = Math.round(numeric);
+    return integer > 0 ? integer : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const integer = Math.round(value);
+    return integer > 0 ? integer : null;
+  }
+  return null;
+}
+
+async function resolveTournamentSeasonForReset(options = {}) {
+  const collection = db.collection(COLLECTIONS.PVP_SEASONS);
+  const seasonId = normalizeSeasonIdValue(
+    options.seasonId || options.id || options.season || options.seasonKey
+  );
+  if (seasonId) {
+    const snapshot = await collection
+      .doc(seasonId)
+      .get()
+      .catch(() => null);
+    if (snapshot && snapshot.data) {
+      return snapshot.data;
+    }
+  }
+
+  const seasonIndex = normalizeSeasonIndexValue(options.seasonIndex || options.index);
+  if (seasonIndex) {
+    const snapshot = await collection
+      .where({ index: seasonIndex })
+      .limit(1)
+      .get()
+      .catch(() => ({ data: [] }));
+    if (snapshot.data && snapshot.data.length) {
+      return snapshot.data[0];
+    }
+  }
+
+  const activeSnapshot = await collection
+    .where({ status: 'active' })
+    .orderBy('startAt', 'desc')
+    .limit(1)
+    .get()
+    .catch(() => ({ data: [] }));
+  if (activeSnapshot.data && activeSnapshot.data.length) {
+    return activeSnapshot.data[0];
+  }
+
+  const latestSnapshot = await collection
+    .orderBy('startAt', 'desc')
+    .limit(1)
+    .get()
+    .catch(() => ({ data: [] }));
+  if (latestSnapshot.data && latestSnapshot.data.length) {
+    return latestSnapshot.data[0];
+  }
+  return null;
+}
+
+async function resetImmortalTournamentSeason(season) {
+  if (!season || !season._id) {
+    return {
+      message: '赛季信息缺失'
+    };
+  }
+  const seasonId = season._id;
+  const summary = { removed: {}, errors: [] };
+
+  const removedInvites = await removeCollectionDocumentsByCondition(
+    COLLECTIONS.PVP_INVITES,
+    { seasonId },
+    'pvpInvites',
+    summary
+  );
+  const removedMatches = await removeCollectionDocumentsByCondition(
+    COLLECTIONS.PVP_MATCHES,
+    { seasonId },
+    'pvpMatches',
+    summary
+  );
+  const removedLeaderboards = await removeCollectionDocumentsByCondition(
+    COLLECTIONS.PVP_LEADERBOARD,
+    { seasonId },
+    'pvpLeaderboard',
+    summary
+  );
+
+  const removedProfiles = await resetPvpProfilesForSeason(season, summary);
+
+  const now = new Date();
+  const endAt = new Date(now.getTime() + DEFAULT_PVP_SEASON_LENGTH_DAYS * 24 * 60 * 60 * 1000);
+  await db
+    .collection(COLLECTIONS.PVP_SEASONS)
+    .doc(seasonId)
+    .update({
+      data: {
+        status: 'active',
+        startAt: now,
+        endAt,
+        updatedAt: now,
+        seasonId,
+        name: season.name || `第${season.index || ''}赛季`
+      }
+    })
+    .then(() => {
+      summary.seasonReset = true;
+    })
+    .catch((error) => {
+      if (!isNotFoundError(error)) {
+        pushCleanupError(summary, COLLECTIONS.PVP_SEASONS, error, seasonId);
+      }
+    });
+
+  return {
+    removedInvites,
+    removedMatches,
+    removedLeaderboards,
+    removedProfiles,
+    summary
+  };
+}
+
+async function resetAllImmortalTournamentData() {
+  const summary = { removed: {}, errors: [] };
+  const targets = [
+    { collection: COLLECTIONS.PVP_INVITES, key: 'pvpInvites' },
+    { collection: COLLECTIONS.PVP_MATCHES, key: 'pvpMatches' },
+    { collection: COLLECTIONS.PVP_LEADERBOARD, key: 'pvpLeaderboard' },
+    { collection: COLLECTIONS.PVP_PROFILES, key: 'pvpProfiles' },
+    { collection: COLLECTIONS.PVP_SEASONS, key: 'pvpSeasons' }
+  ];
+
+  for (const target of targets) {
+    await cleanupCollectionDocuments(target.collection, summary, { counterKey: target.key });
+  }
+
+  return summary;
+}
+
+async function removeCollectionDocumentsByCondition(collectionName, condition, counterKey, summary) {
+  const collection = db.collection(collectionName);
+  const limit = 100;
+  let removed = 0;
+  let hasMore = true;
+  let guard = 0;
+
+  while (hasMore && guard < 200) {
+    const snapshot = await collection
+      .where(condition)
+      .orderBy('_id', 'asc')
+      .limit(limit)
+      .field({ _id: true })
+      .get()
+      .catch(() => ({ data: [] }));
+    const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+    await Promise.all(
+      docs.map((doc) => {
+        if (!doc || !doc._id) {
+          return Promise.resolve();
+        }
+        return collection
+          .doc(doc._id)
+          .remove()
+          .then(() => {
+            removed += 1;
+          })
+          .catch((error) => {
+            if (!isNotFoundError(error)) {
+              pushCleanupError(summary, collectionName, error, doc._id);
+            }
+          });
+      })
+    );
+    if (docs.length < limit) {
+      hasMore = false;
+    }
+    guard += 1;
+  }
+
+  if (removed > 0) {
+    if (!summary.removed || typeof summary.removed !== 'object') {
+      summary.removed = {};
+    }
+    summary.removed[counterKey || collectionName] =
+      (summary.removed[counterKey || collectionName] || 0) + removed;
+  }
+
+  return removed;
+}
+
+async function resetPvpProfilesForSeason(season, summary) {
+  if (!season || !season._id) {
+    return 0;
+  }
+  return removeCollectionDocumentsByCondition(
+    COLLECTIONS.PVP_PROFILES,
+    { seasonId: season._id },
+    'pvpProfiles',
+    summary
+  );
 }
 
 async function listMembers(openid, keyword, page, pageSize) {
