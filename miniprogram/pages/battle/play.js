@@ -29,6 +29,10 @@ function buildCharacterImageMap() {
 const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
 
+function isExternalInviteSource(source) {
+  return source === 'acceptInvite' || source === 'autoInvite';
+}
+
 const PLAYER_SIDE_ALIASES = ['player', 'self', 'attacker', 'initiator', 'ally', 'member'];
 const OPPONENT_SIDE_ALIASES = ['opponent', 'enemy', 'defender', 'target', 'foe'];
 const ENTITY_ID_KEYS = [
@@ -524,6 +528,10 @@ function extractBackgroundVideoFromSource(source) {
   return '';
 }
 
+function isInviteSource(source) {
+  return source === 'acceptInvite' || source === 'autoInvite';
+}
+
 function resolvePvpDefenderBackgroundVideo({ battle = {}, preview = null, source = '' } = {}) {
   const candidates = [];
   const options = battle && battle.options ? battle.options : {};
@@ -538,7 +546,7 @@ function resolvePvpDefenderBackgroundVideo({ battle = {}, preview = null, source
     }
   }
   if (!candidates.length) {
-    if (source === 'acceptInvite') {
+    if (isInviteSource(source)) {
       candidates.push(player);
     } else if (options.inviteMatch && options.initiatorId && options.initiatorId !== player.memberId) {
       candidates.push(player);
@@ -940,7 +948,7 @@ Page({
     }
 
     const source = context.source || viewOptions.source || '';
-    if (source === 'acceptInvite') {
+    if (isInviteSource(source)) {
       return { attackerKey: 'opponent', defenderKey: 'player' };
     }
 
@@ -1230,14 +1238,26 @@ Page({
         resultSubtitle = '敌手强劲，回去整顿后再战。';
       }
     } else {
-      if (victory && this.parentPayload && this.parentPayload.battle && this.parentPayload.battle.player) {
-        const delta = this.parentPayload.battle.player.pointsDelta;
-        if (typeof delta === 'number' && delta !== 0) {
-          resultSubtitle = `积分变化 ${delta >= 0 ? '+' : ''}${Math.round(delta)}`;
+      const source = this.parentPayload ? this.parentPayload.battleSource : '';
+      if (isExternalInviteSource(source)) {
+        resultSubtitle = victory
+          ? '您在仙界的实力相当过硬，继续灰茄提升功力吧。'
+          : '赶快开始灰茄提升仙界功力吧，您在仙界的实力太弱了。';
+      } else {
+        if (
+          victory &&
+          this.parentPayload &&
+          this.parentPayload.battle &&
+          this.parentPayload.battle.player
+        ) {
+          const delta = this.parentPayload.battle.player.pointsDelta;
+          if (typeof delta === 'number' && delta !== 0) {
+            resultSubtitle = `积分变化 ${delta >= 0 ? '+' : ''}${Math.round(delta)}`;
+          }
         }
-      }
-      if (!resultSubtitle) {
-        resultSubtitle = draw ? '积分未有波动，胜负待定。' : victory ? '声名远扬，连战连捷。' : '略逊一筹，继续磨砺。';
+        if (!resultSubtitle) {
+          resultSubtitle = draw ? '积分未有波动，胜负待定。' : victory ? '声名远扬，连战连捷。' : '略逊一筹，继续磨砺。';
+        }
       }
     }
     const resultClass = draw ? 'draw' : victory ? 'victory' : 'defeat';
@@ -1277,6 +1297,16 @@ Page({
   },
 
   handleExit() {
+    const source = this.parentPayload ? this.parentPayload.battleSource : '';
+    if (isExternalInviteSource(source)) {
+      wx.reLaunch({
+        url: '/pages/index/index',
+        fail: () => {
+          wx.navigateBack({ delta: 1 });
+        }
+      });
+      return;
+    }
     wx.navigateBack({ delta: 1 });
   },
 

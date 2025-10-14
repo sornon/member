@@ -34,7 +34,8 @@ Page({
     pendingInviteId: '',
     acceptingInvite: false,
     targetChallenge: null,
-    claimingReward: false
+    claimingReward: false,
+    autoMatchIntent: false
   },
 
   onLoad(options = {}) {
@@ -48,6 +49,12 @@ Page({
         id: options.targetId,
         name: options.targetName ? decodeURIComponent(options.targetName) : ''
       };
+    }
+    const shouldAutoMatch = !nextState.pendingInviteId
+      && !nextState.targetChallenge
+      && !this.hasInternalReferrer();
+    if (shouldAutoMatch) {
+      nextState.autoMatchIntent = true;
     }
     const afterStateApplied = () => {
       this.triggerAutoBattleIfNeeded();
@@ -104,11 +111,14 @@ Page({
     }
   },
 
-  handleMatch() {
+  handleMatch(eventOrOptions = {}) {
+    const options = eventOrOptions && eventOrOptions.type ? {} : eventOrOptions;
+    const autoInvite = !!(options && options.autoInvite);
     if (this.data.matching) {
       return;
     }
     this.setData({ matching: true });
+    const battleSource = autoInvite ? 'autoInvite' : 'random';
     wx.navigateTo({
       url: '/pages/battle/play?mode=pvp',
       events: {
@@ -119,7 +129,7 @@ Page({
       },
       success: (res) => {
         if (res && res.eventChannel && typeof res.eventChannel.emit === 'function') {
-          res.eventChannel.emit('battleContext', { mode: 'pvp', source: 'random' });
+          res.eventChannel.emit('battleContext', { mode: 'pvp', source: battleSource });
         }
       },
       fail: () => {
@@ -203,11 +213,21 @@ Page({
   },
 
   triggerAutoBattleIfNeeded() {
-    const { pendingInviteId } = this.data;
+    const { pendingInviteId, autoMatchIntent, targetChallenge } = this.data;
     if (!pendingInviteId) {
+      if (!autoMatchIntent || targetChallenge) {
+        return;
+      }
+      this.setData({ autoMatchIntent: false }, () => {
+        this.handleMatch({ autoInvite: true });
+      });
       return;
     }
     this.handleAcceptInvite();
+  },
+
+  isInviteBattleSource(source) {
+    return source === 'acceptInvite' || source === 'autoInvite';
   },
 
   clearPendingInvite() {
@@ -297,6 +317,21 @@ Page({
     wx.navigateTo({ url: `/pages/battle/play?mode=pvp&replay=1&matchId=${matchId}` });
   },
 
+  hasInternalReferrer() {
+    try {
+      const stack = getCurrentPages();
+      if (!Array.isArray(stack) || stack.length < 2) {
+        return false;
+      }
+      const referrer = stack[stack.length - 2];
+      const route = referrer && typeof referrer.route === 'string' ? referrer.route : '';
+      return route.startsWith('pages/');
+    } catch (error) {
+      console.error('[pvp] resolve referrer failed', error);
+      return false;
+    }
+  },
+
   applyBattlePayload(payload = {}) {
     if (!payload || typeof payload !== 'object') {
       return;
@@ -329,12 +364,11 @@ Page({
       const draw = !!payload.battle.draw;
       const victory = !draw && payload.battle.winnerId === memberId;
       const battleSource = payload.battleSource || payload.source || '';
-      if (!draw && !victory && battleSource === 'acceptInvite') {
-        wx.showToast({
-          title: '您在仙界的实力太弱了，赶快开始现实灰茄提升仙界功力吧。',
-          icon: 'none',
-          duration: 4000
-        });
+      if (this.isInviteBattleSource(battleSource)) {
+        const message = victory
+          ? '您在仙界的实力相当过硬，继续灰茄提升功力吧。'
+          : '赶快开始灰茄提升仙界功力吧，您在仙界的实力太弱了。';
+        wx.showToast({ title: message, icon: 'none', duration: 4000 });
       } else {
         wx.showToast({
           title: draw ? '平局收场' : victory ? '比武胜利' : '比武结束',
