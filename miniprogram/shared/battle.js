@@ -24,6 +24,24 @@ const ACTION_EFFECT_LABELS = {
 };
 
 const AVATAR_FRAME_FIELDS = ['avatarFrame', 'appearanceFrame', 'frame', 'border', 'avatarBorder', 'avatar_frame'];
+const AVATAR_IMAGE_FIELDS = [
+  'avatar',
+  'avatarUrl',
+  'avatarURL',
+  'avatarImage',
+  'avatar_image',
+  'avatar_url',
+  'profileAvatar',
+  'profile_avatar',
+  'head',
+  'headUrl',
+  'headURL',
+  'headImage',
+  'head_image',
+  'icon',
+  'iconUrl',
+  'iconURL'
+];
 
 const TITLE_ID_FIELDS = [
   'appearanceTitle',
@@ -134,6 +152,56 @@ function resolveAvatarFrameFromSources({ direct = [], sources = [] } = {}) {
     }
   }
   return resolveAvatarFrameValue(...candidates);
+}
+
+function collectAvatarCandidates(target, source) {
+  if (!source) {
+    return;
+  }
+  if (Array.isArray(source)) {
+    for (let i = 0; i < source.length; i += 1) {
+      collectAvatarCandidates(target, source[i]);
+    }
+    return;
+  }
+  if (typeof source === 'string') {
+    const value = toTrimmedString(source);
+    if (value) {
+      pushUnique(target, value);
+    }
+    return;
+  }
+  if (typeof source !== 'object') {
+    return;
+  }
+  for (let i = 0; i < AVATAR_IMAGE_FIELDS.length; i += 1) {
+    const field = AVATAR_IMAGE_FIELDS[i];
+    if (!Object.prototype.hasOwnProperty.call(source, field)) {
+      continue;
+    }
+    const candidate = source[field];
+    if (typeof candidate === 'string') {
+      const value = toTrimmedString(candidate);
+      if (value) {
+        pushUnique(target, value);
+      }
+      continue;
+    }
+    if (candidate && typeof candidate === 'object') {
+      collectAvatarCandidates(target, candidate);
+    }
+  }
+}
+
+function resolveAvatarFromSources({ direct = [], sources = [] } = {}) {
+  const candidates = [];
+  for (let i = 0; i < direct.length; i += 1) {
+    collectAvatarCandidates(candidates, direct[i]);
+  }
+  for (let i = 0; i < sources.length; i += 1) {
+    collectAvatarCandidates(candidates, sources[i]);
+  }
+  return pickFirstUrl(candidates);
 }
 
 function pickFirstUrl(candidates = []) {
@@ -1190,6 +1258,19 @@ function buildStructuredBattleViewModel({
     sources: playerRelatedSources
   });
 
+  const playerAvatar = resolveAvatarFromSources({
+    direct: [
+      context.playerAvatar,
+      context.playerAvatarUrl,
+      context.playerAvatarImage,
+      context.playerHead,
+      context.avatar,
+      context.avatarUrl,
+      context.avatarImage
+    ],
+    sources: playerRelatedSources
+  });
+
   const opponentAvatarFrame = resolveAvatarFrameFromSources({
     direct: [
       context.opponentAvatarFrame,
@@ -1199,6 +1280,19 @@ function buildStructuredBattleViewModel({
       context.opponentBorder,
       context.enemyAvatarFrame,
       context.enemyFrame
+    ],
+    sources: opponentRelatedSources
+  });
+
+  const opponentAvatar = resolveAvatarFromSources({
+    direct: [
+      context.opponentAvatar,
+      context.opponentAvatarUrl,
+      context.opponentAvatarImage,
+      context.opponentHead,
+      context.enemyAvatar,
+      context.enemyAvatarUrl,
+      context.enemyAvatarImage
     ],
     sources: opponentRelatedSources
   });
@@ -1238,6 +1332,7 @@ function buildStructuredBattleViewModel({
       id: playerId || 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
+      avatar: playerAvatar,
       portrait: playerPortrait,
       combatPower: toNumber((playerSource && playerSource.combatPower) || context.playerPower),
       avatarFrame: playerAvatarFrame,
@@ -1255,6 +1350,7 @@ function buildStructuredBattleViewModel({
       id: opponentId || 'opponent',
       name: opponentName,
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
+      avatar: opponentAvatar,
       portrait: opponentPortrait,
       combatPower: toNumber((opponentSource && opponentSource.combatPower) || context.opponentPower),
       avatarFrame: opponentAvatarFrame,
