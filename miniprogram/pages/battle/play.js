@@ -10,7 +10,9 @@ const {
   resolveBackgroundById,
   normalizeBackgroundId
 } = require('../../shared/backgrounds');
-const { CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths');
+const { CHARACTER_IMAGE_BASE_PATH, buildCloudAssetUrl } = require('../../shared/asset-paths');
+
+const ARENA_BACKGROUND_VIDEO = buildCloudAssetUrl('background', 'battle-stage.mp4');
 const { listAvatarIds } = require('../../shared/avatar-catalog');
 
 function buildCharacterImageMap() {
@@ -542,12 +544,7 @@ Page({
             playerPower: battleData.player ? battleData.player.pointsAfter : '',
             opponentPower: battleData.opponent ? battleData.opponent.pointsAfter : ''
           };
-          const replayBackground =
-            resolvePvpDefenderBackgroundVideo({
-              battle: battleData,
-              source: context.source || this.contextOptions.source || ''
-            }) || DEFAULT_BACKGROUND_VIDEO;
-          viewContext.backgroundVideo = replayBackground;
+          viewContext.backgroundVideo = ARENA_BACKGROUND_VIDEO;
         } else {
           battleData = context.battle || null;
           viewContext = context.viewContext || {};
@@ -637,13 +634,7 @@ Page({
           opponentPower:
             (battleData && battleData.opponent && battleData.opponent.pointsAfter) || opponent.points || ''
         };
-        const liveBackground =
-          resolvePvpDefenderBackgroundVideo({
-            battle: battleData,
-            preview: serviceResult.opponent,
-            source: context.source || this.contextOptions.source || ''
-          }) || DEFAULT_BACKGROUND_VIDEO;
-        viewContext.backgroundVideo = liveBackground;
+        viewContext.backgroundVideo = ARENA_BACKGROUND_VIDEO;
         this.parentPayload = {
           type: 'pvp',
           profile: serviceResult.profile || null,
@@ -857,6 +848,9 @@ Page({
   },
 
   resolveDefenderBackgroundVideo(alignment = {}, viewModel = {}) {
+    if (this.mode === 'pvp') {
+      return ARENA_BACKGROUND_VIDEO;
+    }
     const defenderKey = alignment && alignment.defenderKey ? alignment.defenderKey : 'opponent';
     const battle = this.latestBattle || {};
     const participants = (battle && battle.participants) || {};
