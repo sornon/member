@@ -7,7 +7,13 @@ function hasOwnQuery(options) {
   if (!options || typeof options !== 'object') {
     return false;
   }
-  return Object.keys(options).length > 0;
+  return Object.keys(options).some((key) => {
+    if (key === 'scene') {
+      return false;
+    }
+    const value = options[key];
+    return value !== undefined && value !== null && value !== '';
+  });
 }
 
 function parseScene(scene) {
@@ -82,16 +88,22 @@ Page({
   },
 
   onLoad(rawOptions = {}) {
-    const options = this.resolveInitialOptions(rawOptions);
+    const resolved = this.resolveInitialOptions(rawOptions);
+    const options = resolved.query || {};
     this._ensureMemberPromise = null;
     this._inviteEntryActive = false;
     this._inviteEntryFallback = false;
     this._inviteAutoTriggered = false;
+    this._initialOptionSource = resolved.source;
+    this._initialOptionCandidates = resolved.candidates || [];
     const nextState = {};
     if (options.inviteId) {
       nextState.pendingInviteId = options.inviteId;
       // 分享链接必须携带 inviteId 才会展示完整调试链接，普通入口不渲染调试横幅
       nextState.inviteLinkDebug = this.composeInviteDebugLink(options);
+      if (resolved.source && resolved.source !== 'onLoad') {
+        console.info('[pvp] inviteId resolved via', resolved.source, options);
+      }
     }
     if (options.targetId) {
       nextState.targetChallenge = {
@@ -110,53 +122,76 @@ Page({
   },
 
   resolveInitialOptions(rawOptions = {}) {
-    // 在部分回流场景（如重新进入分享卡片、开发者工具直接打开路径）里，onLoad 可能只收到空对象，这里做兜底解析
+    // 统一整理 onLoad/enter/launch 等入口参数，优先使用能解析出 inviteId 的候选项
+    const candidates = [];
+    const recordCandidate = (source, query) => {
+      if (!query || typeof query !== 'object') {
+        return;
+      }
+      const keys = Object.keys(query);
+      if (!keys.length) {
+        return;
+      }
+      const hasMeaningfulValue = keys.some((key) => {
+        const value = query[key];
+        return value !== undefined && value !== null && value !== '';
+      });
+      if (!hasMeaningfulValue && !query.inviteId) {
+        return;
+      }
+      candidates.push({ source, query: { ...query } });
+    };
+
+    // onLoad 原始参数
     if (hasOwnQuery(rawOptions)) {
-      return rawOptions;
+      recordCandidate('onLoad', rawOptions);
+    }
+    if (rawOptions && rawOptions.scene) {
+      const sceneQuery = parseScene(rawOptions.scene);
+      recordCandidate('onLoadScene', sceneQuery);
     }
 
-    const fallbackSources = [];
-    if (typeof wx.getEnterOptionsSync === 'function') {
+    const collectWxOptions = (getter, label) => {
+      if (typeof getter !== 'function') {
+        return;
+      }
       try {
-        const enterOptions = wx.getEnterOptionsSync();
-        if (enterOptions && enterOptions.query && hasOwnQuery(enterOptions.query)) {
-          fallbackSources.push({ source: 'enter', query: enterOptions.query });
-        } else if (enterOptions && enterOptions.scene) {
-          const sceneQuery = parseScene(enterOptions.scene);
-          if (hasOwnQuery(sceneQuery)) {
-            fallbackSources.push({ source: 'enterScene', query: sceneQuery });
-          }
+        const wxOptions = getter();
+        if (wxOptions && wxOptions.query) {
+          recordCandidate(`${label}`, wxOptions.query);
+        }
+        if (wxOptions && wxOptions.scene) {
+          const sceneQuery = parseScene(wxOptions.scene);
+          recordCandidate(`${label}Scene`, sceneQuery);
         }
       } catch (error) {
-        console.error('[pvp] getEnterOptionsSync failed', error);
+        console.error(`[pvp] ${label} options fallback failed`, error);
       }
+    };
+
+    collectWxOptions(wx.getEnterOptionsSync, 'enter');
+    collectWxOptions(wx.getLaunchOptionsSync, 'launch');
+
+    if (!candidates.length) {
+      return { query: rawOptions || {}, source: 'none', candidates: [] };
     }
 
-    if (!fallbackSources.length && typeof wx.getLaunchOptionsSync === 'function') {
-      try {
-        const launchOptions = wx.getLaunchOptionsSync();
-        if (launchOptions && launchOptions.query && hasOwnQuery(launchOptions.query)) {
-          fallbackSources.push({ source: 'launch', query: launchOptions.query });
-        } else if (launchOptions && launchOptions.scene) {
-          const sceneQuery = parseScene(launchOptions.scene);
-          if (hasOwnQuery(sceneQuery)) {
-            fallbackSources.push({ source: 'launchScene', query: sceneQuery });
-          }
-        }
-      } catch (error) {
-        console.error('[pvp] getLaunchOptionsSync failed', error);
-      }
+    const preferred = candidates.find((item) => item.query && item.query.inviteId)
+      || candidates[0];
+    const mergedQuery = candidates.reduce(
+      (acc, item) => Object.assign(acc, item.query),
+      {}
+    );
+
+    if (preferred && preferred.source && preferred.source !== 'onLoad') {
+      console.info('[pvp] load options fallback from', preferred.source, preferred.query);
     }
 
-    if (!fallbackSources.length) {
-      return rawOptions || {};
-    }
-
-    const fallback = fallbackSources[0];
-    if (fallback && fallback.source) {
-      console.info('[pvp] load options fallback from', fallback.source, fallback.query);
-    }
-    return fallback.query || rawOptions || {};
+    return {
+      query: mergedQuery,
+      source: preferred ? preferred.source : 'none',
+      candidates
+    };
   },
 
   composeInviteDebugLink(options = {}) {
