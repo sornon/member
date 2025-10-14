@@ -132,6 +132,15 @@
         <view
           class="avatar-wrapper attacker {{attackerKey}} {{currentAction.actor === attackerKey ? 'is-attacking' : ''}} {{currentAction.target === attackerKey ? 'is-hit' : ''}}"
         >
+          <view class="floating-text-layer">
+            <view
+              wx:for="{{floatingTexts[attackerKey] || []}}"
+              wx:key="id"
+              class="floating-text {{'floating-' + item.type}}"
+            >
+              {{item.text}}
+            </view>
+          </view>
           <view class="avatar-inner">
             <image
               class="actor-portrait"
@@ -143,6 +152,15 @@
         <view
           class="avatar-wrapper defender {{defenderKey}} {{currentAction.actor === defenderKey ? 'is-attacking' : ''}} {{currentAction.target === defenderKey ? 'is-hit' : ''}}"
         >
+          <view class="floating-text-layer">
+            <view
+              wx:for="{{floatingTexts[defenderKey] || []}}"
+              wx:key="id"
+              class="floating-text {{'floating-' + item.type}}"
+            >
+              {{item.text}}
+            </view>
+          </view>
           <view class="avatar-inner">
             <image
               class="actor-portrait"
@@ -150,13 +168,6 @@
               mode="widthFix"
             ></image>
           </view>
-        </view>
-      </view>
-
-      <view class="battle-log">
-        <view class="log-title">战斗瞬息</view>
-        <view class="log-list">
-          <view class="log-item" wx:for="{{displayedLogs}}" wx:key="id">{{item.text}}</view>
         </view>
       </view>
 
