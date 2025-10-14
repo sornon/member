@@ -101,6 +101,8 @@ exports.main = async (event = {}) => {
       return claimSeasonReward(actorId, event);
     case 'sendInvite':
       return sendInvite(actorId, event);
+    case 'inspectInvite':
+      return inspectInvite(actorId, event);
     case 'acceptInvite':
       return acceptInvite(actorId, event);
     default:
@@ -396,6 +398,77 @@ async function sendInvite(memberId, event = {}) {
       inviterId: memberId,
       inviteId
     })
+  };
+}
+
+async function inspectInvite(memberId, event = {}) {
+  const inviteId = normalizeId(event.inviteId);
+  if (!inviteId) {
+    return {
+      valid: false,
+      reason: 'missing_invite'
+    };
+  }
+
+  const season = await ensureActiveSeason();
+  const inviteSnapshot = await db
+    .collection(COLLECTIONS.PVP_INVITES)
+    .doc(inviteId)
+    .get()
+    .catch(() => null);
+
+  if (!inviteSnapshot || !inviteSnapshot.data) {
+    return {
+      valid: false,
+      reason: 'not_found',
+      inviteId
+    };
+  }
+
+  const invite = inviteSnapshot.data;
+  const payload = {
+    valid: true,
+    inviteId,
+    inviterId: invite.inviterId || '',
+    inviterSnapshot: invite.inviterSnapshot || null,
+    status: invite.status || 'pending',
+    expiresAt: invite.expiresAt || null,
+    season: buildSeasonPayload(season),
+    tier: invite.tierId || invite.tierName
+      ? {
+          id: invite.tierId || '',
+          name: invite.tierName || ''
+        }
+      : null
+  };
+
+  if (invite.status !== 'pending') {
+    return { ...payload, valid: false, reason: 'status_mismatch' };
+  }
+
+  if (invite.expiresAt) {
+    const expiresAt = new Date(invite.expiresAt);
+    if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
+      return { ...payload, valid: false, reason: 'expired' };
+    }
+  }
+
+  if (!invite.inviterId) {
+    return { ...payload, valid: false, reason: 'missing_inviter' };
+  }
+
+  const inviterMember = await ensureMember(invite.inviterId).catch(() => null);
+  if (!inviterMember) {
+    return { ...payload, valid: false, reason: 'inviter_not_found' };
+  }
+
+  if (memberId && invite.inviterId === memberId) {
+    return { ...payload, valid: false, reason: 'self_invite' };
+  }
+
+  return {
+    ...payload,
+    inviterSnapshot: invite.inviterSnapshot || buildMemberSnapshot(inviterMember)
   };
 }
 

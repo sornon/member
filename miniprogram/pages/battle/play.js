@@ -749,7 +749,10 @@ Page({
           season: serviceResult.season || null,
           recentMatches: serviceResult.recentMatches || null,
           leaderboardPreview: serviceResult.leaderboardPreview || null,
-          leaderboardUpdatedAt: serviceResult.leaderboardUpdatedAt || null
+          leaderboardUpdatedAt: serviceResult.leaderboardUpdatedAt || null,
+          fallbackFromInvite: !!context.fallbackFromInvite,
+          inviteFallbackReason: context.inviteFallbackReason || '',
+          inviteId: context.inviteId || ''
         };
         this.notifyParent();
       }

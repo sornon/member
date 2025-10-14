@@ -39,6 +39,9 @@ Page({
 
   onLoad(options = {}) {
     this._ensureMemberPromise = null;
+    this._inviteEntryActive = false;
+    this._inviteEntryFallback = false;
+    this._inviteAutoTriggered = false;
     const nextState = {};
     if (options.inviteId) {
       nextState.pendingInviteId = options.inviteId;
@@ -145,6 +148,46 @@ Page({
       return;
     }
     this.setData({ acceptingInvite: true });
+    let inspectResult = null;
+    let fallbackToRandom = false;
+    let fallbackReason = '';
+    try {
+      inspectResult = await PvpService.inspectInvite(pendingInviteId);
+      if (!inspectResult || inspectResult.valid !== true) {
+        fallbackToRandom = true;
+        fallbackReason = inspectResult && inspectResult.reason ? inspectResult.reason : 'invalid';
+      }
+    } catch (error) {
+      console.error('[pvp] inspect invite failed', error);
+      fallbackToRandom = true;
+      fallbackReason = 'inspect_failed';
+    }
+
+    const battleContext = fallbackToRandom
+      ? {
+          mode: 'pvp',
+          source: 'random',
+          inviteId: pendingInviteId,
+          fallbackFromInvite: true,
+          inviteFallbackReason: fallbackReason
+        }
+      : {
+          mode: 'pvp',
+          source: 'acceptInvite',
+          inviteId: pendingInviteId
+        };
+
+    if (fallbackToRandom) {
+      const message = this.resolveInviteFallbackMessage(fallbackReason);
+      if (message) {
+        wx.showToast({ title: message, icon: 'none', duration: 3000 });
+      }
+      this.setData({ inviteInfo: null });
+    }
+
+    this._inviteEntryActive = true;
+    this._inviteEntryFallback = fallbackToRandom;
+    this._inviteAutoTriggered = true;
     wx.navigateTo({
       url: '/pages/battle/play?mode=pvp',
       events: {
@@ -155,11 +198,13 @@ Page({
       },
       success: (res) => {
         if (res && res.eventChannel && typeof res.eventChannel.emit === 'function') {
-          res.eventChannel.emit('battleContext', { mode: 'pvp', source: 'acceptInvite', inviteId: pendingInviteId });
+          res.eventChannel.emit('battleContext', battleContext);
         }
       },
       fail: () => {
         wx.showToast({ title: '战斗画面加载失败', icon: 'none' });
+        this._inviteEntryActive = false;
+        this._inviteEntryFallback = false;
         this.setData({ acceptingInvite: false });
       },
       complete: () => {
@@ -204,9 +249,10 @@ Page({
 
   triggerAutoBattleIfNeeded() {
     const { pendingInviteId } = this.data;
-    if (!pendingInviteId) {
+    if (!pendingInviteId || this._inviteAutoTriggered) {
       return;
     }
+    this._inviteAutoTriggered = true;
     this.handleAcceptInvite();
   },
 
@@ -341,6 +387,38 @@ Page({
           icon: 'success'
         });
       }
+    }
+
+    if (
+      this._inviteEntryActive &&
+      (payload.battleSource === 'acceptInvite' || payload.fallbackFromInvite)
+    ) {
+      this._inviteEntryActive = false;
+      const redirectDelay = this._inviteEntryFallback ? 600 : 800;
+      setTimeout(() => {
+        wx.reLaunch({ url: '/pages/index/index' });
+      }, redirectDelay);
+    }
+  },
+
+  resolveInviteFallbackMessage(reason) {
+    const code = reason || 'invalid';
+    switch (code) {
+      case 'self_invite':
+        return '这是您自己发起的邀战，已为您匹配其他对手。';
+      case 'not_found':
+        return '邀战编号不存在，已为您匹配其他对手。';
+      case 'expired':
+        return '该邀战已过期，已为您匹配其他对手。';
+      case 'status_mismatch':
+        return '该邀战已被处理，已为您匹配其他对手。';
+      case 'missing_inviter':
+      case 'inviter_not_found':
+        return '邀战信息异常，已为您匹配其他对手。';
+      case 'inspect_failed':
+        return '暂时无法校验邀战，已为您匹配其他对手。';
+      default:
+        return '邀战不可用，已为您匹配其他对手。';
     }
   },
 

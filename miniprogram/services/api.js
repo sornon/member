@@ -385,6 +385,9 @@ export const PvpService = {
   async sendInvite(channel = 'friend') {
     return callCloud(CLOUD_FUNCTIONS.PVP, { action: 'sendInvite', channel });
   },
+  async inspectInvite(inviteId) {
+    return callCloud(CLOUD_FUNCTIONS.PVP, { action: 'inspectInvite', inviteId });
+  },
   async acceptInvite(inviteId) {
     return callCloud(CLOUD_FUNCTIONS.PVP, { action: 'acceptInvite', inviteId });
   }
