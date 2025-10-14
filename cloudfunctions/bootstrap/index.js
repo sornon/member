@@ -67,9 +67,7 @@ const FEATURE_TOGGLE_DOC_ID = 'feature_toggles';
 const DEFAULT_IMMORTAL_TOURNAMENT = {
   enabled: false,
   registrationStart: '',
-  registrationEnd: '',
-  ruleLink: '',
-  announcement: ''
+  registrationEnd: ''
 };
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,

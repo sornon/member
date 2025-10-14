@@ -72,32 +72,6 @@
           />
           <view class="field-hint">会在会员端报名须知中同步展示。</view>
         </view>
-        <view class="form-field">
-          <view class="field-label">规则说明链接</view>
-          <input
-            class="field-input"
-            placeholder="填写外部图文或活动详情地址"
-            value="{{tournamentDraft.ruleLink}}"
-            data-field="ruleLink"
-            bindinput="handleTournamentFieldChange"
-            disabled="{{tournamentSaving || tournamentResetting}}"
-          />
-          <view class="field-hint">会员端可跳转查看完整规则细节。</view>
-        </view>
-      </view>
-      <view class="form-field full-width">
-        <view class="field-label">活动公告文案</view>
-        <textarea
-          class="field-textarea"
-          placeholder="填写将展示给会员的大会公告、奖励说明等内容"
-          value="{{tournamentDraft.announcement}}"
-          maxlength="500"
-          show-confirm-bar="false"
-          data-field="announcement"
-          bindinput="handleTournamentFieldChange"
-          disabled="{{tournamentSaving || tournamentResetting}}"
-        ></textarea>
-        <view class="field-hint">支持换行，将直接同步到会员端的说明区块。</view>
       </view>
 
       <view class="action-row">
@@ -107,7 +81,7 @@
           loading="{{tournamentSaving}}"
           disabled="{{tournamentSaving || tournamentResetting}}"
         >保存大会设置</button>
-        <view class="action-hint">点击保存后统一提交报名窗口及公告内容。</view>
+        <view class="action-hint">点击保存后会同步更新报名开放时间。</view>
       </view>
 
       <view wx:if="{{tournamentError}}" class="error-banner">{{tournamentError}}</view>

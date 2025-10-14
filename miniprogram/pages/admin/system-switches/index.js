@@ -3,18 +3,10 @@ import { AdminService } from '../../../services/api';
 const DEFAULT_IMMORTAL_TOURNAMENT = {
   enabled: false,
   registrationStart: '',
-  registrationEnd: '',
-  ruleLink: '',
-  announcement: ''
+  registrationEnd: ''
 };
 
-const TOURNAMENT_FIELDS = [
-  'enabled',
-  'registrationStart',
-  'registrationEnd',
-  'ruleLink',
-  'announcement'
-];
+const TOURNAMENT_FIELDS = ['enabled', 'registrationStart', 'registrationEnd'];
 
 const DEFAULT_FEATURES = {
   cashierEnabled: true,
@@ -109,12 +101,6 @@ function normalizeImmortalTournament(config) {
     if (Object.prototype.hasOwnProperty.call(config, 'registrationEnd')) {
       normalized.registrationEnd = trimToString(config.registrationEnd);
     }
-    if (Object.prototype.hasOwnProperty.call(config, 'ruleLink')) {
-      normalized.ruleLink = trimToString(config.ruleLink);
-    }
-    if (Object.prototype.hasOwnProperty.call(config, 'announcement')) {
-      normalized.announcement = trimToString(config.announcement);
-    }
   }
   return normalized;
 }
@@ -129,9 +115,7 @@ function buildTournamentDraft(config) {
   return {
     enabled: normalized.enabled,
     registrationStart: normalized.registrationStart,
-    registrationEnd: normalized.registrationEnd,
-    ruleLink: normalized.ruleLink,
-    announcement: normalized.announcement
+    registrationEnd: normalized.registrationEnd
   };
 }
 
@@ -323,7 +307,7 @@ Page({
     const sanitizedDraft = { ...draft };
     const updates = {};
 
-    ['registrationStart', 'registrationEnd', 'ruleLink', 'announcement'].forEach((field) => {
+    ['registrationStart', 'registrationEnd'].forEach((field) => {
       const rawValue = sanitizedDraft[field];
       const trimmedValue = typeof rawValue === 'string' ? rawValue.trim() : '';
       if (trimmedValue !== rawValue) {

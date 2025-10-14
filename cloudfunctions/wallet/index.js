@@ -14,9 +14,7 @@ const FEATURE_TOGGLE_DOC_ID = 'feature_toggles';
 const DEFAULT_IMMORTAL_TOURNAMENT = {
   enabled: false,
   registrationStart: '',
-  registrationEnd: '',
-  ruleLink: '',
-  announcement: ''
+  registrationEnd: ''
 };
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
@@ -93,12 +91,6 @@ function normalizeImmortalTournament(config) {
     }
     if (Object.prototype.hasOwnProperty.call(config, 'registrationEnd')) {
       normalized.registrationEnd = trimToString(config.registrationEnd);
-    }
-    if (Object.prototype.hasOwnProperty.call(config, 'ruleLink')) {
-      normalized.ruleLink = trimToString(config.ruleLink);
-    }
-    if (Object.prototype.hasOwnProperty.call(config, 'announcement')) {
-      normalized.announcement = trimToString(config.announcement);
     }
   }
   return normalized;
