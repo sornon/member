@@ -17,7 +17,6 @@ page {
   left: 0;
   width: 100%;
   height: 100%;
-  opacity: 0.35;
   z-index: 0;
 }
 
@@ -27,10 +26,7 @@ page {
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(circle at 20% 20%, rgba(124, 167, 255, 0.35), transparent 60%),
-    radial-gradient(circle at 80% 30%, rgba(255, 127, 178, 0.3), transparent 55%),
-    linear-gradient(135deg, rgba(20, 24, 48, 0.9), rgba(5, 9, 33, 0.95));
-  animation: backgroundPulse 8s ease-in-out infinite;
+  background: none;
   z-index: 1;
 }
 
@@ -56,7 +52,7 @@ page {
   flex-direction: column;
   justify-content: space-between;
   height: 100%;
-  padding: 120rpx 48rpx 60rpx;
+  padding: 180rpx 20rpx 60rpx;
   box-sizing: border-box;
 }
 
@@ -268,7 +264,7 @@ page {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 60rpx 0 40rpx;
+  margin: 160rpx 0 40rpx;
   gap: 64rpx;
 }
 
