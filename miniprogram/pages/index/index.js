@@ -19,7 +19,7 @@ const {
   getDefaultBackgroundId,
   isBackgroundUnlocked
 } = require('../../shared/backgrounds.js');
-const { CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
+const { AVATAR_IMAGE_BASE_PATH, CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
 const { buildTitleImageUrl, resolveTitleById, normalizeTitleId } = require('../../shared/titles.js');
 const { listAvatarIds: listAllAvatarIds } = require('../../shared/avatar-catalog.js');
 const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
@@ -33,6 +33,11 @@ function buildCharacterImageMap() {
 }
 
 const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
+
+const DEFAULT_CHARACTER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
+const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
+const WECHAT_DEFAULT_AVATAR_URL =
+  'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
 
 const app = getApp();
 
@@ -562,6 +567,10 @@ function sanitizeAvatarUrl(url) {
       const [base, query] = sanitized.split('?');
       const normalizedBase = base.replace(/\/(0|46|64|96)$/, '/132');
       sanitized = query ? `${normalizedBase}?${query}` : normalizedBase;
+      const normalizedWithoutQuery = normalizedBase;
+      if (normalizedWithoutQuery === WECHAT_DEFAULT_AVATAR_URL) {
+        return '';
+      }
     }
   }
   return sanitized;
@@ -619,33 +628,7 @@ function formatHistoryList(history) {
     .filter(Boolean);
 }
 
-const HERO_IMAGE =
-  'data:image/svg+xml;base64,' +
-  'PHN2ZyB3aWR0aD0iMzYwIiBoZWlnaHQ9IjU2MCIgdmlld0JveD0iMCAwIDM2MCA1NjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPGRlZnM+' +
-  'CiAgICA8cmFkaWFsR3JhZGllbnQgaWQ9ImF1cmEiIGN4PSI1MCUiIGN5PSIzMCUiIHI9IjcwJSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiNm' +
-  'ZWY2ZDgiIHN0b3Atb3BhY2l0eT0iMC44Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iI2ZlZjZkOCIgc3RvcC1vcGFjaXR5PSIwIi8+CiAg' +
-  'ICA8L3JhZGlhbEdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJyb2JlIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjAlIiB5Mj0iMTAwJSI+CiAgICAgIDxzdG9w' +
-  'IG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiNmMGYyZmYiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSI2MCUiIHN0b3AtY29sb3I9IiNhZGI2ZmYiLz4KICAgICAgPHN0b3Ag' +
-  'b2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjNmE0YmZmIi8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJzYXNoIiB4MT0iMCUiI' +
-  'nkxPSIwJSIgeDI9IjEwMCUiIHkyPSIwJSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0b3AtY29sb3I9IiNmM2I0ZmYiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxM' +
-  'DAlIiBzdG9wLWNvbG9yPSIjN2Q0ZGZmIi8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KICA8ZWxsaXBzZSBjeD0iMTgwIiBjeT0iNDYwIiByeD0iMTQwI' +
-  'iByeT0iNjAiIGZpbGw9InVybCgjYXVyYSkiLz4KICA8Y2lyY2xlIGN4PSIxODAiIGN5PSIxMjAiIHI9IjYwIiBmaWxsPSIjZmZlOWQ2Ii8+CiAgPHBhdGggZD0iTTE4MC' +
-  'AxODAgQzE3MCAyNDAgMTEwIDI2MCA5MCAzNjAgQzgwIDQyMCAxMTAgNTIwIDE4MCA1MjAgQzI1MCA1MjAgMjgwIDQyMCAyNzAgMzYwIEMyNTAgMjYwIDE5MCAyNDAgMT' +
-  'gwIDE4MCBaIiBmaWxsPSJ1cmwoI3JvYmUpIi8+CiAgPHBhdGggZD0iTTE1MCAzMDAgUTE4MCAyNjAgMjEwIDMwMCBMMjQwIDQyMCBRMjA1IDQ0MCAxODAgNDQwIFExNT' +
-  'UgNDQwIDEyMCA0MjAgWiIgZmlsbD0iI2ZmZmZmZiIgb3BhY2l0eT0iMC42Ii8+CiAgPHBhdGggZD0iTTEyMCAzNDAgQzE2MCAzMTAgMjAwIDMxMCAyNDAgMzQwIiBmaW' +
-  'xsPSJub25lIiBzdHJva2U9InVybCgjc2FzaCkiIHN0cm9rZS13aWR0aD0iMjAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogIDxwYXRoIGQ9Ik0xNTAgMTYwIFExODA' +
-  'yMDAgMjEwIDE2MCIgZmlsbD0iI2ZmZGRiMiIvPgogIDxjaXJjbGUgY3g9IjE2MCIgY3k9IjEyMCIgcj0iMTAiIGZpbGw9IiMyNjI2NGYiLz4KICA8Y2lyY2xlIGN4PSI' +
-  'yMDAiIGN5PSIxMjAiIHI9IjEwIiBmaWxsPSIjMjYyNjRmIi8+CiAgPHBhdGggZD0iTTE2MCAxNTAgUTE4MCAxNzAgMjAwIDE1MCIgc3Ryb2tlPSIjZDQ4YjhiIiBzdHJv' +
-  'a2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4=';
-
-const DEFAULT_AVATAR =
-  'data:image/svg+xml;base64,' +
-  'PHN2ZyB3aWR0aD0iMTYwIiBoZWlnaHQ9IjE2MCIgdmlld0JveD0iMCAwIDE2MCAxNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPGRlZnM+' +
-  'CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImF2YXRhckJnIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIg' +
-  'c3RvcC1jb2xvcj0iIzczNTZmZiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNiODkyZmYiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgP' +
-  'C9kZWZzPgogIDxjaXJjbGUgY3g9IjgwIiBjeT0iODAiIHI9Ijc4IiBmaWxsPSJ1cmwoI2F2YXRhckJnKSIvPgogIDxjaXJjbGUgY3g9IjgwIiBjeT0iNzAiIHI9IjMwIi' +
-  'BmaWxsPSIjZmNlMWMyIi8+CiAgPHBhdGggZD0iTTQwIDEzMCBRODAgMTAwIDEyMCAxMzAiIGZpbGw9IiNmMGY0ZmYiIHN0cm9rZT0iI2Q5ZGVmZiIgc3Ryb2tlLXdpZHRo' +
-  'PSI0Ii8+Cjwvc3ZnPg==';
+const HERO_IMAGE = DEFAULT_CHARACTER_IMAGE;
 
 const EMPTY_MEMBER_STATS = {
   stoneBalance: formatStones(0),
@@ -1359,24 +1342,31 @@ Page({
     if (this.data.avatarPickerSaving) {
       return;
     }
+    const applyAvatarSelection = (avatarUrl, toastTitle) => {
+      const normalizedAvatar = sanitizeAvatarUrl(avatarUrl || '') || avatarUrl;
+      this.setData({
+        'avatarPicker.avatarUrl': normalizedAvatar,
+        'profileEditor.avatarUrl': normalizedAvatar
+      });
+      this.refreshAvatarPickerOptions();
+      wx.showToast({ title: toastTitle, icon: 'success' });
+    };
+    const applyDefaultAvatar = () => {
+      applyAvatarSelection(DEFAULT_AVATAR, '已使用默认头像');
+    };
     wx.getUserProfile({
       desc: '用于同步微信头像',
       success: (res) => {
         const info = res && res.userInfo ? res.userInfo : {};
         const avatarUrl = sanitizeAvatarUrl(info.avatarUrl || '');
-        if (!avatarUrl) {
-          wx.showToast({ title: '未获取到头像', icon: 'none' });
+        if (avatarUrl) {
+          applyAvatarSelection(avatarUrl, '已同步微信头像');
           return;
         }
-        this.setData({
-          'avatarPicker.avatarUrl': avatarUrl,
-          'profileEditor.avatarUrl': avatarUrl
-        });
-        this.refreshAvatarPickerOptions();
-        wx.showToast({ title: '已同步微信头像', icon: 'success' });
+        applyDefaultAvatar();
       },
       fail: () => {
-        wx.showToast({ title: '未获取到头像', icon: 'none' });
+        applyDefaultAvatar();
       }
     });
   },
@@ -1542,11 +1532,13 @@ Page({
       success: (res) => {
         const info = res && res.userInfo ? res.userInfo : {};
         const avatarUrl = sanitizeAvatarUrl(info.avatarUrl || '');
+        const resolvedAvatarUrl =
+          avatarUrl || this.data.onboarding.avatarUrl || this.data.defaultAvatar;
         this.setData({
           onboarding: {
             ...this.data.onboarding,
             nickName: info.nickName || this.data.onboarding.nickName,
-            avatarUrl: avatarUrl || this.data.onboarding.avatarUrl
+            avatarUrl: resolvedAvatarUrl
           },
           'authorizationStatus.profileAuthorized': true
         });
