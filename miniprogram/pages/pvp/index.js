@@ -47,6 +47,7 @@ Page({
     const nextState = {};
     if (options.inviteId) {
       nextState.pendingInviteId = options.inviteId;
+      // 分享链接必须携带 inviteId 才会展示完整调试链接，普通入口不渲染调试横幅
       nextState.inviteLinkDebug = this.composeInviteDebugLink(options);
     }
     if (options.targetId) {

@@ -146,6 +146,7 @@
 * `PvpService` 暴露 `inspectInvite(inviteId)` 封装，`/pages/pvp/index` 在自动触发邀战时会先调用该接口：
   * 若返回 `valid: true`，则携带 `inviteId` 进入 `battle/play` 页面，走原有的好友对战流程，同时在跳转前清空 `pendingInviteId`，让受邀页面不会再出现“是否应战”的确认条幅。
   * 若返回 `valid: false`，则根据 `reason` 给出友好提示，并携带 `fallbackFromInvite` 标记进入 `battle/play`，在战斗页自动执行随机匹配，确保用户依旧看到战斗画面。
+* 当入口参数中包含 `inviteId` 时，会额外设置 `inviteLinkDebug` 字段，在竞技场页面顶部渲染完整的分享链接字符串，便于测试/QA 快速核对参数；如果没有 `inviteId`（普通入口、从首页进入等），该字段保持为空，不会显示调试横幅。
 * 通过 `fallbackFromInvite` 标记，`battle/play` 会把“来源于分享的随机匹配”回传给竞技场页面；`/pages/pvp/index` 在收到战斗结果后，无论胜败，都触发 `wx.reLaunch('/pages/index/index')` 强制回流首页，让新人从主页开始完整体验会员体系。
 * 若是自己访问自己的分享，或邀请已过期/被接受，页面会弹出“邀战不可用，已为您匹配其他对手”的 toast，再自动进入随机匹配；同时利用 `inviteAutoBattling` 状态在跳转失败时恢复 `pendingInviteId`，避免流程卡死。
 
