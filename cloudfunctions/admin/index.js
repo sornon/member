@@ -30,7 +30,18 @@ const WINE_EXPIRY_PRESETS = {
 const DEFAULT_WINE_EXPIRY = '3m';
 
 const FEATURE_TOGGLE_DOC_ID = 'feature_toggles';
-const DEFAULT_FEATURE_TOGGLES = { cashierEnabled: true };
+const DEFAULT_IMMORTAL_TOURNAMENT = {
+  enabled: false,
+  registrationStart: '',
+  registrationEnd: '',
+  maxParticipants: 64,
+  ruleLink: '',
+  announcement: ''
+};
+const DEFAULT_FEATURE_TOGGLES = {
+  cashierEnabled: true,
+  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
+};
 const FEATURE_KEY_ALIASES = {
   cashier: 'cashierEnabled',
   cashierenabled: 'cashierEnabled',
@@ -70,7 +81,8 @@ const ACTIONS = {
   CLEANUP_BATTLE_RECORDS: 'cleanupBattleRecords',
   PREVIEW_CLEANUP_BATTLE_RECORDS: 'previewCleanupBattleRecords',
   GET_SYSTEM_FEATURES: 'getSystemFeatures',
-  UPDATE_SYSTEM_FEATURE: 'updateSystemFeature'
+  UPDATE_SYSTEM_FEATURE: 'updateSystemFeature',
+  UPDATE_IMMORTAL_TOURNAMENT_SETTINGS: 'updateImmortalTournamentSettings'
 };
 
 const ACTION_CANONICAL_MAP = Object.values(ACTIONS).reduce((map, name) => {
@@ -125,7 +137,10 @@ const ACTION_ALIASES = {
   systemfeatures: ACTIONS.GET_SYSTEM_FEATURES,
   updatesystemfeature: ACTIONS.UPDATE_SYSTEM_FEATURE,
   togglesystemfeature: ACTIONS.UPDATE_SYSTEM_FEATURE,
-  setfeaturetoggle: ACTIONS.UPDATE_SYSTEM_FEATURE
+  setfeaturetoggle: ACTIONS.UPDATE_SYSTEM_FEATURE,
+  updateimmortaltournamentsettings: ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS,
+  immortaltournamentsettings: ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS,
+  updatetournamentsettings: ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS
 };
 
 function normalizeAction(action) {
@@ -212,7 +227,9 @@ const ACTION_HANDLERS = {
   [ACTIONS.CLEANUP_BATTLE_RECORDS]: (openid) => cleanupBattleRecords(openid),
   [ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS]: (openid) => previewCleanupBattleRecords(openid),
   [ACTIONS.GET_SYSTEM_FEATURES]: (openid) => getSystemFeatures(openid),
-  [ACTIONS.UPDATE_SYSTEM_FEATURE]: (openid, event) => updateSystemFeature(openid, event)
+  [ACTIONS.UPDATE_SYSTEM_FEATURE]: (openid, event) => updateSystemFeature(openid, event),
+  [ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS]: (openid, event = {}) =>
+    updateImmortalTournamentSettings(openid, event.updates || event)
 };
 
 async function resolveMemberExtras(memberId) {
@@ -597,11 +614,86 @@ function resolveBoolean(value, defaultValue = false) {
   return Boolean(value);
 }
 
+function trimToString(value) {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (value == null) {
+    return '';
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  try {
+    const text = String(value);
+    return text.trim();
+  } catch (error) {
+    return '';
+  }
+}
+
+function normalizeImmortalTournament(config) {
+  const normalized = { ...DEFAULT_IMMORTAL_TOURNAMENT };
+  if (config && typeof config === 'object') {
+    if (Object.prototype.hasOwnProperty.call(config, 'enabled')) {
+      normalized.enabled = resolveBoolean(config.enabled, normalized.enabled);
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'registrationStart')) {
+      normalized.registrationStart = trimToString(config.registrationStart);
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'registrationEnd')) {
+      normalized.registrationEnd = trimToString(config.registrationEnd);
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'maxParticipants')) {
+      const numeric = Number(config.maxParticipants);
+      if (Number.isFinite(numeric) && numeric > 0) {
+        const clamped = Math.max(2, Math.min(512, Math.round(numeric)));
+        normalized.maxParticipants = clamped;
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'ruleLink')) {
+      normalized.ruleLink = trimToString(config.ruleLink);
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'announcement')) {
+      normalized.announcement = trimToString(config.announcement);
+    }
+  }
+  return normalized;
+}
+
+function cloneImmortalTournament(config) {
+  const normalized = normalizeImmortalTournament(config);
+  return { ...normalized };
+}
+
+function serializeImmortalTournament(config) {
+  return cloneImmortalTournament(config);
+}
+
+function sanitizeFeatureDocument(documentData) {
+  if (!documentData || typeof documentData !== 'object') {
+    return {};
+  }
+  return Object.keys(documentData).reduce((acc, key) => {
+    if (key === '_id' || key === '_openid') {
+      return acc;
+    }
+    acc[key] = documentData[key];
+    return acc;
+  }, {});
+}
+
 function normalizeFeatureToggles(documentData) {
-  const toggles = { ...DEFAULT_FEATURE_TOGGLES };
+  const toggles = {
+    cashierEnabled: DEFAULT_FEATURE_TOGGLES.cashierEnabled,
+    immortalTournament: cloneImmortalTournament(DEFAULT_FEATURE_TOGGLES.immortalTournament)
+  };
   if (documentData && typeof documentData === 'object') {
     if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
       toggles.cashierEnabled = resolveBoolean(documentData.cashierEnabled, true);
+    }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'immortalTournament')) {
+      toggles.immortalTournament = cloneImmortalTournament(documentData.immortalTournament);
     }
   }
   return toggles;
@@ -702,20 +794,115 @@ async function updateSystemFeature(openid, event = {}) {
 
   const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);
   const now = new Date();
-  const sanitizedExisting =
-    existingDocument && typeof existingDocument === 'object'
-      ? Object.keys(existingDocument).reduce((acc, key) => {
-          if (key === '_id' || key === '_openid') {
-            return acc;
-          }
-          acc[key] = existingDocument[key];
-          return acc;
-        }, {})
-      : {};
+  const sanitizedExisting = sanitizeFeatureDocument(existingDocument);
 
   const payload = {
     ...sanitizedExisting,
     cashierEnabled: key === 'cashierEnabled' ? nextValue : currentToggles.cashierEnabled,
+    immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
+    updatedAt: now
+  };
+  if (!payload.createdAt) {
+    payload.createdAt = now;
+  }
+
+  await collection.doc(FEATURE_TOGGLE_DOC_ID).set({ data: payload });
+
+  const features = normalizeFeatureToggles(payload);
+  return {
+    success: true,
+    features,
+    updatedAt: now
+  };
+}
+
+async function updateImmortalTournamentSettings(openid, updates = {}) {
+  await ensureAdmin(openid);
+  if (!updates || typeof updates !== 'object') {
+    throw new Error('无效的配置参数');
+  }
+
+  const existingDocument = await loadSystemFeatureDocument();
+  const currentToggles = normalizeFeatureToggles(existingDocument);
+  const currentTournament = cloneImmortalTournament(currentToggles.immortalTournament);
+
+  let changed = false;
+  const nextTournament = { ...currentTournament };
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'enabled')) {
+    const nextEnabled = resolveBoolean(updates.enabled, currentTournament.enabled);
+    if (nextEnabled !== currentTournament.enabled) {
+      nextTournament.enabled = nextEnabled;
+      changed = true;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'registrationStart')) {
+    const value = trimToString(updates.registrationStart);
+    if (value !== currentTournament.registrationStart) {
+      nextTournament.registrationStart = value;
+      changed = true;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'registrationEnd')) {
+    const value = trimToString(updates.registrationEnd);
+    if (value !== currentTournament.registrationEnd) {
+      nextTournament.registrationEnd = value;
+      changed = true;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'ruleLink')) {
+    const value = trimToString(updates.ruleLink);
+    if (value !== currentTournament.ruleLink) {
+      nextTournament.ruleLink = value;
+      changed = true;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'announcement')) {
+    const value = trimToString(updates.announcement);
+    if (value !== currentTournament.announcement) {
+      nextTournament.announcement = value;
+      changed = true;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, 'maxParticipants')) {
+    const raw = updates.maxParticipants;
+    let numeric;
+    if (raw === '' || raw == null) {
+      numeric = DEFAULT_IMMORTAL_TOURNAMENT.maxParticipants;
+    } else {
+      const candidate = Number(raw);
+      if (!Number.isFinite(candidate) || candidate <= 0) {
+        throw new Error('参赛人数上限需要为正整数');
+      }
+      numeric = Math.max(2, Math.min(512, Math.round(candidate)));
+    }
+    if (numeric !== currentTournament.maxParticipants) {
+      nextTournament.maxParticipants = numeric;
+      changed = true;
+    }
+  }
+
+  if (!changed && existingDocument) {
+    return {
+      success: true,
+      features: currentToggles,
+      updatedAt: existingDocument.updatedAt || null
+    };
+  }
+
+  const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);
+  const now = new Date();
+  const sanitizedExisting = sanitizeFeatureDocument(existingDocument);
+
+  const payload = {
+    ...sanitizedExisting,
+    cashierEnabled: currentToggles.cashierEnabled,
+    immortalTournament: serializeImmortalTournament(nextTournament),
     updatedAt: now
   };
   if (!payload.createdAt) {

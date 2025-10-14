@@ -639,11 +639,20 @@ export const AdminService = {
       action: 'getSystemFeatures'
     });
   },
+  async getSystemSettings() {
+    return this.getSystemFeatures();
+  },
   async updateSystemFeature(featureKey, enabled) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'updateSystemFeature',
       featureKey,
       enabled
+    });
+  },
+  async updateImmortalTournamentSettings(updates = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'updateImmortalTournamentSettings',
+      updates
     });
   }
 };

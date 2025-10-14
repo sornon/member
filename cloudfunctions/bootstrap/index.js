@@ -64,7 +64,18 @@ async function seedCollection(name, dataList) {
 }
 
 const FEATURE_TOGGLE_DOC_ID = 'feature_toggles';
-const DEFAULT_FEATURE_TOGGLES = { cashierEnabled: true };
+const DEFAULT_IMMORTAL_TOURNAMENT = {
+  enabled: false,
+  registrationStart: '',
+  registrationEnd: '',
+  maxParticipants: 64,
+  ruleLink: '',
+  announcement: ''
+};
+const DEFAULT_FEATURE_TOGGLES = {
+  cashierEnabled: true,
+  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
+};
 
 async function seedSystemSettings() {
   const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);

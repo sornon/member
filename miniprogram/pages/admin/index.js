@@ -51,8 +51,8 @@ const BASE_ACTIONS = [
   },
   {
     icon: '⚙️',
-    label: '系统开关',
-    description: '配置全局功能开关',
+    label: '系统设置',
+    description: '系统全局配置功能',
     url: '/pages/admin/system-switches/index'
   }
 ];

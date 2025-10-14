@@ -1,5 +1,5 @@
 {
-  "navigationBarTitleText": "系统功能开关",
+  "navigationBarTitleText": "系统设置",
   "usingComponents": {
     "custom-nav": "/components/custom-nav/custom-nav"
   }
