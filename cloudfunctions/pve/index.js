@@ -3439,6 +3439,55 @@ async function useStorageItem(actorId, event = {}) {
       removeItem();
       break;
     }
+    case 'grantRenameCredits': {
+      const amount = Math.max(1, Math.floor(Number(usage.amount) || 0));
+      if (amount <= 0) {
+        throw createError('ITEM_USAGE_INVALID', '道具效果无效');
+      }
+      const currentCredits = Math.max(0, Math.floor(Number(member.renameCredits) || 0));
+      const availableCards = Math.max(0, Math.floor(Number(member.renameCards) || 0));
+      memberUpdates.renameCredits = _.inc(amount);
+      if (availableCards > 0) {
+        const decrement = Math.min(amount, availableCards);
+        memberUpdates.renameCards = _.inc(-decrement);
+        result.renameCards = Math.max(availableCards - decrement, 0);
+      }
+      result.renameCredits = currentCredits + amount;
+      removeItem();
+      break;
+    }
+    case 'grantSkillDrawCredits': {
+      const amount = Math.max(1, Math.floor(Number(usage.amount) || 0));
+      if (amount <= 0) {
+        throw createError('ITEM_USAGE_INVALID', '道具效果无效');
+      }
+      profile.skills = profile.skills && typeof profile.skills === 'object' ? profile.skills : {};
+      const drawCredits = Math.max(0, Math.floor(Number(profile.skills.drawCredits) || 0));
+      profile.skills.drawCredits = drawCredits + amount;
+      result.skillDrawCredits = profile.skills.drawCredits;
+      removeItem();
+      break;
+    }
+    case 'grantRespec': {
+      const amount = Math.max(1, Math.floor(Number(usage.amount) || 0));
+      if (amount <= 0) {
+        throw createError('ITEM_USAGE_INVALID', '道具效果无效');
+      }
+      const attrs = profile.attributes && typeof profile.attributes === 'object' ? profile.attributes : {};
+      const currentAvailable = Math.max(0, Math.floor(Number(attrs.respecAvailable) || 0));
+      const legacyLimit = Math.max(0, Math.floor(Number(attrs.respecLimit) || 0));
+      const legacyUsed = Math.max(0, Math.floor(Number(attrs.respecUsed) || 0));
+      const legacyAvailable = Math.max(legacyLimit - Math.min(legacyLimit, legacyUsed), 0);
+      const baseAvailable = Math.max(currentAvailable, legacyAvailable);
+      const nextAvailable = baseAvailable + amount;
+      attrs.respecAvailable = nextAvailable;
+      attrs.respecLimit = 0;
+      attrs.respecUsed = 0;
+      profile.attributes = attrs;
+      result.respecAvailable = nextAvailable;
+      removeItem();
+      break;
+    }
     default:
       throw createError('ITEM_USAGE_UNSUPPORTED', '暂不支持该道具');
   }
