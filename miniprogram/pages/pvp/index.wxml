@@ -1,5 +1,9 @@
 <custom-nav title="比武竞技场" theme="dark"></custom-nav>
 <view class="container pvp-page">
+  <view wx:if="{{inviteLinkDebug}}" class="card pvp-debug-link">
+    <view class="pvp-debug-link__label">邀请链接</view>
+    <text class="pvp-debug-link__value">{{inviteLinkDebug}}</text>
+  </view>
   <view wx:if="{{loading}}" class="card pvp-state">比武场布阵中...</view>
   <block wx:elif="{{profile}}">
     <view class="card pvp-header">

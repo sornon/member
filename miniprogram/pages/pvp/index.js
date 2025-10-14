@@ -32,6 +32,7 @@ Page({
     shareInvite: null,
     inviteInfo: null,
     pendingInviteId: '',
+    inviteLinkDebug: '',
     acceptingInvite: false,
     inviteAutoBattling: false,
     targetChallenge: null,
@@ -46,6 +47,7 @@ Page({
     const nextState = {};
     if (options.inviteId) {
       nextState.pendingInviteId = options.inviteId;
+      nextState.inviteLinkDebug = this.composeInviteDebugLink(options);
     }
     if (options.targetId) {
       nextState.targetChallenge = {
@@ -60,6 +62,30 @@ Page({
       this.setData(nextState, afterStateApplied);
     } else {
       afterStateApplied();
+    }
+  },
+
+  composeInviteDebugLink(options = {}) {
+    const routePath = this.route ? `/${this.route}` : '/pages/pvp/index';
+    try {
+      const keys = Object.keys(options || {});
+      if (!keys.length) {
+        return routePath;
+      }
+      const query = keys
+        .map((key) => {
+          const value = options[key];
+          const safeKey = encodeURIComponent(key);
+          const safeValue = value === undefined || value === null
+            ? ''
+            : encodeURIComponent(String(value));
+          return `${safeKey}=${safeValue}`;
+        })
+        .join('&');
+      return `${routePath}?${query}`;
+    } catch (error) {
+      console.error('[pvp] compose invite debug link failed', error);
+      return routePath;
     }
   },
 

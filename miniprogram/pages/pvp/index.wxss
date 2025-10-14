@@ -9,6 +9,25 @@
   margin-bottom: 0;
 }
 
+.pvp-debug-link {
+  background: rgba(66, 184, 131, 0.12);
+  border: 1rpx solid rgba(66, 184, 131, 0.35);
+  border-radius: 20rpx;
+  padding: 20rpx 24rpx;
+  word-break: break-all;
+}
+
+.pvp-debug-link__label {
+  font-size: 24rpx;
+  opacity: 0.8;
+  margin-bottom: 12rpx;
+}
+
+.pvp-debug-link__value {
+  font-size: 26rpx;
+  line-height: 1.4;
+}
+
 .pvp-state,
 .pvp-empty {
   text-align: center;
