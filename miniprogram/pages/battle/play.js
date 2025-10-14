@@ -318,6 +318,7 @@ function createBattleStageState(overrides = {}) {
     defenderKey: 'opponent',
     currentAction: {},
     displayedLogs: [],
+    floatingTexts: { player: [], opponent: [] },
     skipLocked: true,
     skipButtonText: `跳过（${MIN_SKIP_SECONDS}）`,
     battleFinished: false,
@@ -327,6 +328,101 @@ function createBattleStageState(overrides = {}) {
     resultRounds: 0,
     ...overrides
   };
+}
+
+function cloneFloatingTextState(source = {}) {
+  return {
+    player: Array.isArray(source.player) ? [...source.player] : [],
+    opponent: Array.isArray(source.opponent) ? [...source.opponent] : []
+  };
+}
+
+const INVALID_SKILL_LABELS = ['战斗流转', '连击未果', '身法化解', '持久战', '战斗结果'];
+
+function sanitizeSkillText(text) {
+  if (!text && text !== 0) {
+    return '';
+  }
+  const normalized = String(text).trim();
+  if (!normalized) {
+    return '';
+  }
+  if (normalized === 'undefined' || normalized === 'null') {
+    return '';
+  }
+  if (INVALID_SKILL_LABELS.indexOf(normalized) >= 0) {
+    return '';
+  }
+  if (/结果|回合|胜利|平局|惜败/.test(normalized)) {
+    return '';
+  }
+  return normalized;
+}
+
+function extractSkillTextFromAction(action = {}) {
+  if (!action || action.type === 'result' || action.type === 'dodge') {
+    return '';
+  }
+  const candidates = [];
+  if (action.description && typeof action.description === 'string') {
+    const match = action.description.match(/「([^」]+)」/);
+    if (match && match[1]) {
+      candidates.push(match[1]);
+    }
+  }
+  if (action.skillName) {
+    candidates.push(action.skillName);
+  }
+  const raw = action.raw || {};
+  if (raw.skillName) {
+    candidates.push(raw.skillName);
+  }
+  if (raw.skill) {
+    if (typeof raw.skill === 'string') {
+      candidates.push(raw.skill);
+    } else {
+      if (raw.skill.name) {
+        candidates.push(raw.skill.name);
+      }
+      if (raw.skill.label) {
+        candidates.push(raw.skill.label);
+      }
+      if (raw.skill.title) {
+        candidates.push(raw.skill.title);
+      }
+      if (raw.skill.displayName) {
+        candidates.push(raw.skill.displayName);
+      }
+    }
+  }
+  if (raw.summary && raw.summary.label) {
+    candidates.push(raw.summary.label);
+  }
+  if (typeof action.title === 'string' && action.title.indexOf('·') >= 0) {
+    const parts = action.title.split('·');
+    const tail = parts[parts.length - 1];
+    candidates.push(tail);
+  } else if (typeof action.title === 'string') {
+    candidates.push(action.title);
+  }
+  for (let i = 0; i < candidates.length; i += 1) {
+    const sanitized = sanitizeSkillText(candidates[i]);
+    if (sanitized) {
+      return sanitized;
+    }
+  }
+  if (action.type === 'attack') {
+    return '普攻';
+  }
+  return '';
+}
+
+function resolveHpValue(state = {}, sideKey) {
+  const side = state && state[sideKey] ? state[sideKey] : null;
+  if (!side || typeof side.current !== 'number') {
+    return Number(side && side.current) || 0;
+  }
+  return side.current;
 }
 
 function resolveBackgroundVideoById(backgroundId) {
@@ -477,6 +573,9 @@ Page({
     this.isReplay = options.replay === '1' || options.replay === true;
     this.contextOptions = options;
     this.navInitialized = false;
+    this._floatingTextId = 0;
+    this._floatingTextTimers = {};
+    this._floatingTexts = cloneFloatingTextState();
     this.setData({
       navTitle: this.isReplay ? '战斗回放' : this.mode === 'pvp' ? '竞技对决' : '秘境对战'
     });
@@ -509,6 +608,7 @@ Page({
 
   async loadBattle() {
     this.clearTimers();
+    this.resetFloatingTexts();
     this.setBattleStageData({ loading: true, error: '', battleFinished: false });
     this.setData({ battleState: 'loading' });
     const context = this.contextPayload || {};
@@ -711,6 +811,7 @@ Page({
       resultClass: '',
       resultRounds: viewModel.result.rounds || viewModel.actions.length
     });
+    this.resetFloatingTexts();
     this.setData({
       actions: viewModel.actions,
       currentRound: 1,
@@ -944,6 +1045,126 @@ Page({
     return '';
   },
 
+  resetFloatingTexts() {
+    this.clearFloatingTextTimers();
+    this._floatingTexts = cloneFloatingTextState();
+    this.setBattleStageData({ floatingTexts: this._floatingTexts });
+  },
+
+  clearFloatingTextTimers() {
+    if (!this._floatingTextTimers) {
+      return;
+    }
+    Object.keys(this._floatingTextTimers).forEach((key) => {
+      if (this._floatingTextTimers[key]) {
+        clearTimeout(this._floatingTextTimers[key]);
+      }
+    });
+    this._floatingTextTimers = {};
+  },
+
+  showFloatingText(side, { text, type = 'skill', duration = 1200 } = {}) {
+    const normalizedSide = side === 'player' || side === 'opponent' ? side : '';
+    if (!normalizedSide) {
+      return;
+    }
+    const stringified = typeof text === 'number' ? String(Math.round(text)) : String(text || '').trim();
+    if (!stringified) {
+      return;
+    }
+    const nextState = cloneFloatingTextState(this._floatingTexts);
+    const entryId = `ft-${Date.now()}-${(this._floatingTextId += 1)}`;
+    const entry = { id: entryId, text: stringified, type };
+    nextState[normalizedSide].push(entry);
+    this._floatingTexts = nextState;
+    this.setBattleStageData({ floatingTexts: nextState });
+    const timeout = setTimeout(() => {
+      this.removeFloatingText(normalizedSide, entryId);
+    }, Math.max(600, duration || 0));
+    this._floatingTextTimers[entryId] = timeout;
+  },
+
+  removeFloatingText(side, id) {
+    if (!id) {
+      return;
+    }
+    const normalizedSide = side === 'player' || side === 'opponent' ? side : '';
+    if (!normalizedSide) {
+      return;
+    }
+    const current = (this._floatingTexts && this._floatingTexts[normalizedSide]) || [];
+    const nextSideEntries = current.filter((item) => item && item.id !== id);
+    if (nextSideEntries.length === current.length) {
+      if (this._floatingTextTimers && this._floatingTextTimers[id]) {
+        clearTimeout(this._floatingTextTimers[id]);
+        delete this._floatingTextTimers[id];
+      }
+      return;
+    }
+    const nextState = cloneFloatingTextState(this._floatingTexts);
+    nextState[normalizedSide] = nextSideEntries;
+    this._floatingTexts = nextState;
+    this.setBattleStageData({ floatingTexts: nextState });
+    if (this._floatingTextTimers && this._floatingTextTimers[id]) {
+      clearTimeout(this._floatingTextTimers[id]);
+      delete this._floatingTextTimers[id];
+    }
+  },
+
+  applyActionFloatingTexts(action, previousHp = {}, nextHp = {}) {
+    if (!action) {
+      return;
+    }
+    const actorSide = action.actor === 'player' || action.actor === 'opponent' ? action.actor : '';
+    const targetSide = action.target === 'player' || action.target === 'opponent' ? action.target : '';
+    const effects = Array.isArray(action.effects) ? action.effects : [];
+    const hasCrit = effects.some((effect) => effect && effect.type === 'crit');
+    const hasDodge = action.type === 'dodge' || effects.some((effect) => effect && effect.type === 'dodge');
+
+    if (actorSide) {
+      const skillText = extractSkillTextFromAction(action);
+      if (skillText) {
+        this.showFloatingText(actorSide, { text: skillText, type: 'skill', duration: 1400 });
+      }
+    }
+
+    if (hasDodge && targetSide) {
+      this.showFloatingText(targetSide, { text: '闪避', type: 'dodge', duration: 1200 });
+    }
+
+    const sides = ['player', 'opponent'];
+    for (let i = 0; i < sides.length; i += 1) {
+      const side = sides[i];
+      const before = resolveHpValue(previousHp, side);
+      const after = resolveHpValue(nextHp, side);
+      if (!Number.isFinite(before) || !Number.isFinite(after)) {
+        continue;
+      }
+      const delta = after - before;
+      if (delta === 0) {
+        continue;
+      }
+      if (delta < 0) {
+        const amount = Math.abs(Math.round(delta));
+        if (amount <= 0) {
+          continue;
+        }
+        const isCrit = hasCrit && side === targetSide;
+        this.showFloatingText(side, {
+          text: `-${amount}`,
+          type: isCrit ? 'crit' : 'damage',
+          duration: isCrit ? 900 : 1200
+        });
+      } else if (delta > 0) {
+        const amount = Math.round(delta);
+        if (amount <= 0) {
+          continue;
+        }
+        this.showFloatingText(side, { text: `+${amount}`, type: 'heal', duration: 1200 });
+      }
+    }
+  },
+
   scheduleNextAction(delay = 1200) {
     this.clearActionTimer();
     if (!Array.isArray(this.data.actions) || !this.data.actions.length) {
@@ -965,13 +1186,16 @@ Page({
     }
     const action = actions[nextIndex];
     const nextLogs = [...this.data.displayedLogs, { id: action.id, text: action.description }].slice(-5);
+    const previousHpState = this.data.hpState || {};
     const nextHpState = action.hp || this.data.hpState;
     this.timelineIndex = nextIndex;
+    this.resetFloatingTexts();
     this.setBattleStageData({
       currentAction: action,
       displayedLogs: nextLogs,
       hpState: nextHpState
     });
+    this.applyActionFloatingTexts(action, previousHpState, nextHpState);
     this.setData({ battleState: 'playing', currentRound: action.round || this.data.currentRound });
     const delay = action.type === 'result' ? 2200 : 1400;
     this.scheduleNextAction(delay);
@@ -979,6 +1203,7 @@ Page({
 
   finishBattle() {
     this.clearTimers();
+    this.resetFloatingTexts();
     if (this.data.battleFinished) {
       return;
     }
@@ -1033,6 +1258,7 @@ Page({
       return;
     }
     this.clearTimers();
+    this.resetFloatingTexts();
     const actions = this.data.actions || [];
     if (actions.length) {
       const lastAction = actions[actions.length - 1];
@@ -1068,6 +1294,7 @@ Page({
       skipLocked: false,
       skipButtonText: '跳过战斗'
     });
+    this.resetFloatingTexts();
     this.setData({ battleState: 'playing', currentRound: 1, skipCountdown: 0 });
     this.scheduleNextAction(400);
   },
@@ -1104,6 +1331,7 @@ Page({
   clearTimers() {
     this.clearActionTimer();
     this.clearSkipTimer();
+    this.clearFloatingTextTimers();
   },
 
   clearActionTimer() {
