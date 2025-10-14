@@ -13,6 +13,8 @@ const {
 const { CHARACTER_IMAGE_BASE_PATH, buildCloudAssetUrl } = require('../../shared/asset-paths');
 
 const ARENA_BACKGROUND_VIDEO = buildCloudAssetUrl('background', 'battle-stage.mp4');
+const BATTLE_BOT_AVATAR_IMAGE = buildCloudAssetUrl('avatar', 'battle-bot.png');
+const BATTLE_BOT_PORTRAIT_IMAGE = buildCloudAssetUrl('character', 'battle-bot.png');
 const { listAvatarIds } = require('../../shared/avatar-catalog');
 
 function buildCharacterImageMap() {
@@ -668,19 +670,34 @@ Page({
     const alignment = this.resolveBattleAlignment(viewModel);
     const defenderBackground = this.resolveDefenderBackgroundVideo(alignment, viewModel);
     const backgroundVideo = defenderBackground || viewModel.backgroundVideo || DEFAULT_BACKGROUND_VIDEO;
+    const stagePlayer = viewModel.player ? { ...viewModel.player } : {};
+    const stageOpponent = viewModel.opponent ? { ...viewModel.opponent } : {};
+
+    if (stagePlayer.isBot) {
+      stagePlayer.avatar = BATTLE_BOT_AVATAR_IMAGE;
+      stagePlayer.portrait = BATTLE_BOT_PORTRAIT_IMAGE;
+    }
+    if (stageOpponent.isBot) {
+      stageOpponent.avatar = BATTLE_BOT_AVATAR_IMAGE;
+      stageOpponent.portrait = BATTLE_BOT_PORTRAIT_IMAGE;
+    }
+
     this.initialHp = {
-      player: viewModel.player.hp,
-      opponent: viewModel.opponent.hp
+      player: stagePlayer.hp || (viewModel.player && viewModel.player.hp) || { current: 0, max: 0 },
+      opponent: stageOpponent.hp || (viewModel.opponent && viewModel.opponent.hp) || { current: 0, max: 0 }
     };
     this.setBattleStageData({
       loading: false,
       error: '',
       backgroundVideo,
-      player: viewModel.player,
-      opponent: viewModel.opponent,
+      player: stagePlayer,
+      opponent: stageOpponent,
       hpState: {
-        player: viewModel.player.hp,
-        opponent: viewModel.opponent.hp
+        player: (stagePlayer && stagePlayer.hp) || (viewModel.player && viewModel.player.hp) || { current: 0, max: 0 },
+        opponent: (stageOpponent && stageOpponent.hp) || (viewModel.opponent && viewModel.opponent.hp) || {
+          current: 0,
+          max: 0
+        }
       },
       attackerKey: alignment.attackerKey,
       defenderKey: alignment.defenderKey,

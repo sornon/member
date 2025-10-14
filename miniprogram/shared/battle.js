@@ -6,6 +6,10 @@ const DEFAULT_BACKGROUND_VIDEO = buildCloudAssetUrl('video', 'battle_default.mp4
 const DEFAULT_AVATAR_IMAGE = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_PLAYER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_OPPONENT_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
+const BATTLE_BOT_AVATAR_IMAGE = buildCloudAssetUrl('avatar', 'battle-bot.png');
+const BATTLE_BOT_PORTRAIT_IMAGE = buildCloudAssetUrl('character', 'battle-bot.png');
+
+const BATTLE_BOT_DISPLAY_NAME = '擂台傀儡';
 
 const PLAYER_SKILL_ROTATION = ['流云剑诀', '星河落斩', '落霞破影', '雷霆贯体'];
 const OPPONENT_SKILL_ROTATION = ['幽影突袭', '寒魄碎骨', '血焰冲锋', '枯藤缠袭'];
@@ -75,6 +79,30 @@ const TITLE_NAME_FIELDS = [
   'activeTitleName',
   'currentTitleName'
 ];
+
+function looksLikeBattleBotDisplayName(value) {
+  return toTrimmedString(value) === BATTLE_BOT_DISPLAY_NAME;
+}
+
+function isBattleBotCandidate(candidate) {
+  if (!candidate || typeof candidate !== 'object') {
+    return false;
+  }
+  if (candidate.isBot) {
+    return true;
+  }
+  if (
+    looksLikeBattleBotDisplayName(candidate.displayName) ||
+    looksLikeBattleBotDisplayName(candidate.name) ||
+    looksLikeBattleBotDisplayName(candidate.nickName)
+  ) {
+    return true;
+  }
+  if (candidate.memberSnapshot && looksLikeBattleBotDisplayName(candidate.memberSnapshot.nickName)) {
+    return true;
+  }
+  return false;
+}
 
 function toTrimmedString(value) {
   if (typeof value !== 'string') {
@@ -953,7 +981,7 @@ function buildStructuredBattleViewModel({
     context.playerPortrait || (playerSource && (playerSource.portrait || playerSource.avatarUrl)) || playerSource,
     defaults.playerPortrait || DEFAULT_PLAYER_IMAGE
   );
-  const opponentPortrait = resolvePortrait(
+  let opponentPortrait = resolvePortrait(
     context.opponentPortrait || (opponentSource && (opponentSource.portrait || opponentSource.avatarUrl)) || opponentSource,
     defaults.opponentPortrait || DEFAULT_OPPONENT_IMAGE
   );
@@ -1301,8 +1329,24 @@ function buildStructuredBattleViewModel({
     sources: opponentRelatedSources
   });
 
-  const normalizedOpponentAvatar =
+  let normalizedOpponentAvatar =
     opponentAvatar || toTrimmedString(defaults.opponentAvatar) || DEFAULT_AVATAR_IMAGE;
+
+  const opponentIsBattleBot =
+    isBattleBotCandidate(battle.opponent) ||
+    isBattleBotCandidate(battle.enemy) ||
+    isBattleBotCandidate(opponentSource) ||
+    isBattleBotCandidate(fallbackParticipants.opponent) ||
+    isBattleBotCandidate(context.opponent) ||
+    isBattleBotCandidate(context.enemy) ||
+    isBattleBotCandidate(context.target) ||
+    isBattleBotCandidate(context.opponentPreview) ||
+    isBattleBotCandidate(context.enemyPreview);
+
+  if (opponentIsBattleBot) {
+    normalizedOpponentAvatar = BATTLE_BOT_AVATAR_IMAGE;
+    opponentPortrait = BATTLE_BOT_PORTRAIT_IMAGE;
+  }
 
   const playerTitle = resolveTitleSnapshotFromSources({
     direct: [
@@ -1351,7 +1395,8 @@ function buildStructuredBattleViewModel({
         damageDealt: Math.round(totals.playerDamageDealt),
         damageTaken: Math.round(totals.playerDamageTaken),
         heal: Math.round(totals.playerHeal)
-      }
+      },
+      isBot: isBattleBotCandidate(battle.player) || isBattleBotCandidate(playerSource)
     },
     opponent: {
       id: opponentId || 'opponent',
@@ -1369,7 +1414,8 @@ function buildStructuredBattleViewModel({
         damageDealt: Math.round(totals.enemyDamageDealt),
         damageTaken: Math.round(totals.enemyDamageTaken),
         heal: Math.round(totals.enemyHeal)
-      }
+      },
+      isBot: opponentIsBattleBot
     },
     actions,
     backgroundVideo,
@@ -1675,6 +1721,15 @@ function buildPvpActions(battle = {}, context = {}) {
   let playerSkillIndex = 0;
   let opponentSkillIndex = 0;
 
+  const playerIsBattleBot = isBattleBotCandidate(battle.player);
+  const opponentIsBattleBot =
+    isBattleBotCandidate(battle.opponent) ||
+    isBattleBotCandidate(battle.enemy) ||
+    isBattleBotCandidate(context && context.opponent) ||
+    isBattleBotCandidate(context && context.enemy) ||
+    isBattleBotCandidate(context && context.opponentPreview) ||
+    isBattleBotCandidate(context && context.enemyPreview);
+
   const actions = rounds.map((entry, index) => {
     const roundNumber = toNumber(entry.round, Math.floor(index / 2) + 1);
     const actorIsPlayer = entry.actorId === playerId;
@@ -1781,32 +1836,43 @@ function buildPvpActions(battle = {}, context = {}) {
     }
   });
 
+  const playerPortrait = playerIsBattleBot
+    ? BATTLE_BOT_PORTRAIT_IMAGE
+    : resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE);
+  const opponentPortrait = opponentIsBattleBot
+    ? BATTLE_BOT_PORTRAIT_IMAGE
+    : resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE);
+
   return {
     player: {
       id: playerId || 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
-      portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
+      portrait: playerPortrait,
       combatPower: toNumber(context && context.playerPower),
       attributes: ensureAttributesObject(context && context.playerAttributes),
       summary: {
         damageDealt: rounds.reduce((total, entry) => (entry.actorId === playerId ? total + formatNumber(entry.damage) : total), 0),
         damageTaken: rounds.reduce((total, entry) => (entry.targetId === playerId ? total + formatNumber(entry.damage) : total), 0),
         heal: rounds.reduce((total, entry) => (entry.actorId === playerId ? total + formatNumber(entry.heal) : total), 0)
-      }
+      },
+      ...(playerIsBattleBot ? { avatar: BATTLE_BOT_AVATAR_IMAGE } : {}),
+      isBot: playerIsBattleBot
     },
     opponent: {
       id: opponentId || 'opponent',
       name: opponentName,
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
-      portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
+      portrait: opponentPortrait,
       combatPower: toNumber(context && context.opponentPower),
       attributes: ensureAttributesObject(context && context.opponentAttributes),
       summary: {
         damageDealt: rounds.reduce((total, entry) => (entry.actorId === opponentId ? total + formatNumber(entry.damage) : total), 0),
         damageTaken: rounds.reduce((total, entry) => (entry.targetId === opponentId ? total + formatNumber(entry.damage) : total), 0),
         heal: rounds.reduce((total, entry) => (entry.actorId === opponentId ? total + formatNumber(entry.heal) : total), 0)
-      }
+      },
+      ...(opponentIsBattleBot ? { avatar: BATTLE_BOT_AVATAR_IMAGE } : {}),
+      isBot: opponentIsBattleBot
     },
     actions,
     backgroundVideo: context && context.backgroundVideo ? context.backgroundVideo : DEFAULT_BACKGROUND_VIDEO,
