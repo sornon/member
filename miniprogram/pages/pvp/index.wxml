@@ -1,134 +1,141 @@
-<custom-nav title="比武竞技场" theme="dark"></custom-nav>
-<view class="container pvp-page">
-  <view wx:if="{{loading}}" class="card pvp-state">比武场布阵中...</view>
-  <block wx:elif="{{profile}}">
-    <view class="card pvp-header">
-      <view class="tier-badge" style="border-color: {{profile.tier.color}};">
-        <text class="tier-badge__name">{{profile.tier.name}}</text>
-        <text class="tier-badge__score">{{profile.points}} 分</text>
-      </view>
-      <view class="pvp-stats">
-        <view class="stat-item">
-          <text class="stat-item__label">胜场</text>
-          <text class="stat-item__value">{{profile.wins}}</text>
-        </view>
-        <view class="stat-item">
-          <text class="stat-item__label">败场</text>
-          <text class="stat-item__value">{{profile.losses}}</text>
-        </view>
-        <view class="stat-item">
-          <text class="stat-item__label">平局</text>
-          <text class="stat-item__value">{{profile.draws}}</text>
-        </view>
-        <view class="stat-item">
-          <text class="stat-item__label">连胜</text>
-          <text class="stat-item__value">{{profile.currentStreak}}</text>
-        </view>
-      </view>
-    </view>
-
-    <view wx:if="{{pendingInviteId}}" class="card pvp-banner">
-      <view class="pvp-banner__text">收到好友邀战，是否应战？</view>
-      <view class="pvp-banner__actions">
-        <button size="mini" class="pvp-banner__btn" loading="{{acceptingInvite}}" bindtap="handleAcceptInvite">立即应战</button>
-        <button size="mini" class="pvp-banner__btn pvp-banner__btn--ghost" bindtap="clearPendingInvite">稍后再战</button>
-      </view>
-    </view>
-
-    <view wx:if="{{targetChallenge}}" class="card pvp-banner pvp-banner--challenge">
-      <view class="pvp-banner__text">是否挑战 {{targetChallenge.name || targetChallenge.id}}？</view>
-      <view class="pvp-banner__actions">
-        <button size="mini" class="pvp-banner__btn" loading="{{matching}}" bindtap="handleChallengeConfirm">发起挑战</button>
-        <button size="mini" class="pvp-banner__btn pvp-banner__btn--ghost" bindtap="handleCancelChallenge">稍后再说</button>
-      </view>
-    </view>
-
-    <view class="card pvp-actions">
-      <button class="pvp-button" type="primary" loading="{{matching}}" disabled="{{matching}}" bindtap="handleMatch">快速匹配</button>
-      <button class="pvp-button" open-type="share" loading="{{inviteSending}}" disabled="{{inviteSending}}" bindtap="handleSendInvite">邀请好友</button>
-      <button class="pvp-button" bindtap="handleViewLeaderboard">查看榜单</button>
-    </view>
-
-    <view wx:if="{{inviteInfo}}" class="card pvp-invite-card">
-      <view class="pvp-invite-card__title">邀战令已生成</view>
-      <view class="pvp-invite-card__meta">编号：{{inviteInfo.inviteId}}</view>
-      <view class="pvp-invite-card__meta">有效期至：{{inviteInfo.expiresAt}}</view>
-      <view class="pvp-invite-card__meta">段位：{{inviteInfo.tier.name}}</view>
-      <view class="pvp-invite-card__tips">点击“邀请好友”后分享即可生效。</view>
-    </view>
-
-    <view wx:if="{{battleResult}}" class="card pvp-battle-card">
-      <view class="pvp-battle-card__header">最新战报</view>
-      <view class="pvp-battle-card__row">
-        <text class="pvp-battle-card__label">结果</text>
-        <text class="pvp-battle-card__value">{{battleResult.draw ? '平局' : battleResult.winnerId === profile.memberId ? '胜利' : '惜败'}}</text>
-      </view>
-      <view class="pvp-battle-card__row">
-        <text class="pvp-battle-card__label">对手</text>
-        <text class="pvp-battle-card__value">{{battleResult.opponent.displayName || '神秘对手'}}（{{battleResult.opponent.tierName}}）</text>
-      </view>
-      <view class="pvp-battle-card__row">
-        <text class="pvp-battle-card__label">积分</text>
-        <text class="pvp-battle-card__value">{{battleResult.player.pointsAfter}}（{{battleResult.player.pointsDelta >= 0 ? '+' : ''}}{{battleResult.player.pointsDelta}}）</text>
-      </view>
-    </view>
-
-    <view wx:if="{{leaderboardPreview.length}}" class="card pvp-leaderboard">
-      <view class="pvp-section__header">
-        <text class="pvp-section__title">天梯前十</text>
-        <text class="pvp-section__link" bindtap="handleViewLeaderboard">查看全部</text>
-      </view>
-      <block wx:for="{{leaderboardPreview}}" wx:key="memberId">
-        <view class="mini-board-item">
-          <view class="mini-board-rank">{{index + 1}}</view>
-          <view class="mini-board-name">{{item.nickName || '神秘仙友'}}</view>
-          <view class="mini-board-score">{{item.points}} 分</view>
-        </view>
-      </block>
-    </view>
-
-    <view class="card pvp-section">
-      <view class="pvp-section__header">
-        <text class="pvp-section__title">近期战报</text>
-      </view>
-      <view wx:if="{{!recentMatches.length}}" class="pvp-empty">暂无战报</view>
-      <block wx:for="{{recentMatches}}" wx:key="matchId">
-        <view class="match-card" data-id="{{item.matchId}}" bindtap="handleReplay">
-          <view class="match-card__row">
-            <text class="match-card__opponent">{{item.opponent.displayName || '神秘对手'}}</text>
-            <text class="match-card__result">{{item.result.draw ? '平局' : item.result.winnerId === profile.memberId ? '胜利' : '败北'}}</text>
-          </view>
-          <view class="match-card__meta">{{formatDateTime(item.createdAt)}}</view>
-        </view>
-      </block>
-    </view>
-
-    <view wx:if="{{history.length}}" class="card pvp-history">
-      <view class="pvp-section__header">
-        <text class="pvp-section__title">往季战绩</text>
-      </view>
-      <block wx:for="{{history}}" wx:key="seasonId">
-        <view class="history-card">
-          <view class="history-card__title">{{item.seasonName}}</view>
-          <view class="history-card__row">
-            <text class="history-card__label">段位</text>
-            <text class="history-card__value">{{item.tier.name}}</text>
-          </view>
-          <view class="history-card__row">
-            <text class="history-card__label">积分</text>
-            <text class="history-card__value">{{item.points}}</text>
-          </view>
-          <view class="history-card__row">
-            <text class="history-card__label">战绩</text>
-            <text class="history-card__value">{{item.wins}}胜 {{item.losses}}负 {{item.draws}}平</text>
-          </view>
-          <view class="history-card__row">
-            <text class="history-card__label">是否领奖</text>
-            <text class="history-card__value">{{item.claimedSeasonReward ? '已领取' : '待领取'}}</text>
+<custom-nav title="比武竞技场" theme="transparent"></custom-nav>
+<view class="pvp-hero-header">
+  <image class="pvp-hero-header__background" src="{{heroBackgroundUrl}}" mode="aspectFill"></image>
+  <view class="container pvp-page">
+    <view wx:if="{{loading}}" class="card pvp-state">比武场布阵中...</view>
+    <block wx:elif="{{profile}}">
+      <view class="pvp-hero">
+        <view class="pvp-hero__content">
+          <view class="pvp-header">
+            <view class="tier-badge" style="border-color: {{profile.tier.color}};">
+              <text class="tier-badge__name">{{profile.tier.name}}</text>
+              <text class="tier-badge__score">{{profile.points}} 分</text>
+            </view>
+            <view class="pvp-stats">
+              <view class="stat-item">
+                <text class="stat-item__label">胜场</text>
+                <text class="stat-item__value">{{profile.wins}}</text>
+              </view>
+              <view class="stat-item">
+                <text class="stat-item__label">败场</text>
+                <text class="stat-item__value">{{profile.losses}}</text>
+              </view>
+              <view class="stat-item">
+                <text class="stat-item__label">平局</text>
+                <text class="stat-item__value">{{profile.draws}}</text>
+              </view>
+              <view class="stat-item">
+                <text class="stat-item__label">连胜</text>
+                <text class="stat-item__value">{{profile.currentStreak}}</text>
+              </view>
+            </view>
           </view>
         </view>
-      </block>
-    </view>
-  </block>
-  <view wx:else class="card pvp-state">暂无竞技数据</view>
+      </view>
+
+      <view wx:if="{{pendingInviteId}}" class="card pvp-banner">
+        <view class="pvp-banner__text">收到好友邀战，是否应战？</view>
+        <view class="pvp-banner__actions">
+          <button size="mini" class="pvp-banner__btn" loading="{{acceptingInvite}}" bindtap="handleAcceptInvite">立即应战</button>
+          <button size="mini" class="pvp-banner__btn pvp-banner__btn--ghost" bindtap="clearPendingInvite">稍后再战</button>
+        </view>
+      </view>
+
+      <view wx:if="{{targetChallenge}}" class="card pvp-banner pvp-banner--challenge">
+        <view class="pvp-banner__text">是否挑战 {{targetChallenge.name || targetChallenge.id}}？</view>
+        <view class="pvp-banner__actions">
+          <button size="mini" class="pvp-banner__btn" loading="{{matching}}" bindtap="handleChallengeConfirm">发起挑战</button>
+          <button size="mini" class="pvp-banner__btn pvp-banner__btn--ghost" bindtap="handleCancelChallenge">稍后再说</button>
+        </view>
+      </view>
+
+      <view class="card pvp-actions">
+        <button class="pvp-button" type="primary" loading="{{matching}}" disabled="{{matching}}" bindtap="handleMatch">快速匹配</button>
+        <button class="pvp-button" open-type="share" loading="{{inviteSending}}" disabled="{{inviteSending}}" bindtap="handleSendInvite">邀请好友</button>
+        <button class="pvp-button" bindtap="handleViewLeaderboard">查看榜单</button>
+      </view>
+
+      <view wx:if="{{inviteInfo}}" class="card pvp-invite-card">
+        <view class="pvp-invite-card__title">邀战令已生成</view>
+        <view class="pvp-invite-card__meta">编号：{{inviteInfo.inviteId}}</view>
+        <view class="pvp-invite-card__meta">有效期至：{{inviteInfo.expiresAt}}</view>
+        <view class="pvp-invite-card__meta">段位：{{inviteInfo.tier.name}}</view>
+        <view class="pvp-invite-card__tips">点击“邀请好友”后分享即可生效。</view>
+      </view>
+
+      <view wx:if="{{battleResult}}" class="card pvp-battle-card">
+        <view class="pvp-battle-card__header">最新战报</view>
+        <view class="pvp-battle-card__row">
+          <text class="pvp-battle-card__label">结果</text>
+          <text class="pvp-battle-card__value">{{battleResult.draw ? '平局' : battleResult.winnerId === profile.memberId ? '胜利' : '惜败'}}</text>
+        </view>
+        <view class="pvp-battle-card__row">
+          <text class="pvp-battle-card__label">对手</text>
+          <text class="pvp-battle-card__value">{{battleResult.opponent.displayName || '神秘对手'}}（{{battleResult.opponent.tierName}}）</text>
+        </view>
+        <view class="pvp-battle-card__row">
+          <text class="pvp-battle-card__label">积分</text>
+          <text class="pvp-battle-card__value">{{battleResult.player.pointsAfter}}（{{battleResult.player.pointsDelta >= 0 ? '+' : ''}}{{battleResult.player.pointsDelta}}）</text>
+        </view>
+      </view>
+
+      <view wx:if="{{leaderboardPreview.length}}" class="card pvp-leaderboard">
+        <view class="pvp-section__header">
+          <text class="pvp-section__title">天梯前十</text>
+          <text class="pvp-section__link" bindtap="handleViewLeaderboard">查看全部</text>
+        </view>
+        <block wx:for="{{leaderboardPreview}}" wx:key="memberId">
+          <view class="mini-board-item">
+            <view class="mini-board-rank">{{index + 1}}</view>
+            <view class="mini-board-name">{{item.nickName || '神秘仙友'}}</view>
+            <view class="mini-board-score">{{item.points}} 分</view>
+          </view>
+        </block>
+      </view>
+
+      <view class="card pvp-section">
+        <view class="pvp-section__header">
+          <text class="pvp-section__title">近期战报</text>
+        </view>
+        <view wx:if="{{!recentMatches.length}}" class="pvp-empty">暂无战报</view>
+        <block wx:for="{{recentMatches}}" wx:key="matchId">
+          <view class="match-card" data-id="{{item.matchId}}" bindtap="handleReplay">
+            <view class="match-card__row">
+              <text class="match-card__opponent">{{item.opponent.displayName || '神秘对手'}}</text>
+              <text class="match-card__result">{{item.result.draw ? '平局' : item.result.winnerId === profile.memberId ? '胜利' : '败北'}}</text>
+            </view>
+            <view class="match-card__meta">{{formatDateTime(item.createdAt)}}</view>
+          </view>
+        </block>
+      </view>
+
+      <view wx:if="{{history.length}}" class="card pvp-history">
+        <view class="pvp-section__header">
+          <text class="pvp-section__title">往季战绩</text>
+        </view>
+        <block wx:for="{{history}}" wx:key="seasonId">
+          <view class="history-card">
+            <view class="history-card__title">{{item.seasonName}}</view>
+            <view class="history-card__row">
+              <text class="history-card__label">段位</text>
+              <text class="history-card__value">{{item.tier.name}}</text>
+            </view>
+            <view class="history-card__row">
+              <text class="history-card__label">积分</text>
+              <text class="history-card__value">{{item.points}}</text>
+            </view>
+            <view class="history-card__row">
+              <text class="history-card__label">战绩</text>
+              <text class="history-card__value">{{item.wins}}胜 {{item.losses}}负 {{item.draws}}平</text>
+            </view>
+            <view class="history-card__row">
+              <text class="history-card__label">是否领奖</text>
+              <text class="history-card__value">{{item.claimedSeasonReward ? '已领取' : '待领取'}}</text>
+            </view>
+          </view>
+        </block>
+      </view>
+    </block>
+    <view wx:else class="card pvp-state">暂无竞技数据</view>
+  </view>
 </view>
