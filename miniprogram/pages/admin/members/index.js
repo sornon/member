@@ -1,18 +1,9 @@
 import { AdminService } from '../../../services/api';
 import { formatMemberDisplayName } from '../../../utils/format';
+const { AVATAR_IMAGE_BASE_PATH } = require('../../../shared/asset-paths.js');
 
 const PAGE_SIZE = 20;
-const DEFAULT_AVATAR =
-  'data:image/svg+xml;base64,' +
-  'PHN2ZyB3aWR0aD0iMTIwIiBoZWlnaHQ9IjEyMCIgdmlld0JveD0iMCAwIDEyMCAxMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CiAgPGRlZi' +
-  'xzPgogICAgPGxpbmVhckdyYWRpZW50IGlkPSJiZyIgeDE9IjUwJSIgeTE9IjAlIiB4Mj0iNTAlIiB5Mj0iMTAwJSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0' +
-  'b3AtY29sb3I9IiMxZTMyNTIiIHN0b3Atb3BhY2l0eT0iMC44Ii8+CiAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzE0MjA0MCIgc3RvcC1vcG' +
-  'FjaXR5PSIwLjkiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9ImZhY2UiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9' +
-  'IjAlIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2Y4OTI1YyIgc3RvcC1vcGFjaXR5PSIwLjgiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMD' +
-  'AlIiBzdG9wLWNvbG9yPSIjZjE0ZjdiIiBzdG9wLW9wYWNpdHk9IjAuNiIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+CiAgPGNpcmNsZSBjeD0iNjAi' +
-  'IGN5PSI2MCIgcj0iNTgiIGZpbGw9InVybCgjYmcpIi8+CiAgPGNpcmNsZSBjeD0iNjAiIGN5PSI0OCIgcj0iMjIiIGZpbGw9IiNmZmYiLz4KICA8cGF0aCBkPSJNM' +
-  'zAgOTAgUTYwIDcwIDkwIDkwIiBmaWxsPSJub25lIiBzdHJva2U9InVybCgjZmFjZSkiIHN0cm9rZS13aWR0aD0iMTAiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo' +
-  '8L3N2Zz4=';
+const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 
 Page({
   data: {
