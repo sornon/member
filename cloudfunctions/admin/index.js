@@ -702,8 +702,19 @@ async function updateSystemFeature(openid, event = {}) {
 
   const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);
   const now = new Date();
+  const sanitizedExisting =
+    existingDocument && typeof existingDocument === 'object'
+      ? Object.keys(existingDocument).reduce((acc, key) => {
+          if (key === '_id' || key === '_openid') {
+            return acc;
+          }
+          acc[key] = existingDocument[key];
+          return acc;
+        }, {})
+      : {};
+
   const payload = {
-    ...(existingDocument && typeof existingDocument === 'object' ? existingDocument : {}),
+    ...sanitizedExisting,
     cashierEnabled: key === 'cashierEnabled' ? nextValue : currentToggles.cashierEnabled,
     updatedAt: now
   };
