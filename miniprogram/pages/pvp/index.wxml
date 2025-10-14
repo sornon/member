@@ -1,4 +1,4 @@
-<custom-nav title="比武竞技场" theme="transparent"></custom-nav>
+<custom-nav title="" theme="transparent"></custom-nav>
 <view class="pvp-hero-header">
   <image class="pvp-hero-header__background" src="{{heroBackgroundUrl}}" mode="aspectFill"></image>
   <view class="container pvp-page">
