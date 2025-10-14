@@ -264,7 +264,7 @@ page {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: 160rpx 0 40rpx;
+  margin: 0 0 140rpx;
   gap: 64rpx;
 }
 
