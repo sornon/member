@@ -63,11 +63,37 @@ function normalizeBackgroundId(id) {
   return BACKGROUND_IDS.has(trimmed) ? trimmed : '';
 }
 
+function resolveDateInput(value) {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function assertBattleCooldown(lastBattleAt, now = new Date()) {
+  if (!lastBattleAt) {
+    return;
+  }
+  const last = resolveDateInput(lastBattleAt);
+  if (!last) {
+    return;
+  }
+  if (now.getTime() - last.getTime() < BATTLE_COOLDOWN_MS) {
+    throw createError('BATTLE_COOLDOWN_ACTIVE', BATTLE_COOLDOWN_MESSAGE);
+  }
+}
+
 const MAX_LEVEL = 100;
 const MAX_SKILL_SLOTS = 3;
 const MAX_BATTLE_HISTORY = 15;
 const MAX_SKILL_HISTORY = 30;
 const DEFAULT_SKILL_DRAW_CREDITS = 1;
+const BATTLE_COOLDOWN_MS = 10 * 1000;
+const BATTLE_COOLDOWN_MESSAGE = '您的上一场战斗还没结束，请稍后再战';
 
 const ENEMY_COMBAT_DEFAULTS = {
   ...DEFAULT_COMBAT_STATS,
@@ -2710,6 +2736,8 @@ async function simulateBattle(actorId, enemyId) {
   const member = await ensureMember(actorId);
   const levels = await loadMembershipLevels();
   const profile = await ensurePveProfile(actorId, member, levels);
+  const now = new Date();
+  assertBattleCooldown(profile.lastBattleAt, now);
   const enemy = resolveEnemyTarget(enemyId);
   if (!enemy) {
     throw createError('ENEMY_NOT_FOUND', '未找到指定的副本目标');
@@ -2741,7 +2769,6 @@ async function simulateBattle(actorId, enemyId) {
         : null
   });
 
-  const now = new Date();
   const updatedProfile = applyBattleOutcome(profile, result, enemy, now, member, levels, formattedBattle);
   const extraUpdates = {};
   if (result.rewards && result.rewards.stones > 0) {
@@ -4234,7 +4261,8 @@ function buildDefaultProfile(now = new Date()) {
     skills: buildDefaultSkills(now),
     secretRealm: buildDefaultSecretRealmState(),
     battleHistory: [],
-    skillHistory: []
+    skillHistory: [],
+    lastBattleAt: null
   };
 }
 
@@ -4734,6 +4762,8 @@ function normalizeProfileInternal(profile, now = new Date(), options = {}) {
     battleHistory: normalizeHistory(payload.battleHistory, MAX_BATTLE_HISTORY),
     skillHistory: normalizeHistory(payload.skillHistory, MAX_SKILL_HISTORY)
   };
+  const lastBattleAt = resolveDateInput(payload.lastBattleAt);
+  normalized.lastBattleAt = lastBattleAt || null;
   refreshAttributeSummary(normalized);
   return normalized;
 }
@@ -7888,6 +7918,8 @@ function applyBattleOutcome(profile, result, enemy, now, member, levels = [], ba
   if (profile && profile.__historyDoc) {
     updated.__historyDoc = profile.__historyDoc;
   }
+
+  updated.lastBattleAt = now;
 
   return updated;
 }

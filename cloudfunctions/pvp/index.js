@@ -25,6 +25,8 @@ const MATCH_ROUND_LIMIT = 15;
 const LEADERBOARD_CACHE_SIZE = 100;
 const RECENT_MATCH_LIMIT = 10;
 const DEFAULT_RATING = 1200;
+const BATTLE_COOLDOWN_MS = 10 * 1000;
+const BATTLE_COOLDOWN_MESSAGE = '您的上一场战斗还没结束，请稍后再战';
 
 const PVP_TIERS = [
   { id: 'bronze', name: '青铜', min: 0, max: 999, color: '#c4723a', rewardKey: 'bronze' },
@@ -78,6 +80,30 @@ function buildBackgroundPayloadFromId(backgroundId, animatedFlag) {
 
 let collectionsReady = false;
 let ensuringCollectionsPromise = null;
+
+function resolveDateInput(value) {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function assertBattleCooldown(lastBattleAt, now = new Date()) {
+  if (!lastBattleAt) {
+    return;
+  }
+  const last = resolveDateInput(lastBattleAt);
+  if (!last) {
+    return;
+  }
+  if (now.getTime() - last.getTime() < BATTLE_COOLDOWN_MS) {
+    throw createError('BATTLE_COOLDOWN_ACTIVE', BATTLE_COOLDOWN_MESSAGE);
+  }
+}
 
 exports.main = async (event = {}) => {
   const { OPENID } = cloud.getWXContext();
@@ -179,6 +205,7 @@ async function matchRandom(memberId, event = {}) {
   const season = await ensureActiveSeason();
   const member = await ensureMember(memberId);
   const profile = await ensurePvpProfile(memberId, member, season);
+  assertBattleCooldown(profile.lastMatchedAt);
   const seed = normalizeSeed(event.seed) || buildMatchSeed(memberId, season._id);
   const opponent = await findRandomOpponent(memberId, season, profile);
   const battle = await resolveBattle(memberId, member, profile, opponent, season, { seed });
@@ -213,6 +240,7 @@ async function matchFriend(memberId, event = {}) {
     ensurePvpProfile(memberId, member, season),
     ensurePvpProfile(targetId, opponentMember, season)
   ]);
+  assertBattleCooldown(profile.lastMatchedAt);
   const seed = normalizeSeed(event.seed) || buildMatchSeed(`${memberId}:${targetId}`, season._id);
   const opponent = {
     isBot: false,
@@ -435,6 +463,7 @@ async function acceptInvite(memberId, event = {}) {
     ensurePvpProfile(memberId, member, season),
     ensurePvpProfile(inviterId, inviterMember, season)
   ]);
+  assertBattleCooldown(profile.lastMatchedAt);
   const seed = invite.seed || buildMatchSeed(`${inviterId}:${memberId}`, season._id);
   const opponent = {
     isBot: false,
