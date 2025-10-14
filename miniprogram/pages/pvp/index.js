@@ -3,6 +3,30 @@ const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
 
 const app = getApp();
 
+function detectExternalEntry() {
+  try {
+    const pages = getCurrentPages();
+    if (!pages || pages.length <= 1) {
+      return true;
+    }
+    const previous = pages[pages.length - 2];
+    if (!previous || !previous.route) {
+      return true;
+    }
+    const route = String(previous.route);
+    if (route.startsWith('pages/')) {
+      return false;
+    }
+    if (route.startsWith('subpackage/')) {
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error('[pvp] detect external entry failed', error);
+    return false;
+  }
+}
+
 function hasOwnQuery(options) {
   if (!options || typeof options !== 'object') {
     return false;
@@ -94,6 +118,8 @@ Page({
     this._inviteEntryActive = false;
     this._inviteEntryFallback = false;
     this._inviteAutoTriggered = false;
+    this._externalAutoMatchTriggered = false;
+    this._externalEntry = detectExternalEntry();
     this._initialOptionSource = resolved.source;
     this._initialOptionCandidates = resolved.candidates || [];
     const nextState = {};
@@ -406,12 +432,21 @@ Page({
   },
 
   triggerAutoBattleIfNeeded() {
-    const { pendingInviteId } = this.data;
-    if (!pendingInviteId || this._inviteAutoTriggered) {
+    const { pendingInviteId, targetChallenge } = this.data;
+    if (pendingInviteId && !this._inviteAutoTriggered) {
+      this._inviteAutoTriggered = true;
+      this.handleAcceptInvite();
       return;
     }
-    this._inviteAutoTriggered = true;
-    this.handleAcceptInvite();
+    if (
+      !pendingInviteId
+      && !targetChallenge
+      && this._externalEntry
+      && !this._externalAutoMatchTriggered
+    ) {
+      this._externalAutoMatchTriggered = true;
+      this.handleMatch();
+    }
   },
 
   clearPendingInvite() {
