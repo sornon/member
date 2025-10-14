@@ -358,24 +358,6 @@ Page({
     if (Object.keys(nextState).length) {
       this.setData(nextState);
     }
-    if (payload.battle) {
-      const profile = nextState.profile || this.data.profile || {};
-      const memberId = profile ? profile.memberId : '';
-      const draw = !!payload.battle.draw;
-      const victory = !draw && payload.battle.winnerId === memberId;
-      const battleSource = payload.battleSource || payload.source || '';
-      if (this.isInviteBattleSource(battleSource)) {
-        const message = victory
-          ? '您在仙界的实力相当过硬，继续灰茄提升功力吧。'
-          : '赶快开始灰茄提升仙界功力吧，您在仙界的实力太弱了。';
-        wx.showToast({ title: message, icon: 'none', duration: 4000 });
-      } else {
-        wx.showToast({
-          title: draw ? '平局收场' : victory ? '比武胜利' : '比武结束',
-          icon: 'success'
-        });
-      }
-    }
   },
 
   onShareAppMessage() {
