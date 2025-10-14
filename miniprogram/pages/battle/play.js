@@ -1270,7 +1270,7 @@ Page({
       skipButtonText: '重播战斗'
     });
     this.setData({ battleState: 'finished' });
-    this.notifyParent();
+    // this.notifyParent();
   },
 
   handleSkip() {
