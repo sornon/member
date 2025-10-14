@@ -235,6 +235,9 @@ Page({
       if (backgroundVideo) {
         viewContext.backgroundVideo = backgroundVideo;
       }
+      if (!viewContext.backgroundVideo) {
+        viewContext.backgroundVideo = SECRET_REALM_BACKGROUND_VIDEO;
+      }
       return { battle, viewContext };
     }
 
