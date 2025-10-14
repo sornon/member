@@ -1,10 +1,11 @@
-const { buildCloudAssetUrl, CHARACTER_IMAGE_BASE_PATH } = require('./asset-paths');
+const { buildCloudAssetUrl, AVATAR_IMAGE_BASE_PATH, CHARACTER_IMAGE_BASE_PATH } = require('./asset-paths');
 const { normalizeAvatarFrameValue } = require('./avatar-frames');
 const { buildTitleImageUrl, normalizeTitleId, resolveTitleById } = require('./titles');
 
 const DEFAULT_BACKGROUND_VIDEO = buildCloudAssetUrl('video', 'battle_default.mp4');
-const DEFAULT_PLAYER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/male-b-1.png`;
-const DEFAULT_OPPONENT_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/female-c-1.png`;
+const DEFAULT_AVATAR_IMAGE = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
+const DEFAULT_PLAYER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
+const DEFAULT_OPPONENT_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 
 const PLAYER_SKILL_ROTATION = ['流云剑诀', '星河落斩', '落霞破影', '雷霆贯体'];
 const OPPONENT_SKILL_ROTATION = ['幽影突袭', '寒魄碎骨', '血焰冲锋', '枯藤缠袭'];
@@ -1271,6 +1272,9 @@ function buildStructuredBattleViewModel({
     sources: playerRelatedSources
   });
 
+  const normalizedPlayerAvatar =
+    playerAvatar || toTrimmedString(defaults.playerAvatar) || DEFAULT_AVATAR_IMAGE;
+
   const opponentAvatarFrame = resolveAvatarFrameFromSources({
     direct: [
       context.opponentAvatarFrame,
@@ -1296,6 +1300,9 @@ function buildStructuredBattleViewModel({
     ],
     sources: opponentRelatedSources
   });
+
+  const normalizedOpponentAvatar =
+    opponentAvatar || toTrimmedString(defaults.opponentAvatar) || DEFAULT_AVATAR_IMAGE;
 
   const playerTitle = resolveTitleSnapshotFromSources({
     direct: [
@@ -1332,7 +1339,7 @@ function buildStructuredBattleViewModel({
       id: playerId || 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
-      avatar: playerAvatar,
+      avatar: normalizedPlayerAvatar,
       portrait: playerPortrait,
       combatPower: toNumber((playerSource && playerSource.combatPower) || context.playerPower),
       avatarFrame: playerAvatarFrame,
@@ -1350,7 +1357,7 @@ function buildStructuredBattleViewModel({
       id: opponentId || 'opponent',
       name: opponentName,
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
-      avatar: opponentAvatar,
+      avatar: normalizedOpponentAvatar,
       portrait: opponentPortrait,
       combatPower: toNumber((opponentSource && opponentSource.combatPower) || context.opponentPower),
       avatarFrame: opponentAvatarFrame,
