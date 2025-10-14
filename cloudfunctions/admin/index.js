@@ -1071,7 +1071,7 @@ async function resetImmortalTournamentSeason(season) {
     summary
   );
 
-  const profileUpdates = await resetPvpProfilesForSeason(season, summary);
+  const removedProfiles = await resetPvpProfilesForSeason(season, summary);
 
   const now = new Date();
   const endAt = new Date(now.getTime() + DEFAULT_PVP_SEASON_LENGTH_DAYS * 24 * 60 * 60 * 1000);
@@ -1101,7 +1101,7 @@ async function resetImmortalTournamentSeason(season) {
     removedInvites,
     removedMatches,
     removedLeaderboards,
-    updatedProfiles: profileUpdates,
+    removedProfiles,
     summary
   };
 }
@@ -1178,90 +1178,15 @@ async function removeCollectionDocumentsByCondition(collectionName, condition, c
 }
 
 async function resetPvpProfilesForSeason(season, summary) {
-  const collection = db.collection(COLLECTIONS.PVP_PROFILES);
-  const seasonId = season._id;
-  const limit = 100;
-  let updated = 0;
-  let hasMore = true;
-  let guard = 0;
-  let lastId = '';
-
-  while (hasMore && guard < 200) {
-    const condition = lastId ? _.and([{ seasonId }, { _id: _.gt(lastId) }]) : { seasonId };
-    const snapshot = await collection
-      .where(condition)
-      .orderBy('_id', 'asc')
-      .limit(limit)
-      .get()
-      .catch(() => ({ data: [] }));
-    const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
-    if (!docs.length) {
-      break;
-    }
-    lastId = docs[docs.length - 1]._id || lastId;
-    guard += 1;
-
-    const tasks = docs.map((doc) => {
-      if (!doc) {
-        return Promise.resolve();
-      }
-      const docId = doc._id || doc.memberId;
-      if (!docId) {
-        return Promise.resolve();
-      }
-      const now = new Date();
-      const history = Array.isArray(doc.seasonHistory)
-        ? doc.seasonHistory.filter((entry) => entry && entry.seasonId !== seasonId)
-        : [];
-      return collection
-        .doc(docId)
-        .update({
-          data: {
-            seasonId,
-            seasonName: season.name || `第${season.index || ''}赛季`,
-            tierId: DEFAULT_PVP_TIER.id,
-            tierName: DEFAULT_PVP_TIER.name,
-            points: DEFAULT_PVP_RATING,
-            wins: 0,
-            losses: 0,
-            draws: 0,
-            currentStreak: 0,
-            longestStreak: 0,
-            bestPoints: DEFAULT_PVP_RATING,
-            claimedSeasonReward: false,
-            lastMatchedAt: null,
-            lastResultAt: null,
-            updatedAt: now,
-            seasonHistory: history
-          }
-        })
-        .then(() => {
-          updated += 1;
-        })
-        .catch((error) => {
-          if (!isNotFoundError(error)) {
-            pushCleanupError(summary, COLLECTIONS.PVP_PROFILES, error, docId);
-          }
-        });
-    });
-
-    if (tasks.length) {
-      await Promise.all(tasks);
-    }
-
-    if (docs.length < limit) {
-      hasMore = false;
-    }
+  if (!season || !season._id) {
+    return 0;
   }
-
-  if (updated > 0) {
-    if (!summary.updatedProfiles || typeof summary.updatedProfiles !== 'number') {
-      summary.updatedProfiles = 0;
-    }
-    summary.updatedProfiles += updated;
-  }
-
-  return updated;
+  return removeCollectionDocumentsByCondition(
+    COLLECTIONS.PVP_PROFILES,
+    { seasonId: season._id },
+    'pvpProfiles',
+    summary
+  );
 }
 
 async function listMembers(openid, keyword, page, pageSize) {
