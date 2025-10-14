@@ -1240,8 +1240,8 @@ Page({
       const source = this.parentPayload ? this.parentPayload.battleSource : '';
       if (isExternalInviteSource(source)) {
         resultSubtitle = victory
-          ? '您在仙界的实力相当过硬，继续灰茄提升功力吧。'
-          : '赶快开始灰茄提升仙界功力吧，您在仙界的实力太弱了。';
+          ? '您的仙界实力过硬，继续灰茄提升功力吧。'
+          : '赶快灰茄提升功力吧，您在仙界实力太弱了。';
       } else {
         if (
           victory &&
@@ -1395,6 +1395,6 @@ Page({
       dataUpdates[key] = nextStage[key];
     });
     this.setData(dataUpdates);
-    console.log('[battle] battleStage state:', nextStage);
+    // console.log('[battle] battleStage state:', nextStage);
   }
 });
