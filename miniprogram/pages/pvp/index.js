@@ -1,4 +1,4 @@
-import { PvpService } from '../../services/api';
+import { MemberService, PvpService } from '../../services/api';
 const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
 
 const app = getApp();
@@ -38,6 +38,7 @@ Page({
   },
 
   onLoad(options = {}) {
+    this._ensureMemberPromise = null;
     const nextState = {};
     if (options.inviteId) {
       nextState.pendingInviteId = options.inviteId;
@@ -48,8 +49,13 @@ Page({
         name: options.targetName ? decodeURIComponent(options.targetName) : ''
       };
     }
+    const afterStateApplied = () => {
+      this.triggerAutoBattleIfNeeded();
+    };
     if (Object.keys(nextState).length) {
-      this.setData(nextState);
+      this.setData(nextState, afterStateApplied);
+    } else {
+      afterStateApplied();
     }
   },
 
@@ -59,7 +65,13 @@ Page({
       this.setData({ battleResult: globalBattle.battle || null });
       app.globalData.lastPvpBattle = null;
     }
-    this.fetchProfile();
+    this.ensureMemberReady()
+      .catch((error) => {
+        console.error('[pvp] ensure member on show failed', error);
+      })
+      .finally(() => {
+        this.fetchProfile();
+      });
   },
 
   onPullDownRefresh() {
@@ -120,9 +132,16 @@ Page({
     });
   },
 
-  handleAcceptInvite() {
+  async handleAcceptInvite() {
     const { pendingInviteId, acceptingInvite } = this.data;
     if (!pendingInviteId || acceptingInvite) {
+      return;
+    }
+    try {
+      await this.ensureMemberReady();
+    } catch (error) {
+      console.error('[pvp] ensure member before accepting invite failed', error);
+      wx.showToast({ title: error.errMsg || '进入战斗失败', icon: 'none' });
       return;
     }
     this.setData({ acceptingInvite: true });
@@ -147,6 +166,48 @@ Page({
         this.setData({ acceptingInvite: false });
       }
     });
+  },
+
+  ensureMemberReady() {
+    if (this._ensureMemberPromise) {
+      return this._ensureMemberPromise;
+    }
+    try {
+      const globalMember = app && app.globalData ? app.globalData.memberInfo : null;
+      if (globalMember && globalMember._id) {
+        return Promise.resolve(globalMember);
+      }
+    } catch (error) {
+      console.error('[pvp] read global member failed', error);
+    }
+    const promise = MemberService.getMember()
+      .then((member) => {
+        try {
+          if (member && app && app.globalData) {
+            app.globalData.memberInfo = member;
+          }
+        } catch (error) {
+          console.error('[pvp] update global member failed', error);
+        }
+        return member;
+      })
+      .catch((error) => {
+        console.error('[pvp] ensure member failed', error);
+        throw error;
+      })
+      .finally(() => {
+        this._ensureMemberPromise = null;
+      });
+    this._ensureMemberPromise = promise;
+    return promise;
+  },
+
+  triggerAutoBattleIfNeeded() {
+    const { pendingInviteId } = this.data;
+    if (!pendingInviteId) {
+      return;
+    }
+    this.handleAcceptInvite();
   },
 
   clearPendingInvite() {
