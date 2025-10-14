@@ -3,6 +3,48 @@ const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
 
 const app = getApp();
 
+function hasOwnQuery(options) {
+  if (!options || typeof options !== 'object') {
+    return false;
+  }
+  return Object.keys(options).length > 0;
+}
+
+function parseScene(scene) {
+  if (!scene || typeof scene !== 'string') {
+    return {};
+  }
+  let decoded = scene;
+  try {
+    decoded = decodeURIComponent(scene);
+  } catch (error) {
+    console.warn('[pvp] decode scene failed', error);
+  }
+  return decoded.split('&').reduce((acc, pair) => {
+    if (!pair) {
+      return acc;
+    }
+    const [rawKey, rawValue = ''] = pair.split('=');
+    if (!rawKey) {
+      return acc;
+    }
+    let key = rawKey;
+    try {
+      key = decodeURIComponent(rawKey);
+    } catch (error) {
+      console.warn('[pvp] decode scene key failed', rawKey, error);
+    }
+    let value = rawValue;
+    try {
+      value = decodeURIComponent(rawValue);
+    } catch (error) {
+      console.warn('[pvp] decode scene value failed', rawKey, error);
+    }
+    acc[key] = value;
+    return acc;
+  }, {});
+}
+
 function formatDateTime(date) {
   if (!date) return '';
   const parsed = new Date(date);
@@ -39,7 +81,8 @@ Page({
     claimingReward: false
   },
 
-  onLoad(options = {}) {
+  onLoad(rawOptions = {}) {
+    const options = this.resolveInitialOptions(rawOptions);
     this._ensureMemberPromise = null;
     this._inviteEntryActive = false;
     this._inviteEntryFallback = false;
@@ -64,6 +107,56 @@ Page({
     } else {
       afterStateApplied();
     }
+  },
+
+  resolveInitialOptions(rawOptions = {}) {
+    // 在部分回流场景（如重新进入分享卡片、开发者工具直接打开路径）里，onLoad 可能只收到空对象，这里做兜底解析
+    if (hasOwnQuery(rawOptions)) {
+      return rawOptions;
+    }
+
+    const fallbackSources = [];
+    if (typeof wx.getEnterOptionsSync === 'function') {
+      try {
+        const enterOptions = wx.getEnterOptionsSync();
+        if (enterOptions && enterOptions.query && hasOwnQuery(enterOptions.query)) {
+          fallbackSources.push({ source: 'enter', query: enterOptions.query });
+        } else if (enterOptions && enterOptions.scene) {
+          const sceneQuery = parseScene(enterOptions.scene);
+          if (hasOwnQuery(sceneQuery)) {
+            fallbackSources.push({ source: 'enterScene', query: sceneQuery });
+          }
+        }
+      } catch (error) {
+        console.error('[pvp] getEnterOptionsSync failed', error);
+      }
+    }
+
+    if (!fallbackSources.length && typeof wx.getLaunchOptionsSync === 'function') {
+      try {
+        const launchOptions = wx.getLaunchOptionsSync();
+        if (launchOptions && launchOptions.query && hasOwnQuery(launchOptions.query)) {
+          fallbackSources.push({ source: 'launch', query: launchOptions.query });
+        } else if (launchOptions && launchOptions.scene) {
+          const sceneQuery = parseScene(launchOptions.scene);
+          if (hasOwnQuery(sceneQuery)) {
+            fallbackSources.push({ source: 'launchScene', query: sceneQuery });
+          }
+        }
+      } catch (error) {
+        console.error('[pvp] getLaunchOptionsSync failed', error);
+      }
+    }
+
+    if (!fallbackSources.length) {
+      return rawOptions || {};
+    }
+
+    const fallback = fallbackSources[0];
+    if (fallback && fallback.source) {
+      console.info('[pvp] load options fallback from', fallback.source, fallback.query);
+    }
+    return fallback.query || rawOptions || {};
   },
 
   composeInviteDebugLink(options = {}) {
