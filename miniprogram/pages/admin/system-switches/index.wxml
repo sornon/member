@@ -1,13 +1,14 @@
-<custom-nav title="系统功能开关" theme="dark"></custom-nav>
+<custom-nav title="系统设置" theme="dark"></custom-nav>
 <view class="system-switch-page container">
   <view wx:if="{{loading}}" class="card loading-card">加载中…</view>
   <block wx:else>
     <view class="card intro-card">
-      <view class="intro-title">全局功能控制</view>
-      <view class="intro-desc">用于快速启用或关闭对会员开放的关键功能，及时响应运营需求。</view>
+      <view class="intro-title">全局设置概览</view>
+      <view class="intro-desc">系统全局配置功能，集中管理会员端的关键能力与活动信息。</view>
     </view>
 
     <view class="card switch-card">
+      <view class="card-title">基础功能</view>
       <view class="switch-row">
         <view class="switch-info">
           <view class="switch-name">收银台</view>
@@ -24,6 +25,92 @@
       <view wx:if="{{updating.cashierEnabled}}" class="switch-hint">保存中…</view>
       <view wx:elif="{{!features.cashierEnabled}}" class="switch-hint warning">关闭后，会员钱包将提示“目前只支持收款台线下充值”。</view>
       <view wx:else class="switch-hint">开启后，会员可直接在钱包中完成微信充值。</view>
+    </view>
+
+    <view class="card tournament-card">
+      <view class="card-title">仙界比武大会</view>
+      <view class="card-desc">为活动开放状态、报名窗口与对外说明提供统一配置。</view>
+      <view class="switch-row">
+        <view class="switch-info">
+          <view class="switch-name">大会入口</view>
+          <view class="switch-desc">控制小程序内比武大会报名与战报的展示。</view>
+        </view>
+        <switch
+          checked="{{tournamentDraft.enabled}}"
+          data-field="enabled"
+          bindchange="handleTournamentToggle"
+          disabled="{{tournamentSaving}}"
+          color="#566aff"
+        ></switch>
+      </view>
+      <view wx:if="{{tournamentSaving}}" class="switch-hint">保存中…</view>
+      <view wx:elif="{{!tournamentDraft.enabled}}" class="switch-hint warning">关闭后，入口会隐藏，会员无法报名参战。</view>
+      <view wx:else class="switch-hint">开启后，会员可在比武入口报名参战。</view>
+
+      <view class="form-grid">
+        <view class="form-field">
+          <view class="field-label">报名开启时间</view>
+          <input
+            class="field-input"
+            placeholder="示例：2025-07-01 10:00"
+            value="{{tournamentDraft.registrationStart}}"
+            data-field="registrationStart"
+            bindinput="handleTournamentFieldChange"
+            disabled="{{tournamentSaving}}"
+          />
+          <view class="field-hint">用于在前台公告报名开始时间。</view>
+        </view>
+        <view class="form-field">
+          <view class="field-label">报名截止时间</view>
+          <input
+            class="field-input"
+            placeholder="留空表示随时可报名"
+            value="{{tournamentDraft.registrationEnd}}"
+            data-field="registrationEnd"
+            bindinput="handleTournamentFieldChange"
+            disabled="{{tournamentSaving}}"
+          />
+          <view class="field-hint">会在会员端报名须知中同步展示。</view>
+        </view>
+        <view class="form-field">
+          <view class="field-label">规则说明链接</view>
+          <input
+            class="field-input"
+            placeholder="填写外部图文或活动详情地址"
+            value="{{tournamentDraft.ruleLink}}"
+            data-field="ruleLink"
+            bindinput="handleTournamentFieldChange"
+            disabled="{{tournamentSaving}}"
+          />
+          <view class="field-hint">会员端可跳转查看完整规则细节。</view>
+        </view>
+      </view>
+      <view class="form-field full-width">
+        <view class="field-label">活动公告文案</view>
+        <textarea
+          class="field-textarea"
+          placeholder="填写将展示给会员的大会公告、奖励说明等内容"
+          value="{{tournamentDraft.announcement}}"
+          maxlength="500"
+          show-confirm-bar="false"
+          data-field="announcement"
+          bindinput="handleTournamentFieldChange"
+          disabled="{{tournamentSaving}}"
+        ></textarea>
+        <view class="field-hint">支持换行，将直接同步到会员端的说明区块。</view>
+      </view>
+
+      <view class="action-row">
+        <button
+          class="primary-button"
+          bindtap="handleTournamentSubmit"
+          loading="{{tournamentSaving}}"
+          disabled="{{tournamentSaving}}"
+        >保存大会设置</button>
+        <view class="action-hint">点击保存后统一提交报名窗口及公告内容。</view>
+      </view>
+
+      <view wx:if="{{tournamentError}}" class="error-banner">{{tournamentError}}</view>
     </view>
 
     <view wx:if="{{error}}" class="error-banner">{{error}}</view>
