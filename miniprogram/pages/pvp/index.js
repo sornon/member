@@ -328,10 +328,19 @@ Page({
       const memberId = profile ? profile.memberId : '';
       const draw = !!payload.battle.draw;
       const victory = !draw && payload.battle.winnerId === memberId;
-      wx.showToast({
-        title: draw ? '平局收场' : victory ? '比武胜利' : '比武结束',
-        icon: 'success'
-      });
+      const battleSource = payload.battleSource || payload.source || '';
+      if (!draw && !victory && battleSource === 'acceptInvite') {
+        wx.showToast({
+          title: '您在仙界的实力太弱了，赶快开始现实灰茄提升仙界功力吧。',
+          icon: 'none',
+          duration: 4000
+        });
+      } else {
+        wx.showToast({
+          title: draw ? '平局收场' : victory ? '比武胜利' : '比武结束',
+          icon: 'success'
+        });
+      }
     }
   },
 

@@ -742,6 +742,7 @@ Page({
         viewContext.backgroundVideo = ARENA_BACKGROUND_VIDEO;
         this.parentPayload = {
           type: 'pvp',
+          battleSource: action,
           profile: serviceResult.profile || null,
           battle: serviceResult.battle || null,
           opponent: serviceResult.opponent || null,
