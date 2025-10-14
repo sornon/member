@@ -1,3 +1,7 @@
+const { buildCloudAssetUrl } = require('../../shared/asset-paths');
+
+const SECRET_REALM_BACKGROUND_VIDEO = buildCloudAssetUrl('background', 'mijing.mp4');
+
 function formatDateTime(date) {
   if (!date) return '';
   const parsed = new Date(date);
@@ -271,6 +275,9 @@ Page({
     }
     if (record.backgroundVideo) {
       viewContext.backgroundVideo = record.backgroundVideo;
+    }
+    if (!viewContext.backgroundVideo) {
+      viewContext.backgroundVideo = SECRET_REALM_BACKGROUND_VIDEO;
     }
     return { battle, viewContext };
   },
