@@ -4,6 +4,7 @@ const { COLLECTIONS, DEFAULT_ADMIN_ROLES } = require('common-config');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
+const dbCommand = db.command;
 
 const ADMIN_ROLES = [...new Set([...DEFAULT_ADMIN_ROLES, 'superadmin'])];
 const ensuredCollections = new Set();
@@ -13,7 +14,10 @@ const ACTIONS = {
   ADMIN_LIST: 'adminListCatalog',
   CREATE_SECTION: 'createSection',
   CREATE_CATEGORY: 'createCategory',
-  CREATE_ITEM: 'createItem'
+  CREATE_ITEM: 'createItem',
+  UPDATE_SECTION: 'updateSection',
+  UPDATE_CATEGORY: 'updateCategory',
+  UPDATE_ITEM: 'updateItem'
 };
 
 function resolveAction(input) {
@@ -32,6 +36,15 @@ function resolveAction(input) {
       }
       if (normalized === 'createitem') {
         return ACTIONS.CREATE_ITEM;
+      }
+      if (normalized === 'updatesection') {
+        return ACTIONS.UPDATE_SECTION;
+      }
+      if (normalized === 'updatecategory') {
+        return ACTIONS.UPDATE_CATEGORY;
+      }
+      if (normalized === 'updateitem') {
+        return ACTIONS.UPDATE_ITEM;
       }
       if (normalized === 'list' || normalized === 'listcatalog') {
         return ACTIONS.LIST;
@@ -537,6 +550,19 @@ async function findCategoryById(sectionId, categoryId) {
   return data.length ? data[0] : null;
 }
 
+async function findItemById(itemId) {
+  if (!itemId) {
+    return null;
+  }
+  const snapshot = await db
+    .collection(COLLECTIONS.MENU_ITEMS)
+    .where({ itemId })
+    .limit(1)
+    .get();
+  const data = Array.isArray(snapshot.data) ? snapshot.data : [];
+  return data.length ? data[0] : null;
+}
+
 async function createSection(openid, input = {}) {
   const admin = await ensureAdmin(openid);
   const sectionId = normalizeIdentifier(input.sectionId || input.id || '');
@@ -683,6 +709,225 @@ async function createItem(openid, input = {}) {
   };
 }
 
+async function updateSection(openid, input = {}) {
+  const admin = await ensureAdmin(openid);
+  const sectionId = normalizeIdentifier(input.sectionId || input.id || '');
+  if (!sectionId) {
+    throw new Error('请选择一级类目');
+  }
+  const existing = await findSectionById(sectionId);
+  if (!existing) {
+    throw new Error('一级类目不存在');
+  }
+  const updates = {};
+  const name = normalizeName(input.name || input.title || '');
+  if (name) {
+    updates.name = name;
+    updates.title = normalizeName(input.title || name);
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'sortOrder')) {
+    if (input.sortOrder !== '' && input.sortOrder !== null) {
+      const currentOrder =
+        typeof existing.sortOrder === 'number' ? existing.sortOrder : 1000;
+      updates.sortOrder = resolveSortOrder(input.sortOrder, currentOrder);
+    }
+  }
+  if (typeof input.enabled === 'boolean') {
+    updates.status = input.enabled ? 'active' : 'disabled';
+  } else if (typeof input.status === 'string') {
+    const status = input.status.trim().toLowerCase();
+    if (status === 'active' || status === 'enabled' || status === 'online') {
+      updates.status = 'active';
+    } else if (status === 'disabled' || status === 'inactive' || status === 'offline') {
+      updates.status = 'disabled';
+    }
+  }
+  if (Object.keys(updates).length === 0) {
+    throw new Error('未检测到需要保存的修改');
+  }
+  const now = new Date();
+  updates.updatedAt = now;
+  updates.updatedBy = admin._id || admin.openid || '';
+  const collection = db.collection(COLLECTIONS.MENU_SECTIONS);
+  if (existing._id) {
+    await collection.doc(existing._id).update({ data: updates });
+  } else {
+    await collection.where({ sectionId }).update({ data: updates });
+  }
+  return { sectionId, updated: true };
+}
+
+async function updateCategory(openid, input = {}) {
+  const admin = await ensureAdmin(openid);
+  const sectionId = normalizeIdentifier(input.sectionId || input.parentId || '');
+  const categoryId = normalizeIdentifier(input.categoryId || input.id || '');
+  if (!sectionId) {
+    throw new Error('请选择一级类目');
+  }
+  if (!categoryId) {
+    throw new Error('请选择二级类目');
+  }
+  const existing = await findCategoryById(sectionId, categoryId);
+  if (!existing) {
+    throw new Error('二级类目不存在');
+  }
+  const updates = {};
+  const name = normalizeName(input.name || input.title || '');
+  if (name) {
+    updates.name = name;
+    updates.title = normalizeName(input.title || name);
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'sortOrder')) {
+    if (input.sortOrder !== '' && input.sortOrder !== null) {
+      const currentOrder =
+        typeof existing.sortOrder === 'number' ? existing.sortOrder : 1000;
+      updates.sortOrder = resolveSortOrder(input.sortOrder, currentOrder);
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'daySortOrder')) {
+    const value = resolveOptionalSortOrder(input.daySortOrder);
+    updates.daySortOrder = typeof value === 'number' ? value : dbCommand.remove();
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'nightSortOrder')) {
+    const value = resolveOptionalSortOrder(input.nightSortOrder);
+    updates.nightSortOrder = typeof value === 'number' ? value : dbCommand.remove();
+  }
+  if (typeof input.enabled === 'boolean') {
+    updates.status = input.enabled ? 'active' : 'disabled';
+  } else if (typeof input.status === 'string') {
+    const status = input.status.trim().toLowerCase();
+    if (status === 'active' || status === 'enabled' || status === 'online') {
+      updates.status = 'active';
+    } else if (status === 'disabled' || status === 'inactive' || status === 'offline') {
+      updates.status = 'disabled';
+    }
+  }
+  if (Object.keys(updates).length === 0) {
+    throw new Error('未检测到需要保存的修改');
+  }
+  const now = new Date();
+  updates.updatedAt = now;
+  updates.updatedBy = admin._id || admin.openid || '';
+  const collection = db.collection(COLLECTIONS.MENU_CATEGORIES);
+  if (existing._id) {
+    await collection.doc(existing._id).update({ data: updates });
+  } else {
+    await collection.where({ sectionId, categoryId }).update({ data: updates });
+  }
+  return { sectionId, categoryId, updated: true };
+}
+
+async function updateItem(openid, input = {}) {
+  const admin = await ensureAdmin(openid);
+  const itemId = normalizeIdentifier(input.itemId || input.id || '');
+  if (!itemId) {
+    throw new Error('请选择商品');
+  }
+  const existing = await findItemById(itemId);
+  if (!existing) {
+    throw new Error('商品不存在');
+  }
+  const sectionId = normalizeIdentifier(input.sectionId || existing.sectionId || '');
+  const categoryId = normalizeIdentifier(input.categoryId || existing.categoryId || '');
+  if (!sectionId) {
+    throw new Error('请选择一级类目');
+  }
+  if (!categoryId) {
+    throw new Error('请选择二级类目');
+  }
+  if (sectionId !== existing.sectionId) {
+    const section = await findSectionById(sectionId);
+    if (!section) {
+      throw new Error('一级类目不存在');
+    }
+  }
+  if (categoryId !== existing.categoryId) {
+    const category = await findCategoryById(sectionId, categoryId);
+    if (!category) {
+      throw new Error('二级类目不存在');
+    }
+  }
+  const updates = {};
+  const title = normalizeName(input.title || input.name || '');
+  if (title) {
+    updates.title = title;
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'desc')) {
+    updates.desc = typeof input.desc === 'string' ? input.desc : '';
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'image') || Object.prototype.hasOwnProperty.call(input, 'img')) {
+    const image = typeof input.image === 'string' ? input.image : typeof input.img === 'string' ? input.img : '';
+    updates.img = image || '';
+  }
+  if (sectionId !== existing.sectionId) {
+    updates.sectionId = sectionId;
+  }
+  if (categoryId !== existing.categoryId) {
+    updates.categoryId = categoryId;
+  }
+  let variantsInput = [];
+  if (Array.isArray(input.variants) && input.variants.length) {
+    variantsInput = input.variants;
+  } else if (input.variant) {
+    variantsInput = [input.variant];
+  } else if (
+    Object.prototype.hasOwnProperty.call(input, 'priceYuan') ||
+    Object.prototype.hasOwnProperty.call(input, 'variantLabel') ||
+    Object.prototype.hasOwnProperty.call(input, 'variantUnit')
+  ) {
+    variantsInput = [
+      {
+        label: input.variantLabel,
+        unit: input.variantUnit,
+        priceYuan: input.priceYuan
+      }
+    ];
+  }
+  if (variantsInput.length) {
+    const variants = normalizeVariants(variantsInput);
+    if (!variants.length) {
+      throw new Error('请提供有效的规格与价格');
+    }
+    updates.variants = variants;
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'minQuantity')) {
+    updates.minQuantity = toNonNegativeInteger(input.minQuantity, 0);
+  }
+  if (Object.prototype.hasOwnProperty.call(input, 'sortOrder')) {
+    if (input.sortOrder !== '' && input.sortOrder !== null) {
+      const currentOrder =
+        typeof existing.sortOrder === 'number' ? existing.sortOrder : 1000;
+      updates.sortOrder = resolveSortOrder(input.sortOrder, currentOrder);
+    }
+  }
+  if (typeof input.enabled === 'boolean') {
+    updates.status = input.enabled ? 'active' : 'disabled';
+  } else if (typeof input.status === 'string') {
+    const status = input.status.trim().toLowerCase();
+    if (status === 'active' || status === 'enabled' || status === 'online') {
+      updates.status = 'active';
+    } else if (status === 'disabled' || status === 'inactive' || status === 'offline') {
+      updates.status = 'disabled';
+    }
+  }
+  if (Object.keys(updates).length === 0) {
+    throw new Error('未检测到需要保存的修改');
+  }
+  if (!updates.title) {
+    updates.title = existing.title;
+  }
+  const now = new Date();
+  updates.updatedAt = now;
+  updates.updatedBy = admin._id || admin.openid || '';
+  const collection = db.collection(COLLECTIONS.MENU_ITEMS);
+  if (existing._id) {
+    await collection.doc(existing._id).update({ data: updates });
+  } else {
+    await collection.where({ itemId }).update({ data: updates });
+  }
+  return { itemId, updated: true };
+}
+
 exports.main = async (event = {}) => {
   const { OPENID } = cloud.getWXContext();
   const action = resolveAction(event.action || event.type || event.operation || event.op);
@@ -697,6 +942,12 @@ exports.main = async (event = {}) => {
       return createCategory(OPENID, event.category || event.data || {});
     case ACTIONS.CREATE_ITEM:
       return createItem(OPENID, event.item || event.data || {});
+    case ACTIONS.UPDATE_SECTION:
+      return updateSection(OPENID, event.section || event.data || {});
+    case ACTIONS.UPDATE_CATEGORY:
+      return updateCategory(OPENID, event.category || event.data || {});
+    case ACTIONS.UPDATE_ITEM:
+      return updateItem(OPENID, event.item || event.data || {});
     default:
       throw new Error(`Unknown action: ${action}`);
   }
