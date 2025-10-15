@@ -237,6 +237,11 @@
   flex-direction: column;
   gap: 12px;
   margin-bottom: 16px;
+  position: relative;
+}
+
+.item-card-wrapper {
+  position: relative;
 }
 
 .item-card {
@@ -311,4 +316,33 @@
   margin-top: 8px;
   font-size: 24rpx;
   color: rgba(255, 255, 255, 0.7);
+}
+
+.item-card-placeholder {
+  border-radius: 14px;
+  border: 1px dashed rgba(227, 190, 119, 0.6);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.item-card-drag-layer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+}
+
+.item-card-drag-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 80;
+  pointer-events: none;
+}
+
+.item-card--dragging {
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+  transform: scale(1.02);
+  opacity: 0.98;
 }
