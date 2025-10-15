@@ -56,6 +56,7 @@ const FEATURE_KEY_ALIASES = {
   'menu-ordering': 'menuOrderingEnabled',
   'menu_ordering': 'menuOrderingEnabled',
   'menuordering': 'menuOrderingEnabled',
+  'menuorderingenabled': 'menuOrderingEnabled',
   'menu-order': 'menuOrderingEnabled',
   'menu_order': 'menuOrderingEnabled'
 };
@@ -578,6 +579,9 @@ function normalizeFeatureKey(input) {
   }
   if (trimmed === 'cashierEnabled') {
     return 'cashierEnabled';
+  }
+  if (trimmed === 'menuOrderingEnabled') {
+    return 'menuOrderingEnabled';
   }
   const compact = trimmed.replace(/[\s_-]+/g, '').toLowerCase();
   if (FEATURE_KEY_ALIASES[compact]) {
