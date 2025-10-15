@@ -1,0 +1,576 @@
+<custom-nav title="商品管理" theme="dark"></custom-nav>
+<view class="page">
+  <view class="section-block">
+    <view class="block-header">
+      <view class="block-title">一级类目</view>
+      <view class="block-actions">
+        <button
+          class="icon-btn"
+          size="mini"
+          bindtap="handleToggleCreateSectionForm"
+        >{{showCreateSectionForm ? '收起新增' : '＋新增'}}</button>
+        <button class="refresh-btn" size="mini" loading="{{loading}}" bindtap="handleRefresh">刷新</button>
+      </view>
+    </view>
+    <view class="section-list">
+      <view
+        class="section-item {{selectedSectionId === section.sectionId ? 'is-active' : ''}}"
+        wx:for="{{sections}}"
+        wx:for-item="section"
+        wx:key="sectionId"
+        data-id="{{section.sectionId}}"
+        bindtap="handleSelectSection"
+      >
+        <view class="section-name">
+          <text class="section-name__title">{{section.name}}</text>
+          <text class="section-name__id" wx:if="{{section.sectionId}}">（{{section.sectionId}}）</text>
+        </view>
+      </view>
+      <view class="empty-hint" wx:if="{{!loading && !sections.length}}">暂未配置一级类目</view>
+    </view>
+    <view class="form" wx:if="{{sectionEditForm.sectionId}}">
+      <view class="form-title">编辑一级类目</view>
+      <view class="form-row form-row--inline">
+        <text class="form-label">标识</text>
+        <text class="form-static">{{sectionEditForm.sectionId}}</text>
+      </view>
+      <view class="form-row">
+        <text class="form-label">名称</text>
+        <input
+          class="form-input"
+          value="{{sectionEditForm.name}}"
+          data-field="name"
+          bindinput="handleSectionEditInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">排序</text>
+        <input
+          class="form-input"
+          placeholder="数字越小越靠前"
+          type="number"
+          value="{{sectionEditForm.sortOrder}}"
+          data-field="sortOrder"
+          bindinput="handleSectionEditInput"
+        />
+      </view>
+      <button
+        class="submit-btn"
+        type="primary"
+        size="mini"
+        loading="{{updatingSection}}"
+        disabled="{{updatingSection}}"
+        bindtap="handleUpdateSection"
+      >保存修改</button>
+    </view>
+
+    <view class="form" wx:if="{{showCreateSectionForm}}">
+      <view class="form-title">新增一级类目</view>
+      <view class="form-row">
+        <text class="form-label">标识</text>
+        <input
+          class="form-input"
+          placeholder="如 drinks"
+          value="{{sectionForm.sectionId}}"
+          data-field="sectionId"
+          bindinput="handleSectionFormInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">名称</text>
+        <input
+          class="form-input"
+          placeholder="展示名称"
+          value="{{sectionForm.name}}"
+          data-field="name"
+          bindinput="handleSectionFormInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">排序</text>
+        <input
+          class="form-input"
+          placeholder="数字越小越靠前"
+          type="number"
+          value="{{sectionForm.sortOrder}}"
+          data-field="sortOrder"
+          bindinput="handleSectionFormInput"
+        />
+      </view>
+      <button
+        class="submit-btn"
+        type="primary"
+        size="mini"
+        loading="{{savingSection}}"
+        disabled="{{savingSection}}"
+        bindtap="handleCreateSection"
+      >新增一级类目</button>
+    </view>
+  </view>
+
+  <view class="section-block">
+    <view class="block-header">
+      <view class="block-header-info">
+        <view class="block-title">二级类目</view>
+        <view class="block-subtitle">当前：{{selectedSectionName || '未选择'}}</view>
+      </view>
+      <view class="block-actions">
+        <button
+          class="icon-btn"
+          size="mini"
+          disabled="{{!selectedSectionId}}"
+          bindtap="handleToggleCreateCategoryForm"
+        >{{showCreateCategoryForm ? '收起新增' : '＋新增'}}</button>
+      </view>
+    </view>
+    <view class="category-list">
+      <view
+        class="category-item {{selectedCategoryId === category.categoryId ? 'is-active' : ''}}"
+        wx:for="{{categoriesBySection[selectedSectionId]}}"
+        wx:for-item="category"
+        wx:key="categoryId"
+        data-id="{{category.categoryId}}"
+        bindtap="handleSelectCategory"
+      >
+        <view class="category-name">
+          <text class="category-name__title">{{category.name}}</text>
+          <text class="category-name__id" wx:if="{{category.categoryId}}">（{{category.categoryId}}）</text>
+        </view>
+        <view class="category-meta" wx:if="{{category.daySortOrderText}}">白天排序：{{category.daySortOrderText}}</view>
+        <view class="category-meta" wx:if="{{category.nightSortOrderText}}">夜间排序：{{category.nightSortOrderText}}</view>
+      </view>
+      <view
+        class="empty-hint"
+        wx:if="{{!loading && (!categoriesBySection[selectedSectionId] || !categoriesBySection[selectedSectionId].length)}}"
+      >暂无二级类目</view>
+    </view>
+    <view class="form" wx:if="{{categoryEditForm.categoryId}}">
+      <view class="form-title">编辑二级类目</view>
+      <view class="form-row form-row--inline">
+        <text class="form-label">归属</text>
+        <text class="form-static">{{selectedSectionName || '未选择'}}（{{categoryEditForm.sectionId}}）</text>
+      </view>
+      <view class="form-row form-row--inline">
+        <text class="form-label">标识</text>
+        <text class="form-static">{{categoryEditForm.categoryId}}</text>
+      </view>
+      <view class="form-row">
+        <text class="form-label">名称</text>
+        <input
+          class="form-input"
+          value="{{categoryEditForm.name}}"
+          data-field="name"
+          bindinput="handleCategoryEditInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">排序</text>
+        <input
+          class="form-input"
+          placeholder="数字越小越靠前"
+          type="number"
+          value="{{categoryEditForm.sortOrder}}"
+          data-field="sortOrder"
+          bindinput="handleCategoryEditInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">白天排序</text>
+        <input
+          class="form-input"
+          placeholder="09:00-16:59 顺序，可选"
+          type="number"
+          value="{{categoryEditForm.daySortOrder}}"
+          data-field="daySortOrder"
+          bindinput="handleCategoryEditInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">夜间排序</text>
+        <input
+          class="form-input"
+          placeholder="其他时段顺序，可选"
+          type="number"
+          value="{{categoryEditForm.nightSortOrder}}"
+          data-field="nightSortOrder"
+          bindinput="handleCategoryEditInput"
+        />
+      </view>
+      <view class="form-hint">仅当一级类目为「酒水」时生效，未填写则按默认排序及历史顺序展示。</view>
+      <button
+        class="submit-btn"
+        type="primary"
+        size="mini"
+        loading="{{updatingCategory}}"
+        disabled="{{updatingCategory}}"
+        bindtap="handleUpdateCategory"
+      >保存修改</button>
+    </view>
+
+    <view class="form" wx:if="{{showCreateCategoryForm}}">
+      <view class="form-title">新增二级类目</view>
+      <view class="form-row form-row--inline">
+        <text class="form-label">归属</text>
+        <text class="form-static">{{selectedSectionName || '请选择一级类目'}}</text>
+      </view>
+      <view class="form-row">
+        <text class="form-label">标识</text>
+        <input
+          class="form-input"
+          placeholder="如 coffee"
+          value="{{categoryForm.categoryId}}"
+          data-field="categoryId"
+          bindinput="handleCategoryFormInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">名称</text>
+        <input
+          class="form-input"
+          placeholder="展示名称"
+          value="{{categoryForm.name}}"
+          data-field="name"
+          bindinput="handleCategoryFormInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">排序</text>
+        <input
+          class="form-input"
+          placeholder="数字越小越靠前"
+          type="number"
+          value="{{categoryForm.sortOrder}}"
+          data-field="sortOrder"
+          bindinput="handleCategoryFormInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">白天排序</text>
+        <input
+          class="form-input"
+          placeholder="09:00-16:59 顺序，可选"
+          type="number"
+          value="{{categoryForm.daySortOrder}}"
+          data-field="daySortOrder"
+          bindinput="handleCategoryFormInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">夜间排序</text>
+        <input
+          class="form-input"
+          placeholder="其他时段顺序，可选"
+          type="number"
+          value="{{categoryForm.nightSortOrder}}"
+          data-field="nightSortOrder"
+          bindinput="handleCategoryFormInput"
+        />
+      </view>
+      <view class="form-hint">仅当一级类目为「酒水」时生效，未填写则按默认排序及历史顺序展示。</view>
+      <button
+        class="submit-btn"
+        type="primary"
+        size="mini"
+        loading="{{savingCategory}}"
+        disabled="{{savingCategory || !selectedSectionId}}"
+        bindtap="handleCreateCategory"
+      >新增二级类目</button>
+    </view>
+  </view>
+
+  <view class="section-block">
+    <view class="block-header">
+      <view class="block-header-info">
+        <view class="block-title">商品</view>
+        <view class="block-subtitle">当前：{{selectedCategoryName || '未选择'}}</view>
+      </view>
+      <view class="block-actions">
+        <button
+          class="icon-btn"
+          size="mini"
+          disabled="{{!selectedCategoryId}}"
+          bindtap="handleToggleCreateItemForm"
+        >{{showCreateItemForm ? '收起新增' : '＋新增'}}</button>
+      </view>
+    </view>
+    <view class="item-list">
+      <view class="empty-hint" wx:if="{{!loading && !currentItems.length}}">该类目暂无商品</view>
+      <block wx:for="{{currentItems}}" wx:key="itemId">
+        <view
+          class="item-card {{selectedItemId === item.itemId ? 'is-active' : ''}} {{item.enabled ? '' : 'is-disabled'}}"
+          data-id="{{item.itemId}}"
+          bindtap="handleSelectItem"
+        >
+          <view class="item-header">
+            <view class="item-title">{{item.title}}</view>
+            <view class="item-id">ID：{{item.itemId}}</view>
+          </view>
+          <view class="item-meta">
+            <text wx:if="{{item.minQuantity}}">起订：{{item.minQuantity}}</text>
+            <text wx:if="{{!item.enabled}}">状态：已停用</text>
+          </view>
+          <view class="item-variants" wx:if="{{item.variants && item.variants.length}}">
+            <view class="variant" wx:for="{{item.variants}}" wx:key="index">
+              <text class="variant-label">{{variant.label || '规格'}}</text>
+              <text class="variant-unit">{{variant.unit}}</text>
+              <text class="variant-price">{{variant.priceLabel}}</text>
+            </view>
+          </view>
+          <view class="item-desc" wx:if="{{item.desc}}">{{item.desc}}</view>
+        </view>
+      </block>
+    </view>
+    <view class="form" wx:if="{{itemEditForm.itemId}}">
+      <view class="form-title">编辑商品</view>
+      <view class="form-row form-row--inline">
+        <text class="form-label">归属</text>
+        <text class="form-static">{{selectedSectionName || '未选择'}} / {{selectedCategoryName || '未选择'}}</text>
+      </view>
+      <view class="form-row form-row--inline">
+        <text class="form-label">标识</text>
+        <text class="form-static">{{itemEditForm.itemId}}</text>
+      </view>
+      <view class="form-row">
+        <text class="form-label">名称</text>
+        <input
+          class="form-input"
+          value="{{itemEditForm.title}}"
+          data-field="title"
+          bindinput="handleItemEditInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">描述</text>
+        <textarea
+          class="form-textarea"
+          placeholder="可选，商品描述"
+          value="{{itemEditForm.desc}}"
+          data-field="desc"
+          bindinput="handleItemEditInput"
+        ></textarea>
+      </view>
+      <view class="form-row">
+        <text class="form-label">图片</text>
+        <input
+          class="form-input"
+          placeholder="可选，图片地址"
+          value="{{itemEditForm.image}}"
+          data-field="image"
+          bindinput="handleItemEditInput"
+        />
+      </view>
+      <view class="form-subtitle">销售规格</view>
+      <block wx:for="{{itemEditForm.variants}}" wx:for-item="variant" wx:key="index">
+        <view class="variant-form">
+          <view class="variant-form-header">
+            <text class="variant-form-title">规格 {{index + 1}}</text>
+            <button
+              wx:if="{{itemEditForm.variants.length > 1}}"
+              class="variant-remove-btn"
+              size="mini"
+              data-form="itemEditForm"
+              data-index="{{index}}"
+              bindtap="handleRemoveVariant"
+            >删除</button>
+          </view>
+          <view class="form-row">
+            <text class="form-label">名称</text>
+            <input
+              class="form-input"
+              placeholder="如 按杯"
+              value="{{variant.label}}"
+              data-form="itemEditForm"
+              data-index="{{index}}"
+              data-field="label"
+              bindinput="handleVariantInput"
+            />
+          </view>
+          <view class="form-row">
+            <text class="form-label">单位</text>
+            <input
+              class="form-input"
+              placeholder="如 /杯"
+              value="{{variant.unit}}"
+              data-form="itemEditForm"
+              data-index="{{index}}"
+              data-field="unit"
+              bindinput="handleVariantInput"
+            />
+          </view>
+          <view class="form-row">
+            <text class="form-label">价格</text>
+            <input
+              class="form-input"
+              placeholder="单位：元"
+              type="digit"
+              value="{{variant.priceYuan}}"
+              data-form="itemEditForm"
+              data-index="{{index}}"
+              data-field="priceYuan"
+              bindinput="handleVariantInput"
+            />
+          </view>
+        </view>
+      </block>
+      <button
+        class="variant-add-btn"
+        size="mini"
+        data-form="itemEditForm"
+        bindtap="handleAddVariant"
+      >＋添加规格</button>
+      <view class="form-row">
+        <text class="form-label">起订</text>
+        <input
+          class="form-input"
+          placeholder="可选，最小购买数量"
+          type="number"
+          value="{{itemEditForm.minQuantity}}"
+          data-field="minQuantity"
+          bindinput="handleItemEditInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">上架</text>
+        <switch
+          class="form-switch"
+          checked="{{itemEditForm.enabled}}"
+          bindchange="handleItemEditSwitchChange"
+        />
+      </view>
+      <button
+        class="submit-btn"
+        type="primary"
+        size="mini"
+        loading="{{updatingItem}}"
+        disabled="{{updatingItem}}"
+        bindtap="handleUpdateItem"
+      >保存修改</button>
+    </view>
+
+    <view class="form" wx:if="{{showCreateItemForm}}">
+      <view class="form-title">新增商品</view>
+      <view class="form-row form-row--inline">
+        <text class="form-label">归属</text>
+        <text class="form-static">{{selectedSectionName || '未选择'}} / {{selectedCategoryName || '未选择'}}</text>
+      </view>
+      <view class="form-row">
+        <text class="form-label">标识</text>
+        <input
+          class="form-input"
+          placeholder="如 ice-1"
+          value="{{itemForm.itemId}}"
+          data-field="itemId"
+          bindinput="handleItemFormInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">名称</text>
+        <input
+          class="form-input"
+          placeholder="商品名称"
+          value="{{itemForm.title}}"
+          data-field="title"
+          bindinput="handleItemFormInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">描述</text>
+        <textarea
+          class="form-textarea"
+          placeholder="可选，商品描述"
+          value="{{itemForm.desc}}"
+          data-field="desc"
+          bindinput="handleItemFormInput"
+        ></textarea>
+      </view>
+      <view class="form-row">
+        <text class="form-label">图片</text>
+        <input
+          class="form-input"
+          placeholder="可选，图片地址"
+          value="{{itemForm.image}}"
+          data-field="image"
+          bindinput="handleItemFormInput"
+        />
+      </view>
+      <view class="form-subtitle">销售规格</view>
+      <block wx:for="{{itemForm.variants}}" wx:for-item="variant" wx:key="index">
+        <view class="variant-form">
+          <view class="variant-form-header">
+            <text class="variant-form-title">规格 {{index + 1}}</text>
+            <button
+              wx:if="{{itemForm.variants.length > 1}}"
+              class="variant-remove-btn"
+              size="mini"
+              data-form="itemForm"
+              data-index="{{index}}"
+              bindtap="handleRemoveVariant"
+            >删除</button>
+          </view>
+          <view class="form-row">
+            <text class="form-label">名称</text>
+            <input
+              class="form-input"
+              placeholder="如 按杯"
+              value="{{variant.label}}"
+              data-form="itemForm"
+              data-index="{{index}}"
+              data-field="label"
+              bindinput="handleVariantInput"
+            />
+          </view>
+          <view class="form-row">
+            <text class="form-label">单位</text>
+            <input
+              class="form-input"
+              placeholder="如 /杯"
+              value="{{variant.unit}}"
+              data-form="itemForm"
+              data-index="{{index}}"
+              data-field="unit"
+              bindinput="handleVariantInput"
+            />
+          </view>
+          <view class="form-row">
+            <text class="form-label">价格</text>
+            <input
+              class="form-input"
+              placeholder="单位：元"
+              type="digit"
+              value="{{variant.priceYuan}}"
+              data-form="itemForm"
+              data-index="{{index}}"
+              data-field="priceYuan"
+              bindinput="handleVariantInput"
+            />
+          </view>
+        </view>
+      </block>
+      <button
+        class="variant-add-btn"
+        size="mini"
+        data-form="itemForm"
+        bindtap="handleAddVariant"
+      >＋添加规格</button>
+      <view class="form-row">
+        <text class="form-label">起订</text>
+        <input
+          class="form-input"
+          placeholder="可选，最小购买数量"
+          type="number"
+          value="{{itemForm.minQuantity}}"
+          data-field="minQuantity"
+          bindinput="handleItemFormInput"
+        />
+      </view>
+      <button
+        class="submit-btn"
+        type="primary"
+        size="mini"
+        loading="{{savingItem}}"
+        disabled="{{savingItem || !selectedCategoryId}}"
+        bindtap="handleCreateItem"
+      >新增商品</button>
+    </view>
+  </view>
+</view>

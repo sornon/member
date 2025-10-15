@@ -672,6 +672,54 @@ export const AdminService = {
   }
 };
 
+export const MenuCatalogService = {
+  async listCatalog() {
+    return callCloud(CLOUD_FUNCTIONS.MENU_CATALOG, { action: 'listCatalog' });
+  }
+};
+
+export const AdminMenuCatalogService = {
+  async listCatalog() {
+    return callCloud(CLOUD_FUNCTIONS.MENU_CATALOG, { action: 'adminListCatalog' });
+  },
+  async createSection(section = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MENU_CATALOG, {
+      action: 'createSection',
+      section
+    });
+  },
+  async updateSection(section = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MENU_CATALOG, {
+      action: 'updateSection',
+      section
+    });
+  },
+  async createCategory(category = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MENU_CATALOG, {
+      action: 'createCategory',
+      category
+    });
+  },
+  async updateCategory(category = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MENU_CATALOG, {
+      action: 'updateCategory',
+      category
+    });
+  },
+  async createItem(item = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MENU_CATALOG, {
+      action: 'createItem',
+      item
+    });
+  },
+  async updateItem(item = {}) {
+    return callCloud(CLOUD_FUNCTIONS.MENU_CATALOG, {
+      action: 'updateItem',
+      item
+    });
+  }
+};
+
 export const MenuOrderService = {
   async createOrder({ items = [], remark = '', categoryTotals = {} } = {}) {
     return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
