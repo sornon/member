@@ -33,7 +33,7 @@ function resolveEnabledFlag(entry = {}) {
     return entry.isEnabled;
   }
   const status = typeof entry.status === 'string' ? entry.status.trim().toLowerCase() : '';
-  if (status === 'disabled' || status === 'inactive' || status === 'offline') {
+  if (status === 'disabled' || status === 'inactive' || status === 'offline' || status === 'archived' || status === 'deleted') {
     return false;
   }
   return true;

@@ -492,9 +492,9 @@ async function loadCatalogData(options = {}) {
     return { sections, categories, items };
   }
   return {
-    sections: sections.map((section) => ({ ...section, enabled: isRecordEnabled(section, { includeInactive: true }) })),
-    categories: categories.map((category) => ({ ...category, enabled: isRecordEnabled(category, { includeInactive: true }) })),
-    items: items.map((item) => ({ ...item, enabled: isRecordEnabled(item, { includeInactive: true }) }))
+    sections: sections.map((section) => ({ ...section, enabled: isRecordEnabled(section) })),
+    categories: categories.map((category) => ({ ...category, enabled: isRecordEnabled(category) })),
+    items: items.map((item) => ({ ...item, enabled: isRecordEnabled(item) }))
   };
 }
 
