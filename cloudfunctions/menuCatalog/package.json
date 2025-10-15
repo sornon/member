@@ -1,0 +1,9 @@
+{
+  "name": "menu-catalog",
+  "version": "1.0.0",
+  "description": "Menu catalog management",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}
