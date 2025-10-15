@@ -20,6 +20,12 @@ const BASE_ACTIONS = [
     url: '/pages/admin/charge/index'
   },
   {
+    icon: '🛍️',
+    label: '商品管理',
+    description: '维护菜单类目与商品',
+    url: '/pages/admin/menu-catalog/index'
+  },
+  {
     icon: '🍽️',
     label: '备餐列表',
     description: '查看会员点餐并推送扣费',
