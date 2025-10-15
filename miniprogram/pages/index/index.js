@@ -816,6 +816,7 @@ Page({
 
   onLoad() {
     this.hasBootstrapped = false;
+    this.hasVisitedOtherPage = false;
     this.ensureNavMetrics();
     this.updateToday();
     this.restoreNavExpansionState();
@@ -832,6 +833,14 @@ Page({
 
   onHide() {
     this.detachMemberRealtime();
+    try {
+      const pages = getCurrentPages();
+      if (Array.isArray(pages) && pages.length > 1) {
+        this.hasVisitedOtherPage = true;
+      }
+    } catch (err) {
+      // Ignore errors from getCurrentPages.
+    }
   },
 
   onUnload() {
@@ -950,6 +959,7 @@ Page({
       const nextDiff = progress && typeof progress.nextDiff === 'number' ? progress.nextDiff : 0;
       const progressRemainingExperience = formatExperience(nextDiff);
       const needsProfile = !sanitizedMember || !sanitizedMember.nickName || !sanitizedMember.mobile;
+      const shouldShowOnboarding = this.shouldShowOnboarding(needsProfile);
       const profileAuthorized = !!(sanitizedMember && sanitizedMember.nickName);
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
       const navItems = resolveNavItems(sanitizedMember);
@@ -968,7 +978,7 @@ Page({
         memberStats: deriveMemberStats(sanitizedMember),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
-        showOnboarding: needsProfile,
+        showOnboarding: shouldShowOnboarding,
         onboarding: needsProfile
           ? {
               ...this.data.onboarding,
@@ -1041,6 +1051,16 @@ Page({
     } catch (err) {
       // Ignore storage errors and keep the default collapsed state.
     }
+  },
+
+  shouldShowOnboarding(needsProfile) {
+    if (!needsProfile) {
+      return false;
+    }
+    if (this.hasVisitedOtherPage) {
+      return true;
+    }
+    return false;
   },
 
   persistNavExpansionState() {
