@@ -22,6 +22,23 @@ function normalizeSortOrder(value) {
   return Math.floor(numeric);
 }
 
+function resolveEnabledFlag(entry = {}) {
+  if (!entry || typeof entry !== 'object') {
+    return true;
+  }
+  if (typeof entry.enabled === 'boolean') {
+    return entry.enabled;
+  }
+  if (typeof entry.isEnabled === 'boolean') {
+    return entry.isEnabled;
+  }
+  const status = typeof entry.status === 'string' ? entry.status.trim().toLowerCase() : '';
+  if (status === 'disabled' || status === 'inactive' || status === 'offline' || status === 'archived' || status === 'deleted') {
+    return false;
+  }
+  return true;
+}
+
 function sortByOrder(list, options = {}) {
   const nameKey = options.nameKey || 'name';
   const orderKey = options.orderKey || 'sortOrder';
@@ -124,6 +141,46 @@ function normalizeVariantPayloadEntries(formEntries, title) {
   return { variants };
 }
 
+function createIdleDragState() {
+  return {
+    dragging: false,
+    draggingItemId: '',
+    draggingSnapshot: null,
+    draggingIndex: -1,
+    placeholderIndex: -1,
+    placeholderHeight: 0,
+    overlayTop: 0,
+    initialOverlayTop: 0,
+    startClientY: 0,
+    listTop: 0,
+    listHeight: 0,
+    itemRects: [],
+    displayItems: []
+  };
+}
+
+function buildDragDisplayItems(items = [], draggingItemId, placeholderIndex) {
+  if (!Array.isArray(items) || !items.length || !draggingItemId) {
+    return [];
+  }
+  const draggingItem = items.find((item) => item && item.itemId === draggingItemId);
+  if (!draggingItem) {
+    return [];
+  }
+  const filtered = items.filter((item) => item && item.itemId !== draggingItemId);
+  let insertIndex = Number(placeholderIndex);
+  if (!Number.isFinite(insertIndex) || insertIndex < 0) {
+    insertIndex = 0;
+  }
+  if (insertIndex > filtered.length) {
+    insertIndex = filtered.length;
+  }
+  const placeholder = { ...draggingItem, isPlaceholder: true };
+  const result = filtered.slice();
+  result.splice(insertIndex, 0, placeholder);
+  return result;
+}
+
 Page({
   data: {
     loading: false,
@@ -144,6 +201,8 @@ Page({
     showCreateSectionForm: false,
     showCreateCategoryForm: false,
     showCreateItemForm: false,
+    reorderingItems: false,
+    dragState: createIdleDragState(),
     sectionForm: {
       sectionId: '',
       name: '',
@@ -160,7 +219,8 @@ Page({
       name: '',
       sortOrder: '',
       daySortOrder: '',
-      nightSortOrder: ''
+      nightSortOrder: '',
+      enabled: true
     },
     categoryEditForm: {
       sectionId: '',
@@ -168,7 +228,8 @@ Page({
       name: '',
       sortOrder: '',
       daySortOrder: '',
-      nightSortOrder: ''
+      nightSortOrder: '',
+      enabled: true
     },
     itemForm: {
       sectionId: '',
@@ -217,7 +278,8 @@ Page({
         name: '',
         sortOrder: '',
         daySortOrder: '',
-        nightSortOrder: ''
+        nightSortOrder: '',
+        enabled: true
       };
     }
     return {
@@ -233,7 +295,8 @@ Page({
       nightSortOrder:
         typeof category.nightSortOrder === 'number'
           ? `${category.nightSortOrder}`
-          : category.nightSortOrder || ''
+          : category.nightSortOrder || '',
+      enabled: resolveEnabledFlag(category)
     };
   },
 
@@ -262,7 +325,7 @@ Page({
         typeof item.minQuantity === 'number' && item.minQuantity > 0
           ? `${item.minQuantity}`
           : item.minQuantity || '',
-      enabled: item.enabled !== false,
+      enabled: resolveEnabledFlag(item),
       variants: mapVariantsToFormEntries(item.variants)
     };
   },
@@ -284,7 +347,7 @@ Page({
             sectionId: section.sectionId,
             name: section.title || section.name || section.sectionId,
             sortOrder: normalizeSortOrder(section.sortOrder),
-            enabled: section.enabled !== false
+            enabled: resolveEnabledFlag(section)
           }))
           .filter((section) => section.sectionId && section.name),
         { nameKey: 'name', orderKey: 'sortOrder' }
@@ -305,7 +368,7 @@ Page({
           categoryId,
           name,
           sortOrder: normalizeSortOrder(category.sortOrder),
-          enabled: category.enabled !== false,
+          enabled: resolveEnabledFlag(category),
           daySortOrder,
           nightSortOrder,
           daySortOrderText: typeof daySortOrder === 'number' ? `${daySortOrder}` : '',
@@ -339,7 +402,7 @@ Page({
           title,
           desc: item.desc || '',
           minQuantity: Number(item.minQuantity || 0) > 0 ? Math.floor(Number(item.minQuantity)) : 0,
-          enabled: item.enabled !== false,
+          enabled: resolveEnabledFlag(item),
           sortOrder: normalizeSortOrder(item.sortOrder),
           variants: Array.isArray(item.variants)
             ? item.variants.map((variant) => {
@@ -459,7 +522,8 @@ Page({
         currentItems,
         sectionEditForm,
         categoryEditForm,
-        itemEditForm
+        itemEditForm,
+        dragState: createIdleDragState()
       });
     } catch (error) {
       console.error('[admin menu] load catalog failed', error);
@@ -494,7 +558,8 @@ Page({
       name: '',
       sortOrder: '',
       daySortOrder: '',
-      nightSortOrder: ''
+      nightSortOrder: '',
+      enabled: true
     };
     this.setData({
       showCreateCategoryForm: show,
@@ -577,7 +642,8 @@ Page({
       selectedItemId,
       sectionEditForm,
       categoryEditForm,
-      itemEditForm
+      itemEditForm,
+      dragState: createIdleDragState()
     });
   },
 
@@ -605,13 +671,19 @@ Page({
       itemForm,
       selectedItemId,
       categoryEditForm,
-      itemEditForm
+      itemEditForm,
+      dragState: createIdleDragState()
     });
   },
 
   handleSelectItem(event) {
     const { id } = event.currentTarget.dataset || {};
-    if (!id || id === this.data.selectedItemId) {
+    if (
+      !id ||
+      id === this.data.selectedItemId ||
+      this.data.dragState.dragging ||
+      this.data.reorderingItems
+    ) {
       return;
     }
     const item = (this.data.currentItems || []).find((entry) => entry.itemId === id);
@@ -624,6 +696,268 @@ Page({
       selectedItemId: id,
       itemEditForm
     });
+  },
+
+  handleItemDragStart(event) {
+    if (this.data.reorderingItems || this.data.dragState.dragging) {
+      return;
+    }
+    const { id } = event.currentTarget.dataset || {};
+    if (!id) {
+      return;
+    }
+    const items = this.data.currentItems || [];
+    if (!Array.isArray(items) || items.length < 2) {
+      return;
+    }
+    const itemIndex = items.findIndex((item) => item.itemId === id);
+    if (itemIndex < 0) {
+      return;
+    }
+    const touch =
+      (event && event.touches && event.touches[0]) ||
+      (event && event.changedTouches && event.changedTouches[0]);
+    if (!touch) {
+      return;
+    }
+    const clientY =
+      typeof touch.clientY === 'number' ? touch.clientY : typeof touch.pageY === 'number' ? touch.pageY : undefined;
+    if (!Number.isFinite(clientY)) {
+      return;
+    }
+    const query = wx.createSelectorQuery().in(this);
+    query.select('.item-list').boundingClientRect();
+    query.selectAll('.item-card-wrapper').boundingClientRect();
+    query.exec((res = []) => {
+      const listRect = res[0];
+      const itemRects = res[1];
+      if (!listRect || !Array.isArray(itemRects) || !itemRects[itemIndex]) {
+        return;
+      }
+      const targetRect = itemRects[itemIndex];
+      const placeholderHeight = targetRect.height || 0;
+      const overlayTop = (targetRect.top || 0) - (listRect.top || 0);
+      const displayItems = buildDragDisplayItems(items, id, itemIndex);
+      const dragState = {
+        dragging: true,
+        draggingItemId: id,
+        draggingSnapshot: items[itemIndex],
+        draggingIndex: itemIndex,
+        placeholderIndex: itemIndex,
+        placeholderHeight,
+        overlayTop,
+        initialOverlayTop: overlayTop,
+        startClientY: clientY,
+        listTop: listRect.top || 0,
+        listHeight: listRect.height || 0,
+        itemRects,
+        displayItems
+      };
+      this.setData({ dragState });
+      if (wx.vibrateShort && typeof wx.vibrateShort === 'function') {
+        wx.vibrateShort({ type: 'light' });
+      }
+    });
+  },
+
+  handleItemDragMove(event) {
+    const dragState = this.data.dragState || {};
+    if (!dragState.dragging) {
+      return;
+    }
+    const touch =
+      (event && event.touches && event.touches[0]) ||
+      (event && event.changedTouches && event.changedTouches[0]);
+    if (!touch) {
+      return;
+    }
+    const clientY =
+      typeof touch.clientY === 'number' ? touch.clientY : typeof touch.pageY === 'number' ? touch.pageY : undefined;
+    if (!Number.isFinite(clientY)) {
+      return;
+    }
+    const deltaY = clientY - dragState.startClientY;
+    const maxTop = Math.max(0, (dragState.listHeight || 0) - (dragState.placeholderHeight || 0));
+    const nextOverlayTop = Math.max(0, Math.min((dragState.initialOverlayTop || 0) + deltaY, maxTop));
+    const placeholderIndex = this.computePlaceholderIndex(nextOverlayTop, dragState);
+    if (
+      nextOverlayTop === dragState.overlayTop &&
+      placeholderIndex === dragState.placeholderIndex
+    ) {
+      return;
+    }
+    const displayItems = buildDragDisplayItems(
+      this.data.currentItems || [],
+      dragState.draggingItemId,
+      placeholderIndex
+    );
+    this.setData({
+      dragState: {
+        ...dragState,
+        overlayTop: nextOverlayTop,
+        placeholderIndex,
+        displayItems
+      }
+    });
+  },
+
+  computePlaceholderIndex(overlayTop, dragState) {
+    if (!dragState || !Array.isArray(dragState.itemRects) || !dragState.itemRects.length) {
+      return 0;
+    }
+    const relativeMiddle = overlayTop + (dragState.placeholderHeight || 0) / 2;
+    const positions = [];
+    for (let i = 0; i < dragState.itemRects.length; i += 1) {
+      if (i === dragState.draggingIndex) {
+        continue;
+      }
+      const rect = dragState.itemRects[i];
+      positions.push({
+        index: i,
+        top: (rect.top || 0) - (dragState.listTop || 0),
+        height: rect.height || 0
+      });
+    }
+    if (!positions.length) {
+      return 0;
+    }
+    let placeholderIndex = positions.length;
+    for (let i = 0; i < positions.length; i += 1) {
+      const entry = positions[i];
+      if (relativeMiddle < entry.top + entry.height / 2) {
+        placeholderIndex = i;
+        break;
+      }
+    }
+    if (placeholderIndex < 0) {
+      return 0;
+    }
+    if (placeholderIndex > positions.length) {
+      return positions.length;
+    }
+    return placeholderIndex;
+  },
+
+  async handleItemDragEnd() {
+    const dragState = this.data.dragState || {};
+    if (!dragState.dragging) {
+      return;
+    }
+    await this.finalizeItemDrag();
+  },
+
+  async finalizeItemDrag() {
+    const dragState = this.data.dragState || {};
+    const items = this.data.currentItems || [];
+    const fromIndex = dragState.draggingIndex;
+    if (!Array.isArray(items) || !items.length || fromIndex < 0 || fromIndex >= items.length) {
+      this.setData({ dragState: createIdleDragState() });
+      return;
+    }
+    let targetIndex = Number(dragState.placeholderIndex);
+    if (!Number.isFinite(targetIndex) || targetIndex < 0) {
+      targetIndex = 0;
+    }
+    if (targetIndex > items.length - 1) {
+      targetIndex = items.length - 1;
+    }
+    if (targetIndex === fromIndex) {
+      this.setData({ dragState: createIdleDragState() });
+      return;
+    }
+    const previousOrderMap = {};
+    items.forEach((item) => {
+      if (item && item.itemId) {
+        previousOrderMap[item.itemId] = normalizeSortOrder(item.sortOrder);
+      }
+    });
+    const working = items.slice();
+    const [moved] = working.splice(fromIndex, 1);
+    if (!moved) {
+      this.setData({ dragState: createIdleDragState() });
+      return;
+    }
+    const clampedIndex = Math.max(0, Math.min(targetIndex, working.length));
+    working.splice(clampedIndex, 0, moved);
+    const updatedItems = working.map((item, index) => ({
+      ...item,
+      sortOrder: index + 1
+    }));
+    const nextItemsByCategory = {
+      ...this.data.itemsByCategory,
+      [this.data.selectedCategoryId]: updatedItems
+    };
+    this.setData({
+      currentItems: updatedItems,
+      itemsByCategory: nextItemsByCategory,
+      dragState: createIdleDragState()
+    });
+    try {
+      await this.persistItemOrder(updatedItems, previousOrderMap);
+    } catch (error) {
+      console.error('[admin menu] persist drag order failed', error);
+      this.handleRefresh();
+    }
+  },
+
+  async persistItemOrder(items, previousOrderMap = {}) {
+    if (!Array.isArray(items) || !items.length) {
+      return;
+    }
+    const updates = [];
+    const sectionId = this.data.selectedSectionId || '';
+    const categoryId = this.data.selectedCategoryId || '';
+    if (!sectionId || !categoryId) {
+      return;
+    }
+    items.forEach((item) => {
+      if (!item || !item.itemId) {
+        return;
+      }
+      const sortOrder = normalizeSortOrder(item.sortOrder);
+      if (!Number.isFinite(sortOrder)) {
+        return;
+      }
+      if (
+        previousOrderMap &&
+        Object.prototype.hasOwnProperty.call(previousOrderMap, item.itemId) &&
+        previousOrderMap[item.itemId] === sortOrder
+      ) {
+        return;
+      }
+      updates.push({
+        itemId: item.itemId,
+        sectionId,
+        categoryId,
+        sortOrder
+      });
+    });
+    if (!updates.length) {
+      return;
+    }
+    this.setData({ reorderingItems: true });
+    if (wx.showLoading && typeof wx.showLoading === 'function') {
+      wx.showLoading({ title: '保存排序', mask: true });
+    }
+    try {
+      // 顺序执行，避免云函数并发写入导致冲突
+      for (let i = 0; i < updates.length; i += 1) {
+        const payload = updates[i];
+        await AdminMenuCatalogService.updateItem(payload);
+      }
+      if (wx.hideLoading && typeof wx.hideLoading === 'function') {
+        wx.hideLoading();
+      }
+      wx.showToast({ title: '排序已更新', icon: 'success' });
+    } catch (error) {
+      if (wx.hideLoading && typeof wx.hideLoading === 'function') {
+        wx.hideLoading();
+      }
+      wx.showToast({ title: extractErrorMessage(error, '保存排序失败'), icon: 'none' });
+      throw error;
+    } finally {
+      this.setData({ reorderingItems: false });
+    }
   },
 
   handleSectionFormInput(event) {
@@ -643,6 +977,12 @@ Page({
     }
     this.setData({
       categoryForm: { ...this.data.categoryForm, [field]: event.detail.value }
+    });
+  },
+
+  handleCategoryFormSwitchChange(event) {
+    this.setData({
+      categoryForm: { ...this.data.categoryForm, enabled: !!event.detail.value }
     });
   },
 
@@ -673,6 +1013,12 @@ Page({
     }
     this.setData({
       categoryEditForm: { ...this.data.categoryEditForm, [field]: event.detail.value }
+    });
+  },
+
+  handleCategoryEditSwitchChange(event) {
+    this.setData({
+      categoryEditForm: { ...this.data.categoryEditForm, enabled: !!event.detail.value }
     });
   },
 
@@ -811,7 +1157,8 @@ Page({
         title: name,
         sortOrder: form.sortOrder,
         daySortOrder: form.daySortOrder,
-        nightSortOrder: form.nightSortOrder
+        nightSortOrder: form.nightSortOrder,
+        enabled: form.enabled !== false
       });
       wx.showToast({ title: '已保存', icon: 'success' });
       await this.loadCatalog();
@@ -945,7 +1292,8 @@ Page({
         title: name,
         sortOrder: form.sortOrder,
         daySortOrder: form.daySortOrder,
-        nightSortOrder: form.nightSortOrder
+        nightSortOrder: form.nightSortOrder,
+        enabled: form.enabled !== false
       });
       wx.showToast({ title: '已新增', icon: 'success' });
       this.setData({
@@ -955,7 +1303,8 @@ Page({
           name: '',
           sortOrder: '',
           daySortOrder: '',
-          nightSortOrder: ''
+          nightSortOrder: '',
+          enabled: true
         },
         showCreateCategoryForm: false
       });

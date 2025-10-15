@@ -492,9 +492,9 @@ async function loadCatalogData(options = {}) {
     return { sections, categories, items };
   }
   return {
-    sections: sections.map((section) => ({ ...section, enabled: isRecordEnabled(section, { includeInactive: true }) })),
-    categories: categories.map((category) => ({ ...category, enabled: isRecordEnabled(category, { includeInactive: true }) })),
-    items: items.map((item) => ({ ...item, enabled: isRecordEnabled(item, { includeInactive: true }) }))
+    sections: sections.map((section) => ({ ...section, enabled: isRecordEnabled(section) })),
+    categories: categories.map((category) => ({ ...category, enabled: isRecordEnabled(category) })),
+    items: items.map((item) => ({ ...item, enabled: isRecordEnabled(item) }))
   };
 }
 
@@ -627,13 +627,24 @@ async function createCategory(openid, input = {}) {
     input.nightOrder,
     input.timeSort && (input.timeSort.nightSortOrder ?? input.timeSort.nightOrder ?? input.timeSort.night)
   );
+  let status = 'active';
+  if (typeof input.enabled === 'boolean') {
+    status = input.enabled ? 'active' : 'disabled';
+  } else if (typeof input.status === 'string') {
+    const normalizedStatus = input.status.trim().toLowerCase();
+    if (normalizedStatus === 'active' || normalizedStatus === 'enabled' || normalizedStatus === 'online') {
+      status = 'active';
+    } else if (normalizedStatus === 'disabled' || normalizedStatus === 'inactive' || normalizedStatus === 'offline') {
+      status = 'disabled';
+    }
+  }
   const now = new Date();
   const record = {
     sectionId,
     categoryId,
     name,
     sortOrder: resolveSortOrder(input.sortOrder, 1000),
-    status: 'active',
+    status,
     createdAt: now,
     updatedAt: now
   };
