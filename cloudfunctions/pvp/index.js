@@ -762,8 +762,10 @@ async function persistBattleResult({
     });
   }
   await Promise.all([
-    saveProfile(playerUpdate, profile.memberId || player.memberId),
-    opponentUpdate ? saveProfile(opponentUpdate, opponentProfile.memberId) : Promise.resolve()
+    saveProfile(playerUpdate.after, profile.memberId || player.memberId || playerUpdate.after.memberId),
+    opponentUpdate && opponentProfile
+      ? saveProfile(opponentUpdate.after, opponentProfile.memberId || opponent.memberId || opponentUpdate.after.memberId)
+      : Promise.resolve()
   ]);
   const matchRecord = {
     seasonId: season._id,
