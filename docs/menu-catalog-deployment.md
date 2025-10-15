@@ -35,8 +35,26 @@
     - `menuItems`：依次添加 `sectionId`、`categoryId`、`itemId` 三个字段，形成联合唯一索引（保证商品在所属类目下唯一）。
 
 3. **初始化数据**（可选）：
-   - 若需导入历史菜单，可参照原 `menu-data.js` 的内容，通过管理员页面逐条录入，或自建脚本写入集合。
-   - 录入时价格以“元”为单位填写，云函数会自动转换为“分”保存。
+   - **准备旧数据文件**：从版本库历史中导出变更前的 `miniprogram/shared/menu-data.js`，保存为 `miniprogram/shared/menu-data.legacy.js`（或任意位置，后续脚本需指向该路径）。示例命令：
+
+     ```bash
+     git show <含有旧菜单数据的提交哈希>:miniprogram/shared/menu-data.js \
+       > miniprogram/shared/menu-data.legacy.js
+     ```
+
+   - **生成导入文件**：执行 `scripts/export-menu-collections.js` 将旧版结构拆分为三个集合所需的 JSON Lines 文件。脚本会为每行生成一个文档，便于直接使用云开发导入工具：
+
+     ```bash
+     node scripts/export-menu-collections.js \
+       --source miniprogram/shared/menu-data.legacy.js \
+       --out dist/menu-catalog-seed
+     ```
+
+     成功执行后会得到 `menuSections.json`、`menuCategories.json`、`menuItems.json` 三个文件，每行一个 JSON 对象，字段已兼容 `sectionId`、`categoryId`、`itemId`、`variants` 以及带起订量的 `minQuantity`。
+
+   - **导入集合**：登录云开发控制台，依次进入目标集合的 **数据 → 导入**，选择“JSON”格式并上传对应文件（例如 `menuSections.json` → `menuSections` 集合，依此类推）。勾选“使用文件中 `_id`”选项即可沿用脚本生成的主键，避免重复。
+
+   - 若无需批量导入，也可直接在管理员页面逐条录入。录入时价格以“元”为单位填写，云函数会自动转换为“分”保存。
 
 4. **更新小程序端**：
    - 重新编译小程序，确保 `pages/admin/menu-catalog` 页面以及会员端点餐页的菜单均从云端获取。
