@@ -125,6 +125,29 @@ const DEFAULT_MEMBER_FEATURES = Object.freeze({
   }
 });
 
+function resolveMemberFeatureSource(member) {
+  const features =
+    member && member.features && typeof member.features === 'object'
+      ? { ...member.features }
+      : {};
+  if (member && typeof member === 'object') {
+    ['cashierEnabled', 'menuOrderingEnabled'].forEach((key) => {
+      if (!Object.prototype.hasOwnProperty.call(features, key) && Object.prototype.hasOwnProperty.call(member, key)) {
+        features[key] = member[key];
+      }
+    });
+    if (
+      !Object.prototype.hasOwnProperty.call(features, 'immortalTournament') &&
+      Object.prototype.hasOwnProperty.call(member, 'immortalTournament') &&
+      member.immortalTournament &&
+      typeof member.immortalTournament === 'object'
+    ) {
+      features.immortalTournament = member.immortalTournament;
+    }
+  }
+  return features;
+}
+
 function resolveFeatureToggle(value, defaultValue = false) {
   if (typeof value === 'boolean') {
     return value;
@@ -602,7 +625,7 @@ function buildSanitizedMember(member) {
   const titleUnlocks = resolveTitleUnlocks(member);
   const desiredTitle = normalizeTitleId(member.appearanceTitle || '');
   const appearanceTitle = desiredTitle && titleUnlocks.includes(desiredTitle) ? desiredTitle : '';
-  const normalizedFeatures = normalizeMemberFeatures(member.features);
+  const normalizedFeatures = normalizeMemberFeatures(resolveMemberFeatureSource(member));
   return {
     ...member,
     avatarUrl: sanitizedAvatar || '',
@@ -612,7 +635,9 @@ function buildSanitizedMember(member) {
     appearanceTitle,
     titleUnlocks,
     backgroundUnlocks: resolveBackgroundUnlocks(member),
-    features: normalizedFeatures
+    features: normalizedFeatures,
+    cashierEnabled: normalizedFeatures.cashierEnabled,
+    menuOrderingEnabled: normalizedFeatures.menuOrderingEnabled
   };
 }
 
@@ -802,7 +827,7 @@ function resolveNavItems(member) {
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
   const badges = normalizeReservationBadges(member && member.reservationBadges);
   const roleHasPendingAttributes = shouldShowRoleBadge(member);
-  const features = normalizeMemberFeatures(member && member.features);
+  const features = normalizeMemberFeatures(resolveMemberFeatureSource(member));
   const menuOrderingEnabled = features.menuOrderingEnabled;
   const navItems = BASE_NAV_ITEMS.filter((item) => menuOrderingEnabled || item.label !== '点餐').map((item) => {
     const next = { ...item };
