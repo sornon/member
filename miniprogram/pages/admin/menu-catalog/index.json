@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "商品管理",
+  "usingComponents": {
+    "custom-nav": "/components/custom-nav/custom-nav"
+  }
+}

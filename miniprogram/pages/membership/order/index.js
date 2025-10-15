@@ -1,29 +1,64 @@
-import { MenuOrderService } from '../../../services/api';
+import { MenuOrderService, MenuCatalogService } from '../../../services/api';
 import { formatCurrency, formatStones } from '../../../utils/format';
-import {
-  categories as rawDrinkCategories,
-  items as rawDrinkItems,
-  softDrinks,
-  diningCategories as rawDiningCategories,
-  diningItems as rawDiningItems
-} from '../../../shared/menu-data';
+import menuData from '../../../shared/menu-data';
 
-const SECTION_META = {
-  drinks: { id: 'drinks', title: '酒水' },
-  dining: { id: 'dining', title: '用餐' }
-};
+let SECTION_META = {};
+let SECTION_ORDER = [];
+let MENU_SECTIONS = [];
+let SECTION_MAP = {};
+let ITEM_MAP = {};
+let TABS = [];
+let DEFAULT_TAB_ID = '';
+let DEFAULT_SECTION = null;
+let DEFAULT_CATEGORY_ID = '';
+let DEFAULT_CATEGORIES = [];
+let DEFAULT_VISIBLE_ITEMS = [];
 
-const SECTION_ORDER = ['drinks', 'dining'];
 const TWELVE_HOURS_IN_MS = 12 * 60 * 60 * 1000;
+const DRINKS_DAY_START_HOUR = 9;
+const DRINKS_DAY_END_HOUR = 17;
+const DRINKS_DAY_ORDER = [
+  'coffee',
+  'snack',
+  'ws',
+  'sig',
+  'soft',
+  'rose',
+  'white',
+  'red',
+  'rum',
+  'rare',
+  'easter'
+];
+const DRINKS_NIGHT_ORDER = [
+  'ws',
+  'sig',
+  'rum',
+  'snack',
+  'white',
+  'red',
+  'rose',
+  'rare',
+  'soft',
+  'coffee',
+  'easter'
+];
 
 function normalizeSection(value) {
   if (typeof value === 'string') {
-    const key = value.toLowerCase();
-    if (SECTION_META[key]) {
-      return key;
+    const trimmed = value.trim();
+    if (trimmed && SECTION_META[trimmed]) {
+      return trimmed;
+    }
+    const lowercase = trimmed.toLowerCase();
+    const matched = SECTION_ORDER.find(
+      (sectionId) => sectionId === trimmed || sectionId.toLowerCase() === lowercase
+    );
+    if (matched) {
+      return matched;
     }
   }
-  return SECTION_ORDER[0];
+  return SECTION_ORDER.length ? SECTION_ORDER[0] : '';
 }
 
 function createEmptyCategoryTotals() {
@@ -94,6 +129,11 @@ function normalizeItem(item, overrides = {}) {
   }
   const section = normalizeSection(overrides.section || item.section);
   const title = typeof item.title === 'string' ? item.title : '';
+  const minQuantityOverride = overrides.minQuantity || item.minQuantity || item.minimum;
+  const numericMin = Number(minQuantityOverride || 0);
+  const minQuantity = Number.isFinite(numericMin) && numericMin > 0
+    ? Math.max(1, Math.floor(numericMin))
+    : extractMinQuantityFromTitle(title);
   return {
     id: item.id,
     cat: category,
@@ -102,7 +142,7 @@ function normalizeItem(item, overrides = {}) {
     desc: typeof item.desc === 'string' ? item.desc : '',
     img: typeof item.img === 'string' ? item.img : '',
     variants,
-    minQuantity: extractMinQuantityFromTitle(title)
+    minQuantity
   };
 }
 
@@ -111,6 +151,48 @@ function pushNormalizedItem(target, item, overrides = {}) {
   if (normalized) {
     target.push(normalized);
   }
+}
+
+function normalizeCategoryInput(category) {
+  if (!category) {
+    return null;
+  }
+  const candidates = [category.id, category.categoryId, category.cat];
+  let id = '';
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = candidates[i];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      id = candidate.trim();
+      break;
+    }
+  }
+  const nameCandidates = [category.name, category.title, category.label];
+  let name = '';
+  for (let i = 0; i < nameCandidates.length; i += 1) {
+    const candidate = nameCandidates[i];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      name = candidate.trim();
+      break;
+    }
+  }
+  if (!id || !name) {
+    return null;
+  }
+  const sortOrder = Number(category.sortOrder);
+  const daySortOrder = Number(category.daySortOrder);
+  const nightSortOrder = Number(category.nightSortOrder);
+  const normalized = {
+    id,
+    name,
+    sortOrder: Number.isFinite(sortOrder) ? Math.floor(sortOrder) : undefined
+  };
+  if (Number.isFinite(daySortOrder)) {
+    normalized.daySortOrder = Math.floor(daySortOrder);
+  }
+  if (Number.isFinite(nightSortOrder)) {
+    normalized.nightSortOrder = Math.floor(nightSortOrder);
+  }
+  return normalized;
 }
 
 function buildSection(sectionId, categories, baseItems, options = {}) {
@@ -141,14 +223,25 @@ function buildSection(sectionId, categories, baseItems, options = {}) {
     }
     categoryItems[menuItem.cat].push(menuItem);
   });
-  const filteredCategories = Array.isArray(categories)
-    ? categories.filter((cat) => categoryItems[cat.id] && categoryItems[cat.id].length)
+  const normalizedCategories = Array.isArray(categories)
+    ? categories.map((cat) => normalizeCategoryInput(cat)).filter(Boolean)
     : [];
+  const filteredCategories = normalizedCategories.filter(
+    (cat) => categoryItems[cat.id] && categoryItems[cat.id].length
+  );
+  filteredCategories.sort((a, b) => {
+    const orderA = typeof a.sortOrder === 'number' ? a.sortOrder : 1000;
+    const orderB = typeof b.sortOrder === 'number' ? b.sortOrder : 1000;
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    return a.name.localeCompare(b.name, 'zh-Hans-CN');
+  });
   const defaultCategoryId = filteredCategories.length ? filteredCategories[0].id : '';
   return {
     id: sectionId,
     title: sectionMeta.title,
-    categories: filteredCategories,
+    categories: filteredCategories.map((cat) => ({ id: cat.id, name: cat.name })),
     categoryItems,
     items,
     itemMap,
@@ -156,115 +249,235 @@ function buildSection(sectionId, categories, baseItems, options = {}) {
   };
 }
 
-function getDrinkCategoryOrder(now = new Date()) {
+function isDrinkDayPeriod(now = new Date()) {
   const hour = now.getHours();
-  const dayOrder = [
-    'coffee',
-    'snack',
-    'ws',
-    'sig',
-    'soft',
-    'rose',
-    'white',
-    'red',
-    'rum',
-    'rare',
-    'easter'
-  ];
-  const nightOrder = [
-    'ws',
-    'sig',
-    'rum',
-    'snack',
-    'white',
-    'red',
-    'rose',
-    'rare',
-    'soft',
-    'coffee',
-    'easter'
-  ];
-  return hour >= 9 && hour < 17 ? dayOrder : nightOrder;
+  return hour >= DRINKS_DAY_START_HOUR && hour < DRINKS_DAY_END_HOUR;
+}
+
+function getDrinkCategoryOrder(now = new Date()) {
+  return isDrinkDayPeriod(now) ? DRINKS_DAY_ORDER : DRINKS_NIGHT_ORDER;
+}
+
+function resolveCategorySortValue(category, key) {
+  if (!category || !key) {
+    return undefined;
+  }
+  const value = category[key];
+  if (value === null || typeof value === 'undefined') {
+    return undefined;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return undefined;
+  }
+  return numeric;
+}
+
+function resolveCategoryId(category) {
+  if (!category) {
+    return '';
+  }
+  if (typeof category.id === 'string' && category.id.trim()) {
+    return category.id.trim();
+  }
+  if (typeof category.categoryId === 'string' && category.categoryId.trim()) {
+    return category.categoryId.trim();
+  }
+  if (typeof category.cat === 'string' && category.cat.trim()) {
+    return category.cat.trim();
+  }
+  return '';
+}
+
+function resolveCategoryName(category) {
+  if (!category) {
+    return '';
+  }
+  const candidates = [category.name, category.title, category.label];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = candidates[i];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+  return '';
 }
 
 function sortDrinkCategories(categories, now = new Date()) {
   if (!Array.isArray(categories)) {
     return [];
   }
-  const order = getDrinkCategoryOrder(now);
-  const position = order.reduce((acc, id, index) => {
+  const isDay = isDrinkDayPeriod(now);
+  const timeKey = isDay ? 'daySortOrder' : 'nightSortOrder';
+  const fallbackOrder = isDay ? DRINKS_DAY_ORDER : DRINKS_NIGHT_ORDER;
+  const fallbackPositions = fallbackOrder.reduce((acc, id, index) => {
     acc[id] = index;
     return acc;
   }, {});
   return [...categories].sort((a, b) => {
-    const indexA = position[a.id];
-    const indexB = position[b.id];
-    if (typeof indexA === 'number' && typeof indexB === 'number') {
+    const orderA = resolveCategorySortValue(a, timeKey);
+    const orderB = resolveCategorySortValue(b, timeKey);
+    if (typeof orderA === 'number' || typeof orderB === 'number') {
+      if (typeof orderA === 'number' && typeof orderB === 'number' && orderA !== orderB) {
+        return orderA - orderB;
+      }
+      if (typeof orderA === 'number' && typeof orderB !== 'number') {
+        return -1;
+      }
+      if (typeof orderA !== 'number' && typeof orderB === 'number') {
+        return 1;
+      }
+    }
+    const baseOrderA = resolveCategorySortValue(a, 'sortOrder');
+    const baseOrderB = resolveCategorySortValue(b, 'sortOrder');
+    if (typeof baseOrderA === 'number' && typeof baseOrderB === 'number' && baseOrderA !== baseOrderB) {
+      return baseOrderA - baseOrderB;
+    }
+    const idA = resolveCategoryId(a);
+    const idB = resolveCategoryId(b);
+    const indexA = typeof fallbackPositions[idA] === 'number' ? fallbackPositions[idA] : undefined;
+    const indexB = typeof fallbackPositions[idB] === 'number' ? fallbackPositions[idB] : undefined;
+    if (typeof indexA === 'number' && typeof indexB === 'number' && indexA !== indexB) {
       return indexA - indexB;
     }
-    if (typeof indexA === 'number') {
+    if (typeof indexA === 'number' && typeof indexB !== 'number') {
       return -1;
     }
-    if (typeof indexB === 'number') {
+    if (typeof indexA !== 'number' && typeof indexB === 'number') {
       return 1;
     }
-    return 0;
+    const nameA = resolveCategoryName(a);
+    const nameB = resolveCategoryName(b);
+    return nameA.localeCompare(nameB, 'zh-Hans-CN');
   });
 }
 
-function buildMenuSections(now = new Date()) {
+function ensureArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function extractSectionsFromRaw(raw, now = new Date()) {
+  if (!raw) {
+    return [];
+  }
+  if (Array.isArray(raw.sections) && raw.sections.length) {
+    return raw.sections
+      .map((section) => {
+        const id = typeof section.id === 'string' ? section.id.trim() : '';
+        const title = typeof section.title === 'string' ? section.title.trim() : '';
+        if (!id || !title) {
+          return null;
+        }
+        const categories = ensureArray(section.categories)
+          .map((cat) => normalizeCategoryInput(cat))
+          .filter(Boolean);
+        return {
+          id,
+          title,
+          categories: id === 'drinks' ? sortDrinkCategories(categories, now) : categories,
+          items: ensureArray(section.items),
+          extras: ensureArray(section.extras)
+        };
+      })
+      .filter(Boolean);
+  }
   const sections = [];
-  const softDrinkExtras = Array.isArray(softDrinks)
-    ? softDrinks.map((drink) => ({
+  const drinksCategories = ensureArray(raw.categories)
+    .map((cat) => normalizeCategoryInput(cat))
+    .filter(Boolean);
+  const drinksItems = ensureArray(raw.items);
+  const legacySoftDrinks = ensureArray(raw.softDrinks);
+  if (drinksCategories.length || drinksItems.length || legacySoftDrinks.length) {
+    sections.push({
+      id: 'drinks',
+      title: '酒水',
+      categories: sortDrinkCategories(drinksCategories, now),
+      items: drinksItems,
+      extras: legacySoftDrinks.map((drink) => ({
         item: {
           ...drink,
           desc: drink.desc || '',
           img: drink.img || ''
         },
-        overrides: { cat: 'soft' }
+        overrides: { cat: (drink.cat || drink.categoryId || 'soft').trim() || 'soft' }
       }))
-    : [];
-  const builders = {
-    drinks: () =>
-      buildSection('drinks', sortDrinkCategories(rawDrinkCategories, now), rawDrinkItems, {
-        extras: softDrinkExtras
-      }),
-    dining: () => buildSection('dining', rawDiningCategories, rawDiningItems)
-  };
-  SECTION_ORDER.forEach((sectionId) => {
-    if (!SECTION_META[sectionId]) {
-      return;
-    }
-    const builder = builders[sectionId];
-    if (typeof builder === 'function') {
-      sections.push(builder());
-    }
-  });
+    });
+  }
+  const diningCategories = ensureArray(raw.diningCategories)
+    .map((cat) => normalizeCategoryInput(cat))
+    .filter(Boolean);
+  const diningItems = ensureArray(raw.diningItems);
+  if (diningCategories.length || diningItems.length) {
+    sections.push({
+      id: 'dining',
+      title: '用餐',
+      categories: diningCategories,
+      items: diningItems,
+      extras: []
+    });
+  }
   return sections;
 }
 
-const MENU_SECTIONS = buildMenuSections();
-const SECTION_MAP = MENU_SECTIONS.reduce((acc, section) => {
-  if (section && section.id) {
-    acc[section.id] = section;
-  }
-  return acc;
-}, {});
-const ITEM_MAP = MENU_SECTIONS.reduce((acc, section) => {
-  if (section && Array.isArray(section.items)) {
-    section.items.forEach((item) => {
-      acc[item.id] = item;
+function rebuildMenuContext(raw, now = new Date()) {
+  const sectionsInput = extractSectionsFromRaw(raw, now);
+  SECTION_META = {};
+  SECTION_ORDER = [];
+  MENU_SECTIONS = [];
+  SECTION_MAP = {};
+  ITEM_MAP = {};
+  TABS = [];
+  DEFAULT_TAB_ID = '';
+  DEFAULT_SECTION = null;
+  DEFAULT_CATEGORY_ID = '';
+  DEFAULT_CATEGORIES = [];
+  DEFAULT_VISIBLE_ITEMS = [];
+
+  sectionsInput.forEach((sectionInput) => {
+    const id = sectionInput.id;
+    const title = sectionInput.title;
+    if (!id || !title) {
+      return;
+    }
+    SECTION_META[id] = { id, title };
+    SECTION_ORDER.push(id);
+    const normalizedItems = ensureArray(sectionInput.items).map((item) => ({
+      ...item,
+      section: item.section || id
+    }));
+    const section = buildSection(id, sectionInput.categories, normalizedItems, {
+      extras: sectionInput.extras
     });
-  }
-  return acc;
-}, {});
-const TABS = MENU_SECTIONS.map((section) => ({ id: section.id, title: section.title }));
-const DEFAULT_TAB_ID = TABS.length ? TABS[0].id : '';
-const DEFAULT_SECTION = DEFAULT_TAB_ID ? SECTION_MAP[DEFAULT_TAB_ID] : null;
-const DEFAULT_CATEGORY_ID = DEFAULT_SECTION ? DEFAULT_SECTION.defaultCategoryId : '';
-const DEFAULT_CATEGORIES = DEFAULT_SECTION ? DEFAULT_SECTION.categories : [];
-const DEFAULT_VISIBLE_ITEMS =
-  DEFAULT_SECTION && DEFAULT_CATEGORY_ID ? DEFAULT_SECTION.categoryItems[DEFAULT_CATEGORY_ID] || [] : [];
+    if (section.items.length) {
+      MENU_SECTIONS.push(section);
+    }
+  });
+
+  MENU_SECTIONS.forEach((section) => {
+    SECTION_MAP[section.id] = section;
+    section.items.forEach((item) => {
+      ITEM_MAP[item.id] = item;
+    });
+  });
+  TABS = MENU_SECTIONS.map((section) => ({ id: section.id, title: section.title }));
+  DEFAULT_TAB_ID = TABS.length ? TABS[0].id : '';
+  DEFAULT_SECTION = DEFAULT_TAB_ID ? SECTION_MAP[DEFAULT_TAB_ID] : null;
+  DEFAULT_CATEGORY_ID = DEFAULT_SECTION ? DEFAULT_SECTION.defaultCategoryId : '';
+  DEFAULT_CATEGORIES = DEFAULT_SECTION ? DEFAULT_SECTION.categories : [];
+  DEFAULT_VISIBLE_ITEMS =
+    DEFAULT_SECTION && DEFAULT_CATEGORY_ID
+      ? DEFAULT_SECTION.categoryItems[DEFAULT_CATEGORY_ID] || []
+      : [];
+  return {
+    tabs: TABS,
+    defaultTabId: DEFAULT_TAB_ID,
+    defaultCategories: DEFAULT_CATEGORIES,
+    defaultCategoryId: DEFAULT_CATEGORY_ID,
+    defaultVisibleItems: DEFAULT_VISIBLE_ITEMS
+  };
+}
+
+const INITIAL_MENU_STATE = rebuildMenuContext(menuData);
 
 function resolveTimestamp(value) {
   if (!value) {
@@ -348,10 +561,11 @@ function decorateOrder(order) {
         const amount = Number.isFinite(item.amount) ? Number(item.amount) : price * quantity;
         const fallbackMenu = item.menuId && ITEM_MAP[item.menuId] ? ITEM_MAP[item.menuId] : null;
         const section = normalizeSection(item.categoryType || (fallbackMenu ? fallbackMenu.section : ''));
+        const sectionMeta = SECTION_META[section] || { title: '' };
         return {
           ...item,
           section,
-          sectionTitle: SECTION_META[section].title,
+          sectionTitle: sectionMeta.title,
           price,
           quantity,
           amount,
@@ -450,11 +664,12 @@ function decorateCart(cart) {
     const price = Number(line.price || 0);
     const amount = price * quantity;
     const section = normalizeSection(line.section);
+    const sectionMeta = SECTION_META[section] || { title: '' };
     return {
       ...line,
       minQuantity,
       section,
-      sectionTitle: SECTION_META[section].title,
+      sectionTitle: sectionMeta.title,
       price,
       quantity,
       amount,
@@ -470,6 +685,9 @@ function computeCartTotal(cart) {
 
 function groupLinesBySection(lines) {
   return SECTION_ORDER.map((section) => {
+    if (!SECTION_META[section]) {
+      return null;
+    }
     const sectionLines = lines.filter((line) => normalizeSection(line.section) === section);
     if (!sectionLines.length) {
       return null;
@@ -488,7 +706,7 @@ function calculateSectionTotals(lines) {
     const amount = Number(line.amount);
     const resolvedAmount = Number.isFinite(amount) ? amount : Number(line.price || 0) * Number(line.quantity || 0);
     const section = normalizeSection(line.section);
-    if (resolvedAmount > 0) {
+    if (resolvedAmount > 0 && Object.prototype.hasOwnProperty.call(totals, section)) {
       totals[section] += resolvedAmount;
     }
   });
@@ -497,11 +715,11 @@ function calculateSectionTotals(lines) {
 
 Page({
   data: {
-    tabs: TABS,
-    activeTab: DEFAULT_TAB_ID,
-    categories: DEFAULT_CATEGORIES,
-    activeCategory: DEFAULT_CATEGORY_ID,
-    visibleItems: DEFAULT_VISIBLE_ITEMS,
+    tabs: INITIAL_MENU_STATE.tabs,
+    activeTab: INITIAL_MENU_STATE.defaultTabId,
+    categories: INITIAL_MENU_STATE.defaultCategories,
+    activeCategory: INITIAL_MENU_STATE.defaultCategoryId,
+    visibleItems: INITIAL_MENU_STATE.defaultVisibleItems,
     cart: [],
     cartGroups: [],
     cartSectionTotals: createEmptyCategoryTotals(),
@@ -512,6 +730,7 @@ Page({
     remark: '',
     submitting: false,
     loadingOrders: false,
+    menuLoading: false,
     orders: [],
     displayOrders: [],
     hasMoreOrders: false,
@@ -521,7 +740,43 @@ Page({
   },
 
   onLoad() {
+    this.loadCatalog();
     this.loadOrders();
+  },
+
+  async loadCatalog() {
+    if (this.data.menuLoading) {
+      return;
+    }
+    this.setData({ menuLoading: true });
+    try {
+      const response = await MenuCatalogService.listCatalog();
+      const catalog = response && response.catalog ? response.catalog : null;
+      if (catalog && Array.isArray(catalog.sections)) {
+        const state = rebuildMenuContext(catalog, new Date());
+        const tabs = Array.isArray(state.tabs) ? state.tabs : [];
+        const nextActiveTab = state.defaultTabId || (tabs.length ? tabs[0].id : '');
+        const nextActiveCategory = state.defaultCategoryId;
+        this.setData({
+          tabs,
+          activeTab: nextActiveTab,
+          categories: state.defaultCategories,
+          activeCategory: nextActiveCategory,
+          visibleItems: state.defaultVisibleItems,
+          cartSectionTotals: createEmptyCategoryTotals()
+        });
+        if (nextActiveTab) {
+          this.applySectionState(nextActiveTab, nextActiveCategory);
+        }
+        if (Array.isArray(this.data.cart) && this.data.cart.length) {
+          this.updateCartState(this.data.cart.map((line) => ({ ...line })));
+        }
+      }
+    } catch (error) {
+      console.error('[order] load catalog failed', error);
+    } finally {
+      this.setData({ menuLoading: false });
+    }
   },
 
   onPullDownRefresh() {
