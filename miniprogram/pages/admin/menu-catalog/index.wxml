@@ -1,3 +1,26 @@
+<template name="itemCard">
+  <view
+    class="item-card {{extraClass}} {{selectedItemId === item.itemId ? 'is-active' : ''}} {{item.enabled === false ? 'is-disabled' : ''}}"
+  >
+    <view class="item-header">
+      <view class="item-title">{{item.title}}</view>
+      <view class="item-id">ID：{{item.itemId}}</view>
+    </view>
+    <view class="item-meta">
+      <text wx:if="{{item.minQuantity}}">起订：{{item.minQuantity}}</text>
+      <text wx:if="{{item.enabled === false}}">状态：已停用</text>
+    </view>
+    <view class="item-variants" wx:if="{{item.variants && item.variants.length}}">
+      <view class="variant" wx:for="{{item.variants}}" wx:key="index">
+        <text class="variant-label">{{variant.label || '规格'}}</text>
+        <text class="variant-unit">{{variant.unit}}</text>
+        <text class="variant-price">{{variant.priceLabel}}</text>
+      </view>
+    </view>
+    <view class="item-desc" wx:if="{{item.desc}}">{{item.desc}}</view>
+  </view>
+</template>
+
 <custom-nav title="商品管理" theme="dark"></custom-nav>
 <view class="page">
   <view class="section-block">
@@ -125,7 +148,7 @@
     </view>
     <view class="category-list">
       <view
-        class="category-item {{selectedCategoryId === category.categoryId ? 'is-active' : ''}}"
+        class="category-item {{selectedCategoryId === category.categoryId ? 'is-active' : ''}} {{category.enabled === false ? 'is-disabled' : ''}}"
         wx:for="{{categoriesBySection[selectedSectionId]}}"
         wx:for-item="category"
         wx:key="categoryId"
@@ -138,6 +161,7 @@
         </view>
         <view class="category-meta" wx:if="{{category.daySortOrderText}}">白天排序：{{category.daySortOrderText}}</view>
         <view class="category-meta" wx:if="{{category.nightSortOrderText}}">夜间排序：{{category.nightSortOrderText}}</view>
+        <view class="category-meta" wx:if="{{category.enabled === false}}">状态：已停用</view>
       </view>
       <view
         class="empty-hint"
@@ -194,6 +218,14 @@
           value="{{categoryEditForm.nightSortOrder}}"
           data-field="nightSortOrder"
           bindinput="handleCategoryEditInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">上架</text>
+        <switch
+          class="form-switch"
+          checked="{{categoryEditForm.enabled}}"
+          bindchange="handleCategoryEditSwitchChange"
         />
       </view>
       <view class="form-hint">仅当一级类目为「酒水」时生效，未填写则按默认排序及历史顺序展示。</view>
@@ -266,6 +298,14 @@
           bindinput="handleCategoryFormInput"
         />
       </view>
+      <view class="form-row">
+        <text class="form-label">上架</text>
+        <switch
+          class="form-switch"
+          checked="{{categoryForm.enabled}}"
+          bindchange="handleCategoryFormSwitchChange"
+        />
+      </view>
       <view class="form-hint">仅当一级类目为「酒水」时生效，未填写则按默认排序及历史顺序展示。</view>
       <button
         class="submit-btn"
@@ -294,31 +334,44 @@
       </view>
     </view>
     <view class="item-list">
-      <view class="empty-hint" wx:if="{{!loading && !currentItems.length}}">该类目暂无商品</view>
-      <block wx:for="{{currentItems}}" wx:key="itemId">
-        <view
-          class="item-card {{selectedItemId === item.itemId ? 'is-active' : ''}} {{item.enabled ? '' : 'is-disabled'}}"
-          data-id="{{item.itemId}}"
-          bindtap="handleSelectItem"
-        >
-          <view class="item-header">
-            <view class="item-title">{{item.title}}</view>
-            <view class="item-id">ID：{{item.itemId}}</view>
+      <view class="empty-hint" wx:if="{{!loading && !(dragState.dragging ? dragState.displayItems.length : currentItems.length)}}">
+        该类目暂无商品
+      </view>
+      <block wx:for="{{dragState.dragging ? dragState.displayItems : currentItems}}" wx:key="itemId">
+        <block wx:if="{{item.isPlaceholder}}">
+          <view class="item-card-placeholder" style="height: {{dragState.placeholderHeight}}px;"></view>
+        </block>
+        <block wx:else>
+          <view
+            class="item-card-wrapper"
+            data-id="{{item.itemId}}"
+            bindtap="handleSelectItem"
+            bindlongpress="handleItemDragStart"
+          >
+            <template
+              is="itemCard"
+              data="{{ item: item, selectedItemId: selectedItemId, extraClass: '' }}"
+            />
           </view>
-          <view class="item-meta">
-            <text wx:if="{{item.minQuantity}}">起订：{{item.minQuantity}}</text>
-            <text wx:if="{{!item.enabled}}">状态：已停用</text>
-          </view>
-          <view class="item-variants" wx:if="{{item.variants && item.variants.length}}">
-            <view class="variant" wx:for="{{item.variants}}" wx:key="index">
-              <text class="variant-label">{{variant.label || '规格'}}</text>
-              <text class="variant-unit">{{variant.unit}}</text>
-              <text class="variant-price">{{variant.priceLabel}}</text>
-            </view>
-          </view>
-          <view class="item-desc" wx:if="{{item.desc}}">{{item.desc}}</view>
-        </view>
+        </block>
       </block>
+      <view
+        wx:if="{{dragState.dragging}}"
+        class="item-card-drag-layer"
+        catchtouchmove="handleItemDragMove"
+        catchtouchend="handleItemDragEnd"
+        catchtouchcancel="handleItemDragEnd"
+      ></view>
+      <view
+        wx:if="{{dragState.dragging && dragState.draggingSnapshot}}"
+        class="item-card-drag-overlay"
+        style="top: {{dragState.overlayTop}}px; height: {{dragState.placeholderHeight}}px;"
+      >
+        <template
+          is="itemCard"
+          data="{{ item: dragState.draggingSnapshot, selectedItemId: selectedItemId, extraClass: 'item-card--dragging' }}"
+        />
+      </view>
     </view>
     <view class="form" wx:if="{{itemEditForm.itemId}}">
       <view class="form-title">编辑商品</view>
