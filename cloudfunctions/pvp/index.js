@@ -400,6 +400,7 @@ async function sendInvite(memberId, event = {}) {
     createdAt: now,
     updatedAt: now,
     expiresAt,
+    usageCount: 0,
     tierId: profile.tierId,
     tierName: profile.tierName,
     inviterSnapshot: buildMemberSnapshot(member)
@@ -442,9 +443,6 @@ async function acceptInvite(memberId, event = {}) {
     throw createError('INVITE_NOT_FOUND', '挑战邀请不存在或已失效');
   }
   const invite = inviteSnapshot.data;
-  if (invite.status !== 'pending') {
-    throw createError('INVITE_FINISHED', '该邀请已被处理');
-  }
   if (invite.expiresAt) {
     const expiresAt = new Date(invite.expiresAt);
     if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() < Date.now()) {
@@ -456,7 +454,7 @@ async function acceptInvite(memberId, event = {}) {
     throw createError('INVITER_MISSING', '邀请缺少发起人信息');
   }
   if (inviterId === memberId) {
-    throw createError('SELF_MATCH_FORBIDDEN', '不可接受自己的邀请');
+    return matchRandom(memberId, event);
   }
   const [member, inviterMember] = await Promise.all([ensureMember(memberId), ensureMember(inviterId)]);
   const [profile, inviterProfile] = await Promise.all([
@@ -476,16 +474,17 @@ async function acceptInvite(memberId, event = {}) {
     friendMatch: true,
     inviteMatch: true
   });
+  const now = new Date();
   await db
     .collection(COLLECTIONS.PVP_INVITES)
     .doc(inviteId)
     .update({
       data: {
-        status: 'completed',
         opponentId: memberId,
         matchId: battle.result.matchId,
-        acceptedAt: new Date(),
-        updatedAt: new Date()
+        acceptedAt: now,
+        updatedAt: now,
+        usageCount: _.inc(1)
       }
     })
     .catch(() => {});
