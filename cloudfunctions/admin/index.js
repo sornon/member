@@ -35,9 +35,16 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
   registrationStart: '',
   registrationEnd: ''
 };
+const HOME_NAV_FEATURE_KEYS = ['wallet', 'order', 'reservation', 'role', 'equipment', 'storage', 'skill'];
+const HOME_NAV_KEY_SET = new Set(HOME_NAV_FEATURE_KEYS);
+const DEFAULT_HOME_NAV_FEATURES = HOME_NAV_FEATURE_KEYS.reduce((acc, key) => {
+  acc[key] = true;
+  return acc;
+}, {});
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
-  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
+  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
+  homeNav: { ...DEFAULT_HOME_NAV_FEATURES }
 };
 const DEFAULT_PVP_RATING = 1200;
 const DEFAULT_PVP_TIER = { id: 'bronze', name: '青铜' };
@@ -48,7 +55,21 @@ const FEATURE_KEY_ALIASES = {
   cashierenabled: 'cashierEnabled',
   cashiernabled: 'cashierEnabled',
   'cashier-enabled': 'cashierEnabled',
-  'cashier_enabled': 'cashierEnabled'
+  'cashier_enabled': 'cashierEnabled',
+  homenavwallet: 'homeNav.wallet',
+  homenavorder: 'homeNav.order',
+  homenavreservation: 'homeNav.reservation',
+  homenavrole: 'homeNav.role',
+  homenavequipment: 'homeNav.equipment',
+  homenavstorage: 'homeNav.storage',
+  homenavskill: 'homeNav.skill',
+  navwallet: 'homeNav.wallet',
+  navorder: 'homeNav.order',
+  navreservation: 'homeNav.reservation',
+  navrole: 'homeNav.role',
+  navequipment: 'homeNav.equipment',
+  navstorage: 'homeNav.storage',
+  navskill: 'homeNav.skill'
 };
 
 const ACTIONS = {
@@ -559,6 +580,32 @@ async function ensureAdmin(openid) {
   return member;
 }
 
+function normalizeHomeNavFeatureKey(input) {
+  if (typeof input !== 'string') {
+    return '';
+  }
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return '';
+  }
+  const replaced = trimmed.replace(/[:]/g, '.');
+  const lower = replaced.toLowerCase();
+  let suffix = '';
+  if (lower.startsWith('homenav')) {
+    suffix = lower.slice('homenav'.length);
+  } else if (lower.startsWith('nav')) {
+    suffix = lower.slice('nav'.length);
+  } else {
+    return '';
+  }
+  suffix = suffix.replace(/^[\s._-]+/, '');
+  suffix = suffix.replace(/[\s._-]+/g, '');
+  if (!suffix || !HOME_NAV_KEY_SET.has(suffix)) {
+    return '';
+  }
+  return `homeNav.${suffix}`;
+}
+
 function normalizeFeatureKey(input) {
   if (typeof input !== 'string') {
     return '';
@@ -570,7 +617,11 @@ function normalizeFeatureKey(input) {
   if (trimmed === 'cashierEnabled') {
     return 'cashierEnabled';
   }
-  const compact = trimmed.replace(/[\s_-]+/g, '').toLowerCase();
+  const navKey = normalizeHomeNavFeatureKey(trimmed);
+  if (navKey) {
+    return navKey;
+  }
+  const compact = trimmed.replace(/[\s._-]+/g, '').toLowerCase();
   if (FEATURE_KEY_ALIASES[compact]) {
     return FEATURE_KEY_ALIASES[compact];
   }
@@ -666,6 +717,27 @@ function serializeImmortalTournament(config) {
   return cloneImmortalTournament(config);
 }
 
+function normalizeHomeNavFeatures(config) {
+  const normalized = { ...DEFAULT_HOME_NAV_FEATURES };
+  if (config && typeof config === 'object') {
+    HOME_NAV_FEATURE_KEYS.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(config, key)) {
+        normalized[key] = resolveBoolean(config[key], normalized[key]);
+      }
+    });
+  }
+  return normalized;
+}
+
+function cloneHomeNavFeatures(config) {
+  const normalized = normalizeHomeNavFeatures(config);
+  return { ...normalized };
+}
+
+function serializeHomeNavFeatures(config) {
+  return cloneHomeNavFeatures(config);
+}
+
 function sanitizeFeatureDocument(documentData) {
   if (!documentData || typeof documentData !== 'object') {
     return {};
@@ -682,7 +754,8 @@ function sanitizeFeatureDocument(documentData) {
 function normalizeFeatureToggles(documentData) {
   const toggles = {
     cashierEnabled: DEFAULT_FEATURE_TOGGLES.cashierEnabled,
-    immortalTournament: cloneImmortalTournament(DEFAULT_FEATURE_TOGGLES.immortalTournament)
+    immortalTournament: cloneImmortalTournament(DEFAULT_FEATURE_TOGGLES.immortalTournament),
+    homeNav: cloneHomeNavFeatures(DEFAULT_FEATURE_TOGGLES.homeNav)
   };
   if (documentData && typeof documentData === 'object') {
     if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
@@ -690,6 +763,9 @@ function normalizeFeatureToggles(documentData) {
     }
     if (Object.prototype.hasOwnProperty.call(documentData, 'immortalTournament')) {
       toggles.immortalTournament = cloneImmortalTournament(documentData.immortalTournament);
+    }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'homeNav')) {
+      toggles.homeNav = cloneHomeNavFeatures(documentData.homeNav);
     }
   }
   return toggles;
@@ -778,9 +854,21 @@ async function updateSystemFeature(openid, event = {}) {
 
   const existingDocument = await loadSystemFeatureDocument();
   const currentToggles = normalizeFeatureToggles(existingDocument);
-  const nextValue = resolveFeatureEventValue(event, key, currentToggles[key]);
+  const navKey = key.startsWith('homeNav.') ? key.split('.')[1] : '';
+  const fallbackValue =
+    key === 'cashierEnabled'
+      ? currentToggles.cashierEnabled
+      : navKey
+      ? currentToggles.homeNav[navKey]
+      : undefined;
+  const nextValue = resolveFeatureEventValue(event, key, fallbackValue);
 
-  if (currentToggles[key] === nextValue && existingDocument) {
+  const unchanged =
+    existingDocument &&
+    ((key === 'cashierEnabled' && currentToggles.cashierEnabled === nextValue) ||
+      (navKey && currentToggles.homeNav[navKey] === nextValue));
+
+  if (unchanged) {
     return {
       success: true,
       features: currentToggles,
@@ -792,10 +880,25 @@ async function updateSystemFeature(openid, event = {}) {
   const now = new Date();
   const sanitizedExisting = sanitizeFeatureDocument(existingDocument);
 
+  const nextToggles = {
+    cashierEnabled: currentToggles.cashierEnabled,
+    immortalTournament: cloneImmortalTournament(currentToggles.immortalTournament),
+    homeNav: cloneHomeNavFeatures(currentToggles.homeNav)
+  };
+
+  if (key === 'cashierEnabled') {
+    nextToggles.cashierEnabled = nextValue;
+  } else if (navKey && HOME_NAV_KEY_SET.has(navKey)) {
+    nextToggles.homeNav[navKey] = nextValue;
+  } else {
+    throw new Error('未知功能开关');
+  }
+
   const payload = {
     ...sanitizedExisting,
-    cashierEnabled: key === 'cashierEnabled' ? nextValue : currentToggles.cashierEnabled,
-    immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
+    cashierEnabled: nextToggles.cashierEnabled,
+    immortalTournament: serializeImmortalTournament(nextToggles.immortalTournament),
+    homeNav: serializeHomeNavFeatures(nextToggles.homeNav),
     updatedAt: now
   };
   if (!payload.createdAt) {

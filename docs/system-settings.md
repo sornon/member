@@ -14,6 +14,15 @@
     "registrationStart": "",
     "registrationEnd": ""
   },
+  "homeNav": {
+    "wallet": true,
+    "order": true,
+    "reservation": true,
+    "role": true,
+    "equipment": true,
+    "storage": true,
+    "skill": true
+  },
   "createdAt": "2025-01-01T00:00:00.000Z",
   "updatedAt": "2025-01-01T00:00:00.000Z"
 }
@@ -27,6 +36,9 @@
 - **immortalTournament**：仙界比武大会的集中配置，字段含义如下：
   - `enabled`：控制报名入口、战报展示等功能是否开放。
   - `registrationStart` / `registrationEnd`：报名窗口时间，字符串会直接同步至前台展示。
+- **homeNav**：首页底部导航入口的显隐配置，包含以下布尔字段：
+  - `wallet` / `order` / `reservation`：控制钱包、点餐、预订入口是否展示。
+  - `role` / `equipment` / `storage` / `skill`：分别控制角色、装备、纳戒、技能入口的展示。
 
 管理员页面提供显式的“保存大会设置”按钮，调整报名窗口后需手动保存，云端函数会自动清理冗余字段。
 如需新增配置项，优先在 `DEFAULT_IMMORTAL_TOURNAMENT` 中声明默认值，再在前端表单中增加对应字段即可。

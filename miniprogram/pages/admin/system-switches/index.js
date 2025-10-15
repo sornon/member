@@ -8,9 +8,79 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
 
 const TOURNAMENT_FIELDS = ['enabled', 'registrationStart', 'registrationEnd'];
 
+const DEFAULT_HOME_NAV_FEATURES = {
+  wallet: true,
+  order: true,
+  reservation: true,
+  role: true,
+  equipment: true,
+  storage: true,
+  skill: true
+};
+
+const HOME_NAV_SWITCHES = [
+  {
+    key: 'homeNav.wallet',
+    feature: 'wallet',
+    name: '钱包入口',
+    desc: '控制会员进入钱包页面的底部导航入口。',
+    offHint: '关闭后，首页底部将隐藏钱包入口。',
+    onHint: '开启后，会员可直接从首页进入钱包。'
+  },
+  {
+    key: 'homeNav.order',
+    feature: 'order',
+    name: '点餐入口',
+    desc: '用于快速进入自助点餐页面。',
+    offHint: '关闭后，会员需通过其他入口才能点餐。',
+    onHint: '开启后，点餐入口常驻首页底部。'
+  },
+  {
+    key: 'homeNav.reservation',
+    feature: 'reservation',
+    name: '预订入口',
+    desc: '开启后展示包厢/活动预约入口。',
+    offHint: '关闭后，会员无法在首页直接发起预订。',
+    onHint: '开启后，预订入口在首页底部展示。'
+  },
+  {
+    key: 'homeNav.role',
+    feature: 'role',
+    name: '角色入口',
+    desc: '用于查看角色档案与进度。',
+    offHint: '关闭后，会员需通过其他路径进入角色档案。',
+    onHint: '开启后，可从首页底部进入角色档案。'
+  },
+  {
+    key: 'homeNav.equipment',
+    feature: 'equipment',
+    name: '装备入口',
+    desc: '控制装备管理页面的入口展示。',
+    offHint: '关闭后，装备入口不再出现在首页底部。',
+    onHint: '开启后，装备入口固定展示。'
+  },
+  {
+    key: 'homeNav.storage',
+    feature: 'storage',
+    name: '纳戒入口',
+    desc: '展示会员纳戒仓库的快捷入口。',
+    offHint: '关闭后，纳戒入口将被隐藏。',
+    onHint: '开启后，纳戒入口继续展示。'
+  },
+  {
+    key: 'homeNav.skill',
+    feature: 'skill',
+    name: '技能入口',
+    desc: '控制技能图鉴入口是否展示。',
+    offHint: '关闭后，技能入口不会出现在首页底部。',
+    onHint: '开启后，技能入口保持可见。'
+  }
+];
+
 const DEFAULT_FEATURES = {
   cashierEnabled: true,
-  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
+  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
+  homeNav: { ...DEFAULT_HOME_NAV_FEATURES }
 };
 
 function showConfirmationModal({ title = '确认操作', content = '确认执行该操作？', confirmText = '确认', cancelText = '取消' } = {}) {
@@ -119,10 +189,28 @@ function buildTournamentDraft(config) {
   };
 }
 
+function normalizeHomeNavFeatures(config) {
+  const normalized = { ...DEFAULT_HOME_NAV_FEATURES };
+  if (config && typeof config === 'object') {
+    Object.keys(DEFAULT_HOME_NAV_FEATURES).forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(config, key)) {
+        normalized[key] = toBoolean(config[key], normalized[key]);
+      }
+    });
+  }
+  return normalized;
+}
+
+function cloneHomeNavFeatures(config) {
+  const normalized = normalizeHomeNavFeatures(config);
+  return { ...normalized };
+}
+
 function normalizeFeatures(features) {
   const normalized = {
     cashierEnabled: DEFAULT_FEATURES.cashierEnabled,
-    immortalTournament: cloneImmortalTournament(DEFAULT_FEATURES.immortalTournament)
+    immortalTournament: cloneImmortalTournament(DEFAULT_FEATURES.immortalTournament),
+    homeNav: cloneHomeNavFeatures(DEFAULT_FEATURES.homeNav)
   };
   if (features && typeof features === 'object') {
     if (Object.prototype.hasOwnProperty.call(features, 'cashierEnabled')) {
@@ -130,6 +218,9 @@ function normalizeFeatures(features) {
     }
     if (Object.prototype.hasOwnProperty.call(features, 'immortalTournament')) {
       normalized.immortalTournament = cloneImmortalTournament(features.immortalTournament);
+    }
+    if (Object.prototype.hasOwnProperty.call(features, 'homeNav')) {
+      normalized.homeNav = cloneHomeNavFeatures(features.homeNav);
     }
   }
   return normalized;
@@ -165,7 +256,8 @@ Page({
     tournamentResetScope: '',
     tournamentResetError: '',
     updating: {},
-    error: ''
+    error: '',
+    navFeatureList: HOME_NAV_SWITCHES
   },
 
   onShow() {
@@ -229,9 +321,19 @@ Page({
     const enabled = !!(event && event.detail && event.detail.value);
     const previousFeatures = normalizeFeatures(this.data.features);
     const updating = { ...this.data.updating, [key]: true };
+    const nextFeatures = { ...previousFeatures };
+    if (key.startsWith('homeNav.')) {
+      const featureKey = key.split('.')[1];
+      nextFeatures.homeNav = {
+        ...previousFeatures.homeNav,
+        [featureKey]: enabled
+      };
+    } else {
+      nextFeatures[key] = enabled;
+    }
 
     this.setData({
-      features: { ...previousFeatures, [key]: enabled },
+      features: nextFeatures,
       updating,
       error: ''
     });

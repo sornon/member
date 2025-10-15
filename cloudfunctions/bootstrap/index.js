@@ -69,9 +69,15 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
   registrationStart: '',
   registrationEnd: ''
 };
+const HOME_NAV_FEATURE_KEYS = ['wallet', 'order', 'reservation', 'role', 'equipment', 'storage', 'skill'];
+const DEFAULT_HOME_NAV_FEATURES = HOME_NAV_FEATURE_KEYS.reduce((acc, key) => {
+  acc[key] = true;
+  return acc;
+}, {});
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
-  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
+  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
+  homeNav: { ...DEFAULT_HOME_NAV_FEATURES }
 };
 
 async function seedSystemSettings() {

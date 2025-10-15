@@ -16,9 +16,15 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
   registrationStart: '',
   registrationEnd: ''
 };
+const HOME_NAV_FEATURE_KEYS = ['wallet', 'order', 'reservation', 'role', 'equipment', 'storage', 'skill'];
+const DEFAULT_HOME_NAV_FEATURES = HOME_NAV_FEATURE_KEYS.reduce((acc, key) => {
+  acc[key] = true;
+  return acc;
+}, {});
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
-  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
+  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
+  homeNav: { ...DEFAULT_HOME_NAV_FEATURES }
 };
 
 function resolveToggleBoolean(value, defaultValue = true) {
@@ -99,7 +105,8 @@ function normalizeImmortalTournament(config) {
 function normalizeFeatureToggles(documentData) {
   const toggles = {
     cashierEnabled: DEFAULT_FEATURE_TOGGLES.cashierEnabled,
-    immortalTournament: { ...DEFAULT_FEATURE_TOGGLES.immortalTournament }
+    immortalTournament: { ...DEFAULT_FEATURE_TOGGLES.immortalTournament },
+    homeNav: { ...DEFAULT_FEATURE_TOGGLES.homeNav }
   };
   if (documentData && typeof documentData === 'object') {
     if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
@@ -108,8 +115,23 @@ function normalizeFeatureToggles(documentData) {
     if (Object.prototype.hasOwnProperty.call(documentData, 'immortalTournament')) {
       toggles.immortalTournament = normalizeImmortalTournament(documentData.immortalTournament);
     }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'homeNav')) {
+      toggles.homeNav = normalizeHomeNavFeatures(documentData.homeNav);
+    }
   }
   return toggles;
+}
+
+function normalizeHomeNavFeatures(config) {
+  const normalized = { ...DEFAULT_HOME_NAV_FEATURES };
+  if (config && typeof config === 'object') {
+    HOME_NAV_FEATURE_KEYS.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(config, key)) {
+        normalized[key] = resolveToggleBoolean(config[key], normalized[key]);
+      }
+    });
+  }
+  return normalized;
 }
 
 async function loadFeatureToggles() {

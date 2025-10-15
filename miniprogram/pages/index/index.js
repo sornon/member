@@ -104,16 +104,81 @@ function resolveActiveTitleId(member, desiredId) {
 }
 
 const BASE_NAV_ITEMS = [
-  { icon: '💰', label: '钱包', url: '/pages/wallet/wallet' },
-  { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index' },
-  { icon: '📅', label: '预订', url: '/pages/reservation/reservation' },
+  { icon: '💰', label: '钱包', url: '/pages/wallet/wallet', featureKey: 'wallet' },
+  { icon: '🍽️', label: '点餐', url: '/pages/membership/order/index', featureKey: 'order' },
+  { icon: '📅', label: '预订', url: '/pages/reservation/reservation', featureKey: 'reservation' },
   //{ icon: '⚔️', label: '比武', url: '/pages/pvp/index' },
-  { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character' },
-  { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment' },
-  { icon: '💍', label: '纳戒', url: '/pages/role/index?tab=storage' },
-  { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' }
+  { icon: '🧝', label: '角色', url: '/pages/role/index?tab=character', featureKey: 'role' },
+  { icon: '🛡️', label: '装备', url: '/pages/role/index?tab=equipment', featureKey: 'equipment' },
+  { icon: '💍', label: '纳戒', url: '/pages/role/index?tab=storage', featureKey: 'storage' },
+  { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill', featureKey: 'skill' }
   //{ icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
+
+const DEFAULT_HOME_NAV_FEATURES = Object.freeze({
+  wallet: true,
+  order: true,
+  reservation: true,
+  role: true,
+  equipment: true,
+  storage: true,
+  skill: true
+});
+
+function normalizeFeatureFlag(value, defaultValue = true) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return defaultValue;
+    }
+    return value !== 0;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return defaultValue;
+    }
+    const normalized = trimmed.toLowerCase();
+    if (['false', '0', 'off', 'no', '关闭', '否', '禁用', '停用', 'disabled'].includes(normalized)) {
+      return false;
+    }
+    if (['true', '1', 'on', 'yes', '开启', '启用', 'enable', 'enabled'].includes(normalized)) {
+      return true;
+    }
+    return defaultValue;
+  }
+  if (value == null) {
+    return defaultValue;
+  }
+  if (typeof value.valueOf === 'function') {
+    try {
+      const primitive = value.valueOf();
+      if (primitive !== value) {
+        return normalizeFeatureFlag(primitive, defaultValue);
+      }
+    } catch (error) {
+      return defaultValue;
+    }
+  }
+  return Boolean(value);
+}
+
+function resolveHomeNavFeatures(member) {
+  const features = member && member.features;
+  const navConfig = features && typeof features.homeNav === 'object' ? features.homeNav : null;
+  const normalized = { ...DEFAULT_HOME_NAV_FEATURES };
+  if (!navConfig) {
+    return normalized;
+  }
+  Object.keys(normalized).forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(navConfig, key)) {
+      normalized[key] = normalizeFeatureFlag(navConfig[key], normalized[key]);
+    }
+  });
+  return normalized;
+}
 
 function buildDefaultNavItems() {
   const showRoleDot = shouldShowRoleBadge(null);
@@ -129,9 +194,14 @@ const INITIAL_NAV_ITEMS = buildDefaultNavItems();
 
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
 
-function buildCollapsedNavItems(navItems) {
-  const source = Array.isArray(navItems) && navItems.length ? navItems : BASE_NAV_ITEMS;
-  if (!source.length) {
+function buildCollapsedNavItems(navItems, options = {}) {
+  const allowFallback = options.allowFallback !== false;
+  const fallbackItems = Array.isArray(options.fallback) ? options.fallback : BASE_NAV_ITEMS;
+  let source = Array.isArray(navItems) && navItems.length ? navItems : null;
+  if (!source && allowFallback) {
+    source = Array.isArray(fallbackItems) && fallbackItems.length ? fallbackItems : [];
+  }
+  if (!source || !source.length) {
     return [];
   }
 
@@ -717,7 +787,13 @@ function resolveNavItems(member) {
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
   const badges = normalizeReservationBadges(member && member.reservationBadges);
   const roleHasPendingAttributes = shouldShowRoleBadge(member);
-  const navItems = BASE_NAV_ITEMS.map((item) => {
+  const homeNavFeatures = resolveHomeNavFeatures(member);
+  const navItems = BASE_NAV_ITEMS.filter((item) => {
+    if (item && item.featureKey && homeNavFeatures[item.featureKey] === false) {
+      return false;
+    }
+    return true;
+  }).map((item) => {
     const next = { ...item };
     if (item.label === '预订') {
       next.showDot = shouldShowReservationDot(badges);
@@ -963,7 +1039,7 @@ Page({
       const profileAuthorized = !!(sanitizedMember && sanitizedMember.nickName);
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
       const navItems = resolveNavItems(sanitizedMember);
-      const collapsedNavItems = buildCollapsedNavItems(navItems);
+      const collapsedNavItems = buildCollapsedNavItems(navItems, { allowFallback: false });
       const realmHasPendingRewards = hasPendingLevelRewards(progress);
       this.setData({
         member: sanitizedMember,
@@ -1497,7 +1573,7 @@ Page({
     }
     const renameHistory = formatHistoryList(member.renameHistory);
     const navItems = resolveNavItems(sanitizedMember);
-    const collapsedNavItems = buildCollapsedNavItems(navItems);
+    const collapsedNavItems = buildCollapsedNavItems(navItems, { allowFallback: false });
     this.setData({
       member: sanitizedMember,
       memberStats: deriveMemberStats(sanitizedMember),

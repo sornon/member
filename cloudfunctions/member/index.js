@@ -62,6 +62,175 @@ const STORAGE_REWARD_META = Object.freeze({
   consumable: { quality: 'epic', qualityLabel: '消耗品', qualityColor: '#f2a546' }
 });
 
+const FEATURE_TOGGLE_DOC_ID = 'feature_toggles';
+const DEFAULT_IMMORTAL_TOURNAMENT = {
+  enabled: false,
+  registrationStart: '',
+  registrationEnd: ''
+};
+const HOME_NAV_FEATURE_KEYS = ['wallet', 'order', 'reservation', 'role', 'equipment', 'storage', 'skill'];
+const DEFAULT_HOME_NAV_FEATURES = HOME_NAV_FEATURE_KEYS.reduce((acc, key) => {
+  acc[key] = true;
+  return acc;
+}, {});
+const DEFAULT_FEATURE_TOGGLES = {
+  cashierEnabled: true,
+  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
+  homeNav: { ...DEFAULT_HOME_NAV_FEATURES }
+};
+
+function resolveToggleBoolean(value, defaultValue = true) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return defaultValue;
+    }
+    return value !== 0;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return defaultValue;
+    }
+    const normalized = trimmed.toLowerCase();
+    if (['false', '0', 'off', 'no', '关闭', '否', '禁用', '停用', 'disabled'].includes(normalized)) {
+      return false;
+    }
+    if (['true', '1', 'on', 'yes', '开启', '启用', 'enable', 'enabled'].includes(normalized)) {
+      return true;
+    }
+    return defaultValue;
+  }
+  if (value == null) {
+    return defaultValue;
+  }
+  if (typeof value.valueOf === 'function') {
+    try {
+      const primitive = value.valueOf();
+      if (primitive !== value) {
+        return resolveToggleBoolean(primitive, defaultValue);
+      }
+    } catch (error) {
+      return defaultValue;
+    }
+  }
+  return Boolean(value);
+}
+
+function trimToString(value) {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (value == null) {
+    return '';
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  try {
+    return String(value).trim();
+  } catch (error) {
+    return '';
+  }
+}
+
+function normalizeImmortalTournament(config) {
+  const normalized = { ...DEFAULT_IMMORTAL_TOURNAMENT };
+  if (config && typeof config === 'object') {
+    if (Object.prototype.hasOwnProperty.call(config, 'enabled')) {
+      normalized.enabled = resolveToggleBoolean(config.enabled, normalized.enabled);
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'registrationStart')) {
+      normalized.registrationStart = trimToString(config.registrationStart);
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'registrationEnd')) {
+      normalized.registrationEnd = trimToString(config.registrationEnd);
+    }
+  }
+  return normalized;
+}
+
+function normalizeHomeNavFeatures(config) {
+  const normalized = { ...DEFAULT_HOME_NAV_FEATURES };
+  if (config && typeof config === 'object') {
+    HOME_NAV_FEATURE_KEYS.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(config, key)) {
+        normalized[key] = resolveToggleBoolean(config[key], normalized[key]);
+      }
+    });
+  }
+  return normalized;
+}
+
+function normalizeFeatureToggles(documentData) {
+  let cashierEnabled = DEFAULT_FEATURE_TOGGLES.cashierEnabled;
+  let immortalTournament = normalizeImmortalTournament(DEFAULT_FEATURE_TOGGLES.immortalTournament);
+  let homeNav = normalizeHomeNavFeatures(DEFAULT_FEATURE_TOGGLES.homeNav);
+  if (documentData && typeof documentData === 'object') {
+    if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
+      cashierEnabled = resolveToggleBoolean(documentData.cashierEnabled, cashierEnabled);
+    }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'immortalTournament')) {
+      immortalTournament = normalizeImmortalTournament(documentData.immortalTournament);
+    }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'homeNav')) {
+      homeNav = normalizeHomeNavFeatures(documentData.homeNav);
+    }
+  }
+  return {
+    cashierEnabled,
+    immortalTournament,
+    homeNav
+  };
+}
+
+function cloneFeatureToggles(features) {
+  const normalized = normalizeFeatureToggles(features);
+  return {
+    cashierEnabled: normalized.cashierEnabled,
+    immortalTournament: normalizeImmortalTournament(normalized.immortalTournament),
+    homeNav: normalizeHomeNavFeatures(normalized.homeNav)
+  };
+}
+
+async function loadFeatureToggles() {
+  try {
+    const snapshot = await db
+      .collection(COLLECTIONS.SYSTEM_SETTINGS)
+      .doc(FEATURE_TOGGLE_DOC_ID)
+      .get();
+    if (snapshot && snapshot.data) {
+      return normalizeFeatureToggles(snapshot.data);
+    }
+  } catch (error) {
+    if (error && error.errMsg && /not exist|not found/i.test(error.errMsg)) {
+      return normalizeFeatureToggles(DEFAULT_FEATURE_TOGGLES);
+    }
+    console.error('[member] loadFeatureToggles failed', error);
+  }
+  return normalizeFeatureToggles(DEFAULT_FEATURE_TOGGLES);
+}
+
+function attachFeaturesToMember(member, features) {
+  if (!member) {
+    return member;
+  }
+  const toggles = cloneFeatureToggles(features || DEFAULT_FEATURE_TOGGLES);
+  return { ...member, features: toggles };
+}
+
+async function buildMemberResponse(member, levels, options = {}) {
+  if (!member) {
+    return member;
+  }
+  const features =
+    options && options.features ? cloneFeatureToggles(options.features) : await loadFeatureToggles();
+  const decorated = decorateMember(member, levels);
+  return attachFeaturesToMember(decorated, features);
+}
+
 const SUB_LEVEL_COUNT =
   Array.isArray(subLevelLabels) && subLevelLabels.length ? subLevelLabels.length : 10;
 
@@ -707,9 +876,10 @@ async function initMember(openid, profile) {
 }
 
 async function getProfile(openid) {
-  const [levels, memberDoc] = await Promise.all([
+  const [levels, memberDoc, featureToggles] = await Promise.all([
     loadLevels(),
-    db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null)
+    db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null),
+    loadFeatureToggles()
   ]);
   if (!memberDoc || !memberDoc.data) {
     await initMember(openid, {});
@@ -718,7 +888,7 @@ async function getProfile(openid) {
   const normalized = normalizeAssetFields(memberDoc.data);
   const { member: withDefaults } = await ensureArchiveDefaults(normalized);
   const synced = await ensureLevelSync(withDefaults, levels);
-  return decorateMember(synced, levels);
+  return buildMemberResponse(synced, levels, { features: featureToggles });
 }
 
 async function getProgress(openid) {
@@ -856,7 +1026,8 @@ async function completeProfile(openid, payload = {}) {
 
   if (!Object.keys(updates).length) {
     const levels = await loadLevels();
-    return decorateMember(normalizeAssetFields(existing.data), levels);
+    const normalizedExisting = normalizeAssetFields(existing.data);
+    return buildMemberResponse(normalizedExisting, levels);
   }
 
   updates.updatedAt = new Date();
@@ -1709,7 +1880,7 @@ async function updateArchive(openid, updates = {}) {
   }
 
   if (!Object.keys(patch).length) {
-    return decorateMember(member, levels);
+    return buildMemberResponse(member, levels);
   }
 
   if (renamed) {
