@@ -29,10 +29,10 @@
 
 2. **创建集合**：
    - 在云开发控制台中手动创建 `menuSections`、`menuCategories`、`menuItems` 集合（若第一次运行云函数也会自动创建，但推荐提前创建以设置索引）。
-   - 建议为以下字段建立唯一索引以避免重复：
-     - `menuSections`：`sectionId`（单字段唯一）。
-     - `menuCategories`：`sectionId + categoryId`（联合唯一，确保同一一级类目下的二级类目标识不重复）。
-     - `menuItems`：`sectionId + categoryId + itemId`（联合唯一，保证商品在所属类目下唯一）。
+  - 建议为以下字段建立唯一索引以避免重复，可在云开发控制台中进入 **数据库 → 目标集合 → 索引 → 新建索引**，依次添加字段并勾选“唯一索引”：
+    - `menuSections`：仅添加 `sectionId` 一个字段。
+    - `menuCategories`：依次添加 `sectionId`、`categoryId` 两个字段，形成联合唯一索引（确保同一一级类目下的二级类目标识不重复）。
+    - `menuItems`：依次添加 `sectionId`、`categoryId`、`itemId` 三个字段，形成联合唯一索引（保证商品在所属类目下唯一）。
 
 3. **初始化数据**（可选）：
    - 若需导入历史菜单，可参照原 `menu-data.js` 的内容，通过管理员页面逐条录入，或自建脚本写入集合。
