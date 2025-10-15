@@ -762,8 +762,10 @@ async function persistBattleResult({
     });
   }
   await Promise.all([
-    saveProfile(playerUpdate, profile.memberId || player.memberId),
-    opponentUpdate ? saveProfile(opponentUpdate, opponentProfile.memberId) : Promise.resolve()
+    saveProfile(playerUpdate.after, profile.memberId || player.memberId || playerUpdate.after.memberId),
+    opponentUpdate && opponentProfile
+      ? saveProfile(opponentUpdate.after, opponentProfile.memberId || opponent.memberId || opponentUpdate.after.memberId)
+      : Promise.resolve()
   ]);
   const matchRecord = {
     seasonId: season._id,
@@ -879,18 +881,35 @@ function determineOutcome(simulation, memberId) {
   };
 }
 
+function sanitizeProfilePayload(profile) {
+  if (!profile || typeof profile !== 'object') {
+    return {};
+  }
+  const payload = { ...profile };
+  delete payload._id;
+  delete payload._openid;
+  delete payload._createTime;
+  delete payload._updateTime;
+  return payload;
+}
+
 async function saveProfile(profile, memberId) {
   const collection = db.collection(COLLECTIONS.PVP_PROFILES);
-  await collection
-    .doc(memberId)
-    .set({ data: profile })
-    .catch(async (error) => {
-      if (error && /exists/i.test(error.errMsg || '')) {
-        await collection.doc(memberId).update({ data: { ...profile, updatedAt: new Date() } }).catch(() => {});
-      } else {
-        throw error;
-      }
-    });
+  const data = sanitizeProfilePayload(profile);
+  try {
+    await collection.doc(memberId).set({ data });
+  } catch (error) {
+    if (error && /exists/i.test(error.errMsg || '')) {
+      await collection
+        .doc(memberId)
+        .update({ data })
+        .catch((updateError) => {
+          throw updateError;
+        });
+    } else {
+      throw error;
+    }
+  }
 }
 
 function applyMatchOutcome({ season, profile, opponentProfile, outcome, isBot, options = {} }) {
