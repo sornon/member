@@ -38,9 +38,11 @@
    - **准备旧数据文件**：从版本库历史中导出变更前的 `miniprogram/shared/menu-data.js`，保存为 `miniprogram/shared/menu-data.legacy.js`（或任意位置，后续脚本需指向该路径）。示例命令：
 
      ```bash
-     git show <含有旧菜单数据的提交哈希>:miniprogram/shared/menu-data.js \
+     git show <commit-with-legacy-menu>:miniprogram/shared/menu-data.js \
        > miniprogram/shared/menu-data.legacy.js
      ```
+
+     > ⚠️ **注意**：请将 `<commit-with-legacy-menu>`（或中文说明中的“含有旧菜单数据的提交哈希”）替换为真实的提交哈希，并且不要保留尖括号。若直接粘贴示例命令中的尖括号，Shell 会把 `<...>` 当成输入重定向从文件读取数据，从而提示 `No such file or directory`。可通过 `git log -- miniprogram/shared/menu-data.js` 查找仍包含旧数据的提交记录。
 
    - **生成导入文件**：执行 `scripts/export-menu-collections.js` 将旧版结构拆分为三个集合所需的 JSON Lines 文件。脚本会为每行生成一个文档，便于直接使用云开发导入工具：
 
