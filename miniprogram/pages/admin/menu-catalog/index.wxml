@@ -16,12 +16,15 @@
       <view
         class="section-item {{selectedSectionId === section.sectionId ? 'is-active' : ''}}"
         wx:for="{{sections}}"
+        wx:for-item="section"
         wx:key="sectionId"
         data-id="{{section.sectionId}}"
         bindtap="handleSelectSection"
       >
-        <view class="section-name">{{section.name}}</view>
-        <view class="section-meta">ID：{{section.sectionId}}</view>
+        <view class="section-name">
+          <text class="section-name__title">{{section.name}}</text>
+          <text class="section-name__id" wx:if="{{section.sectionId}}">（{{section.sectionId}}）</text>
+        </view>
       </view>
       <view class="empty-hint" wx:if="{{!loading && !sections.length}}">暂未配置一级类目</view>
     </view>
@@ -124,12 +127,15 @@
       <view
         class="category-item {{selectedCategoryId === category.categoryId ? 'is-active' : ''}}"
         wx:for="{{categoriesBySection[selectedSectionId]}}"
+        wx:for-item="category"
         wx:key="categoryId"
         data-id="{{category.categoryId}}"
         bindtap="handleSelectCategory"
       >
-        <view class="category-name">{{category.name}}</view>
-        <view class="category-meta">ID：{{category.categoryId}}</view>
+        <view class="category-name">
+          <text class="category-name__title">{{category.name}}</text>
+          <text class="category-name__id" wx:if="{{category.categoryId}}">（{{category.categoryId}}）</text>
+        </view>
         <view class="category-meta" wx:if="{{category.daySortOrderText}}">白天排序：{{category.daySortOrderText}}</view>
         <view class="category-meta" wx:if="{{category.nightSortOrderText}}">夜间排序：{{category.nightSortOrderText}}</view>
       </view>

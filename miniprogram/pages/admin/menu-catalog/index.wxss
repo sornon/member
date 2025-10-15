@@ -81,14 +81,30 @@
 
 .section-name,
 .category-name {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6rpx;
   font-weight: 600;
 }
 
+.section-name__title,
+.category-name__title {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.section-name__id,
+.category-name__id,
 .section-meta,
 .category-meta {
   margin-top: 6rpx;
   font-size: 22rpx;
   color: rgba(255, 255, 255, 0.55);
+}
+
+.section-name__id,
+.category-name__id {
+  margin-top: 0;
 }
 
 .empty-hint {
