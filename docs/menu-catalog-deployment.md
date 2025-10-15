@@ -29,10 +29,17 @@
 
 2. **创建集合**：
    - 在云开发控制台中手动创建 `menuSections`、`menuCategories`、`menuItems` 集合（若第一次运行云函数也会自动创建，但推荐提前创建以设置索引）。
-  - 建议为以下字段建立唯一索引以避免重复，可在云开发控制台中进入 **数据库 → 目标集合 → 索引 → 新建索引**，依次添加字段并勾选“唯一索引”：
-    - `menuSections`：仅添加 `sectionId` 一个字段。
-    - `menuCategories`：依次添加 `sectionId`、`categoryId` 两个字段，形成联合唯一索引（确保同一一级类目下的二级类目标识不重复）。
-    - `menuItems`：依次添加 `sectionId`、`categoryId`、`itemId` 三个字段，形成联合唯一索引（保证商品在所属类目下唯一）。
+  - 建议为以下字段建立唯一索引以避免重复，可在云开发控制台中进入 **数据库 → 目标集合 → 索引 → 新建索引**，并按照下列顺序为索引添加字段：
+    1. 点击“添加索引字段”，选择字段名后再点击“添加字段”以继续追加下一列，直至包含全部字段；
+    2. 勾选“唯一索引”后再点击“确定”。
+
+    | 集合名 | 索引字段顺序 | 说明 |
+    | --- | --- | --- |
+    | `menuSections` | `sectionId` | 单字段唯一索引。 |
+    | `menuCategories` | `sectionId` → `categoryId` | 联合唯一索引，确保同一一级类目下的 `categoryId` 不重复。 |
+    | `menuItems` | `sectionId` → `categoryId` → `itemId` | 联合唯一索引，确保商品在所属类目下唯一。 |
+
+    > 如仅添加了 `sectionId` 就提交（例如在 `menuCategories` 集合中创建成“唯一的 sectionId”），导入 `menuCategories.json` 时会因同一一级类目存在多条记录而提示 `duplicate key error collection ... index: sectionId`. 可在“索引”页删除错误的索引后，按照上述顺序重新创建联合索引，再次导入即可。
 
 3. **初始化数据**（可选）：
    - **准备旧数据文件**：从版本库历史中导出变更前的 `miniprogram/shared/menu-data.js`，保存为 `miniprogram/shared/menu-data.legacy.js`（或任意位置，后续脚本需指向该路径）。示例命令：
