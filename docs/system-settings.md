@@ -9,6 +9,7 @@
 ```jsonc
 {
   "cashierEnabled": true,
+  "menuOrderingEnabled": false,
   "immortalTournament": {
     "enabled": false,
     "registrationStart": "",
@@ -24,6 +25,7 @@
 ## 配置项说明
 
 - **cashierEnabled**：收银台快捷充值开关，保持原有逻辑不变。
+- **menuOrderingEnabled**：点餐入口开关，为关闭状态时会员首页不展示点餐快捷入口。
 - **immortalTournament**：仙界比武大会的集中配置，字段含义如下：
   - `enabled`：控制报名入口、战报展示等功能是否开放。
   - `registrationStart` / `registrationEnd`：报名窗口时间，字符串会直接同步至前台展示。

@@ -71,6 +71,7 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
 };
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
+  menuOrderingEnabled: false,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
 };
 

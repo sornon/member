@@ -18,6 +18,7 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
 };
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
+  menuOrderingEnabled: false,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
 };
 
@@ -99,11 +100,15 @@ function normalizeImmortalTournament(config) {
 function normalizeFeatureToggles(documentData) {
   const toggles = {
     cashierEnabled: DEFAULT_FEATURE_TOGGLES.cashierEnabled,
+    menuOrderingEnabled: DEFAULT_FEATURE_TOGGLES.menuOrderingEnabled,
     immortalTournament: { ...DEFAULT_FEATURE_TOGGLES.immortalTournament }
   };
   if (documentData && typeof documentData === 'object') {
     if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
       toggles.cashierEnabled = resolveToggleBoolean(documentData.cashierEnabled, true);
+    }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'menuOrderingEnabled')) {
+      toggles.menuOrderingEnabled = resolveToggleBoolean(documentData.menuOrderingEnabled, false);
     }
     if (Object.prototype.hasOwnProperty.call(documentData, 'immortalTournament')) {
       toggles.immortalTournament = normalizeImmortalTournament(documentData.immortalTournament);

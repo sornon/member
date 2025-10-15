@@ -10,6 +10,7 @@ const TOURNAMENT_FIELDS = ['enabled', 'registrationStart', 'registrationEnd'];
 
 const DEFAULT_FEATURES = {
   cashierEnabled: true,
+  menuOrderingEnabled: false,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
 };
 
@@ -122,11 +123,15 @@ function buildTournamentDraft(config) {
 function normalizeFeatures(features) {
   const normalized = {
     cashierEnabled: DEFAULT_FEATURES.cashierEnabled,
+    menuOrderingEnabled: DEFAULT_FEATURES.menuOrderingEnabled,
     immortalTournament: cloneImmortalTournament(DEFAULT_FEATURES.immortalTournament)
   };
   if (features && typeof features === 'object') {
     if (Object.prototype.hasOwnProperty.call(features, 'cashierEnabled')) {
       normalized.cashierEnabled = toBoolean(features.cashierEnabled, true);
+    }
+    if (Object.prototype.hasOwnProperty.call(features, 'menuOrderingEnabled')) {
+      normalized.menuOrderingEnabled = toBoolean(features.menuOrderingEnabled, false);
     }
     if (Object.prototype.hasOwnProperty.call(features, 'immortalTournament')) {
       normalized.immortalTournament = cloneImmortalTournament(features.immortalTournament);

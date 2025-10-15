@@ -37,6 +37,7 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
 };
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
+  menuOrderingEnabled: false,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
 };
 const DEFAULT_PVP_RATING = 1200;
@@ -48,7 +49,15 @@ const FEATURE_KEY_ALIASES = {
   cashierenabled: 'cashierEnabled',
   cashiernabled: 'cashierEnabled',
   'cashier-enabled': 'cashierEnabled',
-  'cashier_enabled': 'cashierEnabled'
+  'cashier_enabled': 'cashierEnabled',
+  menu: 'menuOrderingEnabled',
+  ordering: 'menuOrderingEnabled',
+  order: 'menuOrderingEnabled',
+  'menu-ordering': 'menuOrderingEnabled',
+  'menu_ordering': 'menuOrderingEnabled',
+  'menuordering': 'menuOrderingEnabled',
+  'menu-order': 'menuOrderingEnabled',
+  'menu_order': 'menuOrderingEnabled'
 };
 
 const ACTIONS = {
@@ -682,11 +691,15 @@ function sanitizeFeatureDocument(documentData) {
 function normalizeFeatureToggles(documentData) {
   const toggles = {
     cashierEnabled: DEFAULT_FEATURE_TOGGLES.cashierEnabled,
+    menuOrderingEnabled: DEFAULT_FEATURE_TOGGLES.menuOrderingEnabled,
     immortalTournament: cloneImmortalTournament(DEFAULT_FEATURE_TOGGLES.immortalTournament)
   };
   if (documentData && typeof documentData === 'object') {
     if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
       toggles.cashierEnabled = resolveBoolean(documentData.cashierEnabled, true);
+    }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'menuOrderingEnabled')) {
+      toggles.menuOrderingEnabled = resolveBoolean(documentData.menuOrderingEnabled, false);
     }
     if (Object.prototype.hasOwnProperty.call(documentData, 'immortalTournament')) {
       toggles.immortalTournament = cloneImmortalTournament(documentData.immortalTournament);
@@ -795,6 +808,7 @@ async function updateSystemFeature(openid, event = {}) {
   const payload = {
     ...sanitizedExisting,
     cashierEnabled: key === 'cashierEnabled' ? nextValue : currentToggles.cashierEnabled,
+    menuOrderingEnabled: key === 'menuOrderingEnabled' ? nextValue : currentToggles.menuOrderingEnabled,
     immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
     updatedAt: now
   };

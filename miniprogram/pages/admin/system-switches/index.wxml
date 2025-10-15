@@ -25,6 +25,23 @@
       <view wx:if="{{updating.cashierEnabled}}" class="switch-hint">保存中…</view>
       <view wx:elif="{{!features.cashierEnabled}}" class="switch-hint warning">关闭后，会员钱包将提示“目前只支持收款台线下充值”。</view>
       <view wx:else class="switch-hint">开启后，会员可直接在钱包中完成微信充值。</view>
+
+      <view class="switch-row">
+        <view class="switch-info">
+          <view class="switch-name">点餐入口</view>
+          <view class="switch-desc">控制会员首页是否展示点餐快捷入口。</view>
+        </view>
+        <switch
+          checked="{{features.menuOrderingEnabled}}"
+          data-key="menuOrderingEnabled"
+          bindchange="handleFeatureToggle"
+          disabled="{{updating.menuOrderingEnabled}}"
+          color="#566aff"
+        ></switch>
+      </view>
+      <view wx:if="{{updating.menuOrderingEnabled}}" class="switch-hint">保存中…</view>
+      <view wx:elif="{{!features.menuOrderingEnabled}}" class="switch-hint warning">关闭后，首页将隐藏点餐入口，但原有导航顺序保持不变。</view>
+      <view wx:else class="switch-hint">开启后，会员可直接从首页进入点餐页面。</view>
     </view>
 
     <view class="card tournament-card">

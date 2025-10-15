@@ -115,9 +115,92 @@ const BASE_NAV_ITEMS = [
   //{ icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
 
-function buildDefaultNavItems() {
+const DEFAULT_MEMBER_FEATURES = Object.freeze({
+  cashierEnabled: true,
+  menuOrderingEnabled: false,
+  immortalTournament: {
+    enabled: false,
+    registrationStart: '',
+    registrationEnd: ''
+  }
+});
+
+function resolveFeatureToggle(value, defaultValue = false) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return defaultValue;
+    }
+    return value !== 0;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return defaultValue;
+    }
+    const normalized = trimmed.toLowerCase();
+    if (['false', '0', 'off', 'no', '关闭', '否', '禁用', '停用', 'disabled'].includes(normalized)) {
+      return false;
+    }
+    if (['true', '1', 'on', 'yes', '开启', '启用', 'enable', 'enabled'].includes(normalized)) {
+      return true;
+    }
+    return defaultValue;
+  }
+  if (value == null) {
+    return defaultValue;
+  }
+  if (typeof value.valueOf === 'function') {
+    try {
+      const primitive = value.valueOf();
+      if (primitive !== value) {
+        return resolveFeatureToggle(primitive, defaultValue);
+      }
+    } catch (error) {
+      return defaultValue;
+    }
+  }
+  return Boolean(value);
+}
+
+function normalizeMemberFeatures(features) {
+  const normalized = {
+    cashierEnabled: DEFAULT_MEMBER_FEATURES.cashierEnabled,
+    menuOrderingEnabled: DEFAULT_MEMBER_FEATURES.menuOrderingEnabled,
+    immortalTournament: { ...DEFAULT_MEMBER_FEATURES.immortalTournament }
+  };
+  if (features && typeof features === 'object') {
+    if (Object.prototype.hasOwnProperty.call(features, 'cashierEnabled')) {
+      normalized.cashierEnabled = resolveFeatureToggle(features.cashierEnabled, true);
+    }
+    if (Object.prototype.hasOwnProperty.call(features, 'menuOrderingEnabled')) {
+      normalized.menuOrderingEnabled = resolveFeatureToggle(features.menuOrderingEnabled, false);
+    }
+    if (Object.prototype.hasOwnProperty.call(features, 'immortalTournament')) {
+      const source = features.immortalTournament || {};
+      normalized.immortalTournament = {
+        enabled: resolveFeatureToggle(source.enabled, DEFAULT_MEMBER_FEATURES.immortalTournament.enabled),
+        registrationStart:
+          typeof source.registrationStart === 'string'
+            ? source.registrationStart.trim()
+            : DEFAULT_MEMBER_FEATURES.immortalTournament.registrationStart,
+        registrationEnd:
+          typeof source.registrationEnd === 'string'
+            ? source.registrationEnd.trim()
+            : DEFAULT_MEMBER_FEATURES.immortalTournament.registrationEnd
+      };
+    }
+  }
+  return normalized;
+}
+
+function buildDefaultNavItems(features) {
+  const normalizedFeatures = normalizeMemberFeatures(features);
   const showRoleDot = shouldShowRoleBadge(null);
-  return BASE_NAV_ITEMS.map((item) => {
+  const menuOrderingEnabled = normalizedFeatures.menuOrderingEnabled;
+  return BASE_NAV_ITEMS.filter((item) => menuOrderingEnabled || item.label !== '点餐').map((item) => {
     if (item.label === '角色') {
       return { ...item, showDot: showRoleDot };
     }
@@ -130,7 +213,7 @@ const INITIAL_NAV_ITEMS = buildDefaultNavItems();
 const ADMIN_ALLOWED_ROLES = ['admin', 'developer'];
 
 function buildCollapsedNavItems(navItems) {
-  const source = Array.isArray(navItems) && navItems.length ? navItems : BASE_NAV_ITEMS;
+  const source = Array.isArray(navItems) && navItems.length ? navItems : buildDefaultNavItems();
   if (!source.length) {
     return [];
   }
@@ -519,6 +602,7 @@ function buildSanitizedMember(member) {
   const titleUnlocks = resolveTitleUnlocks(member);
   const desiredTitle = normalizeTitleId(member.appearanceTitle || '');
   const appearanceTitle = desiredTitle && titleUnlocks.includes(desiredTitle) ? desiredTitle : '';
+  const normalizedFeatures = normalizeMemberFeatures(member.features);
   return {
     ...member,
     avatarUrl: sanitizedAvatar || '',
@@ -527,7 +611,8 @@ function buildSanitizedMember(member) {
     appearanceBackgroundAnimated: !!member.appearanceBackgroundAnimated,
     appearanceTitle,
     titleUnlocks,
-    backgroundUnlocks: resolveBackgroundUnlocks(member)
+    backgroundUnlocks: resolveBackgroundUnlocks(member),
+    features: normalizedFeatures
   };
 }
 
@@ -717,7 +802,9 @@ function resolveNavItems(member) {
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
   const badges = normalizeReservationBadges(member && member.reservationBadges);
   const roleHasPendingAttributes = shouldShowRoleBadge(member);
-  const navItems = BASE_NAV_ITEMS.map((item) => {
+  const features = normalizeMemberFeatures(member && member.features);
+  const menuOrderingEnabled = features.menuOrderingEnabled;
+  const navItems = BASE_NAV_ITEMS.filter((item) => menuOrderingEnabled || item.label !== '点餐').map((item) => {
     const next = { ...item };
     if (item.label === '预订') {
       next.showDot = shouldShowReservationDot(badges);
