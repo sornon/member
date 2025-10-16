@@ -13,6 +13,32 @@
     </picker>
   </view>
 
+  <view class="card overview-card">
+    <view class="overview-header">
+      <view class="overview-title">近两周包房预定情况</view>
+      <view class="overview-updated" wx:if="{{overviewGeneratedAt}}">更新于 {{overviewGeneratedAt}}</view>
+    </view>
+    <view wx:if="{{overviewLoading}}" class="overview-loading">正在加载包房概览...</view>
+    <view wx:elif="{{overviewError}}" class="overview-error" bindtap="handleRetryOverview">
+      {{overviewError}}，点击重试
+    </view>
+    <view wx:else class="overview-grid">
+      <view
+        class="overview-tile {{day.isToday ? 'overview-tile-today' : ''}}"
+        wx:for="{{reservationOverview}}"
+        wx:key="date"
+        wx:for-item="day"
+      >
+        <view class="overview-tile-header">
+          <text class="overview-tile-label">{{day.displayLabel}}</text>
+          <text class="overview-tile-count {{day.reservationCount ? '' : 'overview-tile-count-empty'}}">
+            {{day.reservationCountLabel}}
+          </text>
+        </view>
+      </view>
+    </view>
+  </view>
+
   <view wx:if="{{loading && !reservations.length}}" class="card">正在加载预约...</view>
   <view wx:if="{{!loading && !reservations.length}}" class="card empty">暂无预约申请</view>
 
