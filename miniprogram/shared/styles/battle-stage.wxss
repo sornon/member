@@ -431,11 +431,11 @@ page {
 }
 
 .avatar-wrapper.attacker.motion-basic-attack.is-attacking .avatar-inner {
-  animation: basicAttackDashRight 0.7s cubic-bezier(0.3, 1.5, 0.45, 1);
+  animation: basicAttackDashRight 0.7s cubic-bezier(0.28, 1.45, 0.6, 1);
 }
 
 .avatar-wrapper.defender.motion-basic-attack.is-attacking .avatar-inner {
-  animation: basicAttackDashLeft 0.7s cubic-bezier(0.3, 1.5, 0.45, 1);
+  animation: basicAttackDashLeft 0.7s cubic-bezier(0.28, 1.45, 0.6, 1);
 }
 
 .avatar-wrapper.motion-hit.is-hit .avatar-inner,
@@ -508,37 +508,51 @@ page {
 
 @keyframes basicAttackDashRight {
   0% {
-    transform: translateX(0) scale(1);
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.16, 0.84, 0.44, 1.2);
   }
-  26% {
-    transform: translateX(70rpx) scale(1.02);
+  20% {
+    transform: translateX(62rpx);
+    animation-timing-function: cubic-bezier(0.46, -0.2, 0.62, 1.1);
   }
-  48% {
-    transform: translateX(150rpx) scale(1.08);
+  44% {
+    transform: translateX(168rpx);
+    animation-timing-function: cubic-bezier(0.28, 0.84, 0.52, 1.36);
   }
-  62% {
-    transform: translateX(118rpx) scale(1.04);
+  60% {
+    transform: translateX(120rpx);
+    animation-timing-function: cubic-bezier(0.6, -0.08, 0.74, 1);
+  }
+  78% {
+    transform: translateX(32rpx);
   }
   100% {
-    transform: translateX(0) scale(1);
+    transform: translateX(0);
   }
 }
 
 @keyframes basicAttackDashLeft {
   0% {
-    transform: translateX(0) scale(1);
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.16, 0.84, 0.44, 1.2);
   }
-  26% {
-    transform: translateX(-70rpx) scale(1.02);
+  20% {
+    transform: translateX(-62rpx);
+    animation-timing-function: cubic-bezier(0.46, -0.2, 0.62, 1.1);
   }
-  48% {
-    transform: translateX(-150rpx) scale(1.08);
+  44% {
+    transform: translateX(-168rpx);
+    animation-timing-function: cubic-bezier(0.28, 0.84, 0.52, 1.36);
   }
-  62% {
-    transform: translateX(-118rpx) scale(1.04);
+  60% {
+    transform: translateX(-120rpx);
+    animation-timing-function: cubic-bezier(0.6, -0.08, 0.74, 1);
+  }
+  78% {
+    transform: translateX(-32rpx);
   }
   100% {
-    transform: translateX(0) scale(1);
+    transform: translateX(0);
   }
 }
 
