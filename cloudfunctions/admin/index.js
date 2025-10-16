@@ -42,6 +42,14 @@ const DEFAULT_FEATURE_TOGGLES = {
 const DEFAULT_PVP_RATING = 1200;
 const DEFAULT_PVP_TIER = { id: 'bronze', name: '青铜' };
 const DEFAULT_PVP_SEASON_LENGTH_DAYS = 56;
+const ACTIVE_RESERVATION_STATUSES = [
+  'pendingApproval',
+  'approved',
+  'reserved',
+  'confirmed',
+  'pendingPayment'
+];
+const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 const FEATURE_KEY_ALIASES = {
   cashier: 'cashierEnabled',
@@ -65,6 +73,7 @@ const ACTIONS = {
   CANCEL_CHARGE_ORDER: 'cancelChargeOrder',
   RECHARGE_MEMBER: 'rechargeMember',
   LIST_RESERVATIONS: 'listReservations',
+  GET_RESERVATION_OVERVIEW: 'getReservationOverview',
   APPROVE_RESERVATION: 'approveReservation',
   REJECT_RESERVATION: 'rejectReservation',
   CANCEL_RESERVATION: 'cancelReservation',
@@ -109,6 +118,7 @@ const ACTION_ALIASES = {
   cancelchargeorder: ACTIONS.CANCEL_CHARGE_ORDER,
   rechargemember: ACTIONS.RECHARGE_MEMBER,
   listreservations: ACTIONS.LIST_RESERVATIONS,
+  getreservationoverview: ACTIONS.GET_RESERVATION_OVERVIEW,
   approvereservation: ACTIONS.APPROVE_RESERVATION,
   rejectreservation: ACTIONS.REJECT_RESERVATION,
   cancelreservation: ACTIONS.CANCEL_RESERVATION,
@@ -209,6 +219,8 @@ const ACTION_HANDLERS = {
       page: event.page || 1,
       pageSize: event.pageSize || 20
     }),
+  [ACTIONS.GET_RESERVATION_OVERVIEW]: (openid, event) =>
+    getReservationOverview(openid, { days: event.days || event.range || 7 }),
   [ACTIONS.APPROVE_RESERVATION]: (openid, event) => approveReservation(openid, event.reservationId),
   [ACTIONS.REJECT_RESERVATION]: (openid, event) => rejectReservation(openid, event.reservationId, event.reason || ''),
   [ACTIONS.CANCEL_RESERVATION]: (openid, event) => cancelReservation(openid, event.reservationId, event.reason || ''),
@@ -1993,6 +2005,118 @@ async function listReservations(openid, { status = 'pendingApproval', page = 1, 
     total: countResult.total,
     page,
     pageSize: limit
+  };
+}
+
+async function getReservationOverview(openid, { days: requestedDays = 16 } = {}) {
+  await ensureAdmin(openid);
+  const numericDays = Number(requestedDays);
+  const totalDays = Math.min(
+    Math.max(Number.isFinite(numericDays) ? Math.floor(numericDays) : 16, 1),
+    31
+  );
+  const startDate = new Date();
+  startDate.setHours(0, 0, 0, 0);
+  const dayKeys = [];
+  for (let i = 0; i < totalDays; i += 1) {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + i);
+    dayKeys.push(formatDateLabel(date));
+  }
+  if (!dayKeys.length) {
+    return { days: [], generatedAt: formatDate(new Date()) };
+  }
+
+  const startKey = dayKeys[0];
+  const endKey = dayKeys[dayKeys.length - 1];
+
+  const snapshot = await db
+    .collection(COLLECTIONS.RESERVATIONS)
+    .where({
+      date: _.gte(startKey).and(_.lte(endKey)),
+      status: _.in(ACTIVE_RESERVATION_STATUSES)
+    })
+    .orderBy('date', 'asc')
+    .orderBy('startTime', 'asc')
+    .limit(totalDays * 50)
+    .get();
+
+  const reservations = snapshot.data || [];
+  if (!reservations.length) {
+    return {
+      days: dayKeys.map((key, index) => {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + index);
+        return {
+          date: key,
+          weekday: WEEKDAY_LABELS[date.getDay()],
+          reservations: []
+        };
+      }),
+      generatedAt: formatDate(new Date())
+    };
+  }
+
+  const memberIds = Array.from(
+    new Set(reservations.map((item) => item.memberId).filter((id) => typeof id === 'string' && id))
+  );
+  const roomIds = Array.from(
+    new Set(reservations.map((item) => item.roomId).filter((id) => typeof id === 'string' && id))
+  );
+
+  const [memberMap, roomMap] = await Promise.all([
+    loadMembersMap(memberIds),
+    loadRoomsMap(roomIds)
+  ]);
+
+  const decorated = reservations.map((item) =>
+    decorateReservationRecord(
+      { _id: item._id, ...item },
+      memberMap[item.memberId],
+      roomMap[item.roomId]
+    )
+  );
+
+  const grouped = decorated.reduce((acc, item) => {
+    if (!item || !item.date) {
+      return acc;
+    }
+    if (!acc[item.date]) {
+      acc[item.date] = [];
+    }
+    acc[item.date].push({
+      _id: item._id,
+      memberId: item.memberId,
+      memberName: item.memberName,
+      memberRealName: item.memberRealName,
+      memberMobile: item.memberMobile,
+      roomId: item.roomId,
+      roomName: item.roomName,
+      startTime: item.startTime,
+      endTime: item.endTime,
+      status: item.status,
+      statusLabel: item.statusLabel
+    });
+    return acc;
+  }, {});
+
+  Object.keys(grouped).forEach((key) => {
+    grouped[key].sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+  });
+
+  const days = dayKeys.map((key, index) => {
+    const date = new Date(startDate);
+    date.setDate(startDate.getDate() + index);
+    return {
+      date: key,
+      weekday: WEEKDAY_LABELS[date.getDay()],
+      reservations: grouped[key] || []
+    };
+  });
+
+  return {
+    days,
+    generatedAt: formatDate(new Date())
   };
 }
 

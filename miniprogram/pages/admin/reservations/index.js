@@ -24,12 +24,17 @@ Page({
     error: '',
     processingId: '',
     processingType: '',
-    currentStatusLabel: STATUS_OPTIONS[0].label
+    currentStatusLabel: STATUS_OPTIONS[0].label,
+    overviewLoading: false,
+    overviewError: '',
+    reservationOverview: [],
+    overviewGeneratedAt: ''
   },
 
   onShow() {
     this.markReservationUpdatesAsRead();
     this.fetchReservations(true);
+    this.fetchReservationOverview();
   },
 
   onPullDownRefresh() {
@@ -90,6 +95,53 @@ Page({
       });
       wx.showToast({ title: '加载失败，请稍后重试', icon: 'none' });
     }
+  },
+
+  async fetchReservationOverview() {
+    this.setData({ overviewLoading: true, overviewError: '' });
+    try {
+      const response = await AdminService.getReservationOverview();
+      const days = (response && Array.isArray(response.days) ? response.days : []).map((day, index) => {
+        const reservations = Array.isArray(day.reservations)
+          ? day.reservations.map((item) => ({
+              ...item,
+              memberDisplayName: formatMemberDisplayName(
+                item.memberName,
+                item.memberRealName,
+                item.memberId || ''
+              )
+            }))
+          : [];
+        const reservationCount = reservations.length;
+
+        return {
+          ...day,
+          reservations,
+          isToday: index === 0,
+          displayLabel: index === 0 ? '今天' : day.weekday || '',
+          reservationCount,
+          reservationCountLabel: reservationCount > 0 ? `${reservationCount}场` : '空闲'
+        };
+      });
+      this.setData({
+        reservationOverview: days,
+        overviewGeneratedAt: (response && response.generatedAt) || '',
+        overviewLoading: false
+      });
+    } catch (error) {
+      console.error('[admin:reservations] overview fetch failed', error);
+      this.setData({
+        overviewLoading: false,
+        overviewError: error.errMsg || error.message || '加载失败'
+      });
+    }
+  },
+
+  handleRetryOverview() {
+    if (this.data.overviewLoading) {
+      return;
+    }
+    this.fetchReservationOverview();
   },
 
   decorateReservation(item) {
