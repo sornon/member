@@ -2008,10 +2008,10 @@ async function listReservations(openid, { status = 'pendingApproval', page = 1, 
   };
 }
 
-async function getReservationOverview(openid, { days: requestedDays = 7 } = {}) {
+async function getReservationOverview(openid, { days: requestedDays = 14 } = {}) {
   await ensureAdmin(openid);
   const numericDays = Number(requestedDays);
-  const totalDays = Math.min(Math.max(Number.isFinite(numericDays) ? Math.floor(numericDays) : 7, 1), 31);
+  const totalDays = Math.min(Math.max(Number.isFinite(numericDays) ? Math.floor(numericDays) : 14, 1), 31);
   const startDate = new Date();
   startDate.setHours(0, 0, 0, 0);
   const dayKeys = [];
