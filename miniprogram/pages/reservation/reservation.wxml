@@ -54,7 +54,7 @@
     >
       <view class="picker">使用时长：{{durationOptions[durationIndex].label}}</view>
     </picker>
-    <view class="picker picker--readonly">预计结束时间：{{endTime || '—'}}</view>
+    <view class="picker picker--readonly">预计结束时间：{{endDateTimeLabel || '—'}}</view>
     <view wx:if="{{timeError}}" class="time-error">{{timeError}}</view>
   </view>
 

@@ -26,14 +26,47 @@ function timeToMinutes(time) {
   return total;
 }
 
-function minutesToTime(totalMinutes) {
-  if (!Number.isFinite(totalMinutes)) return '';
-  const safeTotal = Math.max(0, Math.min(totalMinutes, MINUTES_PER_DAY));
-  const hours = Math.floor(safeTotal / MINUTES_PER_HOUR);
-  const minutes = safeTotal % MINUTES_PER_HOUR;
-  const hourLabel = String(hours).padStart(2, '0');
-  const minuteLabel = String(minutes).padStart(2, '0');
-  return `${hourLabel}:${minuteLabel}`;
+function parseDateParts(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const [yearStr = '', monthStr = '', dayStr = ''] = dateStr.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  return { year, month, day };
+}
+
+function buildDateWithTime(dateStr, minutesOfDay) {
+  if (!Number.isFinite(minutesOfDay) || minutesOfDay < 0) return null;
+  const dateParts = parseDateParts(dateStr);
+  if (!dateParts) return null;
+  const hours = Math.floor(minutesOfDay / MINUTES_PER_HOUR);
+  const minutes = minutesOfDay % MINUTES_PER_HOUR;
+  const date = new Date(dateParts.year, dateParts.month - 1, dateParts.day, hours, minutes, 0, 0);
+  return date;
+}
+
+function formatDateLabel(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatTimeLabel(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
 }
 
 Page({
@@ -43,6 +76,7 @@ Page({
     date: formatDate(new Date()),
     startTime: DEFAULT_START_TIME,
     endTime: '',
+    endDateTimeLabel: '',
     durationOptions: DURATION_OPTIONS,
     durationIndex: DEFAULT_DURATION_INDEX,
     durationHours: DEFAULT_DURATION_HOURS,
@@ -69,8 +103,12 @@ Page({
 
   async fetchRooms() {
     const { date, startTime, durationHours } = this.data;
-    const validation = this.validateTimeRange(startTime, durationHours);
-    this.setData({ endTime: validation.endTime, timeError: validation.errorMessage || '' });
+    const validation = this.validateTimeRange(date, startTime, durationHours);
+    this.setData({
+      endTime: validation.endTime,
+      endDateTimeLabel: validation.endDateTimeLabel,
+      timeError: validation.errorMessage || ''
+    });
     if (!validation.valid) {
       this.setData({ rooms: [], loading: false });
       return;
@@ -117,34 +155,51 @@ Page({
     });
   },
 
-  validateTimeRange(start, durationHours) {
+  validateTimeRange(date, start, durationHours) {
     const startMinutes = timeToMinutes(start);
     if (!Number.isFinite(startMinutes)) {
-      return { valid: false, endTime: '', errorMessage: '请选择有效的开始时间' };
+      return { valid: false, endTime: '', endDateTimeLabel: '', errorMessage: '请选择有效的开始时间' };
+    }
+    if (startMinutes >= MINUTES_PER_DAY) {
+      return { valid: false, endTime: '', endDateTimeLabel: '', errorMessage: '请选择有效的开始时间' };
     }
     const duration = Number(durationHours);
     if (!Number.isFinite(duration) || duration <= 0) {
-      return { valid: false, endTime: '', errorMessage: '请选择有效的使用时长' };
+      return { valid: false, endTime: '', endDateTimeLabel: '', errorMessage: '请选择有效的使用时长' };
     }
-    const endMinutesRaw = startMinutes + duration * MINUTES_PER_HOUR;
-    const exceedsDay = endMinutesRaw > MINUTES_PER_DAY;
-    const endMinutes = Math.min(endMinutesRaw, MINUTES_PER_DAY);
-    const endTime = minutesToTime(endMinutes);
-    if (exceedsDay) {
-      return { valid: false, endTime, errorMessage: '使用时长跨越次日，请调整开始时间或时长' };
+    const durationMinutes = duration * MINUTES_PER_HOUR;
+    const startDate = buildDateWithTime(date, startMinutes);
+    if (!startDate) {
+      return { valid: false, endTime: '', endDateTimeLabel: '', errorMessage: '请选择有效的预约日期' };
     }
-    return { valid: true, endTime, errorMessage: '' };
+    const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+    if (Number.isNaN(endDate.getTime())) {
+      return { valid: false, endTime: '', endDateTimeLabel: '', errorMessage: '请选择有效的使用时长' };
+    }
+    const endTime = formatTimeLabel(endDate);
+    const endDateLabel = formatDateLabel(endDate);
+    const endDateTimeLabel = endDateLabel && endTime ? `${endDateLabel} ${endTime}` : '';
+    return { valid: true, endTime, endDateTimeLabel, errorMessage: '' };
   },
 
   async handleReserve(event) {
     const room = event.currentTarget.dataset.room;
     if (!room) return;
-    const validation = this.validateTimeRange(this.data.startTime, this.data.durationHours);
+    const validation = this.validateTimeRange(this.data.date, this.data.startTime, this.data.durationHours);
     if (!validation.valid) {
-      this.setData({ endTime: validation.endTime, timeError: validation.errorMessage || '' });
+      this.setData({
+        endTime: validation.endTime,
+        endDateTimeLabel: validation.endDateTimeLabel,
+        timeError: validation.errorMessage || ''
+      });
       wx.showToast({ title: validation.errorMessage || '预约时间不正确', icon: 'none' });
       return;
     }
+    this.setData({
+      endTime: validation.endTime,
+      endDateTimeLabel: validation.endDateTimeLabel,
+      timeError: ''
+    });
     if (this.data.memberUsageCount <= 0) {
       wx.showToast({ title: '包房使用次数不足', icon: 'none' });
       return;
