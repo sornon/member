@@ -93,11 +93,13 @@
   border-radius: 8rpx;
   background: rgba(64, 88, 166, 0.35);
   line-height: 1;
+  white-space: nowrap;
 }
 
 .overview-tile-count-empty {
   color: rgba(198, 206, 255, 0.8);
   background: transparent;
+  white-space: nowrap;
 }
 
 .picker {
