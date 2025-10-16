@@ -2,7 +2,15 @@ import { ReservationService } from '../../services/api';
 import { formatDate, formatCurrency } from '../../utils/format';
 
 const DEFAULT_START_TIME = '12:00';
-const DEFAULT_END_TIME = '14:00';
+const MINUTES_PER_HOUR = 60;
+const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
+const DURATION_OPTIONS = [
+  { value: 3, label: '3 小时' },
+  { value: 6, label: '6 小时' },
+  { value: 12, label: '12 小时' }
+];
+const DEFAULT_DURATION_INDEX = 0;
+const DEFAULT_DURATION_HOURS = DURATION_OPTIONS[DEFAULT_DURATION_INDEX].value;
 const DISMISSED_NOTICE_STORAGE_KEY = 'reservation_notice_dismissed';
 
 function timeToMinutes(time) {
@@ -18,13 +26,26 @@ function timeToMinutes(time) {
   return total;
 }
 
+function minutesToTime(totalMinutes) {
+  if (!Number.isFinite(totalMinutes)) return '';
+  const safeTotal = Math.max(0, Math.min(totalMinutes, MINUTES_PER_DAY));
+  const hours = Math.floor(safeTotal / MINUTES_PER_HOUR);
+  const minutes = safeTotal % MINUTES_PER_HOUR;
+  const hourLabel = String(hours).padStart(2, '0');
+  const minuteLabel = String(minutes).padStart(2, '0');
+  return `${hourLabel}:${minuteLabel}`;
+}
+
 Page({
   data: {
     loading: true,
     submitting: false,
     date: formatDate(new Date()),
     startTime: DEFAULT_START_TIME,
-    endTime: DEFAULT_END_TIME,
+    endTime: '',
+    durationOptions: DURATION_OPTIONS,
+    durationIndex: DEFAULT_DURATION_INDEX,
+    durationHours: DEFAULT_DURATION_HOURS,
     rooms: [],
     rightId: null,
     timeError: '',
@@ -47,11 +68,14 @@ Page({
   },
 
   async fetchRooms() {
-    const { date, startTime, endTime } = this.data;
-    if (!this.ensureValidTimeRange(startTime, endTime)) {
+    const { date, startTime, durationHours } = this.data;
+    const validation = this.validateTimeRange(startTime, durationHours);
+    this.setData({ endTime: validation.endTime, timeError: validation.errorMessage || '' });
+    if (!validation.valid) {
       this.setData({ rooms: [], loading: false });
       return;
     }
+    const { endTime } = validation;
     this.setData({ loading: true, timeError: '' });
     try {
       const result = await ReservationService.listRooms(date, startTime, endTime);
@@ -83,32 +107,42 @@ Page({
     });
   },
 
-  handleEndTimeChange(event) {
-    this.setData({ endTime: event.detail.value }, () => {
+  handleDurationChange(event) {
+    const { durationOptions } = this.data;
+    const index = Number(event.detail.value);
+    const safeIndex = Number.isInteger(index) ? Math.max(0, Math.min(index, durationOptions.length - 1)) : 0;
+    const durationHours = (durationOptions[safeIndex] && durationOptions[safeIndex].value) || DEFAULT_DURATION_HOURS;
+    this.setData({ durationIndex: safeIndex, durationHours }, () => {
       this.fetchRooms();
     });
   },
 
-  ensureValidTimeRange(start, end) {
+  validateTimeRange(start, durationHours) {
     const startMinutes = timeToMinutes(start);
-    const endMinutes = timeToMinutes(end);
-    if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes)) {
-      this.setData({ timeError: '请选择有效的预约时间' });
-      return false;
+    if (!Number.isFinite(startMinutes)) {
+      return { valid: false, endTime: '', errorMessage: '请选择有效的开始时间' };
     }
-    if (startMinutes >= endMinutes) {
-      this.setData({ timeError: '结束时间需晚于开始时间' });
-      return false;
+    const duration = Number(durationHours);
+    if (!Number.isFinite(duration) || duration <= 0) {
+      return { valid: false, endTime: '', errorMessage: '请选择有效的使用时长' };
     }
-    this.setData({ timeError: '' });
-    return true;
+    const endMinutesRaw = startMinutes + duration * MINUTES_PER_HOUR;
+    const exceedsDay = endMinutesRaw > MINUTES_PER_DAY;
+    const endMinutes = Math.min(endMinutesRaw, MINUTES_PER_DAY);
+    const endTime = minutesToTime(endMinutes);
+    if (exceedsDay) {
+      return { valid: false, endTime, errorMessage: '使用时长跨越次日，请调整开始时间或时长' };
+    }
+    return { valid: true, endTime, errorMessage: '' };
   },
 
   async handleReserve(event) {
     const room = event.currentTarget.dataset.room;
     if (!room) return;
-    if (!this.ensureValidTimeRange(this.data.startTime, this.data.endTime)) {
-      wx.showToast({ title: this.data.timeError || '预约时间不正确', icon: 'none' });
+    const validation = this.validateTimeRange(this.data.startTime, this.data.durationHours);
+    if (!validation.valid) {
+      this.setData({ endTime: validation.endTime, timeError: validation.errorMessage || '' });
+      wx.showToast({ title: validation.errorMessage || '预约时间不正确', icon: 'none' });
       return;
     }
     if (this.data.memberUsageCount <= 0) {
@@ -121,7 +155,7 @@ Page({
         roomId: room._id,
         date: this.data.date,
         startTime: this.data.startTime,
-        endTime: this.data.endTime,
+        endTime: validation.endTime,
         rightId: this.data.rightId
       };
       const res = await ReservationService.create(payload);
