@@ -511,9 +511,16 @@ page {
     transform: translateX(0);
     animation-timing-function: cubic-bezier(0.16, 0.84, 0.44, 1.2);
   }
+  34% {
+    transform: translateX(250rpx);
+    animation-timing-function: cubic-bezier(0.78, 0.02, 0.86, 0.2);
+  }
   36% {
     transform: translateX(250rpx);
-    animation-timing-function: cubic-bezier(0.68, -0.12, 0.86, 0.2);
+    animation-timing-function: cubic-bezier(0.16, 0.84, 0.44, 1.2);
+  }
+  38% {
+    transform: translateX(0);
   }
   100% {
     transform: translateX(0);
@@ -525,9 +532,16 @@ page {
     transform: translateX(0);
     animation-timing-function: cubic-bezier(0.16, 0.84, 0.44, 1.2);
   }
+  34% {
+    transform: translateX(-250rpx);
+    animation-timing-function: cubic-bezier(0.78, 0.02, 0.86, 0.2);
+  }
   36% {
     transform: translateX(-250rpx);
-    animation-timing-function: cubic-bezier(0.68, -0.12, 0.86, 0.2);
+    animation-timing-function: cubic-bezier(0.16, 0.84, 0.44, 1.2);
+  }
+  38% {
+    transform: translateX(0);
   }
   100% {
     transform: translateX(0);
