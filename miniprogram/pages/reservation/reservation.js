@@ -12,6 +12,7 @@ const DURATION_OPTIONS = [
 const DEFAULT_DURATION_INDEX = 0;
 const DEFAULT_DURATION_HOURS = DURATION_OPTIONS[DEFAULT_DURATION_INDEX].value;
 const DISMISSED_NOTICE_STORAGE_KEY = 'reservation_notice_dismissed';
+const MINIMUM_ADVANCE_MINUTES = MINUTES_PER_HOUR;
 
 function timeToMinutes(time) {
   if (!time || typeof time !== 'string') return NaN;
@@ -54,6 +55,60 @@ function buildDateWithTime(dateStr, minutesOfDay) {
   return date;
 }
 
+function formatMinutesToTime(minutes) {
+  if (!Number.isFinite(minutes)) return '00:00';
+  const clamped = Math.max(0, Math.min(Math.floor(minutes), MINUTES_PER_DAY - 1));
+  const hours = String(Math.floor(clamped / MINUTES_PER_HOUR)).padStart(2, '0');
+  const mins = String(clamped % MINUTES_PER_HOUR).padStart(2, '0');
+  return `${hours}:${mins}`;
+}
+
+function getMinimumStartInfo(dateStr) {
+  const defaultResult = {
+    minimumMinutes: 0,
+    minimumTimeLabel: '00:00',
+    unavailableMessage: ''
+  };
+  const dateParts = parseDateParts(dateStr);
+  if (!dateParts) {
+    return defaultResult;
+  }
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const selectedDate = new Date(dateParts.year, dateParts.month - 1, dateParts.day);
+  if (Number.isNaN(selectedDate.getTime())) {
+    return defaultResult;
+  }
+  if (selectedDate.getTime() < today.getTime()) {
+    return {
+      minimumMinutes: MINUTES_PER_DAY,
+      minimumTimeLabel: '00:00',
+      unavailableMessage: '请选择有效的预约日期'
+    };
+  }
+  if (selectedDate.getTime() === today.getTime()) {
+    const minDateTime = new Date(now.getTime() + MINIMUM_ADVANCE_MINUTES * 60 * 1000);
+    if (
+      minDateTime.getFullYear() !== now.getFullYear() ||
+      minDateTime.getMonth() !== now.getMonth() ||
+      minDateTime.getDate() !== now.getDate()
+    ) {
+      return {
+        minimumMinutes: MINUTES_PER_DAY,
+        minimumTimeLabel: '00:00',
+        unavailableMessage: '今日可预约时间已截止，请选择其他日期'
+      };
+    }
+    const minutes = minDateTime.getHours() * MINUTES_PER_HOUR + minDateTime.getMinutes();
+    return {
+      minimumMinutes: minutes,
+      minimumTimeLabel: formatMinutesToTime(minutes),
+      unavailableMessage: ''
+    };
+  }
+  return defaultResult;
+}
+
 function formatDateLabel(date) {
   if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
   const year = String(date.getFullYear());
@@ -75,6 +130,7 @@ Page({
     submitting: false,
     date: formatDate(new Date()),
     startTime: DEFAULT_START_TIME,
+    timePickerStart: '00:00',
     endTime: '',
     endDate: '',
     endDateTimeLabel: '',
@@ -104,7 +160,36 @@ Page({
 
   async fetchRooms() {
     const { date, startTime, durationHours } = this.data;
-    const validation = this.validateTimeRange(date, startTime, durationHours);
+    const minimumInfo = getMinimumStartInfo(date);
+    const startMinutes = timeToMinutes(startTime);
+    const updates = { timePickerStart: minimumInfo.minimumTimeLabel };
+    let effectiveStartTime = startTime;
+    if (
+      minimumInfo.minimumMinutes < MINUTES_PER_DAY &&
+      Number.isFinite(startMinutes) &&
+      startMinutes < minimumInfo.minimumMinutes
+    ) {
+      effectiveStartTime = minimumInfo.minimumTimeLabel;
+      updates.startTime = minimumInfo.minimumTimeLabel;
+    }
+    this.setData(updates);
+    if (minimumInfo.unavailableMessage) {
+      this.setData({
+        endTime: '',
+        endDate: '',
+        endDateTimeLabel: '',
+        timeError: minimumInfo.unavailableMessage,
+        rooms: [],
+        loading: false
+      });
+      return;
+    }
+    const validation = this.validateTimeRange(
+      date,
+      effectiveStartTime,
+      durationHours,
+      minimumInfo.minimumMinutes
+    );
     this.setData({
       endTime: validation.endTime,
       endDate: validation.endDate,
@@ -118,7 +203,12 @@ Page({
     const { endTime, endDate } = validation;
     this.setData({ loading: true, timeError: '' });
     try {
-      const result = await ReservationService.listRooms(date, startTime, endTime, endDate);
+      const result = await ReservationService.listRooms(
+        date,
+        effectiveStartTime,
+        endTime,
+        endDate
+      );
       const notice = result.notice || null;
       this.setData({
         rooms: result.rooms || [],
@@ -157,7 +247,16 @@ Page({
     });
   },
 
-  validateTimeRange(date, start, durationHours) {
+  validateTimeRange(date, start, durationHours, minimumStartMinutes = 0) {
+    if (Number.isFinite(minimumStartMinutes) && minimumStartMinutes >= MINUTES_PER_DAY) {
+      return {
+        valid: false,
+        endTime: '',
+        endDate: '',
+        endDateTimeLabel: '',
+        errorMessage: '今日可预约时间已截止，请选择其他日期'
+      };
+    }
     const startMinutes = timeToMinutes(start);
     if (!Number.isFinite(startMinutes)) {
       return {
@@ -175,6 +274,18 @@ Page({
         endDate: '',
         endDateTimeLabel: '',
         errorMessage: '请选择有效的开始时间'
+      };
+    }
+    if (
+      Number.isFinite(minimumStartMinutes) &&
+      startMinutes < Math.max(0, minimumStartMinutes)
+    ) {
+      return {
+        valid: false,
+        endTime: '',
+        endDate: '',
+        endDateTimeLabel: '',
+        errorMessage: '请选择至少提前1小时的开始时间'
       };
     }
     const duration = Number(durationHours);
@@ -223,7 +334,30 @@ Page({
   async handleReserve(event) {
     const room = event.currentTarget.dataset.room;
     if (!room) return;
-    const validation = this.validateTimeRange(this.data.date, this.data.startTime, this.data.durationHours);
+    const minimumInfo = getMinimumStartInfo(this.data.date);
+    if (minimumInfo.unavailableMessage) {
+      wx.showToast({ title: minimumInfo.unavailableMessage, icon: 'none' });
+      return;
+    }
+    let reserveStartTime = this.data.startTime;
+    const currentStartMinutes = timeToMinutes(reserveStartTime);
+    if (
+      minimumInfo.minimumMinutes < MINUTES_PER_DAY &&
+      Number.isFinite(currentStartMinutes) &&
+      currentStartMinutes < minimumInfo.minimumMinutes
+    ) {
+      reserveStartTime = minimumInfo.minimumTimeLabel;
+      this.setData({
+        startTime: reserveStartTime,
+        timePickerStart: minimumInfo.minimumTimeLabel
+      });
+    }
+    const validation = this.validateTimeRange(
+      this.data.date,
+      reserveStartTime,
+      this.data.durationHours,
+      minimumInfo.minimumMinutes
+    );
     if (!validation.valid) {
       this.setData({
         endTime: validation.endTime,
@@ -249,7 +383,7 @@ Page({
       const payload = {
         roomId: room._id,
         date: this.data.date,
-        startTime: this.data.startTime,
+        startTime: reserveStartTime,
         endTime: validation.endTime,
         endDate: validation.endDate,
         rightId: this.data.rightId
