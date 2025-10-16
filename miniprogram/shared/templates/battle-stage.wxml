@@ -62,7 +62,7 @@
           <view class="hp-track">
             <view
               class="hp-progress {{attackerKey === 'player' ? 'hp-player' : 'hp-opponent'}}"
-              style="width: {{hpState[attackerKey] ? hpState[attackerKey].percent : 0}}%"
+              style="{{hpState[attackerKey] ? hpState[attackerKey].progressStyle : ''}}"
             ></view>
           </view>
           <view class="hp-text">
@@ -118,7 +118,7 @@
           <view class="hp-track">
             <view
               class="hp-progress {{defenderKey === 'player' ? 'hp-player' : 'hp-opponent'}}"
-              style="width: {{hpState[defenderKey] ? hpState[defenderKey].percent : 0}}%"
+              style="{{hpState[defenderKey] ? hpState[defenderKey].progressStyle : ''}}"
             ></view>
           </view>
           <view class="hp-text">
