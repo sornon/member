@@ -8,6 +8,9 @@ const db = cloud.database();
 const _ = db.command;
 const ADMIN_ROLES = DEFAULT_ADMIN_ROLES;
 
+const MINUTES_PER_DAY = 24 * 60;
+const DAY_IN_MS = MINUTES_PER_DAY * 60 * 1000;
+
 const RESERVATION_ACTIVE_STATUSES = [
   'pendingApproval',
   'approved',
@@ -34,7 +37,7 @@ exports.main = async (event = {}) => {
 
   switch (action) {
     case 'availableRooms':
-      return listAvailableRooms(OPENID, event.date, event.startTime, event.endTime);
+      return listAvailableRooms(OPENID, event.date, event.startTime, event.endTime, event.endDate);
     case 'create':
       return createReservation(OPENID, event.order || {});
     case 'cancel':
@@ -46,13 +49,35 @@ exports.main = async (event = {}) => {
   }
 };
 
-async function listAvailableRooms(openid, date, startTime, endTime) {
+async function listAvailableRooms(openid, date, startTime, endTime, endDate) {
   if (!date || !startTime || !endTime) {
     throw new Error('请提供预约日期与时间');
   }
-  const requestRange = normalizeTimeRange(startTime, endTime);
+  if (!parseDateString(date)) {
+    throw new Error('预约日期不正确');
+  }
+  const requestRange = normalizeTimeRange(startTime, endTime, { allowCrossDay: true });
   if (!requestRange) {
     throw new Error('预约时间不正确');
+  }
+
+  const normalizedEndDate = resolveReservationEndDate(date, endDate, requestRange);
+  const endDayDiff = diffInDays(normalizedEndDate, date);
+  const endMinutesOfDay = timeToMinutes(endTime);
+  const requestEndCandidate = Number.isFinite(endMinutesOfDay)
+    ? endMinutesOfDay + Math.max(0, endDayDiff) * MINUTES_PER_DAY
+    : requestRange.end;
+  const requestTimelineRange = {
+    start: requestRange.start,
+    end: Math.max(requestRange.end, requestEndCandidate)
+  };
+  if (requestTimelineRange.end <= requestTimelineRange.start) {
+    throw new Error('预约时间不正确');
+  }
+
+  const dateRange = enumerateDateRange(date, normalizedEndDate);
+  if (!dateRange.length) {
+    throw new Error('预约日期不正确');
   }
 
   const [
@@ -71,7 +96,7 @@ async function listAvailableRooms(openid, date, startTime, endTime) {
     db
       .collection(COLLECTIONS.RESERVATIONS)
       .where({
-        date,
+        date: _.in(dateRange),
         status: _.in(RESERVATION_ACTIVE_STATUSES)
       })
       .get(),
@@ -99,8 +124,11 @@ async function listAvailableRooms(openid, date, startTime, endTime) {
 
   const reservedRoomIds = new Set(
     reservationsSnapshot.data
-      .map((reservation) => ({ reservation, range: normalizeReservationRange(reservation) }))
-      .filter(({ range }) => range && isTimeRangeOverlap(range, requestRange))
+      .map((reservation) => ({
+        reservation,
+        range: normalizeReservationRange(reservation, { allowCrossDay: true, relativeTo: date })
+      }))
+      .filter(({ range }) => range && isTimeRangeOverlap(range, requestTimelineRange))
       .map(({ reservation }) => reservation.roomId)
   );
 
@@ -173,13 +201,33 @@ async function listAvailableRooms(openid, date, startTime, endTime) {
 }
 
 async function createReservation(openid, order) {
-  const { roomId, date, startTime, endTime, rightId } = order;
+  const { roomId, date, startTime, endTime, endDate, rightId } = order;
   if (!roomId || !date || !startTime || !endTime) {
     throw new Error('预约信息不完整');
   }
-  const requestRange = normalizeTimeRange(startTime, endTime);
+  if (!parseDateString(date)) {
+    throw new Error('预约日期不正确');
+  }
+  const requestRange = normalizeTimeRange(startTime, endTime, { allowCrossDay: true });
   if (!requestRange) {
     throw new Error('预约时间不正确');
+  }
+  const normalizedEndDate = resolveReservationEndDate(date, endDate, requestRange);
+  const endDayDiff = diffInDays(normalizedEndDate, date);
+  const endMinutesOfDay = timeToMinutes(endTime);
+  const requestEndCandidate = Number.isFinite(endMinutesOfDay)
+    ? endMinutesOfDay + Math.max(0, endDayDiff) * MINUTES_PER_DAY
+    : requestRange.end;
+  const requestTimelineRange = {
+    start: requestRange.start,
+    end: Math.max(requestRange.end, requestEndCandidate)
+  };
+  if (requestTimelineRange.end <= requestTimelineRange.start) {
+    throw new Error('预约时间不正确');
+  }
+  const dateRange = enumerateDateRange(date, normalizedEndDate);
+  if (!dateRange.length) {
+    throw new Error('预约日期不正确');
   }
   const roomDoc = await db.collection(COLLECTIONS.ROOMS).doc(roomId).get().catch(() => null);
   if (!roomDoc || !roomDoc.data) {
@@ -204,15 +252,15 @@ async function createReservation(openid, order) {
       .collection(COLLECTIONS.RESERVATIONS)
       .where({
         roomId,
-        date,
+        date: _.in(dateRange),
         status: _.in(RESERVATION_ACTIVE_STATUSES)
       })
       .get();
 
     const hasConflict = existingReservations.data.some((reservation) => {
-      const range = normalizeReservationRange(reservation);
+      const range = normalizeReservationRange(reservation, { allowCrossDay: true, relativeTo: date });
       if (!range) return false;
-      return isTimeRangeOverlap(range, requestRange);
+      return isTimeRangeOverlap(range, requestTimelineRange);
     });
     if (hasConflict) {
       throw new Error('当前时段已被预约');
@@ -249,6 +297,7 @@ async function createReservation(openid, order) {
       memberId: openid,
       roomId,
       date,
+      endDate: normalizedEndDate,
       startTime: requestRange.startLabel,
       endTime: requestRange.endLabel,
       price,
@@ -413,6 +462,7 @@ function buildMemberReservationList(reservations, roomMap) {
         roomId: reservation.roomId || '',
         roomName,
         date: reservation.date || '',
+        endDate: reservation.endDate || reservation.date || '',
         startTime: reservation.startTime || '',
         endTime: reservation.endTime || '',
         status: reservation.status || 'pendingApproval',
@@ -575,20 +625,36 @@ function canRightApply(right, range) {
   return ranges.some((candidate) => candidate.start <= range.start && candidate.end >= range.end);
 }
 
-function normalizeTimeRange(startTime, endTime) {
+function normalizeTimeRange(startTime, endTime, { allowCrossDay = false } = {}) {
   const start = timeToMinutes(startTime);
-  const end = timeToMinutes(endTime);
-  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+  const endRaw = timeToMinutes(endTime);
+  if (!Number.isFinite(start) || !Number.isFinite(endRaw)) {
     return null;
   }
-  if (start >= end) {
+  if (start === endRaw) {
+    return null;
+  }
+  let end = endRaw;
+  let daySpan = 0;
+  if (allowCrossDay) {
+    while (end <= start) {
+      end += MINUTES_PER_DAY;
+      daySpan += 1;
+      if (daySpan > 7) {
+        return null;
+      }
+    }
+  }
+  if (end <= start) {
     return null;
   }
   return {
     start,
     end,
     startLabel: formatTimeLabel(start),
-    endLabel: formatTimeLabel(end)
+    endLabel: formatTimeLabel(endRaw),
+    daySpan,
+    duration: end - start
   };
 }
 
@@ -612,21 +678,59 @@ function normalizeRightTimeRanges(right) {
   return [];
 }
 
-function normalizeReservationRange(reservation) {
+function normalizeReservationRange(reservation, options = {}) {
   if (!reservation) return null;
-  const range = normalizeTimeRange(reservation.startTime, reservation.endTime);
-  if (range) {
-    return range;
-  }
-  if (reservation.slot) {
+  const { allowCrossDay = false, relativeTo } = options;
+  let range = normalizeTimeRange(reservation.startTime, reservation.endTime, { allowCrossDay });
+  if (!range && reservation.slot) {
     const slotRanges = {
       day: normalizeTimeRange('12:00', '18:00'),
       night: normalizeTimeRange('18:00', '24:00'),
       late: normalizeTimeRange('00:00', '06:00')
     };
-    return slotRanges[reservation.slot] || null;
+    range = slotRanges[reservation.slot] || null;
   }
-  return null;
+  if (!range) {
+    return null;
+  }
+  if (!relativeTo) {
+    return range;
+  }
+
+  const baseDateStr = relativeTo;
+  const startDateStr = reservation.date || baseDateStr;
+  const startDayDiff = diffInDays(startDateStr, baseDateStr);
+  if (!Number.isFinite(startDayDiff)) {
+    return range;
+  }
+  const endDateStr = reservation.endDate || startDateStr;
+  let endDayDiff = diffInDays(endDateStr, baseDateStr);
+  if (!Number.isFinite(endDayDiff)) {
+    endDayDiff = startDayDiff + (range.daySpan || 0);
+  }
+  if (endDayDiff < startDayDiff) {
+    endDayDiff = startDayDiff + (range.daySpan || 0);
+  }
+
+  const startMinutes = range.start + startDayDiff * MINUTES_PER_DAY;
+  const endTimeMinutes = timeToMinutes(reservation.endTime);
+  let endMinutes;
+  if (Number.isFinite(endTimeMinutes)) {
+    endMinutes = endTimeMinutes + endDayDiff * MINUTES_PER_DAY;
+    if (endMinutes <= startMinutes) {
+      endMinutes = startMinutes + range.duration;
+    }
+  } else {
+    endMinutes = startMinutes + range.duration + Math.max(0, endDayDiff - startDayDiff) * MINUTES_PER_DAY;
+  }
+
+  return {
+    start: startMinutes,
+    end: endMinutes,
+    startLabel: range.startLabel,
+    endLabel: range.endLabel,
+    daySpan: Math.max(0, endDayDiff - startDayDiff)
+  };
 }
 
 function isTimeRangeOverlap(a, b) {
@@ -664,6 +768,93 @@ function formatTimeLabel(totalMinutes) {
   return `${String(hoursPart).padStart(2, '0')}:${String(minutesPart).padStart(2, '0')}`;
 }
 
+function parseDateString(value) {
+  if (typeof value !== 'string') return null;
+  const [yearStr, monthStr, dayStr] = value.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+function formatDateString(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function shiftDateString(dateStr, offsetDays) {
+  const base = parseDateString(dateStr);
+  if (!base || !Number.isInteger(offsetDays)) {
+    return '';
+  }
+  const shifted = new Date(base.getFullYear(), base.getMonth(), base.getDate() + offsetDays);
+  return formatDateString(shifted);
+}
+
+function enumerateDateRange(startDateStr, endDateStr) {
+  const start = parseDateString(startDateStr);
+  const end = parseDateString(endDateStr || startDateStr);
+  if (!start || !end) {
+    return [];
+  }
+  if (end.getTime() < start.getTime()) {
+    return [];
+  }
+  const result = [];
+  for (let cursor = new Date(start.getTime()); cursor.getTime() <= end.getTime(); cursor = new Date(cursor.getTime() + DAY_IN_MS)) {
+    result.push(formatDateString(cursor));
+  }
+  return result;
+}
+
+function diffInDays(targetDateStr, baseDateStr) {
+  const target = parseDateString(targetDateStr);
+  const base = parseDateString(baseDateStr);
+  if (!target || !base) {
+    return NaN;
+  }
+  const utcTarget = Date.UTC(target.getFullYear(), target.getMonth(), target.getDate());
+  const utcBase = Date.UTC(base.getFullYear(), base.getMonth(), base.getDate());
+  return Math.round((utcTarget - utcBase) / DAY_IN_MS);
+}
+
+function resolveReservationEndDate(startDateStr, providedEndDateStr, range) {
+  const minimumSpan = range && Number.isInteger(range.daySpan) ? Math.max(0, range.daySpan) : 0;
+  const minimumEndDate = shiftDateString(startDateStr, minimumSpan) || startDateStr;
+  const provided = parseDateString(providedEndDateStr);
+  const startDate = parseDateString(startDateStr);
+  if (!startDate) {
+    return minimumEndDate;
+  }
+  if (provided) {
+    if (provided.getTime() < startDate.getTime()) {
+      return minimumEndDate;
+    }
+    const minDate = parseDateString(minimumEndDate);
+    if (minDate && provided.getTime() < minDate.getTime()) {
+      return minimumEndDate;
+    }
+    return formatDateString(provided);
+  }
+  return minimumEndDate;
+}
+
 function normalizeUsageCount(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -683,7 +874,7 @@ function buildMemberReservationNotice(memberReservations, rooms, usageCount) {
   });
   const room = roomMap.get(latest.roomId);
   const roomName = room ? room.name : '包房';
-  const normalizedRange = normalizeReservationRange(latest);
+  const normalizedRange = normalizeReservationRange(latest, { allowCrossDay: true });
   const timeRangeLabel = normalizedRange ? `${normalizedRange.startLabel} - ${normalizedRange.endLabel}` : '';
   const scheduleLabel = [latest.date, timeRangeLabel || latest.slotLabel || latest.slot]
     .filter(Boolean)

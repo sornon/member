@@ -19,7 +19,7 @@
         <view class="reservation-room">{{item.roomName || '包房'}}</view>
         <view class="reservation-status {{item.status}}">{{item.statusLabel}}</view>
       </view>
-      <view class="reservation-time">{{item.date}} {{item.startTime}} - {{item.endTime}}</view>
+      <view class="reservation-time">{{item.date}} {{item.startTime}} - {{item.endDate && item.endDate !== item.date ? item.endDate + ' ' : ''}}{{item.endTime}}</view>
       <view class="reservation-meta" wx:if="{{item.price}}">费用：{{formatCurrency(item.price)}}</view>
       <view class="reservation-meta" wx:if="{{item.status === 'pendingApproval'}}">等待管理员审核</view>
       <view class="reservation-meta" wx:if="{{item.status === 'approved'}}">请按预约时间到店使用</view>
@@ -45,9 +45,16 @@
     <picker mode="time" value="{{startTime}}" start="00:00" end="23:59" bindchange="handleStartTimeChange">
       <view class="picker">开始时间：{{startTime}}</view>
     </picker>
-    <picker mode="time" value="{{endTime}}" start="00:00" end="23:59" bindchange="handleEndTimeChange">
-      <view class="picker">结束时间：{{endTime}}</view>
+    <picker
+      mode="selector"
+      range="{{durationOptions}}"
+      range-key="label"
+      value="{{durationIndex}}"
+      bindchange="handleDurationChange"
+    >
+      <view class="picker">使用时长：{{durationOptions[durationIndex].label}}</view>
     </picker>
+    <view class="picker picker--readonly">预计结束时间：{{endDateTimeLabel || '—'}}</view>
     <view wx:if="{{timeError}}" class="time-error">{{timeError}}</view>
   </view>
 

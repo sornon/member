@@ -2,7 +2,15 @@ import { ReservationService } from '../../services/api';
 import { formatDate, formatCurrency } from '../../utils/format';
 
 const DEFAULT_START_TIME = '12:00';
-const DEFAULT_END_TIME = '14:00';
+const MINUTES_PER_HOUR = 60;
+const MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR;
+const DURATION_OPTIONS = [
+  { value: 3, label: '3 小时' },
+  { value: 6, label: '6 小时' },
+  { value: 12, label: '12 小时' }
+];
+const DEFAULT_DURATION_INDEX = 0;
+const DEFAULT_DURATION_HOURS = DURATION_OPTIONS[DEFAULT_DURATION_INDEX].value;
 const DISMISSED_NOTICE_STORAGE_KEY = 'reservation_notice_dismissed';
 
 function timeToMinutes(time) {
@@ -18,13 +26,61 @@ function timeToMinutes(time) {
   return total;
 }
 
+function parseDateParts(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const [yearStr = '', monthStr = '', dayStr = ''] = dateStr.split('-');
+  const year = Number(yearStr);
+  const month = Number(monthStr);
+  const day = Number(dayStr);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return null;
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  return { year, month, day };
+}
+
+function buildDateWithTime(dateStr, minutesOfDay) {
+  if (!Number.isFinite(minutesOfDay) || minutesOfDay < 0) return null;
+  const dateParts = parseDateParts(dateStr);
+  if (!dateParts) return null;
+  const hours = Math.floor(minutesOfDay / MINUTES_PER_HOUR);
+  const minutes = minutesOfDay % MINUTES_PER_HOUR;
+  const date = new Date(dateParts.year, dateParts.month - 1, dateParts.day, hours, minutes, 0, 0);
+  return date;
+}
+
+function formatDateLabel(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatTimeLabel(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  return `${hours}:${minutes}`;
+}
+
 Page({
   data: {
     loading: true,
     submitting: false,
     date: formatDate(new Date()),
     startTime: DEFAULT_START_TIME,
-    endTime: DEFAULT_END_TIME,
+    endTime: '',
+    endDate: '',
+    endDateTimeLabel: '',
+    durationOptions: DURATION_OPTIONS,
+    durationIndex: DEFAULT_DURATION_INDEX,
+    durationHours: DEFAULT_DURATION_HOURS,
     rooms: [],
     rightId: null,
     timeError: '',
@@ -47,14 +103,22 @@ Page({
   },
 
   async fetchRooms() {
-    const { date, startTime, endTime } = this.data;
-    if (!this.ensureValidTimeRange(startTime, endTime)) {
+    const { date, startTime, durationHours } = this.data;
+    const validation = this.validateTimeRange(date, startTime, durationHours);
+    this.setData({
+      endTime: validation.endTime,
+      endDate: validation.endDate,
+      endDateTimeLabel: validation.endDateTimeLabel,
+      timeError: validation.errorMessage || ''
+    });
+    if (!validation.valid) {
       this.setData({ rooms: [], loading: false });
       return;
     }
+    const { endTime, endDate } = validation;
     this.setData({ loading: true, timeError: '' });
     try {
-      const result = await ReservationService.listRooms(date, startTime, endTime);
+      const result = await ReservationService.listRooms(date, startTime, endTime, endDate);
       const notice = result.notice || null;
       this.setData({
         rooms: result.rooms || [],
@@ -83,34 +147,99 @@ Page({
     });
   },
 
-  handleEndTimeChange(event) {
-    this.setData({ endTime: event.detail.value }, () => {
+  handleDurationChange(event) {
+    const { durationOptions } = this.data;
+    const index = Number(event.detail.value);
+    const safeIndex = Number.isInteger(index) ? Math.max(0, Math.min(index, durationOptions.length - 1)) : 0;
+    const durationHours = (durationOptions[safeIndex] && durationOptions[safeIndex].value) || DEFAULT_DURATION_HOURS;
+    this.setData({ durationIndex: safeIndex, durationHours }, () => {
       this.fetchRooms();
     });
   },
 
-  ensureValidTimeRange(start, end) {
+  validateTimeRange(date, start, durationHours) {
     const startMinutes = timeToMinutes(start);
-    const endMinutes = timeToMinutes(end);
-    if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes)) {
-      this.setData({ timeError: '请选择有效的预约时间' });
-      return false;
+    if (!Number.isFinite(startMinutes)) {
+      return {
+        valid: false,
+        endTime: '',
+        endDate: '',
+        endDateTimeLabel: '',
+        errorMessage: '请选择有效的开始时间'
+      };
     }
-    if (startMinutes >= endMinutes) {
-      this.setData({ timeError: '结束时间需晚于开始时间' });
-      return false;
+    if (startMinutes >= MINUTES_PER_DAY) {
+      return {
+        valid: false,
+        endTime: '',
+        endDate: '',
+        endDateTimeLabel: '',
+        errorMessage: '请选择有效的开始时间'
+      };
     }
-    this.setData({ timeError: '' });
-    return true;
+    const duration = Number(durationHours);
+    if (!Number.isFinite(duration) || duration <= 0) {
+      return {
+        valid: false,
+        endTime: '',
+        endDate: '',
+        endDateTimeLabel: '',
+        errorMessage: '请选择有效的使用时长'
+      };
+    }
+    const durationMinutes = duration * MINUTES_PER_HOUR;
+    const startDate = buildDateWithTime(date, startMinutes);
+    if (!startDate) {
+      return {
+        valid: false,
+        endTime: '',
+        endDate: '',
+        endDateTimeLabel: '',
+        errorMessage: '请选择有效的预约日期'
+      };
+    }
+    const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
+    if (Number.isNaN(endDate.getTime())) {
+      return {
+        valid: false,
+        endTime: '',
+        endDate: '',
+        endDateTimeLabel: '',
+        errorMessage: '请选择有效的使用时长'
+      };
+    }
+    const endTime = formatTimeLabel(endDate);
+    const endDateLabel = formatDateLabel(endDate);
+    const endDateTimeLabel = endDateLabel && endTime ? `${endDateLabel} ${endTime}` : '';
+    return {
+      valid: true,
+      endTime,
+      endDate: endDateLabel,
+      endDateTimeLabel,
+      errorMessage: ''
+    };
   },
 
   async handleReserve(event) {
     const room = event.currentTarget.dataset.room;
     if (!room) return;
-    if (!this.ensureValidTimeRange(this.data.startTime, this.data.endTime)) {
-      wx.showToast({ title: this.data.timeError || '预约时间不正确', icon: 'none' });
+    const validation = this.validateTimeRange(this.data.date, this.data.startTime, this.data.durationHours);
+    if (!validation.valid) {
+      this.setData({
+        endTime: validation.endTime,
+        endDate: validation.endDate,
+        endDateTimeLabel: validation.endDateTimeLabel,
+        timeError: validation.errorMessage || ''
+      });
+      wx.showToast({ title: validation.errorMessage || '预约时间不正确', icon: 'none' });
       return;
     }
+    this.setData({
+      endTime: validation.endTime,
+      endDate: validation.endDate,
+      endDateTimeLabel: validation.endDateTimeLabel,
+      timeError: ''
+    });
     if (this.data.memberUsageCount <= 0) {
       wx.showToast({ title: '包房使用次数不足', icon: 'none' });
       return;
@@ -121,7 +250,8 @@ Page({
         roomId: room._id,
         date: this.data.date,
         startTime: this.data.startTime,
-        endTime: this.data.endTime,
+        endTime: validation.endTime,
+        endDate: validation.endDate,
         rightId: this.data.rightId
       };
       const res = await ReservationService.create(payload);

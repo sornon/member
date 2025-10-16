@@ -125,6 +125,11 @@
   color: #e7edff;
 }
 
+.filter-card .picker--readonly {
+  color: rgba(231, 237, 255, 0.8);
+  border-style: dashed;
+}
+
 .time-error {
   margin-top: 8rpx;
   color: #ff9d8e;
