@@ -130,7 +130,7 @@
 
       <view class="battle-avatars">
         <view
-          class="avatar-wrapper attacker {{attackerKey}} {{currentAction.actor === attackerKey ? 'is-attacking' : ''}} {{currentAction.target === attackerKey ? 'is-hit' : ''}} {{currentMotion.isBasicAttack && currentAction.actor === attackerKey ? 'motion-basic-attack' : ''}} {{currentMotion.isBasicAttack && currentAction.target === attackerKey ? (currentMotion.targetDodged ? 'motion-dodged' : 'motion-hit') : ''}}"
+          class="avatar-wrapper attacker {{attackerKey}} {{currentAction.actor === attackerKey ? 'is-attacking' : ''}} {{currentAction.target === attackerKey ? 'is-hit' : ''}} {{currentMotion.isBasicAttack && currentAction.actor === attackerKey ? 'motion-basic-attack' : ''}} {{currentMotion.isCritical && currentAction.actor === attackerKey ? 'motion-critical' : ''}} {{currentMotion.isBasicAttack && currentAction.target === attackerKey ? (currentMotion.targetDodged ? 'motion-dodged' : 'motion-hit') : ''}}"
         >
           <view class="floating-text-layer">
             <view
@@ -150,7 +150,7 @@
           </view>
         </view>
         <view
-          class="avatar-wrapper defender {{defenderKey}} {{currentAction.actor === defenderKey ? 'is-attacking' : ''}} {{currentAction.target === defenderKey ? 'is-hit' : ''}} {{currentMotion.isBasicAttack && currentAction.actor === defenderKey ? 'motion-basic-attack' : ''}} {{currentMotion.isBasicAttack && currentAction.target === defenderKey ? (currentMotion.targetDodged ? 'motion-dodged' : 'motion-hit') : ''}}"
+          class="avatar-wrapper defender {{defenderKey}} {{currentAction.actor === defenderKey ? 'is-attacking' : ''}} {{currentAction.target === defenderKey ? 'is-hit' : ''}} {{currentMotion.isBasicAttack && currentAction.actor === defenderKey ? 'motion-basic-attack' : ''}} {{currentMotion.isCritical && currentAction.actor === defenderKey ? 'motion-critical' : ''}} {{currentMotion.isBasicAttack && currentAction.target === defenderKey ? (currentMotion.targetDodged ? 'motion-dodged' : 'motion-hit') : ''}}"
         >
           <view class="floating-text-layer">
             <view

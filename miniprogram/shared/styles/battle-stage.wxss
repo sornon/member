@@ -438,6 +438,14 @@ page {
   animation: basicAttackDashLeft 0.7s cubic-bezier(0.28, 1.45, 0.6, 1);
 }
 
+.avatar-wrapper.attacker.motion-basic-attack.motion-critical.is-attacking .avatar-inner {
+  animation: basicAttackCritDashRight 0.82s cubic-bezier(0.3, 1.1, 0.58, 1);
+}
+
+.avatar-wrapper.defender.motion-basic-attack.motion-critical.is-attacking .avatar-inner {
+  animation: basicAttackCritDashLeft 0.82s cubic-bezier(0.3, 1.1, 0.58, 1);
+}
+
 .avatar-wrapper.motion-hit.is-hit .avatar-inner,
 .avatar-wrapper.motion-dodged.is-hit .avatar-inner {
   animation: none;
@@ -542,6 +550,50 @@ page {
   }
   38% {
     transform: translateX(0);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes basicAttackCritDashRight {
+  0% {
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.36, 0, 0.4, 1);
+  }
+  32% {
+    transform: translateX(-50rpx);
+    animation-timing-function: cubic-bezier(0.88, -0.28, 0.94, 0.22);
+  }
+  52% {
+    transform: translateX(350rpx);
+    animation-timing-function: cubic-bezier(0.24, 1.1, 0.5, 1);
+  }
+  56% {
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.16, 0.84, 0.44, 1.2);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes basicAttackCritDashLeft {
+  0% {
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.36, 0, 0.4, 1);
+  }
+  32% {
+    transform: translateX(50rpx);
+    animation-timing-function: cubic-bezier(0.88, -0.28, 0.94, 0.22);
+  }
+  52% {
+    transform: translateX(-350rpx);
+    animation-timing-function: cubic-bezier(0.24, 1.1, 0.5, 1);
+  }
+  56% {
+    transform: translateX(0);
+    animation-timing-function: cubic-bezier(0.16, 0.84, 0.44, 1.2);
   }
   100% {
     transform: translateX(0);

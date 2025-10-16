@@ -590,6 +590,112 @@ function actionIncludesDodge(action = {}) {
   return false;
 }
 
+function matchesCriticalKeyword(value) {
+  const normalized = normalizeString(value);
+  if (!normalized) {
+    return false;
+  }
+  if (normalized.indexOf('暴击') >= 0) {
+    return true;
+  }
+  const lower = normalized.toLowerCase();
+  return lower.indexOf('crit') >= 0 || lower.indexOf('critical') >= 0;
+}
+
+function actionIncludesCrit(action = {}) {
+  if (!action) {
+    return false;
+  }
+
+  if (action.crit || action.isCrit || action.critical) {
+    return true;
+  }
+
+  if (matchesCriticalKeyword(action.type)) {
+    return true;
+  }
+
+  const tags = [];
+  if (Array.isArray(action.tags)) {
+    tags.push(...action.tags);
+  }
+  if (Array.isArray(action.effectTags)) {
+    tags.push(...action.effectTags);
+  }
+
+  const raw = action.raw || {};
+  if (raw && (raw.crit || raw.isCrit || raw.critical)) {
+    return true;
+  }
+  if (Array.isArray(raw.tags)) {
+    tags.push(...raw.tags);
+  }
+  if (Array.isArray(raw.effectTags)) {
+    tags.push(...raw.effectTags);
+  }
+
+  if (tags.length && someCandidateMatches(tags, matchesCriticalKeyword)) {
+    return true;
+  }
+
+  const effects = Array.isArray(action.effects) ? action.effects : [];
+  for (let i = 0; i < effects.length; i += 1) {
+    const effect = effects[i];
+    if (!effect) {
+      continue;
+    }
+    if (effect.crit || effect.isCrit || effect.critical) {
+      return true;
+    }
+    if (
+      matchesCriticalKeyword(effect.type) ||
+      matchesCriticalKeyword(effect.result) ||
+      matchesCriticalKeyword(effect.outcome) ||
+      matchesCriticalKeyword(effect.label)
+    ) {
+      return true;
+    }
+  }
+
+  const rawEffects = Array.isArray(raw.effects) ? raw.effects : [];
+  for (let i = 0; i < rawEffects.length; i += 1) {
+    const effect = rawEffects[i];
+    if (!effect) {
+      continue;
+    }
+    if (effect.crit || effect.isCrit || effect.critical) {
+      return true;
+    }
+    if (
+      matchesCriticalKeyword(effect.type) ||
+      matchesCriticalKeyword(effect.result) ||
+      matchesCriticalKeyword(effect.outcome) ||
+      matchesCriticalKeyword(effect.label)
+    ) {
+      return true;
+    }
+  }
+
+  const candidates = [
+    action.result,
+    action.outcome,
+    action.description,
+    raw.result,
+    raw.outcome,
+    raw.detail,
+    raw.actionResult,
+    raw.actionOutcome,
+    raw.category,
+    raw.type,
+    raw.kind
+  ];
+  if (someCandidateMatches(candidates, matchesCriticalKeyword)) {
+    return true;
+  }
+
+  return false;
+}
+
 function extractSkillTextFromAction(action = {}) {
   if (!action || action.type === 'result' || action.type === 'dodge') {
     return '';
@@ -1349,8 +1455,7 @@ Page({
     }
     const actorSide = action.actor === 'player' || action.actor === 'opponent' ? action.actor : '';
     const targetSide = action.target === 'player' || action.target === 'opponent' ? action.target : '';
-    const effects = Array.isArray(action.effects) ? action.effects : [];
-    const hasCrit = effects.some((effect) => effect && effect.type === 'crit');
+    const hasCrit = actionIncludesCrit(action);
     const hasDodge = actionIncludesDodge(action);
     const isBasicAttack = isBasicAttackAction(action);
 
@@ -1440,6 +1545,7 @@ Page({
     this.timelineIndex = nextIndex;
     this.resetFloatingTexts();
     const isBasicAttack = isBasicAttackAction(action);
+    const hasCrit = actionIncludesCrit(action);
     const targetDodged = actionIncludesDodge(action);
     this.setBattleStageData({
       currentAction: action,
@@ -1447,6 +1553,7 @@ Page({
         actor: action.actor || '',
         target: action.target || '',
         isBasicAttack,
+        isCritical: isBasicAttack && hasCrit,
         targetDodged: isBasicAttack && targetDodged
       },
       displayedLogs: nextLogs,
