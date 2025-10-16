@@ -27,7 +27,7 @@
 
   <view class="card">
     <view class="section-title">快捷充值</view>
-    <view wx:if="{{summary && summary.features && !summary.features.cashierEnabled}}" class="recharge-disabled">
+    <view wx:if="{{!summary || !summary.features || !summary.features.cashierEnabled}}" class="recharge-disabled">
       目前只支持收款台线下充值
     </view>
     <block wx:else>

@@ -325,7 +325,7 @@ Page({
   isCashierEnabled() {
     const { summary } = this.data;
     if (!summary || !summary.features) {
-      return true;
+      return false;
     }
     return summary.features.cashierEnabled !== false;
   },
