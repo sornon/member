@@ -13,6 +13,38 @@
     </picker>
   </view>
 
+  <view class="card overview-card">
+    <view class="overview-header">
+      <view class="overview-title">近两周包房预定情况</view>
+      <view class="overview-updated" wx:if="{{overviewGeneratedAt}}">更新于 {{overviewGeneratedAt}}</view>
+    </view>
+    <view wx:if="{{overviewLoading}}" class="overview-loading">正在加载包房概览...</view>
+    <view wx:elif="{{overviewError}}" class="overview-error" bindtap="handleRetryOverview">
+      {{overviewError}}，点击重试
+    </view>
+    <view wx:else class="overview-list">
+      <view class="overview-day" wx:for="{{reservationOverview}}" wx:key="date" wx:for-item="day">
+        <view class="overview-day-header">
+          <view class="overview-day-date">{{day.date}}</view>
+          <view class="overview-day-week">{{day.weekday}}</view>
+        </view>
+        <block wx:if="{{day.reservations && day.reservations.length}}">
+          <view class="overview-entry" wx:for="{{day.reservations}}" wx:key="_id" wx:for-item="entry">
+            <view class="overview-entry-content">
+              <view class="overview-entry-time">{{entry.startTime}} - {{entry.endTime}}</view>
+              <view class="overview-entry-info">
+                <text class="overview-entry-room">{{entry.roomName || '包房'}}</text>
+                <text wx:if="{{entry.memberDisplayName}}" class="overview-entry-member"> · {{entry.memberDisplayName}}</text>
+              </view>
+            </view>
+            <view class="status overview-status {{entry.status}}">{{entry.statusLabel}}</view>
+          </view>
+        </block>
+        <view wx:else class="overview-empty">空闲</view>
+      </view>
+    </view>
+  </view>
+
   <view wx:if="{{loading && !reservations.length}}" class="card">正在加载预约...</view>
   <view wx:if="{{!loading && !reservations.length}}" class="card empty">暂无预约申请</view>
 

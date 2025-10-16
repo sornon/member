@@ -559,6 +559,15 @@ export const AdminService = {
       pageSize
     });
   },
+  async getReservationOverview({ days = 14 } = {}) {
+    const payload = {
+      action: 'getReservationOverview'
+    };
+    if (Number.isFinite(days)) {
+      payload.days = days;
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
+  },
   async approveReservation(reservationId) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'approveReservation',
