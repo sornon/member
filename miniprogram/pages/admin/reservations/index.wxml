@@ -15,7 +15,7 @@
 
   <view class="card overview-card">
     <view class="overview-header">
-      <view class="overview-title">近两周包房预定情况</view>
+      <view class="overview-title">近16天包房预定情况</view>
       <view class="overview-updated" wx:if="{{overviewGeneratedAt}}">更新于 {{overviewGeneratedAt}}</view>
     </view>
     <view wx:if="{{overviewLoading}}" class="overview-loading">正在加载包房概览...</view>

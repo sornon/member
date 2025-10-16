@@ -559,7 +559,7 @@ export const AdminService = {
       pageSize
     });
   },
-  async getReservationOverview({ days = 14 } = {}) {
+  async getReservationOverview({ days = 16 } = {}) {
     const payload = {
       action: 'getReservationOverview'
     };
