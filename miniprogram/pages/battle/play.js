@@ -358,6 +358,7 @@ function createBattleStageState(overrides = {}) {
     attackerKey: 'player',
     defenderKey: 'opponent',
     currentAction: {},
+    currentMotion: {},
     displayedLogs: [],
     floatingTexts: { player: [], opponent: [] },
     skipLocked: true,
@@ -398,6 +399,70 @@ function sanitizeSkillText(text) {
     return '';
   }
   return normalized;
+}
+
+function isBasicAttackAction(action = {}) {
+  if (!action || action.type !== 'attack') {
+    return false;
+  }
+  const raw = action.raw || {};
+  const skill = raw && raw.skill ? raw.skill : null;
+  if (skill && typeof skill === 'object') {
+    if (typeof skill.id === 'string' && skill.id === 'basic_attack') {
+      return true;
+    }
+    if (typeof skill.type === 'string' && skill.type === 'basic') {
+      return true;
+    }
+    if (typeof skill.category === 'string' && skill.category === 'basic') {
+      return true;
+    }
+    if (typeof skill.name === 'string' && skill.name.trim() === '普攻') {
+      return true;
+    }
+    if (typeof skill.label === 'string' && skill.label.trim() === '普攻') {
+      return true;
+    }
+  }
+  if (typeof raw.skillName === 'string' && raw.skillName.trim() === '普攻') {
+    return true;
+  }
+  if (typeof action.skillName === 'string' && action.skillName.trim() === '普攻') {
+    return true;
+  }
+  if (typeof action.title === 'string' && action.title.trim() === '普攻') {
+    return true;
+  }
+  return true;
+}
+
+function actionIncludesDodge(action = {}) {
+  if (!action) {
+    return false;
+  }
+  if (action.type === 'dodge') {
+    return true;
+  }
+  const effects = Array.isArray(action.effects) ? action.effects : [];
+  for (let i = 0; i < effects.length; i += 1) {
+    const effect = effects[i];
+    if (effect && effect.type === 'dodge') {
+      return true;
+    }
+  }
+  const raw = action.raw || {};
+  const rawOutcome = raw && typeof raw.outcome === 'string' ? raw.outcome.toLowerCase() : '';
+  if (rawOutcome && rawOutcome.indexOf('dodge') >= 0) {
+    return true;
+  }
+  const rawResult = raw && typeof raw.result === 'string' ? raw.result.toLowerCase() : '';
+  if (rawResult && rawResult.indexOf('dodge') >= 0) {
+    return true;
+  }
+  if (typeof action.result === 'string' && action.result.toLowerCase().indexOf('dodge') >= 0) {
+    return true;
+  }
+  return false;
 }
 
 function extractSkillTextFromAction(action = {}) {
@@ -843,6 +908,7 @@ Page({
       attackerKey: alignment.attackerKey,
       defenderKey: alignment.defenderKey,
       currentAction: {},
+      currentMotion: {},
       displayedLogs: [],
       skipLocked,
       skipButtonText: skipLocked ? `跳过（${MIN_SKIP_SECONDS}）` : '跳过战斗',
@@ -1160,12 +1226,18 @@ Page({
     const targetSide = action.target === 'player' || action.target === 'opponent' ? action.target : '';
     const effects = Array.isArray(action.effects) ? action.effects : [];
     const hasCrit = effects.some((effect) => effect && effect.type === 'crit');
-    const hasDodge = action.type === 'dodge' || effects.some((effect) => effect && effect.type === 'dodge');
+    const hasDodge = actionIncludesDodge(action);
+    const isBasicAttack = isBasicAttackAction(action);
 
     if (actorSide) {
       const skillText = extractSkillTextFromAction(action);
       if (skillText) {
-        this.showFloatingText(actorSide, { text: skillText, type: 'skill', duration: 1400 });
+        const isBasicAttackLabel = isBasicAttack && skillText === '普攻';
+        this.showFloatingText(actorSide, {
+          text: skillText,
+          type: isBasicAttackLabel ? 'basic-attack-skill' : 'skill',
+          duration: isBasicAttackLabel ? 1100 : 1400
+        });
       }
     }
 
@@ -1242,8 +1314,16 @@ Page({
     });
     this.timelineIndex = nextIndex;
     this.resetFloatingTexts();
+    const isBasicAttack = isBasicAttackAction(action);
+    const targetDodged = actionIncludesDodge(action);
     this.setBattleStageData({
       currentAction: action,
+      currentMotion: {
+        actor: action.actor || '',
+        target: action.target || '',
+        isBasicAttack,
+        targetDodged: isBasicAttack && targetDodged
+      },
       displayedLogs: nextLogs,
       hpState: nextHpState
     });
@@ -1308,7 +1388,8 @@ Page({
       resultClass,
       resultRounds: result.rounds || this.timelineIndex + 1,
       skipLocked: false,
-      skipButtonText: '重播战斗'
+      skipButtonText: '重播战斗',
+      currentMotion: {}
     });
     this.setData({ battleState: 'finished' });
     this.notifyParent();
@@ -1329,6 +1410,7 @@ Page({
       const lastAction = actions[actions.length - 1];
       this.setBattleStageData({
         currentAction: lastAction,
+        currentMotion: {},
         displayedLogs: [...this.data.displayedLogs, { id: lastAction.id, text: lastAction.description }].slice(-5),
         hpState: lastAction.hp || this.data.hpState
       });
@@ -1361,6 +1443,7 @@ Page({
     this.setBattleStageData({
       battleFinished: false,
       currentAction: {},
+      currentMotion: {},
       displayedLogs: [],
       hpState: this.initialHp || this.data.hpState,
       skipLocked: false,
