@@ -22,22 +22,23 @@
     <view wx:elif="{{overviewError}}" class="overview-error" bindtap="handleRetryOverview">
       {{overviewError}}，点击重试
     </view>
-    <view wx:else class="overview-list">
-      <view class="overview-day" wx:for="{{reservationOverview}}" wx:key="date" wx:for-item="day">
-        <view class="overview-day-header">
-          <view class="overview-day-date">{{day.date}}</view>
-          <view class="overview-day-week">{{day.weekday}}</view>
+    <view wx:else class="overview-grid">
+      <view class="overview-tile" wx:for="{{reservationOverview}}" wx:key="date" wx:for-item="day">
+        <view class="overview-tile-header">
+          <view class="overview-tile-date">{{day.date}}</view>
+          <view class="overview-tile-week">{{day.weekday}}</view>
         </view>
         <block wx:if="{{day.reservations && day.reservations.length}}">
-          <view class="overview-entry" wx:for="{{day.reservations}}" wx:key="_id" wx:for-item="entry">
-            <view class="overview-entry-content">
-              <view class="overview-entry-time">{{entry.startTime}} - {{entry.endTime}}</view>
-              <view class="overview-entry-info">
-                <text class="overview-entry-room">{{entry.roomName || '包房'}}</text>
-                <text wx:if="{{entry.memberDisplayName}}" class="overview-entry-member"> · {{entry.memberDisplayName}}</text>
-              </view>
+          <view class="overview-tile-occupancy">
+            <view
+              class="overview-occupancy-item"
+              wx:for="{{day.reservations}}"
+              wx:key="_id"
+              wx:for-item="entry"
+            >
+              <text class="overview-occupancy-time">{{entry.startTime}}-{{entry.endTime}}</text>
+              <text class="overview-occupancy-room">{{entry.roomName || '包房'}}</text>
             </view>
-            <view class="status overview-status {{entry.status}}">{{entry.statusLabel}}</view>
           </view>
         </block>
         <view wx:else class="overview-empty">空闲</view>

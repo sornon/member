@@ -42,84 +42,71 @@
   color: #ffd2d2;
 }
 
-.overview-list {
+.overview-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.overview-tile {
+  flex: 1 1 calc((100% - 24rpx) / 3);
+  max-width: calc((100% - 24rpx) / 3);
+  min-width: 180rpx;
+  background: rgba(14, 24, 60, 0.7);
+  border-radius: 12rpx;
+  border: 1rpx solid rgba(122, 142, 232, 0.2);
+  padding: 14rpx 16rpx;
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
+  gap: 8rpx;
 }
 
-.overview-day {
-  background: rgba(14, 24, 60, 0.6);
-  border-radius: 16rpx;
-  border: 1rpx solid rgba(122, 142, 232, 0.18);
-  padding: 16rpx 20rpx;
-}
-
-.overview-day-header {
+.overview-tile-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12rpx;
+  gap: 8rpx;
 }
 
-.overview-day-date {
-  font-size: 26rpx;
+.overview-tile-date {
+  font-size: 24rpx;
   font-weight: 500;
-  color: #e6ecff;
+  color: #e8edff;
 }
 
-.overview-day-week {
-  font-size: 24rpx;
-  color: rgba(204, 214, 255, 0.7);
-}
-
-.overview-entry {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 12rpx 0;
-  border-top: 1rpx solid rgba(116, 136, 226, 0.18);
-}
-
-.overview-entry:first-child {
-  border-top: none;
-  padding-top: 0;
-}
-
-.overview-entry-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.overview-entry-time {
-  font-size: 24rpx;
-  color: #f5f8ff;
-}
-
-.overview-entry-info {
-  margin-top: 6rpx;
+.overview-tile-week {
   font-size: 22rpx;
-  color: rgba(204, 214, 255, 0.75);
-  display: flex;
-  flex-wrap: wrap;
-}
-
-.overview-entry-room {
-  color: rgba(204, 214, 255, 0.85);
-}
-
-.overview-entry-member {
   color: rgba(204, 214, 255, 0.65);
 }
 
-.overview-status {
-  margin-left: 16rpx;
+.overview-tile-occupancy {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.overview-occupancy-item {
+  font-size: 20rpx;
+  color: rgba(214, 222, 255, 0.85);
+  line-height: 1.4;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6rpx;
+}
+
+.overview-occupancy-time {
+  font-weight: 500;
+}
+
+.overview-occupancy-room {
+  color: rgba(204, 214, 255, 0.6);
 }
 
 .overview-empty {
-  font-size: 24rpx;
-  color: rgba(198, 206, 255, 0.6);
-  padding: 12rpx 0 0;
+  font-size: 22rpx;
+  color: rgba(198, 206, 255, 0.65);
+  text-align: center;
+  padding: 10rpx 0 4rpx;
 }
 
 .picker {
