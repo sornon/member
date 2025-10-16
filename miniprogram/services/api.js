@@ -200,12 +200,13 @@ export const TaskService = {
 };
 
 export const ReservationService = {
-  async listRooms(date, startTime, endTime) {
+  async listRooms(date, startTime, endTime, endDate) {
     return callCloud(CLOUD_FUNCTIONS.RESERVATION, {
       action: 'availableRooms',
       date,
       startTime,
-      endTime
+      endTime,
+      endDate
     });
   },
   async create(order) {

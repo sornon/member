@@ -19,7 +19,7 @@
         <view class="reservation-room">{{item.roomName || '包房'}}</view>
         <view class="reservation-status {{item.status}}">{{item.statusLabel}}</view>
       </view>
-      <view class="reservation-time">{{item.date}} {{item.startTime}} - {{item.endTime}}</view>
+      <view class="reservation-time">{{item.date}} {{item.startTime}} - {{item.endDate && item.endDate !== item.date ? item.endDate + ' ' : ''}}{{item.endTime}}</view>
       <view class="reservation-meta" wx:if="{{item.price}}">费用：{{formatCurrency(item.price)}}</view>
       <view class="reservation-meta" wx:if="{{item.status === 'pendingApproval'}}">等待管理员审核</view>
       <view class="reservation-meta" wx:if="{{item.status === 'approved'}}">请按预约时间到店使用</view>

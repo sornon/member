@@ -76,6 +76,7 @@ Page({
     date: formatDate(new Date()),
     startTime: DEFAULT_START_TIME,
     endTime: '',
+    endDate: '',
     endDateTimeLabel: '',
     durationOptions: DURATION_OPTIONS,
     durationIndex: DEFAULT_DURATION_INDEX,
@@ -106,6 +107,7 @@ Page({
     const validation = this.validateTimeRange(date, startTime, durationHours);
     this.setData({
       endTime: validation.endTime,
+      endDate: validation.endDate,
       endDateTimeLabel: validation.endDateTimeLabel,
       timeError: validation.errorMessage || ''
     });
@@ -113,10 +115,10 @@ Page({
       this.setData({ rooms: [], loading: false });
       return;
     }
-    const { endTime } = validation;
+    const { endTime, endDate } = validation;
     this.setData({ loading: true, timeError: '' });
     try {
-      const result = await ReservationService.listRooms(date, startTime, endTime);
+      const result = await ReservationService.listRooms(date, startTime, endTime, endDate);
       const notice = result.notice || null;
       this.setData({
         rooms: result.rooms || [],
@@ -158,28 +160,64 @@ Page({
   validateTimeRange(date, start, durationHours) {
     const startMinutes = timeToMinutes(start);
     if (!Number.isFinite(startMinutes)) {
-      return { valid: false, endTime: '', endDateTimeLabel: '', errorMessage: '请选择有效的开始时间' };
+      return {
+        valid: false,
+        endTime: '',
+        endDate: '',
+        endDateTimeLabel: '',
+        errorMessage: '请选择有效的开始时间'
+      };
     }
     if (startMinutes >= MINUTES_PER_DAY) {
-      return { valid: false, endTime: '', endDateTimeLabel: '', errorMessage: '请选择有效的开始时间' };
+      return {
+        valid: false,
+        endTime: '',
+        endDate: '',
+        endDateTimeLabel: '',
+        errorMessage: '请选择有效的开始时间'
+      };
     }
     const duration = Number(durationHours);
     if (!Number.isFinite(duration) || duration <= 0) {
-      return { valid: false, endTime: '', endDateTimeLabel: '', errorMessage: '请选择有效的使用时长' };
+      return {
+        valid: false,
+        endTime: '',
+        endDate: '',
+        endDateTimeLabel: '',
+        errorMessage: '请选择有效的使用时长'
+      };
     }
     const durationMinutes = duration * MINUTES_PER_HOUR;
     const startDate = buildDateWithTime(date, startMinutes);
     if (!startDate) {
-      return { valid: false, endTime: '', endDateTimeLabel: '', errorMessage: '请选择有效的预约日期' };
+      return {
+        valid: false,
+        endTime: '',
+        endDate: '',
+        endDateTimeLabel: '',
+        errorMessage: '请选择有效的预约日期'
+      };
     }
     const endDate = new Date(startDate.getTime() + durationMinutes * 60 * 1000);
     if (Number.isNaN(endDate.getTime())) {
-      return { valid: false, endTime: '', endDateTimeLabel: '', errorMessage: '请选择有效的使用时长' };
+      return {
+        valid: false,
+        endTime: '',
+        endDate: '',
+        endDateTimeLabel: '',
+        errorMessage: '请选择有效的使用时长'
+      };
     }
     const endTime = formatTimeLabel(endDate);
     const endDateLabel = formatDateLabel(endDate);
     const endDateTimeLabel = endDateLabel && endTime ? `${endDateLabel} ${endTime}` : '';
-    return { valid: true, endTime, endDateTimeLabel, errorMessage: '' };
+    return {
+      valid: true,
+      endTime,
+      endDate: endDateLabel,
+      endDateTimeLabel,
+      errorMessage: ''
+    };
   },
 
   async handleReserve(event) {
@@ -189,6 +227,7 @@ Page({
     if (!validation.valid) {
       this.setData({
         endTime: validation.endTime,
+        endDate: validation.endDate,
         endDateTimeLabel: validation.endDateTimeLabel,
         timeError: validation.errorMessage || ''
       });
@@ -197,6 +236,7 @@ Page({
     }
     this.setData({
       endTime: validation.endTime,
+      endDate: validation.endDate,
       endDateTimeLabel: validation.endDateTimeLabel,
       timeError: ''
     });
@@ -211,6 +251,7 @@ Page({
         date: this.data.date,
         startTime: this.data.startTime,
         endTime: validation.endTime,
+        endDate: validation.endDate,
         rightId: this.data.rightId
       };
       const res = await ReservationService.create(payload);
