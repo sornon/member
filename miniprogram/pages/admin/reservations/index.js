@@ -112,20 +112,15 @@ Page({
               )
             }))
           : [];
-
-        const [yearPart, monthPart, dayPart] = typeof day.date === 'string' ? day.date.split('-') : [];
-        const month = monthPart ? Number(monthPart) : NaN;
-        const dateNumber = dayPart ? Number(dayPart) : NaN;
-        const shortDate = !Number.isNaN(month) && !Number.isNaN(dateNumber)
-          ? `${month}/${dateNumber.toString().padStart(2, '0')}`
-          : '';
+        const reservationCount = reservations.length;
 
         return {
           ...day,
           reservations,
           isToday: index === 0,
           displayLabel: index === 0 ? '今天' : day.weekday || '',
-          shortDate
+          reservationCount,
+          reservationCountLabel: reservationCount > 0 ? `${reservationCount}场` : '空闲'
         };
       });
       this.setData({

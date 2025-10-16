@@ -31,23 +31,10 @@
       >
         <view class="overview-tile-header">
           <text class="overview-tile-label">{{day.displayLabel}}</text>
-          <text wx:if="{{day.shortDate}}" class="overview-tile-sub">{{day.shortDate}}</text>
+          <text class="overview-tile-count {{day.reservationCount ? '' : 'overview-tile-count-empty'}}">
+            {{day.reservationCountLabel}}
+          </text>
         </view>
-        <block wx:if="{{day.reservations && day.reservations.length}}">
-          <view class="overview-tile-occupancy">
-            <view
-              class="overview-occupancy-item"
-              wx:for="{{day.reservations}}"
-              wx:key="_id"
-              wx:for-item="entry"
-            >
-              <text class="overview-occupancy-slot">{{entry.startTime}}-{{entry.endTime}}</text>
-              <text class="overview-occupancy-divider">·</text>
-              <text class="overview-occupancy-room">{{entry.roomName || '包房'}}</text>
-            </view>
-          </view>
-        </block>
-        <view wx:else class="overview-empty">空闲</view>
       </view>
     </view>
   </view>
