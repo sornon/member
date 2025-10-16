@@ -31,9 +31,7 @@
       >
         <view class="overview-tile-header">
           <text class="overview-tile-label">{{day.displayLabel}}</text>
-          <text class="overview-tile-count {{day.reservationCount ? '' : 'overview-tile-count-empty'}}">
-            {{day.reservationCountLabel}}
-          </text>
+          <text class="overview-tile-count {{day.reservationCount ? '' : 'overview-tile-count-empty'}}">{{day.reservationCountLabel}}</text>
         </view>
       </view>
     </view>

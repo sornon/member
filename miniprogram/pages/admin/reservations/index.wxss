@@ -97,7 +97,7 @@
 }
 
 .overview-tile-count-empty {
-  color: rgba(198, 206, 255, 0.8);
+  color:#009688;
   background: transparent;
   white-space: nowrap;
 }
