@@ -23,10 +23,15 @@
       {{overviewError}}，点击重试
     </view>
     <view wx:else class="overview-grid">
-      <view class="overview-tile" wx:for="{{reservationOverview}}" wx:key="date" wx:for-item="day">
+      <view
+        class="overview-tile {{day.isToday ? 'overview-tile-today' : ''}}"
+        wx:for="{{reservationOverview}}"
+        wx:key="date"
+        wx:for-item="day"
+      >
         <view class="overview-tile-header">
-          <view class="overview-tile-date">{{day.date}}</view>
-          <view class="overview-tile-week">{{day.weekday}}</view>
+          <text class="overview-tile-label">{{day.displayLabel}}</text>
+          <text wx:if="{{day.shortDate}}" class="overview-tile-sub">{{day.shortDate}}</text>
         </view>
         <block wx:if="{{day.reservations && day.reservations.length}}">
           <view class="overview-tile-occupancy">
@@ -36,7 +41,8 @@
               wx:key="_id"
               wx:for-item="entry"
             >
-              <text class="overview-occupancy-time">{{entry.startTime}}-{{entry.endTime}}</text>
+              <text class="overview-occupancy-slot">{{entry.startTime}}-{{entry.endTime}}</text>
+              <text class="overview-occupancy-divider">·</text>
               <text class="overview-occupancy-room">{{entry.roomName || '包房'}}</text>
             </view>
           </view>

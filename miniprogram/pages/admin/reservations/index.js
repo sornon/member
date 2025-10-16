@@ -101,9 +101,8 @@ Page({
     this.setData({ overviewLoading: true, overviewError: '' });
     try {
       const response = await AdminService.getReservationOverview();
-      const days = (response && Array.isArray(response.days) ? response.days : []).map((day) => ({
-        ...day,
-        reservations: Array.isArray(day.reservations)
+      const days = (response && Array.isArray(response.days) ? response.days : []).map((day, index) => {
+        const reservations = Array.isArray(day.reservations)
           ? day.reservations.map((item) => ({
               ...item,
               memberDisplayName: formatMemberDisplayName(
@@ -112,8 +111,23 @@ Page({
                 item.memberId || ''
               )
             }))
-          : []
-      }));
+          : [];
+
+        const [yearPart, monthPart, dayPart] = typeof day.date === 'string' ? day.date.split('-') : [];
+        const month = monthPart ? Number(monthPart) : NaN;
+        const dateNumber = dayPart ? Number(dayPart) : NaN;
+        const shortDate = !Number.isNaN(month) && !Number.isNaN(dateNumber)
+          ? `${month}/${dateNumber.toString().padStart(2, '0')}`
+          : '';
+
+        return {
+          ...day,
+          reservations,
+          isToday: index === 0,
+          displayLabel: index === 0 ? '今天' : day.weekday || '',
+          shortDate
+        };
+      });
       this.setData({
         reservationOverview: days,
         overviewGeneratedAt: (response && response.generatedAt) || '',
