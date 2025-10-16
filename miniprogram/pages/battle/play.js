@@ -29,6 +29,42 @@ function buildCharacterImageMap() {
 const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
 
+function toFiniteNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function normalizeHpEntry(entry) {
+  const base = entry && typeof entry === 'object' ? entry : {};
+  const max = Math.max(0, toFiniteNumber(base.max, 0));
+  let current = toFiniteNumber(base.current, 0);
+  if (max > 0) {
+    current = Math.max(0, Math.min(max, current));
+  } else {
+    current = Math.max(0, current);
+  }
+  let percent = toFiniteNumber(base.percent, NaN);
+  if (!Number.isFinite(percent)) {
+    percent = max > 0 ? (current / (max || 1)) * 100 : 0;
+  }
+  const boundedPercent = Number.isFinite(percent) ? Math.max(0, Math.min(100, percent)) : 0;
+  const roundedPercent = Math.round(boundedPercent * 100) / 100;
+  return {
+    ...base,
+    max,
+    current,
+    percent: roundedPercent,
+    progressStyle: `width: ${roundedPercent}%;`
+  };
+}
+
+function normalizeHpStateMap(state = {}) {
+  return {
+    player: normalizeHpEntry(state.player),
+    opponent: normalizeHpEntry(state.opponent)
+  };
+}
+
 function isExternalInviteSource(source) {
   return source === 'acceptInvite' || source === 'autoInvite';
 }
@@ -315,10 +351,10 @@ function createBattleStageState(overrides = {}) {
     backgroundVideo: DEFAULT_BACKGROUND_VIDEO,
     player: null,
     opponent: null,
-    hpState: {
+    hpState: normalizeHpStateMap({
       player: { max: 1, current: 1, percent: 100 },
       opponent: { max: 1, current: 1, percent: 100 }
-    },
+    }),
     attackerKey: 'player',
     defenderKey: 'opponent',
     currentAction: {},
@@ -793,23 +829,17 @@ Page({
       stageOpponent.portrait = BATTLE_BOT_PORTRAIT_IMAGE;
     }
 
-    this.initialHp = {
+    this.initialHp = normalizeHpStateMap({
       player: stagePlayer.hp || (viewModel.player && viewModel.player.hp) || { current: 0, max: 0 },
       opponent: stageOpponent.hp || (viewModel.opponent && viewModel.opponent.hp) || { current: 0, max: 0 }
-    };
+    });
     this.setBattleStageData({
       loading: false,
       error: '',
       backgroundVideo,
       player: stagePlayer,
       opponent: stageOpponent,
-      hpState: {
-        player: (stagePlayer && stagePlayer.hp) || (viewModel.player && viewModel.player.hp) || { current: 0, max: 0 },
-        opponent: (stageOpponent && stageOpponent.hp) || (viewModel.opponent && viewModel.opponent.hp) || {
-          current: 0,
-          max: 0
-        }
-      },
+      hpState: this.initialHp,
       attackerKey: alignment.attackerKey,
       defenderKey: alignment.defenderKey,
       currentAction: {},
@@ -1198,7 +1228,17 @@ Page({
     const action = actions[nextIndex];
     const nextLogs = [...this.data.displayedLogs, { id: action.id, text: action.description }].slice(-5);
     const previousHpState = this.data.hpState || {};
-    const nextHpState = action.hp || this.data.hpState;
+    const rawNextHpState = action.hp || {};
+    const nextHpState = normalizeHpStateMap({
+      player:
+        Object.prototype.hasOwnProperty.call(rawNextHpState, 'player') && rawNextHpState.player !== undefined
+          ? rawNextHpState.player
+          : previousHpState.player,
+      opponent:
+        Object.prototype.hasOwnProperty.call(rawNextHpState, 'opponent') && rawNextHpState.opponent !== undefined
+          ? rawNextHpState.opponent
+          : previousHpState.opponent
+    });
     this.timelineIndex = nextIndex;
     this.resetFloatingTexts();
     this.setBattleStageData({
@@ -1321,10 +1361,7 @@ Page({
       battleFinished: false,
       currentAction: {},
       displayedLogs: [],
-      hpState: {
-        player: this.initialHp ? this.initialHp.player : this.data.hpState.player,
-        opponent: this.initialHp ? this.initialHp.opponent : this.data.hpState.opponent
-      },
+      hpState: this.initialHp || this.data.hpState,
       skipLocked: false,
       skipButtonText: '跳过战斗'
     });
@@ -1386,12 +1423,28 @@ Page({
     if (!updates || typeof updates !== 'object') {
       return;
     }
+    const normalizedUpdates = { ...updates };
+    if (Object.prototype.hasOwnProperty.call(normalizedUpdates, 'hpState')) {
+      const previousHpState =
+        (this.data && this.data.battleStage && this.data.battleStage.hpState) || createBattleStageState().hpState;
+      const nextHpState = normalizedUpdates.hpState || {};
+      normalizedUpdates.hpState = normalizeHpStateMap({
+        player:
+          Object.prototype.hasOwnProperty.call(nextHpState, 'player') && nextHpState.player !== undefined
+            ? nextHpState.player
+            : previousHpState.player,
+        opponent:
+          Object.prototype.hasOwnProperty.call(nextHpState, 'opponent') && nextHpState.opponent !== undefined
+            ? nextHpState.opponent
+            : previousHpState.opponent
+      });
+    }
     const nextStage = {
       ...this.data.battleStage,
-      ...updates
+      ...normalizedUpdates
     };
     const dataUpdates = { battleStage: nextStage };
-    Object.keys(updates).forEach((key) => {
+    Object.keys(normalizedUpdates).forEach((key) => {
       dataUpdates[key] = nextStage[key];
     });
     this.setData(dataUpdates);
