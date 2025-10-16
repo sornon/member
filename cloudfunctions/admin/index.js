@@ -220,7 +220,7 @@ const ACTION_HANDLERS = {
       pageSize: event.pageSize || 20
     }),
   [ACTIONS.GET_RESERVATION_OVERVIEW]: (openid, event) =>
-    getReservationOverview(openid, { days: event.days || event.range || 14 }),
+    getReservationOverview(openid, { days: event.days || event.range || 7 }),
   [ACTIONS.APPROVE_RESERVATION]: (openid, event) => approveReservation(openid, event.reservationId),
   [ACTIONS.REJECT_RESERVATION]: (openid, event) => rejectReservation(openid, event.reservationId, event.reason || ''),
   [ACTIONS.CANCEL_RESERVATION]: (openid, event) => cancelReservation(openid, event.reservationId, event.reason || ''),
@@ -2008,10 +2008,10 @@ async function listReservations(openid, { status = 'pendingApproval', page = 1, 
   };
 }
 
-async function getReservationOverview(openid, { days: requestedDays = 14 } = {}) {
+async function getReservationOverview(openid, { days: requestedDays = 7 } = {}) {
   await ensureAdmin(openid);
   const numericDays = Number(requestedDays);
-  const totalDays = Math.min(Math.max(Number.isFinite(numericDays) ? Math.floor(numericDays) : 14, 1), 31);
+  const totalDays = Math.min(Math.max(Number.isFinite(numericDays) ? Math.floor(numericDays) : 7, 1), 31);
   const startDate = new Date();
   startDate.setHours(0, 0, 0, 0);
   const dayKeys = [];
