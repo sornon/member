@@ -1191,8 +1191,9 @@ Page({
           continue;
         }
         const isCrit = hasCrit && side === targetSide;
+        const text = isCrit ? `暴击 -${amount}` : `-${amount}`;
         this.showFloatingText(side, {
-          text: `-${amount}`,
+          text,
           type: isCrit ? 'crit' : 'damage',
           duration: isCrit ? 900 : 1200
         });
