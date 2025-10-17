@@ -637,7 +637,7 @@ page {
 }
 
 .attack-indicator {
-  font-size: 34rpx;
+  font-size: 44rpx;
   font-weight: 700;
   letter-spacing: 6rpx;
   color: #ffffff;

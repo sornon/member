@@ -1321,19 +1321,19 @@ Page({
     }
     const effects = Array.isArray(action.effects) ? action.effects : [];
     const hasCrit = effects.some((effect) => effect && effect.type === 'crit');
-    const indicatorDuration = ATTACK_INDICATOR_HOLD_DURATION + ATTACK_INDICATOR_FADE_DURATION;
+    const indicatorLead = ATTACK_INDICATOR_HOLD_DURATION;
+    const indicatorDisplay = ATTACK_INDICATOR_HOLD_DURATION + ATTACK_INDICATOR_FADE_DURATION;
     const windupDuration = hasCrit ? ATTACK_WINDUP_DURATION : 0;
     const prelaunchHold = hasCrit ? ATTACK_CRIT_PRELAUNCH_HOLD : 0;
     const chargeDuration = hasCrit ? ATTACK_CRIT_CHARGE_DURATION : ATTACK_CHARGE_DURATION;
-    return (
-      indicatorDuration +
+    const attackTimeline =
+      indicatorLead +
       windupDuration +
       prelaunchHold +
       chargeDuration +
       ATTACK_IMPACT_HOLD_DURATION +
-      ATTACK_RECOVERY_DURATION +
-      ATTACK_SEQUENCE_BUFFER
-    );
+      ATTACK_RECOVERY_DURATION;
+    return Math.max(indicatorDisplay, attackTimeline) + ATTACK_SEQUENCE_BUFFER;
   },
 
   runActionSequence(action, previousHpState = {}, nextHpState = {}) {
@@ -1381,32 +1381,32 @@ Page({
       targetReaction: ''
     });
 
-    this.queueAttackTimer(() => {
-      this.setBattleStageData({
-        attackIndicator: { visible: true, side: actorSide, status: 'leaving' }
-      });
-    }, indicatorHold);
-
-    const postIndicatorDelay = indicatorHold + indicatorFade;
+    const indicatorFadeComplete = indicatorHold + indicatorFade;
 
     this.queueAttackTimer(() => {
       const nextPhase = hasCrit ? 'windup' : 'charging';
       this.setBattleStageData({
         attackPhase: nextPhase,
+        attackIndicator: { visible: true, side: actorSide, status: 'leaving' }
+      });
+    }, indicatorHold);
+
+    this.queueAttackTimer(() => {
+      this.setBattleStageData({
         attackIndicator: { visible: false, side: '', status: '' }
       });
-    }, postIndicatorDelay);
+    }, indicatorFadeComplete);
 
     if (hasCrit) {
       this.queueAttackTimer(() => {
         this.setBattleStageData({ attackPhase: 'prelaunch' });
-      }, postIndicatorDelay + windupDuration);
+      }, indicatorHold + windupDuration);
       this.queueAttackTimer(() => {
         this.setBattleStageData({ attackPhase: 'charging' });
-      }, postIndicatorDelay + windupDuration + prelaunchHold);
+      }, indicatorHold + windupDuration + prelaunchHold);
     }
 
-    const chargeStartDelay = postIndicatorDelay + (hasCrit ? windupDuration + prelaunchHold : 0);
+    const chargeStartDelay = indicatorHold + (hasCrit ? windupDuration + prelaunchHold : 0);
     const impactDelay = chargeStartDelay + chargeDuration;
     const recoveryStartDelay = impactDelay + impactDuration;
     const sequenceEndDelay = recoveryStartDelay + recoveryDuration;
