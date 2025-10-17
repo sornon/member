@@ -422,29 +422,43 @@ page {
 }
 
 .avatar-wrapper.attacker.attack-motion-crit.attack-phase-charging .avatar-inner {
-  animation: attackerCritCharge 0.46s forwards;
-  animation-timing-function: cubic-bezier(0.16, 0.5, 0.3, 1);
+  animation: attackerCritCharge 0.46s linear forwards;
   transition: none;
 }
 
 @keyframes attackerCritCharge {
   0% {
-    transform: translateX(-160rpx) translateY(36rpx);
+    transform: translateX(-160rpx) translateY(16rpx);
+  }
+  10% {
+    transform: translateX(-146.6rpx) translateY(-63.2rpx);
   }
   20% {
-    transform: translateX(-40rpx) translateY(-60rpx);
+    transform: translateX(-110.1rpx) translateY(-124.8rpx);
   }
-  35% {
-    transform: translateX(40rpx) translateY(-160rpx);
+  30% {
+    transform: translateX(-56.3rpx) translateY(-168.8rpx);
+  }
+  40% {
+    transform: translateX(9rpx) translateY(-195.2rpx);
   }
   50% {
-    transform: translateX(80rpx) translateY(-220rpx);
+    transform: translateX(80rpx) translateY(-204rpx);
+  }
+  60% {
+    transform: translateX(151rpx) translateY(-195.2rpx);
   }
   70% {
-    transform: translateX(200rpx) translateY(-90rpx);
+    transform: translateX(216.3rpx) translateY(-168.8rpx);
+  }
+  80% {
+    transform: translateX(270.1rpx) translateY(-124.8rpx);
+  }
+  90% {
+    transform: translateX(306.6rpx) translateY(-63.2rpx);
   }
   100% {
-    transform: translateX(320rpx) translateY(0);
+    transform: translateX(320rpx) translateY(16rpx);
   }
 }
 
@@ -491,29 +505,43 @@ page {
 }
 
 .avatar-wrapper.defender.attack-motion-crit.attack-phase-charging .avatar-inner {
-  animation: defenderCritCharge 0.46s forwards;
-  animation-timing-function: cubic-bezier(0.16, 0.5, 0.3, 1);
+  animation: defenderCritCharge 0.46s linear forwards;
   transition: none;
 }
 
 @keyframes defenderCritCharge {
   0% {
-    transform: translateX(160rpx) translateY(36rpx);
+    transform: translateX(160rpx) translateY(16rpx);
+  }
+  10% {
+    transform: translateX(146.6rpx) translateY(-63.2rpx);
   }
   20% {
-    transform: translateX(40rpx) translateY(-60rpx);
+    transform: translateX(110.1rpx) translateY(-124.8rpx);
   }
-  35% {
-    transform: translateX(-40rpx) translateY(-160rpx);
+  30% {
+    transform: translateX(56.3rpx) translateY(-168.8rpx);
+  }
+  40% {
+    transform: translateX(-9rpx) translateY(-195.2rpx);
   }
   50% {
-    transform: translateX(-80rpx) translateY(-220rpx);
+    transform: translateX(-80rpx) translateY(-204rpx);
+  }
+  60% {
+    transform: translateX(-151rpx) translateY(-195.2rpx);
   }
   70% {
-    transform: translateX(-200rpx) translateY(-90rpx);
+    transform: translateX(-216.3rpx) translateY(-168.8rpx);
+  }
+  80% {
+    transform: translateX(-270.1rpx) translateY(-124.8rpx);
+  }
+  90% {
+    transform: translateX(-306.6rpx) translateY(-63.2rpx);
   }
   100% {
-    transform: translateX(-320rpx) translateY(0);
+    transform: translateX(-320rpx) translateY(16rpx);
   }
 }
 
