@@ -413,8 +413,13 @@ page {
   transition-duration: 0.28s;
 }
 
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-windup .avatar-inner {
+  transform: translateX(-120rpx) translateY(32rpx);
+  transition-duration: 0.24s;
+}
+
 .avatar-wrapper.attacker.attack-motion-crit.attack-phase-charging .avatar-inner {
-  transform: translateX(320rpx);
+  transform: translateX(320rpx) translateY(-140rpx);
   transition-duration: 0.36s;
 }
 
@@ -433,9 +438,20 @@ page {
   transition-duration: 0.28s;
 }
 
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-windup .avatar-inner {
+  transform: translateX(120rpx) translateY(32rpx);
+  transition-duration: 0.24s;
+}
+
 .avatar-wrapper.defender.attack-motion-crit.attack-phase-charging .avatar-inner {
-  transform: translateX(-320rpx);
+  transform: translateX(-320rpx) translateY(-140rpx);
   transition-duration: 0.36s;
+}
+
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-impact .avatar-inner,
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-impact .avatar-inner {
+  transform: translateX(0) translateY(48rpx);
+  transition-duration: 0.28s;
 }
 
 .avatar-wrapper.defender.attack-phase-impact .avatar-inner {
