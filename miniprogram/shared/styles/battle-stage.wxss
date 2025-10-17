@@ -395,6 +395,10 @@ page {
   z-index: 5;
 }
 
+.avatar-wrapper.attacker.target-under-attack {
+  z-index: 4;
+}
+
 .avatar-wrapper.defender.target-under-attack {
   z-index: 4;
 }
@@ -419,16 +423,48 @@ page {
   transition-duration: 0.24s;
 }
 
+.avatar-wrapper.defender.attack-phase-windup .avatar-inner {
+  transform: translateX(120rpx);
+  transition-duration: 0.22s;
+}
+
+.avatar-wrapper.defender.attack-phase-charging .avatar-inner {
+  transform: translateX(-250rpx);
+  transition-duration: 0.28s;
+}
+
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-charging .avatar-inner {
+  transform: translateX(-320rpx);
+  transition-duration: 0.36s;
+}
+
+.avatar-wrapper.defender.attack-phase-impact .avatar-inner {
+  transform: translateX(0);
+  transition-duration: 0.24s;
+}
+
 .avatar-wrapper.defender .avatar-inner {
   transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.avatar-wrapper.attacker.is-dodging .avatar-inner {
+  transform: translateX(-100rpx);
 }
 
 .avatar-wrapper.defender.is-dodging .avatar-inner {
   transform: translateX(100rpx);
 }
 
+.avatar-wrapper.attacker.is-hit .avatar-inner {
+  animation: targetHitShakeReverse 0.42s ease;
+}
+
 .avatar-wrapper.defender.is-hit .avatar-inner {
   animation: targetHitShake 0.42s ease;
+}
+
+.avatar-wrapper.attacker.is-hit .actor-portrait {
+  filter: saturate(1.35) brightness(0.9) sepia(0.15) hue-rotate(-10deg);
 }
 
 .avatar-wrapper.defender.is-hit .actor-portrait {
@@ -476,6 +512,27 @@ page {
   }
   80% {
     transform: translateX(6rpx);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes targetHitShakeReverse {
+  0% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(24rpx);
+  }
+  40% {
+    transform: translateX(-18rpx);
+  }
+  60% {
+    transform: translateX(12rpx);
+  }
+  80% {
+    transform: translateX(-6rpx);
   }
   100% {
     transform: translateX(0);
