@@ -427,6 +427,11 @@ page {
   transition-timing-function: cubic-bezier(0.1, 0.9, 0.32, 1);
 }
 
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-windup .actor-portrait,
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-windup .actor-portrait {
+  animation: critWindupFlash 0.3s ease-in-out infinite;
+}
+
 .avatar-wrapper.attacker.attack-motion-crit.attack-phase-prelaunch .avatar-inner {
   transform: translateX(-160rpx) translateY(0);
   transition-duration: 0.12s;
@@ -434,7 +439,7 @@ page {
 }
 
 .avatar-wrapper.attacker.attack-motion-crit.attack-phase-charging .avatar-inner {
-  animation: attackerCritCharge 0.46s linear forwards;
+  animation: attackerCritCharge 0.36s linear forwards;
   transition: none;
 }
 
@@ -471,6 +476,21 @@ page {
   }
   100% {
     transform: translateX(320rpx) translateY(0);
+  }
+}
+
+@keyframes critWindupFlash {
+  0% {
+    filter: saturate(1.05) brightness(1) drop-shadow(0 0 0 rgba(255, 214, 120, 0));
+  }
+  45% {
+    filter: saturate(1.6) brightness(1.45) drop-shadow(0 0 28rpx rgba(255, 214, 120, 0.85));
+  }
+  70% {
+    filter: saturate(1.3) brightness(1.25) drop-shadow(0 0 12rpx rgba(255, 214, 120, 0.55));
+  }
+  100% {
+    filter: saturate(1.05) brightness(1) drop-shadow(0 0 0 rgba(255, 214, 120, 0));
   }
 }
 
@@ -529,7 +549,7 @@ page {
 }
 
 .avatar-wrapper.defender.attack-motion-crit.attack-phase-charging .avatar-inner {
-  animation: defenderCritCharge 0.46s linear forwards;
+  animation: defenderCritCharge 0.36s linear forwards;
   transition: none;
 }
 
