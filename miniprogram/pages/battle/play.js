@@ -348,6 +348,7 @@ const ATTACK_INDICATOR_FADE_DURATION = 180;
 const ATTACK_WINDUP_DURATION = 240;
 const ATTACK_CHARGE_DURATION = 340;
 const ATTACK_CRIT_CHARGE_DURATION = 420;
+const ATTACK_CRIT_PRELAUNCH_HOLD = 120;
 const ATTACK_IMPACT_HOLD_DURATION = 140;
 const ATTACK_RECOVERY_DURATION = 360;
 const ATTACK_DODGE_LEAD_DURATION = 120;
@@ -1322,10 +1323,12 @@ Page({
     const hasCrit = effects.some((effect) => effect && effect.type === 'crit');
     const indicatorDuration = ATTACK_INDICATOR_HOLD_DURATION + ATTACK_INDICATOR_FADE_DURATION;
     const windupDuration = hasCrit ? ATTACK_WINDUP_DURATION : 0;
+    const prelaunchHold = hasCrit ? ATTACK_CRIT_PRELAUNCH_HOLD : 0;
     const chargeDuration = hasCrit ? ATTACK_CRIT_CHARGE_DURATION : ATTACK_CHARGE_DURATION;
     return (
       indicatorDuration +
       windupDuration +
+      prelaunchHold +
       chargeDuration +
       ATTACK_IMPACT_HOLD_DURATION +
       ATTACK_RECOVERY_DURATION +
@@ -1364,6 +1367,7 @@ Page({
     const indicatorHold = ATTACK_INDICATOR_HOLD_DURATION;
     const indicatorFade = ATTACK_INDICATOR_FADE_DURATION;
     const windupDuration = hasCrit ? ATTACK_WINDUP_DURATION : 0;
+    const prelaunchHold = hasCrit ? ATTACK_CRIT_PRELAUNCH_HOLD : 0;
     const chargeDuration = hasCrit ? ATTACK_CRIT_CHARGE_DURATION : ATTACK_CHARGE_DURATION;
     const impactDuration = ATTACK_IMPACT_HOLD_DURATION;
     const recoveryDuration = ATTACK_RECOVERY_DURATION;
@@ -1395,11 +1399,14 @@ Page({
 
     if (hasCrit) {
       this.queueAttackTimer(() => {
-        this.setBattleStageData({ attackPhase: 'charging' });
+        this.setBattleStageData({ attackPhase: 'prelaunch' });
       }, postIndicatorDelay + windupDuration);
+      this.queueAttackTimer(() => {
+        this.setBattleStageData({ attackPhase: 'charging' });
+      }, postIndicatorDelay + windupDuration + prelaunchHold);
     }
 
-    const chargeStartDelay = postIndicatorDelay + (hasCrit ? windupDuration : 0);
+    const chargeStartDelay = postIndicatorDelay + (hasCrit ? windupDuration + prelaunchHold : 0);
     const impactDelay = chargeStartDelay + chargeDuration;
     const recoveryStartDelay = impactDelay + impactDuration;
     const sequenceEndDelay = recoveryStartDelay + recoveryDuration;
