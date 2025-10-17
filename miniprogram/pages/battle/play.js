@@ -1266,6 +1266,15 @@ Page({
       return false;
     }
 
+    if (action.type === 'dodge') {
+      return true;
+    }
+
+    const effects = Array.isArray(action.effects) ? action.effects : [];
+    if (effects.some((effect) => effect && effect.type === 'dodge')) {
+      return true;
+    }
+
     const skillText = extractSkillTextFromAction(action);
     if (skillText === '普攻') {
       return true;
