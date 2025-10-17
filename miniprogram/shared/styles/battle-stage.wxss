@@ -429,7 +429,9 @@ page {
 }
 
 .avatar-wrapper.attacker.attack-motion-crit.attack-phase-windup .actor-portrait,
-.avatar-wrapper.defender.attack-motion-crit.attack-phase-windup .actor-portrait {
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-windup .actor-portrait,
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-prelaunch .actor-portrait,
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-prelaunch .actor-portrait {
   animation: critWindupFlash 0.3s ease-in-out infinite;
 }
 
