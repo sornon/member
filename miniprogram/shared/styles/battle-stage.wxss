@@ -276,6 +276,7 @@ page {
   align-items: flex-end;
   justify-content: center;
   padding-bottom: 12rpx;
+  z-index: 1;
 }
 
 .avatar-wrapper.attacker {
@@ -379,6 +380,8 @@ page {
   align-items: flex-end;
   justify-content: center;
   transform-origin: bottom center;
+  transform: translateX(0);
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .actor-portrait {
@@ -387,12 +390,67 @@ page {
   object-fit: contain;
 }
 
-.avatar-wrapper.is-attacking .avatar-inner {
-  animation: attackPulse 0.7s ease;
+
+.avatar-wrapper.attack-active {
+  z-index: 5;
 }
 
-.avatar-wrapper.is-hit .avatar-inner {
-  animation: hitShake 0.6s ease;
+.avatar-wrapper.defender.target-under-attack {
+  z-index: 4;
+}
+
+.avatar-wrapper.attacker.attack-phase-windup .avatar-inner {
+  transform: translateX(-120rpx);
+  transition-duration: 0.22s;
+}
+
+.avatar-wrapper.attacker.attack-phase-charging .avatar-inner {
+  transform: translateX(250rpx);
+  transition-duration: 0.28s;
+}
+
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-charging .avatar-inner {
+  transform: translateX(320rpx);
+  transition-duration: 0.36s;
+}
+
+.avatar-wrapper.attacker.attack-phase-impact .avatar-inner {
+  transform: translateX(0);
+  transition-duration: 0.24s;
+}
+
+.avatar-wrapper.defender .avatar-inner {
+  transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.avatar-wrapper.defender.is-dodging .avatar-inner {
+  transform: translateX(100rpx);
+}
+
+.avatar-wrapper.defender.is-hit .avatar-inner {
+  animation: targetHitShake 0.42s ease;
+}
+
+.avatar-wrapper.defender.is-hit .actor-portrait {
+  filter: saturate(1.35) brightness(0.9) sepia(0.15) hue-rotate(-10deg);
+}
+
+.attack-indicator {
+  font-size: 34rpx;
+  font-weight: 700;
+  letter-spacing: 6rpx;
+  color: #ffe7b0;
+  text-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transform: scale(0.7);
+}
+
+.attack-indicator--show {
+  animation: attackIndicatorPop 0.22s cubic-bezier(0.21, 0.73, 0.29, 1) forwards;
+}
+
+.attack-indicator--leaving {
+  animation: attackIndicatorFade 0.18s ease-in forwards;
 }
 
 .avatar-wrapper.attacker .actor-portrait {
@@ -403,34 +461,50 @@ page {
   transform: scaleX(1);
 }
 
-@keyframes attackPulse {
+@keyframes targetHitShake {
   0% {
-    transform: scale(1);
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-24rpx);
   }
   40% {
-    transform: scale(1.08) translateY(-10rpx);
+    transform: translateX(18rpx);
+  }
+  60% {
+    transform: translateX(-12rpx);
+  }
+  80% {
+    transform: translateX(6rpx);
   }
   100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes attackIndicatorPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
     transform: scale(1);
   }
 }
 
-@keyframes hitShake {
-  0%,
+@keyframes attackIndicatorFade {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
   100% {
-    transform: translateX(0);
-  }
-  20% {
-    transform: translateX(-12rpx);
-  }
-  40% {
-    transform: translateX(10rpx);
-  }
-  60% {
-    transform: translateX(-6rpx);
-  }
-  80% {
-    transform: translateX(4rpx);
+    opacity: 0;
+    transform: scale(1);
   }
 }
 

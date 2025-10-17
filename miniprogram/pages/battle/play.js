@@ -343,6 +343,13 @@ function resolveParticipantByAliases(participants, aliases = []) {
 }
 
 const MIN_SKIP_SECONDS = 10;
+const ATTACK_INDICATOR_HOLD_DURATION = 1000;
+const ATTACK_INDICATOR_FADE_DURATION = 180;
+const ATTACK_WINDUP_DURATION = 200;
+const ATTACK_CHARGE_DURATION = 320;
+const ATTACK_CRIT_CHARGE_DURATION = 380;
+const ATTACK_IMPACT_RECOVERY_DURATION = 260;
+const ATTACK_SEQUENCE_BUFFER = 220;
 
 function createBattleStageState(overrides = {}) {
   return {
@@ -367,6 +374,12 @@ function createBattleStageState(overrides = {}) {
     resultSubtitle: '',
     resultClass: '',
     resultRounds: 0,
+    attackPhase: '',
+    attackMotion: '',
+    attackActor: '',
+    attackTarget: '',
+    attackIndicator: { visible: false, side: '', status: '' },
+    targetReaction: '',
     ...overrides
   };
 }
@@ -621,6 +634,8 @@ Page({
     this._floatingTextId = 0;
     this._floatingTextTimers = {};
     this._floatingTexts = cloneFloatingTextState();
+    this._attackTimers = [];
+    this._currentActionUsesIndicator = false;
     this.setData({
       navTitle: this.isReplay ? '战斗回放' : this.mode === 'pvp' ? '竞技对决' : '秘境对战'
     });
@@ -1092,6 +1107,39 @@ Page({
     this.setBattleStageData({ floatingTexts: this._floatingTexts });
   },
 
+  queueAttackTimer(handler, delay = 0) {
+    if (!this._attackTimers) {
+      this._attackTimers = [];
+    }
+    const timeout = setTimeout(() => {
+      if (typeof handler === 'function') {
+        handler.call(this);
+      }
+    }, Math.max(0, Number(delay) || 0));
+    this._attackTimers.push(timeout);
+    return timeout;
+  },
+
+  clearAttackTimers() {
+    if (Array.isArray(this._attackTimers)) {
+      this._attackTimers.forEach((timer) => {
+        if (timer) {
+          clearTimeout(timer);
+        }
+      });
+    }
+    this._attackTimers = [];
+    this._currentActionUsesIndicator = false;
+    this.setBattleStageData({
+      attackPhase: '',
+      attackMotion: '',
+      attackActor: '',
+      attackTarget: '',
+      attackIndicator: { visible: false, side: '', status: '' },
+      targetReaction: ''
+    });
+  },
+
   clearFloatingTextTimers() {
     if (!this._floatingTextTimers) {
       return;
@@ -1164,7 +1212,10 @@ Page({
 
     if (actorSide) {
       const skillText = extractSkillTextFromAction(action);
-      if (skillText) {
+      const shouldShowSkillText = !(
+        skillText === '普攻' && this._currentActionUsesIndicator
+      );
+      if (skillText && shouldShowSkillText) {
         this.showFloatingText(actorSide, { text: skillText, type: 'skill', duration: 1400 });
       }
     }
@@ -1207,6 +1258,137 @@ Page({
     }
   },
 
+  shouldUseAttackIndicator(action, actorSide, targetSide) {
+    if (!action || action.type === 'result') {
+      return false;
+    }
+    if (!actorSide || !targetSide) {
+      return false;
+    }
+    const actionType = typeof action.type === 'string' ? action.type : '';
+    if (actionType && actionType !== 'attack') {
+      return false;
+    }
+    return true;
+  },
+
+  computeActionDuration(action) {
+    if (!action) {
+      return 1400;
+    }
+    if (action.type === 'result') {
+      return 2200;
+    }
+    const actorSide = action.actor === 'player' || action.actor === 'opponent' ? action.actor : '';
+    const targetSide = action.target === 'player' || action.target === 'opponent' ? action.target : '';
+    const useIndicator = this.shouldUseAttackIndicator(action, actorSide, targetSide);
+    if (!useIndicator) {
+      return 1400;
+    }
+    const effects = Array.isArray(action.effects) ? action.effects : [];
+    const hasCrit = effects.some((effect) => effect && effect.type === 'crit');
+    const indicatorDuration = ATTACK_INDICATOR_HOLD_DURATION + ATTACK_INDICATOR_FADE_DURATION;
+    const windupDuration = hasCrit ? ATTACK_WINDUP_DURATION : 0;
+    const chargeDuration = hasCrit ? ATTACK_CRIT_CHARGE_DURATION : ATTACK_CHARGE_DURATION;
+    return (
+      indicatorDuration +
+      windupDuration +
+      chargeDuration +
+      ATTACK_IMPACT_RECOVERY_DURATION +
+      ATTACK_SEQUENCE_BUFFER
+    );
+  },
+
+  runActionSequence(action, previousHpState = {}, nextHpState = {}) {
+    this.clearAttackTimers();
+    if (!action) {
+      return;
+    }
+    const actorSide = action.actor === 'player' || action.actor === 'opponent' ? action.actor : '';
+    const targetSide = action.target === 'player' || action.target === 'opponent' ? action.target : '';
+    const effects = Array.isArray(action.effects) ? action.effects : [];
+    const hasCrit = effects.some((effect) => effect && effect.type === 'crit');
+    const hasDodge = action.type === 'dodge' || effects.some((effect) => effect && effect.type === 'dodge');
+    const useIndicator = this.shouldUseAttackIndicator(action, actorSide, targetSide);
+    this._currentActionUsesIndicator = useIndicator;
+
+    if (!useIndicator) {
+      this.setBattleStageData({
+        hpState: nextHpState,
+        attackPhase: '',
+        attackMotion: '',
+        attackActor: '',
+        attackTarget: '',
+        attackIndicator: { visible: false, side: '', status: '' },
+        targetReaction: ''
+      });
+      this.applyActionFloatingTexts(action, previousHpState, nextHpState);
+      this._currentActionUsesIndicator = false;
+      return;
+    }
+
+    const indicatorHold = ATTACK_INDICATOR_HOLD_DURATION;
+    const indicatorFade = ATTACK_INDICATOR_FADE_DURATION;
+    const windupDuration = hasCrit ? ATTACK_WINDUP_DURATION : 0;
+    const chargeDuration = hasCrit ? ATTACK_CRIT_CHARGE_DURATION : ATTACK_CHARGE_DURATION;
+    const impactDuration = ATTACK_IMPACT_RECOVERY_DURATION;
+
+    this.setBattleStageData({
+      attackActor: actorSide,
+      attackTarget: targetSide,
+      attackMotion: hasCrit ? 'crit' : 'normal',
+      attackPhase: 'indicator',
+      attackIndicator: { visible: true, side: actorSide, status: 'show' },
+      targetReaction: ''
+    });
+
+    this.queueAttackTimer(() => {
+      this.setBattleStageData({
+        attackIndicator: { visible: true, side: actorSide, status: 'leaving' }
+      });
+    }, indicatorHold);
+
+    const postIndicatorDelay = indicatorHold + indicatorFade;
+
+    this.queueAttackTimer(() => {
+      const nextPhase = hasCrit ? 'windup' : 'charging';
+      this.setBattleStageData({
+        attackPhase: nextPhase,
+        attackIndicator: { visible: false, side: '', status: '' }
+      });
+    }, postIndicatorDelay);
+
+    if (hasCrit) {
+      this.queueAttackTimer(() => {
+        this.setBattleStageData({ attackPhase: 'charging' });
+      }, postIndicatorDelay + windupDuration);
+    }
+
+    const chargeStartDelay = postIndicatorDelay + (hasCrit ? windupDuration : 0);
+    const impactDelay = chargeStartDelay + chargeDuration;
+
+    this.queueAttackTimer(() => {
+      this.setBattleStageData({
+        attackPhase: 'impact',
+        targetReaction: hasDodge ? 'dodge' : 'hit',
+        hpState: nextHpState
+      });
+      this.applyActionFloatingTexts(action, previousHpState, nextHpState);
+    }, impactDelay);
+
+    this.queueAttackTimer(() => {
+      this.setBattleStageData({
+        attackPhase: '',
+        attackMotion: '',
+        attackActor: '',
+        attackTarget: '',
+        attackIndicator: { visible: false, side: '', status: '' },
+        targetReaction: ''
+      });
+      this._currentActionUsesIndicator = false;
+    }, impactDelay + impactDuration);
+  },
+
   scheduleNextAction(delay = 1200) {
     this.clearActionTimer();
     if (!Array.isArray(this.data.actions) || !this.data.actions.length) {
@@ -1244,12 +1426,11 @@ Page({
     this.resetFloatingTexts();
     this.setBattleStageData({
       currentAction: action,
-      displayedLogs: nextLogs,
-      hpState: nextHpState
+      displayedLogs: nextLogs
     });
-    this.applyActionFloatingTexts(action, previousHpState, nextHpState);
+    this.runActionSequence(action, previousHpState, nextHpState);
     this.setData({ battleState: 'playing', currentRound: action.round || this.data.currentRound });
-    const delay = action.type === 'result' ? 2200 : 1400;
+    const delay = this.computeActionDuration(action);
     this.scheduleNextAction(delay);
   },
 
@@ -1363,6 +1544,12 @@ Page({
       currentAction: {},
       displayedLogs: [],
       hpState: this.initialHp || this.data.hpState,
+      attackPhase: '',
+      attackMotion: '',
+      attackActor: '',
+      attackTarget: '',
+      attackIndicator: { visible: false, side: '', status: '' },
+      targetReaction: '',
       skipLocked: false,
       skipButtonText: '跳过战斗'
     });
@@ -1404,6 +1591,7 @@ Page({
     this.clearActionTimer();
     this.clearSkipTimer();
     this.clearFloatingTextTimers();
+    this.clearAttackTimers();
   },
 
   clearActionTimer() {
