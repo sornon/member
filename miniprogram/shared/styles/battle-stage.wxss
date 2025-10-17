@@ -422,15 +422,15 @@ page {
 }
 
 .avatar-wrapper.attacker.attack-motion-crit.attack-phase-windup .avatar-inner {
-  transform: translateX(-160rpx) translateY(36rpx);
+  transform: translateX(-160rpx) translateY(0);
   transition-duration: 0.24s;
-  transition-timing-function: cubic-bezier(0.6, 0, 0.78, 0.28);
+  transition-timing-function: cubic-bezier(0.1, 0.9, 0.32, 1);
 }
 
 .avatar-wrapper.attacker.attack-motion-crit.attack-phase-prelaunch .avatar-inner {
-  transform: translateX(-160rpx) translateY(36rpx);
+  transform: translateX(-160rpx) translateY(0);
   transition-duration: 0.12s;
-  transition-timing-function: cubic-bezier(0.25, 0.15, 0.25, 1);
+  transition-timing-function: cubic-bezier(0.1, 0.9, 0.32, 1);
 }
 
 .avatar-wrapper.attacker.attack-motion-crit.attack-phase-charging .avatar-inner {
@@ -440,37 +440,37 @@ page {
 
 @keyframes attackerCritCharge {
   0% {
-    transform: translateX(-160rpx) translateY(36rpx);
+    transform: translateX(-160rpx) translateY(0);
   }
   10% {
-    transform: translateX(-150rpx) translateY(-48rpx);
+    transform: translateX(-140rpx) translateY(-32rpx);
   }
   20% {
-    transform: translateX(-122rpx) translateY(-118rpx);
+    transform: translateX(-90rpx) translateY(-92rpx);
   }
   30% {
-    transform: translateX(-74rpx) translateY(-166rpx);
+    transform: translateX(-30rpx) translateY(-144rpx);
   }
   40% {
-    transform: translateX(-6rpx) translateY(-192rpx);
+    transform: translateX(20rpx) translateY(-182rpx);
   }
   50% {
-    transform: translateX(80rpx) translateY(-198rpx);
+    transform: translateX(80rpx) translateY(-200rpx);
   }
   60% {
-    transform: translateX(166rpx) translateY(-192rpx);
+    transform: translateX(150rpx) translateY(-182rpx);
   }
   70% {
-    transform: translateX(234rpx) translateY(-166rpx);
+    transform: translateX(220rpx) translateY(-144rpx);
   }
   80% {
-    transform: translateX(282rpx) translateY(-118rpx);
+    transform: translateX(280rpx) translateY(-92rpx);
   }
   90% {
-    transform: translateX(310rpx) translateY(-48rpx);
+    transform: translateX(310rpx) translateY(-32rpx);
   }
   100% {
-    transform: translateX(320rpx) translateY(18rpx);
+    transform: translateX(320rpx) translateY(0);
   }
 }
 
@@ -517,15 +517,15 @@ page {
 }
 
 .avatar-wrapper.defender.attack-motion-crit.attack-phase-windup .avatar-inner {
-  transform: translateX(160rpx) translateY(36rpx);
+  transform: translateX(160rpx) translateY(0);
   transition-duration: 0.24s;
-  transition-timing-function: cubic-bezier(0.6, 0, 0.78, 0.28);
+  transition-timing-function: cubic-bezier(0.1, 0.9, 0.32, 1);
 }
 
 .avatar-wrapper.defender.attack-motion-crit.attack-phase-prelaunch .avatar-inner {
-  transform: translateX(160rpx) translateY(36rpx);
+  transform: translateX(160rpx) translateY(0);
   transition-duration: 0.12s;
-  transition-timing-function: cubic-bezier(0.25, 0.15, 0.25, 1);
+  transition-timing-function: cubic-bezier(0.1, 0.9, 0.32, 1);
 }
 
 .avatar-wrapper.defender.attack-motion-crit.attack-phase-charging .avatar-inner {
@@ -535,37 +535,37 @@ page {
 
 @keyframes defenderCritCharge {
   0% {
-    transform: translateX(160rpx) translateY(36rpx);
+    transform: translateX(160rpx) translateY(0);
   }
   10% {
-    transform: translateX(150rpx) translateY(-48rpx);
+    transform: translateX(140rpx) translateY(-32rpx);
   }
   20% {
-    transform: translateX(122rpx) translateY(-118rpx);
+    transform: translateX(90rpx) translateY(-92rpx);
   }
   30% {
-    transform: translateX(74rpx) translateY(-166rpx);
+    transform: translateX(30rpx) translateY(-144rpx);
   }
   40% {
-    transform: translateX(6rpx) translateY(-192rpx);
+    transform: translateX(-20rpx) translateY(-182rpx);
   }
   50% {
-    transform: translateX(-80rpx) translateY(-198rpx);
+    transform: translateX(-80rpx) translateY(-200rpx);
   }
   60% {
-    transform: translateX(-166rpx) translateY(-192rpx);
+    transform: translateX(-150rpx) translateY(-182rpx);
   }
   70% {
-    transform: translateX(-234rpx) translateY(-166rpx);
+    transform: translateX(-220rpx) translateY(-144rpx);
   }
   80% {
-    transform: translateX(-282rpx) translateY(-118rpx);
+    transform: translateX(-280rpx) translateY(-92rpx);
   }
   90% {
-    transform: translateX(-310rpx) translateY(-48rpx);
+    transform: translateX(-310rpx) translateY(-32rpx);
   }
   100% {
-    transform: translateX(-320rpx) translateY(18rpx);
+    transform: translateX(-320rpx) translateY(0);
   }
 }
 
