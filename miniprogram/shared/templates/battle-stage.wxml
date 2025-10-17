@@ -153,7 +153,6 @@
               src="{{attackerKey === 'player' ? (player && player.portrait || '') : (opponent && opponent.portrait || '')}}"
               mode="widthFix"
             ></image>
-            <view class="crit-windup-flare"></view>
           </view>
         </view>
         <view
@@ -180,7 +179,6 @@
               src="{{defenderKey === 'player' ? (player && player.portrait || '') : (opponent && opponent.portrait || '')}}"
               mode="widthFix"
             ></image>
-            <view class="crit-windup-flare"></view>
           </view>
         </view>
       </view>
