@@ -276,6 +276,7 @@ page {
   align-items: flex-end;
   justify-content: center;
   padding-bottom: 12rpx;
+  z-index: 1;
 }
 
 .avatar-wrapper.attacker {
@@ -379,6 +380,9 @@ page {
   align-items: flex-end;
   justify-content: center;
   transform-origin: bottom center;
+  transform: translateX(0) translateY(0);
+  transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
 }
 
 .actor-portrait {
@@ -387,12 +391,270 @@ page {
   object-fit: contain;
 }
 
-.avatar-wrapper.is-attacking .avatar-inner {
-  animation: attackPulse 0.7s ease;
+
+.avatar-wrapper.attack-active {
+  z-index: 5;
 }
 
-.avatar-wrapper.is-hit .avatar-inner {
-  animation: hitShake 0.6s ease;
+.avatar-wrapper.attacker.target-under-attack {
+  z-index: 4;
+}
+
+.avatar-wrapper.defender.target-under-attack {
+  z-index: 4;
+}
+
+.avatar-wrapper.attacker.attack-phase-windup .avatar-inner {
+  transform: translateX(-140rpx) translateY(18rpx);
+  transition-duration: 0.2s;
+  transition-timing-function: cubic-bezier(0.55, 0.02, 0.75, 0.4);
+}
+
+.avatar-wrapper.attacker.attack-phase-prelaunch .avatar-inner {
+  transform: translateX(-140rpx) translateY(18rpx);
+  transition-duration: 0.12s;
+  transition-timing-function: cubic-bezier(0.25, 0.15, 0.25, 1);
+}
+
+.avatar-wrapper.attacker.attack-phase-charging .avatar-inner {
+  transform: translateX(260rpx) translateY(0);
+  transition-duration: 0.34s;
+  transition-timing-function: cubic-bezier(0.28, 0.16, 0.46, 0.98);
+}
+
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-windup .avatar-inner {
+  transform: translateX(-80rpx) translateY(0);
+  transition-duration: 0.24s;
+  transition-timing-function: cubic-bezier(0.1, 0.9, 0.32, 1);
+}
+
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-windup .actor-portrait,
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-windup .actor-portrait,
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-prelaunch .actor-portrait,
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-prelaunch .actor-portrait {
+  animation: critWindupFlash 0.3s ease-in-out infinite;
+}
+
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-prelaunch .avatar-inner {
+  transform: translateX(-80rpx) translateY(0);
+  transition-duration: 0.12s;
+  transition-timing-function: cubic-bezier(0.1, 0.9, 0.32, 1);
+}
+
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-charging .avatar-inner {
+  animation: attackerCritCharge 0.24s linear forwards;
+  transition: none;
+}
+
+@keyframes attackerCritCharge {
+  0% {
+    transform: translateX(-80rpx) translateY(0);
+  }
+  10% {
+    transform: translateX(-64rpx) translateY(-32rpx);
+  }
+  20% {
+    transform: translateX(-22rpx) translateY(-92rpx);
+  }
+  30% {
+    transform: translateX(28rpx) translateY(-144rpx);
+  }
+  40% {
+    transform: translateX(70rpx) translateY(-182rpx);
+  }
+  50% {
+    transform: translateX(120rpx) translateY(-200rpx);
+  }
+  60% {
+    transform: translateX(178rpx) translateY(-182rpx);
+  }
+  70% {
+    transform: translateX(238rpx) translateY(-144rpx);
+  }
+  80% {
+    transform: translateX(288rpx) translateY(-92rpx);
+  }
+  90% {
+    transform: translateX(312rpx) translateY(-32rpx);
+  }
+  100% {
+    transform: translateX(320rpx) translateY(0);
+  }
+}
+
+@keyframes critWindupFlash {
+  0% {
+    filter: saturate(1.05) brightness(1.02) sepia(0.18) hue-rotate(-12deg);
+  }
+  45% {
+    filter: saturate(1.45) brightness(1.22) sepia(0.35) hue-rotate(-6deg);
+  }
+  70% {
+    filter: saturate(1.25) brightness(1.12) sepia(0.26) hue-rotate(-10deg);
+  }
+  100% {
+    filter: saturate(1.05) brightness(1.02) sepia(0.18) hue-rotate(-12deg);
+  }
+}
+
+.avatar-wrapper.attacker.attack-phase-impact .avatar-inner {
+  transform: translateX(260rpx) translateY(0);
+  transition-duration: 0.14s;
+  transition-timing-function: cubic-bezier(0.11, 0.6, 0.3, 1);
+}
+
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-impact .avatar-inner {
+  transform: translateX(300rpx) translateY(30rpx);
+  transition-duration: 0.18s;
+  transition-timing-function: cubic-bezier(0.16, 0.5, 0.3, 1);
+}
+
+.avatar-wrapper.attacker.attack-phase-recovery .avatar-inner {
+  transform: translateX(0) translateY(0);
+  transition-duration: 0.36s;
+  transition-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+}
+
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-recovery .avatar-inner {
+  transform: translateX(0) translateY(0);
+  transition-duration: 0.38s;
+  transition-timing-function: cubic-bezier(0.52, 0, 0.24, 1);
+}
+
+.avatar-wrapper.defender.attack-phase-windup .avatar-inner {
+  transform: translateX(140rpx) translateY(18rpx);
+  transition-duration: 0.2s;
+  transition-timing-function: cubic-bezier(0.55, 0.02, 0.75, 0.4);
+}
+
+.avatar-wrapper.defender.attack-phase-prelaunch .avatar-inner {
+  transform: translateX(140rpx) translateY(18rpx);
+  transition-duration: 0.12s;
+  transition-timing-function: cubic-bezier(0.25, 0.15, 0.25, 1);
+}
+
+.avatar-wrapper.defender.attack-phase-charging .avatar-inner {
+  transform: translateX(-260rpx) translateY(0);
+  transition-duration: 0.34s;
+  transition-timing-function: cubic-bezier(0.28, 0.16, 0.46, 0.98);
+}
+
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-windup .avatar-inner {
+  transform: translateX(80rpx) translateY(0);
+  transition-duration: 0.24s;
+  transition-timing-function: cubic-bezier(0.1, 0.9, 0.32, 1);
+}
+
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-prelaunch .avatar-inner {
+  transform: translateX(80rpx) translateY(0);
+  transition-duration: 0.12s;
+  transition-timing-function: cubic-bezier(0.1, 0.9, 0.32, 1);
+}
+
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-charging .avatar-inner {
+  animation: defenderCritCharge 0.24s linear forwards;
+  transition: none;
+}
+
+@keyframes defenderCritCharge {
+  0% {
+    transform: translateX(80rpx) translateY(0);
+  }
+  10% {
+    transform: translateX(64rpx) translateY(-32rpx);
+  }
+  20% {
+    transform: translateX(22rpx) translateY(-92rpx);
+  }
+  30% {
+    transform: translateX(-28rpx) translateY(-144rpx);
+  }
+  40% {
+    transform: translateX(-70rpx) translateY(-182rpx);
+  }
+  50% {
+    transform: translateX(-120rpx) translateY(-200rpx);
+  }
+  60% {
+    transform: translateX(-178rpx) translateY(-182rpx);
+  }
+  70% {
+    transform: translateX(-238rpx) translateY(-144rpx);
+  }
+  80% {
+    transform: translateX(-288rpx) translateY(-92rpx);
+  }
+  90% {
+    transform: translateX(-312rpx) translateY(-32rpx);
+  }
+  100% {
+    transform: translateX(-320rpx) translateY(0);
+  }
+}
+
+.avatar-wrapper.defender.attack-phase-impact .avatar-inner {
+  transform: translateX(-260rpx) translateY(0);
+  transition-duration: 0.14s;
+  transition-timing-function: cubic-bezier(0.11, 0.6, 0.3, 1);
+}
+
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-impact .avatar-inner {
+  transform: translateX(-300rpx) translateY(30rpx);
+  transition-duration: 0.18s;
+  transition-timing-function: cubic-bezier(0.16, 0.5, 0.3, 1);
+}
+
+.avatar-wrapper.defender.attack-phase-recovery .avatar-inner {
+  transform: translateX(0) translateY(0);
+  transition-duration: 0.36s;
+  transition-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+}
+
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-recovery .avatar-inner {
+  transform: translateX(0) translateY(0);
+  transition-duration: 0.38s;
+  transition-timing-function: cubic-bezier(0.52, 0, 0.24, 1);
+}
+
+.avatar-wrapper.attacker.is-dodging .avatar-inner {
+  transform: translateX(-160rpx);
+  transition: transform 0.24s cubic-bezier(0.3, 0.02, 0.6, 0.94);
+}
+
+.avatar-wrapper.defender.is-dodging .avatar-inner {
+  transform: translateX(160rpx);
+  transition: transform 0.24s cubic-bezier(0.3, 0.02, 0.6, 0.94);
+}
+
+.avatar-wrapper.attacker.is-hit .actor-portrait {
+  animation: targetHitShakeReverse 0.42s ease;
+  filter: saturate(1.35) brightness(0.9) sepia(0.15) hue-rotate(-10deg);
+}
+
+.avatar-wrapper.defender.is-hit .actor-portrait {
+  animation: targetHitShake 0.42s ease;
+  filter: saturate(1.35) brightness(0.9) sepia(0.15) hue-rotate(-10deg);
+}
+
+.attack-indicator {
+  font-size: 44rpx;
+  font-weight: 700;
+  letter-spacing: 6rpx;
+  color: #ffffff;
+  text-shadow: 0 0 4rpx rgba(0, 0, 0, 0.6), 0 8rpx 24rpx rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  transform: scale(0.7);
+  transform-origin: center;
+  position: relative;
+  bottom: 100rpx;
+}
+
+.attack-indicator--show {
+  animation: attackIndicatorPop 0.22s cubic-bezier(0.21, 0.73, 0.29, 1) forwards;
+}
+
+.attack-indicator--leaving {
+  animation: attackIndicatorFade 0.18s ease-in forwards;
 }
 
 .avatar-wrapper.attacker .actor-portrait {
@@ -403,34 +665,71 @@ page {
   transform: scaleX(1);
 }
 
-@keyframes attackPulse {
+@keyframes targetHitShake {
   0% {
-    transform: scale(1);
+    transform: scaleX(1) translateX(0);
+  }
+  20% {
+    transform: scaleX(1) translateX(-24rpx);
   }
   40% {
-    transform: scale(1.08) translateY(-10rpx);
+    transform: scaleX(1) translateX(18rpx);
+  }
+  60% {
+    transform: scaleX(1) translateX(-12rpx);
+  }
+  80% {
+    transform: scaleX(1) translateX(6rpx);
   }
   100% {
+    transform: scaleX(1) translateX(0);
+  }
+}
+
+@keyframes targetHitShakeReverse {
+  0% {
+    transform: scaleX(-1) translateX(0);
+  }
+  20% {
+    transform: scaleX(-1) translateX(24rpx);
+  }
+  40% {
+    transform: scaleX(-1) translateX(-18rpx);
+  }
+  60% {
+    transform: scaleX(-1) translateX(12rpx);
+  }
+  80% {
+    transform: scaleX(-1) translateX(-6rpx);
+  }
+  100% {
+    transform: scaleX(-1) translateX(0);
+  }
+}
+
+@keyframes attackIndicatorPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
     transform: scale(1);
   }
 }
 
-@keyframes hitShake {
-  0%,
+@keyframes attackIndicatorFade {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
   100% {
-    transform: translateX(0);
-  }
-  20% {
-    transform: translateX(-12rpx);
-  }
-  40% {
-    transform: translateX(10rpx);
-  }
-  60% {
-    transform: translateX(-6rpx);
-  }
-  80% {
-    transform: translateX(4rpx);
+    opacity: 0;
+    transform: scale(1);
   }
 }
 

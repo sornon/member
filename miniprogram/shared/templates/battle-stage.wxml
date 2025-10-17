@@ -130,9 +130,15 @@
 
       <view class="battle-avatars">
         <view
-          class="avatar-wrapper attacker {{attackerKey}} {{currentAction.actor === attackerKey ? 'is-attacking' : ''}} {{currentAction.target === attackerKey ? 'is-hit' : ''}}"
+          class="avatar-wrapper attacker {{attackerKey}} {{attackActor === attackerKey ? 'attack-active' : ''}} {{attackActor === attackerKey && attackPhase ? 'attack-phase-' + attackPhase : ''}} {{attackActor === attackerKey && attackMotion === 'crit' ? 'attack-motion-crit' : ''}} {{attackTarget === attackerKey && attackPhase ? 'target-under-attack' : ''}} {{attackTarget === attackerKey && targetReaction === 'hit' ? 'is-hit' : ''}} {{attackTarget === attackerKey && targetReaction === 'dodge' ? 'is-dodging' : ''}}"
         >
           <view class="floating-text-layer">
+            <view
+              wx:if="{{attackIndicator && attackIndicator.visible && attackIndicator.side === attackerKey}}"
+              class="attack-indicator {{attackIndicator.status === 'leaving' ? 'attack-indicator--leaving' : 'attack-indicator--show'}}"
+            >
+              普攻
+            </view>
             <view
               wx:for="{{floatingTexts[attackerKey] || []}}"
               wx:key="id"
@@ -150,9 +156,15 @@
           </view>
         </view>
         <view
-          class="avatar-wrapper defender {{defenderKey}} {{currentAction.actor === defenderKey ? 'is-attacking' : ''}} {{currentAction.target === defenderKey ? 'is-hit' : ''}}"
+          class="avatar-wrapper defender {{defenderKey}} {{attackActor === defenderKey ? 'attack-active' : ''}} {{attackActor === defenderKey && attackPhase ? 'attack-phase-' + attackPhase : ''}} {{attackActor === defenderKey && attackMotion === 'crit' ? 'attack-motion-crit' : ''}} {{attackTarget === defenderKey && attackPhase ? 'target-under-attack' : ''}} {{attackTarget === defenderKey && targetReaction === 'hit' ? 'is-hit' : ''}} {{attackTarget === defenderKey && targetReaction === 'dodge' ? 'is-dodging' : ''}}"
         >
           <view class="floating-text-layer">
+            <view
+              wx:if="{{attackIndicator && attackIndicator.visible && attackIndicator.side === defenderKey}}"
+              class="attack-indicator {{attackIndicator.status === 'leaving' ? 'attack-indicator--leaving' : 'attack-indicator--show'}}"
+            >
+              普攻
+            </view>
             <view
               wx:for="{{floatingTexts[defenderKey] || []}}"
               wx:key="id"
