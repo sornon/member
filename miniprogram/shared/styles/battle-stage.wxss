@@ -422,9 +422,30 @@ page {
 }
 
 .avatar-wrapper.attacker.attack-motion-crit.attack-phase-charging .avatar-inner {
-  transform: translateX(320rpx) translateY(-150rpx);
-  transition-duration: 0.42s;
-  transition-timing-function: cubic-bezier(0.18, 0.74, 0.32, 1);
+  animation: attackerCritCharge 0.46s forwards;
+  animation-timing-function: cubic-bezier(0.16, 0.5, 0.3, 1);
+  transition: none;
+}
+
+@keyframes attackerCritCharge {
+  0% {
+    transform: translateX(-160rpx) translateY(36rpx);
+  }
+  20% {
+    transform: translateX(-40rpx) translateY(-60rpx);
+  }
+  35% {
+    transform: translateX(40rpx) translateY(-160rpx);
+  }
+  50% {
+    transform: translateX(80rpx) translateY(-220rpx);
+  }
+  70% {
+    transform: translateX(200rpx) translateY(-90rpx);
+  }
+  100% {
+    transform: translateX(320rpx) translateY(0);
+  }
 }
 
 .avatar-wrapper.attacker.attack-phase-impact .avatar-inner {
@@ -470,9 +491,30 @@ page {
 }
 
 .avatar-wrapper.defender.attack-motion-crit.attack-phase-charging .avatar-inner {
-  transform: translateX(-320rpx) translateY(-150rpx);
-  transition-duration: 0.42s;
-  transition-timing-function: cubic-bezier(0.18, 0.74, 0.32, 1);
+  animation: defenderCritCharge 0.46s forwards;
+  animation-timing-function: cubic-bezier(0.16, 0.5, 0.3, 1);
+  transition: none;
+}
+
+@keyframes defenderCritCharge {
+  0% {
+    transform: translateX(160rpx) translateY(36rpx);
+  }
+  20% {
+    transform: translateX(40rpx) translateY(-60rpx);
+  }
+  35% {
+    transform: translateX(-40rpx) translateY(-160rpx);
+  }
+  50% {
+    transform: translateX(-80rpx) translateY(-220rpx);
+  }
+  70% {
+    transform: translateX(-200rpx) translateY(-90rpx);
+  }
+  100% {
+    transform: translateX(-320rpx) translateY(0);
+  }
 }
 
 .avatar-wrapper.defender.attack-phase-impact .avatar-inner {
