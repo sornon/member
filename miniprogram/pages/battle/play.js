@@ -1265,11 +1265,33 @@ Page({
     if (!actorSide || !targetSide) {
       return false;
     }
+
+    const skillText = extractSkillTextFromAction(action);
+    if (skillText === '普攻') {
+      return true;
+    }
+
     const actionType = typeof action.type === 'string' ? action.type : '';
-    if (actionType && actionType !== 'attack') {
+    const normalizedType = actionType ? actionType.trim().toLowerCase() : '';
+    if (!normalizedType) {
       return false;
     }
-    return true;
+
+    if (normalizedType === 'attack' || normalizedType === 'normalattack' || normalizedType === 'basicattack') {
+      return true;
+    }
+
+    if (normalizedType === 'skill') {
+      const skillName =
+        (action.skill && (action.skill.name || action.skill.label || action.skill.title)) ||
+        (action.raw && action.raw.skill && (action.raw.skill.name || action.raw.skill.label || action.raw.skill.title));
+      const normalizedSkillName = typeof skillName === 'string' ? skillName.trim() : '';
+      if (normalizedSkillName === '普攻') {
+        return true;
+      }
+    }
+
+    return false;
   },
 
   computeActionDuration(action) {
