@@ -476,11 +476,12 @@ page {
   font-weight: 700;
   letter-spacing: 6rpx;
   color: #ffffff;
-  -webkit-text-stroke: 2rpx rgba(0, 0, 0, 0.9);
-  text-shadow: 0 0 4rpx rgba(0, 0, 0, 0.95),
-    0 8rpx 24rpx rgba(0, 0, 0, 0.6);
+  text-shadow: 0 0 4rpx rgba(0, 0, 0, 0.6), 0 8rpx 24rpx rgba(0, 0, 0, 0.35);
   opacity: 0;
-  transform: translateY(-100rpx) scale(0.7);
+  transform: scale(0.7);
+  transform-origin: center;
+  position: relative;
+  bottom: 100rpx;
 }
 
 .attack-indicator--show {
@@ -544,26 +545,26 @@ page {
 @keyframes attackIndicatorPop {
   0% {
     opacity: 0;
-    transform: translateY(-100rpx) scale(0.6);
+    transform: scale(0.6);
   }
   60% {
     opacity: 1;
-    transform: translateY(-100rpx) scale(1.08);
+    transform: scale(1.08);
   }
   100% {
     opacity: 1;
-    transform: translateY(-100rpx) scale(1);
+    transform: scale(1);
   }
 }
 
 @keyframes attackIndicatorFade {
   0% {
     opacity: 1;
-    transform: translateY(-100rpx) scale(1);
+    transform: scale(1);
   }
   100% {
     opacity: 0;
-    transform: translateY(-100rpx) scale(1);
+    transform: scale(1);
   }
 }
 
