@@ -380,8 +380,8 @@ page {
   align-items: flex-end;
   justify-content: center;
   transform-origin: bottom center;
-  transform: translateX(0);
-  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateX(0) translateY(0);
+  transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .actor-portrait {
@@ -404,86 +404,118 @@ page {
 }
 
 .avatar-wrapper.attacker.attack-phase-windup .avatar-inner {
-  transform: translateX(-120rpx);
-  transition-duration: 0.22s;
+  transform: translateX(-140rpx) translateY(18rpx);
+  transition-duration: 0.2s;
+  transition-timing-function: cubic-bezier(0.55, 0.02, 0.75, 0.4);
 }
 
 .avatar-wrapper.attacker.attack-phase-charging .avatar-inner {
-  transform: translateX(250rpx);
-  transition-duration: 0.28s;
+  transform: translateX(260rpx) translateY(0);
+  transition-duration: 0.34s;
+  transition-timing-function: cubic-bezier(0.28, 0.16, 0.46, 0.98);
 }
 
 .avatar-wrapper.attacker.attack-motion-crit.attack-phase-windup .avatar-inner {
-  transform: translateX(-120rpx) translateY(32rpx);
+  transform: translateX(-160rpx) translateY(36rpx);
   transition-duration: 0.24s;
+  transition-timing-function: cubic-bezier(0.6, 0, 0.78, 0.28);
 }
 
 .avatar-wrapper.attacker.attack-motion-crit.attack-phase-charging .avatar-inner {
-  transform: translateX(320rpx) translateY(-140rpx);
-  transition-duration: 0.36s;
+  transform: translateX(320rpx) translateY(-150rpx);
+  transition-duration: 0.42s;
+  transition-timing-function: cubic-bezier(0.18, 0.74, 0.32, 1);
 }
 
 .avatar-wrapper.attacker.attack-phase-impact .avatar-inner {
-  transform: translateX(0);
-  transition-duration: 0.24s;
+  transform: translateX(260rpx) translateY(0);
+  transition-duration: 0.14s;
+  transition-timing-function: cubic-bezier(0.11, 0.6, 0.3, 1);
+}
+
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-impact .avatar-inner {
+  transform: translateX(300rpx) translateY(30rpx);
+  transition-duration: 0.18s;
+  transition-timing-function: cubic-bezier(0.16, 0.5, 0.3, 1);
+}
+
+.avatar-wrapper.attacker.attack-phase-recovery .avatar-inner {
+  transform: translateX(0) translateY(0);
+  transition-duration: 0.36s;
+  transition-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+}
+
+.avatar-wrapper.attacker.attack-motion-crit.attack-phase-recovery .avatar-inner {
+  transform: translateX(0) translateY(0);
+  transition-duration: 0.38s;
+  transition-timing-function: cubic-bezier(0.52, 0, 0.24, 1);
 }
 
 .avatar-wrapper.defender.attack-phase-windup .avatar-inner {
-  transform: translateX(120rpx);
-  transition-duration: 0.22s;
+  transform: translateX(140rpx) translateY(18rpx);
+  transition-duration: 0.2s;
+  transition-timing-function: cubic-bezier(0.55, 0.02, 0.75, 0.4);
 }
 
 .avatar-wrapper.defender.attack-phase-charging .avatar-inner {
-  transform: translateX(-250rpx);
-  transition-duration: 0.28s;
+  transform: translateX(-260rpx) translateY(0);
+  transition-duration: 0.34s;
+  transition-timing-function: cubic-bezier(0.28, 0.16, 0.46, 0.98);
 }
 
 .avatar-wrapper.defender.attack-motion-crit.attack-phase-windup .avatar-inner {
-  transform: translateX(120rpx) translateY(32rpx);
+  transform: translateX(160rpx) translateY(36rpx);
   transition-duration: 0.24s;
+  transition-timing-function: cubic-bezier(0.6, 0, 0.78, 0.28);
 }
 
 .avatar-wrapper.defender.attack-motion-crit.attack-phase-charging .avatar-inner {
-  transform: translateX(-320rpx) translateY(-140rpx);
-  transition-duration: 0.36s;
-}
-
-.avatar-wrapper.attacker.attack-motion-crit.attack-phase-impact .avatar-inner,
-.avatar-wrapper.defender.attack-motion-crit.attack-phase-impact .avatar-inner {
-  transform: translateX(0) translateY(48rpx);
-  transition-duration: 0.28s;
+  transform: translateX(-320rpx) translateY(-150rpx);
+  transition-duration: 0.42s;
+  transition-timing-function: cubic-bezier(0.18, 0.74, 0.32, 1);
 }
 
 .avatar-wrapper.defender.attack-phase-impact .avatar-inner {
-  transform: translateX(0);
-  transition-duration: 0.24s;
+  transform: translateX(-260rpx) translateY(0);
+  transition-duration: 0.14s;
+  transition-timing-function: cubic-bezier(0.11, 0.6, 0.3, 1);
 }
 
-.avatar-wrapper.defender .avatar-inner {
-  transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-impact .avatar-inner {
+  transform: translateX(-300rpx) translateY(30rpx);
+  transition-duration: 0.18s;
+  transition-timing-function: cubic-bezier(0.16, 0.5, 0.3, 1);
+}
+
+.avatar-wrapper.defender.attack-phase-recovery .avatar-inner {
+  transform: translateX(0) translateY(0);
+  transition-duration: 0.36s;
+  transition-timing-function: cubic-bezier(0.45, 0, 0.2, 1);
+}
+
+.avatar-wrapper.defender.attack-motion-crit.attack-phase-recovery .avatar-inner {
+  transform: translateX(0) translateY(0);
+  transition-duration: 0.38s;
+  transition-timing-function: cubic-bezier(0.52, 0, 0.24, 1);
 }
 
 .avatar-wrapper.attacker.is-dodging .avatar-inner {
-  transform: translateX(-100rpx);
+  transform: translateX(-160rpx);
+  transition: transform 0.24s cubic-bezier(0.3, 0.02, 0.6, 0.94);
 }
 
 .avatar-wrapper.defender.is-dodging .avatar-inner {
-  transform: translateX(100rpx);
-}
-
-.avatar-wrapper.attacker.is-hit .avatar-inner {
-  animation: targetHitShakeReverse 0.42s ease;
-}
-
-.avatar-wrapper.defender.is-hit .avatar-inner {
-  animation: targetHitShake 0.42s ease;
+  transform: translateX(160rpx);
+  transition: transform 0.24s cubic-bezier(0.3, 0.02, 0.6, 0.94);
 }
 
 .avatar-wrapper.attacker.is-hit .actor-portrait {
+  animation: targetHitShakeReverse 0.42s ease;
   filter: saturate(1.35) brightness(0.9) sepia(0.15) hue-rotate(-10deg);
 }
 
 .avatar-wrapper.defender.is-hit .actor-portrait {
+  animation: targetHitShake 0.42s ease;
   filter: saturate(1.35) brightness(0.9) sepia(0.15) hue-rotate(-10deg);
 }
 
@@ -518,43 +550,43 @@ page {
 
 @keyframes targetHitShake {
   0% {
-    transform: translateX(0);
+    transform: scaleX(1) translateX(0);
   }
   20% {
-    transform: translateX(-24rpx);
+    transform: scaleX(1) translateX(-24rpx);
   }
   40% {
-    transform: translateX(18rpx);
+    transform: scaleX(1) translateX(18rpx);
   }
   60% {
-    transform: translateX(-12rpx);
+    transform: scaleX(1) translateX(-12rpx);
   }
   80% {
-    transform: translateX(6rpx);
+    transform: scaleX(1) translateX(6rpx);
   }
   100% {
-    transform: translateX(0);
+    transform: scaleX(1) translateX(0);
   }
 }
 
 @keyframes targetHitShakeReverse {
   0% {
-    transform: translateX(0);
+    transform: scaleX(-1) translateX(0);
   }
   20% {
-    transform: translateX(24rpx);
+    transform: scaleX(-1) translateX(24rpx);
   }
   40% {
-    transform: translateX(-18rpx);
+    transform: scaleX(-1) translateX(-18rpx);
   }
   60% {
-    transform: translateX(12rpx);
+    transform: scaleX(-1) translateX(12rpx);
   }
   80% {
-    transform: translateX(-6rpx);
+    transform: scaleX(-1) translateX(-6rpx);
   }
   100% {
-    transform: translateX(0);
+    transform: scaleX(-1) translateX(0);
   }
 }
 

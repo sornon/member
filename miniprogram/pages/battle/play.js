@@ -345,10 +345,12 @@ function resolveParticipantByAliases(participants, aliases = []) {
 const MIN_SKIP_SECONDS = 10;
 const ATTACK_INDICATOR_HOLD_DURATION = 1000;
 const ATTACK_INDICATOR_FADE_DURATION = 180;
-const ATTACK_WINDUP_DURATION = 200;
-const ATTACK_CHARGE_DURATION = 320;
-const ATTACK_CRIT_CHARGE_DURATION = 380;
-const ATTACK_IMPACT_RECOVERY_DURATION = 260;
+const ATTACK_WINDUP_DURATION = 240;
+const ATTACK_CHARGE_DURATION = 340;
+const ATTACK_CRIT_CHARGE_DURATION = 420;
+const ATTACK_IMPACT_HOLD_DURATION = 140;
+const ATTACK_RECOVERY_DURATION = 360;
+const ATTACK_DODGE_LEAD_DURATION = 120;
 const ATTACK_SEQUENCE_BUFFER = 220;
 
 function createBattleStageState(overrides = {}) {
@@ -1325,7 +1327,8 @@ Page({
       indicatorDuration +
       windupDuration +
       chargeDuration +
-      ATTACK_IMPACT_RECOVERY_DURATION +
+      ATTACK_IMPACT_HOLD_DURATION +
+      ATTACK_RECOVERY_DURATION +
       ATTACK_SEQUENCE_BUFFER
     );
   },
@@ -1362,7 +1365,8 @@ Page({
     const indicatorFade = ATTACK_INDICATOR_FADE_DURATION;
     const windupDuration = hasCrit ? ATTACK_WINDUP_DURATION : 0;
     const chargeDuration = hasCrit ? ATTACK_CRIT_CHARGE_DURATION : ATTACK_CHARGE_DURATION;
-    const impactDuration = ATTACK_IMPACT_RECOVERY_DURATION;
+    const impactDuration = ATTACK_IMPACT_HOLD_DURATION;
+    const recoveryDuration = ATTACK_RECOVERY_DURATION;
 
     this.setBattleStageData({
       attackActor: actorSide,
@@ -1397,6 +1401,18 @@ Page({
 
     const chargeStartDelay = postIndicatorDelay + (hasCrit ? windupDuration : 0);
     const impactDelay = chargeStartDelay + chargeDuration;
+    const recoveryStartDelay = impactDelay + impactDuration;
+    const sequenceEndDelay = recoveryStartDelay + recoveryDuration;
+
+    if (hasDodge) {
+      const dodgePrepDelay = Math.max(
+        chargeStartDelay + 60,
+        impactDelay - ATTACK_DODGE_LEAD_DURATION
+      );
+      this.queueAttackTimer(() => {
+        this.setBattleStageData({ targetReaction: 'dodge' });
+      }, dodgePrepDelay);
+    }
 
     this.queueAttackTimer(() => {
       this.setBattleStageData({
@@ -1409,6 +1425,14 @@ Page({
 
     this.queueAttackTimer(() => {
       this.setBattleStageData({
+        attackPhase: 'recovery',
+        targetReaction: hasDodge ? 'dodge' : 'hit',
+        hpState: nextHpState
+      });
+    }, recoveryStartDelay);
+
+    this.queueAttackTimer(() => {
+      this.setBattleStageData({
         attackPhase: '',
         attackMotion: '',
         attackActor: '',
@@ -1417,7 +1441,7 @@ Page({
         targetReaction: ''
       });
       this._currentActionUsesIndicator = false;
-    }, impactDelay + impactDuration);
+    }, sequenceEndDelay);
   },
 
   scheduleNextAction(delay = 1200) {
