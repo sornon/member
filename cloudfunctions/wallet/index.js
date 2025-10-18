@@ -218,7 +218,30 @@ function extractPrepayId(packageField = '') {
   if (packageField.startsWith(prefix)) {
     return packageField.slice(prefix.length);
   }
+  if (packageField.includes('&')) {
+    const match = packageField.match(/(?:^|&)prepay_id=([^&]+)/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
   return packageField;
+}
+
+function ensurePrepayPackage(packageValue) {
+  if (typeof packageValue !== 'string') {
+    return '';
+  }
+  const trimmed = packageValue.trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (trimmed.startsWith('prepay_id=')) {
+    return trimmed;
+  }
+  if (/^prepay_id\w+/.test(trimmed)) {
+    return trimmed.replace(/^prepay_id/, 'prepay_id=');
+  }
+  return `prepay_id=${trimmed}`;
 }
 
 exports.main = async (event, context) => {
@@ -440,7 +463,7 @@ async function createRecharge(openid, amount) {
     const sanitizedPayment = {
       timeStamp: payment.timeStamp || payment.timestamp || '',
       nonceStr: payment.nonceStr || payment.nonce || '',
-      package: payment.package || payment.packageValue || '',
+      package: ensurePrepayPackage(payment.package || payment.packageValue || payment.prepayId || ''),
       signType: payment.signType || payment.sign_type || 'RSA',
       paySign: payment.paySign || payment.pay_sign || ''
     };
@@ -449,7 +472,12 @@ async function createRecharge(openid, amount) {
     }
     sanitizedPayment.totalFee = normalizedAmount;
     sanitizedPayment.currency = 'CNY';
-    if (!sanitizedPayment.timeStamp || !sanitizedPayment.nonceStr || !sanitizedPayment.package || !sanitizedPayment.paySign) {
+    if (
+      !sanitizedPayment.timeStamp ||
+      !sanitizedPayment.nonceStr ||
+      !sanitizedPayment.package ||
+      !sanitizedPayment.paySign
+    ) {
       console.error('[wallet] unifiedOrder missing fields', payment);
       throw new Error('支付参数生成失败，请稍后重试');
     }
@@ -555,16 +583,15 @@ async function createUnifiedOrder(transactionId, amount, openid) {
   const normalizedPayment = {
     timeStamp: paymentPayload.timeStamp || paymentPayload.timestamp || '',
     nonceStr: paymentPayload.nonceStr || paymentPayload.nonce || '',
-    package: paymentPayload.package || paymentPayload.packageValue || '',
+    package: ensurePrepayPackage(
+      paymentPayload.package || paymentPayload.packageValue || paymentPayload.prepayId || ''
+    ),
     signType: paymentPayload.signType || paymentPayload.sign_type || 'RSA',
     paySign: paymentPayload.paySign || paymentPayload.pay_sign || ''
   };
 
   if (paymentPayload.appId) {
     normalizedPayment.appId = paymentPayload.appId;
-  }
-  if (!normalizedPayment.package && paymentPayload.prepayId) {
-    normalizedPayment.package = `prepay_id=${paymentPayload.prepayId}`;
   }
 
   normalizedPayment.totalFee = normalizedAmount;
