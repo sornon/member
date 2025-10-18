@@ -245,6 +245,21 @@ export const WalletService = {
       transactionId
     });
   },
+  async failRecharge(transactionId, options = {}) {
+    const payload = {
+      action: 'failRecharge',
+      transactionId
+    };
+    if (options && typeof options === 'object') {
+      if (options.reason) {
+        payload.reason = options.reason;
+      }
+      if (options.code) {
+        payload.code = options.code;
+      }
+    }
+    return callCloud(CLOUD_FUNCTIONS.WALLET, payload);
+  },
   async payWithBalance(orderId, amount) {
     return callCloud(CLOUD_FUNCTIONS.WALLET, {
       action: 'balancePay',

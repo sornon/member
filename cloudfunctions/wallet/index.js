@@ -1,4 +1,8 @@
 const cloud = require('wx-server-sdk');
+const https = require('https');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const {
   EXPERIENCE_PER_YUAN,
   COLLECTIONS,
@@ -19,6 +23,52 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
+};
+
+function loadRawPemFile(fileName) {
+  if (!fileName) {
+    return '';
+  }
+  try {
+    const filePath = path.join(__dirname, fileName);
+    if (!fs.existsSync(filePath)) {
+      return '';
+    }
+    return fs.readFileSync(filePath, 'utf8');
+  } catch (error) {
+    console.error(`[wallet] failed to read PEM file ${fileName}`, error);
+    return '';
+  }
+}
+
+const LOCAL_PRIVATE_KEY = loadRawPemFile('apiclient_key.pem');
+const LOCAL_PLATFORM_CERT = loadRawPemFile('apiclient_cert.pem');
+
+const WECHAT_PAYMENT_CONFIG = {
+  appId: process.env.WECHAT_PAY_APPID || 'wxada3146653042265',
+  merchantId: process.env.WECHAT_PAY_MCHID || '1730096968',
+  subMerchantId: process.env.WECHAT_PAY_SUB_MCHID || '',
+  spAppId: process.env.WECHAT_PAY_SP_APPID || '',
+  serviceProviderMode: resolveToggleBoolean(
+    process.env.WECHAT_PAY_SERVICE_PROVIDER_MODE,
+    false
+  ),
+  description: process.env.WECHAT_PAY_BODY || '会员钱包余额充值',
+  callbackFunction: process.env.WECHAT_PAY_NOTIFY_FUNCTION || 'wallet-pay-notify',
+  notifyUrl: process.env.WECHAT_PAY_NOTIFY_URL || '',
+  clientIp: process.env.WECHAT_PAY_SPBILL_IP || '127.0.0.1'
+};
+
+const WECHAT_PAYMENT_SECURITY = {
+  apiKey: trimToString(process.env.WECHAT_PAY_API_KEY || process.env.WECHAT_PAY_APIKEY || ''),
+  apiV3Key: trimToString(process.env.WECHAT_PAY_API_V3_KEY || ''),
+  merchantSerialNo: trimToString(process.env.WECHAT_PAY_SERIAL_NO || process.env.WECHAT_PAY_MCH_SERIAL || ''),
+  privateKey:
+    normalizePem(LOCAL_PRIVATE_KEY) ||
+    normalizePem(process.env.WECHAT_PAY_PRIVATE_KEY || process.env.WECHAT_PAY_MCH_PRIVATE_KEY || ''),
+  platformCert:
+    normalizePem(LOCAL_PLATFORM_CERT) || normalizePem(process.env.WECHAT_PAY_PLATFORM_CERT || ''),
+  userAgent: trimToString(process.env.WECHAT_PAY_USER_AGENT) || 'member-wallet-cloud/1.0'
 };
 
 function resolveToggleBoolean(value, defaultValue = true) {
@@ -78,6 +128,95 @@ function trimToString(value) {
   } catch (error) {
     return '';
   }
+}
+
+function isPemFormatted(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const hasBegin = /-----BEGIN [^-]+-----/.test(value);
+  const hasEnd = /-----END [^-]+-----/.test(value);
+  return hasBegin && hasEnd;
+}
+
+function stripWrappingQuotes(value) {
+  if (typeof value !== 'string') {
+    return value;
+  }
+  let result = value.trim();
+  let changed = false;
+  do {
+    changed = false;
+    if (
+      (result.startsWith('"') && result.endsWith('"')) ||
+      (result.startsWith("'") && result.endsWith("'"))
+    ) {
+      result = result.slice(1, -1).trim();
+      changed = true;
+    }
+  } while (changed && result.length > 0);
+  return result;
+}
+
+function tryDecodeBase64(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const compact = value.replace(/\s+/g, '');
+  if (!compact) {
+    return '';
+  }
+  if (/[^A-Za-z0-9+/=]/.test(compact)) {
+    return '';
+  }
+  try {
+    const decoded = Buffer.from(compact, 'base64').toString('utf8');
+    return decoded || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function normalizePem(pem) {
+  if (!pem) {
+    return '';
+  }
+  if (typeof pem !== 'string') {
+    try {
+      return normalizePem(String(pem));
+    } catch (error) {
+      return '';
+    }
+  }
+
+  const trimmed = stripWrappingQuotes(pem);
+  if (!trimmed) {
+    return '';
+  }
+
+  const normalized = trimmed
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n');
+
+  if (isPemFormatted(normalized)) {
+    return normalized;
+  }
+
+  const decoded = stripWrappingQuotes(tryDecodeBase64(normalized)).trim();
+  if (decoded) {
+    const decodedNormalized = decoded
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\\r\\n/g, '\n')
+      .replace(/\\n/g, '\n');
+    if (isPemFormatted(decodedNormalized)) {
+      return decodedNormalized;
+    }
+  }
+
+  return normalized;
 }
 
 function normalizeImmortalTournament(config) {
@@ -189,6 +328,265 @@ function calculateWineStorageTotal(entries = []) {
   }, 0);
 }
 
+function resolveCurrentEnvId() {
+  try {
+    const context = cloud.getWXContext();
+    if (context && context.ENV) {
+      return context.ENV;
+    }
+  } catch (error) {
+    // ignore
+  }
+  return process.env.WX_ENV || process.env.TCB_ENV || process.env.SCF_NAMESPACE || '';
+}
+
+function extractPrepayId(packageField = '') {
+  if (typeof packageField !== 'string') {
+    return '';
+  }
+  const prefix = 'prepay_id=';
+  if (packageField.startsWith(prefix)) {
+    return packageField.slice(prefix.length);
+  }
+  if (packageField.includes('&')) {
+    const match = packageField.match(/(?:^|&)prepay_id=([^&]+)/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return packageField;
+}
+
+function ensurePrepayPackage(packageValue) {
+  if (typeof packageValue !== 'string') {
+    return '';
+  }
+  const trimmed = packageValue.trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (trimmed.startsWith('prepay_id=')) {
+    return trimmed;
+  }
+  if (/^prepay_id\w+/.test(trimmed)) {
+    return trimmed.replace(/^prepay_id/, 'prepay_id=');
+  }
+  return `prepay_id=${trimmed}`;
+}
+
+function generateNonceStr(length = 32) {
+  if (!Number.isFinite(length) || length <= 0) {
+    return '';
+  }
+  const characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const maxIndex = characters.length;
+  let nonce = '';
+  try {
+    const bytes = crypto.randomBytes(length);
+    for (let i = 0; i < length; i += 1) {
+      nonce += characters[bytes[i] % maxIndex];
+    }
+  } catch (error) {
+    for (let i = 0; i < length; i += 1) {
+      const random = Math.floor(Math.random() * maxIndex);
+      nonce += characters[random];
+    }
+  }
+  return nonce;
+}
+
+function toNonEmptyString(...candidates) {
+  for (const candidate of candidates) {
+    if (candidate == null) {
+      continue;
+    }
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+      continue;
+    }
+    try {
+      const value = `${candidate}`.trim();
+      if (value) {
+        return value;
+      }
+    } catch (error) {
+      // ignore conversion error and move to next candidate
+    }
+  }
+  return '';
+}
+
+function hasApiV3Credentials() {
+  return (
+    WECHAT_PAYMENT_CONFIG.merchantId &&
+    isPemFormatted(WECHAT_PAYMENT_SECURITY.privateKey) &&
+    WECHAT_PAYMENT_SECURITY.merchantSerialNo
+  );
+}
+
+function signWechatPayMessage(message) {
+  if (!isPemFormatted(WECHAT_PAYMENT_SECURITY.privateKey)) {
+    throw new Error(
+      '微信支付商户私钥格式无效，请检查 cloudfunctions/wallet/apiclient_key.pem 或环境变量 WECHAT_PAY_PRIVATE_KEY 是否包含完整的 PEM 内容'
+    );
+  }
+  try {
+    const signer = crypto.createSign('RSA-SHA256');
+    signer.update(message, 'utf8');
+    signer.end();
+    return signer.sign(WECHAT_PAYMENT_SECURITY.privateKey, 'base64');
+  } catch (error) {
+    console.error('[wallet] signWechatPayMessage failed', error);
+    throw new Error(
+      '微信支付商户私钥格式无效，请检查 cloudfunctions/wallet/apiclient_key.pem 或环境变量 WECHAT_PAY_PRIVATE_KEY 是否包含完整的 PEM 内容'
+    );
+  }
+}
+
+function requestWechatPayApi(path, bodyObject) {
+  const method = 'POST';
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const nonceStr = generateNonceStr(32);
+  const body = JSON.stringify(bodyObject);
+  const message = `${method}\n${path}\n${timestamp}\n${nonceStr}\n${body}\n`;
+  const signature = signWechatPayMessage(message);
+  const headers = {
+    'Content-Type': 'application/json; charset=utf-8',
+    Accept: 'application/json',
+    'User-Agent': WECHAT_PAYMENT_SECURITY.userAgent,
+    'Content-Length': Buffer.byteLength(body)
+  };
+  headers.Authorization =
+    'WECHATPAY2-SHA256-RSA2048 ' +
+    `mchid="${WECHAT_PAYMENT_CONFIG.merchantId}",` +
+    `nonce_str="${nonceStr}",` +
+    `signature="${signature}",` +
+    `timestamp="${timestamp}",` +
+    `serial_no="${WECHAT_PAYMENT_SECURITY.merchantSerialNo}"`;
+
+  const options = {
+    hostname: 'api.mch.weixin.qq.com',
+    port: 443,
+    path,
+    method,
+    headers
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        let parsed = null;
+        if (raw) {
+          try {
+            parsed = JSON.parse(raw);
+          } catch (error) {
+            return reject(new Error(`微信支付响应解析失败: ${raw}`));
+          }
+        }
+        if (res.statusCode >= 400) {
+          const errorMessage =
+            (parsed && (parsed.message || parsed.detail || parsed.errMsg)) ||
+            `微信支付接口返回错误，状态码 ${res.statusCode}`;
+          const err = new Error(errorMessage);
+          err.statusCode = res.statusCode;
+          err.response = parsed || raw;
+          return reject(err);
+        }
+        resolve(parsed || {});
+      });
+    });
+    req.on('error', (error) => reject(error));
+    req.write(body);
+    req.end();
+  });
+}
+
+function buildJsapiRequestPayload({ transactionId, amount, openid, notifyUrl, description, attach }) {
+  const payload = {
+    description: description || '钱包充值',
+    out_trade_no: transactionId,
+    attach,
+    notify_url: notifyUrl,
+    amount: {
+      total: amount,
+      currency: 'CNY'
+    }
+  };
+
+  if (WECHAT_PAYMENT_CONFIG.serviceProviderMode) {
+    const subMerchantId = WECHAT_PAYMENT_CONFIG.subMerchantId;
+    if (!subMerchantId) {
+      throw new Error('服务商模式下必须配置子商户号');
+    }
+    payload.sp_mchid = WECHAT_PAYMENT_CONFIG.merchantId;
+    payload.sub_mchid = subMerchantId;
+    if (WECHAT_PAYMENT_CONFIG.spAppId) {
+      payload.sp_appid = WECHAT_PAYMENT_CONFIG.spAppId;
+    }
+    payload.sub_appid = WECHAT_PAYMENT_CONFIG.appId;
+    payload.payer = { sub_openid: openid };
+  } else {
+    payload.mchid = WECHAT_PAYMENT_CONFIG.merchantId;
+    payload.appid = WECHAT_PAYMENT_CONFIG.appId;
+    payload.payer = { openid };
+  }
+
+  if (WECHAT_PAYMENT_CONFIG.clientIp) {
+    payload.scene_info = {
+      payer_client_ip: WECHAT_PAYMENT_CONFIG.clientIp
+    };
+  }
+
+  return payload;
+}
+
+async function createUnifiedOrderViaApiV3({ transactionId, amount, openid, notifyUrl, description, attach }) {
+  if (!hasApiV3Credentials()) {
+    return null;
+  }
+  if (!notifyUrl) {
+    throw new Error('未配置微信支付通知回调地址');
+  }
+  const payload = buildJsapiRequestPayload({
+    transactionId,
+    amount,
+    openid,
+    notifyUrl,
+    description,
+    attach
+  });
+  const response = await requestWechatPayApi('/v3/pay/transactions/jsapi', payload);
+  if (!response || !response.prepay_id) {
+    throw new Error('微信支付未返回预支付单号');
+  }
+  const prepayId = response.prepay_id;
+  const packageValue = ensurePrepayPackage(prepayId);
+  const payTimestamp = Math.floor(Date.now() / 1000).toString();
+  const payNonce = generateNonceStr(32);
+  const payAppId = payload.appid || payload.sub_appid || payload.sp_appid || WECHAT_PAYMENT_CONFIG.appId;
+  const payMessage = `${payAppId}\n${payTimestamp}\n${payNonce}\n${packageValue}\n`;
+  const paySign = signWechatPayMessage(payMessage);
+  return {
+    timeStamp: payTimestamp,
+    nonceStr: payNonce,
+    package: packageValue,
+    signType: 'RSA',
+    paySign,
+    appId: payAppId,
+    prepayId,
+    channel: 'apiV3',
+    apiVersion: 'v3',
+    mode: WECHAT_PAYMENT_CONFIG.serviceProviderMode ? 'service-provider' : 'direct',
+    rawResponse: response
+  };
+}
+
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext();
   const action = event.action || 'summary';
@@ -200,6 +598,13 @@ exports.main = async (event, context) => {
       return createRecharge(OPENID, event.amount);
     case 'completeRecharge':
       return completeRecharge(OPENID, event.transactionId);
+    case 'failRecharge':
+      return failRecharge(OPENID, event.transactionId, {
+        reason: event.reason,
+        code: event.code,
+        errMsg: event.errMsg,
+        message: event.message
+      });
     case 'balancePay':
       return payWithBalance(OPENID, event.orderId, event.amount);
     case 'loadChargeOrder':
@@ -379,14 +784,15 @@ async function createRecharge(openid, amount) {
   if (!featureToggles.cashierEnabled) {
     throw new Error('线上充值暂不可用，请前往收款台线下充值');
   }
-  if (!amount || amount <= 0) {
+  const normalizedAmount = normalizeAmountInCents(amount);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
     throw new Error('充值金额无效');
   }
   const now = new Date();
   const record = await db.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
     data: {
       memberId: openid,
-      amount,
+      amount: normalizedAmount,
       type: 'recharge',
       status: 'pending',
       createdAt: now,
@@ -395,20 +801,365 @@ async function createRecharge(openid, amount) {
     }
   });
 
-  // 真实环境应调用 cloud.cloudPay.unifiedOrder 生成支付参数
-  const mockPaymentParams = {
-    timeStamp: `${Math.floor(Date.now() / 1000)}`,
-    nonceStr: Math.random().toString(36).slice(2, 10),
-    package: `prepay_id=mock_${record._id}`,
-    signType: 'RSA',
-    paySign: 'MOCK_SIGN'
+  try {
+    const payment = await createUnifiedOrder(record._id, normalizedAmount, openid);
+    const sanitizedPayment = {
+      timeStamp: toNonEmptyString(payment.timeStamp, payment.timestamp, payment.time),
+      nonceStr: toNonEmptyString(payment.nonceStr, payment.nonce, payment.nonce_str),
+      package: ensurePrepayPackage(
+        toNonEmptyString(
+          payment.package,
+          payment.packageValue,
+          payment.prepayId,
+          payment.prepay_id
+        )
+      ),
+      signType: toNonEmptyString(payment.signType, payment.sign_type) || 'RSA',
+      paySign: toNonEmptyString(payment.paySign, payment.pay_sign, payment.sign, payment.signature)
+    };
+    const appId = toNonEmptyString(payment.appId, payment.appid, payment.appID);
+    if (appId) {
+      sanitizedPayment.appId = appId;
+    }
+    sanitizedPayment.totalFee = normalizedAmount;
+    sanitizedPayment.currency = 'CNY';
+    sanitizedPayment.apiVersion = payment.apiVersion || 'v2';
+    sanitizedPayment.mode = WECHAT_PAYMENT_CONFIG.serviceProviderMode ? 'service-provider' : 'direct';
+    if (payment.mode) {
+      sanitizedPayment.mode = payment.mode;
+    }
+    if (payment.channel) {
+      sanitizedPayment.channel = payment.channel;
+    }
+    if (payment.rawResponse) {
+      sanitizedPayment.wechatResponse = payment.rawResponse;
+    }
+    const responseTransactionId = toNonEmptyString(
+      payment.transactionId,
+      payment.wechatTransactionId,
+      payment.transaction_id
+    );
+    if (responseTransactionId) {
+      sanitizedPayment.wechatTransactionId = responseTransactionId;
+    }
+    const prepayId = extractPrepayId(sanitizedPayment.package);
+    if (!prepayId) {
+      console.error('[wallet] sanitized payment missing prepayId', payment);
+      throw new Error('支付参数生成失败，请稍后重试');
+    }
+
+    sanitizedPayment.prepayId = prepayId;
+
+    if (
+      !sanitizedPayment.timeStamp ||
+      !sanitizedPayment.nonceStr ||
+      !sanitizedPayment.package ||
+      !sanitizedPayment.paySign
+    ) {
+      console.error('[wallet] unifiedOrder missing fields', payment);
+      throw new Error('支付参数生成失败，请稍后重试');
+    }
+
+    await db
+      .collection(COLLECTIONS.WALLET_TRANSACTIONS)
+      .doc(record._id)
+      .update({
+        data: {
+          paymentParams: sanitizedPayment,
+          prepayId,
+          updatedAt: new Date()
+        }
+      })
+      .catch(() => null);
+
+    return {
+      transactionId: record._id,
+      payment: sanitizedPayment
+    };
+  } catch (error) {
+    console.error('[wallet] createUnifiedOrder failed', error);
+    await db
+      .collection(COLLECTIONS.WALLET_TRANSACTIONS)
+      .doc(record._id)
+      .remove()
+      .catch(() => null);
+    const message =
+      (error && (error.errMsg || error.message)) || '创建支付订单失败，请稍后重试';
+    throw new Error(message);
+  }
+}
+
+async function createUnifiedOrder(transactionId, amount, openid) {
+  const invokeUnifiedOrder =
+    cloud.cloudPay && typeof cloud.cloudPay.unifiedOrder === 'function'
+      ? cloud.cloudPay.unifiedOrder
+      : null;
+  if (typeof invokeUnifiedOrder !== 'function') {
+    throw new Error('当前环境未开启云支付能力，请联系管理员配置支付参数');
+  }
+  if (!WECHAT_PAYMENT_CONFIG.merchantId) {
+    throw new Error('未配置有效的微信支付商户号');
+  }
+  if (!WECHAT_PAYMENT_CONFIG.appId) {
+    throw new Error('未配置有效的小程序 AppID');
+  }
+  const normalizedAmount = normalizeAmountInCents(amount);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+    throw new Error('充值金额无效');
+  }
+
+  const envId = resolveCurrentEnvId();
+  let notifyUrl = '';
+  if (WECHAT_PAYMENT_CONFIG.notifyUrl) {
+    notifyUrl = WECHAT_PAYMENT_CONFIG.notifyUrl;
+  } else if (envId && WECHAT_PAYMENT_CONFIG.callbackFunction) {
+    notifyUrl = `https://${envId}.servicewechat.com/${WECHAT_PAYMENT_CONFIG.callbackFunction}`;
+  }
+
+  const attach = JSON.stringify({ scene: 'wallet_recharge', transactionId });
+
+  if (hasApiV3Credentials()) {
+    try {
+      const apiV3Payment = await createUnifiedOrderViaApiV3({
+        transactionId,
+        amount: normalizedAmount,
+        openid,
+        notifyUrl,
+        description: WECHAT_PAYMENT_CONFIG.description,
+        attach
+      });
+      if (apiV3Payment) {
+        return apiV3Payment;
+      }
+    } catch (error) {
+      console.error('[wallet] createUnifiedOrderViaApiV3 failed', error);
+      if (!invokeUnifiedOrder) {
+        throw error;
+      }
+    }
+  }
+
+  const nonceStr = generateNonceStr(32);
+  const requestPayload = {
+    body: WECHAT_PAYMENT_CONFIG.description,
+    outTradeNo: transactionId,
+    totalFee: normalizedAmount,
+    total_fee: normalizedAmount,
+    tradeType: 'JSAPI',
+    spbillCreateIp: WECHAT_PAYMENT_CONFIG.clientIp || '127.0.0.1',
+    attach,
+    feeType: 'CNY',
+    nonceStr
   };
 
-  return {
-    transactionId: record._id,
-    payment: mockPaymentParams,
-    message: '测试环境返回模拟支付参数，生产环境请替换为真实签名'
+  if (WECHAT_PAYMENT_CONFIG.serviceProviderMode) {
+    if (!WECHAT_PAYMENT_CONFIG.merchantId) {
+      throw new Error('服务商商户号未配置');
+    }
+    requestPayload.mchId = WECHAT_PAYMENT_CONFIG.merchantId;
+    const subMerchantId =
+      WECHAT_PAYMENT_CONFIG.subMerchantId || WECHAT_PAYMENT_CONFIG.merchantId;
+    requestPayload.subMchId = subMerchantId;
+    requestPayload.subAppId = WECHAT_PAYMENT_CONFIG.appId;
+    requestPayload.subOpenId = openid;
+  } else {
+    requestPayload.mchId = WECHAT_PAYMENT_CONFIG.merchantId;
+    requestPayload.appId = WECHAT_PAYMENT_CONFIG.appId;
+    requestPayload.openid = openid;
+    if (WECHAT_PAYMENT_CONFIG.subMerchantId) {
+      requestPayload.subMchId = WECHAT_PAYMENT_CONFIG.subMerchantId;
+    }
+  }
+
+  if (envId) {
+    requestPayload.envId = envId;
+  }
+  if (WECHAT_PAYMENT_CONFIG.callbackFunction) {
+    requestPayload.functionName = WECHAT_PAYMENT_CONFIG.callbackFunction;
+  }
+  if (notifyUrl) {
+    requestPayload.notifyUrl = notifyUrl;
+  }
+
+  const response = await invokeUnifiedOrder(requestPayload);
+  if (!response) {
+    throw new Error('支付参数生成失败，请稍后重试');
+  }
+
+  const { errCode, errMsg, payment, paymentData, ...rest } = response;
+  if (typeof errCode !== 'undefined' && errCode !== 0) {
+    const message = errMsg || rest.message || rest.errmsg || '创建支付订单失败';
+    throw new Error(message);
+  }
+
+  const paymentPayload = payment || paymentData || rest.payment || rest.paymentData || rest;
+  if (!paymentPayload) {
+    console.error('[wallet] unifiedOrder unexpected response', response);
+    throw new Error('支付参数生成失败，请稍后重试');
+  }
+
+  const returnCode = toNonEmptyString(
+    paymentPayload.returnCode,
+    paymentPayload.return_code,
+    rest.returnCode,
+    rest.return_code
+  );
+  if (returnCode && returnCode !== 'SUCCESS') {
+    const message =
+      paymentPayload.returnMsg ||
+      paymentPayload.return_msg ||
+      rest.returnMsg ||
+      rest.return_msg ||
+      paymentPayload.errCodeDes ||
+      paymentPayload.err_code_des ||
+      rest.errCodeDes ||
+      rest.err_code_des ||
+      paymentPayload.errMsg ||
+      paymentPayload.err_msg ||
+      '创建支付订单失败';
+    throw new Error(message);
+  }
+
+  const resultCode = toNonEmptyString(
+    paymentPayload.resultCode,
+    paymentPayload.result_code,
+    rest.resultCode,
+    rest.result_code
+  );
+  if (resultCode && resultCode !== 'SUCCESS') {
+    const message =
+      paymentPayload.errCodeDes ||
+      paymentPayload.err_code_des ||
+      rest.errCodeDes ||
+      rest.err_code_des ||
+      paymentPayload.errMsg ||
+      paymentPayload.err_msg ||
+      rest.errMsg ||
+      rest.err_msg ||
+      '创建支付订单失败';
+    throw new Error(message);
+  }
+
+  const normalizedPayment = {
+    timeStamp: toNonEmptyString(
+      paymentPayload.timeStamp,
+      paymentPayload.timestamp,
+      paymentPayload.time,
+      paymentPayload.ts
+    ),
+    nonceStr: toNonEmptyString(
+      paymentPayload.nonceStr,
+      paymentPayload.nonce,
+      paymentPayload.nonce_str,
+      paymentPayload.nonceString
+    ),
+    package: ensurePrepayPackage(
+      toNonEmptyString(
+        paymentPayload.package,
+        paymentPayload.packageValue,
+        paymentPayload.prepayId,
+        paymentPayload.prepay_id
+      )
+    ),
+    signType: toNonEmptyString(paymentPayload.signType, paymentPayload.sign_type) || 'RSA',
+    paySign: toNonEmptyString(
+      paymentPayload.paySign,
+      paymentPayload.pay_sign,
+      paymentPayload.sign,
+      paymentPayload.signature
+    ),
+    channel: toNonEmptyString(paymentPayload.channel, paymentPayload.payChannel)
   };
+
+  const paymentAppId = toNonEmptyString(
+    paymentPayload.appId,
+    paymentPayload.appid,
+    paymentPayload.appID
+  );
+  if (paymentAppId) {
+    normalizedPayment.appId = paymentAppId;
+  }
+
+  normalizedPayment.totalFee = normalizedAmount;
+  normalizedPayment.currency = 'CNY';
+  normalizedPayment.apiVersion = 'v2';
+  normalizedPayment.channel = normalizedPayment.channel || 'cloudPay.unifiedOrder';
+  normalizedPayment.mode = WECHAT_PAYMENT_CONFIG.serviceProviderMode ? 'service-provider' : 'direct';
+
+  const prepayId = extractPrepayId(normalizedPayment.package);
+  if (!prepayId) {
+    console.error('[wallet] unifiedOrder empty prepayId', paymentPayload, response);
+    throw new Error('微信返回空的预支付单号，请核对金额和商户配置');
+  }
+
+  normalizedPayment.prepayId = prepayId;
+
+  if (!normalizedPayment.timeStamp || !normalizedPayment.nonceStr || !normalizedPayment.package || !normalizedPayment.paySign) {
+    console.error('[wallet] unifiedOrder missing fields', paymentPayload, response);
+    throw new Error('支付参数生成失败，请稍后重试');
+  }
+
+  return normalizedPayment;
+}
+
+async function failRecharge(openid, transactionId, options = {}) {
+  if (!transactionId) {
+    throw new Error('充值记录不存在');
+  }
+
+  const normalizedReason = trimToString(options.reason || options.errMsg || options.message);
+  const normalizedCode = trimToString(options.code || options.errCode);
+  const now = new Date();
+
+  let outcome = { success: true, status: 'failed' };
+
+  await db.runTransaction(async (transaction) => {
+    const recordRef = transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).doc(transactionId);
+    const recordDoc = await recordRef.get().catch(() => null);
+    if (!recordDoc || !recordDoc.data) {
+      throw new Error('充值记录不存在');
+    }
+    const record = recordDoc.data;
+    if (record.memberId !== openid) {
+      throw new Error('无权操作该充值记录');
+    }
+    if (record.type !== 'recharge') {
+      throw new Error('记录类型错误');
+    }
+    const currentStatus = normalizeTransactionStatus(record.status);
+    if (currentStatus === 'success') {
+      outcome = { success: false, status: 'success' };
+      return;
+    }
+    if (currentStatus === 'failed') {
+      outcome = { success: true, status: 'failed' };
+      return;
+    }
+
+    const failureRemark = normalizedReason ? `充值失败：${normalizedReason}` : '充值失败';
+
+    const updates = {
+      status: 'failed',
+      updatedAt: now,
+      failedAt: now,
+      remark: failureRemark.length > 120 ? `${failureRemark.slice(0, 117)}...` : failureRemark
+    };
+
+    if (normalizedReason) {
+      updates.failReason = normalizedReason.slice(0, 200);
+    }
+    if (normalizedCode) {
+      updates.failCode = normalizedCode.slice(0, 120);
+    }
+
+    await recordRef.update({
+      data: updates
+    });
+
+    outcome = { success: true, status: 'failed' };
+  });
+
+  return outcome;
 }
 
 async function completeRecharge(openid, transactionId) {
@@ -707,6 +1458,21 @@ function calculateExperienceGain(amountFen) {
   return Math.max(0, Math.round((amountFen * EXPERIENCE_PER_YUAN) / 100));
 }
 
+function normalizeAmountInCents(value) {
+  if (value == null || value === '') {
+    return NaN;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return NaN;
+  }
+  const rounded = Math.round(numeric);
+  if (!Number.isFinite(rounded) || rounded <= 0) {
+    return NaN;
+  }
+  return rounded;
+}
+
 function resolveCashBalance(member) {
   if (!member) return 0;
   if (Object.prototype.hasOwnProperty.call(member, 'cashBalance')) {
@@ -763,10 +1529,20 @@ function normalizeTransactionStatus(status) {
   if (!status) {
     return 'success';
   }
+  if (typeof status === 'string') {
+    const normalized = status.trim().toLowerCase();
+    if (!normalized) {
+      return 'success';
+    }
+    if (normalized === 'completed') {
+      return 'success';
+    }
+    return normalized;
+  }
   if (status === 'completed') {
     return 'success';
   }
-  return status;
+  return String(status).toLowerCase();
 }
 
 async function syncMemberLevel(openid) {
@@ -793,6 +1569,8 @@ async function syncMemberLevel(openid) {
     });
   await grantLevelRewards(openid, targetLevel);
 }
+
+exports.syncMemberLevel = syncMemberLevel;
 
 function resolveLevelByExperience(exp, levels) {
   let target = levels[0];
