@@ -96,12 +96,36 @@ function decorateTransaction(txn) {
   }
 
   const amount = toNumeric(txn.amount, 0);
-  const amountClass = amount > 0 ? 'income' : amount < 0 ? 'expense' : '';
+  const status = typeof txn.status === 'string' ? txn.status.trim() : '';
+  const normalizedStatus = status ? status.toLowerCase() : '';
+  let amountClass = amount > 0 ? 'income' : amount < 0 ? 'expense' : '';
+  let amountText = formatTransactionAmount(amount);
+
+  if (normalizedStatus && normalizedStatus !== 'success') {
+    amountClass = `status status-${normalizedStatus}`;
+    if (txn.type === 'recharge') {
+      if (normalizedStatus === 'pending' || normalizedStatus === 'processing') {
+        amountText = '待支付';
+      } else {
+        amountText = '充值失败';
+      }
+    } else if (normalizedStatus === 'pending' || normalizedStatus === 'processing') {
+      amountText = '处理中';
+    } else if (normalizedStatus === 'cancelled') {
+      amountText = '已取消';
+    } else if (normalizedStatus === 'failed') {
+      amountText = '交易失败';
+    } else if (normalizedStatus === 'refunded') {
+      amountText = '已退款';
+    } else if (normalizedStatus === 'closed') {
+      amountText = '已关闭';
+    }
+  }
 
   return {
     ...txn,
     amount,
-    amountText: formatTransactionAmount(amount),
+    amountText,
     amountClass,
     createdAt: txn.createdAt,
     displayDate: formatDate(txn.createdAt)
@@ -301,11 +325,12 @@ Page({
         });
         return;
       }
+      const { transactionId } = result;
       wx.requestPayment({
         ...result.payment,
         success: async () => {
           try {
-            await WalletService.completeRecharge(result.transactionId);
+            await WalletService.completeRecharge(transactionId);
             wx.showToast({ title: '充值成功', icon: 'success' });
           } catch (error) {
             wx.showToast({ title: '充值状态更新失败', icon: 'none' });
@@ -313,8 +338,25 @@ Page({
             this.fetchSummary();
           }
         },
-        fail: () => {
-          wx.showToast({ title: '支付已取消', icon: 'none' });
+        fail: (error) => {
+          const errMsg = error && error.errMsg ? error.errMsg : '';
+          const isCancelled = errMsg.includes('cancel');
+          wx.showToast({ title: isCancelled ? '支付已取消' : '支付未完成', icon: 'none' });
+          (async () => {
+            if (!transactionId) {
+              this.fetchSummary({ showLoading: false });
+              return;
+            }
+            try {
+              await WalletService.failRecharge(transactionId, {
+                reason: isCancelled ? '用户取消支付' : errMsg || '支付未完成'
+              });
+            } catch (failureError) {
+              // ignore failRecharge errors in UI flow
+            } finally {
+              this.fetchSummary({ showLoading: false });
+            }
+          })();
         }
       });
     } catch (error) {

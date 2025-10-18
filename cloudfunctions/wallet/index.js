@@ -235,6 +235,13 @@ exports.main = async (event, context) => {
       return createRecharge(OPENID, event.amount);
     case 'completeRecharge':
       return completeRecharge(OPENID, event.transactionId);
+    case 'failRecharge':
+      return failRecharge(OPENID, event.transactionId, {
+        reason: event.reason,
+        code: event.code,
+        errMsg: event.errMsg,
+        message: event.message
+      });
     case 'balancePay':
       return payWithBalance(OPENID, event.orderId, event.amount);
     case 'loadChargeOrder':
@@ -508,6 +515,66 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     throw new Error('支付参数生成失败，请稍后重试');
   }
   return response.payment;
+}
+
+async function failRecharge(openid, transactionId, options = {}) {
+  if (!transactionId) {
+    throw new Error('充值记录不存在');
+  }
+
+  const normalizedReason = trimToString(options.reason || options.errMsg || options.message);
+  const normalizedCode = trimToString(options.code || options.errCode);
+  const now = new Date();
+
+  let outcome = { success: true, status: 'failed' };
+
+  await db.runTransaction(async (transaction) => {
+    const recordRef = transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).doc(transactionId);
+    const recordDoc = await recordRef.get().catch(() => null);
+    if (!recordDoc || !recordDoc.data) {
+      throw new Error('充值记录不存在');
+    }
+    const record = recordDoc.data;
+    if (record.memberId !== openid) {
+      throw new Error('无权操作该充值记录');
+    }
+    if (record.type !== 'recharge') {
+      throw new Error('记录类型错误');
+    }
+    const currentStatus = normalizeTransactionStatus(record.status);
+    if (currentStatus === 'success') {
+      outcome = { success: false, status: 'success' };
+      return;
+    }
+    if (currentStatus === 'failed') {
+      outcome = { success: true, status: 'failed' };
+      return;
+    }
+
+    const failureRemark = normalizedReason ? `充值失败：${normalizedReason}` : '充值失败';
+
+    const updates = {
+      status: 'failed',
+      updatedAt: now,
+      failedAt: now,
+      remark: failureRemark.length > 120 ? `${failureRemark.slice(0, 117)}...` : failureRemark
+    };
+
+    if (normalizedReason) {
+      updates.failReason = normalizedReason.slice(0, 200);
+    }
+    if (normalizedCode) {
+      updates.failCode = normalizedCode.slice(0, 120);
+    }
+
+    await recordRef.update({
+      data: updates
+    });
+
+    outcome = { success: true, status: 'failed' };
+  });
+
+  return outcome;
 }
 
 async function completeRecharge(openid, transactionId) {
@@ -862,10 +929,20 @@ function normalizeTransactionStatus(status) {
   if (!status) {
     return 'success';
   }
+  if (typeof status === 'string') {
+    const normalized = status.trim().toLowerCase();
+    if (!normalized) {
+      return 'success';
+    }
+    if (normalized === 'completed') {
+      return 'success';
+    }
+    return normalized;
+  }
   if (status === 'completed') {
     return 'success';
   }
-  return status;
+  return String(status).toLowerCase();
 }
 
 async function syncMemberLevel(openid) {
