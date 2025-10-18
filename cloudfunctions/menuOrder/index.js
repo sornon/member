@@ -2,7 +2,8 @@ const cloud = require('wx-server-sdk');
 const {
   EXPERIENCE_PER_YUAN,
   COLLECTIONS,
-  DEFAULT_ADMIN_ROLES
+  DEFAULT_ADMIN_ROLES,
+  analyzeMemberLevelProgress
 } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -1136,31 +1137,40 @@ async function syncMemberLevel(openid) {
   const member = memberDoc.data;
   const levels = levelsSnapshot.data || [];
   if (!levels.length) return;
-  const targetLevel = resolveLevelByExperience(member.experience || 0, levels);
-  if (!targetLevel || targetLevel._id === member.levelId) {
-    return;
-  }
-  await db
-    .collection(COLLECTIONS.MEMBERS)
-    .doc(openid)
-    .update({
-      data: {
-        levelId: targetLevel._id,
-        updatedAt: new Date()
-      }
-    })
-    .catch(() => null);
-  await grantLevelRewards(openid, targetLevel);
-}
 
-function resolveLevelByExperience(exp, levels) {
-  let target = levels[0];
-  levels.forEach((level) => {
-    if (exp >= level.threshold) {
-      target = level;
-    }
-  });
-  return target;
+  const {
+    levelId: resolvedLevelId,
+    pendingBreakthroughLevelId,
+    levelsToGrant
+  } = analyzeMemberLevelProgress(member, levels);
+
+  const updates = {};
+  const normalizedPending = pendingBreakthroughLevelId || '';
+  const existingPending =
+    typeof member.pendingBreakthroughLevelId === 'string' ? member.pendingBreakthroughLevelId : '';
+
+  if (resolvedLevelId && resolvedLevelId !== member.levelId) {
+    updates.levelId = resolvedLevelId;
+  }
+
+  if (normalizedPending !== existingPending) {
+    updates.pendingBreakthroughLevelId = normalizedPending;
+  }
+
+  if (Object.keys(updates).length) {
+    updates.updatedAt = new Date();
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(openid)
+      .update({
+        data: updates
+      })
+      .catch(() => null);
+  }
+
+  for (const level of levelsToGrant) {
+    await grantLevelRewards(openid, level);
+  }
 }
 
 async function grantLevelRewards(openid, level) {

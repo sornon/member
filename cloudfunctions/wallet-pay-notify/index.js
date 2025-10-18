@@ -1,6 +1,6 @@
 const cloud = require('wx-server-sdk');
 const crypto = require('crypto');
-const { COLLECTIONS, EXPERIENCE_PER_YUAN } = require('common-config');
+const { COLLECTIONS, EXPERIENCE_PER_YUAN, analyzeMemberLevelProgress } = require('common-config');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -237,32 +237,38 @@ async function syncMemberLevel(memberId) {
     return;
   }
 
-  const targetLevel = resolveLevelByExperience(member.experience || 0, levels);
-  if (!targetLevel || targetLevel._id === member.levelId) {
-    return;
+  const {
+    levelId: resolvedLevelId,
+    pendingBreakthroughLevelId,
+    levelsToGrant
+  } = analyzeMemberLevelProgress(member, levels);
+
+  const updates = {};
+  const normalizedPending = pendingBreakthroughLevelId || '';
+  const existingPending =
+    typeof member.pendingBreakthroughLevelId === 'string' ? member.pendingBreakthroughLevelId : '';
+
+  if (resolvedLevelId && resolvedLevelId !== member.levelId) {
+    updates.levelId = resolvedLevelId;
   }
 
-  await db
-    .collection(COLLECTIONS.MEMBERS)
-    .doc(memberId)
-    .update({
-      data: {
-        levelId: targetLevel._id,
-        updatedAt: new Date()
-      }
-    });
+  if (normalizedPending !== existingPending) {
+    updates.pendingBreakthroughLevelId = normalizedPending;
+  }
 
-  await grantLevelRewards(memberId, targetLevel);
-}
+  if (Object.keys(updates).length) {
+    updates.updatedAt = new Date();
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(memberId)
+      .update({
+        data: updates
+      });
+  }
 
-function resolveLevelByExperience(exp, levels) {
-  let target = levels[0];
-  levels.forEach((level) => {
-    if (exp >= level.threshold) {
-      target = level;
-    }
-  });
-  return target;
+  for (const level of levelsToGrant) {
+    await grantLevelRewards(memberId, level);
+  }
 }
 
 async function grantLevelRewards(memberId, level) {
