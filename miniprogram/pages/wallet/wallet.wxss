@@ -136,6 +136,22 @@
 .txn-amount.expense {
   color: #ff8484;
 }
+.txn-amount.status {
+  font-weight: 500;
+  color: rgba(198, 206, 240, 0.85);
+}
+.txn-amount.status.status-pending,
+.txn-amount.status.status-processing {
+  color: rgba(210, 220, 255, 0.9);
+}
+.txn-amount.status.status-failed,
+.txn-amount.status.status-cancelled,
+.txn-amount.status.status-closed {
+  color: rgba(182, 190, 222, 0.72);
+}
+.txn-amount.status.status-refunded {
+  color: rgba(176, 220, 255, 0.85);
+}
 
 .recharge-disabled {
   padding: 36rpx 24rpx;
