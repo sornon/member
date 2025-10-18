@@ -107,7 +107,31 @@ function trimToString(value) {
 }
 
 function isPemFormatted(value) {
-  return typeof value === 'string' && /-----BEGIN [^-]+-----/.test(value);
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const hasBegin = /-----BEGIN [^-]+-----/.test(value);
+  const hasEnd = /-----END [^-]+-----/.test(value);
+  return hasBegin && hasEnd;
+}
+
+function stripWrappingQuotes(value) {
+  if (typeof value !== 'string') {
+    return value;
+  }
+  let result = value.trim();
+  let changed = false;
+  do {
+    changed = false;
+    if (
+      (result.startsWith('"') && result.endsWith('"')) ||
+      (result.startsWith("'") && result.endsWith("'"))
+    ) {
+      result = result.slice(1, -1).trim();
+      changed = true;
+    }
+  } while (changed && result.length > 0);
+  return result;
 }
 
 function tryDecodeBase64(value) {
@@ -140,21 +164,34 @@ function normalizePem(pem) {
       return '';
     }
   }
-  const trimmed = pem.trim();
+
+  const trimmed = stripWrappingQuotes(pem);
   if (!trimmed) {
     return '';
   }
-  const normalized = trimmed.replace(/\r\n/g, '\n').replace(/\\n/g, '\n');
+
+  const normalized = trimmed
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\n/g, '\n');
+
   if (isPemFormatted(normalized)) {
     return normalized;
   }
-  const decoded = tryDecodeBase64(normalized).trim();
+
+  const decoded = stripWrappingQuotes(tryDecodeBase64(normalized)).trim();
   if (decoded) {
-    const decodedNormalized = decoded.replace(/\r\n/g, '\n').replace(/\\n/g, '\n');
+    const decodedNormalized = decoded
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\\r\\n/g, '\n')
+      .replace(/\\n/g, '\n');
     if (isPemFormatted(decodedNormalized)) {
       return decodedNormalized;
     }
   }
+
   return normalized;
 }
 
@@ -368,7 +405,7 @@ function hasApiV3Credentials() {
 
 function signWechatPayMessage(message) {
   if (!isPemFormatted(WECHAT_PAYMENT_SECURITY.privateKey)) {
-    throw new Error('微信支付商户私钥格式无效');
+    throw new Error('微信支付商户私钥格式无效，请检查环境变量 WECHAT_PAY_PRIVATE_KEY 是否包含完整的 PEM 内容');
   }
   try {
     const signer = crypto.createSign('RSA-SHA256');
@@ -377,7 +414,7 @@ function signWechatPayMessage(message) {
     return signer.sign(WECHAT_PAYMENT_SECURITY.privateKey, 'base64');
   } catch (error) {
     console.error('[wallet] signWechatPayMessage failed', error);
-    throw new Error('微信支付商户私钥格式无效');
+    throw new Error('微信支付商户私钥格式无效，请检查环境变量 WECHAT_PAY_PRIVATE_KEY 是否包含完整的 PEM 内容');
   }
 }
 

@@ -53,8 +53,8 @@
      | --- | --- | --- |
      | `WECHAT_PAY_API_V3_KEY` | APIv3 密钥 | 32 位纯文本 |
      | `WECHAT_PAY_SERIAL_NO` | 商户证书序列号 | 16 进制字符串（不含冒号） |
-     | `WECHAT_PAY_PRIVATE_KEY` | 商户私钥内容 | 将 `apiclient_key.pem` 全量粘贴，可保留换行；若复制的是 `\n` 转义形式，程序会自动还原 |
-     | `WECHAT_PAY_PLATFORM_CERT` | 微信支付平台证书内容 | 同样完整粘贴 PEM 内容 |
+    | `WECHAT_PAY_PRIVATE_KEY` | 商户私钥内容 | 将 `apiclient_key.pem` 全量粘贴，可保留换行；若复制的是 `\n` 转义形式程序会自动还原，勿额外包裹引号 |
+    | `WECHAT_PAY_PLATFORM_CERT` | 微信支付平台证书内容 | 同样完整粘贴 PEM 内容，支持 Base64 或带 `\n` 转义的格式 |
      | `WECHAT_PAY_API_KEY`（可选） | APIv2 密钥 | 若需兼容 v2 接口则填写 |
 
    - 若运行在服务商模式，还需设置：`WECHAT_PAY_SERVICE_PROVIDER_MODE=true`、`WECHAT_PAY_SUB_MCHID=<子商户号>`、`WECHAT_PAY_SP_APPID=<服务商/特约小程序 AppID>`。
@@ -64,7 +64,7 @@
 5. **验证配置是否生效**：
    - 在云函数日志中搜索 `wallet` 首次启动日志，确认已读取到商户号、证书序列号等信息（日志会隐藏敏感字段，只保留长度与末尾片段）。
    - 发起 0.01 元真机测试，确认返回的 `package` 含有 `prepay_id=` 前缀且支付通知能正常解密。
-   - 若出于安全需要将证书以 Base64 形式存放，只要内容可还原为标准 `-----BEGIN …-----` 包裹的 PEM，程序会自动解码。
+   - 若出于安全需要将证书以 Base64 形式存放，只要内容可还原为标准 `-----BEGIN …-----` 包裹的 PEM，程序会自动解码；若通过控制台粘贴时自动添加了英文引号，部署前请移除引号避免签名失败。
    - 通过集合 `walletTransactions` 或调用 `wallet` 云函数返回值，核对 `paymentParams.apiVersion` 与 `paymentParams.mode`：`v3` 代表使用 APIv3，`v2` 代表走云函数内置的 `cloudPay.unifiedOrder`；`service-provider` 表示服务商模式，`direct` 表示直连模式。
 
 > **安全提示**：证书私钥与密钥均属于敏感信息，仅应通过环境变量或云开发密钥管理功能保存，避免写入代码仓库。证书轮换后记得同步更新 `WECHAT_PAY_SERIAL_NO` 和 `WECHAT_PAY_PRIVATE_KEY`。
