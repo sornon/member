@@ -510,7 +510,12 @@ async function createRecharge(openid, amount) {
       timeStamp: toNonEmptyString(payment.timeStamp, payment.timestamp, payment.time),
       nonceStr: toNonEmptyString(payment.nonceStr, payment.nonce, payment.nonce_str),
       package: ensurePrepayPackage(
-        toNonEmptyString(payment.package, payment.packageValue, payment.prepayId)
+        toNonEmptyString(
+          payment.package,
+          payment.packageValue,
+          payment.prepayId,
+          payment.prepay_id
+        )
       ),
       signType: toNonEmptyString(payment.signType, payment.sign_type) || 'RSA',
       paySign: toNonEmptyString(payment.paySign, payment.pay_sign, payment.sign, payment.signature)
@@ -521,6 +526,14 @@ async function createRecharge(openid, amount) {
     }
     sanitizedPayment.totalFee = normalizedAmount;
     sanitizedPayment.currency = 'CNY';
+    const prepayId = extractPrepayId(sanitizedPayment.package);
+    if (!prepayId) {
+      console.error('[wallet] sanitized payment missing prepayId', payment);
+      throw new Error('支付参数生成失败，请稍后重试');
+    }
+
+    sanitizedPayment.prepayId = prepayId;
+
     if (
       !sanitizedPayment.timeStamp ||
       !sanitizedPayment.nonceStr ||
@@ -537,7 +550,7 @@ async function createRecharge(openid, amount) {
       .update({
         data: {
           paymentParams: sanitizedPayment,
-          prepayId: extractPrepayId(sanitizedPayment.package),
+          prepayId,
           updatedAt: new Date()
         }
       })
@@ -595,10 +608,9 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     tradeType: 'JSAPI',
     spbillCreateIp: WECHAT_PAYMENT_CONFIG.clientIp || '127.0.0.1',
     attach: JSON.stringify({ scene: 'wallet_recharge', transactionId }),
-    mchId: WECHAT_PAYMENT_CONFIG.merchantId,
     subMchId: WECHAT_PAYMENT_CONFIG.merchantId,
-    appid: WECHAT_PAYMENT_CONFIG.appId,
-    openid,
+    subAppId: WECHAT_PAYMENT_CONFIG.appId,
+    subOpenId: openid,
     feeType: 'CNY',
     nonceStr
   };
@@ -695,6 +707,14 @@ async function createUnifiedOrder(transactionId, amount, openid) {
 
   normalizedPayment.totalFee = normalizedAmount;
   normalizedPayment.currency = 'CNY';
+
+  const prepayId = extractPrepayId(normalizedPayment.package);
+  if (!prepayId) {
+    console.error('[wallet] unifiedOrder empty prepayId', paymentPayload, response);
+    throw new Error('微信返回空的预支付单号，请核对金额和商户配置');
+  }
+
+  normalizedPayment.prepayId = prepayId;
 
   if (!normalizedPayment.timeStamp || !normalizedPayment.nonceStr || !normalizedPayment.package || !normalizedPayment.paySign) {
     console.error('[wallet] unifiedOrder missing fields', paymentPayload, response);
