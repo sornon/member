@@ -1249,6 +1249,9 @@ async function updateMember(openid, memberId, updates, options = {}) {
   }
   const now = new Date();
   const tasks = [];
+  const shouldSyncLevel =
+    Object.prototype.hasOwnProperty.call(memberUpdates, 'experience') ||
+    Object.prototype.hasOwnProperty.call(memberUpdates, 'levelId');
   if (Object.keys(memberUpdates).length) {
     tasks.push(
       db
@@ -1267,6 +1270,9 @@ async function updateMember(openid, memberId, updates, options = {}) {
   }
   if (tasks.length) {
     await Promise.all(tasks);
+  }
+  if (shouldSyncLevel) {
+    await syncMemberLevel(memberId);
   }
   return fetchMemberDetail(memberId, openid, options);
 }
@@ -2413,6 +2419,12 @@ async function syncMemberLevel(memberId) {
 
   for (const level of levelsToGrant) {
     await grantLevelRewards(memberId, level);
+  }
+
+  try {
+    await callPveFunction('profile', { actorId: memberId });
+  } catch (error) {
+    console.error('[admin] sync member level failed to refresh attributes', memberId, error);
   }
 }
 
