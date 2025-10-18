@@ -26,6 +26,7 @@ const WECHAT_PAYMENT_CONFIG = {
   merchantId: process.env.WECHAT_PAY_MCHID || '1730096968',
   description: process.env.WECHAT_PAY_BODY || '会员钱包余额充值',
   callbackFunction: process.env.WECHAT_PAY_NOTIFY_FUNCTION || 'wallet-pay-notify',
+  notifyUrl: process.env.WECHAT_PAY_NOTIFY_URL || '',
   clientIp: process.env.WECHAT_PAY_SPBILL_IP || '127.0.0.1'
 };
 
@@ -207,10 +208,6 @@ function resolveCurrentEnvId() {
     // ignore
   }
   return process.env.WX_ENV || process.env.TCB_ENV || process.env.SCF_NAMESPACE || '';
-}
-
-function createNonceStr() {
-  return Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
 }
 
 function extractPrepayId(packageField = '') {
@@ -451,6 +448,7 @@ async function createRecharge(openid, amount) {
       sanitizedPayment.appId = payment.appId;
     }
     sanitizedPayment.totalFee = normalizedAmount;
+    sanitizedPayment.currency = 'CNY';
     if (!sanitizedPayment.timeStamp || !sanitizedPayment.nonceStr || !sanitizedPayment.package || !sanitizedPayment.paySign) {
       console.error('[wallet] unifiedOrder missing fields', payment);
       throw new Error('支付参数生成失败，请稍后重试');
@@ -486,7 +484,11 @@ async function createRecharge(openid, amount) {
 }
 
 async function createUnifiedOrder(transactionId, amount, openid) {
-  if (!cloud.cloudPay || typeof cloud.cloudPay.unifiedOrder !== 'function') {
+  const createJsapiTransaction =
+    cloud.cloudPay && cloud.cloudPay.v3 && cloud.cloudPay.v3.pay && cloud.cloudPay.v3.pay.transactions
+      ? cloud.cloudPay.v3.pay.transactions.jsapi
+      : null;
+  if (typeof createJsapiTransaction !== 'function') {
     throw new Error('当前环境未开启云支付能力，请联系管理员配置支付参数');
   }
   if (!WECHAT_PAYMENT_CONFIG.merchantId) {
@@ -501,32 +503,42 @@ async function createUnifiedOrder(transactionId, amount, openid) {
   }
 
   const requestPayload = {
-    body: WECHAT_PAYMENT_CONFIG.description,
-    outTradeNo: transactionId,
-    spbillCreateIp: WECHAT_PAYMENT_CONFIG.clientIp,
-    tradeType: 'JSAPI',
-    openid,
-    nonceStr: createNonceStr(),
+    appId: WECHAT_PAYMENT_CONFIG.appId,
     mchId: WECHAT_PAYMENT_CONFIG.merchantId,
-    subMchId: WECHAT_PAYMENT_CONFIG.merchantId,
+    description: WECHAT_PAYMENT_CONFIG.description,
+    outTradeNo: transactionId,
     attach: JSON.stringify({ scene: 'wallet_recharge', transactionId }),
-    totalFee: normalizedAmount
+    amount: {
+      total: normalizedAmount,
+      currency: 'CNY'
+    },
+    payer: {
+      openid
+    }
   };
-  requestPayload.total_fee = normalizedAmount;
 
   const envId = resolveCurrentEnvId();
   if (envId) {
     requestPayload.envId = envId;
   }
-  if (WECHAT_PAYMENT_CONFIG.appId) {
-    requestPayload.subAppId = WECHAT_PAYMENT_CONFIG.appId;
-  }
   if (WECHAT_PAYMENT_CONFIG.callbackFunction) {
     requestPayload.functionName = WECHAT_PAYMENT_CONFIG.callbackFunction;
   }
+  if (WECHAT_PAYMENT_CONFIG.notifyUrl) {
+    requestPayload.notifyUrl = WECHAT_PAYMENT_CONFIG.notifyUrl;
+  } else if (envId && WECHAT_PAYMENT_CONFIG.callbackFunction) {
+    requestPayload.notifyUrl = `https://${envId}.servicewechat.com/${WECHAT_PAYMENT_CONFIG.callbackFunction}`;
+  }
 
-  const response = await cloud.cloudPay.unifiedOrder(requestPayload);
-  if (!response || !response.payment) {
+  const response = await createJsapiTransaction(requestPayload);
+  if (!response) {
+    throw new Error('支付参数生成失败，请稍后重试');
+  }
+  if (typeof response.errCode !== 'undefined' && response.errCode !== 0) {
+    const errMsg = response.errMsg || response.message || response.errmsg || '创建支付订单失败';
+    throw new Error(errMsg);
+  }
+  if (!response.payment) {
     throw new Error('支付参数生成失败，请稍后重试');
   }
   return response.payment;
