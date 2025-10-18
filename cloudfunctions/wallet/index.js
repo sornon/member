@@ -244,6 +244,30 @@ function ensurePrepayPackage(packageValue) {
   return `prepay_id=${trimmed}`;
 }
 
+function toNonEmptyString(...candidates) {
+  for (const candidate of candidates) {
+    if (candidate == null) {
+      continue;
+    }
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+      continue;
+    }
+    try {
+      const value = `${candidate}`.trim();
+      if (value) {
+        return value;
+      }
+    } catch (error) {
+      // ignore conversion error and move to next candidate
+    }
+  }
+  return '';
+}
+
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext();
   const action = event.action || 'summary';
@@ -461,14 +485,17 @@ async function createRecharge(openid, amount) {
   try {
     const payment = await createUnifiedOrder(record._id, normalizedAmount, openid);
     const sanitizedPayment = {
-      timeStamp: payment.timeStamp || payment.timestamp || '',
-      nonceStr: payment.nonceStr || payment.nonce || '',
-      package: ensurePrepayPackage(payment.package || payment.packageValue || payment.prepayId || ''),
-      signType: payment.signType || payment.sign_type || 'RSA',
-      paySign: payment.paySign || payment.pay_sign || ''
+      timeStamp: toNonEmptyString(payment.timeStamp, payment.timestamp, payment.time),
+      nonceStr: toNonEmptyString(payment.nonceStr, payment.nonce, payment.nonce_str),
+      package: ensurePrepayPackage(
+        toNonEmptyString(payment.package, payment.packageValue, payment.prepayId)
+      ),
+      signType: toNonEmptyString(payment.signType, payment.sign_type) || 'RSA',
+      paySign: toNonEmptyString(payment.paySign, payment.pay_sign, payment.sign, payment.signature)
     };
-    if (payment.appId) {
-      sanitizedPayment.appId = payment.appId;
+    const appId = toNonEmptyString(payment.appId, payment.appid, payment.appID);
+    if (appId) {
+      sanitizedPayment.appId = appId;
     }
     sanitizedPayment.totalFee = normalizedAmount;
     sanitizedPayment.currency = 'CNY';
@@ -542,11 +569,13 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     body: WECHAT_PAYMENT_CONFIG.description,
     outTradeNo: transactionId,
     totalFee: normalizedAmount,
+    total_fee: normalizedAmount,
     tradeType: 'JSAPI',
     spbillCreateIp: WECHAT_PAYMENT_CONFIG.clientIp || '127.0.0.1',
     attach: JSON.stringify({ scene: 'wallet_recharge', transactionId }),
     mchId: WECHAT_PAYMENT_CONFIG.merchantId,
     mchid: WECHAT_PAYMENT_CONFIG.merchantId,
+    subMchId: WECHAT_PAYMENT_CONFIG.merchantId,
     appId: WECHAT_PAYMENT_CONFIG.appId,
     appid: WECHAT_PAYMENT_CONFIG.appId,
     openId: openid,
@@ -581,24 +610,49 @@ async function createUnifiedOrder(transactionId, amount, openid) {
   }
 
   const normalizedPayment = {
-    timeStamp: paymentPayload.timeStamp || paymentPayload.timestamp || '',
-    nonceStr: paymentPayload.nonceStr || paymentPayload.nonce || '',
-    package: ensurePrepayPackage(
-      paymentPayload.package || paymentPayload.packageValue || paymentPayload.prepayId || ''
+    timeStamp: toNonEmptyString(
+      paymentPayload.timeStamp,
+      paymentPayload.timestamp,
+      paymentPayload.time,
+      paymentPayload.ts
     ),
-    signType: paymentPayload.signType || paymentPayload.sign_type || 'RSA',
-    paySign: paymentPayload.paySign || paymentPayload.pay_sign || ''
+    nonceStr: toNonEmptyString(
+      paymentPayload.nonceStr,
+      paymentPayload.nonce,
+      paymentPayload.nonce_str,
+      paymentPayload.nonceString
+    ),
+    package: ensurePrepayPackage(
+      toNonEmptyString(
+        paymentPayload.package,
+        paymentPayload.packageValue,
+        paymentPayload.prepayId,
+        paymentPayload.prepay_id
+      )
+    ),
+    signType: toNonEmptyString(paymentPayload.signType, paymentPayload.sign_type) || 'RSA',
+    paySign: toNonEmptyString(
+      paymentPayload.paySign,
+      paymentPayload.pay_sign,
+      paymentPayload.sign,
+      paymentPayload.signature
+    )
   };
 
-  if (paymentPayload.appId) {
-    normalizedPayment.appId = paymentPayload.appId;
+  const paymentAppId = toNonEmptyString(
+    paymentPayload.appId,
+    paymentPayload.appid,
+    paymentPayload.appID
+  );
+  if (paymentAppId) {
+    normalizedPayment.appId = paymentAppId;
   }
 
   normalizedPayment.totalFee = normalizedAmount;
   normalizedPayment.currency = 'CNY';
 
   if (!normalizedPayment.timeStamp || !normalizedPayment.nonceStr || !normalizedPayment.package || !normalizedPayment.paySign) {
-    console.error('[wallet] unifiedOrder missing fields', paymentPayload);
+    console.error('[wallet] unifiedOrder missing fields', paymentPayload, response);
     throw new Error('支付参数生成失败，请稍后重试');
   }
 
