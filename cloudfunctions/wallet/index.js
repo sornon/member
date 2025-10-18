@@ -632,6 +632,12 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     requestPayload.mchId = WECHAT_PAYMENT_CONFIG.merchantId;
     requestPayload.appId = WECHAT_PAYMENT_CONFIG.appId;
     requestPayload.openid = openid;
+    const directSubMerchantId =
+      WECHAT_PAYMENT_CONFIG.subMerchantId || WECHAT_PAYMENT_CONFIG.merchantId;
+    if (!directSubMerchantId) {
+      throw new Error('未配置有效的微信支付商户号');
+    }
+    requestPayload.subMchId = directSubMerchantId;
   }
 
   if (envId) {
