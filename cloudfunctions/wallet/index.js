@@ -1,4 +1,5 @@
 const cloud = require('wx-server-sdk');
+const crypto = require('crypto');
 const {
   EXPERIENCE_PER_YUAN,
   COLLECTIONS,
@@ -242,6 +243,27 @@ function ensurePrepayPackage(packageValue) {
     return trimmed.replace(/^prepay_id/, 'prepay_id=');
   }
   return `prepay_id=${trimmed}`;
+}
+
+function generateNonceStr(length = 32) {
+  if (!Number.isFinite(length) || length <= 0) {
+    return '';
+  }
+  const characters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const maxIndex = characters.length;
+  let nonce = '';
+  try {
+    const bytes = crypto.randomBytes(length);
+    for (let i = 0; i < length; i += 1) {
+      nonce += characters[bytes[i] % maxIndex];
+    }
+  } catch (error) {
+    for (let i = 0; i < length; i += 1) {
+      const random = Math.floor(Math.random() * maxIndex);
+      nonce += characters[random];
+    }
+  }
+  return nonce;
 }
 
 function toNonEmptyString(...candidates) {
@@ -565,21 +587,20 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     notifyUrl = `https://${envId}.servicewechat.com/${WECHAT_PAYMENT_CONFIG.callbackFunction}`;
   }
 
+  const nonceStr = generateNonceStr(32);
   const requestPayload = {
     body: WECHAT_PAYMENT_CONFIG.description,
     outTradeNo: transactionId,
     totalFee: normalizedAmount,
-    total_fee: normalizedAmount,
     tradeType: 'JSAPI',
     spbillCreateIp: WECHAT_PAYMENT_CONFIG.clientIp || '127.0.0.1',
     attach: JSON.stringify({ scene: 'wallet_recharge', transactionId }),
     mchId: WECHAT_PAYMENT_CONFIG.merchantId,
-    mchid: WECHAT_PAYMENT_CONFIG.merchantId,
     subMchId: WECHAT_PAYMENT_CONFIG.merchantId,
-    appId: WECHAT_PAYMENT_CONFIG.appId,
     appid: WECHAT_PAYMENT_CONFIG.appId,
-    openId: openid,
-    openid: openid
+    openid,
+    feeType: 'CNY',
+    nonceStr
   };
 
   if (envId) {
@@ -607,6 +628,30 @@ async function createUnifiedOrder(transactionId, amount, openid) {
   if (!paymentPayload) {
     console.error('[wallet] unifiedOrder unexpected response', response);
     throw new Error('支付参数生成失败，请稍后重试');
+  }
+
+  const returnCode = toNonEmptyString(paymentPayload.returnCode, paymentPayload.return_code);
+  if (returnCode && returnCode !== 'SUCCESS') {
+    const message =
+      paymentPayload.returnMsg ||
+      paymentPayload.return_msg ||
+      paymentPayload.errCodeDes ||
+      paymentPayload.err_code_des ||
+      paymentPayload.errMsg ||
+      paymentPayload.err_msg ||
+      '创建支付订单失败';
+    throw new Error(message);
+  }
+
+  const resultCode = toNonEmptyString(paymentPayload.resultCode, paymentPayload.result_code);
+  if (resultCode && resultCode !== 'SUCCESS') {
+    const message =
+      paymentPayload.errCodeDes ||
+      paymentPayload.err_code_des ||
+      paymentPayload.errMsg ||
+      paymentPayload.err_msg ||
+      '创建支付订单失败';
+    throw new Error(message);
   }
 
   const normalizedPayment = {
