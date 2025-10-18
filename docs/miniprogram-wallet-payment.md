@@ -36,6 +36,37 @@
   - 下载并安装 **商户 API 证书**（包括 `apiclient_cert.pem`、`apiclient_key.pem`），用于敏感信息加解密。
   - 如仍使用 APIv2，需要设置 APIv2 密钥并注意升级计划。
 
+#### APIv3 证书与密钥在云函数中的部署步骤
+1. **准备材料**：在本地保管好以下文件与信息：
+   - APIv3 密钥（32 字符）；
+   - 商户私钥 `apiclient_key.pem`；
+   - 商户证书序列号（可在证书详情中查看或使用 `openssl x509 -noout -serial` 提取）；
+   - 微信支付平台证书 `platform_cert.pem`（可通过平台证书下载工具获取，用于通知验签）。
+
+2. **登录云开发控制台**：访问 [微信云开发控制台](https://tcb.cloud.tencent.com)，切换到与小程序绑定的环境 `cloud1-8gyoxq651fcc92c2`。
+
+3. **设置环境变量**：
+   - 进入「云函数」> 选择 `wallet` 与 `wallet-pay-notify` 两个函数 > 「环境变量」。
+   - 分别新增或更新以下键值对（所有键名区分大小写）：
+
+     | 变量名 | 含义 | 建议值/格式 |
+     | --- | --- | --- |
+     | `WECHAT_PAY_API_V3_KEY` | APIv3 密钥 | 32 位纯文本 |
+     | `WECHAT_PAY_SERIAL_NO` | 商户证书序列号 | 16 进制字符串（不含冒号） |
+     | `WECHAT_PAY_PRIVATE_KEY` | 商户私钥内容 | 将 `apiclient_key.pem` 全量粘贴，可保留换行；若复制的是 `\n` 转义形式，程序会自动还原 |
+     | `WECHAT_PAY_PLATFORM_CERT` | 微信支付平台证书内容 | 同样完整粘贴 PEM 内容 |
+     | `WECHAT_PAY_API_KEY`（可选） | APIv2 密钥 | 若需兼容 v2 接口则填写 |
+
+   - 若运行在服务商模式，还需设置：`WECHAT_PAY_SERVICE_PROVIDER_MODE=true`、`WECHAT_PAY_SUB_MCHID=<子商户号>`、`WECHAT_PAY_SP_APPID=<服务商/特约小程序 AppID>`。
+
+4. **上传并部署代码**：在开发者工具或 VSCode 插件中右键 `wallet`、`wallet-pay-notify` 目录选择「上传并部署：云端运行」；或在控制台点击「立即部署」。
+
+5. **验证配置是否生效**：
+   - 在云函数日志中搜索 `wallet` 首次启动日志，确认已读取到商户号、证书序列号等信息（日志会隐藏敏感字段，只保留长度与末尾片段）。
+   - 发起 0.01 元真机测试，确认返回的 `package` 含有 `prepay_id=` 前缀且支付通知能正常解密。
+
+> **安全提示**：证书私钥与密钥均属于敏感信息，仅应通过环境变量或云开发密钥管理功能保存，避免写入代码仓库。证书轮换后记得同步更新 `WECHAT_PAY_SERIAL_NO` 和 `WECHAT_PAY_PRIVATE_KEY`。
+
 ### 3. 分账、退款等附加能力
 - 如需开通分账、退款、支付后开票等能力，需在「产品中心」中逐项申请并完成协议签署。
 
