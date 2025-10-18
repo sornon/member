@@ -2818,8 +2818,8 @@ async function cleanupMemberData(memberId) {
   const summary = { removed: {}, errors: [] };
 
   await removeCollectionByMemberId(COLLECTIONS.MEMBER_TIMELINE, memberId, summary);
-  await removeDocumentById(COLLECTIONS.MEMBER_EXTRAS, memberId, summary);
-  await removeDocumentById(COLLECTIONS.MEMBER_PVE_HISTORY, memberId, summary);
+  await removeMemberExtrasDocument(memberId, summary);
+  await removeMemberPveHistoryDocument(memberId, summary);
 
   const reservationsRemoved = await removeCollectionByMemberId(COLLECTIONS.RESERVATIONS, memberId, summary);
   await removeCollectionByMemberId(COLLECTIONS.MEMBER_RIGHTS, memberId, summary);
@@ -2854,6 +2854,116 @@ async function cleanupMemberData(memberId) {
   }
 
   return summary;
+}
+
+function appendRemovalCount(summary, key, amount) {
+  const numericAmount = Number(amount);
+  if (!summary || !key || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+    return;
+  }
+  if (!summary.removed || typeof summary.removed !== 'object') {
+    summary.removed = {};
+  }
+  summary.removed[key] = (summary.removed[key] || 0) + numericAmount;
+}
+
+async function removeMemberExtrasDocument(memberId, summary) {
+  const targetId = normalizeMemberIdValue(memberId);
+  if (!targetId) {
+    return 0;
+  }
+
+  const collection = db.collection(COLLECTIONS.MEMBER_EXTRAS);
+  let extras = null;
+  try {
+    const snapshot = await collection.doc(targetId).get();
+    extras = snapshot && snapshot.data ? snapshot.data : null;
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      pushCleanupError(summary, COLLECTIONS.MEMBER_EXTRAS, error, targetId);
+    }
+  }
+
+  try {
+    await collection.doc(targetId).remove();
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      return 0;
+    }
+    pushCleanupError(summary, COLLECTIONS.MEMBER_EXTRAS, error, targetId);
+    return 0;
+  }
+
+  appendRemovalCount(summary, COLLECTIONS.MEMBER_EXTRAS, 1);
+
+  if (extras && typeof extras === 'object') {
+    const avatarUnlocks = Array.isArray(extras.avatarUnlocks)
+      ? extras.avatarUnlocks.filter((id) => typeof id === 'string' && id.trim()).length
+      : 0;
+    const titleUnlocks = Array.isArray(extras.titleUnlocks)
+      ? extras.titleUnlocks.filter((id) => typeof id === 'string' && id.trim()).length
+      : 0;
+    const backgroundUnlocks = Array.isArray(extras.backgroundUnlocks)
+      ? extras.backgroundUnlocks.filter((id) => typeof id === 'string' && id.trim()).length
+      : 0;
+    const claimedRewards = Array.isArray(extras.claimedLevelRewards)
+      ? extras.claimedLevelRewards.filter((id) => typeof id === 'string' && id.trim()).length
+      : 0;
+    const deliveredRewards = Array.isArray(extras.deliveredLevelRewards)
+      ? extras.deliveredLevelRewards.filter((id) => typeof id === 'string' && id.trim()).length
+      : 0;
+    const wineEntries = normalizeWineStorageEntries(extras.wineStorage);
+    const wineBottles = wineEntries.reduce((sum, entry) => sum + (Number(entry.quantity) || 0), 0);
+
+    appendRemovalCount(summary, 'memberExtrasAvatarUnlocks', avatarUnlocks);
+    appendRemovalCount(summary, 'memberExtrasTitleUnlocks', titleUnlocks);
+    appendRemovalCount(summary, 'memberExtrasBackgroundUnlocks', backgroundUnlocks);
+    appendRemovalCount(summary, 'memberExtrasClaimedLevelRewards', claimedRewards);
+    appendRemovalCount(summary, 'memberExtrasDeliveredLevelRewards', deliveredRewards);
+    appendRemovalCount(summary, 'memberExtrasWineEntries', wineEntries.length);
+    appendRemovalCount(summary, 'memberExtrasWineBottleCount', wineBottles);
+  }
+
+  return 1;
+}
+
+async function removeMemberPveHistoryDocument(memberId, summary) {
+  const targetId = normalizeMemberIdValue(memberId);
+  if (!targetId) {
+    return 0;
+  }
+
+  const collection = db.collection(COLLECTIONS.MEMBER_PVE_HISTORY);
+  let history = null;
+  try {
+    const snapshot = await collection.doc(targetId).get();
+    history = snapshot && snapshot.data ? snapshot.data : null;
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      pushCleanupError(summary, COLLECTIONS.MEMBER_PVE_HISTORY, error, targetId);
+    }
+  }
+
+  try {
+    await collection.doc(targetId).remove();
+  } catch (error) {
+    if (isNotFoundError(error)) {
+      return 0;
+    }
+    pushCleanupError(summary, COLLECTIONS.MEMBER_PVE_HISTORY, error, targetId);
+    return 0;
+  }
+
+  appendRemovalCount(summary, COLLECTIONS.MEMBER_PVE_HISTORY, 1);
+
+  if (history && typeof history === 'object') {
+    const battleCount = Array.isArray(history.battleHistory) ? history.battleHistory.length : 0;
+    const skillCount = Array.isArray(history.skillHistory) ? history.skillHistory.length : 0;
+    appendRemovalCount(summary, 'memberPveBattleHistoryEntries', battleCount);
+    appendRemovalCount(summary, 'memberPveSkillHistoryEntries', skillCount);
+  }
+
+  return 1;
 }
 
 async function listAllMemberIds() {
@@ -2954,20 +3064,20 @@ async function cleanupCollectionOrphans(collectionName, memberIdPaths, memberIds
       continue;
     }
 
-    const tasks = orphanDocs.map((doc) =>
-      collection
-        .doc(doc._id)
-        .remove()
-        .then(() => {
-          removed += 1;
-          summary.removed[collectionName] = (summary.removed[collectionName] || 0) + 1;
-        })
-        .catch((error) => {
-          if (!isNotFoundError(error)) {
-            pushCleanupError(summary, collectionName, error, doc._id);
-          }
-        })
-    );
+      const tasks = orphanDocs.map((doc) =>
+        collection
+          .doc(doc._id)
+          .remove()
+          .then(() => {
+            removed += 1;
+            appendRemovalCount(summary, collectionName, 1);
+          })
+          .catch((error) => {
+            if (!isNotFoundError(error)) {
+              pushCleanupError(summary, collectionName, error, doc._id);
+            }
+          })
+      );
 
     if (tasks.length) {
       await Promise.all(tasks);
@@ -3033,8 +3143,18 @@ async function cleanupCollectionDocuments(collectionName, summary, options = {})
     }
     lastId = docs[docs.length - 1]._id || lastId;
 
-    const tasks = docs.map((doc) =>
-      collection
+    const tasks = docs.map((doc) => {
+      if (collectionName === COLLECTIONS.MEMBER_EXTRAS) {
+        return removeMemberExtrasDocument(doc._id, summary).then((count) => {
+          removed += count;
+        });
+      }
+      if (collectionName === COLLECTIONS.MEMBER_PVE_HISTORY) {
+        return removeMemberPveHistoryDocument(doc._id, summary).then((count) => {
+          removed += count;
+        });
+      }
+      return collection
         .doc(doc._id)
         .remove()
         .then(() => {
@@ -3044,8 +3164,8 @@ async function cleanupCollectionDocuments(collectionName, summary, options = {})
           if (!isNotFoundError(error)) {
             pushCleanupError(summary, collectionName, error, doc._id);
           }
-        })
-    );
+        });
+    });
 
     if (tasks.length) {
       await Promise.all(tasks);
@@ -3056,12 +3176,7 @@ async function cleanupCollectionDocuments(collectionName, summary, options = {})
     }
   }
 
-  if (removed > 0) {
-    if (!summary.removed || typeof summary.removed !== 'object') {
-      summary.removed = {};
-    }
-    summary.removed[counterKey] = (summary.removed[counterKey] || 0) + removed;
-  }
+  appendRemovalCount(summary, counterKey, removed);
 
   return removed;
 }
@@ -3220,7 +3335,7 @@ async function cleanupPvpLeaderboardOrphans(memberIds, summary, options = {}) {
   }
 
   if (cleanedEntries > 0 && !previewOnly) {
-    summary.removed.pvpLeaderboardEntries = (summary.removed.pvpLeaderboardEntries || 0) + cleanedEntries;
+    appendRemovalCount(summary, 'pvpLeaderboardEntries', cleanedEntries);
   }
 
   return cleanedEntries;
@@ -3410,9 +3525,7 @@ async function removeCollectionByMemberId(collectionName, memberId, summary) {
     }
   }
 
-  if (removed > 0) {
-    summary.removed[collectionName] = (summary.removed[collectionName] || 0) + removed;
-  }
+  appendRemovalCount(summary, collectionName, removed);
   return removed;
 }
 
@@ -3469,9 +3582,7 @@ async function removeCollectionByMemberIdFields(collectionName, fields, memberId
     }
   }
 
-  if (removed > 0) {
-    summary.removed[collectionName] = (summary.removed[collectionName] || 0) + removed;
-  }
+  appendRemovalCount(summary, collectionName, removed);
   return removed;
 }
 
@@ -3535,8 +3646,7 @@ async function removeMemberFromPvpLeaderboard(memberId, summary) {
   }
 
   if (cleanedEntries > 0) {
-    summary.removed.pvpLeaderboardEntries =
-      (summary.removed.pvpLeaderboardEntries || 0) + cleanedEntries;
+    appendRemovalCount(summary, 'pvpLeaderboardEntries', cleanedEntries);
   }
   return cleanedEntries;
 }
@@ -3551,7 +3661,7 @@ async function removeDocumentById(collectionName, docId, summary) {
       .collection(collectionName)
       .doc(targetId)
       .remove();
-    summary.removed[collectionName] = (summary.removed[collectionName] || 0) + 1;
+    appendRemovalCount(summary, collectionName, 1);
     return 1;
   } catch (error) {
     if (isNotFoundError(error)) {
