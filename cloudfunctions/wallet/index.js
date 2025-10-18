@@ -496,7 +496,7 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     nonceStr: createNonceStr(),
     subMchId: WECHAT_PAYMENT_CONFIG.merchantId,
     attach: JSON.stringify({ scene: 'wallet_recharge', transactionId }),
-    total_fee: amount
+    totalFee: amount
   };
 
   const envId = resolveCurrentEnvId();
