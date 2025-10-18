@@ -1,4 +1,5 @@
 const cloud = require('wx-server-sdk');
+const https = require('https');
 const crypto = require('crypto');
 const {
   EXPERIENCE_PER_YUAN,
@@ -26,6 +27,7 @@ const WECHAT_PAYMENT_CONFIG = {
   appId: process.env.WECHAT_PAY_APPID || 'wxada3146653042265',
   merchantId: process.env.WECHAT_PAY_MCHID || '1730096968',
   subMerchantId: process.env.WECHAT_PAY_SUB_MCHID || '',
+  spAppId: process.env.WECHAT_PAY_SP_APPID || '',
   serviceProviderMode: resolveToggleBoolean(
     process.env.WECHAT_PAY_SERVICE_PROVIDER_MODE,
     false
@@ -34,6 +36,15 @@ const WECHAT_PAYMENT_CONFIG = {
   callbackFunction: process.env.WECHAT_PAY_NOTIFY_FUNCTION || 'wallet-pay-notify',
   notifyUrl: process.env.WECHAT_PAY_NOTIFY_URL || '',
   clientIp: process.env.WECHAT_PAY_SPBILL_IP || '127.0.0.1'
+};
+
+const WECHAT_PAYMENT_SECURITY = {
+  apiKey: trimToString(process.env.WECHAT_PAY_API_KEY || process.env.WECHAT_PAY_APIKEY || ''),
+  apiV3Key: trimToString(process.env.WECHAT_PAY_API_V3_KEY || ''),
+  merchantSerialNo: trimToString(process.env.WECHAT_PAY_SERIAL_NO || process.env.WECHAT_PAY_MCH_SERIAL || ''),
+  privateKey: normalizePem(process.env.WECHAT_PAY_PRIVATE_KEY || process.env.WECHAT_PAY_MCH_PRIVATE_KEY || ''),
+  platformCert: normalizePem(process.env.WECHAT_PAY_PLATFORM_CERT || ''),
+  userAgent: trimToString(process.env.WECHAT_PAY_USER_AGENT) || 'member-wallet-cloud/1.0'
 };
 
 function resolveToggleBoolean(value, defaultValue = true) {
@@ -93,6 +104,24 @@ function trimToString(value) {
   } catch (error) {
     return '';
   }
+}
+
+function normalizePem(pem) {
+  if (!pem) {
+    return '';
+  }
+  if (typeof pem !== 'string') {
+    try {
+      return normalizePem(String(pem));
+    } catch (error) {
+      return '';
+    }
+  }
+  const trimmed = pem.trim();
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed.replace(/\\n/g, '\n');
 }
 
 function normalizeImmortalTournament(config) {
@@ -293,6 +322,162 @@ function toNonEmptyString(...candidates) {
     }
   }
   return '';
+}
+
+function hasApiV3Credentials() {
+  return (
+    WECHAT_PAYMENT_CONFIG.merchantId &&
+    WECHAT_PAYMENT_SECURITY.privateKey &&
+    WECHAT_PAYMENT_SECURITY.merchantSerialNo
+  );
+}
+
+function signWechatPayMessage(message) {
+  if (!WECHAT_PAYMENT_SECURITY.privateKey) {
+    throw new Error('未配置微信支付商户私钥');
+  }
+  const signer = crypto.createSign('RSA-SHA256');
+  signer.update(message, 'utf8');
+  signer.end();
+  return signer.sign(WECHAT_PAYMENT_SECURITY.privateKey, 'base64');
+}
+
+function requestWechatPayApi(path, bodyObject) {
+  const method = 'POST';
+  const timestamp = Math.floor(Date.now() / 1000).toString();
+  const nonceStr = generateNonceStr(32);
+  const body = JSON.stringify(bodyObject);
+  const message = `${method}\n${path}\n${timestamp}\n${nonceStr}\n${body}\n`;
+  const signature = signWechatPayMessage(message);
+  const headers = {
+    'Content-Type': 'application/json; charset=utf-8',
+    Accept: 'application/json',
+    'User-Agent': WECHAT_PAYMENT_SECURITY.userAgent,
+    'Content-Length': Buffer.byteLength(body)
+  };
+  headers.Authorization =
+    'WECHATPAY2-SHA256-RSA2048 ' +
+    `mchid="${WECHAT_PAYMENT_CONFIG.merchantId}",` +
+    `nonce_str="${nonceStr}",` +
+    `signature="${signature}",` +
+    `timestamp="${timestamp}",` +
+    `serial_no="${WECHAT_PAYMENT_SECURITY.merchantSerialNo}"`;
+
+  const options = {
+    hostname: 'api.mch.weixin.qq.com',
+    port: 443,
+    path,
+    method,
+    headers
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        const raw = Buffer.concat(chunks).toString('utf8');
+        let parsed = null;
+        if (raw) {
+          try {
+            parsed = JSON.parse(raw);
+          } catch (error) {
+            return reject(new Error(`微信支付响应解析失败: ${raw}`));
+          }
+        }
+        if (res.statusCode >= 400) {
+          const errorMessage =
+            (parsed && (parsed.message || parsed.detail || parsed.errMsg)) ||
+            `微信支付接口返回错误，状态码 ${res.statusCode}`;
+          const err = new Error(errorMessage);
+          err.statusCode = res.statusCode;
+          err.response = parsed || raw;
+          return reject(err);
+        }
+        resolve(parsed || {});
+      });
+    });
+    req.on('error', (error) => reject(error));
+    req.write(body);
+    req.end();
+  });
+}
+
+function buildJsapiRequestPayload({ transactionId, amount, openid, notifyUrl, description, attach }) {
+  const payload = {
+    description: description || '钱包充值',
+    out_trade_no: transactionId,
+    attach,
+    notify_url: notifyUrl,
+    amount: {
+      total: amount,
+      currency: 'CNY'
+    }
+  };
+
+  if (WECHAT_PAYMENT_CONFIG.serviceProviderMode) {
+    const subMerchantId = WECHAT_PAYMENT_CONFIG.subMerchantId;
+    if (!subMerchantId) {
+      throw new Error('服务商模式下必须配置子商户号');
+    }
+    payload.sp_mchid = WECHAT_PAYMENT_CONFIG.merchantId;
+    payload.sub_mchid = subMerchantId;
+    if (WECHAT_PAYMENT_CONFIG.spAppId) {
+      payload.sp_appid = WECHAT_PAYMENT_CONFIG.spAppId;
+    }
+    payload.sub_appid = WECHAT_PAYMENT_CONFIG.appId;
+    payload.payer = { sub_openid: openid };
+  } else {
+    payload.mchid = WECHAT_PAYMENT_CONFIG.merchantId;
+    payload.appid = WECHAT_PAYMENT_CONFIG.appId;
+    payload.payer = { openid };
+  }
+
+  if (WECHAT_PAYMENT_CONFIG.clientIp) {
+    payload.scene_info = {
+      payer_client_ip: WECHAT_PAYMENT_CONFIG.clientIp
+    };
+  }
+
+  return payload;
+}
+
+async function createUnifiedOrderViaApiV3({ transactionId, amount, openid, notifyUrl, description, attach }) {
+  if (!hasApiV3Credentials()) {
+    return null;
+  }
+  if (!notifyUrl) {
+    throw new Error('未配置微信支付通知回调地址');
+  }
+  const payload = buildJsapiRequestPayload({
+    transactionId,
+    amount,
+    openid,
+    notifyUrl,
+    description,
+    attach
+  });
+  const response = await requestWechatPayApi('/v3/pay/transactions/jsapi', payload);
+  if (!response || !response.prepay_id) {
+    throw new Error('微信支付未返回预支付单号');
+  }
+  const prepayId = response.prepay_id;
+  const payTimestamp = Math.floor(Date.now() / 1000).toString();
+  const payNonce = generateNonceStr(32);
+  const payAppId = payload.appid || payload.sub_appid || payload.sp_appid || WECHAT_PAYMENT_CONFIG.appId;
+  const payMessage = `${payAppId}\n${payTimestamp}\n${payNonce}\n${prepayId}\n`;
+  const paySign = signWechatPayMessage(payMessage);
+  return {
+    timeStamp: payTimestamp,
+    nonceStr: payNonce,
+    package: `prepay_id=${prepayId}`,
+    signType: 'RSA',
+    paySign,
+    appId: payAppId,
+    prepayId,
+    channel: 'apiV3',
+    rawResponse: response
+  };
 }
 
 exports.main = async (event, context) => {
@@ -531,6 +716,20 @@ async function createRecharge(openid, amount) {
     }
     sanitizedPayment.totalFee = normalizedAmount;
     sanitizedPayment.currency = 'CNY';
+    if (payment.channel) {
+      sanitizedPayment.channel = payment.channel;
+    }
+    if (payment.rawResponse) {
+      sanitizedPayment.wechatResponse = payment.rawResponse;
+    }
+    const responseTransactionId = toNonEmptyString(
+      payment.transactionId,
+      payment.wechatTransactionId,
+      payment.transaction_id
+    );
+    if (responseTransactionId) {
+      sanitizedPayment.wechatTransactionId = responseTransactionId;
+    }
     const prepayId = extractPrepayId(sanitizedPayment.package);
     if (!prepayId) {
       console.error('[wallet] sanitized payment missing prepayId', payment);
@@ -605,6 +804,29 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     notifyUrl = `https://${envId}.servicewechat.com/${WECHAT_PAYMENT_CONFIG.callbackFunction}`;
   }
 
+  const attach = JSON.stringify({ scene: 'wallet_recharge', transactionId });
+
+  if (hasApiV3Credentials()) {
+    try {
+      const apiV3Payment = await createUnifiedOrderViaApiV3({
+        transactionId,
+        amount: normalizedAmount,
+        openid,
+        notifyUrl,
+        description: WECHAT_PAYMENT_CONFIG.description,
+        attach
+      });
+      if (apiV3Payment) {
+        return apiV3Payment;
+      }
+    } catch (error) {
+      console.error('[wallet] createUnifiedOrderViaApiV3 failed', error);
+      if (!invokeUnifiedOrder) {
+        throw error;
+      }
+    }
+  }
+
   const nonceStr = generateNonceStr(32);
   const requestPayload = {
     body: WECHAT_PAYMENT_CONFIG.description,
@@ -613,7 +835,7 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     total_fee: normalizedAmount,
     tradeType: 'JSAPI',
     spbillCreateIp: WECHAT_PAYMENT_CONFIG.clientIp || '127.0.0.1',
-    attach: JSON.stringify({ scene: 'wallet_recharge', transactionId }),
+    attach,
     feeType: 'CNY',
     nonceStr
   };
@@ -1216,6 +1438,8 @@ async function syncMemberLevel(openid) {
     });
   await grantLevelRewards(openid, targetLevel);
 }
+
+exports.syncMemberLevel = syncMemberLevel;
 
 function resolveLevelByExperience(exp, levels) {
   let target = levels[0];
