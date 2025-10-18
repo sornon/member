@@ -912,7 +912,8 @@ async function ensureLevelSync(member, levels) {
   }
   const membersCollection = db.collection(COLLECTIONS.MEMBERS);
   const experience = Number(member.experience || 0);
-  let currentLevel = levels.find((lvl) => lvl && lvl._id === member.levelId) || levels[0];
+  const sortedLevels = [...levels].sort((a, b) => a.order - b.order);
+  let currentLevel = sortedLevels.find((lvl) => lvl && lvl._id === member.levelId) || sortedLevels[0];
 
   if (currentLevel && currentLevel._id !== member.levelId) {
     await membersCollection
@@ -949,6 +950,34 @@ async function ensureLevelSync(member, levels) {
         })
         .catch(() => {});
       member.pendingBreakthroughLevelId = '';
+    }
+  }
+
+  if (currentLevel) {
+    let downgradeTarget = currentLevel;
+    while (downgradeTarget && experience < getLevelThreshold(downgradeTarget)) {
+      const previous = getPreviousLevel(sortedLevels, downgradeTarget);
+      if (!previous) {
+        break;
+      }
+      downgradeTarget = previous;
+    }
+    if (downgradeTarget && downgradeTarget._id !== currentLevel._id) {
+      await membersCollection
+        .doc(member._id)
+        .update({
+          data: {
+            levelId: downgradeTarget._id,
+            pendingBreakthroughLevelId: '',
+            updatedAt: new Date()
+          }
+        })
+        .catch(() => {});
+      member.levelId = downgradeTarget._id;
+      member.pendingBreakthroughLevelId = '';
+      currentLevel = downgradeTarget;
+      pendingId = '';
+      pendingLevel = null;
     }
   }
 
@@ -1015,6 +1044,24 @@ function getNextLevel(levels, currentLevel) {
     return null;
   }
   return sorted[idx + 1];
+}
+
+function getPreviousLevel(levels, currentLevel) {
+  if (!currentLevel) return null;
+  const sorted = [...levels].sort((a, b) => a.order - b.order);
+  const idx = sorted.findIndex((item) => item._id === currentLevel._id);
+  if (idx <= 0) {
+    return null;
+  }
+  return sorted[idx - 1];
+}
+
+function getLevelThreshold(level) {
+  if (!level || typeof level.threshold !== 'number') {
+    return Number.POSITIVE_INFINITY;
+  }
+  const value = Number(level.threshold);
+  return Number.isFinite(value) ? value : Number.POSITIVE_INFINITY;
 }
 
 function calculatePercentage(exp, currentLevel, nextLevel) {
