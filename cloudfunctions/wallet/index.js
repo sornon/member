@@ -491,12 +491,12 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     body: WECHAT_PAYMENT_CONFIG.description,
     outTradeNo: transactionId,
     spbillCreateIp: WECHAT_PAYMENT_CONFIG.clientIp,
-    totalFee: amount,
     tradeType: 'JSAPI',
     openid,
     nonceStr: createNonceStr(),
     subMchId: WECHAT_PAYMENT_CONFIG.merchantId,
-    attach: JSON.stringify({ scene: 'wallet_recharge', transactionId })
+    attach: JSON.stringify({ scene: 'wallet_recharge', transactionId }),
+    total_fee: amount
   };
 
   const envId = resolveCurrentEnvId();
