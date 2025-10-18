@@ -21,6 +21,14 @@ const DEFAULT_FEATURE_TOGGLES = {
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
 };
 
+const WECHAT_PAYMENT_CONFIG = {
+  appId: process.env.WECHAT_PAY_APPID || 'wxada3146653042265',
+  merchantId: process.env.WECHAT_PAY_MCHID || '1730096968',
+  description: process.env.WECHAT_PAY_BODY || '会员钱包余额充值',
+  callbackFunction: process.env.WECHAT_PAY_NOTIFY_FUNCTION || 'wallet-pay-notify',
+  clientIp: process.env.WECHAT_PAY_SPBILL_IP || '127.0.0.1'
+};
+
 function resolveToggleBoolean(value, defaultValue = true) {
   if (typeof value === 'boolean') {
     return value;
@@ -187,6 +195,33 @@ function calculateWineStorageTotal(entries = []) {
     const qty = Number.isFinite(entry.quantity) ? entry.quantity : 0;
     return sum + Math.max(0, qty);
   }, 0);
+}
+
+function resolveCurrentEnvId() {
+  try {
+    const context = cloud.getWXContext();
+    if (context && context.ENV) {
+      return context.ENV;
+    }
+  } catch (error) {
+    // ignore
+  }
+  return process.env.WX_ENV || process.env.TCB_ENV || process.env.SCF_NAMESPACE || '';
+}
+
+function createNonceStr() {
+  return Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
+}
+
+function extractPrepayId(packageField = '') {
+  if (typeof packageField !== 'string') {
+    return '';
+  }
+  const prefix = 'prepay_id=';
+  if (packageField.startsWith(prefix)) {
+    return packageField.slice(prefix.length);
+  }
+  return packageField;
 }
 
 exports.main = async (event, context) => {
@@ -395,20 +430,84 @@ async function createRecharge(openid, amount) {
     }
   });
 
-  // 真实环境应调用 cloud.cloudPay.unifiedOrder 生成支付参数
-  const mockPaymentParams = {
-    timeStamp: `${Math.floor(Date.now() / 1000)}`,
-    nonceStr: Math.random().toString(36).slice(2, 10),
-    package: `prepay_id=mock_${record._id}`,
-    signType: 'RSA',
-    paySign: 'MOCK_SIGN'
+  try {
+    const payment = await createUnifiedOrder(record._id, amount, openid);
+    const sanitizedPayment = {
+      timeStamp: payment.timeStamp || '',
+      nonceStr: payment.nonceStr || '',
+      package: payment.package || '',
+      signType: payment.signType || 'RSA',
+      paySign: payment.paySign || ''
+    };
+
+    await db
+      .collection(COLLECTIONS.WALLET_TRANSACTIONS)
+      .doc(record._id)
+      .update({
+        data: {
+          paymentParams: sanitizedPayment,
+          prepayId: extractPrepayId(sanitizedPayment.package),
+          updatedAt: new Date()
+        }
+      })
+      .catch(() => null);
+
+    return {
+      transactionId: record._id,
+      payment: sanitizedPayment
+    };
+  } catch (error) {
+    console.error('[wallet] createUnifiedOrder failed', error);
+    await db
+      .collection(COLLECTIONS.WALLET_TRANSACTIONS)
+      .doc(record._id)
+      .remove()
+      .catch(() => null);
+    const message =
+      (error && (error.errMsg || error.message)) || '创建支付订单失败，请稍后重试';
+    throw new Error(message);
+  }
+}
+
+async function createUnifiedOrder(transactionId, amount, openid) {
+  if (!cloud.cloudPay || typeof cloud.cloudPay.unifiedOrder !== 'function') {
+    throw new Error('当前环境未开启云支付能力，请联系管理员配置支付参数');
+  }
+  if (!WECHAT_PAYMENT_CONFIG.merchantId) {
+    throw new Error('未配置有效的微信支付商户号');
+  }
+  if (!WECHAT_PAYMENT_CONFIG.appId) {
+    throw new Error('未配置有效的小程序 AppID');
+  }
+
+  const requestPayload = {
+    body: WECHAT_PAYMENT_CONFIG.description,
+    outTradeNo: transactionId,
+    spbillCreateIp: WECHAT_PAYMENT_CONFIG.clientIp,
+    totalFee: amount,
+    tradeType: 'JSAPI',
+    openid,
+    nonceStr: createNonceStr(),
+    subMchId: WECHAT_PAYMENT_CONFIG.merchantId,
+    attach: JSON.stringify({ scene: 'wallet_recharge', transactionId })
   };
 
-  return {
-    transactionId: record._id,
-    payment: mockPaymentParams,
-    message: '测试环境返回模拟支付参数，生产环境请替换为真实签名'
-  };
+  const envId = resolveCurrentEnvId();
+  if (envId) {
+    requestPayload.envId = envId;
+  }
+  if (WECHAT_PAYMENT_CONFIG.appId) {
+    requestPayload.subAppId = WECHAT_PAYMENT_CONFIG.appId;
+  }
+  if (WECHAT_PAYMENT_CONFIG.callbackFunction) {
+    requestPayload.functionName = WECHAT_PAYMENT_CONFIG.callbackFunction;
+  }
+
+  const response = await cloud.cloudPay.unifiedOrder(requestPayload);
+  if (!response || !response.payment) {
+    throw new Error('支付参数生成失败，请稍后重试');
+  }
+  return response.payment;
 }
 
 async function completeRecharge(openid, transactionId) {
