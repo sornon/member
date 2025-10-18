@@ -64,6 +64,7 @@
 5. **验证配置是否生效**：
    - 在云函数日志中搜索 `wallet` 首次启动日志，确认已读取到商户号、证书序列号等信息（日志会隐藏敏感字段，只保留长度与末尾片段）。
    - 发起 0.01 元真机测试，确认返回的 `package` 含有 `prepay_id=` 前缀且支付通知能正常解密。
+   - 若出于安全需要将证书以 Base64 形式存放，只要内容可还原为标准 `-----BEGIN …-----` 包裹的 PEM，程序会自动解码。
    - 通过集合 `walletTransactions` 或调用 `wallet` 云函数返回值，核对 `paymentParams.apiVersion` 与 `paymentParams.mode`：`v3` 代表使用 APIv3，`v2` 代表走云函数内置的 `cloudPay.unifiedOrder`；`service-provider` 表示服务商模式，`direct` 表示直连模式。
 
 > **安全提示**：证书私钥与密钥均属于敏感信息，仅应通过环境变量或云开发密钥管理功能保存，避免写入代码仓库。证书轮换后记得同步更新 `WECHAT_PAY_SERIAL_NO` 和 `WECHAT_PAY_PRIVATE_KEY`。

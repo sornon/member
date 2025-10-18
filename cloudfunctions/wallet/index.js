@@ -106,6 +106,29 @@ function trimToString(value) {
   }
 }
 
+function isPemFormatted(value) {
+  return typeof value === 'string' && /-----BEGIN [^-]+-----/.test(value);
+}
+
+function tryDecodeBase64(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const compact = value.replace(/\s+/g, '');
+  if (!compact) {
+    return '';
+  }
+  if (/[^A-Za-z0-9+/=]/.test(compact)) {
+    return '';
+  }
+  try {
+    const decoded = Buffer.from(compact, 'base64').toString('utf8');
+    return decoded || '';
+  } catch (error) {
+    return '';
+  }
+}
+
 function normalizePem(pem) {
   if (!pem) {
     return '';
@@ -121,7 +144,18 @@ function normalizePem(pem) {
   if (!trimmed) {
     return '';
   }
-  return trimmed.replace(/\\n/g, '\n');
+  const normalized = trimmed.replace(/\r\n/g, '\n').replace(/\\n/g, '\n');
+  if (isPemFormatted(normalized)) {
+    return normalized;
+  }
+  const decoded = tryDecodeBase64(normalized).trim();
+  if (decoded) {
+    const decodedNormalized = decoded.replace(/\r\n/g, '\n').replace(/\\n/g, '\n');
+    if (isPemFormatted(decodedNormalized)) {
+      return decodedNormalized;
+    }
+  }
+  return normalized;
 }
 
 function normalizeImmortalTournament(config) {
@@ -327,19 +361,24 @@ function toNonEmptyString(...candidates) {
 function hasApiV3Credentials() {
   return (
     WECHAT_PAYMENT_CONFIG.merchantId &&
-    WECHAT_PAYMENT_SECURITY.privateKey &&
+    isPemFormatted(WECHAT_PAYMENT_SECURITY.privateKey) &&
     WECHAT_PAYMENT_SECURITY.merchantSerialNo
   );
 }
 
 function signWechatPayMessage(message) {
-  if (!WECHAT_PAYMENT_SECURITY.privateKey) {
-    throw new Error('未配置微信支付商户私钥');
+  if (!isPemFormatted(WECHAT_PAYMENT_SECURITY.privateKey)) {
+    throw new Error('微信支付商户私钥格式无效');
   }
-  const signer = crypto.createSign('RSA-SHA256');
-  signer.update(message, 'utf8');
-  signer.end();
-  return signer.sign(WECHAT_PAYMENT_SECURITY.privateKey, 'base64');
+  try {
+    const signer = crypto.createSign('RSA-SHA256');
+    signer.update(message, 'utf8');
+    signer.end();
+    return signer.sign(WECHAT_PAYMENT_SECURITY.privateKey, 'base64');
+  } catch (error) {
+    console.error('[wallet] signWechatPayMessage failed', error);
+    throw new Error('微信支付商户私钥格式无效');
+  }
 }
 
 function requestWechatPayApi(path, bodyObject) {
@@ -861,12 +900,9 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     requestPayload.mchId = WECHAT_PAYMENT_CONFIG.merchantId;
     requestPayload.appId = WECHAT_PAYMENT_CONFIG.appId;
     requestPayload.openid = openid;
-    const directSubMerchantId =
-      WECHAT_PAYMENT_CONFIG.subMerchantId || WECHAT_PAYMENT_CONFIG.merchantId;
-    if (!directSubMerchantId) {
-      throw new Error('未配置有效的微信支付商户号');
+    if (WECHAT_PAYMENT_CONFIG.subMerchantId) {
+      requestPayload.subMchId = WECHAT_PAYMENT_CONFIG.subMerchantId;
     }
-    requestPayload.subMchId = directSubMerchantId;
   }
 
   if (envId) {
@@ -896,26 +932,44 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     throw new Error('支付参数生成失败，请稍后重试');
   }
 
-  const returnCode = toNonEmptyString(paymentPayload.returnCode, paymentPayload.return_code);
+  const returnCode = toNonEmptyString(
+    paymentPayload.returnCode,
+    paymentPayload.return_code,
+    rest.returnCode,
+    rest.return_code
+  );
   if (returnCode && returnCode !== 'SUCCESS') {
     const message =
       paymentPayload.returnMsg ||
       paymentPayload.return_msg ||
+      rest.returnMsg ||
+      rest.return_msg ||
       paymentPayload.errCodeDes ||
       paymentPayload.err_code_des ||
+      rest.errCodeDes ||
+      rest.err_code_des ||
       paymentPayload.errMsg ||
       paymentPayload.err_msg ||
       '创建支付订单失败';
     throw new Error(message);
   }
 
-  const resultCode = toNonEmptyString(paymentPayload.resultCode, paymentPayload.result_code);
+  const resultCode = toNonEmptyString(
+    paymentPayload.resultCode,
+    paymentPayload.result_code,
+    rest.resultCode,
+    rest.result_code
+  );
   if (resultCode && resultCode !== 'SUCCESS') {
     const message =
       paymentPayload.errCodeDes ||
       paymentPayload.err_code_des ||
+      rest.errCodeDes ||
+      rest.err_code_des ||
       paymentPayload.errMsg ||
       paymentPayload.err_msg ||
+      rest.errMsg ||
+      rest.err_msg ||
       '创建支付订单失败';
     throw new Error(message);
   }
