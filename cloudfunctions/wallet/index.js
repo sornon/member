@@ -21,6 +21,15 @@ const DEFAULT_FEATURE_TOGGLES = {
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
 };
 
+const WECHAT_PAYMENT_CONFIG = {
+  appId: process.env.WECHAT_PAY_APPID || 'wxada3146653042265',
+  merchantId: process.env.WECHAT_PAY_MCHID || '1730096968',
+  description: process.env.WECHAT_PAY_BODY || '会员钱包余额充值',
+  callbackFunction: process.env.WECHAT_PAY_NOTIFY_FUNCTION || 'wallet-pay-notify',
+  notifyUrl: process.env.WECHAT_PAY_NOTIFY_URL || '',
+  clientIp: process.env.WECHAT_PAY_SPBILL_IP || '127.0.0.1'
+};
+
 function resolveToggleBoolean(value, defaultValue = true) {
   if (typeof value === 'boolean') {
     return value;
@@ -189,6 +198,52 @@ function calculateWineStorageTotal(entries = []) {
   }, 0);
 }
 
+function resolveCurrentEnvId() {
+  try {
+    const context = cloud.getWXContext();
+    if (context && context.ENV) {
+      return context.ENV;
+    }
+  } catch (error) {
+    // ignore
+  }
+  return process.env.WX_ENV || process.env.TCB_ENV || process.env.SCF_NAMESPACE || '';
+}
+
+function extractPrepayId(packageField = '') {
+  if (typeof packageField !== 'string') {
+    return '';
+  }
+  const prefix = 'prepay_id=';
+  if (packageField.startsWith(prefix)) {
+    return packageField.slice(prefix.length);
+  }
+  if (packageField.includes('&')) {
+    const match = packageField.match(/(?:^|&)prepay_id=([^&]+)/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return packageField;
+}
+
+function ensurePrepayPackage(packageValue) {
+  if (typeof packageValue !== 'string') {
+    return '';
+  }
+  const trimmed = packageValue.trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (trimmed.startsWith('prepay_id=')) {
+    return trimmed;
+  }
+  if (/^prepay_id\w+/.test(trimmed)) {
+    return trimmed.replace(/^prepay_id/, 'prepay_id=');
+  }
+  return `prepay_id=${trimmed}`;
+}
+
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext();
   const action = event.action || 'summary';
@@ -200,6 +255,13 @@ exports.main = async (event, context) => {
       return createRecharge(OPENID, event.amount);
     case 'completeRecharge':
       return completeRecharge(OPENID, event.transactionId);
+    case 'failRecharge':
+      return failRecharge(OPENID, event.transactionId, {
+        reason: event.reason,
+        code: event.code,
+        errMsg: event.errMsg,
+        message: event.message
+      });
     case 'balancePay':
       return payWithBalance(OPENID, event.orderId, event.amount);
     case 'loadChargeOrder':
@@ -379,14 +441,15 @@ async function createRecharge(openid, amount) {
   if (!featureToggles.cashierEnabled) {
     throw new Error('线上充值暂不可用，请前往收款台线下充值');
   }
-  if (!amount || amount <= 0) {
+  const normalizedAmount = normalizeAmountInCents(amount);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
     throw new Error('充值金额无效');
   }
   const now = new Date();
   const record = await db.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
     data: {
       memberId: openid,
-      amount,
+      amount: normalizedAmount,
       type: 'recharge',
       status: 'pending',
       createdAt: now,
@@ -395,20 +458,211 @@ async function createRecharge(openid, amount) {
     }
   });
 
-  // 真实环境应调用 cloud.cloudPay.unifiedOrder 生成支付参数
-  const mockPaymentParams = {
-    timeStamp: `${Math.floor(Date.now() / 1000)}`,
-    nonceStr: Math.random().toString(36).slice(2, 10),
-    package: `prepay_id=mock_${record._id}`,
-    signType: 'RSA',
-    paySign: 'MOCK_SIGN'
+  try {
+    const payment = await createUnifiedOrder(record._id, normalizedAmount, openid);
+    const sanitizedPayment = {
+      timeStamp: payment.timeStamp || payment.timestamp || '',
+      nonceStr: payment.nonceStr || payment.nonce || '',
+      package: ensurePrepayPackage(payment.package || payment.packageValue || payment.prepayId || ''),
+      signType: payment.signType || payment.sign_type || 'RSA',
+      paySign: payment.paySign || payment.pay_sign || ''
+    };
+    if (payment.appId) {
+      sanitizedPayment.appId = payment.appId;
+    }
+    sanitizedPayment.totalFee = normalizedAmount;
+    sanitizedPayment.currency = 'CNY';
+    if (
+      !sanitizedPayment.timeStamp ||
+      !sanitizedPayment.nonceStr ||
+      !sanitizedPayment.package ||
+      !sanitizedPayment.paySign
+    ) {
+      console.error('[wallet] unifiedOrder missing fields', payment);
+      throw new Error('支付参数生成失败，请稍后重试');
+    }
+
+    await db
+      .collection(COLLECTIONS.WALLET_TRANSACTIONS)
+      .doc(record._id)
+      .update({
+        data: {
+          paymentParams: sanitizedPayment,
+          prepayId: extractPrepayId(sanitizedPayment.package),
+          updatedAt: new Date()
+        }
+      })
+      .catch(() => null);
+
+    return {
+      transactionId: record._id,
+      payment: sanitizedPayment
+    };
+  } catch (error) {
+    console.error('[wallet] createUnifiedOrder failed', error);
+    await db
+      .collection(COLLECTIONS.WALLET_TRANSACTIONS)
+      .doc(record._id)
+      .remove()
+      .catch(() => null);
+    const message =
+      (error && (error.errMsg || error.message)) || '创建支付订单失败，请稍后重试';
+    throw new Error(message);
+  }
+}
+
+async function createUnifiedOrder(transactionId, amount, openid) {
+  const invokeUnifiedOrder =
+    cloud.cloudPay && typeof cloud.cloudPay.unifiedOrder === 'function'
+      ? cloud.cloudPay.unifiedOrder
+      : null;
+  if (typeof invokeUnifiedOrder !== 'function') {
+    throw new Error('当前环境未开启云支付能力，请联系管理员配置支付参数');
+  }
+  if (!WECHAT_PAYMENT_CONFIG.merchantId) {
+    throw new Error('未配置有效的微信支付商户号');
+  }
+  if (!WECHAT_PAYMENT_CONFIG.appId) {
+    throw new Error('未配置有效的小程序 AppID');
+  }
+  const normalizedAmount = normalizeAmountInCents(amount);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+    throw new Error('充值金额无效');
+  }
+
+  const envId = resolveCurrentEnvId();
+  let notifyUrl = '';
+  if (WECHAT_PAYMENT_CONFIG.notifyUrl) {
+    notifyUrl = WECHAT_PAYMENT_CONFIG.notifyUrl;
+  } else if (envId && WECHAT_PAYMENT_CONFIG.callbackFunction) {
+    notifyUrl = `https://${envId}.servicewechat.com/${WECHAT_PAYMENT_CONFIG.callbackFunction}`;
+  }
+
+  const requestPayload = {
+    body: WECHAT_PAYMENT_CONFIG.description,
+    outTradeNo: transactionId,
+    totalFee: normalizedAmount,
+    tradeType: 'JSAPI',
+    spbillCreateIp: WECHAT_PAYMENT_CONFIG.clientIp || '127.0.0.1',
+    attach: JSON.stringify({ scene: 'wallet_recharge', transactionId }),
+    mchId: WECHAT_PAYMENT_CONFIG.merchantId,
+    mchid: WECHAT_PAYMENT_CONFIG.merchantId,
+    appId: WECHAT_PAYMENT_CONFIG.appId,
+    appid: WECHAT_PAYMENT_CONFIG.appId,
+    openId: openid,
+    openid: openid
   };
 
-  return {
-    transactionId: record._id,
-    payment: mockPaymentParams,
-    message: '测试环境返回模拟支付参数，生产环境请替换为真实签名'
+  if (envId) {
+    requestPayload.envId = envId;
+  }
+  if (WECHAT_PAYMENT_CONFIG.callbackFunction) {
+    requestPayload.functionName = WECHAT_PAYMENT_CONFIG.callbackFunction;
+  }
+  if (notifyUrl) {
+    requestPayload.notifyUrl = notifyUrl;
+  }
+
+  const response = await invokeUnifiedOrder(requestPayload);
+  if (!response) {
+    throw new Error('支付参数生成失败，请稍后重试');
+  }
+
+  const { errCode, errMsg, payment, paymentData, ...rest } = response;
+  if (typeof errCode !== 'undefined' && errCode !== 0) {
+    const message = errMsg || rest.message || rest.errmsg || '创建支付订单失败';
+    throw new Error(message);
+  }
+
+  const paymentPayload = payment || paymentData || rest.payment || rest.paymentData || rest;
+  if (!paymentPayload) {
+    console.error('[wallet] unifiedOrder unexpected response', response);
+    throw new Error('支付参数生成失败，请稍后重试');
+  }
+
+  const normalizedPayment = {
+    timeStamp: paymentPayload.timeStamp || paymentPayload.timestamp || '',
+    nonceStr: paymentPayload.nonceStr || paymentPayload.nonce || '',
+    package: ensurePrepayPackage(
+      paymentPayload.package || paymentPayload.packageValue || paymentPayload.prepayId || ''
+    ),
+    signType: paymentPayload.signType || paymentPayload.sign_type || 'RSA',
+    paySign: paymentPayload.paySign || paymentPayload.pay_sign || ''
   };
+
+  if (paymentPayload.appId) {
+    normalizedPayment.appId = paymentPayload.appId;
+  }
+
+  normalizedPayment.totalFee = normalizedAmount;
+  normalizedPayment.currency = 'CNY';
+
+  if (!normalizedPayment.timeStamp || !normalizedPayment.nonceStr || !normalizedPayment.package || !normalizedPayment.paySign) {
+    console.error('[wallet] unifiedOrder missing fields', paymentPayload);
+    throw new Error('支付参数生成失败，请稍后重试');
+  }
+
+  return normalizedPayment;
+}
+
+async function failRecharge(openid, transactionId, options = {}) {
+  if (!transactionId) {
+    throw new Error('充值记录不存在');
+  }
+
+  const normalizedReason = trimToString(options.reason || options.errMsg || options.message);
+  const normalizedCode = trimToString(options.code || options.errCode);
+  const now = new Date();
+
+  let outcome = { success: true, status: 'failed' };
+
+  await db.runTransaction(async (transaction) => {
+    const recordRef = transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).doc(transactionId);
+    const recordDoc = await recordRef.get().catch(() => null);
+    if (!recordDoc || !recordDoc.data) {
+      throw new Error('充值记录不存在');
+    }
+    const record = recordDoc.data;
+    if (record.memberId !== openid) {
+      throw new Error('无权操作该充值记录');
+    }
+    if (record.type !== 'recharge') {
+      throw new Error('记录类型错误');
+    }
+    const currentStatus = normalizeTransactionStatus(record.status);
+    if (currentStatus === 'success') {
+      outcome = { success: false, status: 'success' };
+      return;
+    }
+    if (currentStatus === 'failed') {
+      outcome = { success: true, status: 'failed' };
+      return;
+    }
+
+    const failureRemark = normalizedReason ? `充值失败：${normalizedReason}` : '充值失败';
+
+    const updates = {
+      status: 'failed',
+      updatedAt: now,
+      failedAt: now,
+      remark: failureRemark.length > 120 ? `${failureRemark.slice(0, 117)}...` : failureRemark
+    };
+
+    if (normalizedReason) {
+      updates.failReason = normalizedReason.slice(0, 200);
+    }
+    if (normalizedCode) {
+      updates.failCode = normalizedCode.slice(0, 120);
+    }
+
+    await recordRef.update({
+      data: updates
+    });
+
+    outcome = { success: true, status: 'failed' };
+  });
+
+  return outcome;
 }
 
 async function completeRecharge(openid, transactionId) {
@@ -707,6 +961,21 @@ function calculateExperienceGain(amountFen) {
   return Math.max(0, Math.round((amountFen * EXPERIENCE_PER_YUAN) / 100));
 }
 
+function normalizeAmountInCents(value) {
+  if (value == null || value === '') {
+    return NaN;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return NaN;
+  }
+  const rounded = Math.round(numeric);
+  if (!Number.isFinite(rounded) || rounded <= 0) {
+    return NaN;
+  }
+  return rounded;
+}
+
 function resolveCashBalance(member) {
   if (!member) return 0;
   if (Object.prototype.hasOwnProperty.call(member, 'cashBalance')) {
@@ -763,10 +1032,20 @@ function normalizeTransactionStatus(status) {
   if (!status) {
     return 'success';
   }
+  if (typeof status === 'string') {
+    const normalized = status.trim().toLowerCase();
+    if (!normalized) {
+      return 'success';
+    }
+    if (normalized === 'completed') {
+      return 'success';
+    }
+    return normalized;
+  }
   if (status === 'completed') {
     return 'success';
   }
-  return status;
+  return String(status).toLowerCase();
 }
 
 async function syncMemberLevel(openid) {
