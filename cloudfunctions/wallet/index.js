@@ -476,6 +476,8 @@ async function createUnifiedOrderViaApiV3({ transactionId, amount, openid, notif
     appId: payAppId,
     prepayId,
     channel: 'apiV3',
+    apiVersion: 'v3',
+    mode: WECHAT_PAYMENT_CONFIG.serviceProviderMode ? 'service-provider' : 'direct',
     rawResponse: response
   };
 }
@@ -716,6 +718,11 @@ async function createRecharge(openid, amount) {
     }
     sanitizedPayment.totalFee = normalizedAmount;
     sanitizedPayment.currency = 'CNY';
+    sanitizedPayment.apiVersion = payment.apiVersion || 'v2';
+    sanitizedPayment.mode = WECHAT_PAYMENT_CONFIG.serviceProviderMode ? 'service-provider' : 'direct';
+    if (payment.mode) {
+      sanitizedPayment.mode = payment.mode;
+    }
     if (payment.channel) {
       sanitizedPayment.channel = payment.channel;
     }
@@ -940,7 +947,8 @@ async function createUnifiedOrder(transactionId, amount, openid) {
       paymentPayload.pay_sign,
       paymentPayload.sign,
       paymentPayload.signature
-    )
+    ),
+    channel: toNonEmptyString(paymentPayload.channel, paymentPayload.payChannel)
   };
 
   const paymentAppId = toNonEmptyString(
@@ -954,6 +962,9 @@ async function createUnifiedOrder(transactionId, amount, openid) {
 
   normalizedPayment.totalFee = normalizedAmount;
   normalizedPayment.currency = 'CNY';
+  normalizedPayment.apiVersion = 'v2';
+  normalizedPayment.channel = normalizedPayment.channel || 'cloudPay.unifiedOrder';
+  normalizedPayment.mode = WECHAT_PAYMENT_CONFIG.serviceProviderMode ? 'service-provider' : 'direct';
 
   const prepayId = extractPrepayId(normalizedPayment.package);
   if (!prepayId) {
