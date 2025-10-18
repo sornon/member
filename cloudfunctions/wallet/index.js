@@ -25,6 +25,11 @@ const DEFAULT_FEATURE_TOGGLES = {
 const WECHAT_PAYMENT_CONFIG = {
   appId: process.env.WECHAT_PAY_APPID || 'wxada3146653042265',
   merchantId: process.env.WECHAT_PAY_MCHID || '1730096968',
+  subMerchantId: process.env.WECHAT_PAY_SUB_MCHID || '',
+  serviceProviderMode: resolveToggleBoolean(
+    process.env.WECHAT_PAY_SERVICE_PROVIDER_MODE,
+    false
+  ),
   description: process.env.WECHAT_PAY_BODY || '会员钱包余额充值',
   callbackFunction: process.env.WECHAT_PAY_NOTIFY_FUNCTION || 'wallet-pay-notify',
   notifyUrl: process.env.WECHAT_PAY_NOTIFY_URL || '',
@@ -605,15 +610,29 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     body: WECHAT_PAYMENT_CONFIG.description,
     outTradeNo: transactionId,
     totalFee: normalizedAmount,
+    total_fee: normalizedAmount,
     tradeType: 'JSAPI',
     spbillCreateIp: WECHAT_PAYMENT_CONFIG.clientIp || '127.0.0.1',
     attach: JSON.stringify({ scene: 'wallet_recharge', transactionId }),
-    subMchId: WECHAT_PAYMENT_CONFIG.merchantId,
-    subAppId: WECHAT_PAYMENT_CONFIG.appId,
-    subOpenId: openid,
     feeType: 'CNY',
     nonceStr
   };
+
+  if (WECHAT_PAYMENT_CONFIG.serviceProviderMode) {
+    if (!WECHAT_PAYMENT_CONFIG.merchantId) {
+      throw new Error('服务商商户号未配置');
+    }
+    requestPayload.mchId = WECHAT_PAYMENT_CONFIG.merchantId;
+    const subMerchantId =
+      WECHAT_PAYMENT_CONFIG.subMerchantId || WECHAT_PAYMENT_CONFIG.merchantId;
+    requestPayload.subMchId = subMerchantId;
+    requestPayload.subAppId = WECHAT_PAYMENT_CONFIG.appId;
+    requestPayload.subOpenId = openid;
+  } else {
+    requestPayload.mchId = WECHAT_PAYMENT_CONFIG.merchantId;
+    requestPayload.appId = WECHAT_PAYMENT_CONFIG.appId;
+    requestPayload.openid = openid;
+  }
 
   if (envId) {
     requestPayload.envId = envId;
