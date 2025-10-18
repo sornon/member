@@ -7,7 +7,8 @@ const {
   COLLECTIONS,
   EXCLUDED_TRANSACTION_STATUSES,
   DEFAULT_ADMIN_ROLES,
-  listAvatarIds
+  listAvatarIds,
+  analyzeMemberLevelProgress
 } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 
 const db = cloud.database();
@@ -2379,19 +2380,94 @@ async function syncMemberLevel(memberId) {
   if (!memberDoc || !memberDoc.data) return;
   const member = memberDoc.data;
   if (!Array.isArray(levels) || !levels.length) return;
-  const targetLevel = resolveLevelByExperience(Number(member.experience || 0), levels);
-  if (!targetLevel || targetLevel._id === member.levelId) {
-    return;
+
+  const {
+    levelId: resolvedLevelId,
+    pendingBreakthroughLevelId,
+    levelsToGrant
+  } = analyzeMemberLevelProgress(member, levels);
+
+  const updates = {};
+  const normalizedPending = pendingBreakthroughLevelId || '';
+  const existingPending =
+    typeof member.pendingBreakthroughLevelId === 'string' ? member.pendingBreakthroughLevelId : '';
+
+  if (resolvedLevelId && resolvedLevelId !== member.levelId) {
+    updates.levelId = resolvedLevelId;
   }
-  await db
-    .collection(COLLECTIONS.MEMBERS)
-    .doc(memberId)
-    .update({
-      data: {
-        levelId: targetLevel._id,
-        updatedAt: new Date()
-      }
-    });
+
+  if (normalizedPending !== existingPending) {
+    updates.pendingBreakthroughLevelId = normalizedPending;
+  }
+
+  if (Object.keys(updates).length) {
+    updates.updatedAt = new Date();
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(memberId)
+      .update({
+        data: updates
+      })
+      .catch(() => {});
+  }
+
+  for (const level of levelsToGrant) {
+    await grantLevelRewards(memberId, level);
+  }
+}
+
+async function grantLevelRewards(memberId, level) {
+  const rewards = level.rewards || [];
+  if (!rewards.length) return;
+
+  const masterSnapshot = await db
+    .collection(COLLECTIONS.MEMBERSHIP_RIGHTS)
+    .get()
+    .catch(() => ({ data: [] }));
+
+  const masterMap = {};
+  (masterSnapshot.data || []).forEach((item) => {
+    masterMap[item._id] = item;
+  });
+
+  const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
+  const now = new Date();
+
+  for (const reward of rewards) {
+    const right = masterMap[reward.rightId];
+    if (!right) continue;
+
+    const existing = await rightsCollection
+      .where({ memberId, rightId: reward.rightId, levelId: level._id })
+      .count()
+      .catch(() => ({ total: 0 }));
+
+    const quantity = reward.quantity || 1;
+    if (existing.total >= quantity) continue;
+
+    const validUntil = right.validDays
+      ? new Date(now.getTime() + right.validDays * 24 * 60 * 60 * 1000)
+      : null;
+
+    for (let i = existing.total; i < quantity; i += 1) {
+      await rightsCollection
+        .add({
+          data: {
+            memberId,
+            rightId: reward.rightId,
+            levelId: level._id,
+            status: 'active',
+            issuedAt: now,
+            validUntil,
+            meta: {
+              fromLevel: level._id,
+              rewardName: reward.description || (right && right.name) || ''
+            }
+          }
+        })
+        .catch(() => null);
+    }
+  }
 }
 
 function buildLevelMap(levels) {
@@ -4557,21 +4633,6 @@ function calculateExperienceGain(amountFen) {
     return 0;
   }
   return Math.max(0, Math.round((amountFen * EXPERIENCE_PER_YUAN) / 100));
-}
-
-function resolveLevelByExperience(exp, levels) {
-  if (!Array.isArray(levels) || !levels.length) {
-    return null;
-  }
-  const numericExp = Number(exp) || 0;
-  let target = levels[0];
-  levels.forEach((level) => {
-    const threshold = Number(level.threshold || 0);
-    if (Number.isFinite(threshold) && numericExp >= threshold) {
-      target = level;
-    }
-  });
-  return target;
 }
 
 async function getFinanceReport(openid, monthInput) {

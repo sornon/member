@@ -6,7 +6,8 @@ const path = require('path');
 const {
   EXPERIENCE_PER_YUAN,
   COLLECTIONS,
-  EXCLUDED_TRANSACTION_STATUSES
+  EXCLUDED_TRANSACTION_STATUSES,
+  analyzeMemberLevelProgress
 } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -1554,33 +1555,43 @@ async function syncMemberLevel(openid) {
   const member = memberDoc.data;
   const levels = levelsSnapshot.data || [];
   if (!levels.length) return;
-  const targetLevel = resolveLevelByExperience(member.experience || 0, levels);
-  if (!targetLevel || targetLevel._id === member.levelId) {
-    return;
+
+  const {
+    levelId: resolvedLevelId,
+    pendingBreakthroughLevelId,
+    levelsToGrant
+  } = analyzeMemberLevelProgress(member, levels);
+
+  const updates = {};
+  const normalizedPending = pendingBreakthroughLevelId || '';
+  const existingPending =
+    typeof member.pendingBreakthroughLevelId === 'string' ? member.pendingBreakthroughLevelId : '';
+
+  if (resolvedLevelId && resolvedLevelId !== member.levelId) {
+    updates.levelId = resolvedLevelId;
   }
-  await db
-    .collection(COLLECTIONS.MEMBERS)
-    .doc(openid)
-    .update({
-      data: {
-        levelId: targetLevel._id,
-        updatedAt: new Date()
-      }
-    });
-  await grantLevelRewards(openid, targetLevel);
+
+  if (normalizedPending !== existingPending) {
+    updates.pendingBreakthroughLevelId = normalizedPending;
+  }
+
+  if (Object.keys(updates).length) {
+    updates.updatedAt = new Date();
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(openid)
+      .update({
+        data: updates
+      })
+      .catch(() => {});
+  }
+
+  for (const level of levelsToGrant) {
+    await grantLevelRewards(openid, level);
+  }
 }
 
 exports.syncMemberLevel = syncMemberLevel;
-
-function resolveLevelByExperience(exp, levels) {
-  let target = levels[0];
-  levels.forEach((lvl) => {
-    if (exp >= lvl.threshold) {
-      target = lvl;
-    }
-  });
-  return target;
-}
 
 async function grantLevelRewards(openid, level) {
   const rewards = level.rewards || [];
