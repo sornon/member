@@ -517,9 +517,12 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     tradeType: 'JSAPI',
     spbillCreateIp: WECHAT_PAYMENT_CONFIG.clientIp || '127.0.0.1',
     attach: JSON.stringify({ scene: 'wallet_recharge', transactionId }),
-    subMchId: WECHAT_PAYMENT_CONFIG.merchantId,
-    subAppId: WECHAT_PAYMENT_CONFIG.appId,
-    subOpenId: openid
+    mchId: WECHAT_PAYMENT_CONFIG.merchantId,
+    mchid: WECHAT_PAYMENT_CONFIG.merchantId,
+    appId: WECHAT_PAYMENT_CONFIG.appId,
+    appid: WECHAT_PAYMENT_CONFIG.appId,
+    openId: openid,
+    openid: openid
   };
 
   if (envId) {
