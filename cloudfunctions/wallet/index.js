@@ -538,15 +538,16 @@ async function createUnifiedOrderViaApiV3({ transactionId, amount, openid, notif
     throw new Error('微信支付未返回预支付单号');
   }
   const prepayId = response.prepay_id;
+  const packageValue = ensurePrepayPackage(prepayId);
   const payTimestamp = Math.floor(Date.now() / 1000).toString();
   const payNonce = generateNonceStr(32);
   const payAppId = payload.appid || payload.sub_appid || payload.sp_appid || WECHAT_PAYMENT_CONFIG.appId;
-  const payMessage = `${payAppId}\n${payTimestamp}\n${payNonce}\n${prepayId}\n`;
+  const payMessage = `${payAppId}\n${payTimestamp}\n${payNonce}\n${packageValue}\n`;
   const paySign = signWechatPayMessage(payMessage);
   return {
     timeStamp: payTimestamp,
     nonceStr: payNonce,
-    package: `prepay_id=${prepayId}`,
+    package: packageValue,
     signType: 'RSA',
     paySign,
     appId: payAppId,
