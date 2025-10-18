@@ -421,14 +421,15 @@ async function createRecharge(openid, amount) {
   if (!featureToggles.cashierEnabled) {
     throw new Error('线上充值暂不可用，请前往收款台线下充值');
   }
-  if (!amount || amount <= 0) {
+  const normalizedAmount = normalizeAmountInCents(amount);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
     throw new Error('充值金额无效');
   }
   const now = new Date();
   const record = await db.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
     data: {
       memberId: openid,
-      amount,
+      amount: normalizedAmount,
       type: 'recharge',
       status: 'pending',
       createdAt: now,
@@ -438,14 +439,22 @@ async function createRecharge(openid, amount) {
   });
 
   try {
-    const payment = await createUnifiedOrder(record._id, amount, openid);
+    const payment = await createUnifiedOrder(record._id, normalizedAmount, openid);
     const sanitizedPayment = {
-      timeStamp: payment.timeStamp || '',
-      nonceStr: payment.nonceStr || '',
-      package: payment.package || '',
-      signType: payment.signType || 'RSA',
-      paySign: payment.paySign || ''
+      timeStamp: payment.timeStamp || payment.timestamp || '',
+      nonceStr: payment.nonceStr || payment.nonce || '',
+      package: payment.package || payment.packageValue || '',
+      signType: payment.signType || payment.sign_type || 'RSA',
+      paySign: payment.paySign || payment.pay_sign || ''
     };
+    if (payment.appId) {
+      sanitizedPayment.appId = payment.appId;
+    }
+    sanitizedPayment.totalFee = normalizedAmount;
+    if (!sanitizedPayment.timeStamp || !sanitizedPayment.nonceStr || !sanitizedPayment.package || !sanitizedPayment.paySign) {
+      console.error('[wallet] unifiedOrder missing fields', payment);
+      throw new Error('支付参数生成失败，请稍后重试');
+    }
 
     await db
       .collection(COLLECTIONS.WALLET_TRANSACTIONS)
@@ -486,6 +495,10 @@ async function createUnifiedOrder(transactionId, amount, openid) {
   if (!WECHAT_PAYMENT_CONFIG.appId) {
     throw new Error('未配置有效的小程序 AppID');
   }
+  const normalizedAmount = normalizeAmountInCents(amount);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+    throw new Error('充值金额无效');
+  }
 
   const requestPayload = {
     body: WECHAT_PAYMENT_CONFIG.description,
@@ -494,10 +507,12 @@ async function createUnifiedOrder(transactionId, amount, openid) {
     tradeType: 'JSAPI',
     openid,
     nonceStr: createNonceStr(),
+    mchId: WECHAT_PAYMENT_CONFIG.merchantId,
     subMchId: WECHAT_PAYMENT_CONFIG.merchantId,
     attach: JSON.stringify({ scene: 'wallet_recharge', transactionId }),
-    totalFee: amount
+    totalFee: normalizedAmount
   };
+  requestPayload.total_fee = normalizedAmount;
 
   const envId = resolveCurrentEnvId();
   if (envId) {
@@ -871,6 +886,21 @@ function calculateExperienceGain(amountFen) {
     return 0;
   }
   return Math.max(0, Math.round((amountFen * EXPERIENCE_PER_YUAN) / 100));
+}
+
+function normalizeAmountInCents(value) {
+  if (value == null || value === '') {
+    return NaN;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return NaN;
+  }
+  const rounded = Math.round(numeric);
+  if (!Number.isFinite(rounded) || rounded <= 0) {
+    return NaN;
+  }
+  return rounded;
 }
 
 function resolveCashBalance(member) {

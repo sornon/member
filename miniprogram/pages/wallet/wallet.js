@@ -308,14 +308,19 @@ Page({
       wx.showToast({ title: '目前只支持收款台线下充值', icon: 'none' });
       return;
     }
-    const amount = Number(this.data.amount);
-    if (!amount || amount < 1) {
+    const amountYuan = Number(this.data.amount);
+    if (!amountYuan || amountYuan < 1) {
       wx.showToast({ title: '请输入充值金额', icon: 'none' });
+      return;
+    }
+    const amountInCents = Math.round(amountYuan * 100);
+    if (!amountInCents || !Number.isFinite(amountInCents)) {
+      wx.showToast({ title: '充值金额无效', icon: 'none' });
       return;
     }
     wx.showLoading({ title: '创建订单', mask: true });
     try {
-      const result = await WalletService.createRecharge(amount * 100);
+      const result = await WalletService.createRecharge(amountInCents);
       wx.hideLoading();
       if (result.payment && result.payment.paySign === 'MOCK_SIGN') {
         wx.showModal({
