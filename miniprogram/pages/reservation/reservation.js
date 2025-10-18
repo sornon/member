@@ -210,13 +210,16 @@ Page({
         endDate
       );
       const notice = result.notice || null;
+      const rawReservations = Array.isArray(result.memberReservations)
+        ? result.memberReservations
+        : [];
       this.setData({
         rooms: result.rooms || [],
         loading: false,
         notice,
         noticeDismissed: this.isNoticeDismissed(notice),
         memberUsageCount: Math.max(0, Number(result.memberUsageCount || 0)),
-        memberReservations: Array.isArray(result.memberReservations) ? result.memberReservations : [],
+        memberReservations: this.normalizeMemberReservations(rawReservations),
         reservationBadges: result.reservationBadges || null
       });
       this.updateGlobalReservationBadges(result.reservationBadges);
@@ -451,6 +454,51 @@ Page({
     } catch (error) {
       console.error('[reservation] update global badges failed', error);
     }
+  },
+
+  normalizeMemberReservations(reservations) {
+    if (!Array.isArray(reservations) || !reservations.length) {
+      return [];
+    }
+    const now = new Date();
+    const normalized = reservations
+      .map((reservation) => {
+        if (!reservation || typeof reservation !== 'object') {
+          return null;
+        }
+        const startDateTime = this.buildReservationDateTime(
+          reservation.date,
+          reservation.startTime
+        );
+        const endDateTime = this.buildReservationDateTime(
+          reservation.endDate || reservation.date,
+          reservation.endTime
+        );
+        const hasStarted = startDateTime
+          ? now.getTime() >= startDateTime.getTime()
+          : false;
+        const hasEnded = endDateTime ? now.getTime() >= endDateTime.getTime() : false;
+        if (hasEnded) {
+          return null;
+        }
+        return {
+          ...reservation,
+          canCancel: !!reservation.canCancel && !hasStarted
+        };
+      })
+      .filter(Boolean);
+    return normalized;
+  },
+
+  buildReservationDateTime(dateStr, timeStr) {
+    if (!dateStr || !timeStr) {
+      return null;
+    }
+    const minutes = timeToMinutes(timeStr);
+    if (!Number.isFinite(minutes)) {
+      return null;
+    }
+    return buildDateWithTime(dateStr, minutes);
   },
 
   isNoticeDismissed(notice) {
