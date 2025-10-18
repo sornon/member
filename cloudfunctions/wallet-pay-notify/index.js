@@ -11,16 +11,6 @@ const WECHAT_PAYMENT_SECURITY = {
   apiV3Key: (process.env.WECHAT_PAY_API_V3_KEY || '').trim()
 };
 
-let syncMemberLevel = async () => {};
-try {
-  const walletModule = require('../wallet/index.js');
-  if (walletModule && typeof walletModule.syncMemberLevel === 'function') {
-    syncMemberLevel = walletModule.syncMemberLevel;
-  }
-} catch (error) {
-  console.error('[wallet-pay-notify] failed to load wallet helpers', error);
-}
-
 exports.main = async (event) => {
   try {
     console.log('[wallet-pay-notify] payment notify event', JSON.stringify(event || {}));
@@ -225,4 +215,101 @@ function calculateExperienceGain(amountFen) {
     return 0;
   }
   return Math.max(0, Math.round((amountFen * EXPERIENCE_PER_YUAN) / 100));
+}
+
+async function syncMemberLevel(memberId) {
+  if (!memberId) {
+    return;
+  }
+
+  const [memberDoc, levelsSnapshot] = await Promise.all([
+    db.collection(COLLECTIONS.MEMBERS).doc(memberId).get().catch(() => null),
+    db.collection(COLLECTIONS.MEMBERSHIP_LEVELS).orderBy('order', 'asc').get()
+  ]);
+
+  if (!memberDoc || !memberDoc.data) {
+    return;
+  }
+
+  const member = memberDoc.data;
+  const levels = levelsSnapshot.data || [];
+  if (!levels.length) {
+    return;
+  }
+
+  const targetLevel = resolveLevelByExperience(member.experience || 0, levels);
+  if (!targetLevel || targetLevel._id === member.levelId) {
+    return;
+  }
+
+  await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(memberId)
+    .update({
+      data: {
+        levelId: targetLevel._id,
+        updatedAt: new Date()
+      }
+    });
+
+  await grantLevelRewards(memberId, targetLevel);
+}
+
+function resolveLevelByExperience(exp, levels) {
+  let target = levels[0];
+  levels.forEach((level) => {
+    if (exp >= level.threshold) {
+      target = level;
+    }
+  });
+  return target;
+}
+
+async function grantLevelRewards(memberId, level) {
+  const rewards = level.rewards || [];
+  if (!rewards.length) {
+    return;
+  }
+
+  const masterSnapshot = await db.collection(COLLECTIONS.MEMBERSHIP_RIGHTS).get();
+  const masterMap = {};
+  masterSnapshot.data.forEach((item) => {
+    masterMap[item._id] = item;
+  });
+
+  const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
+  const now = new Date();
+
+  for (const reward of rewards) {
+    const right = masterMap[reward.rightId];
+    if (!right) continue;
+
+    const existing = await rightsCollection
+      .where({ memberId, rightId: reward.rightId, levelId: level._id })
+      .count();
+
+    const quantity = reward.quantity || 1;
+    if (existing.total >= quantity) continue;
+
+    const validUntil = right.validDays
+      ? new Date(now.getTime() + right.validDays * 24 * 60 * 60 * 1000)
+      : null;
+
+    for (let i = existing.total; i < quantity; i += 1) {
+      await rightsCollection.add({
+        data: {
+          memberId,
+          rightId: reward.rightId,
+          levelId: level._id,
+          status: 'active',
+          issuedAt: now,
+          validUntil,
+          meta: {
+            fromLevel: level._id,
+            rewardName: reward.description || right.name
+          }
+        }
+      });
+    }
+  }
 }
