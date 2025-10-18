@@ -5,8 +5,6 @@ import {
 } from '../../services/member-realtime';
 import { formatCurrency, formatExperience, levelBadgeColor } from '../../utils/format';
 
-const ADMIN_ROLE_KEYWORDS = ['admin', 'developer', 'superadmin'];
-
 function normalizePercentage(progress) {
   if (!progress || typeof progress.percentage !== 'number') {
     return 0;
@@ -27,20 +25,6 @@ function normalizePercentage(progress) {
 function buildWidthStyle(width) {
   const safeWidth = typeof width === 'number' && Number.isFinite(width) ? width : 0;
   return `width: ${safeWidth}%;`;
-}
-
-function normalizeRoles(roles) {
-  if (!Array.isArray(roles)) {
-    return [];
-  }
-  return roles
-    .map((role) => (typeof role === 'string' ? role.trim() : ''))
-    .filter((role) => !!role);
-}
-
-function isAdminRoleList(roles = []) {
-  const normalized = normalizeRoles(roles).map((role) => role.toLowerCase());
-  return normalized.some((role) => ADMIN_ROLE_KEYWORDS.includes(role));
 }
 
 function buildRealmKey(level = {}) {
@@ -106,12 +90,8 @@ function decorateLevels(levels = [], options = {}) {
     });
 }
 
-function resolveVisibleLevels(levels = [], options = {}) {
-  const { isAdmin } = options;
+function resolveVisibleLevels(levels = []) {
   const normalizedLevels = Array.isArray(levels) ? levels.filter(Boolean) : [];
-  if (isAdmin) {
-    return [...normalizedLevels];
-  }
   if (!normalizedLevels.length) {
     return [];
   }
@@ -126,10 +106,7 @@ function resolveVisibleLevels(levels = [], options = {}) {
 }
 
 function resolveVisibleRealms(realms = [], options = {}) {
-  const { isAdmin, currentLevel, nextLevel } = options;
-  if (isAdmin) {
-    return [...realms];
-  }
+  const { currentLevel, nextLevel } = options;
   if (!Array.isArray(realms) || realms.length === 0) {
     return [];
   }
@@ -177,7 +154,6 @@ Page({
     breakthroughLoading: false,
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
-    isAdmin: false,
     visibleLevels: [],
     claimedLevelRewards: [],
     visibleRealms: []
@@ -296,9 +272,7 @@ Page({
       const currentOrder = currentLevel && currentLevel.order ? currentLevel.order : 0;
       const upcomingMilestone = levels.find((lvl) => lvl.order > currentOrder && lvl.milestoneReward) || null;
       const width = normalizePercentage(progress);
-      const isAdmin = isAdminRoleList(mergedMember.roles);
       const visibilityOptions = {
-        isAdmin,
         currentLevel,
         nextLevel
       };
@@ -332,7 +306,6 @@ Page({
         upcomingMilestone,
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
-        isAdmin,
         visibleLevels,
         visibleRealms,
         claimedLevelRewards,
@@ -358,7 +331,6 @@ Page({
 
   refreshVisibility() {
     const options = {
-      isAdmin: this.data.isAdmin,
       currentLevel: this.data.currentLevel,
       nextLevel: this.data.nextLevel
     };
