@@ -766,9 +766,7 @@ Page({
         mobile:
           (member.mobile && typeof member.mobile === 'string' ? member.mobile : '') ||
           (cached && cached.mobile ? cached.mobile : ''),
-        levelName:
-          (member.levelName && typeof member.levelName === 'string' ? member.levelName : '') ||
-          (cached && cached.levelName ? cached.levelName : ''),
+        levelName: '',
         cashBalance: Number.isFinite(normalizedBalance) ? normalizedBalance : null,
         balanceLabel: Number.isFinite(normalizedBalance)
           ? formatCurrency(normalizedBalance)
@@ -787,7 +785,10 @@ Page({
           nickName: info.nickName || dialog.memberInfo.nickName || '',
           realName: info.realName || dialog.memberInfo.realName || '',
           mobile: info.mobile || dialog.memberInfo.mobile || '',
-          levelName: info.levelName || dialog.memberInfo.levelName || '',
+          levelName:
+            Object.prototype.hasOwnProperty.call(info, 'levelName')
+              ? info.levelName
+              : dialog.memberInfo.levelName || '',
           displayName: info.displayName || dialog.memberInfo.displayName || '',
           cashBalance: info.cashBalance,
           balanceLabel: info.balanceLabel
