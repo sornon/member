@@ -4626,6 +4626,15 @@ function normalizeChargeItems(items) {
 
 function mapChargeOrder(order) {
   if (!order) return null;
+  const hasBalanceBefore = Object.prototype.hasOwnProperty.call(order, 'balanceBefore');
+  const hasBalanceAfter = Object.prototype.hasOwnProperty.call(order, 'balanceAfter');
+  const normalizeOptionalAmount = (value, hasValue) => {
+    if (!hasValue) {
+      return null;
+    }
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
   const totalAmount = Number(order.totalAmount || 0);
   const priceAdjustment = normalizePriceAdjustmentRecord(order.priceAdjustment);
   return {
@@ -4651,8 +4660,8 @@ function mapChargeOrder(order) {
     originalTotalAmount: Number(order.originalTotalAmount || 0),
     priceAdjustment,
     priceAdjustmentHistory: normalizePriceAdjustmentHistory(order.priceAdjustmentHistory, priceAdjustment),
-    balanceBefore: Number(order.balanceBefore || 0),
-    balanceAfter: Number(order.balanceAfter || 0),
+    balanceBefore: normalizeOptionalAmount(order.balanceBefore, hasBalanceBefore),
+    balanceAfter: normalizeOptionalAmount(order.balanceAfter, hasBalanceAfter),
     allowNegativeBalance: !!order.allowNegativeBalance,
     debtIncurred: !!order.debtIncurred
   };
@@ -4915,8 +4924,8 @@ function decorateChargeOrderRecord(order, member) {
   const priceAdjusted = Number.isFinite(originalAmount) && originalAmount > 0 && originalAmount !== order.totalAmount;
   const priceAdjustmentRemark = order.priceAdjustment ? order.priceAdjustment.remark || '' : '';
   const priceAdjustmentAdjustedAtLabel = order.priceAdjustment ? formatDate(order.priceAdjustment.adjustedAt) : '';
-  const balanceBefore = Number(order.balanceBefore || 0);
-  const balanceAfter = Number(order.balanceAfter || 0);
+  const balanceBefore = Number.isFinite(order.balanceBefore) ? order.balanceBefore : null;
+  const balanceAfter = Number.isFinite(order.balanceAfter) ? order.balanceAfter : null;
   return {
     ...order,
     totalAmountLabel: `¥${formatFenToYuan(order.totalAmount)}`,
@@ -4936,8 +4945,8 @@ function decorateChargeOrderRecord(order, member) {
     priceAdjustmentAdjustedAtLabel,
     balanceBefore,
     balanceAfter,
-    balanceBeforeLabel: `¥${formatFenToYuan(balanceBefore)}`,
-    balanceAfterLabel: `¥${formatFenToYuan(balanceAfter)}`,
+    balanceBeforeLabel: Number.isFinite(balanceBefore) ? `¥${formatFenToYuan(balanceBefore)}` : '',
+    balanceAfterLabel: Number.isFinite(balanceAfter) ? `¥${formatFenToYuan(balanceAfter)}` : '',
     allowNegativeBalance: !!order.allowNegativeBalance,
     debtIncurred: !!order.debtIncurred
   };

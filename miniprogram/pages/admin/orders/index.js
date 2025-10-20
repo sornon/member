@@ -299,7 +299,10 @@ Page({
     }
     if (targetOrder.memberId) {
       const memberSnapshot = targetOrder.memberSnapshot || {};
-      const balanceBefore = Number(targetOrder.balanceBefore);
+      const balanceBeforeValue = targetOrder.balanceBefore;
+      const hasBalanceBefore = typeof balanceBeforeValue === 'number' && Number.isFinite(balanceBeforeValue);
+      const fallbackBalanceLabel =
+        targetOrder.memberBalanceLabel || targetOrder.balanceBeforeLabel || '';
       const memberInfo = {
         _id: targetOrder.memberId,
         nickName: targetOrder.memberName || memberSnapshot.nickName || '',
@@ -311,8 +314,8 @@ Page({
         ),
         mobile: targetOrder.memberMobile || memberSnapshot.mobile || '',
         levelName: targetOrder.memberLevelName || '',
-        balanceLabel: targetOrder.memberBalanceLabel || '',
-        cashBalance: Number.isFinite(balanceBefore) ? balanceBefore : null
+        balanceLabel: hasBalanceBefore ? formatCurrency(balanceBeforeValue) : fallbackBalanceLabel,
+        cashBalance: hasBalanceBefore ? balanceBeforeValue : null
       };
       this.openForceChargeDialog(id, {
         selectedMemberId: targetOrder.memberId,
@@ -729,21 +732,45 @@ Page({
     }
     try {
       const detail = await AdminService.getMemberDetail(memberId);
-      const balanceValue = Number(detail && detail.cashBalance);
-      const cashBalance = Number.isFinite(balanceValue) ? balanceValue : 0;
+      const member = detail && detail.member ? detail.member : null;
+      if (!member) {
+        return cached || null;
+      }
+      const resolvedNickName =
+        (member.nickName && typeof member.nickName === 'string' ? member.nickName : '') ||
+        (cached && cached.nickName ? cached.nickName : '');
+      const resolvedRealName =
+        (member.realName && typeof member.realName === 'string' ? member.realName : '') ||
+        (cached && cached.realName ? cached.realName : '');
+      const candidateBalances = [member.cashBalance, member.balance, cached && cached.cashBalance];
+      let normalizedBalance = null;
+      for (const candidate of candidateBalances) {
+        if (candidate === null || typeof candidate === 'undefined' || candidate === '') {
+          continue;
+        }
+        const numeric = Number(candidate);
+        if (Number.isFinite(numeric)) {
+          normalizedBalance = numeric;
+          break;
+        }
+      }
       const info = {
         _id: memberId,
-        nickName: detail && detail.nickName ? detail.nickName : '',
-        realName: detail && detail.realName ? detail.realName : '',
+        nickName: resolvedNickName,
+        realName: resolvedRealName,
         displayName: formatMemberDisplayName(
-          detail && detail.nickName ? detail.nickName : '',
-          detail && detail.realName ? detail.realName : '',
-          '未命名'
+          resolvedNickName,
+          resolvedRealName,
+          (cached && (cached.displayName || cached.nickName || cached.realName)) || '未命名'
         ),
-        mobile: detail && detail.mobile ? detail.mobile : '',
-        levelName: detail && detail.levelName ? detail.levelName : '',
-        cashBalance,
-        balanceLabel: formatCurrency(cashBalance)
+        mobile:
+          (member.mobile && typeof member.mobile === 'string' ? member.mobile : '') ||
+          (cached && cached.mobile ? cached.mobile : ''),
+        levelName: '',
+        cashBalance: Number.isFinite(normalizedBalance) ? normalizedBalance : null,
+        balanceLabel: Number.isFinite(normalizedBalance)
+          ? formatCurrency(normalizedBalance)
+          : (cached && cached.balanceLabel) || ''
       };
       const updatePayload = {
         [`forceChargeDialog.memberCache.${memberId}`]: info
@@ -755,6 +782,13 @@ Page({
       ) {
         updatePayload['forceChargeDialog.memberInfo'] = {
           ...dialog.memberInfo,
+          nickName: info.nickName || dialog.memberInfo.nickName || '',
+          realName: info.realName || dialog.memberInfo.realName || '',
+          mobile: info.mobile || dialog.memberInfo.mobile || '',
+          levelName:
+            Object.prototype.hasOwnProperty.call(info, 'levelName')
+              ? info.levelName
+              : dialog.memberInfo.levelName || '',
           displayName: info.displayName || dialog.memberInfo.displayName || '',
           cashBalance: info.cashBalance,
           balanceLabel: info.balanceLabel
