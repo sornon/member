@@ -52,6 +52,8 @@ const ACTIVE_RESERVATION_STATUSES = [
 ];
 const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
+const CLEANUP_TASK_CONCURRENCY = 3;
+
 const FEATURE_KEY_ALIASES = {
   cashier: 'cashierEnabled',
   cashierenabled: 'cashierEnabled',
@@ -2709,7 +2711,6 @@ async function cleanupBattleRecords(openid, options = {}) {
   const previewOnly = Boolean(options && options.previewOnly);
   const summary = { removed: {}, errors: [], preview: {} };
   const processedCollections = new Set();
-  let totalRemoved = 0;
 
   const cleanupTargets = [
     { collection: COLLECTIONS.MEMBER_PVE_HISTORY, key: 'memberPveHistory' },
@@ -2720,18 +2721,30 @@ async function cleanupBattleRecords(openid, options = {}) {
     { collection: COLLECTIONS.PVP_SEASONS, key: 'pvpSeasons' }
   ];
 
-  for (const target of cleanupTargets) {
-    processedCollections.add(target.key);
-    const removed = await cleanupCollectionDocuments(target.collection, summary, {
-      previewOnly,
-      counterKey: target.key
-    });
-    totalRemoved += removed;
-  }
+  cleanupTargets.forEach((target) => processedCollections.add(target.key));
+
+  await runTasksWithConcurrency(
+    cleanupTargets.map((target) => async () => {
+      try {
+        await cleanupCollectionDocuments(target.collection, summary, {
+          previewOnly,
+          counterKey: target.key
+        });
+      } catch (error) {
+        pushCleanupError(summary, target.collection, error);
+      }
+    }),
+    CLEANUP_TASK_CONCURRENCY
+  );
 
   processedCollections.add('pveProfileHistory');
-  const pveProfileCount = await cleanupPveProfileHistory(summary, { previewOnly });
-  totalRemoved += pveProfileCount;
+  await cleanupPveProfileHistory(summary, { previewOnly });
+
+  const totalSource = previewOnly ? summary.preview : summary.removed;
+  const totalRemoved = Object.keys(totalSource).reduce((acc, key) => {
+    const value = Number(totalSource[key]);
+    return acc + (Number.isFinite(value) ? value : 0);
+  }, 0);
 
   return {
     memberCount: 0,
@@ -2756,138 +2769,193 @@ async function cleanupResidualMemberData(openid, options = {}) {
   }
 
   const summary = { removed: {}, errors: [], preview: {} };
-  const processedCollections = [];
+  const cleanupJobs = [
+    {
+      key: COLLECTIONS.MEMBER_TIMELINE,
+      collection: COLLECTIONS.MEMBER_TIMELINE,
+      runner: () =>
+        cleanupCollectionOrphans(
+          COLLECTIONS.MEMBER_TIMELINE,
+          ['memberId'],
+          memberIds,
+          summary,
+          { previewOnly }
+        )
+    },
+    {
+      key: COLLECTIONS.MEMBER_EXTRAS,
+      collection: COLLECTIONS.MEMBER_EXTRAS,
+      runner: () => removeOrphanedDocumentsById(COLLECTIONS.MEMBER_EXTRAS, memberIds, summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.MEMBER_PVE_HISTORY,
+      collection: COLLECTIONS.MEMBER_PVE_HISTORY,
+      runner: () => removeOrphanedDocumentsById(COLLECTIONS.MEMBER_PVE_HISTORY, memberIds, summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.RESERVATIONS,
+      collection: COLLECTIONS.RESERVATIONS,
+      runner: () =>
+        cleanupCollectionOrphans(
+          COLLECTIONS.RESERVATIONS,
+          ['memberId'],
+          memberIds,
+          summary,
+          { previewOnly }
+        )
+    },
+    {
+      key: COLLECTIONS.MEMBER_RIGHTS,
+      collection: COLLECTIONS.MEMBER_RIGHTS,
+      runner: () =>
+        cleanupCollectionOrphans(
+          COLLECTIONS.MEMBER_RIGHTS,
+          ['memberId'],
+          memberIds,
+          summary,
+          { previewOnly }
+        )
+    },
+    {
+      key: COLLECTIONS.WALLET_TRANSACTIONS,
+      collection: COLLECTIONS.WALLET_TRANSACTIONS,
+      runner: () =>
+        cleanupCollectionOrphans(
+          COLLECTIONS.WALLET_TRANSACTIONS,
+          ['memberId'],
+          memberIds,
+          summary,
+          { previewOnly }
+        )
+    },
+    {
+      key: COLLECTIONS.STONE_TRANSACTIONS,
+      collection: COLLECTIONS.STONE_TRANSACTIONS,
+      runner: () =>
+        cleanupCollectionOrphans(
+          COLLECTIONS.STONE_TRANSACTIONS,
+          ['memberId'],
+          memberIds,
+          summary,
+          { previewOnly }
+        )
+    },
+    {
+      key: COLLECTIONS.TASK_RECORDS,
+      collection: COLLECTIONS.TASK_RECORDS,
+      runner: () =>
+        cleanupCollectionOrphans(
+          COLLECTIONS.TASK_RECORDS,
+          ['memberId'],
+          memberIds,
+          summary,
+          { previewOnly }
+        )
+    },
+    {
+      key: COLLECTIONS.COUPON_RECORDS,
+      collection: COLLECTIONS.COUPON_RECORDS,
+      runner: () =>
+        cleanupCollectionOrphans(
+          COLLECTIONS.COUPON_RECORDS,
+          ['memberId'],
+          memberIds,
+          summary,
+          { previewOnly }
+        )
+    },
+    {
+      key: COLLECTIONS.CHARGE_ORDERS,
+      collection: COLLECTIONS.CHARGE_ORDERS,
+      runner: () =>
+        cleanupCollectionOrphans(
+          COLLECTIONS.CHARGE_ORDERS,
+          ['memberId'],
+          memberIds,
+          summary,
+          { previewOnly }
+        )
+    },
+    {
+      key: COLLECTIONS.MENU_ORDERS,
+      collection: COLLECTIONS.MENU_ORDERS,
+      runner: () =>
+        cleanupCollectionOrphans(
+          COLLECTIONS.MENU_ORDERS,
+          ['memberId'],
+          memberIds,
+          summary,
+          { previewOnly }
+        )
+    },
+    {
+      key: COLLECTIONS.ERROR_LOGS,
+      collection: COLLECTIONS.ERROR_LOGS,
+      runner: () =>
+        cleanupCollectionOrphans(
+          COLLECTIONS.ERROR_LOGS,
+          ['memberId'],
+          memberIds,
+          summary,
+          { previewOnly }
+        )
+    },
+    {
+      key: COLLECTIONS.PVP_INVITES,
+      collection: COLLECTIONS.PVP_INVITES,
+      runner: () =>
+        cleanupCollectionOrphans(
+          COLLECTIONS.PVP_INVITES,
+          ['inviterId', 'opponentId'],
+          memberIds,
+          summary,
+          { previewOnly }
+        )
+    },
+    {
+      key: COLLECTIONS.PVP_MATCHES,
+      collection: COLLECTIONS.PVP_MATCHES,
+      runner: () =>
+        cleanupCollectionOrphans(
+          COLLECTIONS.PVP_MATCHES,
+          ['player.memberId', 'opponent.memberId'],
+          memberIds,
+          summary,
+          { previewOnly }
+        )
+    },
+    {
+      key: COLLECTIONS.PVP_PROFILES,
+      collection: COLLECTIONS.PVP_PROFILES,
+      runner: () => removeOrphanedDocumentsById(COLLECTIONS.PVP_PROFILES, memberIds, summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.PVP_LEADERBOARD,
+      collection: COLLECTIONS.PVP_LEADERBOARD,
+      runner: () => cleanupPvpLeaderboardOrphans(memberIds, summary, { previewOnly })
+    }
+  ];
 
-  processedCollections.push(COLLECTIONS.MEMBER_TIMELINE);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.MEMBER_TIMELINE,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
+  await runTasksWithConcurrency(
+    cleanupJobs.map((job) => async () => {
+      try {
+        await job.runner();
+      } catch (error) {
+        pushCleanupError(summary, job.collection || job.key, error);
+      }
+    }),
+    CLEANUP_TASK_CONCURRENCY
   );
 
-  processedCollections.push(COLLECTIONS.MEMBER_EXTRAS);
-  await removeOrphanedDocumentsById(COLLECTIONS.MEMBER_EXTRAS, memberIds, summary, { previewOnly });
+  const processedCollections = cleanupJobs.map((job) => job.key);
 
-  processedCollections.push(COLLECTIONS.MEMBER_PVE_HISTORY);
-  await removeOrphanedDocumentsById(
-    COLLECTIONS.MEMBER_PVE_HISTORY,
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.RESERVATIONS);
-  const reservationsRemoved = await cleanupCollectionOrphans(
-    COLLECTIONS.RESERVATIONS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.MEMBER_RIGHTS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.MEMBER_RIGHTS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.WALLET_TRANSACTIONS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.WALLET_TRANSACTIONS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.STONE_TRANSACTIONS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.STONE_TRANSACTIONS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.TASK_RECORDS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.TASK_RECORDS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.COUPON_RECORDS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.COUPON_RECORDS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.CHARGE_ORDERS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.CHARGE_ORDERS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.MENU_ORDERS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.MENU_ORDERS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.ERROR_LOGS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.ERROR_LOGS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.PVP_INVITES);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.PVP_INVITES,
-    ['inviterId', 'opponentId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.PVP_MATCHES);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.PVP_MATCHES,
-    ['player.memberId', 'opponent.memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.PVP_PROFILES);
-  await removeOrphanedDocumentsById(COLLECTIONS.PVP_PROFILES, memberIds, summary, { previewOnly });
-
-  processedCollections.push(COLLECTIONS.PVP_LEADERBOARD);
-  await cleanupPvpLeaderboardOrphans(memberIds, summary, { previewOnly });
+  const totalSource = previewOnly ? summary.preview : summary.removed;
+  const reservationsRemoved = Number(totalSource[COLLECTIONS.RESERVATIONS]) || 0;
 
   if (!previewOnly && reservationsRemoved > 0) {
     await updateAdminReservationBadges({ incrementVersion: true });
   }
 
-  const totalSource = previewOnly ? summary.preview : summary.removed;
   const totalRemoved = Object.keys(totalSource).reduce((acc, key) => {
     const value = Number(totalSource[key]);
     return acc + (Number.isFinite(value) ? value : 0);
@@ -3758,6 +3826,37 @@ async function removeDocumentById(collectionName, docId, summary) {
     pushCleanupError(summary, collectionName, error, targetId);
     return 0;
   }
+}
+
+async function runTasksWithConcurrency(taskFactories, concurrency = 3) {
+  if (!Array.isArray(taskFactories) || taskFactories.length === 0) {
+    return [];
+  }
+
+  const normalizedConcurrency = Number.isFinite(concurrency) && concurrency > 0 ? Math.floor(concurrency) : 1;
+  const workerCount = Math.min(normalizedConcurrency, taskFactories.length);
+  const results = new Array(taskFactories.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (true) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      if (currentIndex >= taskFactories.length) {
+        break;
+      }
+      const factory = taskFactories[currentIndex];
+      try {
+        results[currentIndex] = await factory();
+      } catch (error) {
+        results[currentIndex] = { error };
+      }
+    }
+  }
+
+  const workers = Array.from({ length: workerCount }, () => worker());
+  await Promise.all(workers);
+  return results;
 }
 
 function pushCleanupError(summary, collectionName, error, docId = '') {
