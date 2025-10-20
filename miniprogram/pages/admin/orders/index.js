@@ -299,7 +299,10 @@ Page({
     }
     if (targetOrder.memberId) {
       const memberSnapshot = targetOrder.memberSnapshot || {};
-      const balanceBefore = Number(targetOrder.balanceBefore);
+      const balanceBeforeValue = targetOrder.balanceBefore;
+      const hasBalanceBefore = typeof balanceBeforeValue === 'number' && Number.isFinite(balanceBeforeValue);
+      const fallbackBalanceLabel =
+        targetOrder.memberBalanceLabel || targetOrder.balanceBeforeLabel || '';
       const memberInfo = {
         _id: targetOrder.memberId,
         nickName: targetOrder.memberName || memberSnapshot.nickName || '',
@@ -311,8 +314,8 @@ Page({
         ),
         mobile: targetOrder.memberMobile || memberSnapshot.mobile || '',
         levelName: targetOrder.memberLevelName || '',
-        balanceLabel: targetOrder.memberBalanceLabel || '',
-        cashBalance: Number.isFinite(balanceBefore) ? balanceBefore : null
+        balanceLabel: hasBalanceBefore ? formatCurrency(balanceBeforeValue) : fallbackBalanceLabel,
+        cashBalance: hasBalanceBefore ? balanceBeforeValue : null
       };
       this.openForceChargeDialog(id, {
         selectedMemberId: targetOrder.memberId,
