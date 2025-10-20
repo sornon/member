@@ -226,7 +226,8 @@ Page({
       error: '',
       memberLocked: false,
       memberInfo: null,
-      remark: ''
+      remark: '',
+      memberCache: {}
     },
     priceAdjustingId: '',
     cancelingId: '',
@@ -298,6 +299,7 @@ Page({
     }
     if (targetOrder.memberId) {
       const memberSnapshot = targetOrder.memberSnapshot || {};
+      const balanceBefore = Number(targetOrder.balanceBefore);
       const memberInfo = {
         _id: targetOrder.memberId,
         nickName: targetOrder.memberName || memberSnapshot.nickName || '',
@@ -309,13 +311,18 @@ Page({
         ),
         mobile: targetOrder.memberMobile || memberSnapshot.mobile || '',
         levelName: targetOrder.memberLevelName || '',
-        balanceLabel: targetOrder.memberBalanceLabel || ''
+        balanceLabel: targetOrder.memberBalanceLabel || '',
+        cashBalance: Number.isFinite(balanceBefore) ? balanceBefore : null
       };
       this.openForceChargeDialog(id, {
         selectedMemberId: targetOrder.memberId,
         memberLocked: true,
         memberInfo
       });
+      this.setData({
+        [`forceChargeDialog.memberCache.${targetOrder.memberId}`]: memberInfo
+      });
+      this.ensureForceChargeMemberDetail(targetOrder.memberId);
       return;
     }
     this.openForceChargeDialog(id);
@@ -450,7 +457,11 @@ Page({
         error: '',
         memberLocked: !!options.memberLocked,
         memberInfo: options.memberInfo || null,
-        remark: options.remark || ''
+        remark: options.remark || '',
+        memberCache:
+          (options.memberCache && typeof options.memberCache === 'object'
+            ? options.memberCache
+            : {}) || {}
       }
     });
   },
@@ -470,7 +481,8 @@ Page({
         error: '',
         memberLocked: false,
         memberInfo: null,
-        remark: ''
+        remark: '',
+        memberCache: {}
       }
     });
   },
@@ -497,6 +509,7 @@ Page({
       return;
     }
     this.setData({ 'forceChargeDialog.selectedMemberId': id });
+    this.ensureForceChargeMemberDetail(id);
   },
 
   handleConfirmForceChargeWithMember() {
@@ -535,15 +548,33 @@ Page({
             displayName: formatMemberDisplayName(member.nickName, member.realName, '未命名'),
             mobile: member.mobile || '',
             levelName: member.levelName || '',
+            cashBalance: (() => {
+              const numeric = Number(member.cashBalance);
+              return Number.isFinite(numeric) ? numeric : null;
+            })(),
             balanceLabel: formatCurrency(member.cashBalance)
           }))
         : [];
       const currentSelected = this.data.forceChargeDialog.selectedMemberId || '';
       const stillExists = currentSelected && results.some((member) => member._id === currentSelected);
+      const memberCache = { ...(this.data.forceChargeDialog.memberCache || {}) };
+      results.forEach((member) => {
+        memberCache[member._id] = {
+          _id: member._id,
+          nickName: member.nickName,
+          realName: member.realName,
+          displayName: member.displayName,
+          mobile: member.mobile,
+          levelName: member.levelName,
+          cashBalance: member.cashBalance,
+          balanceLabel: member.balanceLabel
+        };
+      });
       this.setData({
         'forceChargeDialog.results': results,
         'forceChargeDialog.loading': false,
-        'forceChargeDialog.selectedMemberId': stillExists ? currentSelected : ''
+        'forceChargeDialog.selectedMemberId': stillExists ? currentSelected : '',
+        'forceChargeDialog.memberCache': memberCache
       });
     } catch (error) {
       const message =
@@ -569,8 +600,32 @@ Page({
     if (!orderId || this.data.forceChargingId === orderId) {
       return;
     }
-    this.setData({ forceChargingId: orderId });
     const normalizedRemark = typeof remark === 'string' ? remark.trim() : '';
+    if (!options.allowNegativeBalance && !options.skipDebtPrecheck) {
+      const preview = await this.getForceChargeDebtPreview(orderId, memberId);
+      if (
+        preview &&
+        Number.isFinite(preview.shortage) &&
+        preview.shortage > 0 &&
+        Number.isFinite(preview.amount)
+      ) {
+        const confirmResult = await showConfirmDialog({
+          title: '余额不足',
+          content: buildForceChargeDebtModalContent(preview),
+          confirmText: '仍要扣款'
+        });
+        if (!confirmResult || !confirmResult.confirm) {
+          return;
+        }
+        return this.forceChargeOrder(orderId, memberId, remark, {
+          ...options,
+          allowNegativeBalance: true,
+          skipDebtPrecheck: true
+        });
+      }
+    }
+
+    this.setData({ forceChargingId: orderId });
     let retryWithNegativeBalance = false;
     try {
       const result = await AdminService.forceChargeOrder(orderId, {
@@ -581,10 +636,29 @@ Page({
       const stoneReward = Number(result && result.stoneReward ? result.stoneReward : 0);
       const balanceAfter = Number(result && typeof result.balanceAfter !== 'undefined' ? result.balanceAfter : NaN);
       let message = stoneReward > 0 ? `扣款成功，灵石+${Math.floor(stoneReward)}` : '扣款成功';
+      const balanceAfterLabel = Number.isFinite(balanceAfter) ? formatCurrency(balanceAfter) : '';
       if (Number.isFinite(balanceAfter) && balanceAfter < 0) {
-        message = `${message}（余额${formatCurrency(balanceAfter)}）`;
+        message = `${message}（余额${balanceAfterLabel}）`;
       }
       wx.showToast({ title: message, icon: 'success' });
+      if (memberId && Number.isFinite(balanceAfter)) {
+        const setPayload = {
+          [`forceChargeDialog.memberCache.${memberId}.cashBalance`]: balanceAfter,
+          [`forceChargeDialog.memberCache.${memberId}.balanceLabel`]: balanceAfterLabel
+        };
+        if (
+          this.data.forceChargeDialog.memberLocked &&
+          this.data.forceChargeDialog.memberInfo &&
+          this.data.forceChargeDialog.memberInfo._id === memberId
+        ) {
+          setPayload['forceChargeDialog.memberInfo'] = {
+            ...this.data.forceChargeDialog.memberInfo,
+            cashBalance: balanceAfter,
+            balanceLabel: balanceAfterLabel
+          };
+        }
+        this.setData(setPayload);
+      }
       this.closeForceChargeDialog();
       await this.loadOrders({ reset: true });
       return result;
@@ -595,9 +669,32 @@ Page({
           : '扣款失败';
       const insufficientInfo = parseInsufficientBalanceError(error);
       if (insufficientInfo && !options.allowNegativeBalance) {
+        const fallbackPreview = await this.getForceChargeDebtPreview(orderId, memberId);
+        const dialogData = {
+          amount: Number.isFinite(insufficientInfo.amount)
+            ? insufficientInfo.amount
+            : fallbackPreview && Number.isFinite(fallbackPreview.amount)
+            ? fallbackPreview.amount
+            : insufficientInfo.amount,
+          balance: Number.isFinite(insufficientInfo.balance)
+            ? insufficientInfo.balance
+            : fallbackPreview && Number.isFinite(fallbackPreview.balance)
+            ? fallbackPreview.balance
+            : insufficientInfo.balance,
+          balanceAfter: Number.isFinite(insufficientInfo.balanceAfter)
+            ? insufficientInfo.balanceAfter
+            : fallbackPreview && Number.isFinite(fallbackPreview.balanceAfter)
+            ? fallbackPreview.balanceAfter
+            : insufficientInfo.balanceAfter,
+          shortage: Number.isFinite(insufficientInfo.shortage)
+            ? insufficientInfo.shortage
+            : fallbackPreview && Number.isFinite(fallbackPreview.shortage)
+            ? fallbackPreview.shortage
+            : insufficientInfo.shortage
+        };
         const confirmResult = await showConfirmDialog({
           title: '余额不足',
-          content: buildForceChargeDebtModalContent(insufficientInfo),
+          content: buildForceChargeDebtModalContent(dialogData),
           confirmText: '仍要扣款'
         });
         if (confirmResult && confirmResult.confirm) {
@@ -614,9 +711,103 @@ Page({
     }
     if (retryWithNegativeBalance) {
       return this.forceChargeOrder(orderId, memberId, remark, {
-        allowNegativeBalance: true
+        allowNegativeBalance: true,
+        skipDebtPrecheck: true
       });
     }
+  },
+
+  async ensureForceChargeMemberDetail(memberId) {
+    if (!memberId) {
+      return null;
+    }
+    const dialog = this.data.forceChargeDialog || {};
+    const cache = dialog.memberCache || {};
+    const cached = cache[memberId];
+    if (cached && Number.isFinite(cached.cashBalance)) {
+      return cached;
+    }
+    try {
+      const detail = await AdminService.getMemberDetail(memberId);
+      const balanceValue = Number(detail && detail.cashBalance);
+      const cashBalance = Number.isFinite(balanceValue) ? balanceValue : 0;
+      const info = {
+        _id: memberId,
+        nickName: detail && detail.nickName ? detail.nickName : '',
+        realName: detail && detail.realName ? detail.realName : '',
+        displayName: formatMemberDisplayName(
+          detail && detail.nickName ? detail.nickName : '',
+          detail && detail.realName ? detail.realName : '',
+          '未命名'
+        ),
+        mobile: detail && detail.mobile ? detail.mobile : '',
+        levelName: detail && detail.levelName ? detail.levelName : '',
+        cashBalance,
+        balanceLabel: formatCurrency(cashBalance)
+      };
+      const updatePayload = {
+        [`forceChargeDialog.memberCache.${memberId}`]: info
+      };
+      if (
+        dialog.memberLocked &&
+        dialog.memberInfo &&
+        dialog.memberInfo._id === memberId
+      ) {
+        updatePayload['forceChargeDialog.memberInfo'] = {
+          ...dialog.memberInfo,
+          displayName: info.displayName || dialog.memberInfo.displayName || '',
+          cashBalance: info.cashBalance,
+          balanceLabel: info.balanceLabel
+        };
+      }
+      this.setData(updatePayload);
+      return info;
+    } catch (error) {
+      return cached || null;
+    }
+  },
+
+  async getForceChargeDebtPreview(orderId, memberId) {
+    if (!orderId || !memberId) {
+      return null;
+    }
+    const order = this.data.orders.find((item) => item && item._id === orderId);
+    if (!order) {
+      return null;
+    }
+    const amount = Number(order.totalAmount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return null;
+    }
+    const dialog = this.data.forceChargeDialog || {};
+    const cache = dialog.memberCache || {};
+    let record = null;
+    if (
+      dialog.memberLocked &&
+      dialog.memberInfo &&
+      dialog.memberInfo._id === memberId &&
+      Number.isFinite(dialog.memberInfo.cashBalance)
+    ) {
+      record = dialog.memberInfo;
+    }
+    if (!record && cache[memberId] && Number.isFinite(cache[memberId].cashBalance)) {
+      record = cache[memberId];
+    }
+    if (!record) {
+      record = await this.ensureForceChargeMemberDetail(memberId);
+    }
+    if (!record || !Number.isFinite(record.cashBalance)) {
+      return { amount };
+    }
+    const balance = Number(record.cashBalance);
+    const balanceAfter = balance - amount;
+    const shortage = amount - balance;
+    return {
+      amount,
+      balance,
+      balanceAfter,
+      shortage
+    };
   },
 
   handleKeywordInput(event) {
