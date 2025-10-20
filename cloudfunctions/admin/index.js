@@ -52,6 +52,9 @@ const ACTIVE_RESERVATION_STATUSES = [
 ];
 const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
+const CLEANUP_TASK_CONCURRENCY = 3;
+const ORPHAN_QUERY_BATCH_LIMIT = 200;
+
 const FEATURE_KEY_ALIASES = {
   cashier: 'cashierEnabled',
   cashierenabled: 'cashierEnabled',
@@ -2709,7 +2712,6 @@ async function cleanupBattleRecords(openid, options = {}) {
   const previewOnly = Boolean(options && options.previewOnly);
   const summary = { removed: {}, errors: [], preview: {} };
   const processedCollections = new Set();
-  let totalRemoved = 0;
 
   const cleanupTargets = [
     { collection: COLLECTIONS.MEMBER_PVE_HISTORY, key: 'memberPveHistory' },
@@ -2720,18 +2722,30 @@ async function cleanupBattleRecords(openid, options = {}) {
     { collection: COLLECTIONS.PVP_SEASONS, key: 'pvpSeasons' }
   ];
 
-  for (const target of cleanupTargets) {
-    processedCollections.add(target.key);
-    const removed = await cleanupCollectionDocuments(target.collection, summary, {
-      previewOnly,
-      counterKey: target.key
-    });
-    totalRemoved += removed;
-  }
+  cleanupTargets.forEach((target) => processedCollections.add(target.key));
+
+  await runTasksWithConcurrency(
+    cleanupTargets.map((target) => async () => {
+      try {
+        await cleanupCollectionDocuments(target.collection, summary, {
+          previewOnly,
+          counterKey: target.key
+        });
+      } catch (error) {
+        pushCleanupError(summary, target.collection, error);
+      }
+    }),
+    CLEANUP_TASK_CONCURRENCY
+  );
 
   processedCollections.add('pveProfileHistory');
-  const pveProfileCount = await cleanupPveProfileHistory(summary, { previewOnly });
-  totalRemoved += pveProfileCount;
+  await cleanupPveProfileHistory(summary, { previewOnly });
+
+  const totalSource = previewOnly ? summary.preview : summary.removed;
+  const totalRemoved = Object.keys(totalSource).reduce((acc, key) => {
+    const value = Number(totalSource[key]);
+    return acc + (Number.isFinite(value) ? value : 0);
+  }, 0);
 
   return {
     memberCount: 0,
@@ -2747,154 +2761,125 @@ async function cleanupResidualMemberData(openid, options = {}) {
 
   const previewOnly = Boolean(options && options.previewOnly);
 
-  let memberIds;
-  try {
-    memberIds = await listAllMemberIds();
-  } catch (error) {
-    console.error('[admin] cleanup residual data failed to load member ids', error);
-    throw new Error('获取会员列表失败，暂时无法执行数据清理');
-  }
+  const memberCount = await getTotalMemberCount();
 
   const summary = { removed: {}, errors: [], preview: {} };
-  const processedCollections = [];
+  const cleanupJobs = [
+    {
+      key: COLLECTIONS.MEMBER_TIMELINE,
+      collection: COLLECTIONS.MEMBER_TIMELINE,
+      runner: () => cleanupCollectionOrphans(COLLECTIONS.MEMBER_TIMELINE, ['memberId'], summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.MEMBER_EXTRAS,
+      collection: COLLECTIONS.MEMBER_EXTRAS,
+      runner: () => removeOrphanedDocumentsById(COLLECTIONS.MEMBER_EXTRAS, summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.MEMBER_PVE_HISTORY,
+      collection: COLLECTIONS.MEMBER_PVE_HISTORY,
+      runner: () => removeOrphanedDocumentsById(COLLECTIONS.MEMBER_PVE_HISTORY, summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.RESERVATIONS,
+      collection: COLLECTIONS.RESERVATIONS,
+      runner: () => cleanupCollectionOrphans(COLLECTIONS.RESERVATIONS, ['memberId'], summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.MEMBER_RIGHTS,
+      collection: COLLECTIONS.MEMBER_RIGHTS,
+      runner: () => cleanupCollectionOrphans(COLLECTIONS.MEMBER_RIGHTS, ['memberId'], summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.WALLET_TRANSACTIONS,
+      collection: COLLECTIONS.WALLET_TRANSACTIONS,
+      runner: () => cleanupCollectionOrphans(COLLECTIONS.WALLET_TRANSACTIONS, ['memberId'], summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.STONE_TRANSACTIONS,
+      collection: COLLECTIONS.STONE_TRANSACTIONS,
+      runner: () => cleanupCollectionOrphans(COLLECTIONS.STONE_TRANSACTIONS, ['memberId'], summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.TASK_RECORDS,
+      collection: COLLECTIONS.TASK_RECORDS,
+      runner: () => cleanupCollectionOrphans(COLLECTIONS.TASK_RECORDS, ['memberId'], summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.COUPON_RECORDS,
+      collection: COLLECTIONS.COUPON_RECORDS,
+      runner: () => cleanupCollectionOrphans(COLLECTIONS.COUPON_RECORDS, ['memberId'], summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.CHARGE_ORDERS,
+      collection: COLLECTIONS.CHARGE_ORDERS,
+      runner: () => cleanupCollectionOrphans(COLLECTIONS.CHARGE_ORDERS, ['memberId'], summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.MENU_ORDERS,
+      collection: COLLECTIONS.MENU_ORDERS,
+      runner: () => cleanupCollectionOrphans(COLLECTIONS.MENU_ORDERS, ['memberId'], summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.ERROR_LOGS,
+      collection: COLLECTIONS.ERROR_LOGS,
+      runner: () => cleanupCollectionOrphans(COLLECTIONS.ERROR_LOGS, ['memberId'], summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.PVP_INVITES,
+      collection: COLLECTIONS.PVP_INVITES,
+      runner: () => cleanupCollectionOrphans(COLLECTIONS.PVP_INVITES, ['inviterId', 'opponentId'], summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.PVP_MATCHES,
+      collection: COLLECTIONS.PVP_MATCHES,
+      runner: () =>
+        cleanupCollectionOrphans(
+          COLLECTIONS.PVP_MATCHES,
+          ['player.memberId', 'opponent.memberId'],
+          summary,
+          { previewOnly }
+        )
+    },
+    {
+      key: COLLECTIONS.PVP_PROFILES,
+      collection: COLLECTIONS.PVP_PROFILES,
+      runner: () => removeOrphanedDocumentsById(COLLECTIONS.PVP_PROFILES, summary, { previewOnly })
+    },
+    {
+      key: COLLECTIONS.PVP_LEADERBOARD,
+      collection: COLLECTIONS.PVP_LEADERBOARD,
+      runner: () => cleanupPvpLeaderboardOrphans(summary, { previewOnly })
+    }
+  ];
 
-  processedCollections.push(COLLECTIONS.MEMBER_TIMELINE);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.MEMBER_TIMELINE,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
+  await runTasksWithConcurrency(
+    cleanupJobs.map((job) => async () => {
+      try {
+        await job.runner();
+      } catch (error) {
+        pushCleanupError(summary, job.collection || job.key, error);
+      }
+    }),
+    CLEANUP_TASK_CONCURRENCY
   );
 
-  processedCollections.push(COLLECTIONS.MEMBER_EXTRAS);
-  await removeOrphanedDocumentsById(COLLECTIONS.MEMBER_EXTRAS, memberIds, summary, { previewOnly });
+  const processedCollections = cleanupJobs.map((job) => job.key);
 
-  processedCollections.push(COLLECTIONS.MEMBER_PVE_HISTORY);
-  await removeOrphanedDocumentsById(
-    COLLECTIONS.MEMBER_PVE_HISTORY,
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.RESERVATIONS);
-  const reservationsRemoved = await cleanupCollectionOrphans(
-    COLLECTIONS.RESERVATIONS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.MEMBER_RIGHTS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.MEMBER_RIGHTS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.WALLET_TRANSACTIONS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.WALLET_TRANSACTIONS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.STONE_TRANSACTIONS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.STONE_TRANSACTIONS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.TASK_RECORDS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.TASK_RECORDS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.COUPON_RECORDS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.COUPON_RECORDS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.CHARGE_ORDERS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.CHARGE_ORDERS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.MENU_ORDERS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.MENU_ORDERS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.ERROR_LOGS);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.ERROR_LOGS,
-    ['memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.PVP_INVITES);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.PVP_INVITES,
-    ['inviterId', 'opponentId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.PVP_MATCHES);
-  await cleanupCollectionOrphans(
-    COLLECTIONS.PVP_MATCHES,
-    ['player.memberId', 'opponent.memberId'],
-    memberIds,
-    summary,
-    { previewOnly }
-  );
-
-  processedCollections.push(COLLECTIONS.PVP_PROFILES);
-  await removeOrphanedDocumentsById(COLLECTIONS.PVP_PROFILES, memberIds, summary, { previewOnly });
-
-  processedCollections.push(COLLECTIONS.PVP_LEADERBOARD);
-  await cleanupPvpLeaderboardOrphans(memberIds, summary, { previewOnly });
+  const totalSource = previewOnly ? summary.preview : summary.removed;
+  const reservationsRemoved = Number(totalSource[COLLECTIONS.RESERVATIONS]) || 0;
 
   if (!previewOnly && reservationsRemoved > 0) {
     await updateAdminReservationBadges({ incrementVersion: true });
   }
 
-  const totalSource = previewOnly ? summary.preview : summary.removed;
   const totalRemoved = Object.keys(totalSource).reduce((acc, key) => {
     const value = Number(totalSource[key]);
     return acc + (Number.isFinite(value) ? value : 0);
   }, 0);
 
   return {
-    memberCount: memberIds.size,
+    memberCount,
     totalRemoved,
     processedCollections: Array.from(new Set(processedCollections)),
     summary,
@@ -3054,6 +3039,19 @@ async function removeMemberPveHistoryDocument(memberId, summary) {
   return 1;
 }
 
+async function getTotalMemberCount() {
+  try {
+    const snapshot = await db.collection(COLLECTIONS.MEMBERS).count();
+    const total = snapshot && Number.isFinite(snapshot.total) ? Math.floor(snapshot.total) : 0;
+    return Math.max(0, total);
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      console.error('[admin] failed to count members', error);
+    }
+  }
+  return 0;
+}
+
 async function listAllMemberIds() {
   const collection = db.collection(COLLECTIONS.MEMBERS);
   const limit = 100;
@@ -3096,9 +3094,167 @@ async function listAllMemberIds() {
   return memberIds;
 }
 
-async function cleanupCollectionOrphans(collectionName, memberIdPaths, memberIds, summary, options = {}) {
+async function cleanupCollectionOrphans(collectionName, memberIdPaths, summary, options = {}) {
   const previewOnly = Boolean(options && options.previewOnly);
-  if (!Array.isArray(memberIdPaths) || !memberIdPaths.length) {
+  const normalizedPaths = normalizeMemberIdPaths(memberIdPaths);
+  if (!normalizedPaths.length) {
+    return 0;
+  }
+
+  const batchSize = Number.isFinite(options && options.batchSize) && options.batchSize > 0
+    ? Math.min(500, Math.floor(options.batchSize))
+    : ORPHAN_QUERY_BATCH_LIMIT;
+
+  if (previewOnly) {
+    const total = await countCollectionOrphans(collectionName, normalizedPaths, batchSize);
+    if (total !== null) {
+      if (total > 0) {
+        summary.preview = summary.preview || {};
+        summary.preview[collectionName] = (summary.preview[collectionName] || 0) + total;
+      }
+      return total;
+    }
+  } else {
+    let removed = 0;
+    while (true) {
+      const orphanIds = await findCollectionOrphanIds(collectionName, normalizedPaths, { limit: batchSize });
+      if (orphanIds === null) {
+        break;
+      }
+      if (!orphanIds.length) {
+        return removed;
+      }
+
+      const tasks = orphanIds.map((docId) =>
+        db
+          .collection(collectionName)
+          .doc(docId)
+          .remove()
+          .then(() => {
+            removed += 1;
+            appendRemovalCount(summary, collectionName, 1);
+          })
+          .catch((error) => {
+            if (!isNotFoundError(error)) {
+              pushCleanupError(summary, collectionName, error, docId);
+            }
+          })
+      );
+
+      if (tasks.length) {
+        await Promise.all(tasks);
+      }
+
+      if (orphanIds.length < batchSize) {
+        return removed;
+      }
+    }
+  }
+
+  return legacyCleanupCollectionOrphans(collectionName, normalizedPaths, summary, { previewOnly });
+}
+
+async function countCollectionOrphans(collectionName, memberIdPaths, batchSize = ORPHAN_QUERY_BATCH_LIMIT) {
+  let total = 0;
+  let cursor = '';
+
+  while (true) {
+    const orphanIds = await findCollectionOrphanIds(collectionName, memberIdPaths, { limit: batchSize, afterId: cursor });
+    if (orphanIds === null) {
+      return null;
+    }
+    if (!orphanIds.length) {
+      break;
+    }
+    total += orphanIds.length;
+    cursor = orphanIds[orphanIds.length - 1];
+    if (orphanIds.length < batchSize) {
+      break;
+    }
+  }
+
+  return total;
+}
+
+async function findCollectionOrphanIds(collectionName, memberIdPaths, options = {}) {
+  const limit = Number.isFinite(options && options.limit) && options.limit > 0 ? Math.min(500, Math.floor(options.limit)) : ORPHAN_QUERY_BATCH_LIMIT;
+  const afterId = options && typeof options.afterId === 'string' ? options.afterId : '';
+  const candidateIds = new Set();
+
+  for (const path of memberIdPaths) {
+    try {
+      const matchStage = {};
+      if (afterId) {
+        matchStage._id = _.gt(afterId);
+      }
+      matchStage[path] = _.exists(true);
+
+      const snapshot = await db
+        .collection(collectionName)
+        .aggregate()
+        .match(matchStage)
+        .lookup({
+          from: COLLECTIONS.MEMBERS,
+          localField: path,
+          foreignField: '_id',
+          as: '__memberLookup'
+        })
+        .unwind({
+          path: '$__memberLookup',
+          preserveNullAndEmptyArrays: true
+        })
+        .match({ '__memberLookup._id': _.exists(false) })
+        .sort({ _id: 1 })
+        .project({ _id: true })
+        .limit(limit)
+        .end();
+
+      const docs = (snapshot && Array.isArray(snapshot.list)) ? snapshot.list : [];
+      docs.forEach((doc) => {
+        const id = normalizeMemberIdValue(doc && doc._id);
+        if (id) {
+          candidateIds.add(id);
+        }
+      });
+    } catch (error) {
+      console.error('[admin] aggregate orphan lookup failed', collectionName, path, error);
+      return null;
+    }
+  }
+
+  const sorted = Array.from(candidateIds).sort();
+  if (afterId) {
+    return sorted.filter((id) => id > afterId).slice(0, limit);
+  }
+  if (limit && sorted.length > limit) {
+    return sorted.slice(0, limit);
+  }
+  return sorted;
+}
+
+function normalizeMemberIdPaths(paths) {
+  if (!Array.isArray(paths)) {
+    return [];
+  }
+  return paths
+    .map((path) => (typeof path === 'string' ? path.trim() : ''))
+    .filter((path) => Boolean(path));
+}
+
+async function legacyCleanupCollectionOrphans(collectionName, memberIdPaths, summary, options = {}) {
+  let memberIds;
+  try {
+    memberIds = await listAllMemberIds();
+  } catch (error) {
+    console.error('[admin] legacy cleanup failed to load member ids', error);
+    return 0;
+  }
+  return legacyCleanupCollectionOrphansWithMembers(collectionName, memberIdPaths, memberIds, summary, options);
+}
+
+async function legacyCleanupCollectionOrphansWithMembers(collectionName, memberIdPaths, memberIds, summary, options = {}) {
+  const previewOnly = Boolean(options && options.previewOnly);
+  if (!memberIdPaths.length) {
     return 0;
   }
   const collection = db.collection(collectionName);
@@ -3152,20 +3308,20 @@ async function cleanupCollectionOrphans(collectionName, memberIdPaths, memberIds
       continue;
     }
 
-      const tasks = orphanDocs.map((doc) =>
-        collection
-          .doc(doc._id)
-          .remove()
-          .then(() => {
-            removed += 1;
-            appendRemovalCount(summary, collectionName, 1);
-          })
-          .catch((error) => {
-            if (!isNotFoundError(error)) {
-              pushCleanupError(summary, collectionName, error, doc._id);
-            }
-          })
-      );
+    const tasks = orphanDocs.map((doc) =>
+      collection
+        .doc(doc._id)
+        .remove()
+        .then(() => {
+          removed += 1;
+          appendRemovalCount(summary, collectionName, 1);
+        })
+        .catch((error) => {
+          if (!isNotFoundError(error)) {
+            pushCleanupError(summary, collectionName, error, doc._id);
+          }
+        })
+    );
 
     if (tasks.length) {
       await Promise.all(tasks);
@@ -3269,7 +3425,81 @@ async function cleanupCollectionDocuments(collectionName, summary, options = {})
   return removed;
 }
 
-async function removeOrphanedDocumentsById(collectionName, memberIds, summary, options = {}) {
+async function removeOrphanedDocumentsById(collectionName, summary, options = {}) {
+  const previewOnly = Boolean(options && options.previewOnly);
+  const batchSize = Number.isFinite(options && options.batchSize) && options.batchSize > 0
+    ? Math.min(500, Math.floor(options.batchSize))
+    : ORPHAN_QUERY_BATCH_LIMIT;
+
+  if (previewOnly) {
+    const total = await countCollectionOrphans(collectionName, ['_id'], batchSize);
+    if (total !== null) {
+      if (total > 0) {
+        summary.preview = summary.preview || {};
+        summary.preview[collectionName] = (summary.preview[collectionName] || 0) + total;
+      }
+      return total;
+    }
+  } else {
+    let removed = 0;
+    while (true) {
+      const orphanIds = await findCollectionOrphanIds(collectionName, ['_id'], { limit: batchSize });
+      if (orphanIds === null) {
+        break;
+      }
+      if (!orphanIds.length) {
+        return removed;
+      }
+
+      const tasks = orphanIds.map(async (docId) => {
+        if (collectionName === COLLECTIONS.MEMBER_EXTRAS) {
+          removed += await removeMemberExtrasDocument(docId, summary);
+          return;
+        }
+        if (collectionName === COLLECTIONS.MEMBER_PVE_HISTORY) {
+          removed += await removeMemberPveHistoryDocument(docId, summary);
+          return;
+        }
+        await db
+          .collection(collectionName)
+          .doc(docId)
+          .remove()
+          .then(() => {
+            removed += 1;
+            appendRemovalCount(summary, collectionName, 1);
+          })
+          .catch((error) => {
+            if (!isNotFoundError(error)) {
+              pushCleanupError(summary, collectionName, error, docId);
+            }
+          });
+      });
+
+      if (tasks.length) {
+        await Promise.all(tasks);
+      }
+
+      if (orphanIds.length < batchSize) {
+        return removed;
+      }
+    }
+  }
+
+  return legacyRemoveOrphanedDocumentsById(collectionName, summary, { previewOnly });
+}
+
+async function legacyRemoveOrphanedDocumentsById(collectionName, summary, options = {}) {
+  let memberIds;
+  try {
+    memberIds = await listAllMemberIds();
+  } catch (error) {
+    console.error('[admin] legacy orphan removal failed to load member ids', error);
+    return 0;
+  }
+  return legacyRemoveOrphanedDocumentsByIdWithMembers(collectionName, memberIds, summary, options);
+}
+
+async function legacyRemoveOrphanedDocumentsByIdWithMembers(collectionName, memberIds, summary, options = {}) {
   const previewOnly = Boolean(options && options.previewOnly);
   const collection = db.collection(collectionName);
   const limit = 100;
@@ -3321,7 +3551,7 @@ async function removeOrphanedDocumentsById(collectionName, memberIds, summary, o
         .remove()
         .then(() => {
           removed += 1;
-          summary.removed[collectionName] = (summary.removed[collectionName] || 0) + 1;
+          appendRemovalCount(summary, collectionName, 1);
         })
         .catch((error) => {
           if (!isNotFoundError(error)) {
@@ -3342,7 +3572,167 @@ async function removeOrphanedDocumentsById(collectionName, memberIds, summary, o
   return removed;
 }
 
-async function cleanupPvpLeaderboardOrphans(memberIds, summary, options = {}) {
+async function cleanupPvpLeaderboardOrphans(summary, options = {}) {
+  const previewOnly = Boolean(options && options.previewOnly);
+  const collection = db.collection(COLLECTIONS.PVP_LEADERBOARD);
+  const batchSize = Number.isFinite(options && options.batchSize) && options.batchSize > 0
+    ? Math.min(500, Math.floor(options.batchSize))
+    : ORPHAN_QUERY_BATCH_LIMIT;
+
+  if (previewOnly) {
+    try {
+      const snapshot = await collection
+        .aggregate()
+        .unwind({ path: '$entries', preserveNullAndEmptyArrays: false })
+        .lookup({
+          from: COLLECTIONS.MEMBERS,
+          localField: 'entries.memberId',
+          foreignField: '_id',
+          as: '__memberLookup'
+        })
+        .unwind({ path: '$__memberLookup', preserveNullAndEmptyArrays: true })
+        .match({ '__memberLookup._id': _.exists(false) })
+        .count('total')
+        .end();
+      const total = snapshot && Array.isArray(snapshot.list) && snapshot.list.length
+        ? Math.max(0, Number(snapshot.list[0].total) || 0)
+        : 0;
+      if (total > 0) {
+        summary.preview = summary.preview || {};
+        summary.preview.pvpLeaderboardEntries = (summary.preview.pvpLeaderboardEntries || 0) + total;
+      }
+      return total;
+    } catch (error) {
+      console.error('[admin] preview pvp leaderboard cleanup failed', error);
+      return legacyCleanupPvpLeaderboardOrphans(summary, { previewOnly });
+    }
+  }
+
+  let cleanedEntries = 0;
+
+  while (true) {
+    let snapshot;
+    try {
+      snapshot = await collection
+        .aggregate()
+        .unwind({ path: '$entries', preserveNullAndEmptyArrays: false })
+        .lookup({
+          from: COLLECTIONS.MEMBERS,
+          localField: 'entries.memberId',
+          foreignField: '_id',
+          as: '__memberLookup'
+        })
+        .unwind({ path: '$__memberLookup', preserveNullAndEmptyArrays: true })
+        .match({ '__memberLookup._id': _.exists(false) })
+        .sort({ _id: 1 })
+        .project({
+          _id: true,
+          memberId: '$entries.memberId'
+        })
+        .limit(batchSize)
+        .end();
+    } catch (error) {
+      console.error('[admin] aggregate pvp leaderboard cleanup failed', error);
+      return legacyCleanupPvpLeaderboardOrphans(summary, options);
+    }
+
+    const entries = snapshot && Array.isArray(snapshot.list) ? snapshot.list : [];
+    if (!entries.length) {
+      break;
+    }
+
+    const removalsByDoc = new Map();
+    entries.forEach((entry) => {
+      const docId = entry && entry._id ? String(entry._id) : '';
+      if (!docId) {
+        return;
+      }
+      const memberId = normalizeMemberIdValue(entry.memberId);
+      if (!removalsByDoc.has(docId)) {
+        removalsByDoc.set(docId, new Set());
+      }
+      if (memberId) {
+        removalsByDoc.get(docId).add(memberId);
+      }
+    });
+
+    const tasks = Array.from(removalsByDoc.entries()).map(([docId, memberIdSet]) => {
+      const idsToRemove = Array.from(memberIdSet);
+      const idLookup = new Set(idsToRemove.map((id) => normalizeMemberIdValue(id)));
+
+      return collection
+        .doc(docId)
+        .get()
+        .then((snapshot) => (snapshot && snapshot.data ? snapshot.data : null))
+        .then((doc) => {
+          if (!doc || !Array.isArray(doc.entries) || !doc.entries.length) {
+            return 0;
+          }
+          const filtered = doc.entries.filter((entry) => {
+            const candidate = normalizeMemberIdValue(entry && entry.memberId);
+            return candidate && !idLookup.has(candidate);
+          });
+          const removedCount = doc.entries.length - filtered.length;
+          if (removedCount <= 0) {
+            return 0;
+          }
+          return collection
+            .doc(docId)
+            .update({
+              data: {
+                entries: filtered,
+                updatedAt: new Date()
+              }
+            })
+            .then(() => removedCount)
+            .catch((error) => {
+              if (!isNotFoundError(error)) {
+                pushCleanupError(summary, COLLECTIONS.PVP_LEADERBOARD, error, docId);
+              }
+              return 0;
+            });
+        })
+        .catch((error) => {
+          if (!isNotFoundError(error)) {
+            pushCleanupError(summary, COLLECTIONS.PVP_LEADERBOARD, error, docId);
+          }
+          return 0;
+        });
+    });
+
+    if (tasks.length) {
+      const results = await Promise.all(tasks);
+      results.forEach((count) => {
+        if (Number.isFinite(count) && count > 0) {
+          cleanedEntries += count;
+        }
+      });
+    }
+
+    if (entries.length < batchSize) {
+      break;
+    }
+  }
+
+  if (cleanedEntries > 0) {
+    appendRemovalCount(summary, 'pvpLeaderboardEntries', cleanedEntries);
+  }
+
+  return cleanedEntries;
+}
+
+async function legacyCleanupPvpLeaderboardOrphans(summary, options = {}) {
+  let memberIds;
+  try {
+    memberIds = await listAllMemberIds();
+  } catch (error) {
+    console.error('[admin] legacy pvp leaderboard cleanup failed to load member ids', error);
+    return 0;
+  }
+  return legacyCleanupPvpLeaderboardOrphansWithMembers(memberIds, summary, options);
+}
+
+async function legacyCleanupPvpLeaderboardOrphansWithMembers(memberIds, summary, options = {}) {
   const previewOnly = Boolean(options && options.previewOnly);
   const collection = db.collection(COLLECTIONS.PVP_LEADERBOARD);
   const limit = 100;
@@ -3758,6 +4148,37 @@ async function removeDocumentById(collectionName, docId, summary) {
     pushCleanupError(summary, collectionName, error, targetId);
     return 0;
   }
+}
+
+async function runTasksWithConcurrency(taskFactories, concurrency = 3) {
+  if (!Array.isArray(taskFactories) || taskFactories.length === 0) {
+    return [];
+  }
+
+  const normalizedConcurrency = Number.isFinite(concurrency) && concurrency > 0 ? Math.floor(concurrency) : 1;
+  const workerCount = Math.min(normalizedConcurrency, taskFactories.length);
+  const results = new Array(taskFactories.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (true) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      if (currentIndex >= taskFactories.length) {
+        break;
+      }
+      const factory = taskFactories[currentIndex];
+      try {
+        results[currentIndex] = await factory();
+      } catch (error) {
+        results[currentIndex] = { error };
+      }
+    }
+  }
+
+  const workers = Array.from({ length: workerCount }, () => worker());
+  await Promise.all(workers);
+  return results;
 }
 
 function pushCleanupError(summary, collectionName, error, docId = '') {
