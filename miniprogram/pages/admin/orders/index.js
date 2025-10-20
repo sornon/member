@@ -98,6 +98,61 @@ function showConfirmDialog({ title = '提示', content = '', confirmText = '确�
   });
 }
 
+function parseInsufficientBalanceError(error) {
+  if (!error) {
+    return null;
+  }
+  const code = typeof error.code === 'string' ? error.code : typeof error.errCode === 'string' ? error.errCode : '';
+  const message = typeof error.message === 'string' ? error.message : '';
+  const errMsg = typeof error.errMsg === 'string' ? error.errMsg : '';
+  const combinedMessage = `${message} ${errMsg}`;
+  if (!code && !combinedMessage.includes('会员余额不足')) {
+    return null;
+  }
+  if (code && code.toUpperCase() !== 'INSUFFICIENT_BALANCE' && !combinedMessage.includes('会员余额不足')) {
+    return null;
+  }
+  const extra =
+    (error.details && typeof error.details === 'object' ? error.details : null) ||
+    (error.data && typeof error.data === 'object' ? error.data : null) ||
+    (error.extra && typeof error.extra === 'object' ? error.extra : null) ||
+    {};
+  const parseNumber = (value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : NaN;
+  };
+  const shortage = parseNumber(extra.shortage || error.shortage || extra.shortfall);
+  const amount = parseNumber(extra.amount || error.amount);
+  const balance = parseNumber(extra.balance || extra.balanceBefore || error.balance);
+  const balanceAfter = parseNumber(
+    extra.balanceAfter || error.balanceAfter || (Number.isFinite(balance) && Number.isFinite(amount) ? balance - amount : NaN)
+  );
+  return {
+    shortage: Number.isFinite(shortage) ? Math.max(shortage, 0) : NaN,
+    amount: Number.isFinite(amount) ? amount : NaN,
+    balance: Number.isFinite(balance) ? balance : NaN,
+    balanceAfter: Number.isFinite(balanceAfter) ? balanceAfter : NaN
+  };
+}
+
+function buildForceChargeDebtModalContent({ amount, balance, balanceAfter, shortage }) {
+  const lines = [];
+  if (Number.isFinite(balance)) {
+    lines.push(`当前余额：${formatCurrency(balance)}`);
+  }
+  if (Number.isFinite(amount)) {
+    lines.push(`扣款金额：${formatCurrency(amount)}`);
+  }
+  if (Number.isFinite(balanceAfter)) {
+    lines.push(`扣款后余额：${formatCurrency(balanceAfter)}`);
+  }
+  if (Number.isFinite(shortage) && shortage > 0) {
+    lines.push(`仍差：${formatCurrency(shortage)}`);
+  }
+  lines.push('确认扣款后将产生欠款，是否继续？');
+  return lines.join('\n');
+}
+
 function decorateOrder(order) {
   if (!order) return null;
   const totalAmount = Number(order.totalAmount || 0);
@@ -510,30 +565,57 @@ Page({
     this.setData({ 'forceChargeDialog.remark': event.detail.value || '' });
   },
 
-  async forceChargeOrder(orderId, memberId = '', remark = '') {
+  async forceChargeOrder(orderId, memberId = '', remark = '', options = {}) {
     if (!orderId || this.data.forceChargingId === orderId) {
       return;
     }
     this.setData({ forceChargingId: orderId });
+    const normalizedRemark = typeof remark === 'string' ? remark.trim() : '';
+    let retryWithNegativeBalance = false;
     try {
-      const normalizedRemark = typeof remark === 'string' ? remark.trim() : '';
-      const result = await AdminService.forceChargeOrder(orderId, { memberId, remark: normalizedRemark });
+      const result = await AdminService.forceChargeOrder(orderId, {
+        memberId,
+        remark: normalizedRemark,
+        allowNegativeBalance: !!options.allowNegativeBalance
+      });
       const stoneReward = Number(result && result.stoneReward ? result.stoneReward : 0);
-      const message = stoneReward > 0 ? `扣款成功，灵石+${Math.floor(stoneReward)}` : '扣款成功';
+      const balanceAfter = Number(result && typeof result.balanceAfter !== 'undefined' ? result.balanceAfter : NaN);
+      let message = stoneReward > 0 ? `扣款成功，灵石+${Math.floor(stoneReward)}` : '扣款成功';
+      if (Number.isFinite(balanceAfter) && balanceAfter < 0) {
+        message = `${message}（余额${formatCurrency(balanceAfter)}）`;
+      }
       wx.showToast({ title: message, icon: 'success' });
       this.closeForceChargeDialog();
       await this.loadOrders({ reset: true });
+      return result;
     } catch (error) {
       const message =
         (error && (error.errMsg || error.message))
           ? String(error.errMsg || error.message)
           : '扣款失败';
-      wx.showToast({
-        title: message.length > 14 ? `${message.slice(0, 13)}…` : message,
-        icon: 'none'
-      });
+      const insufficientInfo = parseInsufficientBalanceError(error);
+      if (insufficientInfo && !options.allowNegativeBalance) {
+        const confirmResult = await showConfirmDialog({
+          title: '余额不足',
+          content: buildForceChargeDebtModalContent(insufficientInfo),
+          confirmText: '仍要扣款'
+        });
+        if (confirmResult && confirmResult.confirm) {
+          retryWithNegativeBalance = true;
+        }
+      } else {
+        wx.showToast({
+          title: message.length > 14 ? `${message.slice(0, 13)}…` : message,
+          icon: 'none'
+        });
+      }
     } finally {
       this.setData({ forceChargingId: '' });
+    }
+    if (retryWithNegativeBalance) {
+      return this.forceChargeOrder(orderId, memberId, remark, {
+        allowNegativeBalance: true
+      });
     }
   },
 
