@@ -44,6 +44,9 @@ const DRINKS_NIGHT_ORDER = [
   'easter'
 ];
 
+const MENU_CATALOG_STORAGE_KEY = 'membershipMenuCatalog';
+const MENU_CART_STORAGE_KEY = 'membershipMenuCart';
+
 function normalizeSection(value) {
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -479,6 +482,276 @@ function rebuildMenuContext(raw, now = new Date()) {
 
 const INITIAL_MENU_STATE = rebuildMenuContext(menuData);
 
+function safeGetStorage(key) {
+  if (typeof wx === 'undefined' || !wx || typeof wx.getStorageSync !== 'function') {
+    return null;
+  }
+  try {
+    return wx.getStorageSync(key);
+  } catch (error) {
+    console.warn(`[order] read storage ${key} failed`, error);
+    return null;
+  }
+}
+
+function safeSetStorage(key, value) {
+  if (typeof wx === 'undefined' || !wx || typeof wx.setStorageSync !== 'function') {
+    return;
+  }
+  try {
+    wx.setStorageSync(key, value);
+  } catch (error) {
+    console.warn(`[order] write storage ${key} failed`, error);
+  }
+}
+
+function safeRemoveStorage(key) {
+  if (typeof wx === 'undefined' || !wx) {
+    return;
+  }
+  if (typeof wx.removeStorageSync === 'function') {
+    try {
+      wx.removeStorageSync(key);
+    } catch (error) {
+      console.warn(`[order] remove storage ${key} failed`, error);
+    }
+    return;
+  }
+  if (typeof wx.setStorageSync === 'function') {
+    try {
+      wx.setStorageSync(key, '');
+    } catch (error) {
+      console.warn(`[order] clear storage ${key} failed`, error);
+    }
+  }
+}
+
+function snapshotCatalog(catalog) {
+  if (!catalog || typeof catalog !== 'object') {
+    return null;
+  }
+  try {
+    return JSON.parse(JSON.stringify(catalog));
+  } catch (error) {
+    console.warn('[order] snapshot catalog failed', error);
+    return null;
+  }
+}
+
+function computeCatalogSignature(catalog) {
+  if (!catalog || typeof catalog !== 'object') {
+    return '';
+  }
+  const preferredKeys = ['signature', 'generatedAt', 'updatedAt', 'updated_at', 'version'];
+  for (let i = 0; i < preferredKeys.length; i += 1) {
+    const key = preferredKeys[i];
+    const value = catalog[key];
+    if (typeof value === 'string' && value.trim()) {
+      return `${key}:${value.trim()}`;
+    }
+  }
+  const timestampKeys = ['generatedAt', 'updatedAt', 'updated_at'];
+  for (let i = 0; i < timestampKeys.length; i += 1) {
+    const key = timestampKeys[i];
+    const timestamp = resolveTimestamp(catalog[key]);
+    if (Number.isFinite(timestamp)) {
+      return `${key}:${timestamp}`;
+    }
+  }
+  try {
+    if (Array.isArray(catalog.sections)) {
+      return JSON.stringify(catalog.sections);
+    }
+    return JSON.stringify(catalog);
+  } catch (error) {
+    console.warn('[order] compute catalog signature failed', error);
+    return '';
+  }
+}
+
+function readCatalogCache() {
+  const stored = safeGetStorage(MENU_CATALOG_STORAGE_KEY);
+  if (!stored || typeof stored !== 'object') {
+    return null;
+  }
+  if (Array.isArray(stored.sections)) {
+    return {
+      catalog: stored,
+      signature: stored.signature || computeCatalogSignature(stored)
+    };
+  }
+  if (stored.catalog && typeof stored.catalog === 'object') {
+    const catalog = stored.catalog;
+    if (Array.isArray(catalog.sections)) {
+      return {
+        catalog,
+        signature: stored.signature || computeCatalogSignature(catalog)
+      };
+    }
+  }
+  return null;
+}
+
+function writeCatalogCache(catalog) {
+  const snapshot = snapshotCatalog(catalog);
+  if (!snapshot || !Array.isArray(snapshot.sections)) {
+    clearCatalogCache();
+    return;
+  }
+  const payload = {
+    version: 1,
+    signature: computeCatalogSignature(snapshot),
+    catalog: snapshot
+  };
+  safeSetStorage(MENU_CATALOG_STORAGE_KEY, payload);
+}
+
+function clearCatalogCache() {
+  safeRemoveStorage(MENU_CATALOG_STORAGE_KEY);
+}
+
+function snapshotCartLines(lines) {
+  if (!Array.isArray(lines)) {
+    return [];
+  }
+  return lines
+    .map((line) => {
+      if (!line || typeof line !== 'object') {
+        return null;
+      }
+      const itemId = typeof line.itemId === 'string' ? line.itemId.trim() : '';
+      const spec = typeof line.spec === 'string' ? line.spec.trim() : '';
+      if (!itemId || !spec) {
+        return null;
+      }
+      const quantity = Number(line.quantity || 0);
+      const minQuantity = Number(line.minQuantity || 0);
+      const normalizedQuantity = Number.isFinite(quantity) && quantity > 0 ? Math.floor(quantity) : 0;
+      const normalizedMin = Number.isFinite(minQuantity) && minQuantity > 0 ? Math.floor(minQuantity) : 0;
+      if (!normalizedQuantity && !normalizedMin) {
+        return null;
+      }
+      return {
+        itemId,
+        spec,
+        quantity: Math.max(1, normalizedQuantity || normalizedMin || 1),
+        minQuantity: Math.max(1, normalizedMin || 1)
+      };
+    })
+    .filter(Boolean);
+}
+
+function readCartCache() {
+  const stored = safeGetStorage(MENU_CART_STORAGE_KEY);
+  if (!stored) {
+    return [];
+  }
+  if (Array.isArray(stored)) {
+    return stored;
+  }
+  if (stored && Array.isArray(stored.cart)) {
+    return stored.cart;
+  }
+  return [];
+}
+
+function writeCartCache(lines) {
+  const snapshot = snapshotCartLines(lines);
+  if (!snapshot.length) {
+    clearCartCache();
+    return;
+  }
+  const payload = {
+    version: 1,
+    cart: snapshot,
+    updatedAt: Date.now()
+  };
+  safeSetStorage(MENU_CART_STORAGE_KEY, payload);
+}
+
+function clearCartCache() {
+  safeRemoveStorage(MENU_CART_STORAGE_KEY);
+}
+
+function resolveCartVariant(item, line) {
+  if (!item || !Array.isArray(item.variants)) {
+    return null;
+  }
+  const spec = line && typeof line.spec === 'string' ? line.spec.trim() : '';
+  if (spec) {
+    const matched = item.variants.find((variant) => variant && variant.label === spec);
+    if (matched) {
+      return matched;
+    }
+  }
+  const price = Number(line && line.price);
+  if (Number.isFinite(price) && price > 0) {
+    const matchedByPrice = item.variants.find(
+      (variant) => Number(variant && variant.price) === price
+    );
+    if (matchedByPrice) {
+      return matchedByPrice;
+    }
+  }
+  return item.variants[0] || null;
+}
+
+function resolveCartQuantities(line, item) {
+  const candidates = [];
+  if (line && typeof line.minQuantity !== 'undefined') {
+    candidates.push(line.minQuantity);
+  }
+  if (item && typeof item.minQuantity !== 'undefined') {
+    candidates.push(item.minQuantity);
+  }
+  const minQuantity = candidates.reduce((acc, value) => {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return Math.max(acc, Math.floor(numeric));
+    }
+    return acc;
+  }, 1);
+  const numericQuantity = Number(line && line.quantity);
+  const resolvedQuantity =
+    Number.isFinite(numericQuantity) && numericQuantity > 0
+      ? Math.floor(numericQuantity)
+      : minQuantity;
+  return {
+    minQuantity,
+    quantity: Math.max(minQuantity, resolvedQuantity)
+  };
+}
+
+function normalizeCartInputLine(line) {
+  if (!line || typeof line !== 'object') {
+    return null;
+  }
+  const itemId = typeof line.itemId === 'string' ? line.itemId.trim() : '';
+  if (!itemId) {
+    return null;
+  }
+  const item = ITEM_MAP[itemId];
+  if (!item) {
+    return null;
+  }
+  const variant = resolveCartVariant(item, line);
+  if (!variant) {
+    return null;
+  }
+  const quantities = resolveCartQuantities(line, item);
+  return {
+    key: `${item.id}|${variant.label}`,
+    itemId: item.id,
+    title: item.title,
+    spec: variant.label,
+    unit: variant.unit || '',
+    price: variant.price,
+    quantity: quantities.quantity,
+    section: item.section,
+    minQuantity: quantities.minQuantity
+  };
+}
+
 function resolveTimestamp(value) {
   if (!value) {
     return NaN;
@@ -740,8 +1013,92 @@ Page({
   },
 
   onLoad() {
+    this._currentCatalogSignature = '';
+    this._catalogHydrated = false;
+    this._cartHydrated = false;
+    if (this.restoreCatalogFromCache()) {
+      this.restoreCartFromCache();
+    }
     this.loadCatalog();
     this.loadOrders();
+  },
+
+  applyCatalogState(catalog, options = {}) {
+    const state = rebuildMenuContext(catalog, new Date());
+    const tabs = Array.isArray(state.tabs) ? state.tabs : [];
+    const preserveSelection = !!options.preserveSelection;
+    let nextActiveTab = state.defaultTabId || (tabs.length ? tabs[0].id : '');
+    if (preserveSelection) {
+      const currentTab = typeof this.data.activeTab === 'string' ? this.data.activeTab : '';
+      if (currentTab && SECTION_MAP[currentTab]) {
+        nextActiveTab = currentTab;
+      }
+    }
+    let nextActiveCategory = state.defaultCategoryId;
+    if (nextActiveTab && SECTION_MAP[nextActiveTab]) {
+      const section = SECTION_MAP[nextActiveTab];
+      if (preserveSelection) {
+        const currentCategory = typeof this.data.activeCategory === 'string' ? this.data.activeCategory : '';
+        if (currentCategory && section.categoryItems[currentCategory]) {
+          nextActiveCategory = currentCategory;
+        } else {
+          nextActiveCategory = section.defaultCategoryId;
+        }
+      } else {
+        nextActiveCategory = section.defaultCategoryId;
+      }
+    }
+    this.setData({
+      tabs,
+      activeTab: nextActiveTab,
+      cartSectionTotals: createEmptyCategoryTotals()
+    });
+    this.applySectionState(nextActiveTab, nextActiveCategory);
+    this._catalogHydrated = true;
+  },
+
+  restoreCatalogFromCache() {
+    const cached = readCatalogCache();
+    if (!cached || !cached.catalog || !Array.isArray(cached.catalog.sections)) {
+      return false;
+    }
+    this.applyCatalogState(cached.catalog, { preserveSelection: false });
+    this._currentCatalogSignature = cached.signature || computeCatalogSignature(cached.catalog);
+    return true;
+  },
+
+  restoreCartFromCache() {
+    if (this._cartHydrated) {
+      return false;
+    }
+    if (!MENU_SECTIONS.length || !Object.keys(ITEM_MAP).length) {
+      return false;
+    }
+    const snapshots = readCartCache();
+    this._cartHydrated = true;
+    if (!Array.isArray(snapshots) || !snapshots.length) {
+      return false;
+    }
+    const normalized = snapshots.map((line) => normalizeCartInputLine(line)).filter(Boolean);
+    if (!normalized.length) {
+      clearCartCache();
+      return false;
+    }
+    this.updateCartState(normalized);
+    return true;
+  },
+
+  reconcileCartWithMenu() {
+    if (!MENU_SECTIONS.length || !Object.keys(ITEM_MAP).length) {
+      return;
+    }
+    const currentCart = Array.isArray(this.data.cart) ? this.data.cart : [];
+    if (!currentCart.length) {
+      clearCartCache();
+      return;
+    }
+    const normalized = currentCart.map((line) => normalizeCartInputLine(line)).filter(Boolean);
+    this.updateCartState(normalized);
   },
 
   async loadCatalog() {
@@ -753,23 +1110,22 @@ Page({
       const response = await MenuCatalogService.listCatalog();
       const catalog = response && response.catalog ? response.catalog : null;
       if (catalog && Array.isArray(catalog.sections)) {
-        const state = rebuildMenuContext(catalog, new Date());
-        const tabs = Array.isArray(state.tabs) ? state.tabs : [];
-        const nextActiveTab = state.defaultTabId || (tabs.length ? tabs[0].id : '');
-        const nextActiveCategory = state.defaultCategoryId;
-        this.setData({
-          tabs,
-          activeTab: nextActiveTab,
-          categories: state.defaultCategories,
-          activeCategory: nextActiveCategory,
-          visibleItems: state.defaultVisibleItems,
-          cartSectionTotals: createEmptyCategoryTotals()
-        });
-        if (nextActiveTab) {
-          this.applySectionState(nextActiveTab, nextActiveCategory);
+        const snapshot = snapshotCatalog(catalog) || catalog;
+        const signature = computeCatalogSignature(snapshot);
+        if (!this._catalogHydrated || signature !== this._currentCatalogSignature) {
+          this.applyCatalogState(snapshot, { preserveSelection: this._catalogHydrated });
+        } else {
+          rebuildMenuContext(snapshot, new Date());
+          const currentTab = typeof this.data.activeTab === 'string' ? this.data.activeTab : '';
+          const currentCategory = typeof this.data.activeCategory === 'string' ? this.data.activeCategory : '';
+          this.applySectionState(currentTab, currentCategory);
         }
-        if (Array.isArray(this.data.cart) && this.data.cart.length) {
-          this.updateCartState(this.data.cart.map((line) => ({ ...line })));
+        this._currentCatalogSignature = signature;
+        writeCatalogCache(snapshot);
+        if (!this._cartHydrated) {
+          this.restoreCartFromCache();
+        } else {
+          this.reconcileCartWithMenu();
         }
       }
     } catch (error) {
@@ -840,6 +1196,7 @@ Page({
       cartStoneReward: stoneReward,
       cartStoneRewardLabel: formatStones(stoneReward)
     });
+    writeCartCache(decorated);
   },
 
   handleAddToCart(event) {
