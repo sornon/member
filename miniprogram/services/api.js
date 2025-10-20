@@ -114,7 +114,7 @@ function recordNetworkError(name, data, error) {
   });
 }
 
-const callCloud = async (name, data = {}) => {
+const callCloud = async (name, data = {}, options = {}) => {
   try {
     const res = await wx.cloud.callFunction({
       name,
@@ -124,10 +124,12 @@ const callCloud = async (name, data = {}) => {
   } catch (error) {
     console.error(`[cloud:${name}]`, error);
     recordNetworkError(name, data, error);
-    wx.showToast({
-      title: error.errMsg || '网络异常',
-      icon: 'none'
-    });
+    if (!options || !options.suppressErrorToast) {
+      wx.showToast({
+        title: error.errMsg || '网络异常',
+        icon: 'none'
+      });
+    }
     throw error;
   }
 };
@@ -532,13 +534,17 @@ export const AdminService = {
       keyword
     });
   },
-  async forceChargeOrder(orderId, { memberId = '', remark = '' } = {}) {
-    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+  async forceChargeOrder(orderId, { memberId = '', remark = '', allowNegativeBalance = false } = {}) {
+    const payload = {
       action: 'forceChargeOrder',
       orderId,
       memberId,
       remark
-    });
+    };
+    if (allowNegativeBalance) {
+      payload.allowNegativeBalance = true;
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload, { suppressErrorToast: true });
   },
   async cancelChargeOrder(orderId, { remark = '' } = {}) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {

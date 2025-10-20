@@ -206,7 +206,8 @@ const ACTION_HANDLERS = {
   [ACTIONS.FORCE_CHARGE_ORDER]: (openid, event) =>
     forceChargeOrder(openid, event.orderId, {
       memberId: event.memberId || '',
-      remark: event.remark || ''
+      remark: event.remark || '',
+      allowNegativeBalance: !!event.allowNegativeBalance
     }),
   [ACTIONS.CANCEL_CHARGE_ORDER]: (openid, event) =>
     cancelChargeOrder(openid, event.orderId, event.remark || ''),
@@ -1617,7 +1618,7 @@ async function listChargeOrders(openid, { page = 1, pageSize = 20, memberId = ''
   };
 }
 
-async function forceChargeOrder(openid, orderId, { memberId = '', remark = '' } = {}) {
+async function forceChargeOrder(openid, orderId, { memberId = '', remark = '', allowNegativeBalance = false } = {}) {
   await ensureAdmin(openid);
   if (!orderId) {
     throw new Error('缺少订单编号');
@@ -1626,6 +1627,10 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '' } 
   let targetMemberId = '';
   let stoneReward = 0;
   let experienceGain = 0;
+  let balanceBefore = 0;
+  let balanceAfter = 0;
+  let debtIncurred = false;
+  let allowNegativeApplied = false;
   const now = new Date();
   await db.runTransaction(async (transaction) => {
     const orderRef = transaction.collection(COLLECTIONS.CHARGE_ORDERS).doc(orderId);
@@ -1655,8 +1660,27 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '' } 
       throw new Error('订单金额无效');
     }
     const balance = resolveCashBalance(memberDoc.data);
-    if (balance < amount) {
-      throw new Error('会员余额不足');
+    balanceBefore = balance;
+    balanceAfter = balance - amount;
+    debtIncurred = balanceAfter < 0;
+    allowNegativeApplied = balance < amount;
+    if (allowNegativeApplied && !allowNegativeBalance) {
+      const shortage = amount - balance;
+      const error = new Error('会员余额不足');
+      error.code = 'INSUFFICIENT_BALANCE';
+      error.errCode = 'INSUFFICIENT_BALANCE';
+      error.details = {
+        balance,
+        amount,
+        shortage,
+        balanceAfter
+      };
+      error.data = error.details;
+      error.shortage = shortage;
+      error.amount = amount;
+      error.balance = balance;
+      error.balanceAfter = balanceAfter;
+      throw error;
     }
     const memberSnapshot = buildMemberSnapshot(memberDoc.data);
     stoneReward = Number(order.stoneReward || amount || 0);
@@ -1684,7 +1708,11 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '' } 
         orderId,
         remark: walletRemark,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+        balanceBefore,
+        balanceAfter,
+        allowNegativeBalance: allowNegativeApplied,
+        debtIncurred
       }
     });
     await transaction.collection(COLLECTIONS.STONE_TRANSACTIONS).add({
@@ -1708,7 +1736,11 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '' } 
         memberSnapshot,
         confirmedAt: now,
         stoneReward,
-        updatedAt: now
+        updatedAt: now,
+        balanceBefore,
+        balanceAfter,
+        allowNegativeBalance: allowNegativeApplied,
+        debtIncurred
       }
     });
     if (order.menuOrderId) {
@@ -1724,7 +1756,11 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '' } 
             updatedAt: now,
             chargeOrderId: orderId,
             forceChargedBy: openid,
-            forceChargedAt: now
+            forceChargedAt: now,
+            balanceBefore,
+            balanceAfter,
+            allowNegativeBalance: allowNegativeApplied,
+            debtIncurred
           }
         });
       }
@@ -1737,7 +1773,11 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '' } 
     success: true,
     stoneReward,
     experienceGain,
-    memberId: targetMemberId
+    memberId: targetMemberId,
+    balanceBefore,
+    balanceAfter,
+    debtIncurred,
+    allowNegativeBalance: allowNegativeApplied
   };
 }
 
@@ -4610,7 +4650,11 @@ function mapChargeOrder(order) {
     miniProgramScene: buildChargeOrderScene(order._id),
     originalTotalAmount: Number(order.originalTotalAmount || 0),
     priceAdjustment,
-    priceAdjustmentHistory: normalizePriceAdjustmentHistory(order.priceAdjustmentHistory, priceAdjustment)
+    priceAdjustmentHistory: normalizePriceAdjustmentHistory(order.priceAdjustmentHistory, priceAdjustment),
+    balanceBefore: Number(order.balanceBefore || 0),
+    balanceAfter: Number(order.balanceAfter || 0),
+    allowNegativeBalance: !!order.allowNegativeBalance,
+    debtIncurred: !!order.debtIncurred
   };
 }
 
@@ -4871,6 +4915,8 @@ function decorateChargeOrderRecord(order, member) {
   const priceAdjusted = Number.isFinite(originalAmount) && originalAmount > 0 && originalAmount !== order.totalAmount;
   const priceAdjustmentRemark = order.priceAdjustment ? order.priceAdjustment.remark || '' : '';
   const priceAdjustmentAdjustedAtLabel = order.priceAdjustment ? formatDate(order.priceAdjustment.adjustedAt) : '';
+  const balanceBefore = Number(order.balanceBefore || 0);
+  const balanceAfter = Number(order.balanceAfter || 0);
   return {
     ...order,
     totalAmountLabel: `¥${formatFenToYuan(order.totalAmount)}`,
@@ -4887,7 +4933,13 @@ function decorateChargeOrderRecord(order, member) {
     originalTotalAmountLabel: originalAmount ? `¥${formatFenToYuan(originalAmount)}` : '',
     priceAdjusted,
     priceAdjustmentRemark,
-    priceAdjustmentAdjustedAtLabel
+    priceAdjustmentAdjustedAtLabel,
+    balanceBefore,
+    balanceAfter,
+    balanceBeforeLabel: `¥${formatFenToYuan(balanceBefore)}`,
+    balanceAfterLabel: `¥${formatFenToYuan(balanceAfter)}`,
+    allowNegativeBalance: !!order.allowNegativeBalance,
+    debtIncurred: !!order.debtIncurred
   };
 }
 

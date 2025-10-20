@@ -789,6 +789,27 @@ async function createRecharge(openid, amount) {
   if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
     throw new Error('充值金额无效');
   }
+  const memberDoc = await db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null);
+  const member = memberDoc && memberDoc.data ? memberDoc.data : null;
+  const currentBalance = resolveCashBalance(member);
+  if (currentBalance < 0 && normalizedAmount < Math.abs(currentBalance)) {
+    const requiredAmount = Math.abs(currentBalance);
+    const requiredYuan = (requiredAmount / 100).toFixed(2);
+    const error = new Error(`当前欠款¥${requiredYuan}，请至少充值¥${requiredYuan}`);
+    error.code = 'RECHARGE_BELOW_DEBT';
+    error.errCode = 'RECHARGE_BELOW_DEBT';
+    error.details = {
+      requiredAmount,
+      amount: normalizedAmount,
+      balance: currentBalance,
+      shortage: requiredAmount - normalizedAmount
+    };
+    error.data = error.details;
+    error.requiredAmount = requiredAmount;
+    error.balance = currentBalance;
+    error.shortage = requiredAmount - normalizedAmount;
+    throw error;
+  }
   const now = new Date();
   const record = await db.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
     data: {
