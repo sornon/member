@@ -147,17 +147,17 @@ page {
 }
 
 .track-title {
-  font-size: 24rpx;
-  font-weight: 600;
-  color: rgba(226, 235, 255, 0.9);
-  min-width: 60rpx;
+  font-size: 20rpx;
+  color: rgba(226, 235, 255, 0.7);
+  min-width: 28rpx;
   white-space: nowrap;
+  text-align: left;
 }
 
 .hp-track {
   position: relative;
   flex: 1;
-  height: 36rpx;
+  height: 24rpx;
   background: rgba(255, 94, 94, 0.24);
   border-radius: 999rpx;
   overflow: hidden;
@@ -171,13 +171,13 @@ page {
 
 .hp-player,
 .hp-opponent {
-  background: linear-gradient(180deg, #ff8c85 0%, #ff484a 100%);
+  background: linear-gradient(180deg, #F44336 0%, #ff484a 100%)
 }
 
 .resource-track {
   position: relative;
   flex: 1;
-  height: 32rpx;
+  height: 24rpx;
   background: rgba(72, 144, 255, 0.24);
   border-radius: 999rpx;
   overflow: hidden;
@@ -191,7 +191,7 @@ page {
 
 .resource-player,
 .resource-opponent {
-  background: linear-gradient(180deg, #7ad0ff 0%, #2f7dff 100%);
+  background: linear-gradient(180deg, #03A9F4 0%, #2f7dff 100%);
 }
 
 .track-label {
@@ -201,8 +201,7 @@ page {
   transform: translate(-50%, -50%);
   width: 100%;
   text-align: center;
-  font-size: 22rpx;
-  font-weight: 600;
+  font-size: 20rpx;
   color: #ffffff;
   text-shadow: 0 0 10rpx rgba(0, 0, 0, 0.35);
   pointer-events: none;
@@ -210,11 +209,11 @@ page {
 }
 
 .hp-label {
-  font-size: 24rpx;
+  font-size: 20rpx;
 }
 
 .resource-label {
-  font-size: 24rpx;
+  font-size: 20rpx;
 }
 
 

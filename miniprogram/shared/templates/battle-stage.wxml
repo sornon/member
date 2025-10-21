@@ -60,7 +60,7 @@
               : ((opponent && opponent.combatPower) || '???')}}
           </view>
           <view class="track-row">
-            <view class="track-title">血量</view>
+            <view class="track-title">HP</view>
             <view class="hp-track">
               <view
                 class="hp-progress {{attackerKey === 'player' ? 'hp-player' : 'hp-opponent'}}"
@@ -73,7 +73,7 @@
             </view>
           </view>
           <view class="track-row">
-            <view class="track-title">真气</view>
+            <view class="track-title">MP</view>
             <view class="resource-track">
               <view
                 class="resource-progress {{attackerKey === 'player' ? 'resource-player' : 'resource-opponent'}}"
@@ -132,7 +132,7 @@
               : ((opponent && opponent.combatPower) || '???')}}
           </view>
           <view class="track-row">
-            <view class="track-title">血量</view>
+            <view class="track-title">HP</view>
             <view class="hp-track">
               <view
                 class="hp-progress {{defenderKey === 'player' ? 'hp-player' : 'hp-opponent'}}"
@@ -145,7 +145,7 @@
             </view>
           </view>
           <view class="track-row">
-            <view class="track-title">真气</view>
+            <view class="track-title">MP</view>
             <view class="resource-track">
               <view
                 class="resource-progress {{defenderKey === 'player' ? 'resource-player' : 'resource-opponent'}}"
