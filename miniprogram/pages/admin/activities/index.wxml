@@ -1,211 +1,239 @@
 <custom-nav title="活动管理" theme="dark"></custom-nav>
-<view class="admin-activities">
-  <view class="admin-activities__header">
-    <view class="admin-activities__title">活动列表</view>
-    <button class="admin-activities__create" size="mini" bindtap="handleCreateTap">＋ 新建活动</button>
-  </view>
-
-  <view wx:if="{{loading}}" class="admin-activities__state">加载中，请稍候...</view>
-  <view wx:elif="{{error}}" class="admin-activities__state admin-activities__state--error">
-    <text class="admin-activities__state-text">{{error}}</text>
-    <button class="admin-activities__retry" size="mini" bindtap="handleRetry">重新加载</button>
-  </view>
-  <scroll-view wx:else scroll-y="true" class="admin-activities__scroll" enable-back-to-top>
-    <view wx:if="{{activities.length}}" class="admin-activities__list">
-      <view wx:for="{{activities}}" wx:key="id" class="admin-activity-card">
-        <view class="admin-activity-card__header">
-          <view class="admin-activity-card__title">{{item.title}}</view>
-          <view class="admin-activity-card__status admin-activity-card__status--{{item.statusType}}">{{item.statusLabel}}</view>
-        </view>
-        <view wx:if="{{item.tagline}}" class="admin-activity-card__tagline">{{item.tagline}}</view>
-        <view wx:if="{{item.timeRangeLabel}}" class="admin-activity-card__meta">{{item.timeRangeLabel}}</view>
-        <view wx:if="{{item.priceLabel}}" class="admin-activity-card__meta">方案：{{item.priceLabel}}</view>
-        <view wx:if="{{item.location}}" class="admin-activity-card__meta">地点：{{item.location}}</view>
-        <view wx:if="{{item.highlight}}" class="admin-activity-card__meta">亮点：{{item.highlight}}</view>
-        <view wx:if="{{item.perks.length}}" class="admin-activity-card__section">
-          <view class="admin-activity-card__section-title">礼遇</view>
-          <view wx:for="{{item.perks}}" wx:key="index" class="admin-activity-card__perk">• {{item}}</view>
-        </view>
-        <view wx:if="{{item.tags.length}}" class="admin-activity-card__tags">
-          <view wx:for="{{item.tags}}" wx:key="tag" class="admin-activity-card__tag">{{item}}</view>
-        </view>
-        <view class="admin-activity-card__actions">
-          <button class="admin-activity-card__edit" size="mini" bindtap="handleEditTap" data-id="{{item.id}}">编辑</button>
-        </view>
+<view class="page">
+  <view class="section-block">
+    <view class="block-header">
+      <view class="block-title">活动列表</view>
+      <view class="block-actions">
+        <button
+          class="icon-btn"
+          size="mini"
+          bindtap="handleToggleCreateForm"
+        >{{editorVisible && editorMode === 'create' ? '收起新增' : '＋ 新建活动'}}</button>
+        <button
+          class="refresh-btn"
+          size="mini"
+          loading="{{loading}}"
+          bindtap="handleRefresh"
+        >刷新</button>
       </view>
     </view>
-    <view wx:else class="admin-activities__state admin-activities__state--empty">暂无活动，点击右上角新建。</view>
-  </scroll-view>
 
-  <view wx:if="{{editorVisible}}" class="editor-dialog">
-    <view class="editor-dialog__mask" catchtouchmove="true" bindtap="handleCloseEditor"></view>
-    <view class="editor-dialog__panel">
-      <view class="editor-dialog__header">
-        <view class="editor-dialog__title">{{editorMode === 'edit' ? '编辑活动' : '新建活动'}}</view>
-        <view class="editor-dialog__close" bindtap="handleCloseEditor">×</view>
+    <view wx:if="{{loading}}" class="state-hint">加载中，请稍候...</view>
+    <view wx:elif="{{error}}" class="state-hint state-hint--error">
+      <text class="state-hint__text">{{error}}</text>
+      <button class="retry-btn" size="mini" bindtap="handleRetry">重新加载</button>
+    </view>
+    <block wx:else>
+      <view wx:if="{{activities.length}}" class="activity-list">
+        <view wx:for="{{activities}}" wx:key="id" class="activity-card">
+          <view class="activity-card__header">
+            <view class="activity-card__title">{{item.title}}</view>
+            <view class="activity-card__status activity-card__status--{{item.statusType}}">{{item.statusLabel}}</view>
+          </view>
+          <view wx:if="{{item.tagline}}" class="activity-card__tagline">{{item.tagline}}</view>
+          <view wx:if="{{item.timeRangeLabel}}" class="activity-card__meta">{{item.timeRangeLabel}}</view>
+          <view wx:if="{{item.priceLabel}}" class="activity-card__meta">方案：{{item.priceLabel}}</view>
+          <view wx:if="{{item.location}}" class="activity-card__meta">地点：{{item.location}}</view>
+          <view wx:if="{{item.highlight}}" class="activity-card__meta">亮点：{{item.highlight}}</view>
+          <view wx:if="{{item.perks.length}}" class="activity-card__section">
+            <view class="activity-card__section-title">礼遇</view>
+            <view wx:for="{{item.perks}}" wx:key="index" class="activity-card__perk">• {{item}}</view>
+          </view>
+          <view wx:if="{{item.tags.length}}" class="activity-card__tags">
+            <view wx:for="{{item.tags}}" wx:key="tag" class="activity-card__tag">{{item}}</view>
+          </view>
+          <view class="activity-card__actions">
+            <button
+              class="edit-btn"
+              size="mini"
+              bindtap="handleEditTap"
+              data-id="{{item.id}}"
+            >编辑</button>
+          </view>
+        </view>
       </view>
-      <scroll-view scroll-y="true" class="editor-dialog__body" enable-back-to-top>
-        <view class="form-group">
-          <view class="form-label">活动标题</view>
-          <input
-            class="form-input"
-            placeholder="请输入活动标题"
-            value="{{editorForm.title}}"
-            data-field="title"
-            bindinput="handleEditorInput"
-          />
-        </view>
-        <view class="form-group">
-          <view class="form-label">一句话介绍</view>
-          <input
-            class="form-input"
-            placeholder="可选，展示在列表中"
-            value="{{editorForm.tagline}}"
-            data-field="tagline"
-            bindinput="handleEditorInput"
-          />
-        </view>
-        <view class="form-group">
-          <view class="form-label">概要</view>
-          <textarea
-            class="form-textarea"
-            placeholder="可选，补充更多说明"
-            value="{{editorForm.summary}}"
-            data-field="summary"
-            bindinput="handleEditorTextArea"
-          ></textarea>
-        </view>
-        <view class="form-inline">
-          <view class="form-group form-group--inline">
-            <view class="form-label">开始日期</view>
-            <picker mode="date" value="{{editorForm.startDate}}" data-field="startDate" bindchange="handleEditorDateChange">
-              <view class="picker-value">{{editorForm.startDate || '未设置'}}</view>
-            </picker>
-          </view>
-          <view class="form-group form-group--inline">
-            <view class="form-label">开始时间</view>
-            <picker mode="time" value="{{editorForm.startTime}}" data-field="startTime" bindchange="handleEditorTimeChange">
-              <view class="picker-value">{{editorForm.startTime || '00:00'}}</view>
-            </picker>
-          </view>
-        </view>
-        <view class="form-inline">
-          <view class="form-group form-group--inline">
-            <view class="form-label">结束日期</view>
-            <picker mode="date" value="{{editorForm.endDate}}" data-field="endDate" bindchange="handleEditorDateChange">
-              <view class="picker-value">{{editorForm.endDate || '未设置'}}</view>
-            </picker>
-          </view>
-          <view class="form-group form-group--inline">
-            <view class="form-label">结束时间</view>
-            <picker mode="time" value="{{editorForm.endTime}}" data-field="endTime" bindchange="handleEditorTimeChange">
-              <view class="picker-value">{{editorForm.endTime || '23:59'}}</view>
-            </picker>
-          </view>
-        </view>
-        <view class="form-group">
-          <view class="form-label">方案/价格</view>
-          <input
-            class="form-input"
-            placeholder="如 门票1288 / 充5000"
-            value="{{editorForm.priceLabel}}"
-            data-field="priceLabel"
-            bindinput="handleEditorInput"
-          />
-        </view>
-        <view class="form-group">
-          <view class="form-label">地点</view>
-          <input
-            class="form-input"
-            placeholder="可选"
-            value="{{editorForm.location}}"
-            data-field="location"
-            bindinput="handleEditorInput"
-          />
-        </view>
-        <view class="form-group">
-          <view class="form-label">亮点</view>
-          <input
-            class="form-input"
-            placeholder="如 限时包房礼遇"
-            value="{{editorForm.highlight}}"
-            data-field="highlight"
-            bindinput="handleEditorInput"
-          />
-        </view>
-        <view class="form-group">
-          <view class="form-label">礼遇详情（每行一条）</view>
-          <textarea
-            class="form-textarea"
-            placeholder="例如：充5000，送包房一次"
-            value="{{editorForm.perksText}}"
-            data-field="perksText"
-            bindinput="handleEditorTextArea"
-          ></textarea>
-        </view>
-        <view class="form-group">
-          <view class="form-label">补充说明</view>
-          <textarea
-            class="form-textarea"
-            placeholder="可选，用于补充注意事项"
-            value="{{editorForm.notes}}"
-            data-field="notes"
-            bindinput="handleEditorTextArea"
-          ></textarea>
-        </view>
-        <view class="form-group">
-          <view class="form-label">标签（换行或空格分隔）</view>
-          <textarea
-            class="form-textarea"
-            placeholder="例如：万圣节\n限定"
-            value="{{editorForm.tagsText}}"
-            data-field="tagsText"
-            bindinput="handleEditorTextArea"
-          ></textarea>
-        </view>
-        <view class="form-group">
-          <view class="form-label">封面图片</view>
-          <input
-            class="form-input"
-            placeholder="可选，填写图片链接"
-            value="{{editorForm.coverImage}}"
-            data-field="coverImage"
-            bindinput="handleEditorInput"
-          />
-        </view>
-        <view class="form-group">
-          <view class="form-label">排序（越大越靠前）</view>
-          <input
-            class="form-input"
-            type="number"
-            value="{{editorForm.sortOrder}}"
-            data-field="sortOrder"
-            bindinput="handleEditorInput"
-          />
-        </view>
-        <view class="form-group">
-          <view class="form-label">发布状态</view>
-          <picker
-            mode="selector"
-            range="{{editorStatusOptions}}"
-            range-key="label"
-            value="{{editorStatusIndex}}"
-            bindchange="handleEditorStatusChange"
-          >
-            <view class="picker-value">{{editorStatusLabel}}</view>
+      <view wx:else class="state-hint state-hint--empty">暂无活动，点击右上角新建。</view>
+    </block>
+  </view>
+
+  <view wx:if="{{editorVisible}}" class="section-block">
+    <view class="block-header">
+      <view class="block-title">{{editorMode === 'edit' ? '编辑活动' : '新增活动'}}</view>
+      <view class="block-actions">
+        <button
+          class="icon-btn"
+          size="mini"
+          disabled="{{editorSaving}}"
+          bindtap="handleCloseEditor"
+        >收起</button>
+      </view>
+    </view>
+    <view class="form">
+      <view class="form-row">
+        <text class="form-label">活动标题</text>
+        <input
+          class="form-input"
+          placeholder="请输入活动标题"
+          value="{{editorForm.title}}"
+          data-field="title"
+          bindinput="handleEditorInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">一句话介绍</text>
+        <input
+          class="form-input"
+          placeholder="可选，展示在列表中"
+          value="{{editorForm.tagline}}"
+          data-field="tagline"
+          bindinput="handleEditorInput"
+        />
+      </view>
+      <view class="form-row form-row--full">
+        <text class="form-label">概要</text>
+        <textarea
+          class="form-textarea"
+          placeholder="可选，补充更多说明"
+          value="{{editorForm.summary}}"
+          data-field="summary"
+          bindinput="handleEditorTextArea"
+        ></textarea>
+      </view>
+      <view class="form-row form-row--split">
+        <view class="form-item">
+          <text class="form-label">开始日期</text>
+          <picker mode="date" value="{{editorForm.startDate}}" data-field="startDate" bindchange="handleEditorDateChange">
+            <view class="picker-value">{{editorForm.startDate || '未设置'}}</view>
           </picker>
         </view>
-      </scroll-view>
-      <view class="editor-dialog__footer">
-        <button class="editor-dialog__btn" size="mini" bindtap="handleCloseEditor" disabled="{{editorSaving}}">取消</button>
+        <view class="form-item">
+          <text class="form-label">开始时间</text>
+          <picker mode="time" value="{{editorForm.startTime}}" data-field="startTime" bindchange="handleEditorTimeChange">
+            <view class="picker-value">{{editorForm.startTime || '00:00'}}</view>
+          </picker>
+        </view>
+      </view>
+      <view class="form-row form-row--split">
+        <view class="form-item">
+          <text class="form-label">结束日期</text>
+          <picker mode="date" value="{{editorForm.endDate}}" data-field="endDate" bindchange="handleEditorDateChange">
+            <view class="picker-value">{{editorForm.endDate || '未设置'}}</view>
+          </picker>
+        </view>
+        <view class="form-item">
+          <text class="form-label">结束时间</text>
+          <picker mode="time" value="{{editorForm.endTime}}" data-field="endTime" bindchange="handleEditorTimeChange">
+            <view class="picker-value">{{editorForm.endTime || '23:59'}}</view>
+          </picker>
+        </view>
+      </view>
+      <view class="form-row">
+        <text class="form-label">方案/价格</text>
+        <input
+          class="form-input"
+          placeholder="如 门票1288 / 充5000"
+          value="{{editorForm.priceLabel}}"
+          data-field="priceLabel"
+          bindinput="handleEditorInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">地点</text>
+        <input
+          class="form-input"
+          placeholder="可选"
+          value="{{editorForm.location}}"
+          data-field="location"
+          bindinput="handleEditorInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">亮点</text>
+        <input
+          class="form-input"
+          placeholder="如 限时包房礼遇"
+          value="{{editorForm.highlight}}"
+          data-field="highlight"
+          bindinput="handleEditorInput"
+        />
+      </view>
+      <view class="form-row form-row--full">
+        <text class="form-label">礼遇详情</text>
+        <textarea
+          class="form-textarea"
+          placeholder="每行填写一条礼遇"
+          value="{{editorForm.perksText}}"
+          data-field="perksText"
+          bindinput="handleEditorTextArea"
+        ></textarea>
+      </view>
+      <view class="form-row form-row--full">
+        <text class="form-label">补充说明</text>
+        <textarea
+          class="form-textarea"
+          placeholder="可选，用于补充注意事项"
+          value="{{editorForm.notes}}"
+          data-field="notes"
+          bindinput="handleEditorTextArea"
+        ></textarea>
+      </view>
+      <view class="form-row form-row--full">
+        <text class="form-label">标签</text>
+        <textarea
+          class="form-textarea"
+          placeholder="换行或空格分隔，例如：万圣节 限定"
+          value="{{editorForm.tagsText}}"
+          data-field="tagsText"
+          bindinput="handleEditorTextArea"
+        ></textarea>
+      </view>
+      <view class="form-row">
+        <text class="form-label">封面图片</text>
+        <input
+          class="form-input"
+          placeholder="可选，填写图片链接"
+          value="{{editorForm.coverImage}}"
+          data-field="coverImage"
+          bindinput="handleEditorInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">排序</text>
+        <input
+          class="form-input"
+          type="number"
+          value="{{editorForm.sortOrder}}"
+          data-field="sortOrder"
+          bindinput="handleEditorInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">发布状态</text>
+        <picker
+          mode="selector"
+          range="{{editorStatusOptions}}"
+          range-key="label"
+          value="{{editorStatusIndex}}"
+          bindchange="handleEditorStatusChange"
+        >
+          <view class="picker-value">{{editorStatusLabel}}</view>
+        </picker>
+      </view>
+      <view class="form-actions">
         <button
-          class="editor-dialog__btn editor-dialog__btn--primary"
+          class="submit-btn"
           type="primary"
           size="mini"
           loading="{{editorSaving}}"
           disabled="{{editorSaving}}"
           bindtap="handleEditorSubmit"
-        >保存</button>
+        >{{editorMode === 'edit' ? '保存修改' : '创建活动'}}</button>
+        <button
+          class="ghost-btn"
+          size="mini"
+          disabled="{{editorSaving}}"
+          bindtap="handleCloseEditor"
+        >取消</button>
       </view>
     </view>
   </view>

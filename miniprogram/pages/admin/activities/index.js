@@ -234,7 +234,29 @@ Page({
     this.fetchActivities();
   },
 
-  handleCreateTap() {
+  handleRefresh() {
+    if (this.data.loading) {
+      return;
+    }
+    this.fetchActivities();
+  },
+
+  handleToggleCreateForm() {
+    if (this.data.editorVisible && this.data.editorMode === 'create') {
+      if (this.data.editorSaving) {
+        return;
+      }
+      this.setData({
+        editorVisible: false,
+        editorMode: 'create',
+        editorForm: buildEditorForm(null),
+        activeActivityId: '',
+        editorStatusLabel: resolveStatusLabel('published'),
+        editorStatusIndex: resolveStatusIndex('published')
+      });
+      return;
+    }
+
     this.setData({
       editorVisible: true,
       editorMode: 'create',
@@ -266,7 +288,14 @@ Page({
     if (this.data.editorSaving) {
       return;
     }
-    this.setData({ editorVisible: false, activeActivityId: '' });
+    this.setData({
+      editorVisible: false,
+      editorMode: 'create',
+      activeActivityId: '',
+      editorForm: buildEditorForm(null),
+      editorStatusLabel: resolveStatusLabel('published'),
+      editorStatusIndex: resolveStatusIndex('published')
+    });
   },
 
   handleEditorInput(event) {
@@ -368,7 +397,15 @@ Page({
         await AdminService.createActivity(payload);
         wx.showToast({ title: '已创建', icon: 'success' });
       }
-      this.setData({ editorVisible: false, editorSaving: false, activeActivityId: '' });
+      this.setData({
+        editorVisible: false,
+        editorSaving: false,
+        activeActivityId: '',
+        editorMode: 'create',
+        editorForm: buildEditorForm(null),
+        editorStatusLabel: resolveStatusLabel('published'),
+        editorStatusIndex: resolveStatusIndex('published')
+      });
       this.fetchActivities();
     } catch (error) {
       console.error('[admin:activities] save failed', error);
