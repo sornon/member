@@ -10,7 +10,8 @@ export const CLOUD_FUNCTIONS = {
   ADMIN: 'admin',
   BOOTSTRAP: 'bootstrap',
   MENU_ORDER: 'menuOrder',
-  MENU_CATALOG: 'menuCatalog'
+  MENU_CATALOG: 'menuCatalog',
+  ACTIVITIES: 'activities'
 };
 
 export const COLLECTIONS = {

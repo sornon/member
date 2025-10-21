@@ -436,6 +436,16 @@ export const AvatarService = {
   }
 };
 
+export const ActivityService = {
+  async list(options = {}) {
+    const payload = { action: 'list' };
+    if (options && Number.isFinite(options.limit)) {
+      payload.limit = options.limit;
+    }
+    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, payload);
+  }
+};
+
 export const AdminService = {
   async listMembers({ keyword = '', page = 1, pageSize = 20 } = {}) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
@@ -700,6 +710,31 @@ export const AdminService = {
       }
     }
     return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
+  },
+  async listActivities(options = {}) {
+    const payload = { action: 'listActivities' };
+    if (options && typeof options === 'object') {
+      if (options.status) {
+        payload.status = options.status;
+      }
+      if (typeof options.includeArchived !== 'undefined') {
+        payload.includeArchived = !!options.includeArchived;
+      }
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
+  },
+  async createActivity(activity = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'createActivity',
+      activity
+    });
+  },
+  async updateActivity(activityId, updates = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'updateActivity',
+      activityId,
+      updates
+    });
   }
 };
 

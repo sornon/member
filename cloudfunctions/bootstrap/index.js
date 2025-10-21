@@ -18,7 +18,8 @@ exports.main = async () => {
     ensureCollection(COLLECTIONS.ERROR_LOGS),
     ensureCollection(COLLECTIONS.MEMBER_EXTRAS),
     ensureCollection(COLLECTIONS.MEMBER_TIMELINE),
-    ensureCollection(COLLECTIONS.SYSTEM_SETTINGS)
+    ensureCollection(COLLECTIONS.SYSTEM_SETTINGS),
+    ensureCollection(COLLECTIONS.ACTIVITIES)
   ]);
 
   await Promise.all([
@@ -32,6 +33,7 @@ exports.main = async () => {
   ]);
 
   await seedSystemSettings();
+  await seedActivities();
 
   return { success: true };
 };
@@ -98,6 +100,55 @@ async function seedSystemSettings() {
       updatedAt: now
     }
   });
+}
+
+async function seedActivities() {
+  const collection = db.collection(COLLECTIONS.ACTIVITIES);
+  const now = new Date();
+  await Promise.all(
+    defaultActivities.map(async (item) => {
+      if (!item || !item._id) {
+        return;
+      }
+      const snapshot = await collection
+        .doc(item._id)
+        .get()
+        .catch((error) => {
+          if (error && /not exist|not found/i.test(error.errMsg || '')) {
+            return null;
+          }
+          throw error;
+        });
+      if (snapshot && snapshot.data) {
+        return;
+      }
+      const startTime = item.startTime ? new Date(item.startTime) : null;
+      const endTime = item.endTime ? new Date(item.endTime) : null;
+      const data = {
+        title: item.title || '',
+        tagline: item.tagline || '',
+        summary: item.summary || '',
+        status: item.status || 'published',
+        startTime: startTime && !Number.isNaN(startTime.getTime()) ? startTime : null,
+        endTime: endTime && !Number.isNaN(endTime.getTime()) ? endTime : null,
+        priceLabel: item.priceLabel || '',
+        location: item.location || '',
+        highlight: item.highlight || '',
+        perks: Array.isArray(item.perks) ? item.perks : [],
+        notes: item.notes || '',
+        tags: Array.isArray(item.tags) ? item.tags : [],
+        coverImage: item.coverImage || '',
+        sortOrder: Number.isFinite(item.sortOrder)
+          ? item.sortOrder
+          : Number(item.sortOrder || 0) || 0,
+        createdAt: now,
+        updatedAt: now,
+        createdBy: 'system',
+        updatedBy: 'system'
+      };
+      await collection.doc(item._id).set({ data });
+    })
+  );
 }
 
 const membershipLevels = buildMembershipLevels();
@@ -203,6 +254,47 @@ const coupons = [
     amount: 10,
     threshold: 100000,
     validDays: 30
+  }
+];
+
+const defaultActivities = [
+  {
+    _id: 'activity_202410_recharge',
+    title: '充值赠包房礼',
+    tagline: '充5000 送尊享包房一次',
+    summary: '10月21日-11月9日限时充值礼遇',
+    status: 'published',
+    startTime: '2024-10-21T00:00:00+08:00',
+    endTime: '2024-11-09T23:59:59+08:00',
+    priceLabel: '充5000',
+    highlight: '尊享包房含1箱啤酒与果盘，价值1800元',
+    perks: [
+      '充值 5000 元赠送尊享包房 1 次（价值 1800 元）',
+      '含 1 箱啤酒、1 个果盘',
+      '服务生 300 元小费无法免除'
+    ],
+    tags: ['充值礼遇', '限时活动'],
+    sortOrder: 180
+  },
+  {
+    _id: 'activity_202410_halloween',
+    title: '万圣节古巴之夜',
+    tagline: '门票 1288 赠高希霸世纪 6',
+    summary: '10月31日 20:00 开场，畅饮多款精品酒水',
+    status: 'published',
+    startTime: '2024-10-31T20:00:00+08:00',
+    endTime: '2024-10-31T23:59:59+08:00',
+    priceLabel: '门票 ¥1288',
+    highlight: '充值 1 万元免门票，额外赠包房含 3 箱啤酒、果盘',
+    perks: [
+      '赠送 1 支高希霸世纪 6',
+      'KTV 自由欢唱',
+      '古巴邑 10 年、雷司令、红酒、白兰地、鸡尾酒、软饮畅饮',
+      '赠送万圣节随机头像、相框、称号、背景',
+      '充值 1 万元免门票，额外赠送包房 1 次（含 3 箱啤酒、1 个果盘）'
+    ],
+    tags: ['万圣节', '酒会'],
+    sortOrder: 260
   }
 ];
 

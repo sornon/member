@@ -159,13 +159,84 @@ export const formatStoneChange = (value = 0) => {
   return `${prefix}${Math.abs(Math.floor(numeric)).toLocaleString('zh-CN')}`;
 };
 
+function normalizeDateInput(value) {
+  if (!value) {
+    return null;
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === 'number') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const date = new Date(trimmed);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
+}
+
 export const formatDate = (date) => {
-  if (!date) return '';
-  const d = typeof date === 'string' ? new Date(date) : date;
+  const d = normalizeDateInput(date);
+  if (!d) {
+    return '';
+  }
   const y = d.getFullYear();
   const m = `${d.getMonth() + 1}`.padStart(2, '0');
   const day = `${d.getDate()}`.padStart(2, '0');
   return `${y}-${m}-${day}`;
+};
+
+export const formatDateTime = (date, options = {}) => {
+  const d = normalizeDateInput(date);
+  if (!d) {
+    return '';
+  }
+  const includeTime = options.includeTime !== false;
+  const dateText = formatDate(d);
+  if (!includeTime) {
+    return dateText;
+  }
+  const h = `${d.getHours()}`.padStart(2, '0');
+  const m = `${d.getMinutes()}`.padStart(2, '0');
+  return `${dateText} ${h}:${m}`;
+};
+
+export const formatDateTimeRange = (start, end, options = {}) => {
+  const startDate = normalizeDateInput(start);
+  const endDate = normalizeDateInput(end);
+  const includeTime = options.includeTime !== false;
+
+  if (!startDate && !endDate) {
+    return '';
+  }
+
+  if (startDate && endDate) {
+    const sameDay = startDate.toDateString() === endDate.toDateString();
+    if (sameDay) {
+      if (!includeTime) {
+        return formatDate(startDate);
+      }
+      const startTime = `${startDate.getHours()}`.padStart(2, '0');
+      const startMinute = `${startDate.getMinutes()}`.padStart(2, '0');
+      const endTime = `${endDate.getHours()}`.padStart(2, '0');
+      const endMinute = `${endDate.getMinutes()}`.padStart(2, '0');
+      return `${formatDate(startDate)} ${startTime}:${startMinute} - ${endTime}:${endMinute}`;
+    }
+    const startText = formatDateTime(startDate, { includeTime });
+    const endText = formatDateTime(endDate, { includeTime });
+    return `${startText} 至 ${endText}`;
+  }
+
+  if (startDate) {
+    return formatDateTime(startDate, { includeTime });
+  }
+  return formatDateTime(endDate, { includeTime });
 };
 
 export const levelBadgeColor = (order = 1) => {

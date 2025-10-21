@@ -26,6 +26,12 @@ const BASE_ACTIONS = [
     url: '/pages/admin/menu-catalog/index'
   },
   {
+    icon: '🎯',
+    label: '活动管理',
+    description: '配置会员端活动展示',
+    url: '/pages/admin/activities/index'
+  },
+  {
     icon: '🍽️',
     label: '备餐列表',
     description: '查看会员点餐并推送扣费',
