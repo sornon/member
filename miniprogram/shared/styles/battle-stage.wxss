@@ -160,7 +160,7 @@ page {
 .hp-track {
   position: relative;
   flex: 1;
-  height: 24rpx;
+  height: 22rpx;
   background: rgba(255, 94, 94, 0.24);
   border-radius: 999rpx;
   overflow: hidden;
@@ -180,7 +180,7 @@ page {
 .resource-track {
   position: relative;
   flex: 1;
-  height: 24rpx;
+  height: 22rpx;
   background: rgba(72, 144, 255, 0.24);
   border-radius: 999rpx;
   overflow: hidden;
