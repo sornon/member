@@ -107,8 +107,7 @@ page {
   align-items: flex-start;
 }
 
-.actor-card.attacker-card.actor-player .actor-meta,
-.actor-card.attacker-card.actor-player .hp-text {
+.actor-card.attacker-card.actor-player .actor-meta {
   align-self: flex-start;
 }
 
@@ -117,15 +116,8 @@ page {
   align-items: flex-end;
 }
 
-.actor-card.defender-card.actor-opponent .actor-meta,
-.actor-card.defender-card.actor-opponent .hp-text {
+.actor-card.defender-card.actor-opponent .actor-meta {
   align-self: flex-end;
-}
-.actor-card.defender-card.actor-opponent .resource-text {
-  align-self: flex-end;
-}
-.actor-card.attacker-card.actor-player .resource-text {
-  align-self: flex-start;
 }
 
 .actor-card .actor-name {
@@ -145,9 +137,9 @@ page {
 
 .hp-track {
   position: relative;
-  height: 14rpx;
+  height: 40rpx;
   margin: 24rpx 0 12rpx;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 94, 94, 0.2);
   border-radius: 10rpx;
   overflow: hidden;
   width: 100%;
@@ -160,24 +152,16 @@ page {
   transition: width 0.4s ease;
 }
 
-.hp-player {
-  background: linear-gradient(90deg, #4fe8a4, #38d2ff);
-}
-
+.hp-player,
 .hp-opponent {
-  background: linear-gradient(90deg, #ff8a85, #ffb347);
-}
-
-.hp-text {
-  font-size: 24rpx;
-  color: rgba(255, 255, 255, 0.85);
+  background: linear-gradient(90deg, #ff4d4f, #ff7875);
 }
 
 .resource-track {
   position: relative;
-  height: 12rpx;
+  height: 34rpx;
   margin: 12rpx 0 8rpx;
-  background: rgba(102, 187, 255, 0.18);
+  background: rgba(72, 144, 255, 0.2);
   border-radius: 10rpx;
   overflow: hidden;
   width: 100%;
@@ -190,19 +174,34 @@ page {
   transition: width 0.4s ease;
 }
 
-.resource-player {
-  background: linear-gradient(90deg, #54f1ff, #7a9bff);
-}
-
+.resource-player,
 .resource-opponent {
-  background: linear-gradient(90deg, #ffe28a, #ff9f6b);
+  background: linear-gradient(90deg, #3a8bff, #67c2ff);
 }
 
-.resource-text {
-  font-size: 22rpx;
-  color: rgba(224, 237, 255, 0.85);
+.track-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  text-align: center;
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #ffffff;
+  text-shadow: 0 0 10rpx rgba(0, 0, 0, 0.35);
+  pointer-events: none;
   white-space: nowrap;
 }
+
+.hp-label {
+  font-size: 26rpx;
+}
+
+.resource-label {
+  font-size: 24rpx;
+}
+
 
 .actor-card__header {
   width: 100%;
@@ -305,8 +304,7 @@ page {
   text-overflow: ellipsis;
 }
 
-.actor-card.actor-player .actor-meta,
-.actor-card.actor-player .hp-text {
+.actor-card.actor-player .actor-meta {
   align-self: flex-end;
 }
 

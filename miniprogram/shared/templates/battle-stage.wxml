@@ -64,20 +64,20 @@
               class="hp-progress {{attackerKey === 'player' ? 'hp-player' : 'hp-opponent'}}"
               style="{{hpState[attackerKey] ? hpState[attackerKey].progressStyle : ''}}"
             ></view>
-          </view>
-          <view class="hp-text">
-            {{hpState[attackerKey] ? hpState[attackerKey].current : 0}} /
-            {{hpState[attackerKey] ? hpState[attackerKey].max : 0}}
+            <view class="track-label hp-label">
+              {{hpState[attackerKey] ? hpState[attackerKey].current : 0}} /
+              {{hpState[attackerKey] ? hpState[attackerKey].max : 0}}
+            </view>
           </view>
           <view class="resource-track">
             <view
               class="resource-progress {{attackerKey === 'player' ? 'resource-player' : 'resource-opponent'}}"
               style="{{resourceState[attackerKey] ? resourceState[attackerKey].progressStyle : ''}}"
             ></view>
-          </view>
-          <view class="resource-text">
-            真气 {{resourceState[attackerKey] ? resourceState[attackerKey].current : 0}} /
-            {{resourceState[attackerKey] ? resourceState[attackerKey].max : 0}}
+            <view class="track-label resource-label">
+              真气 {{resourceState[attackerKey] ? resourceState[attackerKey].current : 0}} /
+              {{resourceState[attackerKey] ? resourceState[attackerKey].max : 0}}
+            </view>
           </view>
         </view>
         <view
@@ -130,20 +130,20 @@
               class="hp-progress {{defenderKey === 'player' ? 'hp-player' : 'hp-opponent'}}"
               style="{{hpState[defenderKey] ? hpState[defenderKey].progressStyle : ''}}"
             ></view>
-          </view>
-          <view class="hp-text">
-            {{hpState[defenderKey] ? hpState[defenderKey].current : 0}} /
-            {{hpState[defenderKey] ? hpState[defenderKey].max : 0}}
+            <view class="track-label hp-label">
+              {{hpState[defenderKey] ? hpState[defenderKey].current : 0}} /
+              {{hpState[defenderKey] ? hpState[defenderKey].max : 0}}
+            </view>
           </view>
           <view class="resource-track">
             <view
               class="resource-progress {{defenderKey === 'player' ? 'resource-player' : 'resource-opponent'}}"
               style="{{resourceState[defenderKey] ? resourceState[defenderKey].progressStyle : ''}}"
             ></view>
-          </view>
-          <view class="resource-text">
-            真气 {{resourceState[defenderKey] ? resourceState[defenderKey].current : 0}} /
-            {{resourceState[defenderKey] ? resourceState[defenderKey].max : 0}}
+            <view class="track-label resource-label">
+              真气 {{resourceState[defenderKey] ? resourceState[defenderKey].current : 0}} /
+              {{resourceState[defenderKey] ? resourceState[defenderKey].max : 0}}
+            </view>
           </view>
         </view>
       </view>
