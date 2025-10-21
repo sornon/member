@@ -10,20 +10,21 @@
   <block wx:elif="{{activities.length}}">
     <view wx:for="{{activities}}" wx:key="id" class="card activity-card">
       <view class="activity-card__header">
-        <view class="activity-card__title">{{item.title}}</view>
+        <view
+          class="activity-card__title-wrap"
+          data-id="{{item.id}}"
+          hover-class="activity-card__title-wrap--hover"
+          bindtap="handleViewDetail"
+        >
+          <text class="activity-card__title">{{item.title}}</text>
+          <text class="activity-card__indicator" aria-hidden="true">›</text>
+        </view>
         <view class="activity-card__status activity-card__status--{{item.statusType}}">{{item.statusLabel}}</view>
       </view>
       <view wx:if="{{item.timeRangeLabel}}" class="activity-card__meta">时间：{{item.timeRangeLabel}}</view>
       <view wx:if="{{item.tags.length}}" class="activity-card__tags">
         <view wx:for="{{item.tags}}" wx:key="tag" class="activity-card__tag">{{item}}</view>
       </view>
-      <button
-        class="activity-card__button"
-        type="primary"
-        size="mini"
-        data-id="{{item.id}}"
-        bindtap="handleViewDetail"
-      >查看详情</button>
     </view>
   </block>
   <view wx:else class="card activity-state activity-state--empty">

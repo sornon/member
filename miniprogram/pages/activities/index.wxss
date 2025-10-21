@@ -42,10 +42,37 @@
   gap: 16rpx;
 }
 
+.activity-card__title-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 12rpx;
+  flex: 1;
+  min-width: 0;
+  color: inherit;
+}
+
+.activity-card__title-wrap--hover .activity-card__title {
+  opacity: 0.72;
+}
+
 .activity-card__title {
   font-size: 36rpx;
   font-weight: 600;
   line-height: 1.3;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-card__indicator {
+  font-size: 44rpx;
+  line-height: 1;
+  color: rgba(231, 236, 255, 0.6);
+}
+
+.activity-card__title-wrap--hover .activity-card__indicator {
+  color: rgba(231, 236, 255, 0.9);
 }
 
 .activity-card__status {
@@ -94,7 +121,3 @@
   color: rgba(233, 236, 255, 0.86);
 }
 
-.activity-card__button {
-  align-self: flex-end;
-  padding: 0 32rpx;
-}
