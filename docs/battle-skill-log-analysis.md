@@ -1,28 +1,12 @@
-# 战斗技能展示缺失原因与修复方案
+# 战斗技能记录现状
 
-## 问题概述
-- 小程序战斗播放页会在时间线节点中寻找 `skillName` 或 `skill` 相关字段，用于在画面中弹出“释放技能”的提示。【F:miniprogram/pages/battle/play.js†L414-L435】【F:miniprogram/pages/battle/play.js†L1166-L1168】
-- 当前 PVE 云函数的 `runBattleSimulation` 在构造时间线时，统一把 `skill` 字段写死为 `{ id: 'basic_attack', name: '普攻', type: 'basic' }`，并且始终调用 `performCombatAttack` 执行普通攻击，没有任何主动技能判定或冷却逻辑。【F:cloudfunctions/pve/index.js†L7359-L7454】【F:cloudfunctions/pve/index.js†L7651-L7684】
-- 战斗事件数组 `events` 仅包含 `damage`、`heal`、`dodge` 等基础动作，同样缺少技能条目，导致前端无法解析出技能名称，只能显示普攻日志。【F:cloudfunctions/pve/index.js†L7380-L7438】
+新的公共技能引擎已在 PVE 与 PVP 战斗中生效，时间线会随回合记录真实释放的技能、连击段数以及附加状态，前端播放页能够直接渲染技能名称与动效提示。【F:cloudfunctions/nodejs-layer/node_modules/skill-engine/index.js†L1-L720】【F:cloudfunctions/pve/index.js†L7337-L7510】【F:cloudfunctions/pvp/index.js†L520-L676】
 
-## 结论
-战斗过程未真正触发技能释放——时间线里的 `skill` 字段被硬编码为“普攻”，模拟逻辑也只调用普通攻击函数，自然不会出现技能名称。因此“战斗过程不显示释放的技能名称”并非前端 Bug，而是后端战斗模拟尚未输出技能数据。
+## 关键改动
 
-## 修复建议
-1. **接入技能系统**：在 `runBattleSimulation` 中引入技能冷却与触发逻辑，基于角色已装备的技能决定每回合行动（选择技能、结算效果、记录技能名称）。必要时复用 `skill-model` 模块的汇总结果，确保技能数值与成长一致。
-2. **丰富时间线数据**：当回合选择了技能，应把 `skill` 字段替换为对应技能的 `id/name/type`，并在 `events` 中附加技能造成的伤害、增益或控制信息，让前端能够读取并展示。
-3. **补充测试用例**：为技能释放场景编写单元或集成测试，校验时间线中是否存在技能节点及其数值变化，避免回归时再次退化为纯普攻。
+- **统一技能结算**：`skill-engine` 模块负责解析角色装备的技能、处理冷却与触发条件，并在 `takeTurn` 中完成多段伤害、持续伤害、控制效果等结算；PVE、PVP 分别调用该模块执行每一次行动，避免维护两套重复逻辑。【F:cloudfunctions/nodejs-layer/node_modules/skill-engine/index.js†L69-L669】【F:cloudfunctions/pve/index.js†L7337-L7510】【F:cloudfunctions/pvp/index.js†L520-L676】
+- **后续打击**：技能定义中的 `followUp` 以及护盾类增益的爆裂效果会在主段伤害后追加结算，相关事件和吸血、反伤等都能正确记录到时间线中。【F:cloudfunctions/nodejs-layer/node_modules/skill-engine/index.js†L520-L669】
+- **时间线带上技能信息**：`buildTimelineEntry` 现在会把回合实际释放的技能 ID、名称与动效写入 `timeline`，连同技能造成的多段事件一起返回给前端，从而摆脱“所有动作都显示普攻”的旧表现。【F:cloudfunctions/pve/index.js†L7641-L7672】【F:cloudfunctions/pvp/index.js†L1700-L1734】
+- **竞技与副本共用技能数据**：`buildCombatSnapshot` 与 `buildBattleSetup` 会为玩家和敌人构建统一的技能负载，PVP 战斗复用会员的 PVE 技能配置，实现副本与竞技场的一致体验。【F:cloudfunctions/pve/index.js†L7210-L7227】【F:cloudfunctions/pvp/index.js†L1426-L1454】
 
-按以上步骤完善后，战斗演播即可正确显示技能名称与效果提示。
-
-## 进一步现象：每回合固定出现两条伤害记录
-
-- 当前模拟循环在每个回合内仅执行一次 `performCombatAttack` 给敌方、一次 `performCombatAttack` 给我方，随后才把 `round` 计数加一，因此时间线上天然只会出现“玩家打敌方 + 敌方回敬玩家”这两条事件。【F:cloudfunctions/pve/index.js†L7389-L7464】【F:cloudfunctions/pve/index.js†L7465-L7533】
-- `performCombatAttack` 自身只返回一次结算好的 `damage` 数值，不会产生连击、DOT、范围溅射等额外事件；换言之，每次调用都只能产出一条伤害事件。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L279-L339】
-- 由于缺少技能判定与附加效果，模拟结果会稳定为“每回合双方各打一记普攻”，导致数据分析或前端观感上表现为“每个人每回合恒定造成两次伤害”。
-
-### 建议措施
-
-1. **在出手逻辑中接入技能脚本**：根据角色已装备技能与冷却、触发条件决定调用何种结算函数，而不是无条件调用 `performCombatAttack`。
-2. **扩展事件生成器**：当技能具有多段伤害、DOT 或群攻效果时，为每段结算单独写入 `damage` 事件（或 `status`、`resource` 等），让时间线能真实反映“一次行动多段结算”。
-3. **补齐测试与数据校验**：为常见技能写回放快照，断言每条时间线节点的 `events` 数量与内容符合期望，避免再出现“一回合恒定两条伤害”的退化表现。
+借由上述改造，战斗时间线已经能够真实反映技能释放顺序与效果，前端播放和分析工具可直接读取结构化数据展示技能演出。
