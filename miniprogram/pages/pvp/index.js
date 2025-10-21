@@ -103,7 +103,9 @@ Page({
         profile: res.profile || null,
         history: res.history || [],
         recentMatches: res.recentMatches || [],
-        leaderboardPreview: res.leaderboardPreview || [],
+        leaderboardPreview: Array.isArray(res.leaderboardPreview)
+          ? res.leaderboardPreview.slice(0, 10)
+          : [],
         leaderboardUpdatedAt: res.leaderboardUpdatedAt || ''
       });
     } catch (error) {
@@ -349,7 +351,9 @@ Page({
       nextState.recentMatches = payload.recentMatches;
     }
     if (payload.leaderboardPreview) {
-      nextState.leaderboardPreview = payload.leaderboardPreview;
+      nextState.leaderboardPreview = Array.isArray(payload.leaderboardPreview)
+        ? payload.leaderboardPreview.slice(0, 10)
+        : [];
     }
     if (Object.prototype.hasOwnProperty.call(payload, 'leaderboardUpdatedAt')) {
       nextState.leaderboardUpdatedAt = payload.leaderboardUpdatedAt;

@@ -23,7 +23,8 @@ Page({
     season: null,
     updatedAt: '',
     matchLoadingId: '',
-    error: ''
+    error: '',
+    myRank: null
   },
 
   onLoad() {
@@ -44,7 +45,8 @@ Page({
         loading: false,
         entries: res.entries || [],
         season: res.season || null,
-        updatedAt: res.updatedAt ? formatDateTime(res.updatedAt) : ''
+        updatedAt: res.updatedAt ? formatDateTime(res.updatedAt) : '',
+        myRank: Number.isFinite(res.myRank) ? res.myRank : null
       });
     } catch (error) {
       console.error('[pvp] load leaderboard failed', error);

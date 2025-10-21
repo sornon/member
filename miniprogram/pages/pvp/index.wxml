@@ -50,9 +50,20 @@
       </view>
 
       <view class="card pvp-actions">
-        <button class="pvp-button" type="primary" loading="{{matching}}" disabled="{{matching}}" bindtap="handleMatch">快速匹配</button>
-        <button class="pvp-button" open-type="share" loading="{{inviteSending}}" disabled="{{inviteSending}}" bindtap="handleSendInvite">邀请好友</button>
-        <button class="pvp-button" bindtap="handleViewLeaderboard">查看榜单</button>
+        <button
+          class="pvp-button"
+          type="primary"
+          loading="{{matching}}"
+          disabled="{{matching}}"
+          bindtap="handleMatch"
+        >快速匹配</button>
+        <button
+          class="pvp-button pvp-button--secondary"
+          open-type="share"
+          loading="{{inviteSending}}"
+          disabled="{{inviteSending}}"
+          bindtap="handleSendInvite"
+        >邀请好友</button>
       </view>
 
       <view wx:if="{{inviteInfo}}" class="card pvp-invite-card">
