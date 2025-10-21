@@ -4,7 +4,13 @@ const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const commonConfig = require('common-config');
-const { COLLECTIONS, resolveBackgroundById, normalizeBackgroundId, pickPortraitUrl } = commonConfig;
+const {
+  COLLECTIONS,
+  resolveBackgroundById,
+  normalizeBackgroundId,
+  pickPortraitUrl,
+  normalizeAvatarFrameValue
+} = commonConfig;
 const {
   DEFAULT_COMBAT_STATS,
   DEFAULT_SPECIAL_STATS,
@@ -860,6 +866,7 @@ function buildParticipantSnapshot(profile, delta, actor) {
   const backgroundId = normalizeBackgroundId(actor.appearanceBackgroundId || '');
   const backgroundAnimated = !!actor.appearanceBackgroundAnimated;
   const backgroundPayload = actor.background || buildBackgroundPayloadFromId(backgroundId, backgroundAnimated);
+  const avatarFrame = normalizeAvatarFrameValue(actor.avatarFrame || '');
   return {
     memberId: actor.memberId,
     displayName: actor.displayName,
@@ -876,6 +883,7 @@ function buildParticipantSnapshot(profile, delta, actor) {
     isBot: !!actor.isBot,
     appearanceBackgroundId: backgroundId,
     appearanceBackgroundAnimated: backgroundAnimated,
+    ...(avatarFrame ? { avatarFrame } : {}),
     ...(backgroundPayload ? { background: backgroundPayload } : {})
   };
 }
@@ -1456,15 +1464,23 @@ function buildMemberSnapshot(member) {
       nickName: '无名仙友',
       avatarUrl: '',
       levelName: '',
-      memberId: ''
+      memberId: '',
+      avatarFrame: ''
     };
   }
   const level = member.level || {};
+  const avatarFrame = normalizeAvatarFrameValue(
+    member.avatarFrame ||
+      (member.appearance && member.appearance.avatarFrame) ||
+      member.appearanceFrame ||
+      ''
+  );
   return {
     memberId: member._id || member.memberId || '',
     nickName: member.nickName || member.name || '无名仙友',
     avatarUrl: member.avatarUrl || '',
-    levelName: level.name || level.label || ''
+    levelName: level.name || level.label || '',
+    avatarFrame
   };
 }
 
@@ -1535,6 +1551,15 @@ function normalizeCombatSnapshot(snapshot) {
 }
 
 function buildBattleActor({ memberId, member, profile, combat, isBot }) {
+  const resolveAvatarFrame = (...candidates) => {
+    for (let i = 0; i < candidates.length; i += 1) {
+      const value = normalizeAvatarFrameValue(candidates[i] || '');
+      if (value) {
+        return value;
+      }
+    }
+    return '';
+  };
   const tier = resolveTierByPoints(profile.points);
   const normalized = normalizeCombatSnapshot(combat);
   const backgroundId = buildBackgroundIdFromMember(member);
@@ -1542,6 +1567,13 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
   const background = buildBackgroundPayloadFromId(backgroundId, backgroundAnimated);
   const avatarUrl =
     (profile.memberSnapshot && profile.memberSnapshot.avatarUrl) || (member && member.avatarUrl) || '';
+  const avatarFrame = resolveAvatarFrame(
+    profile.memberSnapshot && profile.memberSnapshot.avatarFrame,
+    profile.avatarFrame,
+    profile.appearance && profile.appearance.avatarFrame,
+    member && member.avatarFrame,
+    member && member.appearanceFrame
+  );
   const portrait = pickPortraitUrl(
     profile.memberSnapshot && profile.memberSnapshot.portrait,
     profile.memberSnapshot && profile.memberSnapshot.avatarUrl,
@@ -1564,6 +1596,7 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
     appearanceBackgroundAnimated: backgroundAnimated,
     avatarUrl,
     portrait,
+    ...(avatarFrame ? { avatarFrame } : {}),
     ...(background ? { background } : {})
   };
 }
@@ -1638,6 +1671,9 @@ function buildBattleParticipantPayload({ state, actor, side, baseMaxHp, attribut
   }
   if (actor.avatarUrl) {
     payload.avatarUrl = actor.avatarUrl;
+  }
+  if (actor.avatarFrame) {
+    payload.avatarFrame = actor.avatarFrame;
   }
   if (actor.appearanceBackgroundId) {
     payload.appearanceBackgroundId = actor.appearanceBackgroundId;
