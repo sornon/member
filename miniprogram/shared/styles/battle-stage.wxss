@@ -93,7 +93,7 @@ page {
   backdrop-filter: blur(6rpx);
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
+  gap: 12rpx;
   align-items: flex-start;
 }
 
@@ -135,48 +135,63 @@ page {
   color: rgba(226, 235, 255, 0.7);
 }
 
+.track-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.track-row + .track-row {
+  margin-top: 8rpx;
+}
+
+.track-title {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: rgba(226, 235, 255, 0.9);
+  min-width: 60rpx;
+  white-space: nowrap;
+}
+
 .hp-track {
   position: relative;
-  height: 40rpx;
-  margin: 24rpx 0 12rpx;
-  background: rgba(255, 94, 94, 0.2);
-  border-radius: 10rpx;
+  flex: 1;
+  height: 36rpx;
+  background: rgba(255, 94, 94, 0.24);
+  border-radius: 999rpx;
   overflow: hidden;
-  width: 100%;
-  align-self: stretch;
 }
 
 .hp-progress {
   height: 100%;
-  border-radius: 10rpx;
+  border-radius: 999rpx;
   transition: width 0.4s ease;
 }
 
 .hp-player,
 .hp-opponent {
-  background: linear-gradient(90deg, #ff4d4f, #ff7875);
+  background: linear-gradient(180deg, #ff8c85 0%, #ff484a 100%);
 }
 
 .resource-track {
   position: relative;
-  height: 34rpx;
-  margin: 12rpx 0 8rpx;
-  background: rgba(72, 144, 255, 0.2);
-  border-radius: 10rpx;
+  flex: 1;
+  height: 32rpx;
+  background: rgba(72, 144, 255, 0.24);
+  border-radius: 999rpx;
   overflow: hidden;
-  width: 100%;
-  align-self: stretch;
 }
 
 .resource-progress {
   height: 100%;
-  border-radius: 10rpx;
+  border-radius: 999rpx;
   transition: width 0.4s ease;
 }
 
 .resource-player,
 .resource-opponent {
-  background: linear-gradient(90deg, #3a8bff, #67c2ff);
+  background: linear-gradient(180deg, #7ad0ff 0%, #2f7dff 100%);
 }
 
 .track-label {
@@ -186,7 +201,7 @@ page {
   transform: translate(-50%, -50%);
   width: 100%;
   text-align: center;
-  font-size: 24rpx;
+  font-size: 22rpx;
   font-weight: 600;
   color: #ffffff;
   text-shadow: 0 0 10rpx rgba(0, 0, 0, 0.35);
@@ -195,7 +210,7 @@ page {
 }
 
 .hp-label {
-  font-size: 26rpx;
+  font-size: 24rpx;
 }
 
 .resource-label {
