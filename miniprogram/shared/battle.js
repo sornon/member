@@ -1071,6 +1071,73 @@ function updateSideHpFromEntry({
   };
 }
 
+function resolveSkillResourceUsage(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const skill = entry.skill || entry.action || entry.ability || {};
+  const resource = skill && typeof skill.resource === 'object' ? skill.resource : {};
+  const params = skill && typeof skill.params === 'object' ? skill.params : {};
+  const metadata = typeof entry.metadata === 'object' ? entry.metadata : {};
+  const meta = typeof entry.meta === 'object' ? entry.meta : {};
+  const direct = typeof entry.resource === 'object' ? entry.resource : {};
+  const containers = [resource, params, metadata, meta, direct, entry];
+  const costKeys = ['cost', 'consume', 'consumption', 'usage', 'use'];
+  const gainKeys = ['gain', 'restore', 'recover', 'regen', 'increase', 'add'];
+  const changeKeys = ['change', 'delta', 'value', 'amount'];
+
+  const pickValue = (keys) => {
+    for (let i = 0; i < containers.length; i += 1) {
+      const container = containers[i];
+      if (!container || typeof container !== 'object') {
+        continue;
+      }
+      for (let j = 0; j < keys.length; j += 1) {
+        const key = keys[j];
+        if (Object.prototype.hasOwnProperty.call(container, key)) {
+          const candidate = toNumber(container[key], NaN);
+          if (Number.isFinite(candidate)) {
+            return candidate;
+          }
+        }
+      }
+    }
+    return NaN;
+  };
+
+  let cost = pickValue(costKeys);
+  let gain = pickValue(gainKeys);
+
+  if (!Number.isFinite(cost) && !Number.isFinite(gain)) {
+    const change = pickValue(changeKeys);
+    if (Number.isFinite(change)) {
+      if (change > 0) {
+        gain = change;
+      } else if (change < 0) {
+        cost = Math.abs(change);
+      } else {
+        cost = 0;
+      }
+    }
+  }
+
+  if (!Number.isFinite(cost) && !Number.isFinite(gain)) {
+    return null;
+  }
+
+  const resolvedType =
+    (resource && typeof resource.type === 'string' && resource.type) ||
+    (params && typeof params.type === 'string' && params.type) ||
+    (direct && typeof direct.type === 'string' && direct.type) ||
+    '';
+
+  return {
+    cost: Number.isFinite(cost) ? Math.max(0, cost) : 0,
+    gain: Number.isFinite(gain) ? Math.max(0, gain) : 0,
+    type: resolvedType
+  };
+}
+
 function updateSideResourceFromEntry({
   entry,
   events = [],
@@ -1083,10 +1150,14 @@ function updateSideResourceFromEntry({
   let nextValue = Number.isFinite(currentValue) ? currentValue : currentMax;
   let nextMax = Number.isFinite(currentMax) ? currentMax : DEFAULT_RESOURCE_MAX;
   let nextType = currentType || '';
+  const skillUsage = resolveSkillResourceUsage(entry);
+  let valueResolved = false;
 
   if (entry && typeof entry === 'object') {
     if (!nextType && entry.skill && entry.skill.resource && typeof entry.skill.resource.type === 'string') {
       nextType = entry.skill.resource.type;
+    } else if (!nextType && skillUsage && skillUsage.type) {
+      nextType = skillUsage.type;
     }
     const state = resolveTimelineStateSide(entry.state, sideKey);
     if (state) {
@@ -1100,12 +1171,16 @@ function updateSideResourceFromEntry({
         }
         if (Number.isFinite(snapshot.current)) {
           nextValue = snapshot.current;
+          valueResolved = true;
         } else if (Number.isFinite(snapshot.after)) {
           nextValue = snapshot.after;
+          valueResolved = true;
         } else if (Number.isFinite(snapshot.before) && Number.isFinite(snapshot.change)) {
           nextValue = snapshot.before + snapshot.change;
+          valueResolved = true;
         } else if (Number.isFinite(snapshot.before)) {
           nextValue = snapshot.before;
+          valueResolved = true;
         }
       }
     }
@@ -1137,18 +1212,22 @@ function updateSideResourceFromEntry({
       }
       if (Number.isFinite(snapshot.current)) {
         nextValue = snapshot.current;
+        valueResolved = true;
         continue;
       }
       if (Number.isFinite(snapshot.after)) {
         nextValue = snapshot.after;
+        valueResolved = true;
         continue;
       }
       if (Number.isFinite(snapshot.before) && Number.isFinite(snapshot.change)) {
         nextValue = snapshot.before + snapshot.change;
+        valueResolved = true;
         continue;
       }
       if (Number.isFinite(snapshot.before)) {
         nextValue = snapshot.before;
+        valueResolved = true;
         continue;
       }
     }
@@ -1164,13 +1243,52 @@ function updateSideResourceFromEntry({
     }
     if (Number.isFinite(after)) {
       nextValue = after;
+      valueResolved = true;
     } else if (Number.isFinite(before) && Number.isFinite(change)) {
       nextValue = before + change;
+      valueResolved = true;
     } else if (Number.isFinite(before)) {
       nextValue = before;
+      valueResolved = true;
     } else if (Number.isFinite(change)) {
-      const base = Number.isFinite(nextValue) ? nextValue : 0;
+      const base = Number.isFinite(nextValue)
+        ? nextValue
+        : Number.isFinite(currentValue)
+        ? currentValue
+        : 0;
       nextValue = base + change;
+      valueResolved = true;
+    }
+  }
+
+  if (!valueResolved && skillUsage) {
+    const actorMatchesSide =
+      sideKey === 'player'
+        ? resolveActorSide(entry, sideId, null) === 'player'
+        : resolveActorSide(entry, null, sideId) === 'opponent';
+    if (actorMatchesSide) {
+      if (!nextType && skillUsage.type) {
+        nextType = skillUsage.type;
+      }
+      const baseValue = Number.isFinite(nextValue)
+        ? nextValue
+        : Number.isFinite(currentValue)
+        ? currentValue
+        : Number.isFinite(currentMax)
+        ? currentMax
+        : DEFAULT_RESOURCE_MAX;
+      let adjustedValue = baseValue;
+      if (skillUsage.cost > 0) {
+        adjustedValue -= skillUsage.cost;
+      }
+      if (skillUsage.gain > 0) {
+        adjustedValue += skillUsage.gain;
+      }
+      if (skillUsage.gain > 0 && Number.isFinite(adjustedValue) && adjustedValue > nextMax) {
+        nextMax = adjustedValue;
+      }
+      nextValue = adjustedValue;
+      valueResolved = true;
     }
   }
 
