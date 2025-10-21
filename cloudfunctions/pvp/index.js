@@ -929,6 +929,32 @@ async function saveProfile(profile, memberId) {
 
 function applyMatchOutcome({ season, profile, opponentProfile, outcome, isBot, options = {} }) {
   const now = new Date();
+  if (options.friendMatch || options.inviteMatch) {
+    const tier = resolveTierByPoints(profile.points);
+    const updated = {
+      ...profile,
+      points: profile.points,
+      tierId: tier.id,
+      tierName: tier.name,
+      seasonId: season._id,
+      seasonName: season.name,
+      memberId: profile.memberId || profile._id,
+      wins: profile.wins,
+      losses: profile.losses,
+      draws: profile.draws,
+      currentStreak: profile.currentStreak || 0,
+      longestStreak: profile.longestStreak || 0,
+      bestPoints: profile.bestPoints || profile.points,
+      lastMatchedAt: now,
+      lastResultAt: now,
+      updatedAt: now,
+      claimedSeasonReward: profile.claimedSeasonReward || false,
+      memberSnapshot: profile.memberSnapshot,
+      combatSnapshot: profile.combatSnapshot,
+      seasonHistory: normalizeSeasonHistory(profile.seasonHistory)
+    };
+    return { after: updated, delta: { points: 0 } };
+  }
   const delta = computeRatingDelta({
     profile,
     opponentProfile,
@@ -967,6 +993,9 @@ function applyMatchOutcome({ season, profile, opponentProfile, outcome, isBot, o
 }
 
 function computeRatingDelta({ profile, opponentProfile, outcome, isBot, options }) {
+  if (options && (options.friendMatch || options.inviteMatch)) {
+    return { points: 0 };
+  }
   const baseWin = options.inviteMatch ? 26 : 30;
   const baseLoss = options.inviteMatch ? -18 : -22;
   const baseDraw = 8;
