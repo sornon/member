@@ -1,20 +1,14 @@
 <custom-nav title="精彩活动" theme="dark"></custom-nav>
-<view class="activity-page">
-  <view wx:if="{{loading}}" class="activity-page__state activity-page__state--loading">
-    <text>活动情报加载中...</text>
+<view class="container activity-page">
+  <view wx:if="{{loading}}" class="card activity-state">
+    <text class="activity-state__text">活动情报加载中...</text>
   </view>
-  <view wx:elif="{{error}}" class="activity-page__state activity-page__state--error">
-    <text class="activity-page__state-text">{{error}}</text>
-    <button class="activity-page__retry" size="mini" bindtap="handleRetry">重新加载</button>
-  </view>
-  <scroll-view
-    wx:else
-    scroll-y="true"
-    enable-back-to-top
-    class="activity-page__scroll"
-  >
-    <view class="activity-list" wx:if="{{activities.length}}">
-      <view wx:for="{{activities}}" wx:key="id" class="activity-card">
+    <view wx:elif="{{error}}" class="card activity-state activity-state--error">
+      <text class="activity-state__text">{{error}}</text>
+      <button class="activity-retry" size="mini" type="primary" bindtap="handleRetry">重新加载</button>
+    </view>
+    <block wx:elif="{{activities.length}}">
+      <view wx:for="{{activities}}" wx:key="id" class="card activity-card">
         <view class="activity-card__header">
           <view class="activity-card__title">{{item.title}}</view>
           <view class="activity-card__status activity-card__status--{{item.statusType}}">{{item.statusLabel}}</view>
@@ -40,9 +34,8 @@
           <view wx:for="{{item.tags}}" wx:key="tag" class="activity-card__tag">{{item}}</view>
         </view>
       </view>
+    </block>
+    <view wx:else class="card activity-state activity-state--empty">
+      <text class="activity-state__text">暂无活动，敬请期待。</text>
     </view>
-    <view wx:else class="activity-page__state activity-page__state--empty">
-      <text>暂无活动，敬请期待。</text>
-    </view>
-  </scroll-view>
-</view>
+  </view>

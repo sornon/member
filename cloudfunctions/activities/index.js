@@ -3,8 +3,6 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
-const _ = db.command;
-
 const { COLLECTIONS } = require('common-config');
 
 const DEFAULT_LIMIT = 100;
@@ -99,23 +97,73 @@ function decorateActivity(doc = {}) {
   };
 }
 
+function resolveTimelineBucket(activity, now = Date.now()) {
+  const start = Date.parse(activity.startTime || '');
+  const end = Date.parse(activity.endTime || '');
+
+  if (Number.isFinite(end) && end < now) {
+    return 2; // ended
+  }
+  if (Number.isFinite(start) && start > now) {
+    return 1; // upcoming
+  }
+  return 0; // ongoing / timeless
+}
+
+function compareDateValue(a, b) {
+  const timeA = Date.parse(a || '');
+  const timeB = Date.parse(b || '');
+
+  const validA = Number.isFinite(timeA);
+  const validB = Number.isFinite(timeB);
+
+  if (validA && validB) {
+    return timeA - timeB;
+  }
+  if (validA) {
+    return -1;
+  }
+  if (validB) {
+    return 1;
+  }
+  return 0;
+}
+
 async function listPublicActivities(options = {}) {
   const limit = normalizeLimit(options.limit);
-  const now = new Date();
+  const now = Date.now();
   const collection = db.collection(COLLECTIONS.ACTIVITIES);
-  const query = collection
-    .where({
-      status: 'published',
-      $or: [
-        { endTime: _.eq(null) },
-        { endTime: _.eq('') },
-        { endTime: _.gte(now) }
-      ]
-    })
+  const snapshot = await collection
+    .where({ status: 'published' })
     .orderBy('sortOrder', 'desc')
-    .orderBy('startTime', 'asc');
+    .orderBy('startTime', 'asc')
+    .limit(limit)
+    .get()
+    .catch((error) => {
+      if (error && /not exist|not found/i.test(error.errMsg || '')) {
+        return { data: [] };
+      }
+      throw error;
+    });
 
-  const snapshot = await query.limit(limit).get();
-  const activities = (snapshot.data || []).map((item) => decorateActivity(item));
-  return { activities };
+  const decorated = (snapshot.data || []).map((item) => decorateActivity(item));
+
+  const sorted = decorated.sort((a, b) => {
+    const bucketDiff = resolveTimelineBucket(a, now) - resolveTimelineBucket(b, now);
+    if (bucketDiff !== 0) {
+      return bucketDiff;
+    }
+    if (Number.isFinite(b.sortOrder) && Number.isFinite(a.sortOrder) && b.sortOrder !== a.sortOrder) {
+      return b.sortOrder - a.sortOrder;
+    }
+    const startDiff = compareDateValue(a.startTime, b.startTime);
+    if (startDiff !== 0) {
+      return startDiff;
+    }
+    return compareDateValue(a.endTime, b.endTime);
+  });
+
+  return {
+    activities: sorted.map(({ sortOrder, ...rest }) => rest)
+  };
 }
