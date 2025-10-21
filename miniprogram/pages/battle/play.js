@@ -65,6 +65,67 @@ function normalizeHpStateMap(state = {}) {
   };
 }
 
+const DEFAULT_RESOURCE_MAX = 100;
+
+function normalizeResourceEntry(entry) {
+  if (typeof entry === 'number') {
+    const current = Math.max(0, toFiniteNumber(entry, DEFAULT_RESOURCE_MAX));
+    const max = Math.max(current, DEFAULT_RESOURCE_MAX);
+    const percent = max > 0 ? Math.round((current / max) * 10000) / 100 : 0;
+    return {
+      max,
+      current,
+      percent,
+      progressStyle: `width: ${percent}%;`
+    };
+  }
+  const base = entry && typeof entry === 'object' ? entry : {};
+  let max = toFiniteNumber(base.max, NaN);
+  let current = toFiniteNumber(
+    Object.prototype.hasOwnProperty.call(base, 'current') ? base.current : base.after,
+    NaN
+  );
+  const change = toFiniteNumber(
+    Object.prototype.hasOwnProperty.call(base, 'change') ? base.change : base.delta,
+    NaN
+  );
+  const before = toFiniteNumber(base.before, NaN);
+  if (!Number.isFinite(current)) {
+    if (Number.isFinite(before) && Number.isFinite(change)) {
+      current = before + change;
+    } else if (Number.isFinite(before)) {
+      current = before;
+    }
+  }
+  if (!Number.isFinite(max)) {
+    const inferred = Number.isFinite(before) ? before : current;
+    if (Number.isFinite(inferred)) {
+      max = Math.max(inferred, Number.isFinite(change) ? inferred + Math.abs(change) : inferred);
+    }
+  }
+  const fallbackMax = Number.isFinite(max)
+    ? Math.max(0, max)
+    : Math.max(0, Number.isFinite(before) ? before : Number.isFinite(current) ? current : DEFAULT_RESOURCE_MAX);
+  const resolvedMax = fallbackMax > 0 ? fallbackMax : DEFAULT_RESOURCE_MAX;
+  const boundedCurrent = Number.isFinite(current) ? current : resolvedMax;
+  const clampedCurrent = Math.max(0, Math.min(resolvedMax, boundedCurrent));
+  const percent = resolvedMax > 0 ? Math.round((clampedCurrent / resolvedMax) * 10000) / 100 : 0;
+  return {
+    ...base,
+    max: resolvedMax,
+    current: clampedCurrent,
+    percent,
+    progressStyle: `width: ${percent}%;`
+  };
+}
+
+function normalizeResourceStateMap(state = {}) {
+  return {
+    player: normalizeResourceEntry(state.player),
+    opponent: normalizeResourceEntry(state.opponent)
+  };
+}
+
 function isExternalInviteSource(source) {
   return source === 'acceptInvite' || source === 'autoInvite';
 }
@@ -365,6 +426,10 @@ function createBattleStageState(overrides = {}) {
       player: { max: 1, current: 1, percent: 100 },
       opponent: { max: 1, current: 1, percent: 100 }
     }),
+    resourceState: normalizeResourceStateMap({
+      player: { max: DEFAULT_RESOURCE_MAX, current: DEFAULT_RESOURCE_MAX },
+      opponent: { max: DEFAULT_RESOURCE_MAX, current: DEFAULT_RESOURCE_MAX }
+    }),
     attackerKey: 'player',
     defenderKey: 'opponent',
     currentAction: {},
@@ -377,6 +442,7 @@ function createBattleStageState(overrides = {}) {
     resultSubtitle: '',
     resultClass: '',
     resultRounds: 0,
+    currentRound: 1,
     attackPhase: '',
     attackMotion: '',
     attackActor: '',
@@ -480,6 +546,23 @@ function resolveHpValue(state = {}, sideKey) {
     return Number(side && side.current) || 0;
   }
   return side.current;
+}
+
+function resolveResourceValue(state = {}, sideKey) {
+  const side = state && state[sideKey] ? state[sideKey] : null;
+  if (!side) {
+    return 0;
+  }
+  if (typeof side.current === 'number') {
+    return side.current;
+  }
+  if (typeof side.after === 'number') {
+    return side.after;
+  }
+  if (typeof side.before === 'number') {
+    return side.before;
+  }
+  return Number(side.current) || 0;
 }
 
 function resolveBackgroundVideoById(backgroundId) {
@@ -623,7 +706,6 @@ Page({
     navTitle: '战斗演武',
     ...createBattleStageState(),
     actions: [],
-    currentRound: 1,
     skipCountdown: MIN_SKIP_SECONDS,
     battleState: 'loading',
     battleStage: createBattleStageState()
@@ -851,6 +933,16 @@ Page({
       player: stagePlayer.hp || (viewModel.player && viewModel.player.hp) || { current: 0, max: 0 },
       opponent: stageOpponent.hp || (viewModel.opponent && viewModel.opponent.hp) || { current: 0, max: 0 }
     });
+    this.initialResource = normalizeResourceStateMap({
+      player:
+        stagePlayer.resource ||
+        (viewModel.player && viewModel.player.resource) ||
+        { current: DEFAULT_RESOURCE_MAX, max: DEFAULT_RESOURCE_MAX },
+      opponent:
+        stageOpponent.resource ||
+        (viewModel.opponent && viewModel.opponent.resource) ||
+        { current: DEFAULT_RESOURCE_MAX, max: DEFAULT_RESOURCE_MAX }
+    });
     this.setBattleStageData({
       loading: false,
       error: '',
@@ -858,6 +950,7 @@ Page({
       player: stagePlayer,
       opponent: stageOpponent,
       hpState: this.initialHp,
+      resourceState: this.initialResource,
       attackerKey: alignment.attackerKey,
       defenderKey: alignment.defenderKey,
       currentAction: {},
@@ -868,12 +961,12 @@ Page({
       resultTitle: '',
       resultSubtitle: '',
       resultClass: '',
-      resultRounds: viewModel.result.rounds || viewModel.actions.length
+      resultRounds: viewModel.result.rounds || viewModel.actions.length,
+      currentRound: 1
     });
     this.resetFloatingTexts();
     this.setData({
       actions: viewModel.actions,
-      currentRound: 1,
       skipCountdown: skipLocked ? MIN_SKIP_SECONDS : 0,
       battleState: 'ready'
     });
@@ -1203,7 +1296,13 @@ Page({
     }
   },
 
-  applyActionFloatingTexts(action, previousHp = {}, nextHp = {}) {
+  applyActionFloatingTexts(
+    action,
+    previousHp = {},
+    nextHp = {},
+    previousResource = {},
+    nextResource = {}
+  ) {
     if (!action) {
       return;
     }
@@ -1258,6 +1357,25 @@ Page({
         }
         this.showFloatingText(side, { text: `+${amount}`, type: 'heal', duration: 1200 });
       }
+    }
+
+    for (let i = 0; i < sides.length; i += 1) {
+      const side = sides[i];
+      const before = resolveResourceValue(previousResource, side);
+      const after = resolveResourceValue(nextResource, side);
+      if (!Number.isFinite(before) || !Number.isFinite(after)) {
+        continue;
+      }
+      const delta = after - before;
+      if (delta === 0) {
+        continue;
+      }
+      const amount = Math.abs(Math.round(delta));
+      if (amount <= 0) {
+        continue;
+      }
+      const text = delta > 0 ? `真气 +${amount}` : `真气 -${amount}`;
+      this.showFloatingText(side, { text, type: 'resource', duration: 1200 });
     }
   },
 
@@ -1336,7 +1454,13 @@ Page({
     return Math.max(indicatorDisplay, attackTimeline) + ATTACK_SEQUENCE_BUFFER;
   },
 
-  runActionSequence(action, previousHpState = {}, nextHpState = {}) {
+  runActionSequence(
+    action,
+    previousHpState = {},
+    nextHpState = {},
+    previousResourceState = {},
+    nextResourceState = {}
+  ) {
     this.clearAttackTimers();
     if (!action) {
       return;
@@ -1352,6 +1476,7 @@ Page({
     if (!useIndicator) {
       this.setBattleStageData({
         hpState: nextHpState,
+        resourceState: nextResourceState,
         attackPhase: '',
         attackMotion: '',
         attackActor: '',
@@ -1359,7 +1484,13 @@ Page({
         attackIndicator: { visible: false, side: '', status: '' },
         targetReaction: ''
       });
-      this.applyActionFloatingTexts(action, previousHpState, nextHpState);
+      this.applyActionFloatingTexts(
+        action,
+        previousHpState,
+        nextHpState,
+        previousResourceState,
+        nextResourceState
+      );
       this._currentActionUsesIndicator = false;
       return;
     }
@@ -1425,16 +1556,24 @@ Page({
       this.setBattleStageData({
         attackPhase: 'impact',
         targetReaction: hasDodge ? 'dodge' : 'hit',
-        hpState: nextHpState
+        hpState: nextHpState,
+        resourceState: nextResourceState
       });
-      this.applyActionFloatingTexts(action, previousHpState, nextHpState);
+      this.applyActionFloatingTexts(
+        action,
+        previousHpState,
+        nextHpState,
+        previousResourceState,
+        nextResourceState
+      );
     }, impactDelay);
 
     this.queueAttackTimer(() => {
       this.setBattleStageData({
         attackPhase: 'recovery',
         targetReaction: hasDodge ? 'dodge' : 'hit',
-        hpState: nextHpState
+        hpState: nextHpState,
+        resourceState: nextResourceState
       });
     }, recoveryStartDelay);
 
@@ -1484,14 +1623,29 @@ Page({
           ? rawNextHpState.opponent
           : previousHpState.opponent
     });
+    const previousResourceState = this.data.resourceState || this.initialResource || {};
+    const rawNextResourceState = action.resource || action.resources || {};
+    const nextResourceState = normalizeResourceStateMap({
+      player:
+        Object.prototype.hasOwnProperty.call(rawNextResourceState, 'player') && rawNextResourceState.player !== undefined
+          ? rawNextResourceState.player
+          : previousResourceState.player,
+      opponent:
+        Object.prototype.hasOwnProperty.call(rawNextResourceState, 'opponent') &&
+        rawNextResourceState.opponent !== undefined
+          ? rawNextResourceState.opponent
+          : previousResourceState.opponent
+    });
     this.timelineIndex = nextIndex;
     this.resetFloatingTexts();
     this.setBattleStageData({
       currentAction: action,
       displayedLogs: nextLogs
     });
-    this.runActionSequence(action, previousHpState, nextHpState);
-    this.setData({ battleState: 'playing', currentRound: action.round || this.data.currentRound });
+    this.runActionSequence(action, previousHpState, nextHpState, previousResourceState, nextResourceState);
+    this.setData({ battleState: 'playing' });
+    const nextRound = action.round || this.data.currentRound || this.data.battleStage.currentRound || 1;
+    this.setBattleStageData({ currentRound: nextRound });
     const delay = this.computeActionDuration(action);
     this.scheduleNextAction(delay);
   },
@@ -1573,9 +1727,10 @@ Page({
       this.setBattleStageData({
         currentAction: lastAction,
         displayedLogs: [...this.data.displayedLogs, { id: lastAction.id, text: lastAction.description }].slice(-5),
-        hpState: lastAction.hp || this.data.hpState
+        hpState: lastAction.hp || this.data.hpState,
+        resourceState: lastAction.resource || lastAction.resources || this.data.resourceState,
+        currentRound: lastAction.round || this.data.currentRound || this.data.battleStage.currentRound || 1
       });
-      this.setData({ currentRound: lastAction.round || this.data.currentRound });
     }
     this.finishBattle();
   },
@@ -1606,6 +1761,7 @@ Page({
       currentAction: {},
       displayedLogs: [],
       hpState: this.initialHp || this.data.hpState,
+      resourceState: this.initialResource || this.data.resourceState,
       attackPhase: '',
       attackMotion: '',
       attackActor: '',
@@ -1613,10 +1769,11 @@ Page({
       attackIndicator: { visible: false, side: '', status: '' },
       targetReaction: '',
       skipLocked: false,
-      skipButtonText: '跳过战斗'
+      skipButtonText: '跳过战斗',
+      currentRound: 1
     });
     this.resetFloatingTexts();
-    this.setData({ battleState: 'playing', currentRound: 1, skipCountdown: 0 });
+    this.setData({ battleState: 'playing', skipCountdown: 0 });
     this.scheduleNextAction(400);
   },
 
@@ -1688,6 +1845,23 @@ Page({
           Object.prototype.hasOwnProperty.call(nextHpState, 'opponent') && nextHpState.opponent !== undefined
             ? nextHpState.opponent
             : previousHpState.opponent
+      });
+    }
+    if (Object.prototype.hasOwnProperty.call(normalizedUpdates, 'resourceState')) {
+      const previousResourceState =
+        (this.data && this.data.battleStage && this.data.battleStage.resourceState) ||
+        createBattleStageState().resourceState;
+      const nextResourceState = normalizedUpdates.resourceState || {};
+      normalizedUpdates.resourceState = normalizeResourceStateMap({
+        player:
+          Object.prototype.hasOwnProperty.call(nextResourceState, 'player') && nextResourceState.player !== undefined
+            ? nextResourceState.player
+            : previousResourceState.player,
+        opponent:
+          Object.prototype.hasOwnProperty.call(nextResourceState, 'opponent') &&
+          nextResourceState.opponent !== undefined
+            ? nextResourceState.opponent
+            : previousResourceState.opponent
       });
     }
     const nextStage = {
