@@ -2,6 +2,7 @@
   "pages": [
     "pages/index/index",
     "pages/activities/index",
+    "pages/activities/detail/index",
     "pages/membership/membership",
     "pages/membership/order/index",
     "pages/rights/rights",
