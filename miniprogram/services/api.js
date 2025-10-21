@@ -443,6 +443,12 @@ export const ActivityService = {
       payload.limit = options.limit;
     }
     return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, payload);
+  },
+  async detail(id) {
+    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
+      action: 'detail',
+      id
+    });
   }
 };
 

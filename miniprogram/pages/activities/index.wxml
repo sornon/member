@@ -8,7 +8,14 @@
       <button class="activity-retry" size="mini" type="primary" bindtap="handleRetry">重新加载</button>
     </view>
     <block wx:elif="{{activities.length}}">
-      <view wx:for="{{activities}}" wx:key="id" class="card activity-card">
+      <view
+        wx:for="{{activities}}"
+        wx:key="id"
+        class="card activity-card"
+        data-id="{{item.id}}"
+        bindtap="handleActivityTap"
+        hover-class="activity-card--active"
+      >
         <view class="activity-card__header">
           <view class="activity-card__title">{{item.title}}</view>
           <view class="activity-card__status activity-card__status--{{item.statusType}}">{{item.statusLabel}}</view>

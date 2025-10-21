@@ -14,6 +14,8 @@ exports.main = async (event = {}) => {
     case 'list':
     case 'publicList':
       return listPublicActivities(event || {});
+    case 'detail':
+      return getActivityDetail(event || {});
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -165,5 +167,31 @@ async function listPublicActivities(options = {}) {
 
   return {
     activities: sorted.map(({ sortOrder, ...rest }) => rest)
+  };
+}
+
+async function getActivityDetail(options = {}) {
+  const id = typeof options.id === 'string' ? options.id.trim() : '';
+  if (!id) {
+    throw new Error('缺少活动编号');
+  }
+  const collection = db.collection(COLLECTIONS.ACTIVITIES);
+  const doc = await collection
+    .doc(id)
+    .get()
+    .then((res) => res && res.data)
+    .catch((error) => {
+      if (error && /not exist|not found/i.test(error.errMsg || '')) {
+        return null;
+      }
+      throw error;
+    });
+
+  if (!doc || doc.status !== 'published') {
+    throw new Error('活动不存在或已下架');
+  }
+
+  return {
+    activity: decorateActivity(doc)
   };
 }

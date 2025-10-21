@@ -1,4 +1,4 @@
-.activity-page {
+.activity-detail {
   display: flex;
   flex-direction: column;
   gap: 24rpx;
@@ -6,120 +6,118 @@
   padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
 }
 
-.activity-state {
+.activity-detail__state {
   text-align: center;
   padding: 80rpx 24rpx;
   color: rgba(231, 236, 255, 0.82);
 }
 
-.activity-state--error {
+.activity-detail__state--error {
   color: #ffb7c5;
 }
 
-.activity-state--empty {
+.activity-detail__state--empty {
   color: rgba(199, 209, 255, 0.78);
 }
 
-.activity-state__text {
+.activity-detail__state-text {
   display: block;
   margin-bottom: 24rpx;
 }
 
-.activity-retry {
+.activity-detail__retry {
   margin-top: 12rpx;
 }
 
-.activity-card {
+.activity-detail__card {
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
+  gap: 20rpx;
 }
 
-.activity-card--active {
-  opacity: 0.88;
-  transform: translate3d(0, -2rpx, 0);
-}
-
-.activity-card__header {
+.activity-detail__header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16rpx;
 }
 
-.activity-card__title {
-  font-size: 36rpx;
+.activity-detail__title {
+  font-size: 40rpx;
   font-weight: 600;
   line-height: 1.3;
 }
 
-.activity-card__status {
+.activity-detail__status {
   padding: 8rpx 20rpx;
   border-radius: 999rpx;
-  font-size: 22rpx;
+  font-size: 24rpx;
   font-weight: 500;
   color: #fff;
+  white-space: nowrap;
 }
 
-.activity-card__status--ongoing {
+.activity-detail__status--ongoing {
   background: linear-gradient(120deg, #47d1a6, #39aefb);
 }
 
-.activity-card__status--upcoming {
+.activity-detail__status--upcoming {
   background: linear-gradient(120deg, #ffb347, #ff6f91);
 }
 
-.activity-card__status--ended,
-.activity-card__status--archived {
+.activity-detail__status--ended,
+.activity-detail__status--archived {
   background: linear-gradient(120deg, #8c95b5, #5a6588);
 }
 
-.activity-card__status--draft {
+.activity-detail__status--draft {
   background: linear-gradient(120deg, #f0d264, #f79533);
 }
 
-.activity-card__tagline {
-  margin-top: 16rpx;
-  font-size: 28rpx;
-  color: rgba(255, 255, 255, 0.85);
+.activity-detail__tagline {
+  font-size: 30rpx;
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.activity-card__summary,
-.activity-card__highlight,
-.activity-card__meta,
-.activity-card__notes {
-  margin-top: 8rpx;
+.activity-detail__summary,
+.activity-detail__highlight,
+.activity-detail__meta,
+.activity-detail__notes {
   font-size: 26rpx;
   line-height: 1.6;
   color: rgba(233, 236, 255, 0.86);
 }
 
-.activity-card__cover {
-  margin-top: 20rpx;
-  border-radius: 20rpx;
+.activity-detail__summary {
+  margin-top: 4rpx;
+}
+
+.activity-detail__cover {
+  margin-top: 8rpx;
+  border-radius: 24rpx;
   overflow: hidden;
   border: 1px solid rgba(108, 132, 255, 0.25);
 }
 
-.activity-card__cover-image {
+.activity-detail__cover-image {
   width: 100%;
-  height: 280rpx;
+  height: 320rpx;
   display: block;
 }
 
-.activity-card__section {
-  margin-top: 20rpx;
+.activity-detail__section {
+  margin-top: 12rpx;
   padding-top: 12rpx;
   border-top: 1px dashed rgba(119, 138, 230, 0.35);
 }
 
-.activity-card__section-title {
+.activity-detail__section-title {
   font-size: 26rpx;
   color: rgba(255, 255, 255, 0.9);
   margin-bottom: 12rpx;
 }
 
-.activity-card__perk {
+.activity-detail__perk {
   display: flex;
   align-items: flex-start;
   font-size: 26rpx;
@@ -128,23 +126,23 @@
   margin-top: 8rpx;
 }
 
-.activity-card__bullet {
+.activity-detail__bullet {
   width: 28rpx;
   color: #7ea8ff;
 }
 
-.activity-card__perk-text {
+.activity-detail__perk-text {
   flex: 1;
 }
 
-.activity-card__tags {
+.activity-detail__tags {
   margin-top: 16rpx;
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
 }
 
-.activity-card__tag {
+.activity-detail__tag {
   padding: 6rpx 18rpx;
   border-radius: 999rpx;
   font-size: 22rpx;
@@ -153,6 +151,33 @@
   border: 1px solid rgba(92, 118, 255, 0.45);
 }
 
-.activity-card__notes {
+.activity-detail__notes {
   white-space: pre-wrap;
+}
+
+.activity-detail__share {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+  align-items: stretch;
+}
+
+.activity-detail__share-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.activity-detail__share-actions {
+  display: flex;
+  gap: 24rpx;
+  flex-wrap: wrap;
+}
+
+.activity-detail__share-button {
+  flex: 1;
+}
+
+.activity-detail__share-button:first-child {
+  min-width: 240rpx;
 }
