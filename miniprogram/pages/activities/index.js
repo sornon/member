@@ -35,7 +35,7 @@ Page({
     this.fetchActivities();
   },
 
-  handleActivityTap(event) {
+  handleViewDetail(event) {
     const { id } = event.currentTarget.dataset || {};
     if (!id) {
       return;
