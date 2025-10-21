@@ -247,19 +247,25 @@ page {
   flex-shrink: 0;
 }
 
-.actor-card__avatar-image {
+.actor-card__avatar-inner {
   width: 100%;
   height: 100%;
   border-radius: 50%;
+  overflow: hidden;
+}
+
+.actor-card__avatar-image {
+  width: 100%;
+  height: 100%;
   display: block;
 }
 
 .actor-card__avatar-frame {
   position: absolute;
-  top: -20%;
-  left: -20%;
-  width: 140%;
-  height: 140%;
+  top: -15%;
+  left: -15%;
+  width: 130%;
+  height: 130%;
   pointer-events: none;
 }
 
@@ -286,35 +292,37 @@ page {
   text-align: right;
 }
 
-.actor-title {
+.actor-card__title {
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  gap: 8rpx;
   max-width: 100%;
+  min-height: 48rpx;
 }
 
-.actor-card.actor-player .actor-title {
+.actor-card.actor-player .actor-card__title {
   justify-content: flex-end;
 }
 
-.actor-card.attacker-card.actor-player .actor-title {
+.actor-card.attacker-card.actor-player .actor-card__title {
   justify-content: flex-start;
 }
 
-.actor-card.defender-card.actor-opponent .actor-title {
+.actor-card.defender-card.actor-opponent .actor-card__title {
   justify-content: flex-end;
 }
 
-.actor-title__image {
-  height: 36rpx;
+.actor-card__title-image {
+  height: 48rpx;
   max-width: 180rpx;
   width: auto;
   display: block;
 }
 
-.actor-title__text {
-  font-size: 22rpx;
-  color: rgba(226, 235, 255, 0.7);
+.actor-card__title-text {
+  font-size: 24rpx;
+  color: rgba(226, 235, 255, 0.75);
   max-width: 100%;
   white-space: nowrap;
   overflow: hidden;

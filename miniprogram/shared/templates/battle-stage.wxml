@@ -19,11 +19,13 @@
         >
           <view class="actor-card__header">
             <view class="actor-card__avatar">
-              <image
-                class="actor-card__avatar-image"
-                src="{{attackerKey === 'player' ? (player && player.avatar || '') : (opponent && opponent.avatar || '')}}"
-                mode="cover"
-              ></image>
+              <view class="actor-card__avatar-inner">
+                <image
+                  class="actor-card__avatar-image"
+                  src="{{attackerKey === 'player' ? (player && player.avatar || '') : (opponent && opponent.avatar || '')}}"
+                  mode="cover"
+                ></image>
+              </view>
               <image
                 wx:if="{{attackerKey === 'player' ? (player && player.avatarFrame) : (opponent && opponent.avatarFrame)}}"
                 class="actor-card__avatar-frame"
@@ -37,17 +39,17 @@
               </view>
               <view
                 wx:if="{{attackerKey === 'player' ? ((player && player.titleImage) || (player && player.titleName)) : ((opponent && opponent.titleImage) || (opponent && opponent.titleName))}}"
-                class="actor-title"
+                class="actor-card__title"
               >
                 <image
                   wx:if="{{attackerKey === 'player' ? (player && player.titleImage) : (opponent && opponent.titleImage)}}"
-                  class="actor-title__image"
+                  class="actor-card__title-image"
                   src="{{attackerKey === 'player' ? (player && player.titleImage) : (opponent && opponent.titleImage)}}"
                   mode="heightFix"
                 ></image>
                 <text
                   wx:elif="{{attackerKey === 'player' ? (player && player.titleName) : (opponent && opponent.titleName)}}"
-                  class="actor-title__text"
+                  class="actor-card__title-text"
                 >
                   {{attackerKey === 'player' ? (player && player.titleName) : (opponent && opponent.titleName)}}
                 </text>
@@ -91,11 +93,13 @@
         >
           <view class="actor-card__header">
             <view class="actor-card__avatar">
-              <image
-                class="actor-card__avatar-image"
-                src="{{defenderKey === 'player' ? (player && player.avatar || '') : (opponent && opponent.avatar || '')}}"
-                mode="cover"
-              ></image>
+              <view class="actor-card__avatar-inner">
+                <image
+                  class="actor-card__avatar-image"
+                  src="{{defenderKey === 'player' ? (player && player.avatar || '') : (opponent && opponent.avatar || '')}}"
+                  mode="cover"
+                ></image>
+              </view>
               <image
                 wx:if="{{defenderKey === 'player' ? (player && player.avatarFrame) : (opponent && opponent.avatarFrame)}}"
                 class="actor-card__avatar-frame"
@@ -109,17 +113,17 @@
               </view>
               <view
                 wx:if="{{defenderKey === 'player' ? ((player && player.titleImage) || (player && player.titleName)) : ((opponent && opponent.titleImage) || (opponent && opponent.titleName))}}"
-                class="actor-title"
+                class="actor-card__title"
               >
                 <image
                   wx:if="{{defenderKey === 'player' ? (player && player.titleImage) : (opponent && opponent.titleImage)}}"
-                  class="actor-title__image"
+                  class="actor-card__title-image"
                   src="{{defenderKey === 'player' ? (player && player.titleImage) : (opponent && opponent.titleImage)}}"
                   mode="heightFix"
                 ></image>
                 <text
                   wx:elif="{{defenderKey === 'player' ? (player && player.titleName) : (opponent && opponent.titleName)}}"
-                  class="actor-title__text"
+                  class="actor-card__title-text"
                 >
                   {{defenderKey === 'player' ? (player && player.titleName) : (opponent && opponent.titleName)}}
                 </text>
