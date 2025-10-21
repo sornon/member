@@ -3,39 +3,33 @@
   <view wx:if="{{loading}}" class="card activity-state">
     <text class="activity-state__text">活动情报加载中...</text>
   </view>
-    <view wx:elif="{{error}}" class="card activity-state activity-state--error">
-      <text class="activity-state__text">{{error}}</text>
-      <button class="activity-retry" size="mini" type="primary" bindtap="handleRetry">重新加载</button>
-    </view>
-    <block wx:elif="{{activities.length}}">
-      <view wx:for="{{activities}}" wx:key="id" class="card activity-card">
-        <view class="activity-card__header">
-          <view class="activity-card__title">{{item.title}}</view>
-          <view class="activity-card__status activity-card__status--{{item.statusType}}">{{item.statusLabel}}</view>
-        </view>
-        <view wx:if="{{item.tagline}}" class="activity-card__tagline">{{item.tagline}}</view>
-        <view wx:if="{{item.summary}}" class="activity-card__summary">{{item.summary}}</view>
-        <view wx:if="{{item.coverImage}}" class="activity-card__cover">
-          <image class="activity-card__cover-image" src="{{item.coverImage}}" mode="aspectFill"></image>
-        </view>
-        <view wx:if="{{item.timeRangeLabel}}" class="activity-card__meta">时间：{{item.timeRangeLabel}}</view>
-        <view wx:if="{{item.priceLabel}}" class="activity-card__meta">方案：{{item.priceLabel}}</view>
-        <view wx:if="{{item.location}}" class="activity-card__meta">地点：{{item.location}}</view>
-        <view wx:if="{{item.highlight}}" class="activity-card__highlight">{{item.highlight}}</view>
-        <view wx:if="{{item.perks.length}}" class="activity-card__section">
-          <view class="activity-card__section-title">礼遇详情</view>
-          <view wx:for="{{item.perks}}" wx:key="index" class="activity-card__perk">
-            <text class="activity-card__bullet">•</text>
-            <text class="activity-card__perk-text">{{item}}</text>
+  <view wx:elif="{{error}}" class="card activity-state activity-state--error">
+    <text class="activity-state__text">{{error}}</text>
+    <button class="activity-retry" size="mini" type="primary" bindtap="handleRetry">重新加载</button>
+  </view>
+  <block wx:elif="{{activities.length}}">
+    <view wx:for="{{activities}}" wx:key="id" class="card activity-card">
+      <view class="activity-card__header">
+        <view
+          class="activity-card__title-wrap"
+          data-id="{{item.id}}"
+          hover-class="activity-card__title-wrap--hover"
+          bindtap="handleViewDetail"
+        >
+          <text class="activity-card__title">{{item.title}}</text>
+          <view class="activity-card__indicator" aria-hidden="true">
+            <text class="activity-card__indicator-icon">›</text>
           </view>
         </view>
-        <view wx:if="{{item.notes}}" class="activity-card__notes">{{item.notes}}</view>
-        <view wx:if="{{item.tags.length}}" class="activity-card__tags">
-          <view wx:for="{{item.tags}}" wx:key="tag" class="activity-card__tag">{{item}}</view>
-        </view>
+        <view class="activity-card__status activity-card__status--{{item.statusType}}">{{item.statusLabel}}</view>
       </view>
-    </block>
-    <view wx:else class="card activity-state activity-state--empty">
-      <text class="activity-state__text">暂无活动，敬请期待。</text>
+      <view wx:if="{{item.timeRangeLabel}}" class="activity-card__meta">时间：{{item.timeRangeLabel}}</view>
+      <view wx:if="{{item.tags.length}}" class="activity-card__tags">
+        <view wx:for="{{item.tags}}" wx:key="tag" class="activity-card__tag">{{item}}</view>
+      </view>
     </view>
+  </block>
+  <view wx:else class="card activity-state activity-state--empty">
+    <text class="activity-state__text">暂无活动，敬请期待。</text>
   </view>
+</view>
