@@ -9,9 +9,13 @@ const {
   createCombatantFromAttributes,
   resolveCombatStats,
   resolveSpecialStats,
-  executeAttack: performCombatAttack,
   calculateCombatPower
 } = require('combat-system');
+const {
+  buildSkillLoadout: buildRuntimeSkillLoadout,
+  createActorRuntime,
+  takeTurn: executeSkillTurn
+} = require('skill-engine');
 const { createBattlePayload } = require('battle-schema');
 const {
   BASE_ATTRIBUTE_KEYS,
@@ -7213,7 +7217,19 @@ function buildBattleSetup(profile, enemy, member) {
   const enemyCombatant = createEnemyCombatant(enemy);
   const playerInfo = buildPlayerBattleInfo(profile, member, attributes, player);
   const enemyInfo = buildEnemyBattleInfo(enemy, enemyCombatant);
-  return { player, enemy: enemyCombatant, attributes, playerInfo, enemyInfo };
+  const playerSkills = buildRuntimeSkillLoadout(profile.skills || {}, { includeBasic: true });
+  const enemySkills = buildRuntimeSkillLoadout({ equipped: enemy && Array.isArray(enemy.skills) ? enemy.skills : [] }, {
+    includeBasic: true
+  });
+  return {
+    player,
+    enemy: enemyCombatant,
+    attributes,
+    playerInfo,
+    enemyInfo,
+    playerSkills,
+    enemySkills
+  };
 }
 
 function buildPlayerBattleInfo(profile, member, attributes, combatant) {
@@ -7334,7 +7350,15 @@ function buildParticipantHpSnapshot(stats = {}, special = {}, sourceStats = {}) 
   return payload;
 }
 
-function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemyInfo = {} }) {
+function runBattleSimulation({
+  player,
+  enemy,
+  attributes,
+  playerInfo = {},
+  enemyInfo = {},
+  playerSkills = [],
+  enemySkills = []
+}) {
   const log = [];
   const timeline = [];
   const playerStats = player.stats;
@@ -7343,22 +7367,31 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
   const enemySpecial = enemy.special || {};
   const playerAttributesSnapshot = buildCombatAttributesSnapshot(playerStats);
   const enemyAttributesSnapshot = buildCombatAttributesSnapshot(enemyStats);
-  const playerMaxHp = Math.max(1, Number(playerStats.maxHp || 1));
-  const enemyMaxHp = Math.max(1, Number(enemyStats.maxHp || 1));
-  let playerHp = playerMaxHp + Math.max(0, Number(playerSpecial.shield || 0));
-  let enemyHp = enemyMaxHp + Math.max(0, Number(enemySpecial.shield || 0));
-  let round = 1;
-  let sequence = 1;
-  const maxRounds = 15;
-  const playerFirst = playerStats.speed >= enemyStats.speed;
-  let attacker = playerFirst ? 'player' : 'enemy';
   const playerId = (playerInfo && playerInfo.id) || 'player';
   const enemyId = (enemyInfo && enemyInfo.id) || 'opponent';
   const playerName = (playerInfo && playerInfo.displayName) || '你';
   const enemyName = (enemyInfo && enemyInfo.displayName) || '敌方';
 
-  const playerShield = Math.max(0, Math.round(playerHp - playerMaxHp));
-  const enemyShield = Math.max(0, Math.round(enemyHp - enemyMaxHp));
+  const playerActor = createActorRuntime({
+    id: playerId,
+    name: playerName,
+    side: 'player',
+    combatant: { stats: playerStats, special: playerSpecial },
+    skills: playerSkills,
+    mode: 'pve'
+  });
+  const enemyActor = createActorRuntime({
+    id: enemyId,
+    name: enemyName,
+    side: 'opponent',
+    combatant: { stats: enemyStats, special: enemySpecial },
+    skills: enemySkills,
+    mode: 'pve'
+  });
+
+  const playerMaxHp = playerActor.maxHp;
+  const enemyMaxHp = enemyActor.maxHp;
+
   const participants = {
     player: {
       id: playerId,
@@ -7367,9 +7400,9 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
       avatarUrl: playerInfo.avatarUrl || '',
       maxHp: Math.round(playerMaxHp),
       hp: {
-        current: Math.max(0, Math.round(Math.min(playerHp, playerMaxHp))),
+        current: Math.max(0, Math.round(Math.min(playerActor.hp, playerMaxHp))),
         max: Math.round(playerMaxHp),
-        ...(playerShield > 0 ? { shield: playerShield } : {})
+        ...(playerActor.hp > playerMaxHp ? { shield: Math.round(playerActor.hp - playerMaxHp) } : {})
       },
       combatPower: attributes.combatPower,
       attributes: { ...playerAttributesSnapshot }
@@ -7381,9 +7414,9 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
       avatarUrl: enemyInfo.avatarUrl || '',
       maxHp: Math.round(enemyMaxHp),
       hp: {
-        current: Math.max(0, Math.round(Math.min(enemyHp, enemyMaxHp))),
+        current: Math.max(0, Math.round(Math.min(enemyActor.hp, enemyMaxHp))),
         max: Math.round(enemyMaxHp),
-        ...(enemyShield > 0 ? { shield: enemyShield } : {})
+        ...(enemyActor.hp > enemyMaxHp ? { shield: Math.round(enemyActor.hp - enemyMaxHp) } : {})
       },
       combatPower: calculateCombatPower(enemyStats, enemySpecial),
       attributes: { ...enemyAttributesSnapshot }
@@ -7392,156 +7425,74 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
 
   let previousPlayerAttributesSnapshot = null;
   let previousEnemyAttributesSnapshot = null;
+  let round = 1;
+  let sequence = 1;
+  const maxRounds = 15;
+  const playerFirst = playerStats.speed >= enemyStats.speed;
+  let attacker = playerFirst ? 'player' : 'enemy';
 
-  while (playerHp > 0 && enemyHp > 0 && round <= maxRounds) {
+  while (playerActor.hp > 0 && enemyActor.hp > 0 && round <= maxRounds) {
+    const currentActor = attacker === 'player' ? playerActor : enemyActor;
+    const defender = currentActor === playerActor ? enemyActor : playerActor;
+    const beforeState = { player: playerActor.hp, enemy: enemyActor.hp };
+    const turnResult = executeSkillTurn({ actor: currentActor, opponent: defender });
+    const afterState = { player: playerActor.hp, enemy: enemyActor.hp };
+    const events = [];
+    if (Array.isArray(turnResult.preEvents) && turnResult.preEvents.length) {
+      events.push(...turnResult.preEvents);
+    }
+    if (Array.isArray(turnResult.events) && turnResult.events.length) {
+      events.push(...turnResult.events);
+    }
+    const summaryParts = Array.isArray(turnResult.summary) ? turnResult.summary : [];
+    const summaryText = summaryParts.length ? summaryParts.join('；') : `第${round}回合：${currentActor.name}发起了动作`;
+    log.push(summaryText);
+
+    const entry = buildTimelineEntry({
+      round,
+      sequence,
+      actorId: currentActor.id,
+      actorName: currentActor.name,
+      actorSide: currentActor.side,
+      targetId: defender.id,
+      targetName: defender.name,
+      events,
+      skill: turnResult.skill,
+      before: beforeState,
+      after: afterState,
+      playerMaxHp,
+      enemyMaxHp,
+      playerAttributesSnapshot,
+      enemyAttributesSnapshot,
+      previousAttributes: {
+        player: previousPlayerAttributesSnapshot,
+        opponent: previousEnemyAttributesSnapshot
+      },
+      summaryText
+    });
+    timeline.push(entry);
+    previousPlayerAttributesSnapshot = playerAttributesSnapshot ? { ...playerAttributesSnapshot } : null;
+    previousEnemyAttributesSnapshot = enemyAttributesSnapshot ? { ...enemyAttributesSnapshot } : null;
+
+    sequence += 1;
+    attacker = attacker === 'player' ? 'enemy' : 'player';
     if (attacker === 'player') {
-      const result = performCombatAttack(playerStats, playerSpecial, enemyStats, enemySpecial);
-      const beforePlayerHp = playerHp;
-      const beforeEnemyHp = enemyHp;
-      const events = [];
-      let actionSummary = '';
-      if (result.dodged) {
-        actionSummary = `第${round}回合：敌方闪避了你的攻势`;
-        log.push(actionSummary);
-        events.push({ type: 'dodge', targetId: enemyId, targetSide: 'opponent' });
-      } else {
-        enemyHp = Math.max(0, enemyHp - result.damage);
-        const damage = Math.max(0, Math.round(result.damage));
-        actionSummary = `第${round}回合：你造成 ${damage} 点伤害${
-          result.crit ? '（暴击）' : ''
-        }，敌方剩余 ${Math.max(0, Math.round(enemyHp))}`;
-        log.push(actionSummary);
-        events.push({
-          type: 'damage',
-          targetId: enemyId,
-          targetSide: 'opponent',
-          value: damage,
-          crit: !!result.crit
-        });
-        if (result.heal > 0) {
-          const healApplied = Math.max(
-            0,
-            Math.min(result.heal, Math.max(0, playerMaxHp - beforePlayerHp))
-          );
-          playerHp = Math.min(playerMaxHp, beforePlayerHp + result.heal);
-          if (healApplied > 0) {
-            const healText = `灵血回流，你回复了 ${Math.round(healApplied)} 点生命`;
-            log.push(healText);
-            events.push({
-              type: 'heal',
-              targetId: playerId,
-              targetSide: 'player',
-              value: Math.round(healApplied)
-            });
-          }
-        }
-      }
-      const entry = buildTimelineEntry({
-        round,
-        sequence,
-        actorId: playerId,
-        actorName: playerName,
-        actorSide: 'player',
-        targetId: enemyId,
-        targetName: enemyName,
-        events,
-        before: { player: beforePlayerHp, enemy: beforeEnemyHp },
-        after: { player: playerHp, enemy: enemyHp },
-        playerMaxHp,
-        enemyMaxHp,
-        playerAttributesSnapshot,
-        enemyAttributesSnapshot,
-        previousAttributes: {
-          player: previousPlayerAttributesSnapshot,
-          opponent: previousEnemyAttributesSnapshot
-        },
-        summaryText: actionSummary
-      });
-      timeline.push(entry);
-      previousPlayerAttributesSnapshot = playerAttributesSnapshot ? { ...playerAttributesSnapshot } : null;
-      previousEnemyAttributesSnapshot = enemyAttributesSnapshot ? { ...enemyAttributesSnapshot } : null;
-      sequence += 1;
-      attacker = 'enemy';
-      if (enemyHp <= 0) {
-        break;
-      }
-    } else {
-      const result = performCombatAttack(enemyStats, enemySpecial, playerStats, playerSpecial);
-      const beforePlayerHp = playerHp;
-      const beforeEnemyHp = enemyHp;
-      const events = [];
-      let actionSummary = '';
-      if (result.dodged) {
-        actionSummary = `第${round}回合：你闪避了敌方的攻势`;
-        log.push(actionSummary);
-        events.push({ type: 'dodge', targetId: playerId, targetSide: 'player' });
-      } else {
-        playerHp = Math.max(0, playerHp - result.damage);
-        const damage = Math.max(0, Math.round(result.damage));
-        actionSummary = `第${round}回合：敌方造成 ${damage} 点伤害${
-          result.crit ? '（暴击）' : ''
-        }，你剩余 ${Math.max(0, Math.round(playerHp))}`;
-        log.push(actionSummary);
-        events.push({
-          type: 'damage',
-          targetId: playerId,
-          targetSide: 'player',
-          value: damage,
-          crit: !!result.crit
-        });
-        if (result.heal > 0) {
-          const healApplied = Math.max(0, Math.min(result.heal, Math.max(0, enemyMaxHp - beforeEnemyHp)));
-          enemyHp = Math.min(enemyMaxHp, beforeEnemyHp + result.heal);
-          if (healApplied > 0) {
-            const healText = `敌方吸取灵力，回复了 ${Math.round(healApplied)} 点生命`;
-            log.push(healText);
-            events.push({
-              type: 'heal',
-              targetId: enemyId,
-              targetSide: 'opponent',
-              value: Math.round(healApplied)
-            });
-          }
-        }
-      }
-      const entry = buildTimelineEntry({
-        round,
-        sequence,
-        actorId: enemyId,
-        actorName: enemyName,
-        actorSide: 'opponent',
-        targetId: playerId,
-        targetName: playerName,
-        events,
-        before: { player: beforePlayerHp, enemy: beforeEnemyHp },
-        after: { player: playerHp, enemy: enemyHp },
-        playerMaxHp,
-        enemyMaxHp,
-        playerAttributesSnapshot,
-        enemyAttributesSnapshot,
-        previousAttributes: {
-          player: previousPlayerAttributesSnapshot,
-          opponent: previousEnemyAttributesSnapshot
-        },
-        summaryText: actionSummary
-      });
-      timeline.push(entry);
-      previousPlayerAttributesSnapshot = playerAttributesSnapshot ? { ...playerAttributesSnapshot } : null;
-      previousEnemyAttributesSnapshot = enemyAttributesSnapshot ? { ...enemyAttributesSnapshot } : null;
-      sequence += 1;
-      attacker = 'player';
       round += 1;
       sequence = 1;
     }
+
+    if (playerActor.hp <= 0 || enemyActor.hp <= 0) {
+      break;
+    }
   }
 
-  const timeout = round > maxRounds && playerHp > 0 && enemyHp > 0;
+  const timeout = round > maxRounds && playerActor.hp > 0 && enemyActor.hp > 0;
   if (timeout) {
     log.push(`第${maxRounds}回合后仍未击败敌人，秘境挑战失败`);
   }
 
-  const victory = enemyHp <= 0 && playerHp > 0;
-  const draw = !victory && !timeout && playerHp > 0 && enemyHp > 0;
+  const victory = enemyActor.hp <= 0 && playerActor.hp > 0;
+  const draw = !victory && !timeout && playerActor.hp > 0 && enemyActor.hp > 0;
 
   const rewards = calculateBattleRewards(attributes, enemy.meta || enemy, { victory, draw });
   const roundsCompleted = Math.min(round, maxRounds);
@@ -7555,8 +7506,8 @@ function runBattleSimulation({ player, enemy, attributes, playerInfo = {}, enemy
     playerName,
     enemyName,
     remaining: {
-      playerHp: Math.max(0, Math.round(playerHp)),
-      enemyHp: Math.max(0, Math.round(enemyHp))
+      playerHp: Math.max(0, Math.round(playerActor.hp)),
+      enemyHp: Math.max(0, Math.round(enemyActor.hp))
     }
   });
   const metadata = {
@@ -7657,6 +7608,7 @@ function buildTimelineEntry({
   targetId,
   targetName,
   events,
+  skill,
   before,
   after,
   playerMaxHp,
@@ -7678,7 +7630,15 @@ function buildTimelineEntry({
     actorSide,
     actor: { id: actorId, side: actorSide, displayName: actorName },
     target: { id: targetId, side: actorSide === 'player' ? 'opponent' : 'player', displayName: targetName },
-    skill: { id: 'basic_attack', name: '普攻', type: 'basic' },
+    skill:
+      skill && typeof skill === 'object' && skill.id
+        ? {
+            id: skill.id,
+            name: skill.name || '技能',
+            type: skill.type || 'active',
+            ...(skill.animation ? { animation: skill.animation } : {})
+          }
+        : { id: 'basic_attack', name: '普攻', type: 'basic' },
     events: events.filter(Boolean),
     state: {
       player: buildTimelineStateSide({
