@@ -233,11 +233,25 @@ page {
   font-size: 26rpx;
   padding: 18rpx 24rpx;
   box-sizing: border-box;
+  font-family: inherit;
+}
+
+.form-input,
+.picker-value {
+  min-height: 76rpx;
+  line-height: 1.5;
+  white-space: normal;
+  overflow: visible;
+  display: block;
+}
+
+.form-input:focus {
+  border-color: rgba(96, 165, 250, 0.75);
 }
 
 .form-textarea {
   min-height: 140rpx;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 .picker-value {
