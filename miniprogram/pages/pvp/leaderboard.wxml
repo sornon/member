@@ -7,6 +7,11 @@
         <view class="board-season">{{season ? season.name : '当前赛季'}}</view>
         <view class="board-updated">更新：{{updatedAt || '刚刚'}}</view>
       </view>
+      <view class="board-self {{myRank === null ? 'board-self--unranked' : ''}}">
+        <view class="board-self__label">我的排名</view>
+        <view class="board-self__value" wx:if="{{myRank !== null}}">第 {{myRank}} 名</view>
+        <view class="board-self__value" wx:else>暂未上榜</view>
+      </view>
       <block wx:for="{{entries}}" wx:key="memberId">
         <view class="board-item">
           <view class="board-rank">{{item.rank}}</view>

@@ -114,11 +114,11 @@
 
 .pvp-actions {
   display: flex;
-  flex-direction: column;
   gap: 20rpx;
 }
 
 .pvp-button {
+  flex: 1;
   background: linear-gradient(135deg, #5b8bff 0%, #7d53ff 100%);
   color: #fff;
   border: none;
@@ -126,6 +126,11 @@
   padding: 20rpx 0;
   font-size: 30rpx;
   font-weight: 600;
+}
+
+.pvp-button--secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 2rpx solid rgba(255, 255, 255, 0.3);
 }
 
 .pvp-button[disabled] {

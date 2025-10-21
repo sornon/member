@@ -39,6 +39,38 @@
   color: rgba(255, 255, 255, 0.6);
 }
 
+.board-self {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28rpx;
+  border-radius: 24rpx;
+  background: linear-gradient(135deg, rgba(91, 139, 255, 0.25), rgba(125, 83, 255, 0.18));
+  border: 2rpx solid rgba(123, 159, 255, 0.35);
+  box-shadow: 0 20rpx 32rpx rgba(3, 9, 32, 0.45);
+}
+
+.board-self__label {
+  font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.board-self__value {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #ffd369;
+}
+
+.board-self--unranked {
+  background: rgba(255, 255, 255, 0.06);
+  border: 2rpx dashed rgba(255, 255, 255, 0.25);
+  box-shadow: none;
+}
+
+.board-self--unranked .board-self__value {
+  color: rgba(255, 255, 255, 0.8);
+}
+
 .board-item {
   display: flex;
   align-items: center;
