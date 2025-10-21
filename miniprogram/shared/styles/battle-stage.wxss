@@ -149,10 +149,6 @@ page {
   gap: 12rpx;
 }
 
-.track-row + .track-row {
-  margin-top: 8rpx;
-}
-
 .track-title {
   font-size: 20rpx;
   color: rgba(226, 235, 255, 0.7);
