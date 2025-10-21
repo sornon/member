@@ -63,6 +63,19 @@ page {
   gap: 24rpx;
 }
 
+.battle-round-display {
+  margin-top: 8rpx;
+  margin-bottom: 12rpx;
+  text-align: center;
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #f4f8ff;
+  letter-spacing: 4rpx;
+  text-shadow: 0 0 14rpx rgba(82, 178, 255, 0.45);
+  white-space: nowrap;
+  align-self: center;
+}
+
 .actor-card.attacker-card {
   order: 0;
 }
@@ -108,6 +121,12 @@ page {
 .actor-card.defender-card.actor-opponent .hp-text {
   align-self: flex-end;
 }
+.actor-card.defender-card.actor-opponent .resource-text {
+  align-self: flex-end;
+}
+.actor-card.attacker-card.actor-player .resource-text {
+  align-self: flex-start;
+}
 
 .actor-card .actor-name {
   font-size: 32rpx;
@@ -152,6 +171,37 @@ page {
 .hp-text {
   font-size: 24rpx;
   color: rgba(255, 255, 255, 0.85);
+}
+
+.resource-track {
+  position: relative;
+  height: 12rpx;
+  margin: 12rpx 0 8rpx;
+  background: rgba(102, 187, 255, 0.18);
+  border-radius: 10rpx;
+  overflow: hidden;
+  width: 100%;
+  align-self: stretch;
+}
+
+.resource-progress {
+  height: 100%;
+  border-radius: 10rpx;
+  transition: width 0.4s ease;
+}
+
+.resource-player {
+  background: linear-gradient(90deg, #54f1ff, #7a9bff);
+}
+
+.resource-opponent {
+  background: linear-gradient(90deg, #ffe28a, #ff9f6b);
+}
+
+.resource-text {
+  font-size: 22rpx;
+  color: rgba(224, 237, 255, 0.85);
+  white-space: nowrap;
 }
 
 .actor-card__header {
@@ -333,6 +383,15 @@ page {
   font-size: 56rpx;
   animation-name: floatingCritBurst;
   animation-duration: 0.75s;
+}
+
+.floating-text.floating-resource {
+  color: #042c44;
+  background: rgba(113, 213, 255, 0.9);
+  padding: 6rpx 20rpx;
+  border-radius: 18rpx;
+  border: 1rpx solid rgba(169, 232, 255, 0.45);
+  box-shadow: 0 6rpx 18rpx rgba(64, 196, 255, 0.35);
 }
 
 @keyframes floatingTextRise {

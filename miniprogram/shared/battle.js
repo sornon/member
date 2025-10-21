@@ -9,6 +9,8 @@ const DEFAULT_OPPONENT_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 const BATTLE_BOT_AVATAR_IMAGE = buildCloudAssetUrl('avatar', 'battle-bot.png');
 const BATTLE_BOT_PORTRAIT_IMAGE = buildCloudAssetUrl('character', 'battle-bot.png');
 
+const DEFAULT_RESOURCE_MAX = 100;
+
 const BATTLE_BOT_DISPLAY_NAME = '擂台傀儡';
 
 const PLAYER_SKILL_ROTATION = ['流云剑诀', '星河落斩', '落霞破影', '雷霆贯体'];
@@ -376,6 +378,15 @@ function buildHpState(maxHp, currentHp) {
   return { max: normalizedMax, current: normalizedCurrent, percent };
 }
 
+function buildResourceState(maxValue, currentValue) {
+  const normalizedMax = Math.max(0, toNumber(maxValue, DEFAULT_RESOURCE_MAX));
+  const fallbackMax = normalizedMax > 0 ? normalizedMax : Math.max(0, toNumber(currentValue, DEFAULT_RESOURCE_MAX));
+  const effectiveMax = fallbackMax > 0 ? fallbackMax : DEFAULT_RESOURCE_MAX;
+  const normalizedCurrent = clamp(toNumber(currentValue, effectiveMax), 0, effectiveMax);
+  const percent = effectiveMax > 0 ? clamp(Math.round((normalizedCurrent / effectiveMax) * 100), 0, 100) : 0;
+  return { max: effectiveMax, current: normalizedCurrent, percent };
+}
+
 function isStructuredTimelineEntry(entry) {
   if (!entry || typeof entry !== 'object') {
     return false;
@@ -564,6 +575,207 @@ function mergeAttributeSnapshots(previous, updates) {
     return { ...base };
   }
   return { ...base, ...next };
+}
+
+function buildResourceKeyCandidates(typeHint) {
+  const baseKeys = ['resource', 'qi', 'rage', 'innerForce', 'energy', 'mana', 'spirit', 'focus'];
+  if (!typeHint) {
+    return baseKeys;
+  }
+  const normalized = String(typeHint).trim();
+  if (!normalized) {
+    return baseKeys;
+  }
+  const normalizedLower = normalized.toLowerCase();
+  const synonymsMap = {
+    rage: ['rage', 'anger', 'fury'],
+    qi: ['qi', 'chi', 'innerforce', 'inner_force', 'trueqi', 'neili'],
+    innerforce: ['innerforce', 'inner_force', 'innerForce', 'qi', 'chi'],
+    energy: ['energy', 'mana', 'focus', 'spirit'],
+    mana: ['mana', 'energy', 'focus'],
+    spirit: ['spirit', 'soul', 'mana'],
+    focus: ['focus', 'concentration', 'energy']
+  };
+  const candidates = [];
+  const normalizedCamel = normalized.replace(/[_\-\s]+(.)/g, (_, c) => (c ? c.toUpperCase() : ''));
+  const upperCamel = normalizedCamel
+    ? normalizedCamel.charAt(0).toUpperCase() + normalizedCamel.slice(1)
+    : normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  [normalized, normalizedLower, normalizedCamel, upperCamel].forEach((value) => {
+    if (!value) {
+      return;
+    }
+    if (candidates.findIndex((item) => item.toLowerCase() === value.toLowerCase()) === -1) {
+      candidates.push(value);
+    }
+  });
+  const synonyms = synonymsMap[normalizedLower] || [];
+  synonyms.forEach((alias) => {
+    const trimmed = String(alias).trim();
+    if (!trimmed) {
+      return;
+    }
+    if (candidates.findIndex((item) => item.toLowerCase() === trimmed.toLowerCase()) === -1) {
+      candidates.push(trimmed);
+    }
+    const camel = trimmed.replace(/[_\-\s]+(.)/g, (_, c) => (c ? c.toUpperCase() : ''));
+    if (camel && candidates.findIndex((item) => item.toLowerCase() === camel.toLowerCase()) === -1) {
+      candidates.push(camel);
+    }
+  });
+  baseKeys.forEach((key) => {
+    if (candidates.findIndex((item) => item.toLowerCase() === key.toLowerCase()) === -1) {
+      candidates.push(key);
+    }
+  });
+  return candidates;
+}
+
+function normalizeResourceSnapshot(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'number') {
+    const current = toNumber(value, NaN);
+    if (!Number.isFinite(current)) {
+      return null;
+    }
+    return { current, max: NaN, before: NaN, after: current, change: NaN, type: '' };
+  }
+  if (typeof value !== 'object') {
+    return null;
+  }
+  const before = toNumber(value.before, NaN);
+  const after = toNumber(value.after, NaN);
+  const current = toNumber(value.current, NaN);
+  const max = toNumber(value.max, NaN);
+  const change = toNumber(
+    value.change,
+    toNumber(value.delta, toNumber(value.value, toNumber(value.amount, NaN)))
+  );
+  const type =
+    typeof value.resourceType === 'string'
+      ? value.resourceType
+      : typeof value.type === 'string'
+      ? value.type
+      : '';
+  let resolvedCurrent = NaN;
+  if (Number.isFinite(after)) {
+    resolvedCurrent = after;
+  } else if (Number.isFinite(current)) {
+    resolvedCurrent = current;
+  } else if (Number.isFinite(before) && Number.isFinite(change)) {
+    resolvedCurrent = before + change;
+  } else if (Number.isFinite(before)) {
+    resolvedCurrent = before;
+  }
+  return {
+    current: resolvedCurrent,
+    max,
+    before,
+    after,
+    change,
+    type
+  };
+}
+
+function extractResourceSnapshot(source, typeHint, visited = new Set()) {
+  if (source === null || source === undefined) {
+    return null;
+  }
+  if (typeof source === 'object') {
+    if (visited.has(source)) {
+      return null;
+    }
+    visited.add(source);
+  }
+  const direct = normalizeResourceSnapshot(source);
+  if (direct) {
+    return direct;
+  }
+  if (typeof source !== 'object') {
+    return null;
+  }
+  const candidates = [];
+  const keys = buildResourceKeyCandidates(typeHint);
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    if (!key) {
+      continue;
+    }
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      candidates.push(source[key]);
+      continue;
+    }
+    const lowerKey = key.toLowerCase();
+    const matchedKey = Object.keys(source).find((item) => item && item.toLowerCase() === lowerKey);
+    if (matchedKey) {
+      candidates.push(source[matchedKey]);
+    }
+  }
+  const containerKeys = ['resource', 'resources', 'resourceState', 'resourceSnapshot', 'resourceSummary'];
+  for (let i = 0; i < containerKeys.length; i += 1) {
+    const container = source[containerKeys[i]];
+    if (!container) {
+      continue;
+    }
+    if (Array.isArray(container)) {
+      for (let j = 0; j < container.length; j += 1) {
+        const nested = extractResourceSnapshot(container[j], typeHint, visited);
+        if (nested) {
+          return nested;
+        }
+      }
+      continue;
+    }
+    if (typeof container === 'object') {
+      const nested = extractResourceSnapshot(container, typeHint, visited);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  for (let i = 0; i < candidates.length; i += 1) {
+    const snapshot = normalizeResourceSnapshot(candidates[i]);
+    if (snapshot) {
+      return snapshot;
+    }
+  }
+  const values = Object.values(source);
+  for (let i = 0; i < values.length; i += 1) {
+    const snapshot = normalizeResourceSnapshot(values[i]);
+    if (snapshot) {
+      return snapshot;
+    }
+  }
+  return null;
+}
+
+function extractParticipantResource(source, typeHint) {
+  const snapshot = extractResourceSnapshot(source, typeHint);
+  if (!snapshot) {
+    return null;
+  }
+  const maxCandidate = Number.isFinite(snapshot.max) ? snapshot.max : NaN;
+  const currentCandidate = Number.isFinite(snapshot.current)
+    ? snapshot.current
+    : Number.isFinite(snapshot.after)
+    ? snapshot.after
+    : Number.isFinite(snapshot.before)
+    ? snapshot.before
+    : NaN;
+  const resolvedMax =
+    Number.isFinite(maxCandidate) && maxCandidate > 0
+      ? maxCandidate
+      : Number.isFinite(currentCandidate) && currentCandidate > 0
+      ? currentCandidate
+      : DEFAULT_RESOURCE_MAX;
+  const resolvedCurrent = Number.isFinite(currentCandidate) ? currentCandidate : resolvedMax;
+  return {
+    current: clamp(resolvedCurrent, 0, Math.max(resolvedMax, DEFAULT_RESOURCE_MAX)),
+    max: Math.max(0, resolvedMax),
+    type: snapshot.type || typeHint || ''
+  };
 }
 
 function resolveTimelineStateSide(state, sideKey) {
@@ -859,6 +1071,127 @@ function updateSideHpFromEntry({
   };
 }
 
+function updateSideResourceFromEntry({
+  entry,
+  events = [],
+  sideKey,
+  sideId,
+  currentValue,
+  currentMax,
+  currentType
+}) {
+  let nextValue = Number.isFinite(currentValue) ? currentValue : currentMax;
+  let nextMax = Number.isFinite(currentMax) ? currentMax : DEFAULT_RESOURCE_MAX;
+  let nextType = currentType || '';
+
+  if (entry && typeof entry === 'object') {
+    if (!nextType && entry.skill && entry.skill.resource && typeof entry.skill.resource.type === 'string') {
+      nextType = entry.skill.resource.type;
+    }
+    const state = resolveTimelineStateSide(entry.state, sideKey);
+    if (state) {
+      const snapshot = extractResourceSnapshot(state, nextType);
+      if (snapshot) {
+        if (!nextType && snapshot.type) {
+          nextType = snapshot.type;
+        }
+        if (Number.isFinite(snapshot.max) && snapshot.max > nextMax) {
+          nextMax = snapshot.max;
+        }
+        if (Number.isFinite(snapshot.current)) {
+          nextValue = snapshot.current;
+        } else if (Number.isFinite(snapshot.after)) {
+          nextValue = snapshot.after;
+        } else if (Number.isFinite(snapshot.before) && Number.isFinite(snapshot.change)) {
+          nextValue = snapshot.before + snapshot.change;
+        } else if (Number.isFinite(snapshot.before)) {
+          nextValue = snapshot.before;
+        }
+      }
+    }
+  }
+
+  for (let i = 0; i < events.length; i += 1) {
+    const event = events[i];
+    if (!event || typeof event !== 'object') {
+      continue;
+    }
+    const eventType = event.type || event.eventType;
+    const eventCategory = event.category || event.effectType;
+    if (eventType !== 'resource' && eventCategory !== 'resource') {
+      continue;
+    }
+    if (!eventTargetsSide(event, sideKey, sideId)) {
+      continue;
+    }
+    if (!nextType && typeof event.resourceType === 'string') {
+      nextType = event.resourceType;
+    }
+    const snapshot = extractResourceSnapshot(event, nextType);
+    if (snapshot) {
+      if (!nextType && snapshot.type) {
+        nextType = snapshot.type;
+      }
+      if (Number.isFinite(snapshot.max) && snapshot.max > nextMax) {
+        nextMax = snapshot.max;
+      }
+      if (Number.isFinite(snapshot.current)) {
+        nextValue = snapshot.current;
+        continue;
+      }
+      if (Number.isFinite(snapshot.after)) {
+        nextValue = snapshot.after;
+        continue;
+      }
+      if (Number.isFinite(snapshot.before) && Number.isFinite(snapshot.change)) {
+        nextValue = snapshot.before + snapshot.change;
+        continue;
+      }
+      if (Number.isFinite(snapshot.before)) {
+        nextValue = snapshot.before;
+        continue;
+      }
+    }
+    const before = toNumber(event.before, NaN);
+    const after = toNumber(event.after, NaN);
+    const maxCandidate = toNumber(event.max, NaN);
+    const change = toNumber(
+      event.change,
+      toNumber(event.delta, toNumber(event.value, toNumber(event.amount, NaN)))
+    );
+    if (Number.isFinite(maxCandidate) && maxCandidate > nextMax) {
+      nextMax = maxCandidate;
+    }
+    if (Number.isFinite(after)) {
+      nextValue = after;
+    } else if (Number.isFinite(before) && Number.isFinite(change)) {
+      nextValue = before + change;
+    } else if (Number.isFinite(before)) {
+      nextValue = before;
+    } else if (Number.isFinite(change)) {
+      const base = Number.isFinite(nextValue) ? nextValue : 0;
+      nextValue = base + change;
+    }
+  }
+
+  const resolvedMax = Math.max(0, Number.isFinite(nextMax) ? nextMax : 0);
+  const fallbackMax =
+    resolvedMax > 0
+      ? resolvedMax
+      : Math.max(0, Number.isFinite(nextValue) ? Math.abs(nextValue) : DEFAULT_RESOURCE_MAX);
+  const effectiveMax = fallbackMax > 0 ? fallbackMax : DEFAULT_RESOURCE_MAX;
+  const clampedValue = clamp(
+    Number.isFinite(nextValue) ? nextValue : effectiveMax,
+    0,
+    Math.max(0, effectiveMax)
+  );
+  return {
+    value: clampedValue,
+    max: Math.max(0, effectiveMax),
+    type: nextType
+  };
+}
+
 function resolveActorSide(entry, playerId, opponentId) {
   if (!entry || typeof entry !== 'object') {
     return 'neutral';
@@ -1010,6 +1343,29 @@ function buildStructuredBattleViewModel({
     extractAttributesSnapshot(fallbackParticipants.opponent) ||
     null;
 
+  const playerResourceSnapshot =
+    extractParticipantResource(context.playerResource, context.playerResourceType) ||
+    extractParticipantResource(context.player, context.playerResourceType) ||
+    extractParticipantResource(playerSource, context.playerResourceType) ||
+    extractParticipantResource(battle.player, context.playerResourceType) ||
+    extractParticipantResource(fallbackParticipants.player, context.playerResourceType) ||
+    null;
+  const opponentResourceSnapshot =
+    extractParticipantResource(context.opponentResource, context.opponentResourceType) ||
+    extractParticipantResource(context.opponent, context.opponentResourceType) ||
+    extractParticipantResource(opponentSource, context.opponentResourceType) ||
+    extractParticipantResource(battle.opponent || battle.enemy, context.opponentResourceType) ||
+    extractParticipantResource(fallbackParticipants.opponent, context.opponentResourceType) ||
+    null;
+  let playerResourceType = (playerResourceSnapshot && playerResourceSnapshot.type) || '';
+  let opponentResourceType = (opponentResourceSnapshot && opponentResourceSnapshot.type) || '';
+  let playerResourceMax = playerResourceSnapshot ? playerResourceSnapshot.max : DEFAULT_RESOURCE_MAX;
+  let opponentResourceMax = opponentResourceSnapshot ? opponentResourceSnapshot.max : DEFAULT_RESOURCE_MAX;
+  let playerResource = playerResourceSnapshot ? playerResourceSnapshot.current : playerResourceMax;
+  let opponentResource = opponentResourceSnapshot ? opponentResourceSnapshot.current : opponentResourceMax;
+  const playerInitialResource = playerResource;
+  const opponentInitialResource = opponentResource;
+
   const totals = {
     playerDamageDealt: 0,
     playerDamageTaken: 0,
@@ -1136,6 +1492,31 @@ function buildStructuredBattleViewModel({
     playerMaxHp = Math.max(playerMaxHp, playerState.max);
     opponentMaxHp = Math.max(opponentMaxHp, opponentState.max);
 
+    const playerResourceState = updateSideResourceFromEntry({
+      entry,
+      events,
+      sideKey: 'player',
+      sideId: playerId,
+      currentValue: playerResource,
+      currentMax: playerResourceMax,
+      currentType: playerResourceType
+    });
+    const opponentResourceState = updateSideResourceFromEntry({
+      entry,
+      events,
+      sideKey: 'opponent',
+      sideId: opponentId,
+      currentValue: opponentResource,
+      currentMax: opponentResourceMax,
+      currentType: opponentResourceType
+    });
+    playerResource = playerResourceState.value;
+    opponentResource = opponentResourceState.value;
+    playerResourceMax = Math.max(playerResourceMax, playerResourceState.max);
+    opponentResourceMax = Math.max(opponentResourceMax, opponentResourceState.max);
+    playerResourceType = playerResourceState.type || playerResourceType;
+    opponentResourceType = opponentResourceState.type || opponentResourceType;
+
     const effects = buildEffectsFromStructuredEntry(events);
     let actionType = entry.actionType || entry.type || (entry.skill ? 'skill' : 'attack');
     for (let j = 0; j < effects.length; j += 1) {
@@ -1173,6 +1554,10 @@ function buildStructuredBattleViewModel({
       hp: {
         player: buildHpState(playerMaxHp, playerHp),
         opponent: buildHpState(opponentMaxHp, opponentHp)
+      },
+      resource: {
+        player: buildResourceState(playerResourceMax, playerResource),
+        opponent: buildResourceState(opponentResourceMax, opponentResource)
       },
       attributes: {
         player: playerAttributes ? { ...playerAttributes } : null,
@@ -1216,6 +1601,10 @@ function buildStructuredBattleViewModel({
       hp: {
         player: buildHpState(playerMaxHp, playerHp),
         opponent: buildHpState(opponentMaxHp, opponentHp)
+      },
+      resource: {
+        player: buildResourceState(playerResourceMax, playerResource),
+        opponent: buildResourceState(opponentResourceMax, opponentResource)
       },
       attributes: {
         player: playerAttributes ? { ...playerAttributes } : null,
@@ -1505,6 +1894,10 @@ function buildPveActions(battle = {}, context = {}) {
   let enemyHp = enemyMaxHp;
   let playerSkillIndex = 0;
   let enemySkillIndex = 0;
+  let playerResourceValue = DEFAULT_RESOURCE_MAX;
+  let enemyResourceValue = DEFAULT_RESOURCE_MAX;
+  let playerResourceMax = DEFAULT_RESOURCE_MAX;
+  let enemyResourceMax = DEFAULT_RESOURCE_MAX;
 
   const actions = [];
   log.forEach((entry, index) => {
@@ -1589,6 +1982,10 @@ function buildPveActions(battle = {}, context = {}) {
       player: buildHpState(playerMaxHp, playerHp),
       opponent: buildHpState(enemyMaxHp, enemyHp)
     };
+    const resource = {
+      player: buildResourceState(playerResourceMax, playerResourceValue),
+      opponent: buildResourceState(enemyResourceMax, enemyResourceValue)
+    };
     actions.push({
       id: `pve-${index}`,
       round,
@@ -1601,6 +1998,7 @@ function buildPveActions(battle = {}, context = {}) {
       title,
       effects,
       hp,
+      resource,
       raw: entry
     });
   });
@@ -1610,6 +2008,10 @@ function buildPveActions(battle = {}, context = {}) {
     const hp = {
       player: buildHpState(playerMaxHp, remainingPlayerHp || playerHp),
       opponent: buildHpState(enemyMaxHp, remainingEnemyHp || enemyHp)
+    };
+    const resource = {
+      player: buildResourceState(playerResourceMax, playerResourceValue),
+      opponent: buildResourceState(enemyResourceMax, enemyResourceValue)
     };
     actions.push({
       id: 'pve-result',
@@ -1624,7 +2026,8 @@ function buildPveActions(battle = {}, context = {}) {
         : '战斗告一段落，敌人仍旧伺机而动。',
       title: `战斗结果 · ${outcomeTitle}`,
       effects: [],
-      hp
+      hp,
+      resource
     });
   }
 
@@ -1636,6 +2039,7 @@ function buildPveActions(battle = {}, context = {}) {
       id: 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
+      resource: buildResourceState(playerResourceMax, playerResourceMax),
       portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
       combatPower: toNumber(battle.combatPower && battle.combatPower.player),
       attributes: ensureAttributesObject(context && context.playerAttributes),
@@ -1649,6 +2053,7 @@ function buildPveActions(battle = {}, context = {}) {
       id: 'opponent',
       name: opponentName,
       hp: buildHpState(enemyMaxHp, enemyMaxHp),
+      resource: buildResourceState(enemyResourceMax, enemyResourceMax),
       portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
       combatPower: toNumber(battle.combatPower && battle.combatPower.enemy),
       attributes: ensureAttributesObject(context && context.opponentAttributes),
@@ -1720,6 +2125,12 @@ function buildPvpActions(battle = {}, context = {}) {
   let opponentHp = opponentMaxHp;
   let playerSkillIndex = 0;
   let opponentSkillIndex = 0;
+  let playerResourceMax = DEFAULT_RESOURCE_MAX;
+  let opponentResourceMax = DEFAULT_RESOURCE_MAX;
+  let playerResource = playerResourceMax;
+  let opponentResource = opponentResourceMax;
+  const playerInitialResource = playerResource;
+  const opponentInitialResource = opponentResource;
 
   const playerIsBattleBot = isBattleBotCandidate(battle.player);
   const opponentIsBattleBot =
@@ -1792,6 +2203,10 @@ function buildPvpActions(battle = {}, context = {}) {
       player: buildHpState(playerMaxHp, playerHp),
       opponent: buildHpState(opponentMaxHp, opponentHp)
     };
+    const resource = {
+      player: buildResourceState(playerResourceMax, playerResource),
+      opponent: buildResourceState(opponentResourceMax, opponentResource)
+    };
 
     return {
       id: `pvp-${index}`,
@@ -1805,6 +2220,7 @@ function buildPvpActions(battle = {}, context = {}) {
       title,
       effects,
       hp,
+      resource,
       raw: entry
     };
   });
@@ -1812,6 +2228,10 @@ function buildPvpActions(battle = {}, context = {}) {
   const hp = {
     player: buildHpState(playerMaxHp, toNumber(battle.player && battle.player.remainingHp, playerHp)),
     opponent: buildHpState(opponentMaxHp, toNumber(battle.opponent && battle.opponent.remainingHp, opponentHp))
+  };
+  const resource = {
+    player: buildResourceState(playerResourceMax, playerResource),
+    opponent: buildResourceState(opponentResourceMax, opponentResource)
   };
 
   actions.push({
@@ -1830,6 +2250,7 @@ function buildPvpActions(battle = {}, context = {}) {
       : '对手更胜一筹，继续修炼再战。',
     effects: [],
     hp,
+    resource,
     attributes: {
       player: ensureAttributesObject(context && context.playerAttributes),
       opponent: ensureAttributesObject(context && context.opponentAttributes)
@@ -1848,6 +2269,7 @@ function buildPvpActions(battle = {}, context = {}) {
       id: playerId || 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
+      resource: buildResourceState(playerResourceMax, playerInitialResource),
       portrait: playerPortrait,
       combatPower: toNumber(context && context.playerPower),
       attributes: ensureAttributesObject(context && context.playerAttributes),
@@ -1863,6 +2285,7 @@ function buildPvpActions(battle = {}, context = {}) {
       id: opponentId || 'opponent',
       name: opponentName,
       hp: buildHpState(opponentMaxHp, opponentMaxHp),
+      resource: buildResourceState(opponentResourceMax, opponentInitialResource),
       portrait: opponentPortrait,
       combatPower: toNumber(context && context.opponentPower),
       attributes: ensureAttributesObject(context && context.opponentAttributes),

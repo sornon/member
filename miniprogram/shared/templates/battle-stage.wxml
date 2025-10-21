@@ -69,6 +69,16 @@
             {{hpState[attackerKey] ? hpState[attackerKey].current : 0}} /
             {{hpState[attackerKey] ? hpState[attackerKey].max : 0}}
           </view>
+          <view class="resource-track">
+            <view
+              class="resource-progress {{attackerKey === 'player' ? 'resource-player' : 'resource-opponent'}}"
+              style="{{resourceState[attackerKey] ? resourceState[attackerKey].progressStyle : ''}}"
+            ></view>
+          </view>
+          <view class="resource-text">
+            真气 {{resourceState[attackerKey] ? resourceState[attackerKey].current : 0}} /
+            {{resourceState[attackerKey] ? resourceState[attackerKey].max : 0}}
+          </view>
         </view>
         <view
           class="actor-card defender-card {{defenderKey === 'player' ? 'actor-player' : 'actor-opponent'}}"
@@ -125,8 +135,20 @@
             {{hpState[defenderKey] ? hpState[defenderKey].current : 0}} /
             {{hpState[defenderKey] ? hpState[defenderKey].max : 0}}
           </view>
+          <view class="resource-track">
+            <view
+              class="resource-progress {{defenderKey === 'player' ? 'resource-player' : 'resource-opponent'}}"
+              style="{{resourceState[defenderKey] ? resourceState[defenderKey].progressStyle : ''}}"
+            ></view>
+          </view>
+          <view class="resource-text">
+            真气 {{resourceState[defenderKey] ? resourceState[defenderKey].current : 0}} /
+            {{resourceState[defenderKey] ? resourceState[defenderKey].max : 0}}
+          </view>
         </view>
       </view>
+
+      <view class="battle-round-display" wx:if="{{currentRound}}">第{{currentRound}}回合</view>
 
       <view class="battle-avatars">
         <view
