@@ -1,6 +1,7 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/activities/index",
     "pages/membership/membership",
     "pages/membership/order/index",
     "pages/rights/rights",
@@ -26,6 +27,7 @@
     "pages/admin/orders/index",
     "pages/admin/menu-orders/index",
     "pages/admin/menu-catalog/index",
+    "pages/admin/activities/index",
     "pages/admin/finance-report/index",
     "pages/admin/data-cleanup/index",
     "pages/admin/system-switches/index",

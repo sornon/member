@@ -55,6 +55,8 @@ const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周�
 const CLEANUP_TASK_CONCURRENCY = 3;
 const ORPHAN_QUERY_BATCH_LIMIT = 200;
 
+const ACTIVITY_ALLOWED_STATUSES = ['draft', 'published', 'archived'];
+
 const FEATURE_KEY_ALIASES = {
   cashier: 'cashierEnabled',
   cashierenabled: 'cashierEnabled',
@@ -97,7 +99,10 @@ const ACTIONS = {
   GET_SYSTEM_FEATURES: 'getSystemFeatures',
   UPDATE_SYSTEM_FEATURE: 'updateSystemFeature',
   UPDATE_IMMORTAL_TOURNAMENT_SETTINGS: 'updateImmortalTournamentSettings',
-  RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament'
+  RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament',
+  LIST_ACTIVITIES: 'listActivities',
+  CREATE_ACTIVITY: 'createActivity',
+  UPDATE_ACTIVITY: 'updateActivity'
 };
 
 const ACTION_CANONICAL_MAP = Object.values(ACTIONS).reduce((map, name) => {
@@ -161,7 +166,12 @@ const ACTION_ALIASES = {
   resetimmortaltournaments: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
   cleartournament: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
   resetimmortaltournamentseason: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
-  resetimmortaltournamentdata: ACTIONS.RESET_IMMORTAL_TOURNAMENT
+  resetimmortaltournamentdata: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
+  listactivities: ACTIONS.LIST_ACTIVITIES,
+  activities: ACTIONS.LIST_ACTIVITIES,
+  createactivity: ACTIONS.CREATE_ACTIVITY,
+  updateactivity: ACTIONS.UPDATE_ACTIVITY,
+  editactivity: ACTIONS.UPDATE_ACTIVITY
 };
 
 function normalizeAction(action) {
@@ -255,7 +265,11 @@ const ACTION_HANDLERS = {
   [ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS]: (openid, event = {}) =>
     updateImmortalTournamentSettings(openid, event.updates || event),
   [ACTIONS.RESET_IMMORTAL_TOURNAMENT]: (openid, event) =>
-    resetImmortalTournament(openid, event || {})
+    resetImmortalTournament(openid, event || {}),
+  [ACTIONS.LIST_ACTIVITIES]: (openid, event) => listActivities(openid, event || {}),
+  [ACTIONS.CREATE_ACTIVITY]: (openid, event) => createActivity(openid, event.activity || {}),
+  [ACTIONS.UPDATE_ACTIVITY]: (openid, event) =>
+    updateActivity(openid, event.activityId || event.id, event.updates || event.activity || {})
 };
 
 async function resolveMemberExtras(memberId) {
@@ -5601,6 +5615,309 @@ function extractChargeOrderDiningAmount(order) {
     return Math.round(diningSum);
   }
   return Math.min(Math.round(diningSum), Math.round(totalAmount));
+}
+
+function normalizeActivityStatus(value, fallback = '') {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return fallback;
+  }
+  const normalized = trimmed.toLowerCase();
+  if (ACTIVITY_ALLOWED_STATUSES.includes(normalized)) {
+    return normalized;
+  }
+  if (ACTIVITY_ALLOWED_STATUSES.includes(trimmed)) {
+    return trimmed;
+  }
+  return fallback;
+}
+
+function normalizeActivityStringArray(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => trimToString(item))
+      .map((item) => item.replace(/\r\n/g, '\n').trim())
+      .filter(Boolean);
+  }
+  const text = trimToString(value);
+  if (!text) {
+    return [];
+  }
+  return text
+    .replace(/\r\n/g, '\n')
+    .split(/\n+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeMultilineString(value) {
+  if (typeof value === 'string') {
+    return value.replace(/\r\n/g, '\n').trim();
+  }
+  if (Array.isArray(value)) {
+    return normalizeActivityStringArray(value).join('\n');
+  }
+  return trimToString(value);
+}
+
+function normalizeActivitySortOrder(value, fallback = 0) {
+  if (value === null || typeof value === 'undefined' || value === '') {
+    return fallback;
+  }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return Math.round(numeric);
+}
+
+function normalizeActivityDateValue(value) {
+  if (value === null || typeof value === 'undefined') {
+    return null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const lowered = trimmed.toLowerCase();
+    if (['null', 'undefined', 'none'].includes(lowered)) {
+      return null;
+    }
+    return resolveDateValue(trimmed);
+  }
+  return resolveDateValue(value);
+}
+
+function normalizeActivityPayload(input = {}, options = {}) {
+  const partial = !!options.partial;
+  const result = {};
+  const has = (key) => Object.prototype.hasOwnProperty.call(input, key);
+
+  if (has('title') || !partial) {
+    const title = trimToString(input.title);
+    if (!title && !partial) {
+      throw new Error('活动标题不能为空');
+    }
+    if (title || !partial) {
+      result.title = title;
+    }
+  }
+
+  if (has('tagline')) {
+    result.tagline = trimToString(input.tagline);
+  }
+
+  if (has('summary')) {
+    result.summary = trimToString(input.summary);
+  }
+
+  if (has('priceLabel')) {
+    result.priceLabel = trimToString(input.priceLabel);
+  }
+
+  if (has('location')) {
+    result.location = trimToString(input.location);
+  }
+
+  if (has('coverImage')) {
+    result.coverImage = trimToString(input.coverImage);
+  }
+
+  if (has('highlight')) {
+    result.highlight = trimToString(input.highlight);
+  }
+
+  if (has('notes')) {
+    result.notes = normalizeMultilineString(input.notes);
+  } else if (!partial) {
+    result.notes = '';
+  }
+
+  if (has('status') || !partial) {
+    const status = normalizeActivityStatus(input.status, partial ? '' : 'draft');
+    result.status = status || 'draft';
+  }
+
+  if (has('startTime') || !partial) {
+    result.startTime = normalizeActivityDateValue(input.startTime);
+  }
+
+  if (has('endTime') || !partial) {
+    result.endTime = normalizeActivityDateValue(input.endTime);
+  }
+
+  if (has('perks')) {
+    result.perks = normalizeActivityStringArray(input.perks);
+  } else if (!partial) {
+    result.perks = [];
+  }
+
+  if (has('tags')) {
+    result.tags = normalizeActivityStringArray(input.tags);
+  } else if (!partial) {
+    result.tags = [];
+  }
+
+  if (has('sortOrder') || !partial) {
+    result.sortOrder = normalizeActivitySortOrder(has('sortOrder') ? input.sortOrder : 0, 0);
+  }
+
+  return result;
+}
+
+function toIsoString(value) {
+  const date = normalizeActivityDateValue(value);
+  if (!date) {
+    return '';
+  }
+  try {
+    return date.toISOString();
+  } catch (error) {
+    return '';
+  }
+}
+
+function decorateActivityRecord(doc = {}) {
+  if (!doc) {
+    return null;
+  }
+  return {
+    id: doc._id || '',
+    title: trimToString(doc.title),
+    tagline: trimToString(doc.tagline),
+    summary: trimToString(doc.summary),
+    status: normalizeActivityStatus(doc.status, 'draft') || 'draft',
+    startTime: toIsoString(doc.startTime),
+    endTime: toIsoString(doc.endTime),
+    priceLabel: trimToString(doc.priceLabel),
+    location: trimToString(doc.location),
+    coverImage: trimToString(doc.coverImage),
+    highlight: trimToString(doc.highlight),
+    notes: normalizeMultilineString(doc.notes),
+    perks: normalizeActivityStringArray(doc.perks),
+    tags: normalizeActivityStringArray(doc.tags),
+    sortOrder: normalizeActivitySortOrder(doc.sortOrder, 0),
+    createdAt: toIsoString(doc.createdAt),
+    updatedAt: toIsoString(doc.updatedAt),
+    createdBy: trimToString(doc.createdBy || ''),
+    updatedBy: trimToString(doc.updatedBy || '')
+  };
+}
+
+async function listActivities(openid, options = {}) {
+  await ensureAdmin(openid);
+  const collection = db.collection(COLLECTIONS.ACTIVITIES);
+  const snapshot = await collection
+    .orderBy('sortOrder', 'desc')
+    .orderBy('startTime', 'asc')
+    .limit(200)
+    .get()
+    .catch((error) => {
+      if (error && /not exist|not found/i.test(error.errMsg || '')) {
+        return { data: [] };
+      }
+      throw error;
+    });
+
+  let activities = (snapshot && snapshot.data ? snapshot.data : []).map((item) =>
+    decorateActivityRecord({ ...item, _id: item._id })
+  );
+  activities = activities.filter(Boolean);
+
+  const statusFilter = options && options.status ? normalizeActivityStatus(options.status, '') : '';
+  if (statusFilter) {
+    activities = activities.filter((item) => item.status === statusFilter);
+  }
+  if (options && options.includeArchived === false) {
+    activities = activities.filter((item) => item.status !== 'archived');
+  }
+
+  return { activities };
+}
+
+async function createActivity(openid, payload = {}) {
+  const admin = await ensureAdmin(openid);
+  const normalized = normalizeActivityPayload(payload, { partial: false });
+  const now = new Date();
+  const collection = db.collection(COLLECTIONS.ACTIVITIES);
+  const {
+    startTime,
+    endTime,
+    perks = [],
+    tags = [],
+    ...rest
+  } = normalized;
+
+  const data = {
+    ...rest,
+    startTime: startTime || null,
+    endTime: endTime || null,
+    perks: Array.isArray(perks) ? perks : [],
+    tags: Array.isArray(tags) ? tags : [],
+    createdAt: now,
+    updatedAt: now,
+    createdBy: admin._id || openid,
+    updatedBy: admin._id || openid
+  };
+
+  const result = await collection.add({ data });
+  const activityId = result && result._id ? result._id : '';
+  const snapshot = activityId
+    ? await collection
+        .doc(activityId)
+        .get()
+        .catch(() => null)
+    : null;
+  const doc = snapshot && snapshot.data ? { ...snapshot.data, _id: activityId } : { ...data, _id: activityId };
+  return { activity: decorateActivityRecord(doc) };
+}
+
+async function updateActivity(openid, activityId, updates = {}) {
+  if (!activityId) {
+    throw new Error('缺少活动编号');
+  }
+  const admin = await ensureAdmin(openid);
+  const collection = db.collection(COLLECTIONS.ACTIVITIES);
+  const existing = await collection
+    .doc(activityId)
+    .get()
+    .catch(() => null);
+  if (!existing || !existing.data) {
+    throw new Error('活动不存在或已删除');
+  }
+
+  const normalized = normalizeActivityPayload(updates, { partial: true });
+  const now = new Date();
+  const payload = {
+    ...normalized,
+    updatedAt: now,
+    updatedBy: admin._id || openid
+  };
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'startTime')) {
+    payload.startTime = payload.startTime || null;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'endTime')) {
+    payload.endTime = payload.endTime || null;
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'perks')) {
+    payload.perks = Array.isArray(payload.perks) ? payload.perks : [];
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'tags')) {
+    payload.tags = Array.isArray(payload.tags) ? payload.tags : [];
+  }
+
+  await collection.doc(activityId).update({ data: payload });
+  const snapshot = await collection
+    .doc(activityId)
+    .get()
+    .catch(() => null);
+  const doc = snapshot && snapshot.data ? { ...snapshot.data, _id: activityId } : { ...existing.data, ...payload, _id: activityId };
+  return { activity: decorateActivityRecord(doc) };
 }
 
 function resolveDateValue(value) {
