@@ -17,7 +17,9 @@
           bindtap="handleViewDetail"
         >
           <text class="activity-card__title">{{item.title}}</text>
-          <text class="activity-card__indicator" aria-hidden="true">›</text>
+          <view class="activity-card__indicator" aria-hidden="true">
+            <text class="activity-card__indicator-icon">›</text>
+          </view>
         </view>
         <view class="activity-card__status activity-card__status--{{item.statusType}}">{{item.statusLabel}}</view>
       </view>

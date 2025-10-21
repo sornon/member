@@ -51,10 +51,6 @@
   color: inherit;
 }
 
-.activity-card__title-wrap--hover .activity-card__title {
-  opacity: 0.72;
-}
-
 .activity-card__title {
   font-size: 36rpx;
   font-weight: 600;
@@ -65,14 +61,34 @@
   text-overflow: ellipsis;
 }
 
+.activity-card__title-wrap--hover .activity-card__title {
+  opacity: 0.8;
+}
+
+
 .activity-card__indicator {
-  font-size: 44rpx;
+  flex-shrink: 0;
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 999rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(123, 144, 255, 0.58), rgba(87, 110, 255, 0.38));
+  border: 1px solid rgba(174, 191, 255, 0.45);
+  box-shadow: 0 6rpx 12rpx rgba(24, 33, 79, 0.28);
+}
+
+.activity-card__indicator-icon {
+  font-size: 34rpx;
   line-height: 1;
-  color: rgba(231, 236, 255, 0.6);
+  color: #fff;
 }
 
 .activity-card__title-wrap--hover .activity-card__indicator {
-  color: rgba(231, 236, 255, 0.9);
+  background: linear-gradient(135deg, rgba(123, 144, 255, 0.88), rgba(87, 110, 255, 0.68));
+  border-color: rgba(174, 191, 255, 0.75);
+  box-shadow: 0 8rpx 16rpx rgba(24, 33, 79, 0.32);
 }
 
 .activity-card__status {
