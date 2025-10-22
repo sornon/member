@@ -10,6 +10,15 @@ const {
   listAvatarIds,
   analyzeMemberLevelProgress
 } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
+const {
+  DEFAULT_GAME_PARAMETERS,
+  DEFAULT_RAGE_SETTINGS,
+  normalizeRageSettings,
+  serializeGameParameters,
+  cloneGameParameters,
+  cloneRageSettings,
+  resolveGameParametersFromDocument
+} = require('system-settings');
 
 const db = cloud.database();
 const _ = db.command;
@@ -99,6 +108,7 @@ const ACTIONS = {
   GET_SYSTEM_FEATURES: 'getSystemFeatures',
   UPDATE_SYSTEM_FEATURE: 'updateSystemFeature',
   UPDATE_IMMORTAL_TOURNAMENT_SETTINGS: 'updateImmortalTournamentSettings',
+  UPDATE_GAME_PARAMETERS: 'updateGameParameters',
   RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament',
   LIST_ACTIVITIES: 'listActivities',
   CREATE_ACTIVITY: 'createActivity',
@@ -162,6 +172,8 @@ const ACTION_ALIASES = {
   updateimmortaltournamentsettings: ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS,
   immortaltournamentsettings: ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS,
   updatetournamentsettings: ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS,
+  updategameparameters: ACTIONS.UPDATE_GAME_PARAMETERS,
+  gameparameters: ACTIONS.UPDATE_GAME_PARAMETERS,
   resetimmortaltournament: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
   resetimmortaltournaments: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
   cleartournament: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
@@ -264,6 +276,8 @@ const ACTION_HANDLERS = {
   [ACTIONS.UPDATE_SYSTEM_FEATURE]: (openid, event) => updateSystemFeature(openid, event),
   [ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS]: (openid, event = {}) =>
     updateImmortalTournamentSettings(openid, event.updates || event),
+  [ACTIONS.UPDATE_GAME_PARAMETERS]: (openid, event = {}) =>
+    updateGameParameters(openid, event.parameters || event),
   [ACTIONS.RESET_IMMORTAL_TOURNAMENT]: (openid, event) =>
     resetImmortalTournament(openid, event || {}),
   [ACTIONS.LIST_ACTIVITIES]: (openid, event) => listActivities(openid, event || {}),
@@ -743,8 +757,15 @@ async function loadSystemFeatureDocument() {
 async function getSystemFeatures(openid) {
   await ensureAdmin(openid);
   const documentData = await loadSystemFeatureDocument();
+  const gameParameters = resolveGameParametersFromDocument(documentData);
   return {
     features: normalizeFeatureToggles(documentData),
+    gameParameters: cloneGameParameters(gameParameters),
+    rageSettings: cloneRageSettings(gameParameters.rage),
+    defaults: {
+      gameParameters: cloneGameParameters(DEFAULT_GAME_PARAMETERS),
+      rageSettings: cloneRageSettings(DEFAULT_RAGE_SETTINGS)
+    },
     updatedAt: documentData && documentData.updatedAt ? documentData.updatedAt : null
   };
 }
@@ -809,6 +830,7 @@ async function updateSystemFeature(openid, event = {}) {
 
   const existingDocument = await loadSystemFeatureDocument();
   const currentToggles = normalizeFeatureToggles(existingDocument);
+  const currentParameters = resolveGameParametersFromDocument(existingDocument);
   const nextValue = resolveFeatureEventValue(event, key, currentToggles[key]);
 
   if (currentToggles[key] === nextValue && existingDocument) {
@@ -827,6 +849,7 @@ async function updateSystemFeature(openid, event = {}) {
     ...sanitizedExisting,
     cashierEnabled: key === 'cashierEnabled' ? nextValue : currentToggles.cashierEnabled,
     immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
+    gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
   if (!payload.createdAt) {
@@ -852,6 +875,7 @@ async function updateImmortalTournamentSettings(openid, updates = {}) {
   const existingDocument = await loadSystemFeatureDocument();
   const currentToggles = normalizeFeatureToggles(existingDocument);
   const currentTournament = cloneImmortalTournament(currentToggles.immortalTournament);
+  const currentParameters = resolveGameParametersFromDocument(existingDocument);
 
   let changed = false;
   const nextTournament = { ...currentTournament };
@@ -896,6 +920,7 @@ async function updateImmortalTournamentSettings(openid, updates = {}) {
     ...sanitizedExisting,
     cashierEnabled: currentToggles.cashierEnabled,
     immortalTournament: serializeImmortalTournament(nextTournament),
+    gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
   if (!payload.createdAt) {
@@ -909,6 +934,89 @@ async function updateImmortalTournamentSettings(openid, updates = {}) {
     success: true,
     features,
     updatedAt: now
+  };
+}
+
+async function updateGameParameters(openid, updates = {}) {
+  await ensureAdmin(openid);
+  if (!updates || typeof updates !== 'object') {
+    throw new Error('无效的参数配置');
+  }
+
+  const rageUpdates = updates.rage || updates.rageSettings;
+  if (!rageUpdates || typeof rageUpdates !== 'object') {
+    throw new Error('请提供真气参数配置');
+  }
+
+  const existingDocument = await loadSystemFeatureDocument();
+  const currentToggles = normalizeFeatureToggles(existingDocument);
+  const currentParameters = resolveGameParametersFromDocument(existingDocument);
+  const nextParameters = cloneGameParameters(currentParameters);
+
+  const rageKeys = ['start', 'turnGain', 'basicAttackGain', 'damageTakenMultiplier', 'critGain', 'critTakenGain'];
+  const sanitizedInput = {};
+  rageKeys.forEach((key) => {
+    if (Object.prototype.hasOwnProperty.call(rageUpdates, key)) {
+      const numeric = Number(rageUpdates[key]);
+      if (!Number.isFinite(numeric)) {
+        throw new Error('真气参数需为有效数值');
+      }
+      sanitizedInput[key] = numeric;
+    }
+  });
+
+  if (!Object.keys(sanitizedInput).length) {
+    throw new Error('未检测到可更新的真气参数');
+  }
+
+  const mergedRage = normalizeRageSettings({ ...currentParameters.rage, ...sanitizedInput });
+  const rageChanged = rageKeys.some((key) => mergedRage[key] !== currentParameters.rage[key]);
+
+  if (!rageChanged && existingDocument) {
+    return {
+      success: true,
+      features: currentToggles,
+      gameParameters: cloneGameParameters(currentParameters),
+      rageSettings: cloneRageSettings(currentParameters.rage),
+      updatedAt: existingDocument && existingDocument.updatedAt ? existingDocument.updatedAt : null,
+      defaults: {
+        gameParameters: cloneGameParameters(DEFAULT_GAME_PARAMETERS),
+        rageSettings: cloneRageSettings(DEFAULT_RAGE_SETTINGS)
+      }
+    };
+  }
+
+  nextParameters.rage = mergedRage;
+
+  const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);
+  const now = new Date();
+  const sanitizedExisting = sanitizeFeatureDocument(existingDocument);
+
+  const payload = {
+    ...sanitizedExisting,
+    cashierEnabled: currentToggles.cashierEnabled,
+    immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
+    gameParameters: serializeGameParameters(nextParameters),
+    updatedAt: now
+  };
+  if (!payload.createdAt) {
+    payload.createdAt = now;
+  }
+
+  await collection.doc(FEATURE_TOGGLE_DOC_ID).set({ data: payload });
+
+  const features = normalizeFeatureToggles(payload);
+  const gameParameters = resolveGameParametersFromDocument(payload);
+  return {
+    success: true,
+    features,
+    gameParameters: cloneGameParameters(gameParameters),
+    rageSettings: cloneRageSettings(gameParameters.rage),
+    updatedAt: now,
+    defaults: {
+      gameParameters: cloneGameParameters(DEFAULT_GAME_PARAMETERS),
+      rageSettings: cloneRageSettings(DEFAULT_RAGE_SETTINGS)
+    }
   };
 }
 

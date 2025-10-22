@@ -22,10 +22,17 @@ const {
 const {
   buildSkillLoadout: buildRuntimeSkillLoadout,
   createActorRuntime,
-  takeTurn: executeSkillTurn
+  takeTurn: executeSkillTurn,
+  configureResourceDefaults
 } = require('skill-engine');
 const { aggregateSkillEffects } = require('skill-model');
 const { createBattlePayload, decorateBattleReplay } = require('battle-schema');
+const {
+  DEFAULT_GAME_PARAMETERS,
+  buildResourceConfigOverrides,
+  resolveGameParametersFromDocument,
+  FEATURE_TOGGLE_DOC_ID
+} = require('system-settings');
 
 const db = cloud.database();
 const _ = db.command;
@@ -68,6 +75,25 @@ const REQUIRED_PVP_COLLECTIONS = [
   COLLECTIONS.PVP_LEADERBOARD,
   COLLECTIONS.PVP_INVITES
 ];
+
+async function applyGlobalGameParameters() {
+  try {
+    const snapshot = await db
+      .collection(COLLECTIONS.SYSTEM_SETTINGS)
+      .doc(FEATURE_TOGGLE_DOC_ID)
+      .get();
+    const document = snapshot && snapshot.data ? snapshot.data : null;
+    const parameters = resolveGameParametersFromDocument(document);
+    configureResourceDefaults(buildResourceConfigOverrides(parameters));
+    return parameters;
+  } catch (error) {
+    if (!(error && error.errMsg && /not exist|not found/i.test(error.errMsg))) {
+      console.error('[pvp] load game parameters failed', error);
+    }
+    configureResourceDefaults(buildResourceConfigOverrides(DEFAULT_GAME_PARAMETERS));
+    return DEFAULT_GAME_PARAMETERS;
+  }
+}
 
 function buildBackgroundPayloadFromId(backgroundId, animatedFlag) {
   const normalized = normalizeBackgroundId(backgroundId || '');
@@ -591,6 +617,7 @@ async function resolveBattle(memberId, member, profile, opponentDescriptor, seas
     isBot: opponent.isBot
   });
 
+  await applyGlobalGameParameters();
   const simulation = simulateBattle(playerEntry, opponentEntry, seed);
   const initiatorId = options && options.inviteMatch ? opponentEntry.memberId : playerEntry.memberId;
   const defenderEntry = initiatorId === playerEntry.memberId ? opponentEntry : playerEntry;
@@ -1807,6 +1834,69 @@ function buildCombatAttributesSnapshot(stats = {}) {
   return snapshot;
 }
 
+function resolveSkillStringField(skill, fields) {
+  if (!skill || typeof skill !== 'object' || !Array.isArray(fields)) {
+    return '';
+  }
+  for (let i = 0; i < fields.length; i += 1) {
+    const trimmed = toTrimmedString(skill[fields[i]]);
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+  return '';
+}
+
+function buildTimelineSkillPayload(skill) {
+  const fallback = { id: 'basic_attack', name: '普攻', type: 'basic' };
+  if (!skill || typeof skill !== 'object') {
+    return { ...fallback };
+  }
+  const id = toTrimmedString(skill.id) || fallback.id;
+  const name = toTrimmedString(skill.name) || fallback.name;
+  const type = toTrimmedString(skill.type) || fallback.type;
+  const payload = { id, name, type };
+  const animation = toTrimmedString(skill.animation);
+  if (animation) {
+    payload.animation = animation;
+  }
+  if (skill.resource && typeof skill.resource === 'object') {
+    const resource = {};
+    const resourceType = toTrimmedString(skill.resource.type);
+    if (resourceType) {
+      resource.type = resourceType;
+    }
+    const cost = Number(skill.resource.cost);
+    if (Number.isFinite(cost)) {
+      resource.cost = Math.max(0, Math.round(cost));
+    }
+    if (Object.keys(resource).length) {
+      payload.resource = resource;
+    }
+  }
+  const quality =
+    resolveSkillStringField(skill, ['quality', 'skillQuality', 'rarity', 'qualityKey']) || '';
+  const qualityLabel =
+    resolveSkillStringField(skill, ['qualityLabel', 'rarityLabel', 'skillQualityLabel']);
+  const qualityColor =
+    resolveSkillStringField(skill, ['qualityColor', 'skillQualityColor', 'rarityColor']);
+  if (quality) {
+    payload.quality = quality;
+    payload.skillQuality = quality;
+    payload.rarity = quality;
+  }
+  if (qualityLabel) {
+    payload.qualityLabel = qualityLabel;
+    payload.rarityLabel = qualityLabel;
+  }
+  if (qualityColor) {
+    payload.qualityColor = qualityColor;
+    payload.skillQualityColor = qualityColor;
+    payload.rarityColor = qualityColor;
+  }
+  return payload;
+}
+
 function buildTimelineEntry({
   round,
   sequence,
@@ -1834,15 +1924,7 @@ function buildTimelineEntry({
     actorSide,
     actor: { id: actorId, side: actorSide, displayName: actorName },
     target: { id: targetId, side: actorSide === 'player' ? 'opponent' : 'player', displayName: targetName },
-    skill:
-      skill && typeof skill === 'object' && skill.id
-        ? {
-            id: skill.id,
-            name: skill.name || '技能',
-            type: skill.type || 'active',
-            ...(skill.animation ? { animation: skill.animation } : {})
-          }
-        : { id: 'basic_attack', name: '普攻', type: 'basic' },
+    skill: buildTimelineSkillPayload(skill),
     events: Array.isArray(events) ? events.filter(Boolean) : [],
     state: {
       player: buildTimelineStateSide({

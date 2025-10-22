@@ -47,6 +47,24 @@
   margin-bottom: 24rpx;
 }
 
+.rage-card {
+  margin-bottom: 24rpx;
+}
+
+.rage-grid {
+  margin-top: 24rpx;
+}
+
+.rage-actions {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.rage-actions .action-hint {
+  flex-basis: 100%;
+}
+
 .switch-row {
   display: flex;
   align-items: center;

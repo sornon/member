@@ -174,8 +174,9 @@
             <view
               wx:if="{{attackIndicator && attackIndicator.visible && attackIndicator.side === attackerKey}}"
               class="attack-indicator {{attackIndicator.status === 'leaving' ? 'attack-indicator--leaving' : 'attack-indicator--show'}}"
+              style="{{attackIndicator.color ? 'color: ' + attackIndicator.color + ';' : ''}}"
             >
-              普攻
+              {{attackIndicator.text || '普攻'}}
             </view>
             <view
               wx:for="{{floatingTexts[attackerKey] || []}}"
@@ -201,8 +202,9 @@
             <view
               wx:if="{{attackIndicator && attackIndicator.visible && attackIndicator.side === defenderKey}}"
               class="attack-indicator {{attackIndicator.status === 'leaving' ? 'attack-indicator--leaving' : 'attack-indicator--show'}}"
+              style="{{attackIndicator.color ? 'color: ' + attackIndicator.color + ';' : ''}}"
             >
-              普攻
+              {{attackIndicator.text || '普攻'}}
             </view>
             <view
               wx:for="{{floatingTexts[defenderKey] || []}}"

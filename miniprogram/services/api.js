@@ -696,6 +696,12 @@ export const AdminService = {
       enabled
     });
   },
+  async updateGameParameters(parameters = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'updateGameParameters',
+      parameters
+    });
+  },
   async updateImmortalTournamentSettings(updates = {}) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'updateImmortalTournamentSettings',
