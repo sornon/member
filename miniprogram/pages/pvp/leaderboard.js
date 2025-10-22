@@ -1,4 +1,5 @@
 import { PvpService } from '../../services/api';
+import { normalizeAvatarFrameValue } from '../../shared/avatar-frames';
 
 const app = getApp();
 
@@ -14,6 +15,22 @@ function formatDateTime(date) {
   const hh = String(parsed.getHours()).padStart(2, '0');
   const mi = String(parsed.getMinutes()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
+function decorateLeaderboardEntries(entries) {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+  return entries.map((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return entry;
+    }
+    const normalizedFrame = normalizeAvatarFrameValue(entry.avatarFrame || '');
+    if (normalizedFrame || entry.avatarFrame) {
+      return { ...entry, avatarFrame: normalizedFrame };
+    }
+    return { ...entry, avatarFrame: '' };
+  });
 }
 
 Page({
@@ -41,9 +58,10 @@ Page({
     this.setData({ loading: true, error: '' });
     try {
       const res = await PvpService.leaderboard({ limit: 100 });
+      const entries = decorateLeaderboardEntries(res.entries);
       this.setData({
         loading: false,
-        entries: res.entries || [],
+        entries,
         season: res.season || null,
         updatedAt: res.updatedAt ? formatDateTime(res.updatedAt) : '',
         myRank: Number.isFinite(res.myRank) ? res.myRank : null

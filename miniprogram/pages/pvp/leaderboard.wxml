@@ -15,13 +15,21 @@
       <block wx:for="{{entries}}" wx:key="memberId">
         <view class="board-item">
           <view class="board-rank">{{item.rank}}</view>
-          <image
-            wx:if="{{item.avatarUrl}}"
-            class="board-avatar"
-            src="{{item.avatarUrl}}"
-            mode="aspectFill"
-          ></image>
-          <view wx:else class="board-avatar board-avatar--placeholder">{{item.nickName ? item.nickName.slice(0, 1) : '仙'}}</view>
+          <view class="board-avatar-wrapper">
+            <image
+              wx:if="{{item.avatarUrl}}"
+              class="board-avatar"
+              src="{{item.avatarUrl}}"
+              mode="aspectFill"
+            ></image>
+            <view wx:else class="board-avatar board-avatar--placeholder">{{item.nickName ? item.nickName.slice(0, 1) : '仙'}}</view>
+            <image
+              wx:if="{{item.avatarFrame}}"
+              class="board-avatar-frame"
+              src="{{item.avatarFrame}}"
+              mode="scaleToFill"
+            ></image>
+          </view>
           <view class="board-info">
             <view class="board-name">{{item.nickName || '神秘仙友'}}</view>
             <view class="board-meta">{{item.tierName}} · {{item.points}} 分 · {{item.wins}}胜{{item.losses}}负</view>

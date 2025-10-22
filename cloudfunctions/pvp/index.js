@@ -88,6 +88,44 @@ function buildBackgroundPayloadFromId(backgroundId, animatedFlag) {
   };
 }
 
+function toTrimmedString(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  return trimmed;
+}
+
+function looksLikeUrl(value) {
+  const trimmed = toTrimmedString(value);
+  if (!trimmed) {
+    return false;
+  }
+  return (
+    /^https?:\/\//.test(trimmed) ||
+    trimmed.startsWith('cloud://') ||
+    trimmed.startsWith('/') ||
+    trimmed.startsWith('wxfile://')
+  );
+}
+
+function resolveAvatarFrameValue(...candidates) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = toTrimmedString(candidates[i]);
+    if (!candidate) {
+      continue;
+    }
+    const normalized = normalizeAvatarFrameValue(candidate);
+    if (normalized) {
+      return normalized;
+    }
+    if (looksLikeUrl(candidate)) {
+      return candidate;
+    }
+  }
+  return '';
+}
+
 let collectionsReady = false;
 let ensuringCollectionsPromise = null;
 
@@ -307,7 +345,18 @@ async function getLeaderboard(memberId, event = {}) {
     throw createError('SEASON_NOT_FOUND', '未找到对应赛季');
   }
   const snapshot = await loadLeaderboardSnapshot(season._id, { limit, type });
-  const entries = (snapshot.entries || []).slice(0, limit);
+  const entries = (snapshot.entries || [])
+    .slice(0, limit)
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return entry;
+      }
+      const avatarFrame = resolveAvatarFrameValue(entry.avatarFrame);
+      if (avatarFrame || entry.avatarFrame) {
+        return { ...entry, avatarFrame };
+      }
+      return { ...entry, avatarFrame: '' };
+    });
   const rankIndex = entries.findIndex((entry) => entry.memberId === memberId);
   return {
     season: buildSeasonPayload(season),
@@ -570,6 +619,18 @@ async function resolveBattle(memberId, member, profile, opponentDescriptor, seas
       draws: opponentProfile.draws
     }
   };
+  const opponentAvatarFrame = resolveAvatarFrameValue(
+    opponentEntry.avatarFrame,
+    opponentProfile.memberSnapshot && opponentProfile.memberSnapshot.avatarFrame,
+    opponentProfile.avatarFrame,
+    opponentProfile.appearance && opponentProfile.appearance.avatarFrame,
+    opponentMember && opponentMember.avatarFrame,
+    opponentMember && opponentMember.appearanceFrame,
+    opponentMember && opponentMember.appearance && opponentMember.appearance.avatarFrame
+  );
+  if (opponentAvatarFrame) {
+    opponentPreview.avatarFrame = opponentAvatarFrame;
+  }
   if (defenderEntry && defenderEntry.background && defenderEntry.background.id) {
     opponentPreview.defenderBackground = defenderEntry.background;
   }
@@ -1387,19 +1448,35 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
     .limit(limit)
     .get()
     .catch(() => ({ data: [] }));
-  const entries = (snapshot.data || []).map((item, index) => ({
-    rank: index + 1,
-    memberId: item.memberId,
-    nickName: item.memberSnapshot ? item.memberSnapshot.nickName : '',
-    avatarUrl: item.memberSnapshot ? item.memberSnapshot.avatarUrl : '',
-    tierId: item.tierId,
-    tierName: item.tierName,
-    points: item.points,
-    wins: item.wins,
-    losses: item.losses,
-    draws: item.draws,
-    streak: item.currentStreak || 0
-  }));
+  const entries = (snapshot.data || []).map((item, index) => {
+    const avatarFrame = resolveAvatarFrameValue(
+      item.memberSnapshot && item.memberSnapshot.avatarFrame,
+      item.memberSnapshot &&
+        item.memberSnapshot.appearance &&
+        item.memberSnapshot.appearance.avatarFrame,
+      item.memberSnapshot && item.memberSnapshot.appearanceFrame,
+      item.avatarFrame,
+      item.appearance && item.appearance.avatarFrame,
+      item.appearanceFrame
+    );
+    const payload = {
+      rank: index + 1,
+      memberId: item.memberId,
+      nickName: item.memberSnapshot ? item.memberSnapshot.nickName : '',
+      avatarUrl: item.memberSnapshot ? item.memberSnapshot.avatarUrl : '',
+      tierId: item.tierId,
+      tierName: item.tierName,
+      points: item.points,
+      wins: item.wins,
+      losses: item.losses,
+      draws: item.draws,
+      streak: item.currentStreak || 0
+    };
+    if (avatarFrame) {
+      payload.avatarFrame = avatarFrame;
+    }
+    return payload;
+  });
   const payload = {
     seasonId,
     type,
@@ -1551,15 +1628,6 @@ function normalizeCombatSnapshot(snapshot) {
 }
 
 function buildBattleActor({ memberId, member, profile, combat, isBot }) {
-  const resolveAvatarFrame = (...candidates) => {
-    for (let i = 0; i < candidates.length; i += 1) {
-      const value = normalizeAvatarFrameValue(candidates[i] || '');
-      if (value) {
-        return value;
-      }
-    }
-    return '';
-  };
   const tier = resolveTierByPoints(profile.points);
   const normalized = normalizeCombatSnapshot(combat);
   const backgroundId = buildBackgroundIdFromMember(member);
@@ -1567,12 +1635,16 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
   const background = buildBackgroundPayloadFromId(backgroundId, backgroundAnimated);
   const avatarUrl =
     (profile.memberSnapshot && profile.memberSnapshot.avatarUrl) || (member && member.avatarUrl) || '';
-  const avatarFrame = resolveAvatarFrame(
+  const avatarFrame = resolveAvatarFrameValue(
     profile.memberSnapshot && profile.memberSnapshot.avatarFrame,
+    profile.memberSnapshot &&
+      profile.memberSnapshot.appearance &&
+      profile.memberSnapshot.appearance.avatarFrame,
     profile.avatarFrame,
     profile.appearance && profile.appearance.avatarFrame,
     member && member.avatarFrame,
-    member && member.appearanceFrame
+    member && member.appearanceFrame,
+    member && member.appearance && member.appearance.avatarFrame
   );
   const portrait = pickPortraitUrl(
     profile.memberSnapshot && profile.memberSnapshot.portrait,
