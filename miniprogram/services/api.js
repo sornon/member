@@ -290,8 +290,20 @@ export const PveService = {
   async battle(enemyId) {
     return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'battle', enemyId });
   },
-  async drawSkill() {
-    return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'drawSkill' });
+  async drawSkill(options = {}) {
+    const payload = { action: 'drawSkill' };
+    if (options && typeof options === 'object') {
+      const rawCount =
+        Object.prototype.hasOwnProperty.call(options, 'count') && options.count !== undefined
+          ? options.count
+          : options.drawCount;
+      const parsedCount = Number(rawCount);
+      if (Number.isFinite(parsedCount)) {
+        const safeCount = Math.max(1, Math.floor(parsedCount));
+        payload.drawCount = safeCount;
+      }
+    }
+    return callCloud(CLOUD_FUNCTIONS.PVE, payload);
   },
   async equipSkill({ skillId, slot } = {}) {
     const payload = { action: 'equipSkill', skillId: skillId || '' };

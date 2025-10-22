@@ -375,8 +375,18 @@
               size="mini"
               loading="{{drawing}}"
               disabled="{{drawing || skillDrawCredits <= 0}}"
+              data-count="1"
               bindtap="handleDrawSkill"
             >抽取灵技</button>
+            <button
+              class="action-btn action-btn--primary"
+              hover-class="action-btn--primary-hover"
+              size="mini"
+              loading="{{drawing}}"
+              disabled="{{drawing || skillDrawCredits < 5}}"
+              data-count="5"
+              bindtap="handleDrawSkill"
+            >5连抽</button>
           </view>
         </view>
         <view class="skill-slots">

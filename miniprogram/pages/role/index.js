@@ -804,22 +804,60 @@ Page({
     wx.navigateTo({ url: '/pages/stones/stones' });
   },
 
-  async handleDrawSkill() {
+  async handleDrawSkill(event) {
+    const dataset =
+      event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
+    const rawCount = Number(dataset.count);
+    const count = Number.isFinite(rawCount) ? Math.max(1, Math.floor(rawCount)) : 1;
+    return this.performSkillDraw(count);
+  },
+
+  async performSkillDraw(count = 1) {
     if (this.data.drawing) return;
+    const normalizedCount = Math.max(1, Math.floor(Number(count) || 1));
     const credits = Math.max(0, Number(this.data.skillDrawCredits || 0));
-    if (!credits) {
+    if (!credits || credits < normalizedCount) {
       wx.showToast({ title: '抽取次数不足', icon: 'none' });
       return;
     }
     this.setData({ drawing: true });
     try {
-      const res = await PveService.drawSkill();
-      this.applyProfile(res.profile, { drawing: false });
-      if (res.acquiredSkill) {
-        wx.showToast({
-          title: `${res.acquiredSkill.qualityLabel}·${res.acquiredSkill.name}`,
-          icon: 'success'
-        });
+      const res = await PveService.drawSkill({ count: normalizedCount });
+      if (res && res.profile) {
+        this.applyProfile(res.profile, { drawing: false });
+      } else {
+        this.setData({ drawing: false });
+      }
+      const acquiredList = [];
+      if (res) {
+        if (Array.isArray(res.acquiredSkills)) {
+          res.acquiredSkills.forEach((skill) => {
+            if (skill) {
+              acquiredList.push(skill);
+            }
+          });
+        } else if (res.acquiredSkill) {
+          acquiredList.push(res.acquiredSkill);
+        }
+      }
+      if (acquiredList.length) {
+        const formatSkill = (skill) => {
+          if (!skill || typeof skill !== 'object') {
+            return '技能';
+          }
+          const name = skill.name || skill.shortName || skill.skillName || '技能';
+          const quality = skill.qualityLabel || skill.quality || '';
+          return quality ? `${quality}·${name}` : name;
+        };
+        if (acquiredList.length === 1) {
+          wx.showToast({ title: formatSkill(acquiredList[0]), icon: 'success' });
+        } else {
+          const topSkill = acquiredList[0];
+          wx.showToast({
+            title: `${formatSkill(topSkill)} 等 ${acquiredList.length} 个技能`,
+            icon: 'success'
+          });
+        }
       } else {
         wx.showToast({ title: '抽卡完成', icon: 'success' });
       }
