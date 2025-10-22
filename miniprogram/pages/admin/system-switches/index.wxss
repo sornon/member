@@ -55,6 +55,30 @@
   margin-top: 24rpx;
 }
 
+.rage-field {
+  gap: 8rpx;
+}
+
+.rage-grid .field-inline {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex-wrap: nowrap;
+}
+
+.rage-grid .field-label {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.rage-grid .rage-input {
+  flex: 0 0 168rpx;
+  width: 168rpx;
+  padding: 16rpx 20rpx;
+  text-align: right;
+}
+
 .rage-actions {
   flex-direction: row;
   align-items: center;

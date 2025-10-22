@@ -32,16 +32,18 @@
       <view class="card-desc">配置 PVE / PVP 战斗通用的真气增长规则，若系统设置无法加载将自动回退到默认值。</view>
 
       <view class="form-grid rage-grid">
-        <view class="form-field" wx:for="{{rageFieldList}}" wx:key="key">
-          <view class="field-label">{{item.label}}</view>
-          <input
-            class="field-input"
-            data-field="{{item.key}}"
-            value="{{rageDraft[item.key]}}"
-            bindinput="handleRageFieldChange"
-            placeholder="{{rageDefaults[item.key]}}"
-            disabled="{{rageSaving}}"
-          />
+        <view class="form-field rage-field" wx:for="{{rageFieldList}}" wx:key="key">
+          <view class="field-inline">
+            <view class="field-label">{{item.label}}</view>
+            <input
+              class="field-input rage-input"
+              data-field="{{item.key}}"
+              value="{{rageDraft[item.key]}}"
+              bindinput="handleRageFieldChange"
+              placeholder="{{rageDefaults[item.key]}}"
+              disabled="{{rageSaving}}"
+            />
+          </view>
           <view class="field-hint">{{item.hint}}</view>
         </view>
       </view>
