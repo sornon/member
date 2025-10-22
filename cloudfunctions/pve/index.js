@@ -631,10 +631,10 @@ function deriveEnemyAttributesFromStats(statsSource, fallbackLevel = 1) {
     attributes.root = Math.max(0, Math.round(rootRaw));
   }
 
-  const rootContribution = Number.isFinite(attributes.root) ? attributes.root * 20 : 0;
+  const rootContribution = Number.isFinite(attributes.root) ? attributes.root * 5 : 0;
   const maxHp = Number(stats.maxHp);
   if (Number.isFinite(maxHp)) {
-    const constitutionRaw = (maxHp - 500 - rootContribution) / 100;
+    const constitutionRaw = (maxHp - 200 - rootContribution) / 20;
     attributes.constitution = Math.max(0, Math.round(constitutionRaw));
   }
 
@@ -5837,7 +5837,7 @@ function deriveBaseCombatStats(baseAttributes, realmBonus = {}) {
     stats[key] = 0;
   });
 
-  stats.maxHp = 500 + constitution * 100 + root * 20;
+  stats.maxHp = 200 + constitution * 20 + root * 5;
   stats.physicalAttack = 50 + strength * 2;
   stats.magicAttack = 50 + spirit * 2;
   stats.physicalDefense = 40 + root * 1 + strength * 0.2;
