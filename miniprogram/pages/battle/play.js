@@ -594,7 +594,16 @@ function resolveQualityColorByLabel(value) {
   if (!normalized) {
     return '';
   }
-  return SKILL_QUALITY_LABEL_COLORS[normalized] || '';
+  if (SKILL_QUALITY_LABEL_COLORS[normalized]) {
+    return SKILL_QUALITY_LABEL_COLORS[normalized];
+  }
+  const looseMatch = Object.keys(SKILL_QUALITY_LABEL_COLORS).find((label) =>
+    normalized.indexOf(label) >= 0
+  );
+  if (looseMatch) {
+    return SKILL_QUALITY_LABEL_COLORS[looseMatch];
+  }
+  return '';
 }
 
 function resolveSkillColorFromSource(source) {
@@ -666,7 +675,13 @@ function extractSkillQualityColorFromAction(action = {}) {
       return color;
     }
   }
-  const directQualityFields = ['skillQuality', 'skillRarity', 'skillQualityLabel'];
+  const directQualityFields = [
+    'skillQuality',
+    'skillRarity',
+    'skillQualityLabel',
+    'qualityLabel',
+    'rarityLabel'
+  ];
   for (let i = 0; i < directQualityFields.length; i += 1) {
     const candidate = action[directQualityFields[i]];
     const colorByKey = resolveQualityColorByKey(candidate);
@@ -696,7 +711,15 @@ function extractSkillQualityColorFromAction(action = {}) {
       return color;
     }
   }
-  const rawQualityFields = ['skillQuality', 'quality', 'skillRarity', 'rarity', 'skillQualityLabel', 'qualityLabel'];
+  const rawQualityFields = [
+    'skillQuality',
+    'quality',
+    'skillRarity',
+    'rarity',
+    'skillQualityLabel',
+    'qualityLabel',
+    'rarityLabel'
+  ];
   for (let i = 0; i < rawQualityFields.length; i += 1) {
     const candidate = raw[rawQualityFields[i]];
     const colorByKey = resolveQualityColorByKey(candidate);
@@ -1435,7 +1458,27 @@ Page({
     if (!stringified) {
       return;
     }
+    if (!this._floatingTextTimers) {
+      this._floatingTextTimers = {};
+    }
     const nextState = cloneFloatingTextState(this._floatingTexts);
+    const timers = this._floatingTextTimers || {};
+    if (type === 'skill') {
+      const retained = [];
+      const existing = Array.isArray(nextState[normalizedSide]) ? nextState[normalizedSide] : [];
+      for (let i = 0; i < existing.length; i += 1) {
+        const item = existing[i];
+        if (!item || item.type !== 'skill') {
+          retained.push(item);
+          continue;
+        }
+        if (item.id && timers[item.id]) {
+          clearTimeout(timers[item.id]);
+          delete timers[item.id];
+        }
+      }
+      nextState[normalizedSide] = retained;
+    }
     const entryId = `ft-${Date.now()}-${(this._floatingTextId += 1)}`;
     const sanitizedColor = typeof color === 'string' ? color.trim() : '';
     const entry = sanitizedColor ? { id: entryId, text: stringified, type, color: sanitizedColor } : { id: entryId, text: stringified, type };
@@ -1822,7 +1865,6 @@ Page({
           : previousResourceState.opponent
     });
     this.timelineIndex = nextIndex;
-    this.resetFloatingTexts();
     this.setBattleStageData({
       currentAction: action,
       displayedLogs: nextLogs
