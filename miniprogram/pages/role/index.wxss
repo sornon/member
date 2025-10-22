@@ -109,6 +109,24 @@ page {
   gap: 20rpx;
 }
 
+.section-actions--skill {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12rpx;
+}
+
+.section-actions--skill .section-actions__meta {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.skill-action-buttons {
+  display: flex;
+  gap: 16rpx;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .section-actions__info {
   font-size: 24rpx;
   color: rgba(189, 203, 255, 0.82);

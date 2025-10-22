@@ -2732,7 +2732,7 @@ exports.main = async (event = {}) => {
     case 'battle':
       return simulateBattle(actorId, event.enemyId);
     case 'drawSkill':
-      return drawSkill(actorId);
+      return drawSkill(actorId, event);
     case 'equipSkill':
       return equipSkill(actorId, event);
     case 'equipItem':
@@ -2828,29 +2828,40 @@ async function simulateBattle(actorId, enemyId) {
   };
 }
 
-async function drawSkill(actorId) {
+async function drawSkill(actorId, event = {}) {
   const member = await ensureMember(actorId);
   const profile = await ensurePveProfile(actorId, member);
   const now = new Date();
 
-  const draws = performSkillDraw(profile, 1, now);
+  let requestedCount =
+    event && Object.prototype.hasOwnProperty.call(event, 'drawCount') ? event.drawCount : undefined;
+  if (requestedCount === undefined && event && Object.prototype.hasOwnProperty.call(event, 'count')) {
+    requestedCount = event.count;
+  }
+  const parsedCount = Number(requestedCount);
+  const safeCount = Number.isFinite(parsedCount) ? Math.max(1, Math.min(10, Math.floor(parsedCount))) : 1;
+
+  const draws = performSkillDraw(profile, safeCount, now);
   refreshAttributeSummary(profile);
 
   await savePveProfile(actorId, profile, { now });
 
-  const decorated = decorateProfile(member, profile);
-  const acquired = draws[0] || null;
+  const decoratedProfile = decorateProfile(member, profile);
+  const acquiredSkills = draws.map((acquired) => {
+    const decorated = acquired.decorated || { skillId: acquired.skillId };
+    return {
+      ...decorated,
+      isNew: acquired.isNew,
+      quality: acquired.quality,
+      qualityLabel: acquired.qualityLabel,
+      qualityColor: acquired.qualityColor
+    };
+  });
+
   return {
-    acquiredSkill: acquired
-      ? {
-          ...(acquired.decorated || { skillId: acquired.skillId }),
-          isNew: acquired.isNew,
-          quality: acquired.quality,
-          qualityLabel: acquired.qualityLabel,
-          qualityColor: acquired.qualityColor
-        }
-      : null,
-    profile: decorated
+    acquiredSkill: acquiredSkills[0] || null,
+    acquiredSkills,
+    profile: decoratedProfile
   };
 }
 
