@@ -462,6 +462,20 @@ function cloneFloatingTextState(source = {}) {
 
 const INVALID_SKILL_LABELS = ['战斗流转', '连击未果', '身法化解', '持久战', '战斗结果'];
 
+const SKILL_QUALITY_COLORS = {
+  linggan: '#6c8cff',
+  kaipi: '#45c0a8',
+  tongxuan: '#b281ff',
+  wudao: '#f2a546'
+};
+
+const SKILL_QUALITY_LABEL_COLORS = {
+  灵感: SKILL_QUALITY_COLORS.linggan,
+  开辟: SKILL_QUALITY_COLORS.kaipi,
+  通玄: SKILL_QUALITY_COLORS.tongxuan,
+  悟道: SKILL_QUALITY_COLORS.wudao
+};
+
 function sanitizeSkillText(text) {
   if (!text && text !== 0) {
     return '';
@@ -540,29 +554,179 @@ function extractSkillTextFromAction(action = {}) {
   return '';
 }
 
+function sanitizeColorValue(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const normalized = value.trim();
+  if (!normalized) {
+    return '';
+  }
+  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(normalized)) {
+    return normalized;
+  }
+  if (/^rgba?\(/i.test(normalized) || /^hsla?\(/i.test(normalized) || /^var\(/i.test(normalized)) {
+    return normalized;
+  }
+  return '';
+}
+
+function resolveQualityColorByKey(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) {
+    return '';
+  }
+  return SKILL_QUALITY_COLORS[normalized] || '';
+}
+
+function resolveQualityColorByLabel(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const normalized = value.trim();
+  if (!normalized) {
+    return '';
+  }
+  return SKILL_QUALITY_LABEL_COLORS[normalized] || '';
+}
+
+function resolveSkillColorFromSource(source) {
+  if (!source && source !== 0) {
+    return '';
+  }
+  if (Array.isArray(source)) {
+    for (let i = 0; i < source.length; i += 1) {
+      const nested = resolveSkillColorFromSource(source[i]);
+      if (nested) {
+        return nested;
+      }
+    }
+    return '';
+  }
+  if (typeof source === 'string') {
+    const sanitized = sanitizeColorValue(source);
+    if (sanitized) {
+      return sanitized;
+    }
+    const byKey = resolveQualityColorByKey(source);
+    if (byKey) {
+      return byKey;
+    }
+    return resolveQualityColorByLabel(source);
+  }
+  if (typeof source !== 'object') {
+    return '';
+  }
+  const colorFields = ['qualityColor', 'color', 'rarityColor', 'textColor', 'fontColor'];
+  for (let i = 0; i < colorFields.length; i += 1) {
+    const color = sanitizeColorValue(source[colorFields[i]]);
+    if (color) {
+      return color;
+    }
+  }
+  const qualityFields = ['quality', 'rarity', 'grade', 'tier', 'rank', 'qualityKey'];
+  for (let i = 0; i < qualityFields.length; i += 1) {
+    const color = resolveQualityColorByKey(source[qualityFields[i]]);
+    if (color) {
+      return color;
+    }
+  }
+  const labelFields = ['qualityLabel', 'rarityLabel'];
+  for (let i = 0; i < labelFields.length; i += 1) {
+    const color = resolveQualityColorByLabel(source[labelFields[i]]);
+    if (color) {
+      return color;
+    }
+  }
+  const nestedFields = ['detail', 'skill', 'ability'];
+  for (let i = 0; i < nestedFields.length; i += 1) {
+    const nested = resolveSkillColorFromSource(source[nestedFields[i]]);
+    if (nested) {
+      return nested;
+    }
+  }
+  return '';
+}
+
+function extractSkillQualityColorFromAction(action = {}) {
+  if (!action || action.type === 'result' || action.type === 'dodge') {
+    return '';
+  }
+  const directColorFields = ['skillColor', 'skillColour', 'skillColourHex', 'skillQualityColor'];
+  for (let i = 0; i < directColorFields.length; i += 1) {
+    const color = sanitizeColorValue(action[directColorFields[i]]);
+    if (color) {
+      return color;
+    }
+  }
+  const directQualityFields = ['skillQuality', 'skillRarity'];
+  for (let i = 0; i < directQualityFields.length; i += 1) {
+    const color = resolveQualityColorByKey(action[directQualityFields[i]]);
+    if (color) {
+      return color;
+    }
+  }
+  const skillSources = [];
+  if (action.skill) {
+    skillSources.push(action.skill);
+  }
+  if (action.skillDetail) {
+    skillSources.push(action.skillDetail);
+  }
+  if (action.summary) {
+    skillSources.push(action.summary);
+  }
+  const raw = action.raw || {};
+  const rawColorFields = ['skillColor', 'skillQualityColor', 'qualityColor', 'rarityColor'];
+  for (let i = 0; i < rawColorFields.length; i += 1) {
+    const color = sanitizeColorValue(raw[rawColorFields[i]]);
+    if (color) {
+      return color;
+    }
+  }
+  const rawQualityFields = ['skillQuality', 'quality', 'skillRarity', 'rarity'];
+  for (let i = 0; i < rawQualityFields.length; i += 1) {
+    const color = resolveQualityColorByKey(raw[rawQualityFields[i]]);
+    if (color) {
+      return color;
+    }
+  }
+  if (raw.skill) {
+    skillSources.push(raw.skill);
+  }
+  if (raw.detail) {
+    skillSources.push(raw.detail);
+  }
+  if (raw.summary) {
+    skillSources.push(raw.summary);
+  }
+  if (raw.action) {
+    skillSources.push(raw.action);
+  }
+  if (raw.ability) {
+    skillSources.push(raw.ability);
+  }
+  if (Array.isArray(raw.skills)) {
+    skillSources.push(...raw.skills);
+  }
+  for (let i = 0; i < skillSources.length; i += 1) {
+    const color = resolveSkillColorFromSource(skillSources[i]);
+    if (color) {
+      return color;
+    }
+  }
+  return '';
+}
+
 function resolveHpValue(state = {}, sideKey) {
   const side = state && state[sideKey] ? state[sideKey] : null;
   if (!side || typeof side.current !== 'number') {
     return Number(side && side.current) || 0;
   }
   return side.current;
-}
-
-function resolveResourceValue(state = {}, sideKey) {
-  const side = state && state[sideKey] ? state[sideKey] : null;
-  if (!side) {
-    return 0;
-  }
-  if (typeof side.current === 'number') {
-    return side.current;
-  }
-  if (typeof side.after === 'number') {
-    return side.after;
-  }
-  if (typeof side.before === 'number') {
-    return side.before;
-  }
-  return Number(side.current) || 0;
 }
 
 function resolveBackgroundVideoById(backgroundId) {
@@ -1248,7 +1412,7 @@ Page({
     this._floatingTextTimers = {};
   },
 
-  showFloatingText(side, { text, type = 'skill', duration = 1200 } = {}) {
+  showFloatingText(side, { text, type = 'skill', duration = 1200, color = '' } = {}) {
     const normalizedSide = side === 'player' || side === 'opponent' ? side : '';
     if (!normalizedSide) {
       return;
@@ -1259,7 +1423,8 @@ Page({
     }
     const nextState = cloneFloatingTextState(this._floatingTexts);
     const entryId = `ft-${Date.now()}-${(this._floatingTextId += 1)}`;
-    const entry = { id: entryId, text: stringified, type };
+    const sanitizedColor = typeof color === 'string' ? color.trim() : '';
+    const entry = sanitizedColor ? { id: entryId, text: stringified, type, color: sanitizedColor } : { id: entryId, text: stringified, type };
     nextState[normalizedSide].push(entry);
     this._floatingTexts = nextState;
     this.setBattleStageData({ floatingTexts: nextState });
@@ -1318,7 +1483,13 @@ Page({
         skillText === '普攻' && this._currentActionUsesIndicator
       );
       if (skillText && shouldShowSkillText) {
-        this.showFloatingText(actorSide, { text: skillText, type: 'skill', duration: 1400 });
+        const skillColor = skillText === '普攻' ? '' : extractSkillQualityColorFromAction(action);
+        this.showFloatingText(actorSide, {
+          text: skillText,
+          type: 'skill',
+          duration: 1400,
+          color: skillColor
+        });
       }
     }
 
@@ -1357,25 +1528,6 @@ Page({
         }
         this.showFloatingText(side, { text: `+${amount}`, type: 'heal', duration: 1200 });
       }
-    }
-
-    for (let i = 0; i < sides.length; i += 1) {
-      const side = sides[i];
-      const before = resolveResourceValue(previousResource, side);
-      const after = resolveResourceValue(nextResource, side);
-      if (!Number.isFinite(before) || !Number.isFinite(after)) {
-        continue;
-      }
-      const delta = after - before;
-      if (delta === 0) {
-        continue;
-      }
-      const amount = Math.abs(Math.round(delta));
-      if (amount <= 0) {
-        continue;
-      }
-      const text = delta > 0 ? `真气 +${amount}` : `真气 -${amount}`;
-      this.showFloatingText(side, { text, type: 'resource', duration: 1200 });
     }
   },
 
