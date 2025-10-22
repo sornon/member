@@ -451,7 +451,7 @@ function createBattleStageState(overrides = {}) {
     attackMotion: '',
     attackActor: '',
     attackTarget: '',
-    attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
+    attackIndicator: { visible: false, side: '', status: '', text: '', color: '', qualityKey: '' },
     targetReaction: '',
     ...overrides
   };
@@ -479,6 +479,13 @@ const SKILL_QUALITY_LABEL_COLORS = {
   通玄: SKILL_QUALITY_COLORS.tongxuan,
   悟道: SKILL_QUALITY_COLORS.wudao
 };
+
+const SKILL_QUALITY_COLOR_KEY_MAP = Object.entries(SKILL_QUALITY_COLORS).reduce((acc, [key, value]) => {
+  if (typeof value === 'string') {
+    acc[value.toLowerCase()] = key;
+  }
+  return acc;
+}, {});
 
 function sanitizeSkillText(text) {
   if (!text && text !== 0) {
@@ -573,6 +580,17 @@ function sanitizeColorValue(value) {
     return normalized;
   }
   return '';
+}
+
+function resolveQualityKeyFromColor(color) {
+  if (typeof color !== 'string') {
+    return '';
+  }
+  const normalized = color.trim().toLowerCase();
+  if (!normalized) {
+    return '';
+  }
+  return SKILL_QUALITY_COLOR_KEY_MAP[normalized] || '';
 }
 
 function resolveQualityColorByKey(value) {
@@ -1399,7 +1417,7 @@ Page({
       attackMotion: '',
       attackActor: '',
       attackTarget: '',
-      attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
+      attackIndicator: { visible: false, side: '', status: '', text: '', color: '', qualityKey: '' },
       targetReaction: ''
     });
   },
@@ -1639,7 +1657,7 @@ Page({
         attackMotion: '',
         attackActor: '',
         attackTarget: '',
-        attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
+        attackIndicator: { visible: false, side: '', status: '', text: '', color: '', qualityKey: '' },
         targetReaction: ''
       });
       this.applyActionFloatingTexts(
@@ -1665,6 +1683,7 @@ Page({
     const indicatorText = skillText || '普攻';
     const indicatorColor =
       skillText && skillText !== '普攻' ? extractSkillQualityColorFromAction(action) : '';
+    const indicatorQualityKey = resolveQualityKeyFromColor(indicatorColor);
 
     this.setBattleStageData({
       attackActor: actorSide,
@@ -1676,7 +1695,8 @@ Page({
         side: actorSide,
         status: 'show',
         text: indicatorText,
-        color: indicatorColor
+        color: indicatorColor,
+        qualityKey: indicatorQualityKey
       },
       targetReaction: ''
     });
@@ -1692,14 +1712,15 @@ Page({
           side: actorSide,
           status: 'leaving',
           text: indicatorText,
-          color: indicatorColor
+          color: indicatorColor,
+          qualityKey: indicatorQualityKey
         }
       });
     }, indicatorHold);
 
     this.queueAttackTimer(() => {
       this.setBattleStageData({
-        attackIndicator: { visible: false, side: '', status: '', text: '', color: '' }
+        attackIndicator: { visible: false, side: '', status: '', text: '', color: '', qualityKey: '' }
       });
     }, indicatorFadeComplete);
 
@@ -1758,7 +1779,7 @@ Page({
         attackMotion: '',
         attackActor: '',
         attackTarget: '',
-        attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
+        attackIndicator: { visible: false, side: '', status: '', text: '', color: '', qualityKey: '' },
         targetReaction: ''
       });
       this._currentActionUsesIndicator = false;
@@ -1941,7 +1962,7 @@ Page({
       attackMotion: '',
       attackActor: '',
       attackTarget: '',
-      attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
+      attackIndicator: { visible: false, side: '', status: '', text: '', color: '', qualityKey: '' },
       targetReaction: '',
       skipLocked: false,
       skipButtonText: '跳过战斗',

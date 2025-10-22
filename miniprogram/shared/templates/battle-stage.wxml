@@ -173,8 +173,7 @@
           <view class="floating-text-layer">
             <view
               wx:if="{{attackIndicator && attackIndicator.visible && attackIndicator.side === attackerKey}}"
-              class="attack-indicator {{attackIndicator.status === 'leaving' ? 'attack-indicator--leaving' : 'attack-indicator--show'}}"
-              style="{{attackIndicator.color ? 'color: ' + attackIndicator.color + ';' : ''}}"
+              class="attack-indicator {{attackIndicator.status === 'leaving' ? 'attack-indicator--leaving' : 'attack-indicator--show'}} {{attackIndicator.qualityKey ? 'attack-indicator--quality-' + attackIndicator.qualityKey : ''}}"
             >
               {{attackIndicator.text || '普攻'}}
             </view>
@@ -201,8 +200,7 @@
           <view class="floating-text-layer">
             <view
               wx:if="{{attackIndicator && attackIndicator.visible && attackIndicator.side === defenderKey}}"
-              class="attack-indicator {{attackIndicator.status === 'leaving' ? 'attack-indicator--leaving' : 'attack-indicator--show'}}"
-              style="{{attackIndicator.color ? 'color: ' + attackIndicator.color + ';' : ''}}"
+              class="attack-indicator {{attackIndicator.status === 'leaving' ? 'attack-indicator--leaving' : 'attack-indicator--show'}} {{attackIndicator.qualityKey ? 'attack-indicator--quality-' + attackIndicator.qualityKey : ''}}"
             >
               {{attackIndicator.text || '普攻'}}
             </view>
