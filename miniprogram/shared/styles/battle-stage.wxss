@@ -718,16 +718,15 @@ page {
 }
 
 .attack-indicator {
-  font-size: 44rpx;
+  font-size: 40rpx;
   font-weight: 700;
-  letter-spacing: 6rpx;
   color: #ffffff;
-  text-shadow: 0 0 12rpx rgba(255, 255, 255, 0.9), 0 0 28rpx rgba(255, 255, 255, 0.7);
+  text-shadow: 1rpx 1rpx 0 rgba(0, 0, 0, 1);
   opacity: 0;
   transform: scale(0.7);
   transform-origin: center;
   position: relative;
-  bottom: 100rpx;
+  bottom: 90rpx;
   white-space: nowrap;
 }
 
