@@ -69,6 +69,7 @@
 
 ### participants
 - `player` / `opponent`：参战双方的静态信息，至少包含 `id`、`displayName`（或 `name`）、`portrait` 与 `maxHp`。
+- `resource`：当前真气/怒气资源状态（`type`、`current`、`max`），用于前端绘制资源条与数值提示；可选携带 `turnGain`、`basicGain`、`damageTakenGain` 便于回放端展示自定义的回气节奏。
 - `attributes`：**必填**。云函数须在结算时写入双方的战斗属性快照（攻击、防御、速度、暴击、命中、抗性等），用于回放时复原当下的战斗面板。
 - 可按需扩展 `equipment`、`skillLoadout` 等字段，用于客服排查或分享卡片渲染。
 
@@ -88,7 +89,7 @@
     "type": "active",
     "element": "wind",
     "level": 4,
-    "resource": { "type": "rage", "cost": 35 }
+    "resource": { "type": "qi", "cost": 35 }
   },
   "events": [
     {
@@ -111,15 +112,28 @@
     {
       "type": "resource",
       "targetId": "member-001",
-      "resourceType": "rage",
+      "resourceType": "qi",
       "before": 45,
       "change": -35,
-      "after": 10
+      "after": 10,
+      "max": 100,
+      "source": "skill_liuyun"
+    },
+    {
+      "type": "resource",
+      "targetId": "boss-417",
+      "resourceType": "qi",
+      "before": 60,
+      "change": 10,
+      "after": 70,
+      "max": 100,
+      "source": "damage_taken"
     }
   ],
   "state": {
     "player": {
       "hp": { "before": 13250, "after": 13250, "max": 13250 },
+      "resource": { "type": "qi", "before": 45, "after": 10, "max": 100, "change": -35 },
       "shield": { "before": 0, "after": 0 },
       "buffs": [{ "id": "sword_echo", "stacks": 1, "duration": 2 }],
       "attributes": {
@@ -129,6 +143,7 @@
     },
     "opponent": {
       "hp": { "before": 9800, "after": 7614, "max": 16800 },
+      "resource": { "type": "qi", "before": 60, "after": 70, "max": 100, "change": 10 },
       "shield": { "before": 0, "after": 0 },
       "debuffs": [{ "id": "def_down", "duration": 2 }],
       "attributes": {
@@ -140,6 +155,10 @@
   "summary": {
     "title": "第3回合 · 流云剑诀",
     "text": "踏星客施展流云剑诀，对玄火尊造成 2186 点风系伤害（暴击），并施加防御破绽。"
+  },
+  "resource": {
+    "player": { "type": "qi", "before": 45, "change": -35, "after": 10, "max": 100 },
+    "opponent": { "type": "qi", "before": 60, "change": 10, "after": 70, "max": 100 }
   },
   "tags": ["single", "burst"],
   "metadata": { "seed": "...-3-1" }
@@ -155,9 +174,10 @@
   - `heal`：治疗或吸血，记录 `value` 与目标。
   - `status`：状态变化，使用 `operation` 表示 `apply`（施加）、`refresh`（刷新）、`remove`（移除）。
   - `shield`：护盾值变化，使用 `change`、`before`、`after` 表示增减。
-  - `resource`：妖气/怒气等战斗资源的收支。
+  - `resource`：妖气/怒气等战斗资源的收支，记录 `resourceType`、`before`、`change`、`after`、`max` 以及可选 `source`、`targetSide`。
   - `dodge`、`block`：闪避或格挡判定，可单独成事件也可与 `damage` 共存。
-- `state`：动作结算后的战斗状态快照，至少包含双方的 `hp.before/after/max`，并需附带 `attributes` 快照。`state.*.attributes` 仅返回相较上一节点发生变化的字段（无变化时为空对象），前端应结合上一条时间线或 `participants.attributes` 合并以还原完整面板。若技能或被动临时改变属性，需在对应结算节点更新该字段。除此之外，可扩展 `shield`、`buffs/debuffs`、`combo` 等信息。
+- `state`：动作结算后的战斗状态快照，至少包含双方的 `hp.before/after/max` 与 `resource.before/after/max`，并需附带 `attributes` 快照。`state.*.attributes` 仅返回相较上一节点发生变化的字段（无变化时为空对象），前端应结合上一条时间线或 `participants.attributes` 合并以还原完整面板。若技能或被动临时改变属性，需在对应结算节点更新该字段。除此之外，可扩展 `shield`、`buffs/debuffs`、`combo` 等信息。
+- `resource`：与 `state` 同步的资源快照，便于前端直接刷新真气/怒气进度条；若缺省则按 `state.*.resource` 推导。
 - `summary`：前端可直接使用的标题与描述；若为空，前端会根据结构化数据自动拼装句子。
 - `tags`：动作标签（如 `aoe`、`finisher`、`counter`），便于筛选与可视化。
 
