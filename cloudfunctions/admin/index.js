@@ -64,6 +64,7 @@ const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周�
 const CLEANUP_TASK_CONCURRENCY = 3;
 const ORPHAN_QUERY_BATCH_LIMIT = 200;
 const PLAYER_REFRESH_CONCURRENCY = 5;
+const PLAYER_REFRESH_BATCH_SIZE = 25;
 
 const ACTIVITY_ALLOWED_STATUSES = ['draft', 'published', 'archived'];
 
@@ -1074,26 +1075,51 @@ async function resetImmortalTournament(openid, options = {}) {
 async function refreshImmortalTournamentPlayers(openid, options = {}) {
   await ensureAdmin(openid);
 
-  const memberIdsSet = await listAllMemberIds();
-  const memberIds = Array.from(memberIdsSet);
-  const total = memberIds.length;
+  const batchSize = resolveRefreshBatchSize(options.batchSize);
+  const cursor = normalizeMemberIdValue(options.cursor);
+  const previousProcessed = resolveNonNegativeInteger(options.processed);
+  const previousRefreshed = resolveNonNegativeInteger(options.refreshed);
+  const previousFailed = resolveNonNegativeInteger(options.failed);
+
+  const totalPromise = (() => {
+    const knownTotal = Number(options.total);
+    if (Number.isFinite(knownTotal) && knownTotal >= 0) {
+      return Promise.resolve(Math.floor(knownTotal));
+    }
+    return getTotalMemberCount();
+  })();
+
+  const [{ ids: memberIds, nextCursor }, total] = await Promise.all([
+    listMemberIdsBatch(cursor, batchSize),
+    totalPromise
+  ]);
+
   const summary = {
     success: true,
     total,
+    batchSize,
+    processed: 0,
+    processedTotal: previousProcessed,
     refreshed: 0,
+    refreshedTotal: previousRefreshed,
     failed: 0,
+    failedTotal: previousFailed,
+    remaining: Math.max(0, total - previousProcessed),
     durationMs: 0,
+    cursor: '',
+    hasMore: false,
     errors: []
   };
 
-  if (!total) {
+  if (!memberIds.length) {
+    summary.cursor = '';
+    summary.hasMore = false;
+    summary.durationMs = 0;
     return summary;
   }
 
   const startTime = Date.now();
-  const concurrency = Number.isFinite(options.concurrency)
-    ? Math.min(20, Math.max(1, Math.floor(options.concurrency)))
-    : PLAYER_REFRESH_CONCURRENCY;
+  const concurrency = resolveRefreshConcurrency(options.concurrency);
   const errorList = [];
 
   await runTasksWithConcurrency(
@@ -1104,8 +1130,10 @@ async function refreshImmortalTournamentPlayers(openid, options = {}) {
       try {
         await callPvpFunction('profile', { actorId: memberId, refreshOnly: true });
         summary.refreshed += 1;
+        summary.refreshedTotal += 1;
       } catch (error) {
         summary.failed += 1;
+        summary.failedTotal += 1;
         summary.success = false;
         if (errorList.length < 10) {
           errorList.push({
@@ -1113,6 +1141,9 @@ async function refreshImmortalTournamentPlayers(openid, options = {}) {
             message: resolveErrorMessage(error, '刷新失败')
           });
         }
+      } finally {
+        summary.processed += 1;
+        summary.processedTotal += 1;
       }
     }),
     concurrency
@@ -1120,6 +1151,9 @@ async function refreshImmortalTournamentPlayers(openid, options = {}) {
 
   summary.durationMs = Date.now() - startTime;
   summary.errors = errorList;
+  summary.cursor = nextCursor;
+  summary.hasMore = Boolean(nextCursor);
+  summary.remaining = Math.max(0, total - summary.processedTotal);
 
   return summary;
 }
@@ -3330,6 +3364,36 @@ async function listAllMemberIds() {
   return memberIds;
 }
 
+async function listMemberIdsBatch(cursor = '', limit = 20) {
+  const normalizedCursor = normalizeMemberIdValue(cursor);
+  const batchLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+  let query = db.collection(COLLECTIONS.MEMBERS);
+  if (normalizedCursor) {
+    query = query.where({ _id: _.gt(normalizedCursor) });
+  }
+  const snapshot = await query
+    .orderBy('_id', 'asc')
+    .limit(batchLimit)
+    .field({ _id: true })
+    .get()
+    .catch((error) => {
+      if (isNotFoundError(error)) {
+        return { data: [] };
+      }
+      throw error;
+    });
+  const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
+  const memberIds = [];
+  docs.forEach((doc) => {
+    const id = normalizeMemberIdValue(doc && doc._id);
+    if (id) {
+      memberIds.push(id);
+    }
+  });
+  const nextCursor = docs.length === batchLimit && memberIds.length ? memberIds[memberIds.length - 1] : '';
+  return { ids: memberIds, nextCursor };
+}
+
 async function cleanupCollectionOrphans(collectionName, memberIdPaths, summary, options = {}) {
   const previewOnly = Boolean(options && options.previewOnly);
   const normalizedPaths = normalizeMemberIdPaths(memberIdPaths);
@@ -4429,6 +4493,30 @@ function isNotFoundError(error) {
   }
   const message = error.errMsg || error.message || '';
   return /not exist/i.test(message);
+}
+
+function resolveRefreshBatchSize(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return PLAYER_REFRESH_BATCH_SIZE;
+  }
+  return Math.min(100, Math.max(1, Math.floor(numeric)));
+}
+
+function resolveRefreshConcurrency(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return PLAYER_REFRESH_CONCURRENCY;
+  }
+  return Math.min(20, Math.max(1, Math.floor(numeric)));
+}
+
+function resolveNonNegativeInteger(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(numeric));
 }
 
 function normalizeMemberIdValue(value) {
