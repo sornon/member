@@ -386,6 +386,7 @@ page {
 .floating-text.floating-skill {
   font-size: inherit;
   letter-spacing: 0;
+  text-shadow: 0 6rpx 18rpx rgba(255, 255, 255, 0.8);
 }
 
 .floating-text.floating-damage {
