@@ -728,6 +728,7 @@ page {
   transform-origin: center;
   position: relative;
   bottom: 100rpx;
+  white-space: nowrap;
 }
 
 .attack-indicator--show {
