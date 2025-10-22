@@ -2,7 +2,14 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
-const { COLLECTIONS, realmConfigs, subLevelLabels, DEFAULT_ADMIN_ROLES, pickPortraitUrl } = require('common-config');
+const {
+  COLLECTIONS,
+  realmConfigs,
+  subLevelLabels,
+  DEFAULT_ADMIN_ROLES,
+  pickPortraitUrl,
+  normalizeAvatarFrameValue
+} = require('common-config');
 const {
   DEFAULT_COMBAT_STATS,
   clamp,
@@ -7232,6 +7239,16 @@ function buildBattleSetup(profile, enemy, member) {
   };
 }
 
+function resolveAvatarFrameValue(...candidates) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const value = normalizeAvatarFrameValue(candidates[i] || '');
+    if (value) {
+      return value;
+    }
+  }
+  return '';
+}
+
 function buildPlayerBattleInfo(profile, member, attributes, combatant) {
   const memberIdCandidates = [
     profile && profile.memberId,
@@ -7282,6 +7299,12 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
     (profile && (profile.avatarUrl || profile.avatar)) ||
     (member && (member.avatarUrl || member.avatar)) ||
     '';
+  const avatarFrame = resolveAvatarFrameValue(
+    profile && profile.avatarFrame,
+    profile && profile.appearance && profile.appearance.avatarFrame,
+    member && member.avatarFrame,
+    member && member.appearanceFrame
+  );
   const hpSnapshot = buildParticipantHpSnapshot(
     combatant.stats,
     combatant.special,
@@ -7292,6 +7315,7 @@ function buildPlayerBattleInfo(profile, member, attributes, combatant) {
     displayName,
     portrait,
     avatarUrl,
+    ...(avatarFrame ? { avatarFrame } : {}),
     level: attributes.level,
     realmId: attributes.realmId,
     realmName: attributes.realmName,
@@ -7324,12 +7348,19 @@ function buildEnemyBattleInfo(enemy, combatant) {
   const avatarUrl =
     (enemy && (enemy.avatarUrl || enemy.avatar)) ||
     '';
+  const avatarFrame = resolveAvatarFrameValue(
+    enemy && enemy.avatarFrame,
+    enemy && enemy.appearanceFrame,
+    enemy && enemy.frame,
+    enemy && enemy.avatarBorder
+  );
   const hpSnapshot = buildParticipantHpSnapshot(combatant.stats, combatant.special, enemy && enemy.stats);
   return {
     id: resolvedId,
     displayName,
     portrait,
     avatarUrl,
+    ...(avatarFrame ? { avatarFrame } : {}),
     level: enemy && enemy.level,
     realmId: enemy && enemy.realmId,
     realmName: enemy && enemy.realmName,
@@ -7405,6 +7436,7 @@ function runBattleSimulation({
         ...(playerActor.hp > playerMaxHp ? { shield: Math.round(playerActor.hp - playerMaxHp) } : {})
       },
       combatPower: attributes.combatPower,
+      ...(playerInfo.avatarFrame ? { avatarFrame: playerInfo.avatarFrame } : {}),
       attributes: { ...playerAttributesSnapshot }
     },
     opponent: {
@@ -7412,6 +7444,7 @@ function runBattleSimulation({
       displayName: enemyName,
       portrait: enemyInfo.portrait || '',
       avatarUrl: enemyInfo.avatarUrl || '',
+      ...(enemyInfo.avatarFrame ? { avatarFrame: enemyInfo.avatarFrame } : {}),
       maxHp: Math.round(enemyMaxHp),
       hp: {
         current: Math.max(0, Math.round(Math.min(enemyActor.hp, enemyMaxHp))),

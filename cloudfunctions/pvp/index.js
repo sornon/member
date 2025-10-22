@@ -4,7 +4,13 @@ const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const commonConfig = require('common-config');
-const { COLLECTIONS, resolveBackgroundById, normalizeBackgroundId, pickPortraitUrl } = commonConfig;
+const {
+  COLLECTIONS,
+  resolveBackgroundById,
+  normalizeBackgroundId,
+  pickPortraitUrl,
+  normalizeAvatarFrameValue
+} = commonConfig;
 const {
   DEFAULT_COMBAT_STATS,
   DEFAULT_SPECIAL_STATS,
@@ -80,6 +86,44 @@ function buildBackgroundPayloadFromId(backgroundId, animatedFlag) {
     video: definition.video,
     animated
   };
+}
+
+function toTrimmedString(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  return trimmed;
+}
+
+function looksLikeUrl(value) {
+  const trimmed = toTrimmedString(value);
+  if (!trimmed) {
+    return false;
+  }
+  return (
+    /^https?:\/\//.test(trimmed) ||
+    trimmed.startsWith('cloud://') ||
+    trimmed.startsWith('/') ||
+    trimmed.startsWith('wxfile://')
+  );
+}
+
+function resolveAvatarFrameValue(...candidates) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = toTrimmedString(candidates[i]);
+    if (!candidate) {
+      continue;
+    }
+    const normalized = normalizeAvatarFrameValue(candidate);
+    if (normalized) {
+      return normalized;
+    }
+    if (looksLikeUrl(candidate)) {
+      return candidate;
+    }
+  }
+  return '';
 }
 
 let collectionsReady = false;
@@ -301,7 +345,18 @@ async function getLeaderboard(memberId, event = {}) {
     throw createError('SEASON_NOT_FOUND', '未找到对应赛季');
   }
   const snapshot = await loadLeaderboardSnapshot(season._id, { limit, type });
-  const entries = (snapshot.entries || []).slice(0, limit);
+  const entries = (snapshot.entries || [])
+    .slice(0, limit)
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return entry;
+      }
+      const avatarFrame = resolveAvatarFrameValue(entry.avatarFrame);
+      if (avatarFrame || entry.avatarFrame) {
+        return { ...entry, avatarFrame };
+      }
+      return { ...entry, avatarFrame: '' };
+    });
   const rankIndex = entries.findIndex((entry) => entry.memberId === memberId);
   return {
     season: buildSeasonPayload(season),
@@ -564,6 +619,18 @@ async function resolveBattle(memberId, member, profile, opponentDescriptor, seas
       draws: opponentProfile.draws
     }
   };
+  const opponentAvatarFrame = resolveAvatarFrameValue(
+    opponentEntry.avatarFrame,
+    opponentProfile.memberSnapshot && opponentProfile.memberSnapshot.avatarFrame,
+    opponentProfile.avatarFrame,
+    opponentProfile.appearance && opponentProfile.appearance.avatarFrame,
+    opponentMember && opponentMember.avatarFrame,
+    opponentMember && opponentMember.appearanceFrame,
+    opponentMember && opponentMember.appearance && opponentMember.appearance.avatarFrame
+  );
+  if (opponentAvatarFrame) {
+    opponentPreview.avatarFrame = opponentAvatarFrame;
+  }
   if (defenderEntry && defenderEntry.background && defenderEntry.background.id) {
     opponentPreview.defenderBackground = defenderEntry.background;
   }
@@ -860,6 +927,7 @@ function buildParticipantSnapshot(profile, delta, actor) {
   const backgroundId = normalizeBackgroundId(actor.appearanceBackgroundId || '');
   const backgroundAnimated = !!actor.appearanceBackgroundAnimated;
   const backgroundPayload = actor.background || buildBackgroundPayloadFromId(backgroundId, backgroundAnimated);
+  const avatarFrame = normalizeAvatarFrameValue(actor.avatarFrame || '');
   return {
     memberId: actor.memberId,
     displayName: actor.displayName,
@@ -876,6 +944,7 @@ function buildParticipantSnapshot(profile, delta, actor) {
     isBot: !!actor.isBot,
     appearanceBackgroundId: backgroundId,
     appearanceBackgroundAnimated: backgroundAnimated,
+    ...(avatarFrame ? { avatarFrame } : {}),
     ...(backgroundPayload ? { background: backgroundPayload } : {})
   };
 }
@@ -1350,6 +1419,13 @@ async function loadRecentMatches(memberId, seasonId) {
   return snapshot.data || [];
 }
 
+function leaderboardSnapshotMissingAvatarFrame(snapshot) {
+  if (!snapshot || !Array.isArray(snapshot.entries)) {
+    return false;
+  }
+  return snapshot.entries.some((entry) => entry && typeof entry === 'object' && !('avatarFrame' in entry));
+}
+
 async function loadLeaderboardSnapshot(seasonId, { limit = LEADERBOARD_CACHE_SIZE, type = 'season' } = {}) {
   const docId = `${seasonId}_${type}`;
   const snapshot = await db
@@ -1357,7 +1433,7 @@ async function loadLeaderboardSnapshot(seasonId, { limit = LEADERBOARD_CACHE_SIZ
     .doc(docId)
     .get()
     .catch(() => null);
-  if (snapshot && snapshot.data) {
+  if (snapshot && snapshot.data && !leaderboardSnapshotMissingAvatarFrame(snapshot.data)) {
     return snapshot.data;
   }
   await updateLeaderboardCache(seasonId, { type, limit });
@@ -1379,19 +1455,33 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
     .limit(limit)
     .get()
     .catch(() => ({ data: [] }));
-  const entries = (snapshot.data || []).map((item, index) => ({
-    rank: index + 1,
-    memberId: item.memberId,
-    nickName: item.memberSnapshot ? item.memberSnapshot.nickName : '',
-    avatarUrl: item.memberSnapshot ? item.memberSnapshot.avatarUrl : '',
-    tierId: item.tierId,
-    tierName: item.tierName,
-    points: item.points,
-    wins: item.wins,
-    losses: item.losses,
-    draws: item.draws,
-    streak: item.currentStreak || 0
-  }));
+  const entries = (snapshot.data || []).map((item, index) => {
+    const avatarFrame = resolveAvatarFrameValue(
+      item.memberSnapshot && item.memberSnapshot.avatarFrame,
+      item.memberSnapshot &&
+        item.memberSnapshot.appearance &&
+        item.memberSnapshot.appearance.avatarFrame,
+      item.memberSnapshot && item.memberSnapshot.appearanceFrame,
+      item.avatarFrame,
+      item.appearance && item.appearance.avatarFrame,
+      item.appearanceFrame
+    );
+    const payload = {
+      rank: index + 1,
+      memberId: item.memberId,
+      nickName: item.memberSnapshot ? item.memberSnapshot.nickName : '',
+      avatarUrl: item.memberSnapshot ? item.memberSnapshot.avatarUrl : '',
+      tierId: item.tierId,
+      tierName: item.tierName,
+      points: item.points,
+      wins: item.wins,
+      losses: item.losses,
+      draws: item.draws,
+      streak: item.currentStreak || 0
+    };
+    payload.avatarFrame = avatarFrame || '';
+    return payload;
+  });
   const payload = {
     seasonId,
     type,
@@ -1456,15 +1546,23 @@ function buildMemberSnapshot(member) {
       nickName: '无名仙友',
       avatarUrl: '',
       levelName: '',
-      memberId: ''
+      memberId: '',
+      avatarFrame: ''
     };
   }
   const level = member.level || {};
+  const avatarFrame = normalizeAvatarFrameValue(
+    member.avatarFrame ||
+      (member.appearance && member.appearance.avatarFrame) ||
+      member.appearanceFrame ||
+      ''
+  );
   return {
     memberId: member._id || member.memberId || '',
     nickName: member.nickName || member.name || '无名仙友',
     avatarUrl: member.avatarUrl || '',
-    levelName: level.name || level.label || ''
+    levelName: level.name || level.label || '',
+    avatarFrame
   };
 }
 
@@ -1542,6 +1640,17 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
   const background = buildBackgroundPayloadFromId(backgroundId, backgroundAnimated);
   const avatarUrl =
     (profile.memberSnapshot && profile.memberSnapshot.avatarUrl) || (member && member.avatarUrl) || '';
+  const avatarFrame = resolveAvatarFrameValue(
+    profile.memberSnapshot && profile.memberSnapshot.avatarFrame,
+    profile.memberSnapshot &&
+      profile.memberSnapshot.appearance &&
+      profile.memberSnapshot.appearance.avatarFrame,
+    profile.avatarFrame,
+    profile.appearance && profile.appearance.avatarFrame,
+    member && member.avatarFrame,
+    member && member.appearanceFrame,
+    member && member.appearance && member.appearance.avatarFrame
+  );
   const portrait = pickPortraitUrl(
     profile.memberSnapshot && profile.memberSnapshot.portrait,
     profile.memberSnapshot && profile.memberSnapshot.avatarUrl,
@@ -1564,6 +1673,7 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
     appearanceBackgroundAnimated: backgroundAnimated,
     avatarUrl,
     portrait,
+    ...(avatarFrame ? { avatarFrame } : {}),
     ...(background ? { background } : {})
   };
 }
@@ -1638,6 +1748,9 @@ function buildBattleParticipantPayload({ state, actor, side, baseMaxHp, attribut
   }
   if (actor.avatarUrl) {
     payload.avatarUrl = actor.avatarUrl;
+  }
+  if (actor.avatarFrame) {
+    payload.avatarFrame = actor.avatarFrame;
   }
   if (actor.appearanceBackgroundId) {
     payload.appearanceBackgroundId = actor.appearanceBackgroundId;
