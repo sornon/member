@@ -1419,6 +1419,13 @@ async function loadRecentMatches(memberId, seasonId) {
   return snapshot.data || [];
 }
 
+function leaderboardSnapshotMissingAvatarFrame(snapshot) {
+  if (!snapshot || !Array.isArray(snapshot.entries)) {
+    return false;
+  }
+  return snapshot.entries.some((entry) => entry && typeof entry === 'object' && !('avatarFrame' in entry));
+}
+
 async function loadLeaderboardSnapshot(seasonId, { limit = LEADERBOARD_CACHE_SIZE, type = 'season' } = {}) {
   const docId = `${seasonId}_${type}`;
   const snapshot = await db
@@ -1426,7 +1433,7 @@ async function loadLeaderboardSnapshot(seasonId, { limit = LEADERBOARD_CACHE_SIZ
     .doc(docId)
     .get()
     .catch(() => null);
-  if (snapshot && snapshot.data) {
+  if (snapshot && snapshot.data && !leaderboardSnapshotMissingAvatarFrame(snapshot.data)) {
     return snapshot.data;
   }
   await updateLeaderboardCache(seasonId, { type, limit });
@@ -1472,9 +1479,7 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
       draws: item.draws,
       streak: item.currentStreak || 0
     };
-    if (avatarFrame) {
-      payload.avatarFrame = avatarFrame;
-    }
+    payload.avatarFrame = avatarFrame || '';
     return payload;
   });
   const payload = {
