@@ -735,6 +735,33 @@ export const AdminService = {
     }
     return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   },
+  async refreshImmortalTournamentPlayers(options = {}) {
+    const payload = { action: 'refreshImmortalTournamentPlayers' };
+    if (options && typeof options === 'object') {
+      if (Number.isFinite(options.concurrency)) {
+        payload.concurrency = options.concurrency;
+      }
+      if (Number.isFinite(options.batchSize)) {
+        payload.batchSize = options.batchSize;
+      }
+      if (typeof options.cursor === 'string' && options.cursor) {
+        payload.cursor = options.cursor;
+      }
+      if (Number.isFinite(options.total)) {
+        payload.total = options.total;
+      }
+      if (Number.isFinite(options.processed)) {
+        payload.processed = options.processed;
+      }
+      if (Number.isFinite(options.refreshed)) {
+        payload.refreshed = options.refreshed;
+      }
+      if (Number.isFinite(options.failed)) {
+        payload.failed = options.failed;
+      }
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
+  },
   async listActivities(options = {}) {
     const payload = { action: 'listActivities' };
     if (options && typeof options === 'object') {

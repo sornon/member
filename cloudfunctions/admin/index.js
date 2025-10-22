@@ -63,6 +63,8 @@ const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周�
 
 const CLEANUP_TASK_CONCURRENCY = 3;
 const ORPHAN_QUERY_BATCH_LIMIT = 200;
+const PLAYER_REFRESH_CONCURRENCY = 5;
+const PLAYER_REFRESH_BATCH_SIZE = 25;
 
 const ACTIVITY_ALLOWED_STATUSES = ['draft', 'published', 'archived'];
 
@@ -110,6 +112,7 @@ const ACTIONS = {
   UPDATE_IMMORTAL_TOURNAMENT_SETTINGS: 'updateImmortalTournamentSettings',
   UPDATE_GAME_PARAMETERS: 'updateGameParameters',
   RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament',
+  REFRESH_IMMORTAL_TOURNAMENT_PLAYERS: 'refreshImmortalTournamentPlayers',
   LIST_ACTIVITIES: 'listActivities',
   CREATE_ACTIVITY: 'createActivity',
   UPDATE_ACTIVITY: 'updateActivity'
@@ -179,6 +182,9 @@ const ACTION_ALIASES = {
   cleartournament: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
   resetimmortaltournamentseason: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
   resetimmortaltournamentdata: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
+  refreshimmortaltournamentplayers: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
+  refreshimmortalplayers: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
+  refreshpvpprofiles: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
   listactivities: ACTIONS.LIST_ACTIVITIES,
   activities: ACTIONS.LIST_ACTIVITIES,
   createactivity: ACTIONS.CREATE_ACTIVITY,
@@ -280,6 +286,8 @@ const ACTION_HANDLERS = {
     updateGameParameters(openid, event.parameters || event),
   [ACTIONS.RESET_IMMORTAL_TOURNAMENT]: (openid, event) =>
     resetImmortalTournament(openid, event || {}),
+  [ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS]: (openid, event) =>
+    refreshImmortalTournamentPlayers(openid, event || {}),
   [ACTIONS.LIST_ACTIVITIES]: (openid, event) => listActivities(openid, event || {}),
   [ACTIONS.CREATE_ACTIVITY]: (openid, event) => createActivity(openid, event.activity || {}),
   [ACTIONS.UPDATE_ACTIVITY]: (openid, event) =>
@@ -1062,6 +1070,92 @@ async function resetImmortalTournament(openid, options = {}) {
     summary,
     features: normalizeFeatureToggles(featureDocument)
   };
+}
+
+async function refreshImmortalTournamentPlayers(openid, options = {}) {
+  await ensureAdmin(openid);
+
+  const batchSize = resolveRefreshBatchSize(options.batchSize);
+  const cursor = normalizeMemberIdValue(options.cursor);
+  const previousProcessed = resolveNonNegativeInteger(options.processed);
+  const previousRefreshed = resolveNonNegativeInteger(options.refreshed);
+  const previousFailed = resolveNonNegativeInteger(options.failed);
+
+  const totalPromise = (() => {
+    const knownTotal = Number(options.total);
+    if (Number.isFinite(knownTotal) && knownTotal >= 0) {
+      return Promise.resolve(Math.floor(knownTotal));
+    }
+    return getTotalMemberCount();
+  })();
+
+  const [{ ids: memberIds, nextCursor }, total] = await Promise.all([
+    listMemberIdsBatch(cursor, batchSize),
+    totalPromise
+  ]);
+
+  const summary = {
+    success: true,
+    total,
+    batchSize,
+    processed: 0,
+    processedTotal: previousProcessed,
+    refreshed: 0,
+    refreshedTotal: previousRefreshed,
+    failed: 0,
+    failedTotal: previousFailed,
+    remaining: Math.max(0, total - previousProcessed),
+    durationMs: 0,
+    cursor: '',
+    hasMore: false,
+    errors: []
+  };
+
+  if (!memberIds.length) {
+    summary.cursor = '';
+    summary.hasMore = false;
+    summary.durationMs = 0;
+    return summary;
+  }
+
+  const startTime = Date.now();
+  const concurrency = resolveRefreshConcurrency(options.concurrency);
+  const errorList = [];
+
+  await runTasksWithConcurrency(
+    memberIds.map((memberId) => async () => {
+      if (!memberId) {
+        return;
+      }
+      try {
+        await callPvpFunction('profile', { actorId: memberId, refreshOnly: true });
+        summary.refreshed += 1;
+        summary.refreshedTotal += 1;
+      } catch (error) {
+        summary.failed += 1;
+        summary.failedTotal += 1;
+        summary.success = false;
+        if (errorList.length < 10) {
+          errorList.push({
+            memberId,
+            message: resolveErrorMessage(error, '刷新失败')
+          });
+        }
+      } finally {
+        summary.processed += 1;
+        summary.processedTotal += 1;
+      }
+    }),
+    concurrency
+  );
+
+  summary.durationMs = Date.now() - startTime;
+  summary.errors = errorList;
+  summary.cursor = nextCursor;
+  summary.hasMore = Boolean(nextCursor);
+  summary.remaining = Math.max(0, total - summary.processedTotal);
+
+  return summary;
 }
 
 function normalizeTournamentResetScope(scope) {
@@ -2525,6 +2619,18 @@ async function callPveFunction(action, data = {}) {
   }
 }
 
+async function callPvpFunction(action, data = {}) {
+  try {
+    const response = await cloud.callFunction({
+      name: 'pvp',
+      data: { action, ...data }
+    });
+    return response && response.result ? response.result : null;
+  } catch (error) {
+    throw error;
+  }
+}
+
 async function loadMemberPveProfile(memberId, adminId) {
   if (!memberId) {
     return null;
@@ -3256,6 +3362,36 @@ async function listAllMemberIds() {
   }
 
   return memberIds;
+}
+
+async function listMemberIdsBatch(cursor = '', limit = 20) {
+  const normalizedCursor = normalizeMemberIdValue(cursor);
+  const batchLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+  let query = db.collection(COLLECTIONS.MEMBERS);
+  if (normalizedCursor) {
+    query = query.where({ _id: _.gt(normalizedCursor) });
+  }
+  const snapshot = await query
+    .orderBy('_id', 'asc')
+    .limit(batchLimit)
+    .field({ _id: true })
+    .get()
+    .catch((error) => {
+      if (isNotFoundError(error)) {
+        return { data: [] };
+      }
+      throw error;
+    });
+  const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
+  const memberIds = [];
+  docs.forEach((doc) => {
+    const id = normalizeMemberIdValue(doc && doc._id);
+    if (id) {
+      memberIds.push(id);
+    }
+  });
+  const nextCursor = docs.length === batchLimit && memberIds.length ? memberIds[memberIds.length - 1] : '';
+  return { ids: memberIds, nextCursor };
 }
 
 async function cleanupCollectionOrphans(collectionName, memberIdPaths, summary, options = {}) {
@@ -4357,6 +4493,30 @@ function isNotFoundError(error) {
   }
   const message = error.errMsg || error.message || '';
   return /not exist/i.test(message);
+}
+
+function resolveRefreshBatchSize(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return PLAYER_REFRESH_BATCH_SIZE;
+  }
+  return Math.min(100, Math.max(1, Math.floor(numeric)));
+}
+
+function resolveRefreshConcurrency(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return PLAYER_REFRESH_CONCURRENCY;
+  }
+  return Math.min(20, Math.max(1, Math.floor(numeric)));
+}
+
+function resolveNonNegativeInteger(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(numeric));
 }
 
 function normalizeMemberIdValue(value) {

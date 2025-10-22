@@ -141,6 +141,22 @@
       </view>
 
       <view wx:if="{{tournamentResetError}}" class="error-banner">{{tournamentResetError}}</view>
+
+      <view class="refresh-section">
+        <view class="refresh-title">刷新玩家数据</view>
+        <view class="refresh-desc">强制同步所有参赛玩家的战斗属性快照，确保匹配使用的都是最新资料。</view>
+        <view class="refresh-actions">
+          <button
+            class="ghost-button"
+            bindtap="handleTournamentRefreshPlayers"
+            loading="{{tournamentRefreshingPlayers}}"
+            disabled="{{tournamentSaving || tournamentResetting || tournamentRefreshingPlayers}}"
+          >刷新所有玩家</button>
+          <view class="refresh-hint">执行时会逐个刷新玩家信息，耗时取决于成员数量，请耐心等待。</view>
+        </view>
+        <view wx:if="{{tournamentRefreshSummary}}" class="refresh-result">{{tournamentRefreshSummary}}</view>
+        <view wx:if="{{tournamentRefreshError}}" class="error-banner">{{tournamentRefreshError}}</view>
+      </view>
     </view>
 
     <view wx:if="{{error}}" class="error-banner">{{error}}</view>

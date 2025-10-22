@@ -226,6 +226,9 @@ Page({
     tournamentResetting: false,
     tournamentResetScope: '',
     tournamentResetError: '',
+    tournamentRefreshingPlayers: false,
+    tournamentRefreshError: '',
+    tournamentRefreshSummary: '',
     updating: {},
     error: '',
     gameParameters: { rage: cloneRageSettings(DEFAULT_RAGE_SETTINGS) },
@@ -272,6 +275,9 @@ Page({
         tournamentResetting: false,
         tournamentResetScope: '',
         tournamentResetError: '',
+        tournamentRefreshingPlayers: false,
+        tournamentRefreshError: '',
+        tournamentRefreshSummary: '',
         error: '',
         updating: {},
         gameParameters: { rage: rageSettings },
@@ -290,6 +296,9 @@ Page({
         tournamentResetting: false,
         tournamentResetScope: '',
         tournamentResetError: '',
+        tournamentRefreshingPlayers: false,
+        tournamentRefreshError: '',
+        tournamentRefreshSummary: '',
         updating: {},
         rageSaving: false
       });
@@ -588,6 +597,167 @@ Page({
         tournamentResetError: resolveErrorMessage(error, '重置失败，请稍后重试')
       });
       wx.showToast({ title: '重置失败', icon: 'none', duration: 1200 });
+    }
+  },
+
+  async handleTournamentRefreshPlayers() {
+    if (this.data.tournamentSaving || this.data.tournamentResetting) {
+      wx.showToast({ title: '正在处理中，请稍候', icon: 'none', duration: 1000 });
+      return;
+    }
+    if (this.data.tournamentRefreshingPlayers) {
+      wx.showToast({ title: '刷新任务进行中', icon: 'none', duration: 1000 });
+      return;
+    }
+
+    const confirm = await showConfirmationModal({
+      title: '刷新玩家数据',
+      content: '将重新同步所有参赛玩家的战斗属性，过程可能耗时较长，执行期间请勿重复操作。是否继续？',
+      confirmText: '立即刷新'
+    });
+    if (!confirm) {
+      return;
+    }
+
+    this.setData({
+      tournamentRefreshingPlayers: true,
+      tournamentRefreshError: '',
+      tournamentRefreshSummary: '刷新任务进行中…'
+    });
+
+    const start = Date.now();
+    const aggregator = {
+      total: 0,
+      processed: 0,
+      refreshed: 0,
+      failed: 0,
+      firstError: ''
+    };
+    let cursor = '';
+    let hasMore = true;
+
+    const updateProgressSummary = () => {
+      if (aggregator.total > 0) {
+        const processed = Math.min(aggregator.processed, aggregator.total);
+        return `刷新中：${processed}/${aggregator.total} 名玩家`;
+      }
+      if (aggregator.processed > 0) {
+        return `刷新中：已处理 ${aggregator.processed} 名玩家`;
+      }
+      return '刷新任务进行中…';
+    };
+
+    try {
+      while (hasMore) {
+        const result = await AdminService.refreshImmortalTournamentPlayers({
+          cursor,
+          total: aggregator.total || undefined,
+          processed: aggregator.processed,
+          refreshed: aggregator.refreshed,
+          failed: aggregator.failed
+        });
+
+        if (Number.isFinite(result && result.total)) {
+          aggregator.total = Math.max(0, Number(result.total));
+        }
+
+        if (Number.isFinite(result && result.processedTotal)) {
+          aggregator.processed = Math.max(aggregator.processed, Number(result.processedTotal));
+        } else if (Number.isFinite(result && result.processed)) {
+          aggregator.processed += Math.max(0, Number(result.processed));
+        }
+
+        if (Number.isFinite(result && result.refreshedTotal)) {
+          aggregator.refreshed = Math.max(aggregator.refreshed, Number(result.refreshedTotal));
+        } else if (Number.isFinite(result && result.refreshed)) {
+          aggregator.refreshed += Math.max(0, Number(result.refreshed));
+        }
+
+        if (Number.isFinite(result && result.failedTotal)) {
+          aggregator.failed = Math.max(aggregator.failed, Number(result.failedTotal));
+        } else if (Number.isFinite(result && result.failed)) {
+          aggregator.failed += Math.max(0, Number(result.failed));
+        }
+
+        if (!aggregator.firstError && result && Array.isArray(result.errors) && result.errors.length) {
+          const firstError = result.errors.find((item) => item && item.message);
+          if (firstError && firstError.message) {
+            aggregator.firstError = firstError.message;
+          }
+        }
+
+        this.setData({
+          tournamentRefreshSummary: updateProgressSummary()
+        });
+
+        const nextCursor = result && typeof result.cursor === 'string' ? result.cursor : '';
+        const moreFlag = !!(result && result.hasMore && nextCursor && nextCursor !== cursor);
+        const remaining = Number.isFinite(result && result.remaining)
+          ? Math.max(0, Number(result.remaining))
+          : aggregator.total > 0
+          ? Math.max(0, aggregator.total - aggregator.processed)
+          : 0;
+
+        if (moreFlag && (remaining > 0 || aggregator.total === 0)) {
+          cursor = nextCursor;
+          hasMore = true;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      const durationMs = Math.max(0, Date.now() - start);
+      const durationSeconds = Math.max(0, Math.round(durationMs / 1000));
+      let durationText = '';
+      if (durationSeconds <= 1) {
+        durationText = '约 1 秒';
+      } else if (durationSeconds < 60) {
+        durationText = `约 ${durationSeconds} 秒`;
+      } else if (durationSeconds < 3600) {
+        const minutes = Math.floor(durationSeconds / 60);
+        const seconds = durationSeconds % 60;
+        durationText = seconds ? `约 ${minutes} 分 ${seconds} 秒` : `约 ${minutes} 分`;
+      } else {
+        const hours = Math.floor(durationSeconds / 3600);
+        const minutes = Math.floor((durationSeconds % 3600) / 60);
+        durationText = minutes ? `约 ${hours} 小时 ${minutes} 分` : `约 ${hours} 小时`;
+      }
+
+      const total = aggregator.total;
+      const refreshed = aggregator.refreshed;
+      const failed = aggregator.failed;
+      const summaryText = total
+        ? `已刷新 ${Math.min(refreshed, total)}/${total} 名玩家（${durationText}）`
+        : refreshed
+        ? `已刷新 ${refreshed} 名玩家（${durationText}）`
+        : '暂无可刷新的玩家数据';
+      const toastTitle = failed > 0
+        ? total
+          ? `已刷新 ${Math.min(refreshed, total)}/${total}`
+          : `已刷新 ${refreshed}`
+        : total
+        ? '刷新完成'
+        : refreshed > 0
+        ? '刷新完成'
+        : '暂无玩家';
+      wx.showToast({ title: toastTitle, icon: failed > 0 || (!total && !refreshed) ? 'none' : 'success', duration: 1200 });
+
+      let refreshError = '';
+      if (failed > 0) {
+        refreshError = aggregator.firstError || '部分玩家刷新失败，请稍后重试';
+      }
+
+      this.setData({
+        tournamentRefreshingPlayers: false,
+        tournamentRefreshSummary: summaryText,
+        tournamentRefreshError: refreshError
+      });
+    } catch (error) {
+      this.setData({
+        tournamentRefreshingPlayers: false,
+        tournamentRefreshError: resolveErrorMessage(error, '刷新失败，请稍后重试')
+      });
+      wx.showToast({ title: '刷新失败', icon: 'none', duration: 1200 });
     }
   }
 });
