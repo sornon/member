@@ -367,26 +367,28 @@
       <view class="section-card">
         <view class="section-header">
           <view class="section-title">技能与抽卡</view>
-          <view class="section-actions">
+          <view class="section-actions section-actions--skill">
             <text class="section-actions__meta">剩余次数：{{skillDrawCredits}}</text>
-            <button
-              class="action-btn action-btn--primary"
-              hover-class="action-btn--primary-hover"
-              size="mini"
-              loading="{{drawing}}"
-              disabled="{{drawing || skillDrawCredits <= 0}}"
-              data-count="1"
-              bindtap="handleDrawSkill"
-            >抽取灵技</button>
-            <button
-              class="action-btn action-btn--primary"
-              hover-class="action-btn--primary-hover"
-              size="mini"
-              loading="{{drawing}}"
-              disabled="{{drawing || skillDrawCredits < 5}}"
-              data-count="5"
-              bindtap="handleDrawSkill"
-            >5连抽</button>
+            <view class="skill-action-buttons">
+              <button
+                class="action-btn action-btn--primary"
+                hover-class="action-btn--primary-hover"
+                size="mini"
+                loading="{{drawing}}"
+                disabled="{{drawing || skillDrawCredits <= 0}}"
+                data-count="1"
+                bindtap="handleDrawSkill"
+              >抽取灵技</button>
+              <button
+                class="action-btn action-btn--primary"
+                hover-class="action-btn--primary-hover"
+                size="mini"
+                loading="{{drawing}}"
+                disabled="{{drawing || skillDrawCredits < 5}}"
+                data-count="5"
+                bindtap="handleDrawSkill"
+              >5连抽</button>
+            </view>
           </view>
         </view>
         <view class="skill-slots">
