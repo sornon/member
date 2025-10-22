@@ -1419,7 +1419,10 @@ Page({
     this._floatingTextTimers = {};
   },
 
-  showFloatingText(side, { text, type = 'skill', duration = 1200, color = '' } = {}) {
+  showFloatingText(
+    side,
+    { text, type = 'skill', duration = 1200, color = '', extended = false } = {}
+  ) {
     const normalizedSide = side === 'player' || side === 'opponent' ? side : '';
     if (!normalizedSide) {
       return;
@@ -1431,7 +1434,12 @@ Page({
     const nextState = cloneFloatingTextState(this._floatingTexts);
     const entryId = `ft-${Date.now()}-${(this._floatingTextId += 1)}`;
     const sanitizedColor = typeof color === 'string' ? color.trim() : '';
-    const entry = sanitizedColor ? { id: entryId, text: stringified, type, color: sanitizedColor } : { id: entryId, text: stringified, type };
+    const entry = sanitizedColor
+      ? { id: entryId, text: stringified, type, color: sanitizedColor }
+      : { id: entryId, text: stringified, type };
+    if (extended) {
+      entry.extended = true;
+    }
     nextState[normalizedSide].push(entry);
     this._floatingTexts = nextState;
     this.setBattleStageData({ floatingTexts: nextState });
@@ -1489,13 +1497,16 @@ Page({
       const shouldShowSkillText = !this._currentActionUsesIndicator;
       if (skillText && shouldShowSkillText) {
         const skillColor = skillText === '普攻' ? '' : extractSkillQualityColorFromAction(action);
-        const duration =
-          skillText === EXTENDED_SKILL_NAME ? EXTENDED_SKILL_FLOATING_TEXT_DURATION : 1400;
+        const usesExtendedFloatingText = skillText === EXTENDED_SKILL_NAME;
+        const duration = usesExtendedFloatingText
+          ? EXTENDED_SKILL_FLOATING_TEXT_DURATION
+          : 1400;
         this.showFloatingText(actorSide, {
           text: skillText,
           type: 'skill',
           duration,
-          color: skillColor
+          color: skillColor,
+          extended: usesExtendedFloatingText
         });
       }
     }

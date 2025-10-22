@@ -181,7 +181,7 @@
             <view
               wx:for="{{floatingTexts[attackerKey] || []}}"
               wx:key="id"
-              class="floating-text {{'floating-' + item.type}}"
+              class="floating-text {{'floating-' + item.type}} {{item.extended ? 'floating-extended' : ''}}"
               style="{{item.color ? 'color: ' + item.color + ';' : ''}}"
             >
               {{item.text}}
@@ -209,7 +209,7 @@
             <view
               wx:for="{{floatingTexts[defenderKey] || []}}"
               wx:key="id"
-              class="floating-text {{'floating-' + item.type}}"
+              class="floating-text {{'floating-' + item.type}} {{item.extended ? 'floating-extended' : ''}}"
               style="{{item.color ? 'color: ' + item.color + ';' : ''}}"
             >
               {{item.text}}

@@ -388,6 +388,10 @@ page {
   letter-spacing: 0;
 }
 
+.floating-text.floating-extended {
+  animation: floatingTextExtended 20s ease-out forwards;
+}
+
 .floating-text.floating-damage {
   color: #ff7070;
 }
@@ -432,6 +436,25 @@ page {
   100% {
     opacity: 0;
     transform: translateY(-60rpx) scale(0.95);
+  }
+}
+
+@keyframes floatingTextExtended {
+  0% {
+    opacity: 0;
+    transform: translateY(24rpx) scale(0.92);
+  }
+  5% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(-16rpx) scale(1.03);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-24rpx) scale(1);
   }
 }
 
