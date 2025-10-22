@@ -31,6 +31,8 @@ const RECENT_MATCH_LIMIT = 10;
 const DEFAULT_RATING = 1200;
 const BATTLE_COOLDOWN_MS = 10 * 1000;
 const BATTLE_COOLDOWN_MESSAGE = '您的上一场战斗还没结束，请稍后再战';
+const DEFAULT_RESOURCE_TYPE = 'qi';
+const DEFAULT_RESOURCE_MAX = 100;
 
 const PVP_TIERS = [
   { id: 'bronze', name: '青铜', min: 0, max: 999, color: '#c4723a', rewardKey: 'bronze' },
@@ -622,9 +624,15 @@ function simulateBattle(player, opponent, seed) {
 
       const actorSide = actor === playerActor ? 'player' : 'opponent';
       const targetSide = defender === playerActor ? 'player' : 'opponent';
-      const beforeState = { player: playerActor.hp, opponent: opponentActor.hp };
+      const beforeState = {
+        player: snapshotActorState(playerActor),
+        opponent: snapshotActorState(opponentActor)
+      };
       const turnResult = executeSkillTurn({ actor, opponent: defender, rng });
-      const afterState = { player: playerActor.hp, opponent: opponentActor.hp };
+      const afterState = {
+        player: snapshotActorState(playerActor),
+        opponent: snapshotActorState(opponentActor)
+      };
       const events = [];
       if (Array.isArray(turnResult.preEvents) && turnResult.preEvents.length) {
         events.push(...turnResult.preEvents);
@@ -649,8 +657,8 @@ function simulateBattle(player, opponent, seed) {
         targetName,
         events,
         skill: turnResult.skill,
-        before: { player: beforeState.player, opponent: beforeState.opponent },
-        after: { player: afterState.player, opponent: afterState.opponent },
+        before: beforeState,
+        after: afterState,
         playerMaxHp: playerBaseMaxHp,
         opponentMaxHp: opponentBaseMaxHp,
         playerAttributesSnapshot,
@@ -1620,6 +1628,7 @@ function buildBattleParticipantPayload({ state, actor, side, baseMaxHp, attribut
       current: currentHp,
       max: baseMaxHp
     },
+    resource: buildParticipantResourcePayload(state),
     attributes: { ...attributes },
     isBot: !!actor.isBot
   };
@@ -1650,6 +1659,25 @@ function buildBattleParticipantPayload({ state, actor, side, baseMaxHp, attribut
   }
 
   return payload;
+}
+
+function buildParticipantResourcePayload(state) {
+  if (!state || typeof state !== 'object') {
+    return {
+      type: DEFAULT_RESOURCE_TYPE,
+      current: 0,
+      max: DEFAULT_RESOURCE_MAX
+    };
+  }
+  const max = Number.isFinite(state.resourceMax) ? Math.max(0, Math.round(state.resourceMax)) : DEFAULT_RESOURCE_MAX;
+  const resourceValue = Number.isFinite(state.resource) ? Math.round(state.resource) : 0;
+  const current = Math.max(0, Math.min(max, resourceValue));
+  const type = typeof state.resourceType === 'string' && state.resourceType ? state.resourceType : DEFAULT_RESOURCE_TYPE;
+  return {
+    type,
+    current,
+    max
+  };
 }
 
 function buildCombatAttributesSnapshot(stats = {}) {
@@ -1694,6 +1722,73 @@ function buildCombatAttributesSnapshot(stats = {}) {
   return snapshot;
 }
 
+function snapshotActorState(actor) {
+  if (!actor || typeof actor !== 'object') {
+    return {
+      hp: 0,
+      resource: 0,
+      resourceMax: DEFAULT_RESOURCE_MAX,
+      resourceType: DEFAULT_RESOURCE_TYPE
+    };
+  }
+  const resourceMax = Number.isFinite(actor.resourceMax) ? Math.max(0, Math.round(actor.resourceMax)) : DEFAULT_RESOURCE_MAX;
+  const resourceValue = Number.isFinite(actor.resource) ? Math.round(actor.resource) : 0;
+  const type = typeof actor.resourceType === 'string' && actor.resourceType ? actor.resourceType : DEFAULT_RESOURCE_TYPE;
+  return {
+    hp: Number.isFinite(actor.hp) ? Number(actor.hp) : 0,
+    resource: resourceValue,
+    resourceMax,
+    resourceType: type
+  };
+}
+
+function clampResourceValue(value, max) {
+  if (!Number.isFinite(value)) {
+    return null;
+  }
+  const cap = Math.max(0, Math.round(Number(max) || DEFAULT_RESOURCE_MAX));
+  return Math.max(0, Math.min(cap, Math.round(value)));
+}
+
+function normalizeTimelineActorInput(input, fallbackMaxHp) {
+  if (!input || typeof input !== 'object') {
+    const numeric = Number(input);
+    return {
+      hp: Number.isFinite(numeric) ? numeric : fallbackMaxHp,
+      resource: null,
+      resourceMax: null,
+      resourceType: ''
+    };
+  }
+  const hpValue = Number.isFinite(input.hp)
+    ? Number(input.hp)
+    : Number.isFinite(input.value)
+    ? Number(input.value)
+    : fallbackMaxHp;
+  let resourceValue = null;
+  if (Number.isFinite(input.resource)) {
+    resourceValue = Number(input.resource);
+  } else if (input.resource && Number.isFinite(input.resource.current)) {
+    resourceValue = Number(input.resource.current);
+  }
+  let resourceMax = null;
+  if (Number.isFinite(input.resourceMax)) {
+    resourceMax = Number(input.resourceMax);
+  } else if (input.resource && Number.isFinite(input.resource.max)) {
+    resourceMax = Number(input.resource.max);
+  }
+  const resourceType =
+    (typeof input.resourceType === 'string' && input.resourceType) ||
+    (input.resource && typeof input.resource.type === 'string' && input.resource.type) ||
+    '';
+  return {
+    hp: hpValue,
+    resource: resourceValue,
+    resourceMax,
+    resourceType
+  };
+}
+
 function buildTimelineEntry({
   round,
   sequence,
@@ -1713,6 +1808,20 @@ function buildTimelineEntry({
   previousAttributes = {},
   summaryText
 }) {
+  const playerState = buildTimelineStateSide({
+    before: before ? before.player : undefined,
+    after: after ? after.player : undefined,
+    maxHp: playerMaxHp,
+    attributes: playerAttributesSnapshot,
+    previousAttributes: previousAttributes ? previousAttributes.player : null
+  });
+  const opponentState = buildTimelineStateSide({
+    before: before ? before.opponent : undefined,
+    after: after ? after.opponent : undefined,
+    maxHp: opponentMaxHp,
+    attributes: opponentAttributesSnapshot,
+    previousAttributes: previousAttributes ? previousAttributes.opponent : null
+  });
   const entry = {
     id: `round-${round}-action-${sequence}`,
     round,
@@ -1732,22 +1841,25 @@ function buildTimelineEntry({
         : { id: 'basic_attack', name: '普攻', type: 'basic' },
     events: Array.isArray(events) ? events.filter(Boolean) : [],
     state: {
-      player: buildTimelineStateSide({
-        before: before && Number.isFinite(before.player) ? before.player : undefined,
-        after: after && Number.isFinite(after.player) ? after.player : undefined,
-        maxHp: playerMaxHp,
-        attributes: playerAttributesSnapshot,
-        previousAttributes: previousAttributes ? previousAttributes.player : null
-      }),
-      opponent: buildTimelineStateSide({
-        before: before && Number.isFinite(before.opponent) ? before.opponent : undefined,
-        after: after && Number.isFinite(after.opponent) ? after.opponent : undefined,
-        maxHp: opponentMaxHp,
-        attributes: opponentAttributesSnapshot,
-        previousAttributes: previousAttributes ? previousAttributes.opponent : null
-      })
+      player: playerState,
+      opponent: opponentState
     }
   };
+
+  entry.hp = {
+    player: playerState.hp ? { ...playerState.hp } : undefined,
+    opponent: opponentState.hp ? { ...opponentState.hp } : undefined
+  };
+  const resourcePayload = {};
+  if (playerState.resource) {
+    resourcePayload.player = { ...playerState.resource };
+  }
+  if (opponentState.resource) {
+    resourcePayload.opponent = { ...opponentState.resource };
+  }
+  if (Object.keys(resourcePayload).length) {
+    entry.resource = resourcePayload;
+  }
 
   if (summaryText) {
     entry.summary = {
@@ -1761,8 +1873,10 @@ function buildTimelineEntry({
 
 function buildTimelineStateSide({ before, after, maxHp, attributes, previousAttributes }) {
   const max = Math.max(1, Math.round(maxHp || 1));
-  const beforeValue = Number.isFinite(before) ? before : max;
-  const afterValue = Number.isFinite(after) ? after : Math.min(beforeValue, max);
+  const beforeSnapshot = normalizeTimelineActorInput(before, max);
+  const afterSnapshot = normalizeTimelineActorInput(after, max);
+  const beforeValue = Number.isFinite(beforeSnapshot.hp) ? beforeSnapshot.hp : max;
+  const afterValue = Number.isFinite(afterSnapshot.hp) ? afterSnapshot.hp : Math.min(beforeValue, max);
   const beforeHp = Math.max(0, Math.round(Math.min(beforeValue, max)));
   const afterHp = Math.max(0, Math.round(Math.min(afterValue, max)));
   const shieldBefore = Math.max(0, Math.round(beforeValue - max));
@@ -1781,6 +1895,36 @@ function buildTimelineStateSide({ before, after, maxHp, attributes, previousAttr
       before: shieldBefore,
       after: shieldAfter
     };
+  }
+  const resolvedResourceType = afterSnapshot.resourceType || beforeSnapshot.resourceType || DEFAULT_RESOURCE_TYPE;
+  const resolvedResourceMax = Number.isFinite(afterSnapshot.resourceMax)
+    ? Math.max(0, Math.round(afterSnapshot.resourceMax))
+    : Number.isFinite(beforeSnapshot.resourceMax)
+    ? Math.max(0, Math.round(beforeSnapshot.resourceMax))
+    : DEFAULT_RESOURCE_MAX;
+  const beforeResource = Number.isFinite(beforeSnapshot.resource)
+    ? beforeSnapshot.resource
+    : Number.isFinite(afterSnapshot.resource)
+    ? afterSnapshot.resource
+    : null;
+  const afterResource = Number.isFinite(afterSnapshot.resource) ? afterSnapshot.resource : beforeResource;
+  if (beforeResource !== null || afterResource !== null) {
+    const beforeClamped = clampResourceValue(
+      beforeResource !== null ? beforeResource : afterResource,
+      resolvedResourceMax
+    );
+    const afterClamped = clampResourceValue(afterResource, resolvedResourceMax);
+    const change =
+      beforeClamped !== null && afterClamped !== null ? afterClamped - beforeClamped : null;
+    state.resource = {
+      type: resolvedResourceType,
+      before: beforeClamped !== null ? beforeClamped : undefined,
+      after: afterClamped !== null ? afterClamped : undefined,
+      max: resolvedResourceMax
+    };
+    if (change !== null) {
+      state.resource.change = change;
+    }
   }
   return state;
 }
