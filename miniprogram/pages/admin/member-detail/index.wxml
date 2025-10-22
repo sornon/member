@@ -77,6 +77,17 @@
       />
     </view>
     <view class="form-item">
+      <view class="form-label">收取灵技次数</view>
+      <input
+        class="form-input"
+        type="number"
+        value="{{form.skillDrawCredits}}"
+        placeholder="请输入剩余收取灵技次数"
+        data-field="skillDrawCredits"
+        bindinput="handleInputChange"
+      />
+    </view>
+    <view class="form-item">
       <view class="form-label">纳戒升级次数</view>
       <input
         class="form-input"

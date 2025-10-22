@@ -2661,6 +2661,7 @@ function decorateMemberRecord(member, levelMap) {
   const cashBalance = resolveCashBalance(member);
   const stoneBalance = resolveStoneBalance(member);
   const respecStats = resolvePveRespecStats(member);
+  const skillDrawCredits = resolveSkillDrawCredits(member);
   const totalRecharge = normalizeAmountFen(member.totalRecharge);
   const lastConsumptionAt =
     member.lastConsumptionAt ||
@@ -2704,7 +2705,8 @@ function decorateMemberRecord(member, levelMap) {
     avatarConfig: member.avatarConfig || {},
     roomUsageCount: normalizeUsageCount(member.roomUsageCount),
     avatarUnlocks: normalizeAvatarUnlocksList(member.avatarUnlocks),
-    pveRespecAvailable: respecStats.available
+    pveRespecAvailable: respecStats.available,
+    skillDrawCredits
   };
 }
 
@@ -4475,6 +4477,12 @@ function resolvePveRespecStats(member) {
   return { available };
 }
 
+function resolveSkillDrawCredits(member) {
+  const profile = member && member.pveProfile ? member.pveProfile : {};
+  const skills = profile && profile.skills ? profile.skills : {};
+  return normalizeUsageCount(skills.drawCredits);
+}
+
 function normalizeAvatarUnlocksList(unlocks) {
   if (!Array.isArray(unlocks)) {
     return [];
@@ -4593,6 +4601,11 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
     memberUpdates['pveProfile.attributes.respecAvailable'] = desiredAvailable;
     memberUpdates['pveProfile.attributes.respecLimit'] = 0;
     memberUpdates['pveProfile.attributes.respecUsed'] = 0;
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'skillDrawCredits')) {
+    memberUpdates['pveProfile.skills.drawCredits'] = normalizeUsageCount(
+      updates.skillDrawCredits
+    );
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'roomUsageCount')) {
     memberUpdates.roomUsageCount = normalizeUsageCount(updates.roomUsageCount);

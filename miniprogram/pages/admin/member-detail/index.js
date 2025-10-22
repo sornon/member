@@ -256,6 +256,7 @@ Page({
       roles: [],
       renameCredits: '',
       respecAvailable: '',
+      skillDrawCredits: '',
       roomUsageCount: '',
       storageUpgradeAvailable: '0',
       storageUpgradeLimit: '',
@@ -407,6 +408,7 @@ Page({
         roles,
         renameCredits: String(member.renameCredits ?? 0),
         respecAvailable: String(member.pveRespecAvailable ?? 0),
+        skillDrawCredits: String(member.skillDrawCredits ?? 0),
         roomUsageCount: String(member.roomUsageCount ?? 0),
         storageUpgradeAvailable:
           typeof previousForm.storageUpgradeAvailable === 'string'
@@ -477,12 +479,18 @@ Page({
           : storageMeta && Object.prototype.hasOwnProperty.call(storageMeta, 'upgradeAvailable')
           ? storageMeta.upgradeAvailable
           : 0;
+      const skills =
+        sanitizedProfile && typeof sanitizedProfile.skills === 'object'
+          ? sanitizedProfile.skills
+          : null;
+      const drawCredits = this.parseSkillDrawCredits(skills && skills.drawCredits);
       updates.form = {
         ...this.data.form,
         storageUpgradeAvailable: String(
           this.parseStorageUpgradeAvailable(availableSource)
         ),
-        storageUpgradeLimit: this.resolveStorageUpgradeLimitInput(storage)
+        storageUpgradeLimit: this.resolveStorageUpgradeLimitInput(storage),
+        skillDrawCredits: String(drawCredits)
       };
     } else if (!hasProfile && options.resetFormStorage) {
       updates.form = {
@@ -812,6 +820,7 @@ Page({
         roles: ensureMemberRole(this.data.form.roles),
         renameCredits: this.parseRenameCredits(this.data.form.renameCredits),
         respecAvailable: this.parseRespecAvailable(this.data.form.respecAvailable),
+        skillDrawCredits: this.parseSkillDrawCredits(this.data.form.skillDrawCredits),
         roomUsageCount: Number(this.data.form.roomUsageCount || 0),
         storageUpgradeAvailable: this.parseStorageUpgradeAvailable(
           this.data.form.storageUpgradeAvailable
@@ -1045,6 +1054,24 @@ Page({
   },
 
   parseRespecAvailable(input) {
+    if (input == null || input === '') {
+      return 0;
+    }
+    if (typeof input === 'number' && Number.isFinite(input)) {
+      return Math.max(0, Math.floor(input));
+    }
+    if (typeof input === 'string') {
+      const sanitized = input.trim().replace(/[^0-9]/g, '');
+      if (!sanitized) {
+        return 0;
+      }
+      const parsed = Number(sanitized);
+      return Number.isFinite(parsed) ? Math.max(0, Math.floor(parsed)) : 0;
+    }
+    return 0;
+  },
+
+  parseSkillDrawCredits(input) {
     if (input == null || input === '') {
       return 0;
     }
