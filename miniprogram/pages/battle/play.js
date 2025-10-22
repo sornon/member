@@ -69,7 +69,7 @@ const DEFAULT_RESOURCE_MAX = 100;
 
 function normalizeResourceEntry(entry) {
   if (typeof entry === 'number') {
-    const current = Math.max(0, toFiniteNumber(entry, DEFAULT_RESOURCE_MAX));
+    const current = Math.max(0, toFiniteNumber(entry, 0));
     const max = Math.max(current, DEFAULT_RESOURCE_MAX);
     const percent = max > 0 ? Math.round((current / max) * 10000) / 100 : 0;
     return {
@@ -105,9 +105,13 @@ function normalizeResourceEntry(entry) {
   }
   const fallbackMax = Number.isFinite(max)
     ? Math.max(0, max)
-    : Math.max(0, Number.isFinite(before) ? before : Number.isFinite(current) ? current : DEFAULT_RESOURCE_MAX);
+    : Math.max(0, Number.isFinite(before) ? before : Number.isFinite(current) ? current : 0);
   const resolvedMax = fallbackMax > 0 ? fallbackMax : DEFAULT_RESOURCE_MAX;
-  const boundedCurrent = Number.isFinite(current) ? current : resolvedMax;
+  const boundedCurrent = Number.isFinite(current)
+    ? current
+    : Number.isFinite(before)
+    ? before
+    : 0;
   const clampedCurrent = Math.max(0, Math.min(resolvedMax, boundedCurrent));
   const percent = resolvedMax > 0 ? Math.round((clampedCurrent / resolvedMax) * 10000) / 100 : 0;
   return {
@@ -427,8 +431,8 @@ function createBattleStageState(overrides = {}) {
       opponent: { max: 1, current: 1, percent: 100 }
     }),
     resourceState: normalizeResourceStateMap({
-      player: { max: DEFAULT_RESOURCE_MAX, current: DEFAULT_RESOURCE_MAX },
-      opponent: { max: DEFAULT_RESOURCE_MAX, current: DEFAULT_RESOURCE_MAX }
+      player: { max: DEFAULT_RESOURCE_MAX, current: 0 },
+      opponent: { max: DEFAULT_RESOURCE_MAX, current: 0 }
     }),
     attackerKey: 'player',
     defenderKey: 'opponent',
@@ -1101,11 +1105,11 @@ Page({
       player:
         stagePlayer.resource ||
         (viewModel.player && viewModel.player.resource) ||
-        { current: DEFAULT_RESOURCE_MAX, max: DEFAULT_RESOURCE_MAX },
+        { current: 0, max: DEFAULT_RESOURCE_MAX },
       opponent:
         stageOpponent.resource ||
         (viewModel.opponent && viewModel.opponent.resource) ||
-        { current: DEFAULT_RESOURCE_MAX, max: DEFAULT_RESOURCE_MAX }
+        { current: 0, max: DEFAULT_RESOURCE_MAX }
     });
     this.setBattleStageData({
       loading: false,

@@ -380,9 +380,9 @@ function buildHpState(maxHp, currentHp) {
 
 function buildResourceState(maxValue, currentValue) {
   const normalizedMax = Math.max(0, toNumber(maxValue, DEFAULT_RESOURCE_MAX));
-  const fallbackMax = normalizedMax > 0 ? normalizedMax : Math.max(0, toNumber(currentValue, DEFAULT_RESOURCE_MAX));
+  const fallbackMax = normalizedMax > 0 ? normalizedMax : Math.max(0, toNumber(currentValue, 0));
   const effectiveMax = fallbackMax > 0 ? fallbackMax : DEFAULT_RESOURCE_MAX;
-  const normalizedCurrent = clamp(toNumber(currentValue, effectiveMax), 0, effectiveMax);
+  const normalizedCurrent = clamp(toNumber(currentValue, 0), 0, effectiveMax);
   const percent = effectiveMax > 0 ? clamp(Math.round((normalizedCurrent / effectiveMax) * 100), 0, 100) : 0;
   return { max: effectiveMax, current: normalizedCurrent, percent };
 }
@@ -1147,7 +1147,7 @@ function updateSideResourceFromEntry({
   currentMax,
   currentType
 }) {
-  let nextValue = Number.isFinite(currentValue) ? currentValue : currentMax;
+  let nextValue = Number.isFinite(currentValue) ? currentValue : 0;
   let nextMax = Number.isFinite(currentMax) ? currentMax : DEFAULT_RESOURCE_MAX;
   let nextType = currentType || '';
   const skillUsage = resolveSkillResourceUsage(entry);
@@ -1276,7 +1276,7 @@ function updateSideResourceFromEntry({
         ? currentValue
         : Number.isFinite(currentMax)
         ? currentMax
-        : DEFAULT_RESOURCE_MAX;
+        : 0;
       let adjustedValue = baseValue;
       if (skillUsage.cost > 0) {
         adjustedValue -= skillUsage.cost;
@@ -1298,11 +1298,7 @@ function updateSideResourceFromEntry({
       ? resolvedMax
       : Math.max(0, Number.isFinite(nextValue) ? Math.abs(nextValue) : DEFAULT_RESOURCE_MAX);
   const effectiveMax = fallbackMax > 0 ? fallbackMax : DEFAULT_RESOURCE_MAX;
-  const clampedValue = clamp(
-    Number.isFinite(nextValue) ? nextValue : effectiveMax,
-    0,
-    Math.max(0, effectiveMax)
-  );
+  const clampedValue = clamp(Number.isFinite(nextValue) ? nextValue : 0, 0, Math.max(0, effectiveMax));
   return {
     value: clampedValue,
     max: Math.max(0, effectiveMax),
@@ -1479,8 +1475,8 @@ function buildStructuredBattleViewModel({
   let opponentResourceType = (opponentResourceSnapshot && opponentResourceSnapshot.type) || '';
   let playerResourceMax = playerResourceSnapshot ? playerResourceSnapshot.max : DEFAULT_RESOURCE_MAX;
   let opponentResourceMax = opponentResourceSnapshot ? opponentResourceSnapshot.max : DEFAULT_RESOURCE_MAX;
-  let playerResource = playerResourceSnapshot ? playerResourceSnapshot.current : playerResourceMax;
-  let opponentResource = opponentResourceSnapshot ? opponentResourceSnapshot.current : opponentResourceMax;
+  let playerResource = playerResourceSnapshot ? playerResourceSnapshot.current : 0;
+  let opponentResource = opponentResourceSnapshot ? opponentResourceSnapshot.current : 0;
   const playerInitialResource = playerResource;
   const opponentInitialResource = opponentResource;
 
@@ -2012,8 +2008,8 @@ function buildPveActions(battle = {}, context = {}) {
   let enemyHp = enemyMaxHp;
   let playerSkillIndex = 0;
   let enemySkillIndex = 0;
-  let playerResourceValue = DEFAULT_RESOURCE_MAX;
-  let enemyResourceValue = DEFAULT_RESOURCE_MAX;
+  let playerResourceValue = 0;
+  let enemyResourceValue = 0;
   let playerResourceMax = DEFAULT_RESOURCE_MAX;
   let enemyResourceMax = DEFAULT_RESOURCE_MAX;
 
@@ -2157,7 +2153,7 @@ function buildPveActions(battle = {}, context = {}) {
       id: 'player',
       name: playerName,
       hp: buildHpState(playerMaxHp, playerMaxHp),
-      resource: buildResourceState(playerResourceMax, playerResourceMax),
+      resource: buildResourceState(playerResourceMax, playerResourceValue),
       portrait: resolvePortrait(context && context.playerPortrait, DEFAULT_PLAYER_IMAGE),
       combatPower: toNumber(battle.combatPower && battle.combatPower.player),
       attributes: ensureAttributesObject(context && context.playerAttributes),
@@ -2171,7 +2167,7 @@ function buildPveActions(battle = {}, context = {}) {
       id: 'opponent',
       name: opponentName,
       hp: buildHpState(enemyMaxHp, enemyMaxHp),
-      resource: buildResourceState(enemyResourceMax, enemyResourceMax),
+      resource: buildResourceState(enemyResourceMax, enemyResourceValue),
       portrait: resolvePortrait(context && context.opponentPortrait, DEFAULT_OPPONENT_IMAGE),
       combatPower: toNumber(battle.combatPower && battle.combatPower.enemy),
       attributes: ensureAttributesObject(context && context.opponentAttributes),
@@ -2245,8 +2241,8 @@ function buildPvpActions(battle = {}, context = {}) {
   let opponentSkillIndex = 0;
   let playerResourceMax = DEFAULT_RESOURCE_MAX;
   let opponentResourceMax = DEFAULT_RESOURCE_MAX;
-  let playerResource = playerResourceMax;
-  let opponentResource = opponentResourceMax;
+  let playerResource = 0;
+  let opponentResource = 0;
   const playerInitialResource = playerResource;
   const opponentInitialResource = opponentResource;
 
