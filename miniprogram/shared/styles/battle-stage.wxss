@@ -168,7 +168,6 @@ page {
 
 .hp-progress {
   height: 100%;
-  border-radius: 999rpx;
   transition: width 0.4s ease;
 }
 
