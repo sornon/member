@@ -447,7 +447,7 @@ function createBattleStageState(overrides = {}) {
     attackMotion: '',
     attackActor: '',
     attackTarget: '',
-    attackIndicator: { visible: false, side: '', status: '' },
+    attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
     targetReaction: '',
     ...overrides
   };
@@ -1395,7 +1395,7 @@ Page({
       attackMotion: '',
       attackActor: '',
       attackTarget: '',
-      attackIndicator: { visible: false, side: '', status: '' },
+      attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
       targetReaction: ''
     });
   },
@@ -1479,9 +1479,7 @@ Page({
 
     if (actorSide) {
       const skillText = extractSkillTextFromAction(action);
-      const shouldShowSkillText = !(
-        skillText === '普攻' && this._currentActionUsesIndicator
-      );
+      const shouldShowSkillText = !this._currentActionUsesIndicator;
       if (skillText && shouldShowSkillText) {
         const skillColor = skillText === '普攻' ? '' : extractSkillQualityColorFromAction(action);
         this.showFloatingText(actorSide, {
@@ -1550,6 +1548,10 @@ Page({
 
     const skillText = extractSkillTextFromAction(action);
     if (skillText === '普攻') {
+      return true;
+    }
+
+    if (skillText) {
       return true;
     }
 
@@ -1633,7 +1635,7 @@ Page({
         attackMotion: '',
         attackActor: '',
         attackTarget: '',
-        attackIndicator: { visible: false, side: '', status: '' },
+        attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
         targetReaction: ''
       });
       this.applyActionFloatingTexts(
@@ -1655,12 +1657,23 @@ Page({
     const impactDuration = ATTACK_IMPACT_HOLD_DURATION;
     const recoveryDuration = ATTACK_RECOVERY_DURATION;
 
+    const skillText = extractSkillTextFromAction(action);
+    const indicatorText = skillText || '普攻';
+    const indicatorColor =
+      skillText && skillText !== '普攻' ? extractSkillQualityColorFromAction(action) : '';
+
     this.setBattleStageData({
       attackActor: actorSide,
       attackTarget: targetSide,
       attackMotion: hasCrit ? 'crit' : 'normal',
       attackPhase: 'indicator',
-      attackIndicator: { visible: true, side: actorSide, status: 'show' },
+      attackIndicator: {
+        visible: true,
+        side: actorSide,
+        status: 'show',
+        text: indicatorText,
+        color: indicatorColor
+      },
       targetReaction: ''
     });
 
@@ -1670,13 +1683,19 @@ Page({
       const nextPhase = hasCrit ? 'windup' : 'charging';
       this.setBattleStageData({
         attackPhase: nextPhase,
-        attackIndicator: { visible: true, side: actorSide, status: 'leaving' }
+        attackIndicator: {
+          visible: true,
+          side: actorSide,
+          status: 'leaving',
+          text: indicatorText,
+          color: indicatorColor
+        }
       });
     }, indicatorHold);
 
     this.queueAttackTimer(() => {
       this.setBattleStageData({
-        attackIndicator: { visible: false, side: '', status: '' }
+        attackIndicator: { visible: false, side: '', status: '', text: '', color: '' }
       });
     }, indicatorFadeComplete);
 
@@ -1735,7 +1754,7 @@ Page({
         attackMotion: '',
         attackActor: '',
         attackTarget: '',
-        attackIndicator: { visible: false, side: '', status: '' },
+        attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
         targetReaction: ''
       });
       this._currentActionUsesIndicator = false;
@@ -1918,7 +1937,7 @@ Page({
       attackMotion: '',
       attackActor: '',
       attackTarget: '',
-      attackIndicator: { visible: false, side: '', status: '' },
+      attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
       targetReaction: '',
       skipLocked: false,
       skipButtonText: '跳过战斗',
