@@ -466,6 +466,9 @@ function cloneFloatingTextState(source = {}) {
 
 const INVALID_SKILL_LABELS = ['战斗流转', '连击未果', '身法化解', '持久战', '战斗结果'];
 
+const EXTENDED_SKILL_NAME = '破云斩';
+const EXTENDED_SKILL_FLOATING_TEXT_DURATION = 20000;
+
 const SKILL_QUALITY_COLORS = {
   linggan: '#6c8cff',
   kaipi: '#45c0a8',
@@ -1486,10 +1489,12 @@ Page({
       const shouldShowSkillText = !this._currentActionUsesIndicator;
       if (skillText && shouldShowSkillText) {
         const skillColor = skillText === '普攻' ? '' : extractSkillQualityColorFromAction(action);
+        const duration =
+          skillText === EXTENDED_SKILL_NAME ? EXTENDED_SKILL_FLOATING_TEXT_DURATION : 1400;
         this.showFloatingText(actorSide, {
           text: skillText,
           type: 'skill',
-          duration: 1400,
+          duration,
           color: skillColor
         });
       }
@@ -1589,27 +1594,35 @@ Page({
     if (action.type === 'result') {
       return 2200;
     }
+    const skillText = extractSkillTextFromAction(action);
+    const usesExtendedDuration = skillText === EXTENDED_SKILL_NAME;
     const actorSide = action.actor === 'player' || action.actor === 'opponent' ? action.actor : '';
     const targetSide = action.target === 'player' || action.target === 'opponent' ? action.target : '';
     const useIndicator = this.shouldUseAttackIndicator(action, actorSide, targetSide);
+    let duration;
     if (!useIndicator) {
-      return 1400;
+      duration = 1400;
+    } else {
+      const effects = Array.isArray(action.effects) ? action.effects : [];
+      const hasCrit = effects.some((effect) => effect && effect.type === 'crit');
+      const indicatorLead = ATTACK_INDICATOR_HOLD_DURATION;
+      const indicatorDisplay = ATTACK_INDICATOR_HOLD_DURATION + ATTACK_INDICATOR_FADE_DURATION;
+      const windupDuration = hasCrit ? ATTACK_WINDUP_DURATION : 0;
+      const prelaunchHold = hasCrit ? ATTACK_CRIT_PRELAUNCH_HOLD : 0;
+      const chargeDuration = hasCrit ? ATTACK_CRIT_CHARGE_DURATION : ATTACK_CHARGE_DURATION;
+      const attackTimeline =
+        indicatorLead +
+        windupDuration +
+        prelaunchHold +
+        chargeDuration +
+        ATTACK_IMPACT_HOLD_DURATION +
+        ATTACK_RECOVERY_DURATION;
+      duration = Math.max(indicatorDisplay, attackTimeline) + ATTACK_SEQUENCE_BUFFER;
     }
-    const effects = Array.isArray(action.effects) ? action.effects : [];
-    const hasCrit = effects.some((effect) => effect && effect.type === 'crit');
-    const indicatorLead = ATTACK_INDICATOR_HOLD_DURATION;
-    const indicatorDisplay = ATTACK_INDICATOR_HOLD_DURATION + ATTACK_INDICATOR_FADE_DURATION;
-    const windupDuration = hasCrit ? ATTACK_WINDUP_DURATION : 0;
-    const prelaunchHold = hasCrit ? ATTACK_CRIT_PRELAUNCH_HOLD : 0;
-    const chargeDuration = hasCrit ? ATTACK_CRIT_CHARGE_DURATION : ATTACK_CHARGE_DURATION;
-    const attackTimeline =
-      indicatorLead +
-      windupDuration +
-      prelaunchHold +
-      chargeDuration +
-      ATTACK_IMPACT_HOLD_DURATION +
-      ATTACK_RECOVERY_DURATION;
-    return Math.max(indicatorDisplay, attackTimeline) + ATTACK_SEQUENCE_BUFFER;
+    if (usesExtendedDuration) {
+      duration = Math.max(duration, EXTENDED_SKILL_FLOATING_TEXT_DURATION);
+    }
+    return duration;
   },
 
   runActionSequence(
