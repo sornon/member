@@ -666,11 +666,16 @@ function extractSkillQualityColorFromAction(action = {}) {
       return color;
     }
   }
-  const directQualityFields = ['skillQuality', 'skillRarity'];
+  const directQualityFields = ['skillQuality', 'skillRarity', 'skillQualityLabel'];
   for (let i = 0; i < directQualityFields.length; i += 1) {
-    const color = resolveQualityColorByKey(action[directQualityFields[i]]);
-    if (color) {
-      return color;
+    const candidate = action[directQualityFields[i]];
+    const colorByKey = resolveQualityColorByKey(candidate);
+    if (colorByKey) {
+      return colorByKey;
+    }
+    const colorByLabel = resolveQualityColorByLabel(candidate);
+    if (colorByLabel) {
+      return colorByLabel;
     }
   }
   const skillSources = [];
@@ -691,11 +696,16 @@ function extractSkillQualityColorFromAction(action = {}) {
       return color;
     }
   }
-  const rawQualityFields = ['skillQuality', 'quality', 'skillRarity', 'rarity'];
+  const rawQualityFields = ['skillQuality', 'quality', 'skillRarity', 'rarity', 'skillQualityLabel', 'qualityLabel'];
   for (let i = 0; i < rawQualityFields.length; i += 1) {
-    const color = resolveQualityColorByKey(raw[rawQualityFields[i]]);
-    if (color) {
-      return color;
+    const candidate = raw[rawQualityFields[i]];
+    const colorByKey = resolveQualityColorByKey(candidate);
+    if (colorByKey) {
+      return colorByKey;
+    }
+    const colorByLabel = resolveQualityColorByLabel(candidate);
+    if (colorByLabel) {
+      return colorByLabel;
     }
   }
   if (raw.skill) {
@@ -1489,7 +1499,7 @@ Page({
         this.showFloatingText(actorSide, {
           text: skillText,
           type: 'skill',
-          duration: 1400,
+          duration: 15000,
           color: skillColor
         });
       }
