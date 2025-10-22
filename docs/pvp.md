@@ -44,7 +44,7 @@
 - 赛季自动轮转：当检测到当前赛季结束时会自动创建下一赛季，默认周期 56 天。
 - 段位区间：系统内置青铜→宗师六档，依据积分上下限自动映射段位与奖励。
 - 战斗模拟：基于会员 `pveProfile` 的最终战斗属性进行 15 回合以内的回合制结算，命中、暴击、伤害浮动与减伤均在云端处理。
-- 数值统一：战斗流程直接调用公共模块 `cloudfunctions/nodejs-layer/node_modules/combat-system/index.js`，与 PVE 共用命中、伤害与战力评估公式，确保竞技场与副本的属性口径一致。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L1-L210】【F:cloudfunctions/pvp/index.js†L1199-L1294】
+- 数值统一：战斗流程直接调用公共模块 `cloudfunctions/nodejs-layer/node_modules/combat-system/index.js`，与 PVE 共用命中、伤害与战力评估公式，确保竞技场与副本的属性口径一致；基础生命值同样沿用 `200 + 体质 × 20 + 根骨 × 5` 的换算规则，由 PVE 档案中的 `attributeSummary` 提供。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L1-L210】【F:cloudfunctions/pvp/index.js†L1199-L1294】【F:cloudfunctions/pve/index.js†L5827-L5860】
 - 档案快照：`pve` 云函数在写回会员档案时会刷新 `attributeSummary`，竞技场直接读取该字段即可获得包含装备、技能增益的最终战斗属性。【F:cloudfunctions/pve/index.js†L2836-L2873】【F:cloudfunctions/pve/index.js†L3377-L3452】【F:cloudfunctions/pve/index.js†L3738-L3796】【F:cloudfunctions/pvp/index.js†L1198-L1239】
 - 防刷机制：邀战会校验过期时间与状态；同一战斗结果生成 MD5 签名返回前端；机器人对战的积分增减有限制，避免刷分。
 
