@@ -735,6 +735,13 @@ export const AdminService = {
     }
     return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   },
+  async refreshImmortalTournamentPlayers(options = {}) {
+    const payload = { action: 'refreshImmortalTournamentPlayers' };
+    if (options && typeof options === 'object' && Number.isFinite(options.concurrency)) {
+      payload.concurrency = options.concurrency;
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
+  },
   async listActivities(options = {}) {
     const payload = { action: 'listActivities' };
     if (options && typeof options === 'object') {

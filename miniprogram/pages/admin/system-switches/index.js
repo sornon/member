@@ -226,6 +226,9 @@ Page({
     tournamentResetting: false,
     tournamentResetScope: '',
     tournamentResetError: '',
+    tournamentRefreshingPlayers: false,
+    tournamentRefreshError: '',
+    tournamentRefreshSummary: '',
     updating: {},
     error: '',
     gameParameters: { rage: cloneRageSettings(DEFAULT_RAGE_SETTINGS) },
@@ -272,6 +275,9 @@ Page({
         tournamentResetting: false,
         tournamentResetScope: '',
         tournamentResetError: '',
+        tournamentRefreshingPlayers: false,
+        tournamentRefreshError: '',
+        tournamentRefreshSummary: '',
         error: '',
         updating: {},
         gameParameters: { rage: rageSettings },
@@ -290,6 +296,9 @@ Page({
         tournamentResetting: false,
         tournamentResetScope: '',
         tournamentResetError: '',
+        tournamentRefreshingPlayers: false,
+        tournamentRefreshError: '',
+        tournamentRefreshSummary: '',
         updating: {},
         rageSaving: false
       });
@@ -588,6 +597,84 @@ Page({
         tournamentResetError: resolveErrorMessage(error, '重置失败，请稍后重试')
       });
       wx.showToast({ title: '重置失败', icon: 'none', duration: 1200 });
+    }
+  },
+
+  async handleTournamentRefreshPlayers() {
+    if (this.data.tournamentSaving || this.data.tournamentResetting) {
+      wx.showToast({ title: '正在处理中，请稍候', icon: 'none', duration: 1000 });
+      return;
+    }
+    if (this.data.tournamentRefreshingPlayers) {
+      wx.showToast({ title: '刷新任务进行中', icon: 'none', duration: 1000 });
+      return;
+    }
+
+    const confirm = await showConfirmationModal({
+      title: '刷新玩家数据',
+      content: '将重新同步所有参赛玩家的战斗属性，过程可能耗时较长，执行期间请勿重复操作。是否继续？',
+      confirmText: '立即刷新'
+    });
+    if (!confirm) {
+      return;
+    }
+
+    this.setData({
+      tournamentRefreshingPlayers: true,
+      tournamentRefreshError: '',
+      tournamentRefreshSummary: ''
+    });
+
+    const start = Date.now();
+
+    try {
+      const result = await AdminService.refreshImmortalTournamentPlayers();
+      const total = Number.isFinite(result && result.total) ? Number(result.total) : 0;
+      const refreshed = Number.isFinite(result && result.refreshed) ? Number(result.refreshed) : 0;
+      const failed = Number.isFinite(result && result.failed) ? Number(result.failed) : 0;
+      const durationMs = Number.isFinite(result && result.durationMs)
+        ? Math.max(0, Number(result.durationMs))
+        : Math.max(0, Date.now() - start);
+
+      const durationSeconds = Math.max(0, Math.round(durationMs / 1000));
+      let durationText = '';
+      if (durationSeconds <= 1) {
+        durationText = '约 1 秒';
+      } else if (durationSeconds < 60) {
+        durationText = `约 ${durationSeconds} 秒`;
+      } else if (durationSeconds < 3600) {
+        const minutes = Math.floor(durationSeconds / 60);
+        const seconds = durationSeconds % 60;
+        durationText = seconds ? `约 ${minutes} 分 ${seconds} 秒` : `约 ${minutes} 分`;
+      } else {
+        const hours = Math.floor(durationSeconds / 3600);
+        const minutes = Math.floor((durationSeconds % 3600) / 60);
+        durationText = minutes ? `约 ${hours} 小时 ${minutes} 分` : `约 ${hours} 小时`;
+      }
+
+      const summaryText = total
+        ? `已刷新 ${refreshed}/${total} 名玩家（${durationText}）`
+        : '暂无可刷新的玩家数据';
+      const toastTitle = failed > 0 ? `已刷新 ${refreshed}/${total}` : total ? '刷新完成' : '暂无玩家';
+      wx.showToast({ title: toastTitle, icon: failed > 0 || !total ? 'none' : 'success', duration: 1200 });
+
+      let refreshError = '';
+      if (failed > 0) {
+        const firstError = result && Array.isArray(result.errors) && result.errors.length ? result.errors[0] : null;
+        refreshError = firstError && firstError.message ? firstError.message : '部分玩家刷新失败，请稍后重试';
+      }
+
+      this.setData({
+        tournamentRefreshingPlayers: false,
+        tournamentRefreshSummary: summaryText,
+        tournamentRefreshError: refreshError
+      });
+    } catch (error) {
+      this.setData({
+        tournamentRefreshingPlayers: false,
+        tournamentRefreshError: resolveErrorMessage(error, '刷新失败，请稍后重试')
+      });
+      wx.showToast({ title: '刷新失败', icon: 'none', duration: 1200 });
     }
   }
 });

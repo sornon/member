@@ -63,6 +63,7 @@ const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周�
 
 const CLEANUP_TASK_CONCURRENCY = 3;
 const ORPHAN_QUERY_BATCH_LIMIT = 200;
+const PLAYER_REFRESH_CONCURRENCY = 5;
 
 const ACTIVITY_ALLOWED_STATUSES = ['draft', 'published', 'archived'];
 
@@ -110,6 +111,7 @@ const ACTIONS = {
   UPDATE_IMMORTAL_TOURNAMENT_SETTINGS: 'updateImmortalTournamentSettings',
   UPDATE_GAME_PARAMETERS: 'updateGameParameters',
   RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament',
+  REFRESH_IMMORTAL_TOURNAMENT_PLAYERS: 'refreshImmortalTournamentPlayers',
   LIST_ACTIVITIES: 'listActivities',
   CREATE_ACTIVITY: 'createActivity',
   UPDATE_ACTIVITY: 'updateActivity'
@@ -179,6 +181,9 @@ const ACTION_ALIASES = {
   cleartournament: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
   resetimmortaltournamentseason: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
   resetimmortaltournamentdata: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
+  refreshimmortaltournamentplayers: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
+  refreshimmortalplayers: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
+  refreshpvpprofiles: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
   listactivities: ACTIONS.LIST_ACTIVITIES,
   activities: ACTIONS.LIST_ACTIVITIES,
   createactivity: ACTIONS.CREATE_ACTIVITY,
@@ -280,6 +285,8 @@ const ACTION_HANDLERS = {
     updateGameParameters(openid, event.parameters || event),
   [ACTIONS.RESET_IMMORTAL_TOURNAMENT]: (openid, event) =>
     resetImmortalTournament(openid, event || {}),
+  [ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS]: (openid, event) =>
+    refreshImmortalTournamentPlayers(openid, event || {}),
   [ACTIONS.LIST_ACTIVITIES]: (openid, event) => listActivities(openid, event || {}),
   [ACTIONS.CREATE_ACTIVITY]: (openid, event) => createActivity(openid, event.activity || {}),
   [ACTIONS.UPDATE_ACTIVITY]: (openid, event) =>
@@ -1062,6 +1069,59 @@ async function resetImmortalTournament(openid, options = {}) {
     summary,
     features: normalizeFeatureToggles(featureDocument)
   };
+}
+
+async function refreshImmortalTournamentPlayers(openid, options = {}) {
+  await ensureAdmin(openid);
+
+  const memberIdsSet = await listAllMemberIds();
+  const memberIds = Array.from(memberIdsSet);
+  const total = memberIds.length;
+  const summary = {
+    success: true,
+    total,
+    refreshed: 0,
+    failed: 0,
+    durationMs: 0,
+    errors: []
+  };
+
+  if (!total) {
+    return summary;
+  }
+
+  const startTime = Date.now();
+  const concurrency = Number.isFinite(options.concurrency)
+    ? Math.min(20, Math.max(1, Math.floor(options.concurrency)))
+    : PLAYER_REFRESH_CONCURRENCY;
+  const errorList = [];
+
+  await runTasksWithConcurrency(
+    memberIds.map((memberId) => async () => {
+      if (!memberId) {
+        return;
+      }
+      try {
+        await callPvpFunction('profile', { actorId: memberId, refreshOnly: true });
+        summary.refreshed += 1;
+      } catch (error) {
+        summary.failed += 1;
+        summary.success = false;
+        if (errorList.length < 10) {
+          errorList.push({
+            memberId,
+            message: resolveErrorMessage(error, '刷新失败')
+          });
+        }
+      }
+    }),
+    concurrency
+  );
+
+  summary.durationMs = Date.now() - startTime;
+  summary.errors = errorList;
+
+  return summary;
 }
 
 function normalizeTournamentResetScope(scope) {
@@ -2517,6 +2577,18 @@ async function callPveFunction(action, data = {}) {
   try {
     const response = await cloud.callFunction({
       name: 'pve',
+      data: { action, ...data }
+    });
+    return response && response.result ? response.result : null;
+  } catch (error) {
+    throw error;
+  }
+}
+
+async function callPvpFunction(action, data = {}) {
+  try {
+    const response = await cloud.callFunction({
+      name: 'pvp',
       data: { action, ...data }
     });
     return response && response.result ? response.result : null;
