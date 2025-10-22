@@ -69,7 +69,7 @@ const DEFAULT_RESOURCE_MAX = 100;
 
 function normalizeResourceEntry(entry) {
   if (typeof entry === 'number') {
-    const current = Math.max(0, toFiniteNumber(entry, DEFAULT_RESOURCE_MAX));
+    const current = Math.max(0, toFiniteNumber(entry, 0));
     const max = Math.max(current, DEFAULT_RESOURCE_MAX);
     const percent = max > 0 ? Math.round((current / max) * 10000) / 100 : 0;
     return {
@@ -105,9 +105,13 @@ function normalizeResourceEntry(entry) {
   }
   const fallbackMax = Number.isFinite(max)
     ? Math.max(0, max)
-    : Math.max(0, Number.isFinite(before) ? before : Number.isFinite(current) ? current : DEFAULT_RESOURCE_MAX);
+    : Math.max(0, Number.isFinite(before) ? before : Number.isFinite(current) ? current : 0);
   const resolvedMax = fallbackMax > 0 ? fallbackMax : DEFAULT_RESOURCE_MAX;
-  const boundedCurrent = Number.isFinite(current) ? current : resolvedMax;
+  const boundedCurrent = Number.isFinite(current)
+    ? current
+    : Number.isFinite(before)
+    ? before
+    : 0;
   const clampedCurrent = Math.max(0, Math.min(resolvedMax, boundedCurrent));
   const percent = resolvedMax > 0 ? Math.round((clampedCurrent / resolvedMax) * 10000) / 100 : 0;
   return {
@@ -427,8 +431,8 @@ function createBattleStageState(overrides = {}) {
       opponent: { max: 1, current: 1, percent: 100 }
     }),
     resourceState: normalizeResourceStateMap({
-      player: { max: DEFAULT_RESOURCE_MAX, current: DEFAULT_RESOURCE_MAX },
-      opponent: { max: DEFAULT_RESOURCE_MAX, current: DEFAULT_RESOURCE_MAX }
+      player: { max: DEFAULT_RESOURCE_MAX, current: 0 },
+      opponent: { max: DEFAULT_RESOURCE_MAX, current: 0 }
     }),
     attackerKey: 'player',
     defenderKey: 'opponent',
@@ -447,7 +451,7 @@ function createBattleStageState(overrides = {}) {
     attackMotion: '',
     attackActor: '',
     attackTarget: '',
-    attackIndicator: { visible: false, side: '', status: '' },
+    attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
     targetReaction: '',
     ...overrides
   };
@@ -1101,11 +1105,11 @@ Page({
       player:
         stagePlayer.resource ||
         (viewModel.player && viewModel.player.resource) ||
-        { current: DEFAULT_RESOURCE_MAX, max: DEFAULT_RESOURCE_MAX },
+        { current: 0, max: DEFAULT_RESOURCE_MAX },
       opponent:
         stageOpponent.resource ||
         (viewModel.opponent && viewModel.opponent.resource) ||
-        { current: DEFAULT_RESOURCE_MAX, max: DEFAULT_RESOURCE_MAX }
+        { current: 0, max: DEFAULT_RESOURCE_MAX }
     });
     this.setBattleStageData({
       loading: false,
@@ -1395,7 +1399,7 @@ Page({
       attackMotion: '',
       attackActor: '',
       attackTarget: '',
-      attackIndicator: { visible: false, side: '', status: '' },
+      attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
       targetReaction: ''
     });
   },
@@ -1479,9 +1483,7 @@ Page({
 
     if (actorSide) {
       const skillText = extractSkillTextFromAction(action);
-      const shouldShowSkillText = !(
-        skillText === '普攻' && this._currentActionUsesIndicator
-      );
+      const shouldShowSkillText = !this._currentActionUsesIndicator;
       if (skillText && shouldShowSkillText) {
         const skillColor = skillText === '普攻' ? '' : extractSkillQualityColorFromAction(action);
         this.showFloatingText(actorSide, {
@@ -1550,6 +1552,10 @@ Page({
 
     const skillText = extractSkillTextFromAction(action);
     if (skillText === '普攻') {
+      return true;
+    }
+
+    if (skillText) {
       return true;
     }
 
@@ -1633,7 +1639,7 @@ Page({
         attackMotion: '',
         attackActor: '',
         attackTarget: '',
-        attackIndicator: { visible: false, side: '', status: '' },
+        attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
         targetReaction: ''
       });
       this.applyActionFloatingTexts(
@@ -1655,12 +1661,23 @@ Page({
     const impactDuration = ATTACK_IMPACT_HOLD_DURATION;
     const recoveryDuration = ATTACK_RECOVERY_DURATION;
 
+    const skillText = extractSkillTextFromAction(action);
+    const indicatorText = skillText || '普攻';
+    const indicatorColor =
+      skillText && skillText !== '普攻' ? extractSkillQualityColorFromAction(action) : '';
+
     this.setBattleStageData({
       attackActor: actorSide,
       attackTarget: targetSide,
       attackMotion: hasCrit ? 'crit' : 'normal',
       attackPhase: 'indicator',
-      attackIndicator: { visible: true, side: actorSide, status: 'show' },
+      attackIndicator: {
+        visible: true,
+        side: actorSide,
+        status: 'show',
+        text: indicatorText,
+        color: indicatorColor
+      },
       targetReaction: ''
     });
 
@@ -1670,13 +1687,19 @@ Page({
       const nextPhase = hasCrit ? 'windup' : 'charging';
       this.setBattleStageData({
         attackPhase: nextPhase,
-        attackIndicator: { visible: true, side: actorSide, status: 'leaving' }
+        attackIndicator: {
+          visible: true,
+          side: actorSide,
+          status: 'leaving',
+          text: indicatorText,
+          color: indicatorColor
+        }
       });
     }, indicatorHold);
 
     this.queueAttackTimer(() => {
       this.setBattleStageData({
-        attackIndicator: { visible: false, side: '', status: '' }
+        attackIndicator: { visible: false, side: '', status: '', text: '', color: '' }
       });
     }, indicatorFadeComplete);
 
@@ -1735,7 +1758,7 @@ Page({
         attackMotion: '',
         attackActor: '',
         attackTarget: '',
-        attackIndicator: { visible: false, side: '', status: '' },
+        attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
         targetReaction: ''
       });
       this._currentActionUsesIndicator = false;
@@ -1918,7 +1941,7 @@ Page({
       attackMotion: '',
       attackActor: '',
       attackTarget: '',
-      attackIndicator: { visible: false, side: '', status: '' },
+      attackIndicator: { visible: false, side: '', status: '', text: '', color: '' },
       targetReaction: '',
       skipLocked: false,
       skipButtonText: '跳过战斗',

@@ -8,6 +8,28 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
 
 const TOURNAMENT_FIELDS = ['enabled', 'registrationStart', 'registrationEnd'];
 
+const DEFAULT_RAGE_SETTINGS = {
+  start: 0,
+  turnGain: 20,
+  basicAttackGain: 10,
+  damageTakenMultiplier: 1.5,
+  critGain: 1,
+  critTakenGain: 1
+};
+
+const RAGE_FIELDS = [
+  { key: 'start', label: '开局真气', hint: '战斗开始时的基础真气点数' },
+  { key: 'turnGain', label: '每回合开始', hint: '每回合开始时自动恢复的真气' },
+  { key: 'basicAttackGain', label: '普攻命中', hint: '普通攻击命中后获得的真气' },
+  {
+    key: 'damageTakenMultiplier',
+    label: '承受伤害系数',
+    hint: '掉血百分比 × 系数 × 真气上限'
+  },
+  { key: 'critGain', label: '造成暴击', hint: '造成暴击时额外获得的真气' },
+  { key: 'critTakenGain', label: '遭受暴击', hint: '遭受暴击时额外获得的真气' }
+];
+
 const DEFAULT_FEATURES = {
   cashierEnabled: true,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
@@ -89,6 +111,46 @@ function trimToString(value) {
   }
 }
 
+function cloneRageSettings(settings = DEFAULT_RAGE_SETTINGS) {
+  const normalized = {};
+  RAGE_FIELDS.forEach(({ key }) => {
+    const numeric = Number(settings && typeof settings === 'object' ? settings[key] : undefined);
+    normalized[key] = Number.isFinite(numeric) ? numeric : DEFAULT_RAGE_SETTINGS[key];
+  });
+  return normalized;
+}
+
+function buildRageDraft(settings = DEFAULT_RAGE_SETTINGS) {
+  const normalized = cloneRageSettings(settings);
+  const draft = {};
+  RAGE_FIELDS.forEach(({ key }) => {
+    const value = normalized[key];
+    draft[key] = typeof value === 'number' && Number.isFinite(value) ? String(value) : '';
+  });
+  return draft;
+}
+
+function parseRageDraft(draft = {}) {
+  const payload = {};
+  for (let i = 0; i < RAGE_FIELDS.length; i += 1) {
+    const { key, label } = RAGE_FIELDS[i];
+    const rawValue = draft && Object.prototype.hasOwnProperty.call(draft, key) ? draft[key] : '';
+    const trimmed = typeof rawValue === 'string' ? rawValue.trim() : String(rawValue || '');
+    if (!trimmed) {
+      return { error: `${label} 不能为空`, payload: null };
+    }
+    const numeric = Number(trimmed);
+    if (!Number.isFinite(numeric)) {
+      return { error: `${label} 需为有效数值`, payload: null };
+    }
+    if (numeric < 0) {
+      return { error: `${label} 不能小于 0`, payload: null };
+    }
+    payload[key] = numeric;
+  }
+  return { error: '', payload };
+}
+
 function normalizeImmortalTournament(config) {
   const normalized = { ...DEFAULT_IMMORTAL_TOURNAMENT };
   if (config && typeof config === 'object') {
@@ -165,7 +227,14 @@ Page({
     tournamentResetScope: '',
     tournamentResetError: '',
     updating: {},
-    error: ''
+    error: '',
+    gameParameters: { rage: cloneRageSettings(DEFAULT_RAGE_SETTINGS) },
+    rageDraft: buildRageDraft(DEFAULT_RAGE_SETTINGS),
+    rageDefaults: buildRageDraft(DEFAULT_RAGE_SETTINGS),
+    rageDefaultValues: cloneRageSettings(DEFAULT_RAGE_SETTINGS),
+    rageSaving: false,
+    rageError: '',
+    rageFieldList: RAGE_FIELDS
   },
 
   onShow() {
@@ -184,6 +253,16 @@ Page({
     try {
       const result = await AdminService.getSystemSettings();
       const features = normalizeFeatures(result && result.features);
+      const rageDefaultsSource =
+        result && result.defaults && result.defaults.rageSettings
+          ? result.defaults.rageSettings
+          : DEFAULT_RAGE_SETTINGS;
+      const responseRage =
+        (result && result.rageSettings) ||
+        (result && result.gameParameters && result.gameParameters.rage) ||
+        DEFAULT_RAGE_SETTINGS;
+      const rageDefaults = cloneRageSettings(rageDefaultsSource);
+      const rageSettings = cloneRageSettings(responseRage);
       this.setData({
         loading: false,
         features,
@@ -194,7 +273,13 @@ Page({
         tournamentResetScope: '',
         tournamentResetError: '',
         error: '',
-        updating: {}
+        updating: {},
+        gameParameters: { rage: rageSettings },
+        rageDraft: buildRageDraft(rageSettings),
+        rageDefaults: buildRageDraft(rageDefaults),
+        rageDefaultValues: rageDefaults,
+        rageSaving: false,
+        rageError: ''
       });
     } catch (error) {
       this.setData({
@@ -205,7 +290,8 @@ Page({
         tournamentResetting: false,
         tournamentResetScope: '',
         tournamentResetError: '',
-        updating: {}
+        updating: {},
+        rageSaving: false
       });
     } finally {
       if (options.fromPullDown) {
@@ -330,6 +416,71 @@ Page({
       previousTournament: previousConfig,
       toastTitle: '已保存'
     }).catch(() => {});
+  },
+
+  handleRageFieldChange(event) {
+    const { field } = event.currentTarget.dataset || {};
+    if (!field || !Object.prototype.hasOwnProperty.call(this.data.rageDraft, field)) {
+      return;
+    }
+    const value = event && event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
+    this.setData({
+      rageDraft: { ...this.data.rageDraft, [field]: value },
+      rageError: ''
+    });
+  },
+
+  handleRageReset() {
+    this.setData({
+      rageDraft: { ...this.data.rageDefaults },
+      rageError: ''
+    });
+  },
+
+  async handleRageSubmit() {
+    if (this.data.rageSaving) {
+      return;
+    }
+    const { error, payload } = parseRageDraft(this.data.rageDraft);
+    if (error) {
+      this.setData({ rageError: error });
+      wx.showToast({ title: error, icon: 'none', duration: 1500 });
+      return;
+    }
+
+    this.setData({ rageSaving: true, rageError: '' });
+
+    try {
+      const result = await AdminService.updateGameParameters({ rage: payload });
+      const features = normalizeFeatures(result && result.features ? result.features : this.data.features);
+      const rageDefaultsSource =
+        result && result.defaults && result.defaults.rageSettings
+          ? result.defaults.rageSettings
+          : this.data.rageDefaultValues;
+      const responseRage =
+        (result && result.rageSettings) ||
+        (result && result.gameParameters && result.gameParameters.rage) ||
+        payload;
+      const rageSettings = cloneRageSettings(responseRage);
+      const rageDefaults = cloneRageSettings(rageDefaultsSource);
+
+      this.setData({
+        features,
+        gameParameters: { rage: rageSettings },
+        rageDraft: buildRageDraft(rageSettings),
+        rageDefaults: buildRageDraft(rageDefaults),
+        rageDefaultValues: rageDefaults,
+        rageSaving: false,
+        rageError: ''
+      });
+      wx.showToast({ title: '已更新', icon: 'success', duration: 800 });
+    } catch (error) {
+      this.setData({
+        rageSaving: false,
+        rageError: resolveErrorMessage(error, '保存失败，请稍后重试')
+      });
+      wx.showToast({ title: '保存失败', icon: 'none', duration: 1200 });
+    }
   },
 
   async saveTournamentSettings(updates = {}, options = {}) {
