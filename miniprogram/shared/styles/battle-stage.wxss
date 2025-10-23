@@ -762,6 +762,10 @@ page {
   transform: scaleX(1);
 }
 
+.avatar-wrapper.is-controlled .actor-portrait {
+  filter: grayscale(100%);
+}
+
 @keyframes targetHitShake {
   0% {
     transform: scaleX(1) translateX(0);
