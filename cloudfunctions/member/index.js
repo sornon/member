@@ -62,6 +62,8 @@ const STORAGE_REWARD_META = Object.freeze({
   consumable: { quality: 'epic', qualityLabel: '消耗品', qualityColor: '#f2a546' }
 });
 
+const ALLOWED_MEMBER_ROLES = new Set(['member', 'admin', 'developer', 'test']);
+
 const SUB_LEVEL_COUNT =
   Array.isArray(subLevelLabels) && subLevelLabels.length ? subLevelLabels.length : 10;
 
@@ -160,6 +162,30 @@ function resolveBackgroundDefinition(backgroundId) {
     return null;
   }
   return BACKGROUND_LIBRARY[backgroundId] || null;
+}
+
+function resolveClientEnvVersion(options = {}) {
+  if (!options || typeof options !== 'object') {
+    return '';
+  }
+  if (options.clientEnv && typeof options.clientEnv === 'object') {
+    const candidate = options.clientEnv.envVersion || options.clientEnv.version || '';
+    if (typeof candidate === 'string' && candidate.trim()) {
+      return candidate.trim().toLowerCase();
+    }
+  }
+  if (typeof options.envVersion === 'string' && options.envVersion.trim()) {
+    return options.envVersion.trim().toLowerCase();
+  }
+  if (typeof options.clientEnvVersion === 'string' && options.clientEnvVersion.trim()) {
+    return options.clientEnvVersion.trim().toLowerCase();
+  }
+  return '';
+}
+
+function shouldAssignTestRole(envVersion) {
+  const normalized = typeof envVersion === 'string' ? envVersion.trim().toLowerCase() : '';
+  return normalized === 'develop' || normalized === 'trial';
 }
 
 function resolveStorageCategoryLabel(key) {
@@ -622,11 +648,11 @@ exports.main = async (event, context) => {
 
   switch (action) {
     case 'init':
-      return initMember(OPENID, event.profile || {});
+      return initMember(OPENID, event.profile || {}, event || {});
     case 'profile':
-      return getProfile(OPENID);
+      return getProfile(OPENID, event || {});
     case 'progress':
-      return getProgress(OPENID);
+      return getProgress(OPENID, event || {});
     case 'rights':
       return getRights(OPENID);
     case 'claimLevelReward':
@@ -644,7 +670,7 @@ exports.main = async (event, context) => {
   }
 };
 
-async function initMember(openid, profile) {
+async function initMember(openid, profile = {}, options = {}) {
   const membersCollection = db.collection(COLLECTIONS.MEMBERS);
   const exist = await membersCollection.doc(openid).get().catch(() => null);
   if (exist && exist.data) {
@@ -654,6 +680,18 @@ async function initMember(openid, profile) {
   const levels = await loadLevels();
   const defaultLevel = levels[0];
   const now = new Date();
+  const envVersion = resolveClientEnvVersion(options);
+  const profileRoles = Array.isArray(profile.roles) ? profile.roles : [];
+  const sanitizedRoles = profileRoles
+    .map((role) => (typeof role === 'string' ? role.trim() : ''))
+    .filter((role) => ALLOWED_MEMBER_ROLES.has(role));
+  const desiredRoles = new Set(sanitizedRoles);
+  desiredRoles.add('member');
+  if (shouldAssignTestRole(envVersion)) {
+    desiredRoles.add('test');
+  }
+  const roles = Array.from(desiredRoles).filter((role) => ALLOWED_MEMBER_ROLES.has(role));
+
   const doc = {
     _id: openid,
     nickName: profile.nickName || '',
@@ -670,7 +708,7 @@ async function initMember(openid, profile) {
     totalRecharge: 0,
     totalSpend: 0,
     stoneBalance: 0,
-    roles: ['member'],
+    roles: roles.length ? roles : ['member'],
     createdAt: now,
     updatedAt: now,
     avatarConfig: {},
@@ -706,14 +744,14 @@ async function initMember(openid, profile) {
   return doc;
 }
 
-async function getProfile(openid) {
+async function getProfile(openid, options = {}) {
   const [levels, memberDoc] = await Promise.all([
     loadLevels(),
     db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null)
   ]);
   if (!memberDoc || !memberDoc.data) {
-    await initMember(openid, {});
-    return getProfile(openid);
+    await initMember(openid, options.profile || {}, options);
+    return getProfile(openid, options);
   }
   const normalized = normalizeAssetFields(memberDoc.data);
   const { member: withDefaults } = await ensureArchiveDefaults(normalized);
@@ -721,14 +759,14 @@ async function getProfile(openid) {
   return decorateMember(synced, levels);
 }
 
-async function getProgress(openid) {
+async function getProgress(openid, options = {}) {
   const [levels, memberDoc] = await Promise.all([
     loadLevels(),
     db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null)
   ]);
   if (!memberDoc || !memberDoc.data) {
-    await initMember(openid, {});
-    return getProgress(openid);
+    await initMember(openid, options.profile || {}, options);
+    return getProgress(openid, options);
   }
   const normalized = normalizeAssetFields(memberDoc.data);
   const { member: withDefaults } = await ensureArchiveDefaults(normalized);
