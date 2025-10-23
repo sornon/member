@@ -41,12 +41,15 @@ const {
   SKILL_QUALITY_CONFIG,
   SKILL_LIBRARY,
   SKILL_MAP,
+  SKILL_HIGHLIGHT_CATEGORY_LABELS,
   createBonusSummary,
   applyBonus,
   mergeBonusSummary,
   flattenBonusSummary,
   aggregateSkillEffects,
   resolveSkillEffects,
+  formatSkillProgression,
+  buildSkillHighlightSummaries,
   resolveSkillQualityColor,
   resolveSkillQualityLabel,
   resolveSkillTypeLabel,
@@ -6423,10 +6426,11 @@ function decorateSkillInventoryEntry(entry, profile) {
   const elementLabel = resolveSkillElementLabel(definition.element);
   const resourceText = formatSkillResource(definition.params || {});
   const imprintText = formatSkillImprintInfo(definition);
-  const progressionSummary = formatSkillProgression(definition, entry.level || 1);
+  const currentLevel = entry.level || 1;
+  const progressionSummary = formatSkillProgression(definition, currentLevel);
   const effectsSummary = formatStatsText(flattened);
   const combinedSummary = [...progressionSummary, ...effectsSummary];
-  const highlights = buildSkillHighlights(flattened, definition, progressionSummary);
+  const highlights = buildSkillHighlights(flattened, definition, progressionSummary, currentLevel);
   return {
     skillId: entry.skillId,
     name: definition.name,
@@ -7052,7 +7056,12 @@ function buildEnemySkillDetails(skillId) {
   if (resourceText) {
     metaParts.push(resourceText);
   }
-  const highlights = buildSkillHighlights(null, definition, formatSkillProgression(definition, 1));
+  const highlights = buildSkillHighlights(
+    null,
+    definition,
+    formatSkillProgression(definition, 1),
+    1
+  );
   return {
     id: definition.id,
     name: definition.name || definition.id,
@@ -7215,30 +7224,117 @@ function formatSkillImprintInfo(definition = {}) {
   return `印记槽：${parts.join('，')}`;
 }
 
-function buildSkillHighlights(flattened, definition = {}, progression = []) {
+const SKILL_STAT_CATEGORY_KEY_MAP = {
+  bonusDamage: 'damage',
+  finalDamageBonus: 'damage',
+  finalDamageReduction: 'defense',
+  shield: 'shield',
+  shieldPower: 'shield',
+  shieldMultiplier: 'shield',
+  maxHp: 'sustain',
+  maxHpMultiplier: 'sustain',
+  physicalAttack: 'damage',
+  physicalAttackMultiplier: 'damage',
+  magicAttack: 'damage',
+  magicAttackMultiplier: 'damage',
+  physicalDefense: 'defense',
+  physicalDefenseMultiplier: 'defense',
+  magicDefense: 'defense',
+  magicDefenseMultiplier: 'defense',
+  speed: 'buff',
+  speedMultiplier: 'buff',
+  accuracy: 'buff',
+  accuracyMultiplier: 'buff',
+  dodge: 'evasion',
+  dodgeMultiplier: 'evasion',
+  dodgeChance: 'evasion',
+  critRate: 'crit',
+  critRateMultiplier: 'crit',
+  critDamage: 'crit',
+  critDamageMultiplier: 'crit',
+  critResist: 'defense',
+  critResistMultiplier: 'defense',
+  physicalPenetration: 'damage',
+  magicPenetration: 'damage',
+  comboRate: 'buff',
+  block: 'defense',
+  counterRate: 'reflect',
+  damageReduction: 'defense',
+  healingReceived: 'sustain',
+  lifeSteal: 'sustain',
+  healOnHit: 'sustain',
+  healOnKill: 'sustain',
+  healPerRound: 'sustain',
+  healOnTrigger: 'sustain',
+  healingBonus: 'heal',
+  healingReduction: 'debuff',
+  controlHit: 'control',
+  controlResist: 'defense',
+  controlStrength: 'control',
+  rageGain: 'resource',
+  summonPower: 'support',
+  elementalVulnerability: 'debuff'
+};
+
+function prefixHighlight(text, label) {
+  if (typeof text !== 'string') {
+    return '';
+  }
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (!label || trimmed.startsWith('【')) {
+    return trimmed;
+  }
+  return `【${label}】${trimmed}`;
+}
+
+function buildSkillHighlights(flattened, definition = {}, progression = [], level = 1) {
   const highlights = [];
-  if (Array.isArray(progression) && progression.length) {
+  const levelValue = Math.max(1, Math.floor(Number(level) || 1));
+  const dynamicHighlights = buildSkillHighlightSummaries(definition, levelValue);
+  if (dynamicHighlights.length) {
+    highlights.push(...dynamicHighlights);
+  } else if (Array.isArray(progression) && progression.length) {
     highlights.push(...progression);
   }
   const statsText = formatStatsText(flattened);
-  if (Array.isArray(statsText) && statsText.length) {
+  if (statsText.length) {
     highlights.push(...statsText);
   }
   if (Array.isArray(definition.mechanics)) {
-    highlights.push(...definition.mechanics);
+    definition.mechanics.forEach((item) => {
+      const entry = typeof item === 'string' ? item : '';
+      if (entry) {
+        highlights.push(entry);
+      }
+    });
+  } else if (typeof definition.mechanics === 'string' && definition.mechanics) {
+    highlights.push(definition.mechanics);
   }
   if (definition.growth) {
     if (Array.isArray(definition.growth)) {
-      highlights.push(...definition.growth);
+      definition.growth.forEach((item) => {
+        const entry = typeof item === 'string' ? item : '';
+        if (entry) {
+          highlights.push(prefixHighlight(entry, '成长'));
+        }
+      });
     } else if (typeof definition.growth === 'string') {
-      highlights.push(definition.growth);
+      highlights.push(prefixHighlight(definition.growth, '成长'));
     }
   }
   if (definition.synergy) {
     if (Array.isArray(definition.synergy)) {
-      highlights.push(...definition.synergy);
+      definition.synergy.forEach((item) => {
+        const entry = typeof item === 'string' ? item : '';
+        if (entry) {
+          highlights.push(prefixHighlight(entry, '协同'));
+        }
+      });
     } else if (typeof definition.synergy === 'string') {
-      highlights.push(definition.synergy);
+      highlights.push(prefixHighlight(definition.synergy, '协同'));
     }
   }
   return highlights.filter((text, index, list) => typeof text === 'string' && text && list.indexOf(text) === index);
@@ -7254,124 +7350,37 @@ function formatStatsText(stats) {
     if (value == null || value === 0) {
       return;
     }
+    let text = '';
+    let categoryKey = key;
     if (key === 'bonusDamage') {
-      texts.push(`额外伤害 +${Math.round(value)}`);
+      text = `额外伤害 +${Math.round(value)}`;
+      categoryKey = 'bonusDamage';
     } else if (key === 'shield') {
-      texts.push(`护盾 +${Math.round(value)}`);
+      text = `护盾 +${Math.round(value)}`;
+      categoryKey = 'shield';
     } else if (key === 'dodgeChance') {
-      texts.push(`闪避率 +${Math.round(value * 100)}%`);
+      text = `闪避率 +${Math.round(value * 100)}%`;
+      categoryKey = 'dodgeChance';
     } else if (key.endsWith('Multiplier')) {
       const target = key.replace('Multiplier', '');
       const label = resolveAttributeLabel(target);
-      texts.push(`${label} +${Math.round(value * 10000) / 100}%`);
+      text = `${label} +${Math.round(value * 10000) / 100}%`;
+      categoryKey = target;
     } else {
       const label = resolveAttributeLabel(key);
-      texts.push(`${label} ${formatStatDisplay(key, value, true)}`);
+      text = `${label} ${formatStatDisplay(key, value, true)}`;
     }
+    if (!text) {
+      return;
+    }
+    const mappedCategory = SKILL_STAT_CATEGORY_KEY_MAP[categoryKey];
+    const baseCategory = BASE_ATTRIBUTE_KEYS.includes(categoryKey) ? 'attribute' : '';
+    const label =
+      SKILL_HIGHLIGHT_CATEGORY_LABELS[mappedCategory] ||
+      (baseCategory ? SKILL_HIGHLIGHT_CATEGORY_LABELS[baseCategory] || '属性' : '');
+    texts.push(prefixHighlight(text, label));
   });
   return texts;
-}
-
-function formatSkillProgression(definition, level = 1) {
-  if (!definition || typeof definition !== 'object') {
-    return [];
-  }
-  const entries = Array.isArray(definition.progression) ? definition.progression : [];
-  if (!entries.length) {
-    return [];
-  }
-  const skillId = definition.id || definition.skillId || '';
-  const maxLevel = resolveSkillMaxLevel(skillId) || definition.maxLevel || level;
-  return entries
-    .map((entry) => formatSkillProgressionEntry(entry, level, maxLevel))
-    .filter((text) => typeof text === 'string' && text);
-}
-
-function formatSkillProgressionEntry(entry, level, maxLevel) {
-  if (!entry || typeof entry !== 'object' || !entry.label) {
-    return '';
-  }
-  const currentLevel = Math.max(1, Math.floor(level));
-  const resolvedMax = Math.max(currentLevel, Math.floor(Number(entry.maxLevel) || maxLevel || currentLevel));
-  const extraLevels = Math.max(0, currentLevel - 1);
-  const base = Number(entry.base) || 0;
-  const perLevel = Number(entry.perLevel) || 0;
-  const currentValue = base + perLevel * extraLevels;
-  const maxValue = base + perLevel * Math.max(0, resolvedMax - 1);
-  const format = entry.format || 'percent';
-  const suffix = resolveProgressionSuffix(entry, format);
-  const formattedCurrent = formatProgressionNumber(currentValue, format, entry);
-  const maxDifferent = Math.abs(maxValue - currentValue) > 1e-6;
-  let text = `${entry.label}：${formattedCurrent}${suffix}`;
-  if (perLevel !== 0) {
-    const formattedPerLevel = formatProgressionNumber(Math.abs(perLevel), format, entry);
-    const sign = perLevel > 0 ? '+' : '-';
-    text += `（每级${sign}${formattedPerLevel}${suffix}`;
-    if (maxDifferent) {
-      const formattedMax = formatProgressionNumber(maxValue, format, entry);
-      text += `，满级${formattedMax}${suffix}`;
-    }
-    text += '）';
-  } else if (maxDifferent) {
-    const formattedMax = formatProgressionNumber(maxValue, format, entry);
-    text += `（满级${formattedMax}${suffix}）`;
-  }
-  if (entry.note) {
-    text += `，${entry.note}`;
-  }
-  return text;
-}
-
-function resolveProgressionSuffix(entry, format) {
-  if (entry && typeof entry.suffix === 'string') {
-    if (format === 'percent' || format === 'perTurnPercent') {
-      return `%${entry.suffix}`;
-    }
-    return entry.suffix;
-  }
-  switch (format) {
-    case 'percent':
-      return '%';
-    case 'perTurnPercent':
-      return '%/回合';
-    case 'integer':
-      return '';
-    default:
-      return '';
-  }
-}
-
-function formatProgressionNumber(value, format, entry = {}) {
-  if (!Number.isFinite(value)) {
-    return '0';
-  }
-  let scaled = value;
-  switch (format) {
-    case 'percent':
-    case 'perTurnPercent':
-      scaled = value * 100;
-      break;
-    case 'integer':
-      break;
-    default:
-      break;
-  }
-  const digits = entry.digits != null ? Math.max(0, Math.floor(entry.digits)) : resolveDefaultDigits(format, scaled);
-  if (digits === 0) {
-    return `${Math.round(scaled)}`;
-  }
-  const fixed = scaled.toFixed(digits);
-  return fixed.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
-}
-
-function resolveDefaultDigits(format, scaled) {
-  if (format === 'percent' || format === 'perTurnPercent') {
-    return Math.abs(scaled) >= 100 ? 0 : 1;
-  }
-  if (format === 'integer') {
-    return 0;
-  }
-  return Math.abs(scaled) >= 100 ? 0 : 2;
 }
 function buildBattleSetup(profile, enemy, member) {
   const attributes = calculateAttributes(profile.attributes, profile.equipment, profile.skills);
