@@ -308,6 +308,11 @@
   border-radius: 16rpx;
   padding: 16rpx 20rpx;
   margin-bottom: 12rpx;
+  transition: background 0.2s;
+}
+
+.mini-board-item:active {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .mini-board-rank {

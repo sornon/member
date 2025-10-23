@@ -96,7 +96,11 @@
           <text class="pvp-section__link" bindtap="handleViewLeaderboard">查看全部</text>
         </view>
         <block wx:for="{{leaderboardPreview}}" wx:key="memberId">
-          <view class="mini-board-item">
+          <view
+            class="mini-board-item"
+            data-member-id="{{item.memberId}}"
+            bindtap="handleViewArchive"
+          >
             <view class="mini-board-rank">{{index + 1}}</view>
             <view class="mini-board-name">{{item.nickName || '神秘仙友'}}</view>
             <view class="mini-board-score">{{item.points}} 分</view>
