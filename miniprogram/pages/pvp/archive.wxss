@@ -45,7 +45,6 @@
 }
 
 .background--overlay {
-  background: linear-gradient(180deg, rgba(5, 9, 33, 0.85), rgba(5, 9, 33, 0.95));
   z-index: 3;
   opacity: 1;
 }
@@ -109,17 +108,11 @@
   flex-direction: row;
   justify-content: space-between;
   align-items: stretch;
-  gap: 32rpx;
-  margin-bottom: 48rpx;
 }
 
 .archive-profile-card {
   flex: 1;
-  background: rgba(15, 22, 54, 0.72);
-  border: 1px solid rgba(122, 146, 255, 0.25);
-  border-radius: 28rpx;
   padding: 32rpx;
-  box-shadow: 0 12rpx 32rpx rgba(12, 18, 48, 0.35);
   display: flex;
   flex-direction: row;
   align-items: stretch;
@@ -128,17 +121,15 @@
 
 .profile-avatar-wrapper {
   position: relative;
-  width: 160rpx;
-  height: 160rpx;
+  width: 100rpx;
+  height: 100rpx;
   flex-shrink: 0;
 }
 
 .profile-avatar {
   width: 100%;
   height: 100%;
-  border-radius: 36rpx;
-  border: 4rpx solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 10rpx 20rpx rgba(0, 0, 0, 0.35);
+  border-radius: 100rpx;
 }
 
 .profile-avatar-frame {
@@ -156,14 +147,13 @@
   flex-direction: column;
   justify-content: space-between;
   min-width: 0;
+  height: 260rpx;
 }
 
 .profile-name {
-  font-size: 40rpx;
+  font-size: 28rpx;
   font-weight: 600;
-  margin-bottom: 16rpx;
   color: #ffffff;
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -201,7 +191,6 @@
 }
 
 .profile-record {
-  margin-top: 20rpx;
   font-size: 24rpx;
   color: rgba(245, 247, 255, 0.75);
 }
@@ -219,10 +208,11 @@
 
 .profile-meta__text {
   white-space: nowrap;
+  display: block;
 }
 
 .archive-figure {
-  width: 320rpx;
+  width: 200rpx;
   display: flex;
   align-items: flex-start;
   justify-content: flex-end;
@@ -240,8 +230,7 @@
 }
 
 .panel-card {
-  background: rgba(15, 22, 54, 0.75);
-  border: 1px solid rgba(122, 146, 255, 0.2);
+  background: rgba(15, 22, 54, 0.5);
   border-radius: 28rpx;
   padding: 28rpx 32rpx;
   box-shadow: 0 12rpx 32rpx rgba(12, 18, 48, 0.28);
@@ -256,17 +245,16 @@
 
 .attribute-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 20rpx 24rpx;
+  padding-bottom: 20rpx;
 }
 
 .attribute-cell {
-  background: rgba(86, 110, 210, 0.12);
-  border-radius: 20rpx;
-  padding: 20rpx 24rpx;
+  padding: 2rpx 4rpx;
   display: flex;
   flex-direction: column;
-  gap: 12rpx;
+  gap: 2rpx;
 }
 
 .attribute-label {
@@ -282,26 +270,23 @@
 
 .combat-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20rpx;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10rpx;
 }
 
 .combat-cell {
-  background: rgba(86, 110, 210, 0.12);
-  border-radius: 20rpx;
-  padding: 20rpx 24rpx;
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
+  gap: 0;
 }
 
 .combat-label {
-  font-size: 24rpx;
+  font-size: 20rpx;
   color: rgba(245, 247, 255, 0.7);
 }
 
 .combat-value {
-  font-size: 30rpx;
+  font-size: 24rpx;
   font-weight: 600;
   color: #ffffff;
 }

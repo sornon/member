@@ -31,7 +31,7 @@
   <view class="archive-content" style="min-height: calc(100vh - {{navHeight}}px);">
     <view wx:if="{{loading}}" class="archive-state">灵气汇聚中...</view>
     <view wx:elif="{{error}}" class="archive-state archive-state--error">{{error}}</view>
-    <scroll-view wx:else scroll-y="true" class="archive-scroll">
+
       <view class="archive-hero">
         <view class="archive-profile-card">
           <view class="profile-avatar-wrapper">
@@ -49,22 +49,13 @@
               <view wx:if="{{titleImage}}" class="profile-meta__title">
                 <image class="profile-meta__title-image" src="{{titleImage}}" mode="heightFix"></image>
               </view>
-              <view
-                wx:if="{{archive.tier}}"
-                class="profile-meta__tier"
-                style="border-color: {{archive.tier.color}};"
-              >
-                <text class="profile-meta__tier-name">{{archive.tier.name}}</text>
-                <text class="profile-meta__tier-points">{{archive.points}} 分</text>
-              </view>
             </view>
             <view class="profile-record">
-              <text>战绩 {{archive.wins}}胜{{archive.losses}}负{{archive.draws}}平</text>
+                <text class="profile-meta__text">境界 {{archive.realmName || archive.levelName || '未知境界'}}</text>
+                <text class="profile-meta__text">战力 {{combatPowerText}}</text>
+                <text class="profile-meta__text">{{archive.tier.name}} {{archive.points}} 分</text>
+                <text class="profile-meta__text">战绩 {{archive.wins}}胜{{archive.losses}}负{{archive.draws}}平</text>
             </view>
-          </view>
-          <view class="profile-other">
-            <text class="profile-meta__text">境界 {{archive.realmName || archive.levelName || '未知境界'}}</text>
-            <text class="profile-meta__text">战力 {{combatPowerText}}</text>
           </view>
         </view>
         <view class="archive-figure">
@@ -73,9 +64,9 @@
       </view>
 
       <view class="archive-panel">
-        <view class="panel-card" wx:if="{{attributeList.length}}">
-          <view class="panel-header">基础属性</view>
-          <view class="attribute-grid">
+        <view class="panel-card" wx:if="{{combatStats.length}}">
+          <view class="panel-header">属性面板</view>
+          <view class="attribute-grid" wx:if="{{attributeList.length}}">
             <block wx:for="{{attributeList}}" wx:key="key">
               <view class="attribute-cell">
                 <view class="attribute-label">{{item.label}}</view>
@@ -83,10 +74,6 @@
               </view>
             </block>
           </view>
-        </view>
-
-        <view class="panel-card" wx:if="{{combatStats.length}}">
-          <view class="panel-header">战斗属性</view>
           <view class="combat-grid">
             <block wx:for="{{combatStats}}" wx:key="key">
               <view class="combat-cell">
@@ -97,6 +84,6 @@
           </view>
         </view>
       </view>
-    </scroll-view>
+
   </view>
 </view>
