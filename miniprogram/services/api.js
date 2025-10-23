@@ -409,6 +409,14 @@ export const PvpService = {
     }
     return callCloud(CLOUD_FUNCTIONS.PVP, payload);
   },
+  async inspectArchive(targetId) {
+    const payload = { action: 'inspectArchive' };
+    const normalized = typeof targetId === 'string' ? targetId.trim() : '';
+    if (normalized) {
+      payload.targetId = normalized;
+    }
+    return callCloud(CLOUD_FUNCTIONS.PVP, payload);
+  },
   async claimSeasonReward(seasonId) {
     return callCloud(CLOUD_FUNCTIONS.PVP, { action: 'claimSeasonReward', seasonId });
   },

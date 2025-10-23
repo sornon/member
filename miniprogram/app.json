@@ -15,6 +15,7 @@
     "pages/pve/history",
     "pages/pvp/index",
     "pages/pvp/leaderboard",
+    "pages/pvp/archive",
     "pages/pvp/battle",
     "pages/role/index",
     "pages/wallet/wallet",

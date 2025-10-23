@@ -93,6 +93,14 @@ Page({
     }
   },
 
+  handleViewArchive(event) {
+    const { id } = event.currentTarget.dataset || {};
+    if (!id) {
+      return;
+    }
+    wx.navigateTo({ url: `/pages/pvp/archive?memberId=${id}` });
+  },
+
   handleShare(event) {
     const { id, name } = event.currentTarget.dataset;
     wx.navigateTo({ url: `/pages/pvp/index?targetId=${id}&targetName=${encodeURIComponent(name || '')}` });
