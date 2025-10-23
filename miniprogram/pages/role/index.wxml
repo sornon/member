@@ -432,10 +432,10 @@
               <view wx:if="{{item.detail.resourceText}}" class="skill-slot-card__meta">{{item.detail.resourceText}}</view>
               <view wx:if="{{item.detail.imprintText}}" class="skill-slot-card__meta">{{item.detail.imprintText}}</view>
               <view
-                wx:if="{{item.detail.highlights && item.detail.highlights.length}}"
+                wx:if="{{(item.detail.damageSummary && item.detail.damageSummary.length) || (item.detail.highlights && item.detail.highlights.length)}}"
                 class="skill-slot-card__highlights"
               >
-                {{item.detail.highlights[0]}}
+                {{ (item.detail.damageSummary && item.detail.damageSummary.length) ? item.detail.damageSummary[0] : item.detail.highlights[0] }}
               </view>
             </view>
             <view wx:else class="slot-empty">未装备技能</view>
@@ -476,6 +476,12 @@
               <text wx:if="{{item.resourceText}}" class="skill-tag skill-tag--muted">{{item.resourceText}}</text>
             </view>
             <view wx:if="{{item.imprintText}}" class="skill-card__meta">{{item.imprintText}}</view>
+            <view
+              wx:if="{{(item.damageSummary && item.damageSummary.length) || (item.highlights && item.highlights.length)}}"
+              class="skill-card__summary"
+            >
+              {{ (item.damageSummary && item.damageSummary.length) ? item.damageSummary[0] : item.highlights[0] }}
+            </view>
             <view class="skill-card__footer">
               <button
                 class="pill-btn pill-btn--primary"
@@ -677,6 +683,13 @@
       <view wx:if="{{skillModal.skill.resourceText}}" class="skill-modal__line">{{skillModal.skill.resourceText}}</view>
       <view wx:if="{{skillModal.skill.imprintText}}" class="skill-modal__line">{{skillModal.skill.imprintText}}</view>
       <view wx:if="{{skillModal.skill.description}}" class="skill-modal__desc">{{skillModal.skill.description}}</view>
+      <view
+        wx:if="{{skillModal.skill.damageSummary && skillModal.skill.damageSummary.length}}"
+        class="skill-modal__section"
+      >
+        <view class="skill-modal__section-title">伤害</view>
+        <view wx:for="{{skillModal.skill.damageSummary}}" wx:key="index" class="skill-modal__paragraph">{{item}}</view>
+      </view>
       <view
         wx:if="{{skillModal.skill.progressionSummary && skillModal.skill.progressionSummary.length}}"
         class="skill-modal__section"

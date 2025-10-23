@@ -282,6 +282,69 @@ function normalizeSkillTextList(list) {
   return normalized;
 }
 
+function normalizeSkillCollections(skills) {
+  if (!skills || typeof skills !== 'object') {
+    return skills;
+  }
+  const normalized = { ...skills };
+  if (Array.isArray(skills.inventory)) {
+    normalized.inventory = skills.inventory.map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return entry;
+      }
+      const detail = normalizeSkillDetail(entry);
+      return detail || entry;
+    });
+  }
+  if (Array.isArray(skills.equipped)) {
+    normalized.equipped = skills.equipped.map((slot) => {
+      if (!slot || typeof slot !== 'object') {
+        return slot;
+      }
+      if (!slot.detail || typeof slot.detail !== 'object') {
+        return slot;
+      }
+      const detail = normalizeSkillDetail(slot.detail);
+      if (!detail) {
+        return slot;
+      }
+      return { ...slot, detail };
+    });
+  }
+  return normalized;
+}
+
+function extractDamageSummary({ progression = [], effects = [], mechanics = [] } = {}) {
+  const keywords = ['伤害', '倍率'];
+  const seen = new Set();
+  const summary = [];
+  const sources = [];
+  if (Array.isArray(progression)) {
+    sources.push(...progression);
+  }
+  if (Array.isArray(effects)) {
+    sources.push(...effects);
+  }
+  if (Array.isArray(mechanics)) {
+    sources.push(...mechanics);
+  }
+  sources.forEach((entry) => {
+    if (typeof entry !== 'string') {
+      return;
+    }
+    const text = entry.trim();
+    if (!text || seen.has(text)) {
+      return;
+    }
+    if (!keywords.some((keyword) => text.includes(keyword))) {
+      return;
+    }
+    seen.add(text);
+    summary.push(text);
+  });
+  return summary;
+}
+
 function normalizeSkillDetail(skill) {
   if (!skill || typeof skill !== 'object') {
     return null;
@@ -310,7 +373,33 @@ function normalizeSkillDetail(skill) {
     filteredEffects = progressionSummary.slice();
   }
   normalized.effectsSummary = filteredEffects;
+  const damageSummary = extractDamageSummary({
+    progression: progressionSummary,
+    effects: effectsSummary,
+    mechanics
+  });
+  normalized.damageSummary = damageSummary;
   let highlightSource = highlights.length ? highlights : [...progressionSummary, ...filteredEffects];
+  if (damageSummary.length) {
+    const merged = [];
+    const seen = new Set();
+    damageSummary.forEach((text) => {
+      if (!seen.has(text)) {
+        merged.push(text);
+        seen.add(text);
+      }
+    });
+    highlightSource.forEach((text) => {
+      if (typeof text !== 'string') {
+        return;
+      }
+      if (!seen.has(text)) {
+        merged.push(text);
+        seen.add(text);
+      }
+    });
+    highlightSource = merged;
+  }
   if (!highlightSource.length && normalized.description) {
     highlightSource = [normalized.description];
   }
@@ -395,6 +484,9 @@ Page({
   applyProfile(profile, extraState = {}, options = {}) {
     this.clearAllAttributeAdjustTimers();
     const sanitizedProfile = sanitizeEquipmentProfile(profile);
+    if (sanitizedProfile && sanitizedProfile.skills) {
+      sanitizedProfile.skills = normalizeSkillCollections(sanitizedProfile.skills);
+    }
     syncRolePendingAttributes(sanitizedProfile);
     syncStorageBadgeStateFromProfile(sanitizedProfile);
     const storageState = this.buildStorageState(sanitizedProfile);

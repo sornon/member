@@ -1300,6 +1300,16 @@ button.pill-btn[disabled] {
   color: rgba(184, 197, 247, 0.74);
 }
 
+.skill-card__summary {
+  font-size: 22rpx;
+  color: rgba(177, 193, 247, 0.78);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
 .skill-card__footer {
   display: flex;
   align-items: center;
