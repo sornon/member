@@ -16,7 +16,8 @@ const {
   createCombatantFromAttributes,
   resolveCombatStats,
   resolveSpecialStats,
-  calculateCombatPower
+  calculateCombatPower,
+  determineRoundOrder
 } = require('combat-system');
 const {
   buildSkillLoadout: buildRuntimeSkillLoadout,
@@ -7613,64 +7614,73 @@ function runBattleSimulation({
   let previousPlayerAttributesSnapshot = null;
   let previousEnemyAttributesSnapshot = null;
   let round = 1;
-  let sequence = 1;
   const maxRounds = 15;
-  const playerFirst = playerStats.speed >= enemyStats.speed;
-  let attacker = playerFirst ? 'player' : 'enemy';
 
   while (playerActor.hp > 0 && enemyActor.hp > 0 && round <= maxRounds) {
-    const currentActor = attacker === 'player' ? playerActor : enemyActor;
-    const defender = currentActor === playerActor ? enemyActor : playerActor;
-    const beforeState = { player: playerActor.hp, enemy: enemyActor.hp };
-    const turnResult = executeSkillTurn({ actor: currentActor, opponent: defender });
-    const afterState = { player: playerActor.hp, enemy: enemyActor.hp };
-    const events = [];
-    if (Array.isArray(turnResult.preEvents) && turnResult.preEvents.length) {
-      events.push(...turnResult.preEvents);
-    }
-    if (Array.isArray(turnResult.events) && turnResult.events.length) {
-      events.push(...turnResult.events);
-    }
-    const summaryParts = Array.isArray(turnResult.summary) ? turnResult.summary : [];
-    const summaryText = summaryParts.length ? summaryParts.join('；') : `第${round}回合：${currentActor.name}发起了动作`;
-    log.push(summaryText);
-
-    const entry = buildTimelineEntry({
-      round,
-      sequence,
-      actorId: currentActor.id,
-      actorName: currentActor.name,
-      actorSide: currentActor.side,
-      targetId: defender.id,
-      targetName: defender.name,
-      events,
-      skill: turnResult.skill,
-      before: beforeState,
-      after: afterState,
-      playerMaxHp,
-      enemyMaxHp,
-      playerAttributesSnapshot,
-      enemyAttributesSnapshot,
-      previousAttributes: {
-        player: previousPlayerAttributesSnapshot,
-        opponent: previousEnemyAttributesSnapshot
-      },
-      summaryText
+    const { order: roundOrder } = determineRoundOrder(playerActor, enemyActor, {
+      playerKey: 'player',
+      opponentKey: 'enemy',
+      fallbackFirst: 'player'
     });
-    timeline.push(entry);
-    previousPlayerAttributesSnapshot = playerAttributesSnapshot ? { ...playerAttributesSnapshot } : null;
-    previousEnemyAttributesSnapshot = enemyAttributesSnapshot ? { ...enemyAttributesSnapshot } : null;
+    let sequence = 1;
 
-    sequence += 1;
-    attacker = attacker === 'player' ? 'enemy' : 'player';
-    if (attacker === 'player') {
-      round += 1;
-      sequence = 1;
+    for (let i = 0; i < roundOrder.length; i += 1) {
+      if (playerActor.hp <= 0 || enemyActor.hp <= 0) {
+        break;
+      }
+      const attackerKey = roundOrder[i];
+      const currentActor = attackerKey === 'player' ? playerActor : enemyActor;
+      const defender = currentActor === playerActor ? enemyActor : playerActor;
+      const beforeState = { player: playerActor.hp, enemy: enemyActor.hp };
+      const turnResult = executeSkillTurn({ actor: currentActor, opponent: defender });
+      const afterState = { player: playerActor.hp, enemy: enemyActor.hp };
+      const events = [];
+      if (Array.isArray(turnResult.preEvents) && turnResult.preEvents.length) {
+        events.push(...turnResult.preEvents);
+      }
+      if (Array.isArray(turnResult.events) && turnResult.events.length) {
+        events.push(...turnResult.events);
+      }
+      const summaryParts = Array.isArray(turnResult.summary) ? turnResult.summary : [];
+      const summaryText = summaryParts.length
+        ? summaryParts.join('；')
+        : `第${round}回合：${currentActor.name}发起了动作`;
+      log.push(summaryText);
+
+      const entry = buildTimelineEntry({
+        round,
+        sequence,
+        actorId: currentActor.id,
+        actorName: currentActor.name,
+        actorSide: currentActor.side,
+        targetId: defender.id,
+        targetName: defender.name,
+        events,
+        skill: turnResult.skill,
+        before: beforeState,
+        after: afterState,
+        playerMaxHp,
+        enemyMaxHp,
+        playerAttributesSnapshot,
+        enemyAttributesSnapshot,
+        previousAttributes: {
+          player: previousPlayerAttributesSnapshot,
+          opponent: previousEnemyAttributesSnapshot
+        },
+        summaryText
+      });
+      timeline.push(entry);
+      previousPlayerAttributesSnapshot = playerAttributesSnapshot ? { ...playerAttributesSnapshot } : null;
+      previousEnemyAttributesSnapshot = enemyAttributesSnapshot ? { ...enemyAttributesSnapshot } : null;
+
+      sequence += 1;
     }
 
     if (playerActor.hp <= 0 || enemyActor.hp <= 0) {
       break;
     }
+
+    round += 1;
   }
 
   const timeout = round > maxRounds && playerActor.hp > 0 && enemyActor.hp > 0;

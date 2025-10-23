@@ -130,6 +130,95 @@ function normalizeResourceStateMap(state = {}) {
   };
 }
 
+function toTrimmedString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function resolveActionSkill(action = {}) {
+  if (!action || typeof action !== 'object') {
+    return null;
+  }
+  if (action.skill && typeof action.skill === 'object') {
+    return action.skill;
+  }
+  const raw = action.raw || {};
+  if (raw.skill && typeof raw.skill === 'object') {
+    return raw.skill;
+  }
+  return null;
+}
+
+function extractActionSummaryText(action = {}) {
+  if (!action || typeof action !== 'object') {
+    return '';
+  }
+  if (typeof action.summary === 'string') {
+    return action.summary;
+  }
+  if (action.summary && typeof action.summary.text === 'string') {
+    return action.summary.text;
+  }
+  const raw = action.raw || {};
+  if (typeof raw.summary === 'string') {
+    return raw.summary;
+  }
+  if (raw.summary && typeof raw.summary.text === 'string') {
+    return raw.summary.text;
+  }
+  return '';
+}
+
+function textIndicatesControl(text) {
+  if (typeof text !== 'string') {
+    return false;
+  }
+  return text.indexOf('被控制') >= 0;
+}
+
+function isControlSkipAction(action = {}) {
+  const skill = resolveActionSkill(action);
+  if (!skill) {
+    return false;
+  }
+  const skillId = toTrimmedString(skill.id).toLowerCase();
+  if (skillId !== 'skip') {
+    return false;
+  }
+  const skillType = toTrimmedString(skill.type).toLowerCase();
+  if (skillType && skillType !== 'control') {
+    return false;
+  }
+  const skillName = toTrimmedString(skill.name || skill.label || skill.title);
+  if (skillName && textIndicatesControl(skillName)) {
+    return true;
+  }
+  const summaryText = extractActionSummaryText(action);
+  if (textIndicatesControl(summaryText)) {
+    return true;
+  }
+  const description = toTrimmedString(action.description);
+  if (textIndicatesControl(description)) {
+    return true;
+  }
+  return false;
+}
+
+function resolveControlTargets(action = {}, actorSide = '', targetSide = '') {
+  const controlledSides = [];
+  const summaryText = extractActionSummaryText(action);
+  const description = toTrimmedString(action.description);
+  const combinedText = `${summaryText} ${description}`.trim();
+  if (combinedText && textIndicatesControl(combinedText)) {
+    if (targetSide === 'player' || targetSide === 'opponent') {
+      controlledSides.push(targetSide);
+    }
+  }
+  if (isControlSkipAction(action) && (actorSide === 'player' || actorSide === 'opponent')) {
+    controlledSides.push(actorSide);
+  }
+  return Array.from(new Set(controlledSides));
+}
+
 function isExternalInviteSource(source) {
   return source === 'acceptInvite' || source === 'autoInvite';
 }
@@ -453,6 +542,7 @@ function createBattleStageState(overrides = {}) {
     attackTarget: '',
     attackIndicator: { visible: false, side: '', status: '', text: '', color: '', qualityKey: '' },
     targetReaction: '',
+    controlledState: { player: false, opponent: false },
     ...overrides
   };
 }
@@ -1412,6 +1502,8 @@ Page({
     }
     this._attackTimers = [];
     this._currentActionUsesIndicator = false;
+    this._pendingControlledState = null;
+    this._pendingControlledStateApplied = false;
     this.setBattleStageData({
       attackPhase: '',
       attackMotion: '',
@@ -1442,6 +1534,16 @@ Page({
     const stringified = typeof text === 'number' ? String(Math.round(text)) : String(text || '').trim();
     if (!stringified) {
       return;
+    }
+    if (
+      this._pendingControlledState &&
+      !this._pendingControlledStateApplied &&
+      textIndicatesControl(stringified) &&
+      this._pendingControlledState[normalizedSide]
+    ) {
+      this.setBattleStageData({ controlledState: this._pendingControlledState });
+      this._pendingControlledStateApplied = true;
+      this._pendingControlledState = null;
     }
     const nextState = cloneFloatingTextState(this._floatingTexts);
     const entryId = `ft-${Date.now()}-${(this._floatingTextId += 1)}`;
@@ -1559,6 +1661,10 @@ Page({
       return false;
     }
 
+    if (isControlSkipAction(action)) {
+      return false;
+    }
+
     if (action.type === 'dodge') {
       return true;
     }
@@ -1648,6 +1754,33 @@ Page({
     const hasDodge = action.type === 'dodge' || effects.some((effect) => effect && effect.type === 'dodge');
     const useIndicator = this.shouldUseAttackIndicator(action, actorSide, targetSide);
     this._currentActionUsesIndicator = useIndicator;
+
+    this._pendingControlledState = null;
+    this._pendingControlledStateApplied = false;
+    const currentControlledState =
+      (this.data && this.data.battleStage && this.data.battleStage.controlledState) ||
+      createBattleStageState().controlledState;
+    const nextControlledState = { ...currentControlledState };
+    let shouldDelayControlledState = false;
+    if (actorSide === 'player' || actorSide === 'opponent') {
+      const actorControlled = isControlSkipAction(action);
+      nextControlledState[actorSide] = actorControlled;
+      if (actorControlled) {
+        shouldDelayControlledState = true;
+      }
+    }
+    const controlledTargets = resolveControlTargets(action, actorSide, targetSide);
+    controlledTargets.forEach((side) => {
+      if (side === 'player' || side === 'opponent') {
+        nextControlledState[side] = true;
+        shouldDelayControlledState = true;
+      }
+    });
+    if (shouldDelayControlledState) {
+      this._pendingControlledState = nextControlledState;
+    } else {
+      this.setBattleStageData({ controlledState: nextControlledState });
+    }
 
     if (!useIndicator) {
       this.setBattleStageData({
@@ -1806,6 +1939,26 @@ Page({
       return;
     }
     const action = actions[nextIndex];
+    const actorSide =
+      action && (action.actor === 'player' || action.actor === 'opponent') ? action.actor : '';
+    if (actorSide && !isControlSkipAction(action)) {
+      const currentControlledState =
+        (this.data && this.data.battleStage && this.data.battleStage.controlledState) ||
+        createBattleStageState().controlledState;
+      if (currentControlledState[actorSide]) {
+        this.setBattleStageData({
+          controlledState: { ...currentControlledState, [actorSide]: false }
+        });
+      }
+      if (this._pendingControlledState && this._pendingControlledState[actorSide]) {
+        const pendingRelease = { ...this._pendingControlledState, [actorSide]: false };
+        if (!pendingRelease.player && !pendingRelease.opponent) {
+          this._pendingControlledState = null;
+        } else {
+          this._pendingControlledState = pendingRelease;
+        }
+      }
+    }
     const nextLogs = [...this.data.displayedLogs, { id: action.id, text: action.description }].slice(-5);
     const previousHpState = this.data.hpState || {};
     const rawNextHpState = action.hp || {};
@@ -1901,7 +2054,8 @@ Page({
       resultClass,
       resultRounds: result.rounds || this.timelineIndex + 1,
       skipLocked: false,
-      skipButtonText: '重播战斗'
+      skipButtonText: '重播战斗',
+      controlledState: { player: false, opponent: false }
     });
     this.setData({ battleState: 'finished' });
     this.notifyParent();
@@ -1966,7 +2120,8 @@ Page({
       targetReaction: '',
       skipLocked: false,
       skipButtonText: '跳过战斗',
-      currentRound: 1
+      currentRound: 1,
+      controlledState: { player: false, opponent: false }
     });
     this.resetFloatingTexts();
     this.setData({ battleState: 'playing', skipCountdown: 0 });
