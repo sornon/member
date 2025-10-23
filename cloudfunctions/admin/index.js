@@ -63,8 +63,8 @@ const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周�
 
 const CLEANUP_TASK_CONCURRENCY = 3;
 const ORPHAN_QUERY_BATCH_LIMIT = 200;
-const PLAYER_REFRESH_CONCURRENCY = 5;
-const PLAYER_REFRESH_BATCH_SIZE = 25;
+const PLAYER_REFRESH_BATCH_SIZE = 1;
+const PLAYER_REFRESH_MAX_DURATION_MS = 2400;
 
 const ACTIVITY_ALLOWED_STATUSES = ['draft', 'published', 'archived'];
 
@@ -1080,6 +1080,7 @@ async function refreshImmortalTournamentPlayers(openid, options = {}) {
   const previousProcessed = resolveNonNegativeInteger(options.processed);
   const previousRefreshed = resolveNonNegativeInteger(options.refreshed);
   const previousFailed = resolveNonNegativeInteger(options.failed);
+  const maxDurationMs = resolveRefreshMaxDuration(options.maxDurationMs);
 
   const totalPromise = (() => {
     const knownTotal = Number(options.total);
@@ -1119,40 +1120,49 @@ async function refreshImmortalTournamentPlayers(openid, options = {}) {
   }
 
   const startTime = Date.now();
-  const concurrency = resolveRefreshConcurrency(options.concurrency);
   const errorList = [];
+  let lastProcessedId = cursor;
+  let processedInBatch = 0;
 
-  await runTasksWithConcurrency(
-    memberIds.map((memberId) => async () => {
-      if (!memberId) {
-        return;
+  for (const memberId of memberIds) {
+    const elapsed = Date.now() - startTime;
+    if (processedInBatch > 0 && elapsed >= maxDurationMs) {
+      break;
+    }
+    if (!memberId) {
+      continue;
+    }
+    try {
+      await callPvpFunction('profile', { actorId: memberId, refreshOnly: true });
+      summary.refreshed += 1;
+      summary.refreshedTotal += 1;
+    } catch (error) {
+      summary.failed += 1;
+      summary.failedTotal += 1;
+      summary.success = false;
+      if (errorList.length < 10) {
+        errorList.push({
+          memberId,
+          message: resolveErrorMessage(error, '刷新失败')
+        });
       }
-      try {
-        await callPvpFunction('profile', { actorId: memberId, refreshOnly: true });
-        summary.refreshed += 1;
-        summary.refreshedTotal += 1;
-      } catch (error) {
-        summary.failed += 1;
-        summary.failedTotal += 1;
-        summary.success = false;
-        if (errorList.length < 10) {
-          errorList.push({
-            memberId,
-            message: resolveErrorMessage(error, '刷新失败')
-          });
-        }
-      } finally {
-        summary.processed += 1;
-        summary.processedTotal += 1;
-      }
-    }),
-    concurrency
-  );
+    } finally {
+      summary.processed += 1;
+      summary.processedTotal += 1;
+      processedInBatch += 1;
+      lastProcessedId = memberId;
+    }
+  }
 
   summary.durationMs = Date.now() - startTime;
   summary.errors = errorList;
-  summary.cursor = nextCursor;
-  summary.hasMore = Boolean(nextCursor);
+  if (processedInBatch > 0 && processedInBatch < memberIds.length) {
+    summary.cursor = lastProcessedId;
+    summary.hasMore = true;
+  } else {
+    summary.cursor = nextCursor;
+    summary.hasMore = Boolean(nextCursor);
+  }
   summary.remaining = Math.max(0, total - summary.processedTotal);
 
   return summary;
@@ -4503,12 +4513,12 @@ function resolveRefreshBatchSize(value) {
   return Math.min(100, Math.max(1, Math.floor(numeric)));
 }
 
-function resolveRefreshConcurrency(value) {
+function resolveRefreshMaxDuration(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
-    return PLAYER_REFRESH_CONCURRENCY;
+    return PLAYER_REFRESH_MAX_DURATION_MS;
   }
-  return Math.min(20, Math.max(1, Math.floor(numeric)));
+  return Math.min(2800, Math.max(500, Math.floor(numeric)));
 }
 
 function resolveNonNegativeInteger(value) {
