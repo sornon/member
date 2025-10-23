@@ -151,6 +151,86 @@ function finalizeStorageMeta(meta, categories) {
   return summary;
 }
 
+function normalizeEffectEntry(entry) {
+  if (entry === null || entry === undefined) {
+    return '';
+  }
+  if (typeof entry === 'string') {
+    return entry.trim();
+  }
+  if (typeof entry === 'number' && Number.isFinite(entry)) {
+    return String(entry);
+  }
+  if (entry && typeof entry === 'object') {
+    const text = typeof entry.text === 'string' ? entry.text : '';
+    return text.trim();
+  }
+  return '';
+}
+
+function normalizeEffectList(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  return list
+    .map((entry) => normalizeEffectEntry(entry))
+    .filter((entry) => !!entry);
+}
+
+function resolveSkillEffectTexts(skill) {
+  if (!skill || typeof skill !== 'object') {
+    return { baseEffectText: '', currentEffectText: '' };
+  }
+  const mechanics = normalizeEffectList(skill.mechanics);
+  const highlights = normalizeEffectList(skill.highlights);
+  const progressionSummary = normalizeEffectList(skill.progressionSummary);
+  const baseEffectText = mechanics[0] || highlights[0] || progressionSummary[0] || '';
+  const levelValue = Number(skill.level);
+  const level = Number.isFinite(levelValue) ? Math.max(1, Math.floor(levelValue)) : 1;
+  let currentEffectText = '';
+  if (level > 1) {
+    if (progressionSummary.length) {
+      const index = Math.min(level - 1, progressionSummary.length - 1);
+      currentEffectText = progressionSummary[index] || '';
+    }
+    if (!currentEffectText && highlights.length) {
+      const index = Math.min(level - 1, highlights.length - 1);
+      currentEffectText = highlights[index] || '';
+    }
+    if (!currentEffectText && mechanics.length) {
+      const index = Math.min(level - 1, mechanics.length - 1);
+      currentEffectText = mechanics[index] || '';
+    }
+  }
+  return { baseEffectText, currentEffectText };
+}
+
+function decorateSkillEffectDisplay(skill) {
+  if (!skill || typeof skill !== 'object') {
+    return;
+  }
+  const { baseEffectText, currentEffectText } = resolveSkillEffectTexts(skill);
+  skill.effectBaseText = baseEffectText;
+  skill.effectCurrentText = currentEffectText;
+}
+
+function decorateProfileSkillEffects(profile) {
+  if (!profile || !profile.skills) {
+    return;
+  }
+  const inventory = Array.isArray(profile.skills.inventory) ? profile.skills.inventory : [];
+  inventory.forEach((skill) => {
+    decorateSkillEffectDisplay(skill);
+  });
+  const equipped = Array.isArray(profile.skills.equipped) ? profile.skills.equipped : [];
+  equipped.forEach((slot) => {
+    decorateSkillEffectDisplay(slot);
+    if (slot && slot.detail) {
+      decorateSkillEffectDisplay(slot.detail);
+    }
+  });
+}
+
 const ALLOCATABLE_KEYS = ['constitution', 'strength', 'spirit', 'root', 'agility', 'insight'];
 const ATTRIBUTE_DETAIL_MAP = {
   constitution: {
@@ -342,6 +422,7 @@ Page({
     const sanitizedProfile = sanitizeEquipmentProfile(profile);
     syncRolePendingAttributes(sanitizedProfile);
     syncStorageBadgeStateFromProfile(sanitizedProfile);
+    decorateProfileSkillEffects(sanitizedProfile);
     const storageState = this.buildStorageState(sanitizedProfile);
     const previousCredits = Math.max(0, Math.floor(Number((this.data && this.data.skillDrawCredits) || 0)));
     const rawCredits =

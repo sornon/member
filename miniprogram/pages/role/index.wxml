@@ -432,50 +432,11 @@
               <view wx:if="{{item.detail.resourceText}}" class="skill-slot-card__meta">{{item.detail.resourceText}}</view>
               <view wx:if="{{item.detail.imprintText}}" class="skill-slot-card__meta">{{item.detail.imprintText}}</view>
               <view
-                wx:if="{{
-                  (item.detail.mechanics && item.detail.mechanics.length) ||
-                    (item.detail.highlights && item.detail.highlights.length) ||
-                    (item.detail.progressionSummary && item.detail.progressionSummary.length)
-                }}"
+                wx:if="{{ item.detail.effectBaseText || item.detail.effectCurrentText }}"
                 class="skill-slot-card__highlights"
               >
-                <view>
-                  1级效果：{{
-                    (item.detail.mechanics && item.detail.mechanics.length && item.detail.mechanics[0]) ||
-                      (item.detail.highlights && item.detail.highlights.length && item.detail.highlights[0]) ||
-                      (item.detail.progressionSummary &&
-                        item.detail.progressionSummary.length &&
-                        item.detail.progressionSummary[0])
-                  }}
-                </view>
-                <view
-                  wx:if="{{
-                    (item.detail.level || 1) > 1 &&
-                      ((item.detail.progressionSummary &&
-                        item.detail.progressionSummary.length &&
-                        item.detail.progressionSummary[0]) ||
-                        (item.detail.highlights &&
-                          item.detail.highlights.length &&
-                          item.detail.highlights[0]) ||
-                        (item.detail.mechanics &&
-                          item.detail.mechanics.length &&
-                          (item.detail.mechanics[item.detail.level - 1] ||
-                            item.detail.mechanics[item.detail.mechanics.length - 1])))
-                  }}"
-                >
-                  当前效果：{{
-                    (item.detail.progressionSummary &&
-                      item.detail.progressionSummary.length &&
-                      item.detail.progressionSummary[0]) ||
-                      (item.detail.highlights &&
-                        item.detail.highlights.length &&
-                        item.detail.highlights[0]) ||
-                      (item.detail.mechanics &&
-                        item.detail.mechanics.length &&
-                        (item.detail.mechanics[item.detail.level - 1] ||
-                          item.detail.mechanics[item.detail.mechanics.length - 1]))
-                  }}
-                </view>
+                <view wx:if="{{ item.detail.effectBaseText }}">1级效果：{{item.detail.effectBaseText}}</view>
+                <view wx:if="{{ item.detail.effectCurrentText }}">当前效果：{{item.detail.effectCurrentText}}</view>
               </view>
             </view>
             <view wx:else class="slot-empty">未装备技能</view>
@@ -517,42 +478,11 @@
             </view>
             <view wx:if="{{item.imprintText}}" class="skill-card__meta">{{item.imprintText}}</view>
             <view
-              wx:if="{{
-                (item.mechanics && item.mechanics.length) ||
-                  (item.highlights && item.highlights.length) ||
-                  (item.progressionSummary && item.progressionSummary.length)
-              }}"
+              wx:if="{{ item.effectBaseText || item.effectCurrentText }}"
               class="skill-slot-card__highlights"
             >
-              <view>
-                1级效果：{{
-                  (item.mechanics && item.mechanics.length && item.mechanics[0]) ||
-                    (item.highlights && item.highlights.length && item.highlights[0]) ||
-                    (item.progressionSummary && item.progressionSummary.length && item.progressionSummary[0])
-                }}
-              </view>
-              <view
-                wx:if="{{
-                  (item.level || 1) > 1 &&
-                    ((item.progressionSummary &&
-                      item.progressionSummary.length &&
-                      item.progressionSummary[0]) ||
-                      (item.highlights && item.highlights.length && item.highlights[0]) ||
-                      (item.mechanics &&
-                        item.mechanics.length &&
-                        (item.mechanics[item.level - 1] || item.mechanics[item.mechanics.length - 1])))
-                }}"
-              >
-                当前效果：{{
-                  (item.progressionSummary &&
-                    item.progressionSummary.length &&
-                    item.progressionSummary[0]) ||
-                    (item.highlights && item.highlights.length && item.highlights[0]) ||
-                    (item.mechanics &&
-                      item.mechanics.length &&
-                      (item.mechanics[item.level - 1] || item.mechanics[item.mechanics.length - 1]))
-                }}
-              </view>
+              <view wx:if="{{ item.effectBaseText }}">1级效果：{{item.effectBaseText}}</view>
+              <view wx:if="{{ item.effectCurrentText }}">当前效果：{{item.effectCurrentText}}</view>
             </view>
             <view class="skill-card__footer">
               <button
