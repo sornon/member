@@ -17,7 +17,8 @@ const {
   clamp,
   extractCombatProfile,
   resolveCombatStats,
-  resolveSpecialStats
+  resolveSpecialStats,
+  determineRoundOrder
 } = require('combat-system');
 const {
   buildSkillLoadout: buildRuntimeSkillLoadout,
@@ -32,7 +33,6 @@ const {
   resolveSkillQualityLabel
 } = require('skill-model');
 const { createBattlePayload, decorateBattleReplay } = require('battle-schema');
-const { determineRoundOrder } = require('battle-utils');
 const {
   DEFAULT_GAME_PARAMETERS,
   buildResourceConfigOverrides,

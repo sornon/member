@@ -16,7 +16,8 @@ const {
   createCombatantFromAttributes,
   resolveCombatStats,
   resolveSpecialStats,
-  calculateCombatPower
+  calculateCombatPower,
+  determineRoundOrder
 } = require('combat-system');
 const {
   buildSkillLoadout: buildRuntimeSkillLoadout,
@@ -31,7 +32,6 @@ const {
   FEATURE_TOGGLE_DOC_ID
 } = require('system-settings');
 const { createBattlePayload } = require('battle-schema');
-const { determineRoundOrder } = require('battle-utils');
 const {
   BASE_ATTRIBUTE_KEYS,
   COMBAT_STAT_KEYS,
