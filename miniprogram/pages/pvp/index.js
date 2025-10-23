@@ -315,6 +315,14 @@ Page({
     wx.navigateTo({ url: '/pages/pvp/leaderboard' });
   },
 
+  handleViewArchive(event) {
+    const { memberId } = event.currentTarget.dataset || {};
+    if (!memberId) {
+      return;
+    }
+    wx.navigateTo({ url: `/pages/pvp/archive?memberId=${memberId}` });
+  },
+
   handleReplay(event) {
     const matchId = event.currentTarget.dataset.id;
     if (!matchId) return;
