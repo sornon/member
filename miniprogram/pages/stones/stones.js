@@ -4,6 +4,8 @@ import {
   subscribe as subscribeMemberRealtime
 } from '../../services/member-realtime';
 import { formatDate, formatStones, formatStoneChange } from '../../utils/format';
+import { updateBadgeSignature, acknowledgeBadge } from '../../utils/badge-center';
+import { resolveTimestamp } from '../../utils/pending-attributes';
 
 function toNumeric(value, fallback = 0) {
   if (value == null || value === '') {
@@ -127,6 +129,19 @@ function decorateSummary(summary) {
   };
 }
 
+function buildStoneSummarySignature(summary) {
+  if (!summary) {
+    return 'stones:0:0';
+  }
+  const balance = Number(summary.stoneBalance || summary.balance || 0) || 0;
+  const transactions = Array.isArray(summary.transactions) ? summary.transactions : [];
+  const latestTimestamp = transactions.reduce((max, txn) => {
+    const ts = resolveTimestamp(txn.createdAt || txn.timestamp || txn.updatedAt || 0) || 0;
+    return ts > max ? ts : max;
+  }, 0);
+  return `stones:${balance}:${latestTimestamp}`;
+}
+
 Page({
   data: {
     loading: true,
@@ -138,6 +153,7 @@ Page({
     ensureMemberWatcher().catch(() => {
       // ignore; fetchSummary will surface any issues
     });
+    acknowledgeBadge('home.stones');
     this.fetchSummary();
   },
 
@@ -185,6 +201,8 @@ Page({
       const summary = await StoneService.summary();
       const normalizedSummary = decorateSummary(summary);
       this.setData({ summary: normalizedSummary, loading: false });
+      const signature = buildStoneSummarySignature(normalizedSummary);
+      updateBadgeSignature('home.stones', signature, { initializeAck: true });
     } catch (error) {
       console.error('[stones:summary]', error);
       this.setData({ loading: false });

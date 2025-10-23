@@ -1,7 +1,18 @@
-import { MemberService, TaskService } from '../../services/api';
+import { MemberService, TaskService, PveService } from '../../services/api';
 import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../services/member-realtime';
 import { formatCombatPower, formatCurrency, formatExperience, formatStones } from '../../utils/format';
-import { shouldShowRoleBadge } from '../../utils/pending-attributes';
+import { shouldShowRoleBadge, resolveTimestamp } from '../../utils/pending-attributes';
+import {
+  updateBadgeSignature,
+  updateBadgeEntries,
+  shouldShowBadge,
+  acknowledgeBadge,
+  buildIdListSignature,
+  buildNumericSignature,
+  combineSignatures
+} from '../../utils/badge-center';
+import { sanitizeEquipmentProfile } from '../../utils/equipment';
+import { extractNewStorageItemsFromProfile } from '../../utils/storage-notifications';
 import {
   buildAvatarUrlById,
   getAvailableAvatars,
@@ -384,6 +395,214 @@ function shouldShowAdminDot(badges) {
   return badges.adminVersion > badges.adminSeenVersion;
 }
 
+function buildReservationBadgeSignature(badges) {
+  const normalized = normalizeReservationBadges(badges);
+  const version = Math.max(0, Number(normalized.memberVersion || 0));
+  const seenVersion = Math.max(0, Number(normalized.memberSeenVersion || 0));
+  const pendingCount = Math.max(0, Number(normalized.pendingApprovalCount || 0));
+  return `reservation:${version}:${seenVersion}:${pendingCount}`;
+}
+
+function extractAvatarFrameUnlocks(member) {
+  if (!member || typeof member !== 'object') {
+    return [];
+  }
+  const unlocks = [];
+  if (Array.isArray(member.avatarFrameUnlocks)) {
+    unlocks.push(...member.avatarFrameUnlocks);
+  }
+  if (member.extras && Array.isArray(member.extras.avatarFrameUnlocks)) {
+    unlocks.push(...member.extras.avatarFrameUnlocks);
+  }
+  const normalized = [];
+  const seen = new Set();
+  unlocks.forEach((value) => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      return;
+    }
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  });
+  return normalized;
+}
+
+function normalizeBadgeEntryKey(item, fallbackCategory = 'storage', index = 0) {
+  const candidates = [];
+  if (item && typeof item === 'object') {
+    candidates.push(
+      item.storageBadgeKey,
+      item.storageKey,
+      item.badgeKey,
+      item.inventoryId,
+      item.inventoryKey,
+      item.itemId,
+      item.id,
+      item._id,
+      item.slot
+    );
+  }
+  let category = typeof (item && item.storageCategory) === 'string' ? item.storageCategory.trim() : '';
+  if (!category) {
+    category = fallbackCategory;
+  }
+  let identifier = '';
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = candidates[i];
+    if (candidate === null || typeof candidate === 'undefined') {
+      continue;
+    }
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (!trimmed) {
+        continue;
+      }
+      if (trimmed.includes(':')) {
+        return trimmed;
+      }
+      identifier = trimmed;
+      break;
+    }
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+      identifier = String(candidate);
+      break;
+    }
+  }
+  if (!identifier) {
+    identifier = `idx-${index}`;
+  }
+  return `${category || 'storage'}:${identifier}`;
+}
+
+function isTruthyFlag(value) {
+  if (!value) {
+    return false;
+  }
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value !== 0 : false;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed) {
+      return false;
+    }
+    return trimmed !== '0' && trimmed !== 'false' && trimmed !== 'no' && trimmed !== 'none';
+  }
+  return false;
+}
+
+function collectEquipmentBadgeEntriesFromProfile(profile) {
+  const equipment = profile && profile.equipment && typeof profile.equipment === 'object' ? profile.equipment : {};
+  const inventory = Array.isArray(equipment.inventory) ? equipment.inventory : [];
+  const entries = [];
+  inventory.forEach((item, index) => {
+    if (!item || typeof item !== 'object') {
+      return;
+    }
+    if (!isTruthyFlag(item.isNew || item.new || item.hasNewBadge || item.hasNew)) {
+      return;
+    }
+    const key = normalizeBadgeEntryKey(item, 'equipment', index);
+    const timestamp = resolveTimestamp(
+      item.obtainedAt || item.obtainTime || item.obtainedAtText || item.updatedAt || item.createdAt || 0
+    );
+    entries.push({ key, timestamp });
+  });
+  const storage =
+    equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : { categories: [] };
+  const categories = Array.isArray(storage.categories) ? storage.categories : [];
+  categories.forEach((category) => {
+    if (!category || category.key !== 'equipment' || !Array.isArray(category.items)) {
+      return;
+    }
+    category.items.forEach((item, index) => {
+      if (!item || typeof item !== 'object') {
+        return;
+      }
+      if (!isTruthyFlag(item.isNew || item.new || item.hasNewBadge || item.hasNew)) {
+        return;
+      }
+      const key = normalizeBadgeEntryKey(item, 'equipment', index);
+      const timestamp = resolveTimestamp(
+        item.obtainedAt || item.obtainTime || item.obtainedAtText || item.updatedAt || item.createdAt || 0
+      );
+      entries.push({ key, timestamp });
+    });
+  });
+  if (!entries.length) {
+    return [];
+  }
+  const deduped = new Map();
+  entries.forEach((entry) => {
+    if (!entry || !entry.key) {
+      return;
+    }
+    const current = deduped.get(entry.key);
+    if (!current || (entry.timestamp || 0) > (current.timestamp || 0)) {
+      deduped.set(entry.key, entry);
+    }
+  });
+  return Array.from(deduped.values());
+}
+
+function mapStorageEntriesForBadges(profile) {
+  const entries = extractNewStorageItemsFromProfile(profile);
+  if (!Array.isArray(entries) || !entries.length) {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry && entry.key)
+    .map((entry) => ({ key: entry.key, timestamp: Number(entry.obtainedAt) || 0 }));
+}
+
+function buildRealmBadgeSignature(progress) {
+  if (!progress || !Array.isArray(progress.levels)) {
+    return 'realm:none';
+  }
+  const claimableIds = progress.levels
+    .filter((level) => level && level.claimable)
+    .map((level) => level._id || level.id || '')
+    .filter(Boolean);
+  return buildIdListSignature(claimableIds, 'realm');
+}
+
+function buildStoneBadgeSignature(member) {
+  if (!member) {
+    return buildNumericSignature(0, 'stoneBalance');
+  }
+  return buildNumericSignature(member.stoneBalance || 0, 'stoneBalance');
+}
+
+function buildAppearanceBadgeSignature(member) {
+  if (!member) {
+    return {
+      avatar: 'avatarUnlocks:none',
+      frame: 'avatarFrames:none',
+      title: 'titles:none',
+      background: 'backgrounds:none',
+      combined: 'appearance:none'
+    };
+  }
+  const avatarUnlocks = buildIdListSignature(normalizeAvatarUnlocks(member.avatarUnlocks || []), 'avatarUnlocks');
+  const frameUnlocks = buildIdListSignature(extractAvatarFrameUnlocks(member), 'avatarFrames');
+  const titleUnlocks = buildIdListSignature(resolveTitleUnlocks(member), 'titles');
+  const backgroundUnlocks = buildIdListSignature(member.backgroundUnlocks || [], 'backgrounds');
+  const combined = combineSignatures([avatarUnlocks, frameUnlocks, titleUnlocks, backgroundUnlocks], 'appearance');
+  return {
+    avatar: avatarUnlocks,
+    frame: frameUnlocks,
+    title: titleUnlocks,
+    background: backgroundUnlocks,
+    combined
+  };
+}
+
 function extractDocIdFromChange(change) {
   if (!change) {
     return '';
@@ -720,10 +939,22 @@ function resolveNavItems(member) {
   const navItems = BASE_NAV_ITEMS.map((item) => {
     const next = { ...item };
     if (item.label === '预订') {
-      next.showDot = shouldShowReservationDot(badges);
+      next.showDot = shouldShowBadge('home.nav.reservation') || shouldShowReservationDot(badges);
     }
     if (item.label === '角色') {
-      next.showDot = roleHasPendingAttributes;
+      next.showDot = roleHasPendingAttributes || shouldShowBadge('home.nav.role');
+    }
+    if (item.label === '装备') {
+      next.showDot = shouldShowBadge('home.nav.equipment');
+    }
+    if (item.label === '纳戒') {
+      next.showDot = shouldShowBadge('home.nav.storage');
+    }
+    if (item.label === '技能') {
+      next.showDot = shouldShowBadge('home.nav.skill');
+    }
+    if (item.label === '点餐') {
+      next.showDot = shouldShowBadge('menu.orders.pending');
     }
     return next;
   });
@@ -771,6 +1002,7 @@ Page({
     heroImage: HERO_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
     activeTitleImage: '',
+    roleProfile: null,
     activityIcons: [
       { icon: '🎊', label: '活动', url: '/pages/activities/index' },
       { icon: '🏪', label: '商城', url: '/pages/mall/index' },
@@ -781,6 +1013,17 @@ Page({
     navItems: INITIAL_NAV_ITEMS.slice(),
     collapsedNavItems: buildCollapsedNavItems(INITIAL_NAV_ITEMS),
     navExpanded: false,
+    badgeState: {
+      avatar: false,
+      realm: false,
+      stones: false
+    },
+    appearanceTabBadges: {
+      avatar: false,
+      frame: false,
+      title: false,
+      background: false
+    },
     memberStats: { ...EMPTY_MEMBER_STATS },
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
@@ -826,6 +1069,8 @@ Page({
   onShow() {
     this.ensureNavMetrics();
     this.updateToday();
+    this.refreshNavBadgeState(member);
+    this.refreshBadgeBindings();
     this.attachMemberRealtime();
     this.bootstrap();
   },
@@ -869,6 +1114,63 @@ Page({
       showBackgroundOverlay: !showVideo,
       backgroundVideoError: hasError
     });
+  },
+
+  refreshBadgeBindings() {
+    this.setData({
+      'badgeState.avatar': shouldShowBadge('home.avatar'),
+      'badgeState.realm': shouldShowBadge('home.realm'),
+      'badgeState.stones': shouldShowBadge('home.stones'),
+      'appearanceTabBadges.avatar': shouldShowBadge('appearance.avatar'),
+      'appearanceTabBadges.frame': shouldShowBadge('appearance.frame'),
+      'appearanceTabBadges.title': shouldShowBadge('appearance.title'),
+      'appearanceTabBadges.background': shouldShowBadge('appearance.background')
+    });
+    this.refreshNavBadgeState();
+  },
+
+  updateBadgeState(member, progress, roleProfile = null) {
+    const appearanceSignatures = buildAppearanceBadgeSignature(member);
+    updateBadgeSignature('appearance.avatar', appearanceSignatures.avatar, { initializeAck: true });
+    updateBadgeSignature('appearance.frame', appearanceSignatures.frame, { initializeAck: true });
+    updateBadgeSignature('appearance.title', appearanceSignatures.title, { initializeAck: true });
+    updateBadgeSignature('appearance.background', appearanceSignatures.background, { initializeAck: true });
+    updateBadgeSignature('home.avatar', appearanceSignatures.combined, { initializeAck: true });
+
+    const stoneSignature = buildStoneBadgeSignature(member);
+    updateBadgeSignature('home.stones', stoneSignature, { initializeAck: true });
+
+    const realmSignature = buildRealmBadgeSignature(progress);
+    updateBadgeSignature('home.realm', realmSignature);
+
+    const reservationSignature = buildReservationBadgeSignature(member && member.reservationBadges);
+    updateBadgeSignature('home.nav.reservation', reservationSignature, { initializeAck: true });
+
+    if (roleProfile) {
+      const sanitizedProfile = sanitizeEquipmentProfile(roleProfile);
+      const equipmentEntries = collectEquipmentBadgeEntriesFromProfile(sanitizedProfile);
+      const storageEntries = mapStorageEntriesForBadges(sanitizedProfile);
+      const equipmentSignature = updateBadgeEntries('role.storage.equipment', equipmentEntries, {
+        initializeAck: true,
+        prefix: 'equipmentEntries'
+      });
+      const storageSignature = updateBadgeEntries('role.storage.items', storageEntries, {
+        initializeAck: true,
+        prefix: 'storageEntries'
+      });
+      const storageCombined = combineSignatures([equipmentSignature, storageSignature], 'storage');
+      updateBadgeSignature('home.nav.storage', storageCombined, { initializeAck: true });
+      updateBadgeSignature('home.nav.equipment', equipmentSignature || storageCombined, { initializeAck: true });
+    }
+
+    this.refreshBadgeBindings();
+  },
+
+  refreshNavBadgeState(memberOverride = null) {
+    const sourceMember = memberOverride || this.data.member || null;
+    const navItems = resolveNavItems(sourceMember);
+    const collapsedNavItems = buildCollapsedNavItems(navItems);
+    this.setData({ navItems, collapsedNavItems });
   },
 
   handleBackgroundVideoError() {
@@ -950,12 +1252,19 @@ Page({
       this.setData({ loading: true });
     }
     try {
-      const [member, progress, tasks] = await Promise.all([
+      const [member, progress, tasks, roleProfile] = await Promise.all([
         MemberService.getMember(),
         MemberService.getLevelProgress(),
-        TaskService.list()
+        TaskService.list(),
+        PveService.profile().catch((error) => {
+          console.error('[home] load pve profile failed', error);
+          return null;
+        })
       ]);
       const sanitizedMember = buildSanitizedMember(member);
+      this.updateBadgeState(sanitizedMember, progress, roleProfile);
+      const navItems = resolveNavItems(sanitizedMember);
+      const collapsedNavItems = buildCollapsedNavItems(navItems);
       const width = normalizePercentage(progress);
       const nextDiff = progress && typeof progress.nextDiff === 'number' ? progress.nextDiff : 0;
       const progressRemainingExperience = formatExperience(nextDiff);
@@ -963,8 +1272,6 @@ Page({
       const shouldShowOnboarding = this.shouldShowOnboarding(needsProfile);
       const profileAuthorized = !!(sanitizedMember && sanitizedMember.nickName);
       const phoneAuthorized = !!(sanitizedMember && sanitizedMember.mobile);
-      const navItems = resolveNavItems(sanitizedMember);
-      const collapsedNavItems = buildCollapsedNavItems(navItems);
       const realmHasPendingRewards = hasPendingLevelRewards(progress);
       this.setData({
         member: sanitizedMember,
@@ -974,6 +1281,7 @@ Page({
         tasks: tasks.slice(0, 3),
         loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),
+        roleProfile,
         navItems,
         collapsedNavItems,
         memberStats: deriveMemberStats(sanitizedMember),
@@ -1089,18 +1397,26 @@ Page({
   },
 
   handleAvatarTap() {
+    acknowledgeBadge(['home.avatar', 'appearance.avatar']);
+    this.refreshBadgeBindings();
     this.openAvatarPicker();
   },
 
   handleCombatPowerTap() {
+    acknowledgeBadge('home.nav.role');
+    this.refreshNavBadgeState();
     wx.navigateTo({ url: '/pages/role/index?tab=character' });
   },
 
   handleStoneTap() {
+    acknowledgeBadge('home.stones');
+    this.refreshBadgeBindings();
     wx.navigateTo({ url: '/pages/stones/stones' });
   },
 
   handleLevelTap() {
+    acknowledgeBadge('home.realm');
+    this.refreshBadgeBindings();
     wx.navigateTo({ url: '/pages/membership/membership' });
   },
 
@@ -1184,7 +1500,12 @@ Page({
     if (tab === 'title') {
       updates['avatarPicker.titleOptions'] = buildTitleOptionList(this.data.member);
     }
-    this.setData(updates);
+    if (tab) {
+      acknowledgeBadge(`appearance.${tab}`);
+    }
+    this.setData(updates, () => {
+      this.refreshBadgeBindings();
+    });
   },
 
   openAvatarPicker() {
@@ -1239,7 +1560,10 @@ Page({
     if (this.data.profileEditor.appearanceTitle !== appearanceTitle) {
       updates['profileEditor.appearanceTitle'] = appearanceTitle;
     }
-    this.setData(updates);
+    acknowledgeBadge(['home.avatar', 'appearance.avatar']);
+    this.setData(updates, () => {
+      this.refreshBadgeBindings();
+    });
   },
 
   handleCloseAvatarPicker() {
@@ -1535,6 +1859,7 @@ Page({
     if (options.propagate !== false) {
       setActiveMember(sanitizedMember);
     }
+    this.updateBadgeState(sanitizedMember, this.data.progress, this.data.roleProfile || null);
   },
 
   handleNicknameInput(event) {
@@ -1687,7 +2012,30 @@ Page({
   },
 
   handleNavTap(event) {
-    const { url } = event.currentTarget.dataset;
+    const { url, label } = event.currentTarget.dataset;
+    switch (label) {
+      case '角色':
+        acknowledgeBadge('home.nav.role');
+        break;
+      case '装备':
+        acknowledgeBadge(['home.nav.equipment', 'role.storage.equipment']);
+        break;
+      case '纳戒':
+        acknowledgeBadge(['home.nav.storage', 'role.storage.items']);
+        break;
+      case '技能':
+        acknowledgeBadge('home.nav.skill');
+        break;
+      case '点餐':
+        acknowledgeBadge('menu.orders.pending');
+        break;
+      case '预订':
+        acknowledgeBadge('home.nav.reservation');
+        break;
+      default:
+        break;
+    }
+    this.refreshNavBadgeState();
     wx.navigateTo({ url });
   },
 

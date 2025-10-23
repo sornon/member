@@ -1,5 +1,6 @@
 import { MenuOrderService, MenuCatalogService } from '../../../services/api';
 import { formatCurrency, formatStones } from '../../../utils/format';
+import { updateBadgeEntries, acknowledgeBadge } from '../../../utils/badge-center';
 import menuData from '../../../shared/menu-data';
 
 let SECTION_META = {};
@@ -795,6 +796,20 @@ function formatDateTime(value) {
   return `${y}-${m}-${d} ${h}:${mm}`;
 }
 
+function collectPendingOrderBadgeEntries(orders = []) {
+  if (!Array.isArray(orders) || !orders.length) {
+    return [];
+  }
+  return orders
+    .filter((order) => order && order.status === 'pendingMember')
+    .map((order, index) => {
+      const key = order._id || order.id || order.orderId || order.outTradeNo || `pending-${index}`;
+      const timestamp =
+        resolveTimestamp(order.updatedAt || order.adminConfirmedAt || order.createdAt || 0) || Date.now();
+      return { key, timestamp };
+    });
+}
+
 const STATUS_LABELS = {
   submitted: '待备餐',
   pendingMember: '待确认扣费',
@@ -1021,6 +1036,12 @@ Page({
     }
     this.loadCatalog();
     this.loadOrders();
+  },
+
+  onShow() {
+    acknowledgeBadge('menu.orders.pending');
+    const existingOrders = Array.isArray(this.data.orders) ? this.data.orders : [];
+    this.updateOrderBadgeState(existingOrders);
   },
 
   applyCatalogState(catalog, options = {}) {
@@ -1350,6 +1371,7 @@ Page({
         hasMoreOrders,
         showingAllOrders
       });
+      this.updateOrderBadgeState(sortedOrders);
     } catch (error) {
       const message =
         (error && (error.errMsg || error.message))
@@ -1362,6 +1384,14 @@ Page({
     } finally {
       this.setData({ loadingOrders: false });
     }
+  },
+
+  updateOrderBadgeState(orders) {
+    const entries = collectPendingOrderBadgeEntries(orders);
+    updateBadgeEntries('menu.orders.pending', entries, {
+      initializeAck: true,
+      prefix: 'orderPending'
+    });
   },
 
   handleShowMoreOrders() {

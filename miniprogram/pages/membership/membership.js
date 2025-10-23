@@ -4,6 +4,7 @@ import {
   subscribe as subscribeMemberRealtime
 } from '../../services/member-realtime';
 import { formatCurrency, formatExperience, levelBadgeColor } from '../../utils/format';
+import { updateBadgeSignature, acknowledgeBadge, buildIdListSignature } from '../../utils/badge-center';
 
 function normalizePercentage(progress) {
   if (!progress || typeof progress.percentage !== 'number') {
@@ -136,6 +137,17 @@ function resolveVisibleRealms(realms = [], options = {}) {
   return visible;
 }
 
+function buildRealmBadgeSignature(progress) {
+  if (!progress || !Array.isArray(progress.levels)) {
+    return 'realm:none';
+  }
+  const claimableIds = progress.levels
+    .filter((level) => level && level.claimable)
+    .map((level) => level._id || level.id || '')
+    .filter(Boolean);
+  return buildIdListSignature(claimableIds, 'realm');
+}
+
 Page({
   data: {
     loading: true,
@@ -166,6 +178,7 @@ Page({
     ensureMemberWatcher().catch(() => {
       // ignore; fetchData will report if necessary
     });
+    acknowledgeBadge('home.realm');
     this.fetchData();
   },
 
@@ -292,6 +305,9 @@ Page({
         ? '筑基背景 + 任意120元内饮品券'
         : '';
       mergedMember.pendingBreakthroughLevelId = pendingBreakthroughLevelId;
+
+      const realmSignature = buildRealmBadgeSignature(progress);
+      updateBadgeSignature('home.realm', realmSignature, { initializeAck: true });
 
       this.setData({
         loading: false,

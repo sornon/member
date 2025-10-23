@@ -1,5 +1,6 @@
 import { ReservationService } from '../../services/api';
 import { formatDate, formatCurrency } from '../../utils/format';
+import { updateBadgeSignature, acknowledgeBadge } from '../../utils/badge-center';
 
 const DEFAULT_START_TIME = '12:00';
 const MINUTES_PER_HOUR = 60;
@@ -13,6 +14,38 @@ const DEFAULT_DURATION_INDEX = 0;
 const DEFAULT_DURATION_HOURS = DURATION_OPTIONS[DEFAULT_DURATION_INDEX].value;
 const DISMISSED_NOTICE_STORAGE_KEY = 'reservation_notice_dismissed';
 const MINIMUM_ADVANCE_MINUTES = MINUTES_PER_HOUR;
+
+function normalizeReservationBadges(badges) {
+  const defaults = {
+    memberVersion: 0,
+    memberSeenVersion: 0,
+    pendingApprovalCount: 0
+  };
+  if (!badges || typeof badges !== 'object') {
+    return { ...defaults };
+  }
+  const normalized = { ...defaults };
+  Object.keys(defaults).forEach((key) => {
+    const value = badges[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      normalized[key] = Math.max(0, Math.floor(value));
+    } else if (typeof value === 'string') {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric)) {
+        normalized[key] = Math.max(0, Math.floor(numeric));
+      }
+    }
+  });
+  return normalized;
+}
+
+function buildReservationBadgeSignature(badges) {
+  const normalized = normalizeReservationBadges(badges);
+  const version = normalized.memberVersion || 0;
+  const seenVersion = normalized.memberSeenVersion || 0;
+  const pendingCount = normalized.pendingApprovalCount || 0;
+  return `reservation:${version}:${seenVersion}:${pendingCount}`;
+}
 
 function timeToMinutes(time) {
   if (!time || typeof time !== 'string') return NaN;
@@ -155,6 +188,7 @@ Page({
   },
 
   onShow() {
+    acknowledgeBadge('home.nav.reservation');
     this.fetchRooms();
   },
 
@@ -222,6 +256,8 @@ Page({
         memberReservations: this.normalizeMemberReservations(rawReservations),
         reservationBadges: result.reservationBadges || null
       });
+      const reservationSignature = buildReservationBadgeSignature(result.reservationBadges);
+      updateBadgeSignature('home.nav.reservation', reservationSignature, { initializeAck: true });
       this.updateGlobalReservationBadges(result.reservationBadges);
     } catch (error) {
       this.setData({ loading: false });

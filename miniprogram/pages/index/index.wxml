@@ -47,6 +47,7 @@
             src="{{member.avatarFrame}}"
             mode="scaleToFill"
           ></image>
+          <view wx:if="{{badgeState.avatar}}" class="badge-dot profile-avatar__dot"></view>
         </view>
         <view class="profile-info">
           <view class="profile-name" bindtap="handleProfileTap">{{member ? (member.nickName || '无名仙友') : '无名仙友'}}</view>
@@ -57,12 +58,17 @@
           </view>
         </view>
         <view class="profile-other">
-            <view class="profile-meta__item" bindtap="handleLevelTap">
-              <text class="profile-meta__text">境界 {{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</text>
-              <view wx:if="{{realmHasPendingRewards}}" class="badge-dot profile-meta__dot"></view>
-            </view>
-            <text class="profile-meta__text" bindtap="handleCombatPowerTap">战力 {{memberStats.combatPower}}</text>
-            <text class="profile-meta__text" bindtap="handleStoneTap">灵石 {{memberStats.stoneBalance}}</text>
+          <view class="profile-meta__item" bindtap="handleLevelTap">
+            <text class="profile-meta__text">境界 {{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</text>
+            <view wx:if="{{badgeState.realm}}" class="badge-dot profile-meta__dot"></view>
+          </view>
+          <view class="profile-meta__item" bindtap="handleCombatPowerTap">
+            <text class="profile-meta__text">战力 {{memberStats.combatPower}}</text>
+          </view>
+          <view class="profile-meta__item profile-meta__item--stone" bindtap="handleStoneTap">
+            <text class="profile-meta__text">灵石 {{memberStats.stoneBalance}}</text>
+            <view wx:if="{{badgeState.stones}}" class="badge-dot profile-meta__dot profile-meta__dot--stone"></view>
+          </view>
         </view>
       </view>
 
@@ -105,6 +111,7 @@
           wx:for="{{navExpanded ? navItems : collapsedNavItems}}"
           wx:key="label"
           data-url="{{item.url}}"
+          data-label="{{item.label}}"
           bindtap="handleNavTap"
         >
           <view class="nav-icon-wrapper">
@@ -237,22 +244,34 @@
             class="appearance-tab {{avatarPicker.activeTab === 'avatar' ? 'appearance-tab--active' : ''}}"
             data-tab="avatar"
             bindtap="handleAppearanceTabChange"
-          >头像</view>
+          >
+            头像
+            <view wx:if="{{appearanceTabBadges.avatar}}" class="badge-dot appearance-tab__dot"></view>
+          </view>
           <view
             class="appearance-tab {{avatarPicker.activeTab === 'frame' ? 'appearance-tab--active' : ''}}"
             data-tab="frame"
             bindtap="handleAppearanceTabChange"
-          >相框</view>
+          >
+            相框
+            <view wx:if="{{appearanceTabBadges.frame}}" class="badge-dot appearance-tab__dot"></view>
+          </view>
           <view
             class="appearance-tab {{avatarPicker.activeTab === 'title' ? 'appearance-tab--active' : ''}}"
             data-tab="title"
             bindtap="handleAppearanceTabChange"
-          >称号</view>
+          >
+            称号
+            <view wx:if="{{appearanceTabBadges.title}}" class="badge-dot appearance-tab__dot"></view>
+          </view>
           <view
             class="appearance-tab {{avatarPicker.activeTab === 'background' ? 'appearance-tab--active' : ''}}"
             data-tab="background"
             bindtap="handleAppearanceTabChange"
-          >背景</view>
+          >
+            背景
+            <view wx:if="{{appearanceTabBadges.background}}" class="badge-dot appearance-tab__dot"></view>
+          </view>
         </view>
       <view class="appearance-modal__body-wrapper">
         <scroll-view scroll-y="true" class="modal-body modal-body--scroll appearance-modal__body">

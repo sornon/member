@@ -137,6 +137,12 @@ page {
   height: 120rpx;
 }
 
+.profile-avatar__dot {
+  position: absolute;
+  top: -8rpx;
+  right: -8rpx;
+}
+
 .profile-avatar {
   width: 100%;
   height: 100%;
@@ -204,6 +210,13 @@ page {
   position: absolute;
   top: 0;
   right: 0;
+}
+.profile-meta__item--stone {
+  padding-right: 24rpx;
+}
+
+.profile-meta__dot--stone {
+  right: -4rpx;
 }
 .profile-other {
     position: absolute;
@@ -564,10 +577,19 @@ page {
 }
 
 .appearance-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
   color: #ffffff4b;
   font-size: 28rpx;
   letter-spacing: 2rpx;
   transition: color 0.2s ease, font-size 0.2s ease;
+}
+
+.appearance-tab__dot {
+  position: absolute;
+  top: -12rpx;
+  right: -18rpx;
 }
 
 .appearance-tab--active {

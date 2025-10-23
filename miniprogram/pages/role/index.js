@@ -6,10 +6,19 @@ import {
 import {
   acknowledgeStorageItems,
   shouldDisplayStorageItemNew,
-  syncStorageBadgeStateFromProfile
+  syncStorageBadgeStateFromProfile,
+  extractNewStorageItemsFromProfile
 } from '../../utils/storage-notifications';
 import { formatStones } from '../../utils/format';
 import { sanitizeEquipmentProfile } from '../../utils/equipment';
+import {
+  updateBadgeEntries,
+  updateBadgeSignature,
+  shouldShowBadge,
+  acknowledgeBadge,
+  combineSignatures,
+  buildNumericSignature
+} from '../../utils/badge-center';
 
 const DEFAULT_STORAGE_BASE_CAPACITY = 100;
 const DEFAULT_STORAGE_PER_UPGRADE = 20;
@@ -150,6 +159,138 @@ function finalizeStorageMeta(meta, categories) {
   }
   return summary;
 }
+
+function normalizeBadgeEntryKey(item, fallbackCategory = 'storage', index = 0) {
+  const candidates = [];
+  if (item && typeof item === 'object') {
+    candidates.push(
+      item.storageBadgeKey,
+      item.storageKey,
+      item.badgeKey,
+      item.inventoryId,
+      item.inventoryKey,
+      item.itemId,
+      item.id,
+      item._id,
+      item.slot
+    );
+  }
+  let category = typeof (item && item.storageCategory) === 'string' ? item.storageCategory.trim() : '';
+  if (!category) {
+    category = fallbackCategory;
+  }
+  let identifier = '';
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = candidates[i];
+    if (candidate === null || typeof candidate === 'undefined') {
+      continue;
+    }
+    if (typeof candidate === 'string') {
+      const trimmed = candidate.trim();
+      if (!trimmed) {
+        continue;
+      }
+      if (trimmed.includes(':')) {
+        return trimmed;
+      }
+      identifier = trimmed;
+      break;
+    }
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+      identifier = String(candidate);
+      break;
+    }
+  }
+  if (!identifier) {
+    identifier = `idx-${index}`;
+  }
+  return `${category || 'storage'}:${identifier}`;
+}
+
+function isTruthyFlag(value) {
+  if (!value) {
+    return false;
+  }
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value !== 0 : false;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase();
+    if (!trimmed) {
+      return false;
+    }
+    return trimmed !== '0' && trimmed !== 'false' && trimmed !== 'no' && trimmed !== 'none';
+  }
+  return false;
+}
+
+function collectEquipmentBadgeEntries(profile) {
+  const equipment = profile && profile.equipment && typeof profile.equipment === 'object' ? profile.equipment : {};
+  const inventory = Array.isArray(equipment.inventory) ? equipment.inventory : [];
+  const entries = [];
+  inventory.forEach((item, index) => {
+    if (!item || typeof item !== 'object') {
+      return;
+    }
+    if (!isTruthyFlag(item.isNew || item.new || item.hasNewBadge || item.hasNew)) {
+      return;
+    }
+    const key = normalizeBadgeEntryKey(item, 'equipment', index);
+    const timestamp = resolveTimestamp(
+      item.obtainedAt || item.obtainTime || item.obtainedAtText || item.updatedAt || item.createdAt || 0
+    );
+    entries.push({ key, timestamp });
+  });
+  const storage =
+    equipment.storage && typeof equipment.storage === 'object' ? equipment.storage : { categories: [] };
+  const categories = Array.isArray(storage.categories) ? storage.categories : [];
+  categories.forEach((category) => {
+    if (!category || category.key !== 'equipment' || !Array.isArray(category.items)) {
+      return;
+    }
+    category.items.forEach((item, index) => {
+      if (!item || typeof item !== 'object') {
+        return;
+      }
+      if (!isTruthyFlag(item.isNew || item.new || item.hasNewBadge || item.hasNew)) {
+        return;
+      }
+      const key = normalizeBadgeEntryKey(item, 'equipment', index);
+      const timestamp = resolveTimestamp(
+        item.obtainedAt || item.obtainTime || item.obtainedAtText || item.updatedAt || item.createdAt || 0
+      );
+      entries.push({ key, timestamp });
+    });
+  });
+  if (!entries.length) {
+    return [];
+  }
+  const deduped = new Map();
+  entries.forEach((entry) => {
+    if (!entry || !entry.key) {
+      return;
+    }
+    const current = deduped.get(entry.key);
+    if (!current || (entry.timestamp || 0) > (current.timestamp || 0)) {
+      deduped.set(entry.key, entry);
+    }
+  });
+  return Array.from(deduped.values());
+}
+
+function mapStorageBadgeEntries(profile) {
+  const entries = extractNewStorageItemsFromProfile(profile);
+  if (!Array.isArray(entries) || !entries.length) {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry && entry.key)
+    .map((entry) => ({ key: entry.key, timestamp: Number(entry.obtainedAt) || 0 }));
+}
+
 
 const ALLOCATABLE_KEYS = ['constitution', 'strength', 'spirit', 'root', 'agility', 'insight'];
 const ATTRIBUTE_DETAIL_MAP = {
@@ -334,7 +475,13 @@ Page({
     attributeAdjustments: {},
     attributeAllocationTotal: 0,
     attributeAllocationRemaining: 0,
-    attributeAllocationEnabled: {}
+    attributeAllocationEnabled: {},
+    tabBadgeMap: {
+      character: false,
+      equipment: false,
+      storage: false,
+      skill: false
+    }
   },
 
   applyProfile(profile, extraState = {}, options = {}) {
@@ -367,6 +514,12 @@ Page({
         }
       });
     }
+    updateBadgeSignature('home.nav.skill', buildNumericSignature(skillDrawCredits, 'skillCredits'), {
+      initializeAck: true
+    });
+    updateBadgeSignature('home.nav.role', buildNumericSignature(attributePoints, 'roleAttributes'), {
+      initializeAck: true
+    });
     const updates = {
       ...extraState,
       profile: sanitizedProfile,
@@ -436,13 +589,17 @@ Page({
     if (currentSkillModal) {
       updates.skillModal = this.rebuildSkillModal(sanitizedProfile, currentSkillModal);
     }
-    this.setData(updates);
+    this.setData(updates, () => {
+      this.refreshStorageBadgeFlags();
+    });
     return sanitizedProfile;
   },
 
   buildStorageState(profile) {
     const storageMetaBase = extractStorageMetaFromProfile(profile);
-    const storageCategories = this.buildStorageCategories(profile, storageMetaBase);
+    const baseCategories = this.buildStorageCategories(profile, storageMetaBase);
+    const badgeSummary = this.updateStorageBadgeState(profile, baseCategories);
+    const storageCategories = badgeSummary.categories;
     const storageMeta = finalizeStorageMeta(storageMetaBase, storageCategories);
     const activeKey = this.resolveActiveStorageCategory(storageCategories);
     const activeCategory = storageCategories.find((category) => category.key === activeKey) || null;
@@ -680,8 +837,100 @@ Page({
       });
     }
     if (Object.keys(updates).length) {
+      this.setData(updates, () => {
+        this.refreshTabBadgeMap();
+      });
+    } else {
+      this.refreshTabBadgeMap();
+    }
+  },
+
+  updateStorageBadgeState(profile, categories) {
+    const equipmentEntries = collectEquipmentBadgeEntries(profile);
+    const itemEntries = mapStorageBadgeEntries(profile);
+    const equipmentSignature = updateBadgeEntries('role.storage.equipment', equipmentEntries, {
+      initializeAck: true,
+      prefix: 'equipmentEntries'
+    });
+    const itemSignature = updateBadgeEntries('role.storage.items', itemEntries, {
+      initializeAck: true,
+      prefix: 'storageEntries'
+    });
+    const storageCombined = combineSignatures([equipmentSignature, itemSignature], 'storage');
+    updateBadgeSignature('home.nav.storage', storageCombined, { initializeAck: true });
+    updateBadgeSignature('home.nav.equipment', equipmentSignature || storageCombined, { initializeAck: true });
+    const categoriesWithBadges = Array.isArray(categories)
+      ? categories.map((category) => ({ ...(category || {}) }))
+      : [];
+    const equipmentActive = shouldShowBadge('role.storage.equipment');
+    const itemsActive = shouldShowBadge('role.storage.items');
+    categoriesWithBadges.forEach((category) => {
+      if (!category) {
+        return;
+      }
+      if (category.key === 'equipment') {
+        category.badgeActive = equipmentActive;
+      } else {
+        category.badgeActive = itemsActive;
+      }
+    });
+    return { categories: categoriesWithBadges, equipmentSignature, itemSignature };
+  },
+
+  refreshTabBadgeMap() {
+    this.setData({
+      'tabBadgeMap.character': shouldShowBadge('home.nav.role'),
+      'tabBadgeMap.equipment': shouldShowBadge('home.nav.equipment'),
+      'tabBadgeMap.storage': shouldShowBadge('home.nav.storage'),
+      'tabBadgeMap.skill': shouldShowBadge('home.nav.skill')
+    });
+  },
+
+  acknowledgeActiveTabBadges(tabOverride = null) {
+    const tab = tabOverride || this.data.activeTab;
+    if (tab === 'equipment') {
+      acknowledgeBadge(['home.nav.equipment', 'role.storage.equipment']);
+      return 'equipment';
+    }
+    if (tab === 'storage') {
+      acknowledgeBadge(['home.nav.storage', 'role.storage.items']);
+      return 'storage';
+    }
+    if (tab === 'skill') {
+      acknowledgeBadge('home.nav.skill');
+      return 'skill';
+    }
+    if (tab === 'character') {
+      acknowledgeBadge('home.nav.role');
+      return 'character';
+    }
+    return tab;
+  },
+
+  refreshStorageBadgeFlags() {
+    const categories = Array.isArray(this.data.storageCategories) ? this.data.storageCategories : [];
+    const equipmentActive = shouldShowBadge('role.storage.equipment');
+    const itemsActive = shouldShowBadge('role.storage.items');
+    const updates = {};
+    categories.forEach((category, index) => {
+      if (!category) {
+        return;
+      }
+      const desired = category.key === 'equipment' ? equipmentActive : itemsActive;
+      if (category.badgeActive !== desired) {
+        updates[`storageCategories[${index}].badgeActive`] = desired;
+      }
+    });
+    if (this.data.activeStorageCategoryData) {
+      const activeDesired = this.data.activeStorageCategory === 'equipment' ? equipmentActive : itemsActive;
+      if (this.data.activeStorageCategoryData.badgeActive !== activeDesired) {
+        updates['activeStorageCategoryData.badgeActive'] = activeDesired;
+      }
+    }
+    if (Object.keys(updates).length) {
       this.setData(updates);
     }
+    this.refreshTabBadgeMap();
   },
 
   acknowledgeStorageItem(item) {
@@ -694,7 +943,9 @@ Page({
       return;
     }
     acknowledgeStorageItems(item);
+    acknowledgeBadge(['role.storage.items', 'home.nav.storage']);
     this.refreshStorageNewBadges();
+    this.refreshStorageBadgeFlags();
   },
 
   onLoad(options = {}) {
@@ -710,6 +961,12 @@ Page({
   onShow() {
     this.fetchProfile();
     this.refreshStoneBalance();
+    const acknowledgedTab = this.acknowledgeActiveTabBadges();
+    if (acknowledgedTab === 'storage' || acknowledgedTab === 'equipment') {
+      this.refreshStorageBadgeFlags();
+    } else {
+      this.refreshTabBadgeMap();
+    }
   },
 
   onHide() {
@@ -771,6 +1028,12 @@ Page({
     const target = this.normalizeTab(dataset.tab);
     if (target && target !== this.data.activeTab) {
       this.setData({ activeTab: target });
+      const acknowledged = this.acknowledgeActiveTabBadges(target);
+      if (acknowledged === 'storage' || acknowledged === 'equipment') {
+        this.refreshStorageBadgeFlags();
+      } else {
+        this.refreshTabBadgeMap();
+      }
     }
   },
 
@@ -1576,11 +1839,21 @@ Page({
     }
     const activeCategory = categories.find((category) => category.key === key) || null;
     const categoryIndex = categories.findIndex((category) => category.key === key);
-    this.setData({
-      activeStorageCategory: key,
-      activeStorageCategoryData: activeCategory,
-      activeStorageCategoryIndex: categoryIndex
-    });
+    this.setData(
+      {
+        activeStorageCategory: key,
+        activeStorageCategoryData: activeCategory,
+        activeStorageCategoryIndex: categoryIndex
+      },
+      () => {
+        if (key === 'equipment') {
+          this.acknowledgeActiveTabBadges('equipment');
+        } else {
+          this.acknowledgeActiveTabBadges('storage');
+        }
+        this.refreshStorageBadgeFlags();
+      }
+    );
   },
 
   async handleUpgradeStorage() {
