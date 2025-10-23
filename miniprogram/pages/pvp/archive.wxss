@@ -145,7 +145,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: start;
   min-width: 0;
   height: 260rpx;
 }
@@ -192,7 +192,7 @@
 
 .profile-record {
   font-size: 24rpx;
-  color: rgba(245, 247, 255, 0.75);
+  color:#fff;
 }
 
 .profile-other {
