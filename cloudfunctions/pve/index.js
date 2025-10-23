@@ -5904,11 +5904,10 @@ function calculateDerivedStatBlock(baseAttributes, realmBonus, equipmentSummary,
     finalStats[key] = formatStatResult(key, value);
   });
 
-  const special = {
-    shield: (equipmentSummary.special.shield || 0) + (skillSummary.special.shield || 0),
-    bonusDamage: (equipmentSummary.special.bonusDamage || 0) + (skillSummary.special.bonusDamage || 0),
-    dodgeChance: (equipmentSummary.special.dodgeChance || 0) + (skillSummary.special.dodgeChance || 0)
-  };
+  const special = { ...(equipmentSummary.special || {}) };
+  Object.keys(skillSummary.special || {}).forEach((key) => {
+    special[key] = (special[key] || 0) + (skillSummary.special[key] || 0);
+  });
 
   return {
     finalStats,
@@ -6423,7 +6422,10 @@ function decorateSkillInventoryEntry(entry, profile) {
   const elementLabel = resolveSkillElementLabel(definition.element);
   const resourceText = formatSkillResource(definition.params || {});
   const imprintText = formatSkillImprintInfo(definition);
-  const highlights = buildSkillHighlights(flattened, definition);
+  const progressionSummary = formatSkillProgression(definition, entry.level || 1);
+  const effectsSummary = formatStatsText(flattened);
+  const combinedSummary = [...progressionSummary, ...effectsSummary];
+  const highlights = buildSkillHighlights(flattened, definition, progressionSummary);
   return {
     skillId: entry.skillId,
     name: definition.name,
@@ -6436,7 +6438,8 @@ function decorateSkillInventoryEntry(entry, profile) {
     description: definition.description,
     level: entry.level || 1,
     maxLevel: resolveSkillMaxLevel(entry.skillId),
-    effectsSummary: formatStatsText(flattened),
+    effectsSummary: combinedSummary,
+    progressionSummary,
     highlights,
     resourceText,
     imprintText,
@@ -7048,7 +7051,7 @@ function buildEnemySkillDetails(skillId) {
   if (resourceText) {
     metaParts.push(resourceText);
   }
-  const highlights = buildSkillHighlights(null, definition);
+  const highlights = buildSkillHighlights(null, definition, formatSkillProgression(definition, 1));
   return {
     id: definition.id,
     name: definition.name || definition.id,
@@ -7211,8 +7214,11 @@ function formatSkillImprintInfo(definition = {}) {
   return `印记槽：${parts.join('，')}`;
 }
 
-function buildSkillHighlights(flattened, definition = {}) {
+function buildSkillHighlights(flattened, definition = {}, progression = []) {
   const highlights = [];
+  if (Array.isArray(progression) && progression.length) {
+    highlights.push(...progression);
+  }
   const statsText = formatStatsText(flattened);
   if (Array.isArray(statsText) && statsText.length) {
     highlights.push(...statsText);
@@ -7263,6 +7269,108 @@ function formatStatsText(stats) {
     }
   });
   return texts;
+}
+
+function formatSkillProgression(definition, level = 1) {
+  if (!definition || typeof definition !== 'object') {
+    return [];
+  }
+  const entries = Array.isArray(definition.progression) ? definition.progression : [];
+  if (!entries.length) {
+    return [];
+  }
+  const skillId = definition.id || definition.skillId || '';
+  const maxLevel = resolveSkillMaxLevel(skillId) || definition.maxLevel || level;
+  return entries
+    .map((entry) => formatSkillProgressionEntry(entry, level, maxLevel))
+    .filter((text) => typeof text === 'string' && text);
+}
+
+function formatSkillProgressionEntry(entry, level, maxLevel) {
+  if (!entry || typeof entry !== 'object' || !entry.label) {
+    return '';
+  }
+  const currentLevel = Math.max(1, Math.floor(level));
+  const resolvedMax = Math.max(currentLevel, Math.floor(Number(entry.maxLevel) || maxLevel || currentLevel));
+  const extraLevels = Math.max(0, currentLevel - 1);
+  const base = Number(entry.base) || 0;
+  const perLevel = Number(entry.perLevel) || 0;
+  const currentValue = base + perLevel * extraLevels;
+  const maxValue = base + perLevel * Math.max(0, resolvedMax - 1);
+  const format = entry.format || 'percent';
+  const suffix = resolveProgressionSuffix(entry, format);
+  const formattedCurrent = formatProgressionNumber(currentValue, format, entry);
+  const maxDifferent = Math.abs(maxValue - currentValue) > 1e-6;
+  let text = `${entry.label}：${formattedCurrent}${suffix}`;
+  if (perLevel !== 0) {
+    const formattedPerLevel = formatProgressionNumber(Math.abs(perLevel), format, entry);
+    const sign = perLevel > 0 ? '+' : '-';
+    text += `（每级${sign}${formattedPerLevel}${suffix}`;
+    if (maxDifferent) {
+      const formattedMax = formatProgressionNumber(maxValue, format, entry);
+      text += `，满级${formattedMax}${suffix}`;
+    }
+    text += '）';
+  } else if (maxDifferent) {
+    const formattedMax = formatProgressionNumber(maxValue, format, entry);
+    text += `（满级${formattedMax}${suffix}）`;
+  }
+  if (entry.note) {
+    text += `，${entry.note}`;
+  }
+  return text;
+}
+
+function resolveProgressionSuffix(entry, format) {
+  if (entry && typeof entry.suffix === 'string') {
+    if (format === 'percent' || format === 'perTurnPercent') {
+      return `%${entry.suffix}`;
+    }
+    return entry.suffix;
+  }
+  switch (format) {
+    case 'percent':
+      return '%';
+    case 'perTurnPercent':
+      return '%/回合';
+    case 'integer':
+      return '';
+    default:
+      return '';
+  }
+}
+
+function formatProgressionNumber(value, format, entry = {}) {
+  if (!Number.isFinite(value)) {
+    return '0';
+  }
+  let scaled = value;
+  switch (format) {
+    case 'percent':
+    case 'perTurnPercent':
+      scaled = value * 100;
+      break;
+    case 'integer':
+      break;
+    default:
+      break;
+  }
+  const digits = entry.digits != null ? Math.max(0, Math.floor(entry.digits)) : resolveDefaultDigits(format, scaled);
+  if (digits === 0) {
+    return `${Math.round(scaled)}`;
+  }
+  const fixed = scaled.toFixed(digits);
+  return fixed.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+}
+
+function resolveDefaultDigits(format, scaled) {
+  if (format === 'percent' || format === 'perTurnPercent') {
+    return Math.abs(scaled) >= 100 ? 0 : 1;
+  }
+  if (format === 'integer') {
+    return 0;
+  }
+  return Math.abs(scaled) >= 100 ? 0 : 2;
 }
 function buildBattleSetup(profile, enemy, member) {
   const attributes = calculateAttributes(profile.attributes, profile.equipment, profile.skills);
