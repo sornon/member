@@ -41,12 +41,17 @@ const {
   SKILL_QUALITY_CONFIG,
   SKILL_LIBRARY,
   SKILL_MAP,
+  SKILL_EFFECT_TYPES,
   createBonusSummary,
   applyBonus,
   mergeBonusSummary,
   flattenBonusSummary,
   aggregateSkillEffects,
   resolveSkillEffects,
+  resolveSkillLevelValue,
+  resolveSkillProgressionDetails,
+  composeSkillEffectHighlights,
+  formatSkillMechanics,
   resolveSkillQualityColor,
   resolveSkillQualityLabel,
   resolveSkillTypeLabel,
@@ -6415,7 +6420,8 @@ function decorateSkillInventoryEntry(entry, profile) {
   if (!definition) {
     return null;
   }
-  const effects = resolveSkillEffects(definition, entry.level || 1);
+  const level = resolveSkillLevelValue(entry.level || 1);
+  const effects = resolveSkillEffects(definition, level);
   const flattened = flattenBonusSummary(effects);
   const quality = definition.quality || 'linggan';
   const typeLabel = resolveSkillTypeLabel(definition.type);
@@ -6423,10 +6429,21 @@ function decorateSkillInventoryEntry(entry, profile) {
   const elementLabel = resolveSkillElementLabel(definition.element);
   const resourceText = formatSkillResource(definition.params || {});
   const imprintText = formatSkillImprintInfo(definition);
-  const progressionSummary = formatSkillProgression(definition, entry.level || 1);
+  const progressionDetails = resolveSkillProgressionDetails(definition, level);
+  const progressionSummary = progressionDetails.map((detail) => detail.text);
+  const mechanics = formatSkillMechanics(definition, level, progressionDetails);
+  const effectHighlights = composeSkillEffectHighlights(progressionDetails);
   const effectsSummary = formatStatsText(flattened);
   const combinedSummary = [...progressionSummary, ...effectsSummary];
-  const highlights = buildSkillHighlights(flattened, definition, progressionSummary);
+  const highlights = buildSkillHighlights({
+    effectHighlights,
+    mechanics,
+    statsHighlights: effectsSummary,
+    growth: definition.growth,
+    synergy: definition.synergy,
+    progressionSummary,
+    definition
+  });
   return {
     skillId: entry.skillId,
     name: definition.name,
@@ -6437,14 +6454,23 @@ function decorateSkillInventoryEntry(entry, profile) {
     disciplineLabel,
     elementLabel,
     description: definition.description,
-    level: entry.level || 1,
+    level,
     maxLevel: resolveSkillMaxLevel(entry.skillId),
     effectsSummary: combinedSummary,
     progressionSummary,
     highlights,
+    effectDetails: progressionDetails.map((detail) => ({
+      label: detail.label,
+      type: detail.effectType,
+      typeLabel: SKILL_EFFECT_TYPES[detail.effectType]
+        ? SKILL_EFFECT_TYPES[detail.effectType].label
+        : '',
+      value: detail.valueText,
+      text: detail.highlight
+    })),
     resourceText,
     imprintText,
-    mechanics: Array.isArray(definition.mechanics) ? definition.mechanics : [],
+    mechanics,
     tags: definition.tags || [],
     obtainedAt: entry.obtainedAt,
     obtainedAtText: formatDateTime(entry.obtainedAt),
@@ -7052,7 +7078,16 @@ function buildEnemySkillDetails(skillId) {
   if (resourceText) {
     metaParts.push(resourceText);
   }
-  const highlights = buildSkillHighlights(null, definition, formatSkillProgression(definition, 1));
+  const baseProgressionDetails = resolveSkillProgressionDetails(definition, 1);
+  const baseProgression = baseProgressionDetails.map((detail) => detail.text);
+  const baseMechanics = formatSkillMechanics(definition, 1, baseProgressionDetails);
+  const baseEffectHighlights = composeSkillEffectHighlights(baseProgressionDetails);
+  const highlights = buildSkillHighlights({
+    effectHighlights: baseEffectHighlights,
+    mechanics: baseMechanics,
+    progressionSummary: baseProgression,
+    definition
+  });
   return {
     id: definition.id,
     name: definition.name || definition.id,
@@ -7215,30 +7250,43 @@ function formatSkillImprintInfo(definition = {}) {
   return `印记槽：${parts.join('，')}`;
 }
 
-function buildSkillHighlights(flattened, definition = {}, progression = []) {
+function buildSkillHighlights(options = {}) {
+  const {
+    effectHighlights = [],
+    mechanics = null,
+    statsHighlights = [],
+    growth = null,
+    synergy = null,
+    progressionSummary = [],
+    definition = {}
+  } = options;
   const highlights = [];
-  if (Array.isArray(progression) && progression.length) {
-    highlights.push(...progression);
-  }
-  const statsText = formatStatsText(flattened);
-  if (Array.isArray(statsText) && statsText.length) {
-    highlights.push(...statsText);
-  }
-  if (Array.isArray(definition.mechanics)) {
+  if (Array.isArray(mechanics) && mechanics.length) {
+    highlights.push(...mechanics);
+  } else if (definition && Array.isArray(definition.mechanics)) {
     highlights.push(...definition.mechanics);
   }
-  if (definition.growth) {
-    if (Array.isArray(definition.growth)) {
-      highlights.push(...definition.growth);
-    } else if (typeof definition.growth === 'string') {
-      highlights.push(definition.growth);
+  if (Array.isArray(effectHighlights) && effectHighlights.length) {
+    highlights.push(...effectHighlights);
+  }
+  if (Array.isArray(progressionSummary) && progressionSummary.length) {
+    highlights.push(...progressionSummary);
+  }
+  if (Array.isArray(statsHighlights) && statsHighlights.length) {
+    highlights.push(...statsHighlights);
+  }
+  if (growth) {
+    if (Array.isArray(growth)) {
+      highlights.push(...growth);
+    } else if (typeof growth === 'string') {
+      highlights.push(growth);
     }
   }
-  if (definition.synergy) {
-    if (Array.isArray(definition.synergy)) {
-      highlights.push(...definition.synergy);
-    } else if (typeof definition.synergy === 'string') {
-      highlights.push(definition.synergy);
+  if (synergy) {
+    if (Array.isArray(synergy)) {
+      highlights.push(...synergy);
+    } else if (typeof synergy === 'string') {
+      highlights.push(synergy);
     }
   }
   return highlights.filter((text, index, list) => typeof text === 'string' && text && list.indexOf(text) === index);
@@ -7272,107 +7320,6 @@ function formatStatsText(stats) {
   return texts;
 }
 
-function formatSkillProgression(definition, level = 1) {
-  if (!definition || typeof definition !== 'object') {
-    return [];
-  }
-  const entries = Array.isArray(definition.progression) ? definition.progression : [];
-  if (!entries.length) {
-    return [];
-  }
-  const skillId = definition.id || definition.skillId || '';
-  const maxLevel = resolveSkillMaxLevel(skillId) || definition.maxLevel || level;
-  return entries
-    .map((entry) => formatSkillProgressionEntry(entry, level, maxLevel))
-    .filter((text) => typeof text === 'string' && text);
-}
-
-function formatSkillProgressionEntry(entry, level, maxLevel) {
-  if (!entry || typeof entry !== 'object' || !entry.label) {
-    return '';
-  }
-  const currentLevel = Math.max(1, Math.floor(level));
-  const resolvedMax = Math.max(currentLevel, Math.floor(Number(entry.maxLevel) || maxLevel || currentLevel));
-  const extraLevels = Math.max(0, currentLevel - 1);
-  const base = Number(entry.base) || 0;
-  const perLevel = Number(entry.perLevel) || 0;
-  const currentValue = base + perLevel * extraLevels;
-  const maxValue = base + perLevel * Math.max(0, resolvedMax - 1);
-  const format = entry.format || 'percent';
-  const suffix = resolveProgressionSuffix(entry, format);
-  const formattedCurrent = formatProgressionNumber(currentValue, format, entry);
-  const maxDifferent = Math.abs(maxValue - currentValue) > 1e-6;
-  let text = `${entry.label}：${formattedCurrent}${suffix}`;
-  if (perLevel !== 0) {
-    const formattedPerLevel = formatProgressionNumber(Math.abs(perLevel), format, entry);
-    const sign = perLevel > 0 ? '+' : '-';
-    text += `（每级${sign}${formattedPerLevel}${suffix}`;
-    if (maxDifferent) {
-      const formattedMax = formatProgressionNumber(maxValue, format, entry);
-      text += `，满级${formattedMax}${suffix}`;
-    }
-    text += '）';
-  } else if (maxDifferent) {
-    const formattedMax = formatProgressionNumber(maxValue, format, entry);
-    text += `（满级${formattedMax}${suffix}）`;
-  }
-  if (entry.note) {
-    text += `，${entry.note}`;
-  }
-  return text;
-}
-
-function resolveProgressionSuffix(entry, format) {
-  if (entry && typeof entry.suffix === 'string') {
-    if (format === 'percent' || format === 'perTurnPercent') {
-      return `%${entry.suffix}`;
-    }
-    return entry.suffix;
-  }
-  switch (format) {
-    case 'percent':
-      return '%';
-    case 'perTurnPercent':
-      return '%/回合';
-    case 'integer':
-      return '';
-    default:
-      return '';
-  }
-}
-
-function formatProgressionNumber(value, format, entry = {}) {
-  if (!Number.isFinite(value)) {
-    return '0';
-  }
-  let scaled = value;
-  switch (format) {
-    case 'percent':
-    case 'perTurnPercent':
-      scaled = value * 100;
-      break;
-    case 'integer':
-      break;
-    default:
-      break;
-  }
-  const digits = entry.digits != null ? Math.max(0, Math.floor(entry.digits)) : resolveDefaultDigits(format, scaled);
-  if (digits === 0) {
-    return `${Math.round(scaled)}`;
-  }
-  const fixed = scaled.toFixed(digits);
-  return fixed.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
-}
-
-function resolveDefaultDigits(format, scaled) {
-  if (format === 'percent' || format === 'perTurnPercent') {
-    return Math.abs(scaled) >= 100 ? 0 : 1;
-  }
-  if (format === 'integer') {
-    return 0;
-  }
-  return Math.abs(scaled) >= 100 ? 0 : 2;
-}
 function buildBattleSetup(profile, enemy, member) {
   const attributes = calculateAttributes(profile.attributes, profile.equipment, profile.skills);
   const player = createPlayerCombatant(attributes);
