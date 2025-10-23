@@ -1,5 +1,6 @@
 import { MenuOrderService, MenuCatalogService } from '../../../services/api';
 import { formatCurrency, formatStones } from '../../../utils/format';
+import { acknowledgeBadges, BADGE_KEYS } from '../../../utils/badge-center';
 import menuData from '../../../shared/menu-data';
 
 let SECTION_META = {};
@@ -1013,6 +1014,7 @@ Page({
   },
 
   onLoad() {
+    acknowledgeBadges([BADGE_KEYS.HOME_NAV_ORDER, BADGE_KEYS.ORDER_NOTIFICATION]);
     this._currentCatalogSignature = '';
     this._catalogHydrated = false;
     this._cartHydrated = false;

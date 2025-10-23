@@ -47,9 +47,13 @@
             src="{{member.avatarFrame}}"
             mode="scaleToFill"
           ></image>
+          <view wx:if="{{badgeIndicators.profileAvatar}}" class="badge-dot profile-avatar__dot"></view>
         </view>
         <view class="profile-info">
-          <view class="profile-name" bindtap="handleProfileTap">{{member ? (member.nickName || '无名仙友') : '无名仙友'}}</view>
+          <view class="profile-name" bindtap="handleProfileTap">
+            {{member ? (member.nickName || '无名仙友') : '无名仙友'}}
+            <view wx:if="{{badgeIndicators.profileName}}" class="badge-dot profile-name__dot"></view>
+          </view>
           <view class="profile-meta">
             <view wx:if="{{activeTitleImage}}" class="profile-meta__title">
               <image class="profile-meta__title-image" src="{{activeTitleImage}}" mode="heightFix"></image>
@@ -59,17 +63,23 @@
         <view class="profile-other">
             <view class="profile-meta__item" bindtap="handleLevelTap">
               <text class="profile-meta__text">境界 {{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</text>
-              <view wx:if="{{realmHasPendingRewards}}" class="badge-dot profile-meta__dot"></view>
+              <view wx:if="{{badgeIndicators.profileRealm}}" class="badge-dot profile-meta__dot"></view>
             </view>
             <text class="profile-meta__text" bindtap="handleCombatPowerTap">战力 {{memberStats.combatPower}}</text>
-            <text class="profile-meta__text" bindtap="handleStoneTap">灵石 {{memberStats.stoneBalance}}</text>
+            <view class="profile-meta__item profile-meta__item--stone" bindtap="handleStoneTap">
+              <text class="profile-meta__text">灵石 {{memberStats.stoneBalance}}</text>
+              <view wx:if="{{badgeIndicators.profileStones}}" class="badge-dot profile-meta__dot"></view>
+            </view>
         </view>
       </view>
 
       <view class="top-bar__actions">
         <view class="activity-panel">
           <view class="activity-item" wx:for="{{activityIcons}}" wx:key="label" data-url="{{item.url}}" data-label="{{item.label}}" bindtap="handleActivityTap">
-            <view class="activity-icon">{{item.icon}}</view>
+            <view class="activity-icon-wrapper">
+              <view class="activity-icon">{{item.icon}}</view>
+              <view wx:if="{{item.showDot}}" class="badge-dot activity-item__dot"></view>
+            </view>
             <view class="activity-label">{{item.label}}</view>
           </view>
         </view>
@@ -237,22 +247,34 @@
             class="appearance-tab {{avatarPicker.activeTab === 'avatar' ? 'appearance-tab--active' : ''}}"
             data-tab="avatar"
             bindtap="handleAppearanceTabChange"
-          >头像</view>
+          >
+            头像
+            <view wx:if="{{badgeIndicators.avatarTabs.avatar}}" class="badge-dot appearance-tab__dot"></view>
+          </view>
           <view
             class="appearance-tab {{avatarPicker.activeTab === 'frame' ? 'appearance-tab--active' : ''}}"
             data-tab="frame"
             bindtap="handleAppearanceTabChange"
-          >相框</view>
+          >
+            相框
+            <view wx:if="{{badgeIndicators.avatarTabs.frame}}" class="badge-dot appearance-tab__dot"></view>
+          </view>
           <view
             class="appearance-tab {{avatarPicker.activeTab === 'title' ? 'appearance-tab--active' : ''}}"
             data-tab="title"
             bindtap="handleAppearanceTabChange"
-          >称号</view>
+          >
+            称号
+            <view wx:if="{{badgeIndicators.avatarTabs.title}}" class="badge-dot appearance-tab__dot"></view>
+          </view>
           <view
             class="appearance-tab {{avatarPicker.activeTab === 'background' ? 'appearance-tab--active' : ''}}"
             data-tab="background"
             bindtap="handleAppearanceTabChange"
-          >背景</view>
+          >
+            背景
+            <view wx:if="{{badgeIndicators.avatarTabs.background}}" class="badge-dot appearance-tab__dot"></view>
+          </view>
         </view>
       <view class="appearance-modal__body-wrapper">
         <scroll-view scroll-y="true" class="modal-body modal-body--scroll appearance-modal__body">

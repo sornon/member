@@ -6,25 +6,37 @@
       data-tab="character"
       hover-class="tab-item--hover"
       bindtap="handleTabChange"
-    >角色</view>
+    >
+      角色
+      <view wx:if="{{badgeIndicators.tabs.character}}" class="badge-dot role-tab__dot"></view>
+    </view>
     <view
       class="tab-item {{activeTab === 'equipment' ? 'tab-item--active' : ''}}"
       data-tab="equipment"
       hover-class="tab-item--hover"
       bindtap="handleTabChange"
-    >装备</view>
+    >
+      装备
+      <view wx:if="{{badgeIndicators.tabs.equipment}}" class="badge-dot role-tab__dot"></view>
+    </view>
     <view
       class="tab-item {{activeTab === 'storage' ? 'tab-item--active' : ''}}"
       data-tab="storage"
       hover-class="tab-item--hover"
       bindtap="handleTabChange"
-    >纳戒</view>
+    >
+      纳戒
+      <view wx:if="{{badgeIndicators.tabs.storage}}" class="badge-dot role-tab__dot"></view>
+    </view>
     <view
       class="tab-item {{activeTab === 'skill' ? 'tab-item--active' : ''}}"
       data-tab="skill"
       hover-class="tab-item--hover"
       bindtap="handleTabChange"
-    >技能</view>
+    >
+      技能
+      <view wx:if="{{badgeIndicators.tabs.skill}}" class="badge-dot role-tab__dot"></view>
+    </view>
   </view>
 
   <view wx:if="{{loading}}" class="loading">灵气汇聚中...</view>
@@ -136,6 +148,7 @@
             bindtap="handleStorageCategoryChange"
           >
             <text class="storage-tab__label">{{item.label}}</text>
+            <view wx:if="{{badgeIndicators.storageCategories[item.key]}}" class="badge-dot storage-tab__dot"></view>
           </view>
         </view>
         <block wx:if="{{activeStorageCategoryData}}">

@@ -4,6 +4,7 @@ import {
   subscribe as subscribeMemberRealtime
 } from '../../services/member-realtime';
 import { formatCurrency, formatDate } from '../../utils/format';
+import { acknowledgeBadges, BADGE_KEYS } from '../../utils/badge-center';
 
 const presets = [200, 500, 1000, 2000, 5000];
 
@@ -227,6 +228,7 @@ Page({
   },
 
   onShow() {
+    acknowledgeBadges([BADGE_KEYS.HOME_NAV_WALLET]);
     this.attachMemberRealtime();
     ensureMemberWatcher().catch(() => {
       // ignore ensure errors here; fetchSummary will handle errors when needed
