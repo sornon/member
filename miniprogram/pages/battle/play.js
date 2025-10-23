@@ -1939,6 +1939,26 @@ Page({
       return;
     }
     const action = actions[nextIndex];
+    const actorSide =
+      action && (action.actor === 'player' || action.actor === 'opponent') ? action.actor : '';
+    if (actorSide && !isControlSkipAction(action)) {
+      const currentControlledState =
+        (this.data && this.data.battleStage && this.data.battleStage.controlledState) ||
+        createBattleStageState().controlledState;
+      if (currentControlledState[actorSide]) {
+        this.setBattleStageData({
+          controlledState: { ...currentControlledState, [actorSide]: false }
+        });
+      }
+      if (this._pendingControlledState && this._pendingControlledState[actorSide]) {
+        const pendingRelease = { ...this._pendingControlledState, [actorSide]: false };
+        if (!pendingRelease.player && !pendingRelease.opponent) {
+          this._pendingControlledState = null;
+        } else {
+          this._pendingControlledState = pendingRelease;
+        }
+      }
+    }
     const nextLogs = [...this.data.displayedLogs, { id: action.id, text: action.description }].slice(-5);
     const previousHpState = this.data.hpState || {};
     const rawNextHpState = action.hp || {};
