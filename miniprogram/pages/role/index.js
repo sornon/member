@@ -177,6 +177,301 @@ function normalizeEffectList(list) {
     .filter((entry) => !!entry);
 }
 
+function sanitizeProgressionNumberText(text) {
+  if (typeof text !== 'string') {
+    return '';
+  }
+  return text.replace(/％/g, '%').replace(/−/g, '-').replace(/\s+/g, '').replace(/^\+/, '');
+}
+
+function countDecimalPlaces(text) {
+  if (typeof text !== 'string') {
+    return -1;
+  }
+  const match = text.match(/\.(\d+)/);
+  return match ? match[1].length : 0;
+}
+
+function trimTrailingZeros(text) {
+  if (typeof text !== 'string') {
+    return '';
+  }
+  return text.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+}
+
+function formatNumberWithDecimals(value, decimals) {
+  if (!Number.isFinite(value)) {
+    return '';
+  }
+  const resolvedDigits = Math.max(0, Number.isFinite(decimals) ? decimals : 0);
+  const formatted = value.toFixed(resolvedDigits);
+  return trimTrailingZeros(formatted);
+}
+
+function extractSuffixKeywords(suffix) {
+  if (!suffix) {
+    return [];
+  }
+  const normalized = suffix.replace(/％/g, '%');
+  const keywords = [];
+  if (normalized.includes('%')) {
+    keywords.push('%');
+  }
+  if (normalized.includes('/回合')) {
+    keywords.push('/回合');
+  }
+  if (normalized.includes('回合')) {
+    keywords.push('回合');
+  }
+  if (normalized.includes('层')) {
+    keywords.push('层');
+  }
+  if (normalized.includes('段')) {
+    keywords.push('段');
+  }
+  if (normalized.includes('次')) {
+    keywords.push('次');
+  }
+  if (normalized.includes('点')) {
+    keywords.push('点');
+  }
+  if (normalized.includes('格')) {
+    keywords.push('格');
+  }
+  if (normalized.includes('米')) {
+    keywords.push('米');
+  }
+  if (normalized.includes('秒')) {
+    keywords.push('秒');
+  }
+  if (normalized.includes('名')) {
+    keywords.push('名');
+  }
+  if (normalized.includes('倍')) {
+    keywords.push('倍');
+  }
+  if (normalized.includes('槽')) {
+    keywords.push('槽');
+  }
+  if (normalized.includes('级')) {
+    keywords.push('级');
+  }
+  if (!keywords.length && normalized) {
+    keywords.push(normalized);
+  }
+  return keywords;
+}
+
+function parseProgressionSummaryEntry(text, level) {
+  if (typeof text !== 'string' || !text.trim()) {
+    return null;
+  }
+  const normalizedLevel = Math.max(1, Math.floor(Number(level) || 1));
+  const mainMatch = text.match(/^([^：]+)：\s*([+\-−]?\d+(?:\.\d+)?)([^（，]*)/);
+  if (!mainMatch) {
+    return null;
+  }
+  const valueText = sanitizeProgressionNumberText(mainMatch[2]);
+  const currentValue = Number(valueText);
+  if (!Number.isFinite(currentValue)) {
+    return null;
+  }
+  const suffix = (mainMatch[3] || '').trim();
+  const perLevelMatch = text.match(/每级([+\-−])\s*(\d+(?:\.\d+)?)([^，）]*)/);
+  let perLevel = 0;
+  let resolvedSuffix = suffix;
+  if (perLevelMatch) {
+    const signChar = perLevelMatch[1] === '−' ? '-' : perLevelMatch[1];
+    const perLevelText = sanitizeProgressionNumberText(`${signChar}${perLevelMatch[2]}`);
+    const parsedPerLevel = Number(perLevelText);
+    if (Number.isFinite(parsedPerLevel)) {
+      perLevel = parsedPerLevel;
+    }
+    const perLevelSuffix = (perLevelMatch[3] || '').trim();
+    if (perLevelSuffix) {
+      resolvedSuffix = perLevelSuffix;
+    }
+  }
+  const baseValue = currentValue - perLevel * (normalizedLevel - 1);
+  return {
+    label: mainMatch[1].trim(),
+    currentValue,
+    currentValueText: valueText,
+    baseValue,
+    perLevel,
+    suffix: resolvedSuffix || suffix || '',
+    suffixKeywords: extractSuffixKeywords(resolvedSuffix || suffix || '')
+  };
+}
+
+function parseProgressionSummaries(skill, level) {
+  const list = Array.isArray(skill && skill.progressionSummary) ? skill.progressionSummary : [];
+  return list
+    .map((entry) => parseProgressionSummaryEntry(entry, level))
+    .filter((entry) => !!entry);
+}
+
+function parseEffectTextNumbers(text) {
+  if (typeof text !== 'string' || !text) {
+    return [];
+  }
+  const tokens = [];
+  const regex = /([+\-−]?\d+(?:\.\d+)?)(%|％)?/g;
+  let match = regex.exec(text);
+  while (match) {
+    const numberText = match[1];
+    const normalizedNumberText = numberText.replace(/−/g, '-');
+    const value = Number(normalizedNumberText);
+    if (Number.isFinite(value)) {
+      const percentPart = match[2] || '';
+      let suffixText = percentPart;
+      let endIndex = match.index + match[0].length;
+      const trailing = text.slice(endIndex);
+      const extraMatch = trailing.match(/^(\/回合|回合|层|段|次|点|格|米|秒|名|倍|槽|级)/);
+      if (extraMatch) {
+        suffixText += extraMatch[0];
+        endIndex += extraMatch[0].length;
+      }
+      tokens.push({
+        start: match.index,
+        end: endIndex,
+        text: text.slice(match.index, endIndex),
+        numberText: normalizedNumberText.replace(/^\+/, ''),
+        suffixText,
+        value,
+        decimals: countDecimalPlaces(normalizedNumberText),
+        suffixKeywords: extractSuffixKeywords(suffixText)
+      });
+    }
+    match = regex.exec(text);
+  }
+  return tokens;
+}
+
+function scoreSuffixMatch(entryKeywords, tokenKeywords) {
+  if (!entryKeywords.length) {
+    return 0;
+  }
+  if (!tokenKeywords.length) {
+    return -0.1;
+  }
+  let score = 0;
+  entryKeywords.forEach((keyword) => {
+    if (!keyword) {
+      return;
+    }
+    if (tokenKeywords.includes(keyword)) {
+      score += 2;
+      return;
+    }
+    if (keyword === '/回合' && tokenKeywords.includes('回合')) {
+      score += 1;
+      return;
+    }
+    if (keyword === '回合' && tokenKeywords.includes('/回合')) {
+      score += 1;
+    }
+  });
+  return score;
+}
+
+function findBestTokenMatch(entry, tokens, usedIndexes) {
+  let bestIndex = -1;
+  let bestScore = -Infinity;
+  const tolerance = 1e-2;
+  tokens.forEach((token, index) => {
+    if (usedIndexes.has(index)) {
+      return;
+    }
+    const diff = Math.abs(token.value - entry.baseValue);
+    if (diff > tolerance) {
+      return;
+    }
+    let score = 10 - diff;
+    score += scoreSuffixMatch(entry.suffixKeywords, token.suffixKeywords);
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = index;
+    }
+  });
+  return bestIndex;
+}
+
+function formatNumberForToken(value, valueText, referenceText) {
+  const sanitizedValueText = sanitizeProgressionNumberText(valueText);
+  const referenceDecimals = countDecimalPlaces(referenceText);
+  const summaryDecimals = countDecimalPlaces(sanitizedValueText);
+  const digits = Math.max(referenceDecimals, summaryDecimals);
+  if (Number.isFinite(value) && digits >= 0) {
+    return formatNumberWithDecimals(value, digits);
+  }
+  if (sanitizedValueText) {
+    return sanitizedValueText;
+  }
+  if (Number.isFinite(value)) {
+    return formatNumberWithDecimals(value, summaryDecimals >= 0 ? summaryDecimals : 0);
+  }
+  return referenceText;
+}
+
+function applyTokenReplacements(baseText, tokens, replacements) {
+  let result = '';
+  let cursor = 0;
+  tokens.forEach((token, index) => {
+    result += baseText.slice(cursor, token.start);
+    if (replacements.has(index)) {
+      result += replacements.get(index);
+    } else {
+      result += token.text;
+    }
+    cursor = token.end;
+  });
+  result += baseText.slice(cursor);
+  return result;
+}
+
+function buildCurrentEffectText(skill, baseText, level) {
+  const normalizedLevel = Math.max(1, Math.floor(Number(level) || 1));
+  if (normalizedLevel <= 1 || typeof baseText !== 'string' || !baseText) {
+    return '';
+  }
+  const progressionEntries = parseProgressionSummaries(skill, normalizedLevel);
+  if (!progressionEntries.length) {
+    return '';
+  }
+  const tokens = parseEffectTextNumbers(baseText);
+  if (!tokens.length) {
+    return '';
+  }
+  const replacements = new Map();
+  const usedIndexes = new Set();
+  let hasMatch = false;
+  progressionEntries.forEach((entry) => {
+    if (!Number.isFinite(entry.baseValue) || !Number.isFinite(entry.currentValue)) {
+      return;
+    }
+    const tokenIndex = findBestTokenMatch(entry, tokens, usedIndexes);
+    if (tokenIndex < 0) {
+      return;
+    }
+    hasMatch = true;
+    usedIndexes.add(tokenIndex);
+    const token = tokens[tokenIndex];
+    const numberText = formatNumberForToken(entry.currentValue, entry.currentValueText, token.numberText);
+    const replacement = `${numberText}${token.suffixText}`;
+    if (replacement !== token.text) {
+      replacements.set(tokenIndex, replacement);
+    }
+  });
+  if (!hasMatch) {
+    return '';
+  }
+  if (!replacements.size) {
+    return baseText;
+  }
+  return applyTokenReplacements(baseText, tokens, replacements);
+}
+
 function resolveSkillEffectTexts(skill) {
   if (!skill || typeof skill !== 'object') {
     return { baseEffectText: '', currentEffectText: '' };
@@ -188,7 +483,10 @@ function resolveSkillEffectTexts(skill) {
   const levelValue = Number(skill.level);
   const level = Number.isFinite(levelValue) ? Math.max(1, Math.floor(levelValue)) : 1;
   let currentEffectText = '';
-  if (level > 1) {
+  if (level > 1 && baseEffectText) {
+    currentEffectText = buildCurrentEffectText(skill, baseEffectText, level);
+  }
+  if (level > 1 && !currentEffectText) {
     if (progressionSummary.length) {
       const index = Math.min(level - 1, progressionSummary.length - 1);
       currentEffectText = progressionSummary[index] || '';
