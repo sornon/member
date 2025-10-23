@@ -1502,6 +1502,8 @@ Page({
     }
     this._attackTimers = [];
     this._currentActionUsesIndicator = false;
+    this._pendingControlledState = null;
+    this._pendingControlledStateApplied = false;
     this.setBattleStageData({
       attackPhase: '',
       attackMotion: '',
@@ -1532,6 +1534,16 @@ Page({
     const stringified = typeof text === 'number' ? String(Math.round(text)) : String(text || '').trim();
     if (!stringified) {
       return;
+    }
+    if (
+      this._pendingControlledState &&
+      !this._pendingControlledStateApplied &&
+      textIndicatesControl(stringified) &&
+      this._pendingControlledState[normalizedSide]
+    ) {
+      this.setBattleStageData({ controlledState: this._pendingControlledState });
+      this._pendingControlledStateApplied = true;
+      this._pendingControlledState = null;
     }
     const nextState = cloneFloatingTextState(this._floatingTexts);
     const entryId = `ft-${Date.now()}-${(this._floatingTextId += 1)}`;
@@ -1743,20 +1755,32 @@ Page({
     const useIndicator = this.shouldUseAttackIndicator(action, actorSide, targetSide);
     this._currentActionUsesIndicator = useIndicator;
 
+    this._pendingControlledState = null;
+    this._pendingControlledStateApplied = false;
     const currentControlledState =
       (this.data && this.data.battleStage && this.data.battleStage.controlledState) ||
       createBattleStageState().controlledState;
     const nextControlledState = { ...currentControlledState };
+    let shouldDelayControlledState = false;
     if (actorSide === 'player' || actorSide === 'opponent') {
-      nextControlledState[actorSide] = isControlSkipAction(action);
+      const actorControlled = isControlSkipAction(action);
+      nextControlledState[actorSide] = actorControlled;
+      if (actorControlled) {
+        shouldDelayControlledState = true;
+      }
     }
     const controlledTargets = resolveControlTargets(action, actorSide, targetSide);
     controlledTargets.forEach((side) => {
       if (side === 'player' || side === 'opponent') {
         nextControlledState[side] = true;
+        shouldDelayControlledState = true;
       }
     });
-    this.setBattleStageData({ controlledState: nextControlledState });
+    if (shouldDelayControlledState) {
+      this._pendingControlledState = nextControlledState;
+    } else {
+      this.setBattleStageData({ controlledState: nextControlledState });
+    }
 
     if (!useIndicator) {
       this.setBattleStageData({
