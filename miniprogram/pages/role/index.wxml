@@ -436,12 +436,12 @@
                 class="skill-slot-card__highlights"
               >
                 <text class="skill-slot-card__highlight-line"
-                  >1级效果：{{item.detail.mechanics.join('，')}}</text
+                  >1级效果：{{item.detail.mechanics[0]}}</text
                 >
                 <text
                   wx:if="{{item.detail.progressionSummary && item.detail.progressionSummary.length}}"
                   class="skill-slot-card__highlight-line"
-                  >当前效果：{{item.detail.progressionSummary.join('，')}}</text
+                  >当前效果：{{item.detail.progressionSummary}}</text
                 >
               </view>
             </view>
@@ -488,12 +488,12 @@
               class="skill-card__highlights"
             >
               <text class="skill-card__highlight-line"
-                >1级效果：{{item.mechanics.join('，')}}</text
+                >1级效果：{{item.mechanics[0]}}</text
               >
               <text
                 wx:if="{{item.progressionSummary && item.progressionSummary.length}}"
                 class="skill-card__highlight-line"
-                >当前效果：{{item.progressionSummary.join('，')}}</text
+                >当前效果：{{item.progressionSummary}}</text
               >
             </view>
             <view class="skill-card__footer">

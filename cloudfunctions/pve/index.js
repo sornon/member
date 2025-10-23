@@ -7294,15 +7294,6 @@ function buildSkillHighlights(flattened, definition = {}, progression = [], leve
   const highlights = [];
   const levelValue = Math.max(1, Math.floor(Number(level) || 1));
   const dynamicHighlights = buildSkillHighlightSummaries(definition, levelValue);
-  if (dynamicHighlights.length) {
-    highlights.push(...dynamicHighlights);
-  } else if (Array.isArray(progression) && progression.length) {
-    highlights.push(...progression);
-  }
-  const statsText = formatStatsText(flattened);
-  if (statsText.length) {
-    highlights.push(...statsText);
-  }
   if (Array.isArray(definition.mechanics)) {
     definition.mechanics.forEach((item) => {
       const entry = typeof item === 'string' ? item : '';
@@ -7312,6 +7303,15 @@ function buildSkillHighlights(flattened, definition = {}, progression = [], leve
     });
   } else if (typeof definition.mechanics === 'string' && definition.mechanics) {
     highlights.push(definition.mechanics);
+  }
+  if (dynamicHighlights.length) {
+    highlights.push(...dynamicHighlights);
+  } else if (Array.isArray(progression) && progression.length) {
+    highlights.push(...progression);
+  }
+  const statsText = formatStatsText(flattened);
+  if (statsText.length) {
+    highlights.push(...statsText);
   }
   if (definition.growth) {
     if (Array.isArray(definition.growth)) {
