@@ -6423,10 +6423,12 @@ function decorateSkillInventoryEntry(entry, profile) {
   const elementLabel = resolveSkillElementLabel(definition.element);
   const resourceText = formatSkillResource(definition.params || {});
   const imprintText = formatSkillImprintInfo(definition);
-  const progressionSummary = formatSkillProgression(definition, entry.level || 1);
+  const level = entry.level || 1;
+  const progressionSummary = formatSkillProgression(definition, level);
+  const mechanics = formatSkillMechanics(definition, level);
   const effectsSummary = formatStatsText(flattened);
   const combinedSummary = [...progressionSummary, ...effectsSummary];
-  const highlights = buildSkillHighlights(flattened, definition, progressionSummary);
+  const highlights = buildSkillHighlights(flattened, definition, progressionSummary, mechanics);
   return {
     skillId: entry.skillId,
     name: definition.name,
@@ -6444,7 +6446,7 @@ function decorateSkillInventoryEntry(entry, profile) {
     highlights,
     resourceText,
     imprintText,
-    mechanics: Array.isArray(definition.mechanics) ? definition.mechanics : [],
+    mechanics,
     tags: definition.tags || [],
     obtainedAt: entry.obtainedAt,
     obtainedAtText: formatDateTime(entry.obtainedAt),
@@ -7052,7 +7054,9 @@ function buildEnemySkillDetails(skillId) {
   if (resourceText) {
     metaParts.push(resourceText);
   }
-  const highlights = buildSkillHighlights(null, definition, formatSkillProgression(definition, 1));
+  const baseProgression = formatSkillProgression(definition, 1);
+  const baseMechanics = formatSkillMechanics(definition, 1);
+  const highlights = buildSkillHighlights(null, definition, baseProgression, baseMechanics);
   return {
     id: definition.id,
     name: definition.name || definition.id,
@@ -7215,7 +7219,7 @@ function formatSkillImprintInfo(definition = {}) {
   return `印记槽：${parts.join('，')}`;
 }
 
-function buildSkillHighlights(flattened, definition = {}, progression = []) {
+function buildSkillHighlights(flattened, definition = {}, progression = [], mechanics = null) {
   const highlights = [];
   if (Array.isArray(progression) && progression.length) {
     highlights.push(...progression);
@@ -7224,7 +7228,9 @@ function buildSkillHighlights(flattened, definition = {}, progression = []) {
   if (Array.isArray(statsText) && statsText.length) {
     highlights.push(...statsText);
   }
-  if (Array.isArray(definition.mechanics)) {
+  if (Array.isArray(mechanics)) {
+    highlights.push(...mechanics);
+  } else if (Array.isArray(definition.mechanics)) {
     highlights.push(...definition.mechanics);
   }
   if (definition.growth) {
@@ -7320,6 +7326,55 @@ function formatSkillProgressionEntry(entry, level, maxLevel) {
     text += `，${entry.note}`;
   }
   return text;
+}
+
+function resolveSkillMechanicProgression(definition, label, level) {
+  if (!definition || typeof definition !== 'object') {
+    return null;
+  }
+  const entries = Array.isArray(definition.progression) ? definition.progression : [];
+  const matched = entries.find((item) => item && item.label === label);
+  if (!matched) {
+    return null;
+  }
+  const normalizedLevel = Math.max(1, Math.floor(level));
+  const extraLevels = normalizedLevel - 1;
+  const base = Number(matched.base) || 0;
+  const perLevel = Number(matched.perLevel) || 0;
+  const value = base + perLevel * extraLevels;
+  const format = matched.format || 'percent';
+  return { value, format, entry: matched };
+}
+
+function formatSkillMechanics(definition, level = 1) {
+  if (!definition || typeof definition !== 'object') {
+    return [];
+  }
+  const mechanics = Array.isArray(definition.mechanics) ? definition.mechanics.slice() : [];
+  if (!mechanics.length) {
+    return [];
+  }
+  const normalizedLevel = Math.max(1, Math.floor(level));
+  if (definition.id === 'sword_breaking_clouds') {
+    const mainRatio = resolveSkillMechanicProgression(definition, '主倍率', normalizedLevel);
+    const critBonus = resolveSkillMechanicProgression(definition, '暴击追加伤害', normalizedLevel);
+    return mechanics.map((text) => {
+      if (typeof text !== 'string') {
+        return text;
+      }
+      let updated = text;
+      if (mainRatio) {
+        const formattedMain = formatProgressionNumber(mainRatio.value, mainRatio.format, mainRatio.entry);
+        updated = updated.replace(/造成\s*\d+(?:\.\d+)?%/, `造成 ${formattedMain}%`);
+      }
+      if (critBonus) {
+        const formattedCrit = formatProgressionNumber(critBonus.value, critBonus.format, critBonus.entry);
+        updated = updated.replace(/额外造成\s*\d+(?:\.\d+)?%/, `额外造成 ${formattedCrit}%`);
+      }
+      return updated;
+    });
+  }
+  return mechanics;
 }
 
 function resolveProgressionSuffix(entry, format) {
