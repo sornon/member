@@ -1222,11 +1222,14 @@ button.pill-btn[disabled] {
 .skill-slot-card__highlights {
   font-size: 22rpx;
   color: rgba(177, 193, 247, 0.78);
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
   line-height: 1.6;
+}
+
+.skill-slot-card__highlight-line {
+  display: block;
 }
 
 .slot-empty {
@@ -1250,6 +1253,19 @@ button.pill-btn[disabled] {
   display: flex;
   flex-direction: column;
   gap: 12rpx;
+}
+
+.skill-card__highlights {
+  font-size: 22rpx;
+  color: rgba(177, 193, 247, 0.78);
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  line-height: 1.6;
+}
+
+.skill-card__highlight-line {
+  display: block;
 }
 
 .skill-card__badge {
