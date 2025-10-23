@@ -1133,6 +1133,7 @@ async function refreshImmortalTournamentPlayers(openid, options = {}) {
       continue;
     }
     try {
+      await callPveFunction('profile', { actorId: memberId, refreshOnly: true });
       await callPvpFunction('profile', { actorId: memberId, refreshOnly: true });
       summary.refreshed += 1;
       summary.refreshedTotal += 1;

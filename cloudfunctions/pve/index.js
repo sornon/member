@@ -2728,7 +2728,7 @@ exports.main = async (event = {}) => {
 
   switch (action) {
     case 'profile':
-      return getProfile(actorId);
+      return getProfile(actorId, event);
     case 'battle':
       return simulateBattle(actorId, event.enemyId);
     case 'drawSkill':
@@ -2762,10 +2762,18 @@ exports.main = async (event = {}) => {
   }
 };
 
-async function getProfile(actorId) {
+async function getProfile(actorId, options = {}) {
   const member = await ensureMember(actorId);
   const levels = await loadMembershipLevels();
   const profile = await ensurePveProfile(actorId, member, levels);
+  if (options && options.refreshOnly) {
+    return {
+      success: true,
+      memberId: actorId,
+      refreshed: true,
+      attributeSummary: profile && profile.attributeSummary ? profile.attributeSummary : null
+    };
+  }
   return decorateProfile(member, profile);
 }
 

@@ -193,7 +193,7 @@ exports.main = async (event = {}) => {
 
   switch (action) {
     case 'profile':
-      return loadProfile(actorId);
+      return loadProfile(actorId, event);
     case 'matchRandom':
       return matchRandom(actorId, event);
     case 'matchFriend':
@@ -264,10 +264,20 @@ async function ensurePvpCollections() {
   return ensuringCollectionsPromise;
 }
 
-async function loadProfile(memberId) {
+async function loadProfile(memberId, options = {}) {
   const season = await ensureActiveSeason();
   const member = await ensureMember(memberId);
   const profile = await ensurePvpProfile(memberId, member, season);
+  if (options && options.refreshOnly) {
+    return {
+      success: true,
+      memberId,
+      refreshed: true,
+      season: buildSeasonPayload(season),
+      combatSnapshot: profile.combatSnapshot || null,
+      memberSnapshot: profile.memberSnapshot || null
+    };
+  }
   const [recentMatches, leaderboard] = await Promise.all([
     loadRecentMatches(memberId, season._id),
     loadLeaderboardSnapshot(season._id, { limit: 10 })
