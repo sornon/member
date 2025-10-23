@@ -7435,10 +7435,11 @@ function matchesMechanicContext(format, text, offset, length) {
   }
   const nextPortion = text.slice(offset + length, offset + length + 3);
   const trimmedNext = nextPortion.replace(/^\s+/, '');
+  const percentMarkers = ['%', '％'];
   if (format === 'percent' || format === 'perTurnPercent') {
-    return trimmedNext.startsWith('%');
+    return percentMarkers.some((marker) => trimmedNext.startsWith(marker));
   }
-  if (trimmedNext.startsWith('%')) {
+  if (percentMarkers.some((marker) => trimmedNext.startsWith(marker))) {
     return false;
   }
   return true;
