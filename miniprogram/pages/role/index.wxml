@@ -678,6 +678,35 @@
       <view wx:if="{{skillModal.skill.imprintText}}" class="skill-modal__line">{{skillModal.skill.imprintText}}</view>
       <view wx:if="{{skillModal.skill.description}}" class="skill-modal__desc">{{skillModal.skill.description}}</view>
       <view
+        wx:if="{{skillModal.skill.progressionSummary && skillModal.skill.progressionSummary.length}}"
+        class="skill-modal__section"
+      >
+        <view class="skill-modal__section-title">成长效果</view>
+        <view
+          wx:for="{{skillModal.skill.progressionSummary}}"
+          wx:key="index"
+          class="skill-modal__paragraph"
+        >{{item}}</view>
+      </view>
+      <view
+        wx:if="{{skillModal.skill.effectsSummary && skillModal.skill.effectsSummary.length}}"
+        class="skill-modal__section"
+      >
+        <view class="skill-modal__section-title">技能效果</view>
+        <view
+          wx:for="{{skillModal.skill.effectsSummary}}"
+          wx:key="index"
+          class="skill-modal__paragraph"
+        >{{item}}</view>
+      </view>
+      <view
+        wx:if="{{skillModal.skill.mechanics && skillModal.skill.mechanics.length}}"
+        class="skill-modal__section"
+      >
+        <view class="skill-modal__section-title">机制说明</view>
+        <view wx:for="{{skillModal.skill.mechanics}}" wx:key="index" class="skill-modal__paragraph">{{item}}</view>
+      </view>
+      <view
         wx:if="{{skillModal.skill.highlights && skillModal.skill.highlights.length}}"
         class="skill-modal__highlights"
       >

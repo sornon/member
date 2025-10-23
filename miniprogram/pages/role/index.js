@@ -265,6 +265,61 @@ function normalizeSkillId(value) {
   return String(value);
 }
 
+function normalizeSkillTextList(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  const normalized = [];
+  list.forEach((entry) => {
+    if (typeof entry !== 'string') {
+      return;
+    }
+    const text = entry.trim();
+    if (text) {
+      normalized.push(text);
+    }
+  });
+  return normalized;
+}
+
+function normalizeSkillDetail(skill) {
+  if (!skill || typeof skill !== 'object') {
+    return null;
+  }
+  const normalized = { ...skill };
+  normalized.description = typeof skill.description === 'string' ? skill.description : '';
+  const progressionSummary = normalizeSkillTextList(skill.progressionSummary);
+  const effectsSummary = normalizeSkillTextList(skill.effectsSummary);
+  const highlights = normalizeSkillTextList(skill.highlights);
+  const mechanics = normalizeSkillTextList(skill.mechanics);
+  const tags = Array.isArray(skill.tags)
+    ? skill.tags
+        .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
+        .filter((tag) => !!tag)
+    : [];
+  normalized.progressionSummary = progressionSummary;
+  let filteredEffects = effectsSummary;
+  if (filteredEffects.length && progressionSummary.length) {
+    const progressionSet = new Set(progressionSummary);
+    filteredEffects = effectsSummary.filter((text) => !progressionSet.has(text));
+    if (!filteredEffects.length) {
+      filteredEffects = effectsSummary;
+    }
+  }
+  if (!filteredEffects.length && progressionSummary.length) {
+    filteredEffects = progressionSummary.slice();
+  }
+  normalized.effectsSummary = filteredEffects;
+  let highlightSource = highlights.length ? highlights : [...progressionSummary, ...filteredEffects];
+  if (!highlightSource.length && normalized.description) {
+    highlightSource = [normalized.description];
+  }
+  normalized.highlights = highlightSource.slice(0, 3);
+  normalized.mechanics = mechanics;
+  normalized.tags = tags;
+  return normalized;
+}
+
 function findEquippedItemFromProfile(profile, slot, excludeItemId = '') {
   const normalizedSlot = normalizeSlotValue(slot);
   if (!normalizedSlot) {
@@ -1071,6 +1126,10 @@ Page({
       ? options.skillId
       : skill.skillId;
     const skillId = normalizeSkillId(skillIdSource);
+    const normalizedSkill = normalizeSkillDetail(skill);
+    if (!normalizedSkill) {
+      return;
+    }
     const modal = {
       visible: true,
       source: typeof options.source === 'string' ? options.source : '',
@@ -1084,7 +1143,7 @@ Page({
           : slot !== null
           ? `槽位 ${slot + 1}`
           : '',
-      skill: { ...skill }
+      skill: normalizedSkill
     };
     this.setData({ skillModal: modal });
   },
@@ -1127,21 +1186,21 @@ Page({
       const slotIndexValue = Number(modal.slotIndex);
       const slotIndex = Number.isFinite(slotIndexValue) ? slotIndexValue : null;
       if (slotIndex !== null && slots[slotIndex] && slots[slotIndex].detail) {
-        return { ...slots[slotIndex].detail };
+        return normalizeSkillDetail({ ...slots[slotIndex].detail });
       }
       const slotNumberValue = Number(modal.slot);
       const slotNumber = Number.isFinite(slotNumberValue) ? slotNumberValue : null;
       if (slotNumber !== null) {
         const slotItem = slots.find((entry) => entry && Number(entry.slot) === slotNumber);
         if (slotItem && slotItem.detail) {
-          return { ...slotItem.detail };
+          return normalizeSkillDetail({ ...slotItem.detail });
         }
       }
     } else if (modal.source === 'inventory') {
       const inventoryIndexValue = Number(modal.inventoryIndex);
       const inventoryIndex = Number.isFinite(inventoryIndexValue) ? inventoryIndexValue : null;
       if (inventoryIndex !== null && inventory[inventoryIndex]) {
-        return { ...inventory[inventoryIndex] };
+        return normalizeSkillDetail({ ...inventory[inventoryIndex] });
       }
     }
     const skillId = normalizeSkillId(
@@ -1150,14 +1209,17 @@ Page({
     if (skillId) {
       const matchInventory = inventory.find((item) => normalizeSkillId(item && item.skillId) === skillId);
       if (matchInventory) {
-        return { ...matchInventory };
+        return normalizeSkillDetail({ ...matchInventory });
       }
       const matchSlot = slots
         .map((entry) => (entry && entry.detail ? entry.detail : null))
         .find((detail) => normalizeSkillId(detail && detail.skillId) === skillId);
       if (matchSlot) {
-        return { ...matchSlot };
+        return normalizeSkillDetail({ ...matchSlot });
       }
+    }
+    if (modal && modal.skill) {
+      return normalizeSkillDetail({ ...modal.skill });
     }
     return null;
   },
