@@ -3095,14 +3095,26 @@ async function cleanupTestMembers(openid) {
     .filter(Boolean);
   const summary = { removed: {}, errors: [] };
 
-  for (const memberId of memberIds) {
+  const cleanupTasks = memberIds.map((memberId) => async () => {
     try {
-      const result = await cleanupMemberData(memberId);
-      mergeCleanupSummary(summary, result);
+      return await cleanupMemberData(memberId);
     } catch (error) {
-      pushCleanupError(summary, COLLECTIONS.MEMBERS, error, memberId);
+      return { error, memberId };
     }
-  }
+  });
+
+  const results = await runTasksWithConcurrency(cleanupTasks, CLEANUP_TASK_CONCURRENCY);
+
+  results.forEach((result) => {
+    if (!result) {
+      return;
+    }
+    if (result.error) {
+      pushCleanupError(summary, COLLECTIONS.MEMBERS, result.error, result.memberId);
+      return;
+    }
+    mergeCleanupSummary(summary, result);
+  });
 
   const totalRemoved = Object.keys(summary.removed || {}).reduce((acc, key) => {
     const value = Number(summary.removed[key]);
@@ -3544,38 +3556,37 @@ async function summarizePvpLeaderboardForMembers(memberIds) {
 async function cleanupMemberData(memberId) {
   const summary = { removed: {}, errors: [] };
 
-  await removeCollectionByMemberId(COLLECTIONS.MEMBER_TIMELINE, memberId, summary);
-  await removeMemberExtrasDocument(memberId, summary);
-  await removeMemberPveHistoryDocument(memberId, summary);
+  const removalResults = await Promise.all([
+    removeCollectionByMemberId(COLLECTIONS.MEMBER_TIMELINE, memberId, summary),
+    removeMemberExtrasDocument(memberId, summary),
+    removeMemberPveHistoryDocument(memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.RESERVATIONS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.MEMBER_RIGHTS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.WALLET_TRANSACTIONS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.STONE_TRANSACTIONS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.TASK_RECORDS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.COUPON_RECORDS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.CHARGE_ORDERS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.MENU_ORDERS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.ERROR_LOGS, memberId, summary),
+    removeCollectionByMemberIdFields(
+      COLLECTIONS.PVP_INVITES,
+      ['inviterId', 'opponentId'],
+      memberId,
+      summary
+    ),
+    removeCollectionByMemberIdFields(
+      COLLECTIONS.PVP_MATCHES,
+      ['player.memberId', 'opponent.memberId'],
+      memberId,
+      summary
+    ),
+    removeDocumentById(COLLECTIONS.PVP_PROFILES, memberId, summary),
+    removeMemberFromPvpLeaderboard(memberId, summary),
+    removeDocumentById(COLLECTIONS.MEMBERS, memberId, summary)
+  ]);
 
-  const reservationsRemoved = await removeCollectionByMemberId(COLLECTIONS.RESERVATIONS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.MEMBER_RIGHTS, memberId, summary);
-
-  await removeCollectionByMemberId(COLLECTIONS.WALLET_TRANSACTIONS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.STONE_TRANSACTIONS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.TASK_RECORDS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.COUPON_RECORDS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.CHARGE_ORDERS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.MENU_ORDERS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.ERROR_LOGS, memberId, summary);
-
-  await removeCollectionByMemberIdFields(
-    COLLECTIONS.PVP_INVITES,
-    ['inviterId', 'opponentId'],
-    memberId,
-    summary
-  );
-  await removeCollectionByMemberIdFields(
-    COLLECTIONS.PVP_MATCHES,
-    ['player.memberId', 'opponent.memberId'],
-    memberId,
-    summary
-  );
-  await removeDocumentById(COLLECTIONS.PVP_PROFILES, memberId, summary);
-  await removeMemberFromPvpLeaderboard(memberId, summary);
-
-  await removeDocumentById(COLLECTIONS.MEMBERS, memberId, summary);
-
+  const reservationsRemoved = Number(removalResults[3]) || 0;
   if (reservationsRemoved > 0) {
     await updateAdminReservationBadges({ incrementVersion: true });
   }

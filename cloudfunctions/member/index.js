@@ -693,7 +693,6 @@ async function initMember(openid, profile = {}, options = {}) {
   const roles = Array.from(desiredRoles).filter((role) => ALLOWED_MEMBER_ROLES.has(role));
 
   const doc = {
-    _id: openid,
     nickName: profile.nickName || '',
     avatarUrl: profile.avatarUrl || '',
     avatarFrame: normalizeAvatarFrameValue(profile.avatarFrame || ''),
@@ -725,7 +724,15 @@ async function initMember(openid, profile = {}, options = {}) {
       pendingApprovalCount: 0
     }
   };
-  await membersCollection.add({ data: doc });
+  await membersCollection
+    .doc(openid)
+    .set({ data: doc })
+    .catch(async (error) => {
+      if (error && /already exist|duplicate/i.test(error.errMsg || '')) {
+        return;
+      }
+      throw error;
+    });
   await db
     .collection(COLLECTIONS.MEMBER_EXTRAS)
     .doc(openid)
@@ -741,7 +748,7 @@ async function initMember(openid, profile = {}, options = {}) {
   if (defaultLevel) {
     await grantLevelRewards(openid, defaultLevel, []);
   }
-  return doc;
+  return { ...doc, _id: openid };
 }
 
 async function getProfile(openid, options = {}) {
