@@ -6415,7 +6415,8 @@ function decorateSkillInventoryEntry(entry, profile) {
   if (!definition) {
     return null;
   }
-  const effects = resolveSkillEffects(definition, entry.level || 1);
+  const level = resolveSkillLevelValue(entry.level || 1);
+  const effects = resolveSkillEffects(definition, level);
   const flattened = flattenBonusSummary(effects);
   const quality = definition.quality || 'linggan';
   const typeLabel = resolveSkillTypeLabel(definition.type);
@@ -6423,9 +6424,9 @@ function decorateSkillInventoryEntry(entry, profile) {
   const elementLabel = resolveSkillElementLabel(definition.element);
   const resourceText = formatSkillResource(definition.params || {});
   const imprintText = formatSkillImprintInfo(definition);
-  const level = entry.level || 1;
-  const progressionSummary = formatSkillProgression(definition, level);
-  const mechanics = formatSkillMechanics(definition, level);
+  const progressionDetails = resolveSkillProgressionDetails(definition, level);
+  const progressionSummary = progressionDetails.map((detail) => detail.text);
+  const mechanics = formatSkillMechanics(definition, level, progressionDetails);
   const effectsSummary = formatStatsText(flattened);
   const combinedSummary = [...progressionSummary, ...effectsSummary];
   const highlights = buildSkillHighlights(flattened, definition, progressionSummary, mechanics);
@@ -6439,7 +6440,7 @@ function decorateSkillInventoryEntry(entry, profile) {
     disciplineLabel,
     elementLabel,
     description: definition.description,
-    level: entry.level || 1,
+    level,
     maxLevel: resolveSkillMaxLevel(entry.skillId),
     effectsSummary: combinedSummary,
     progressionSummary,
@@ -7278,7 +7279,31 @@ function formatStatsText(stats) {
   return texts;
 }
 
-function formatSkillProgression(definition, level = 1) {
+function resolveSkillLevelValue(level, fallback = 1) {
+  if (Number.isFinite(level)) {
+    return Math.max(1, Math.floor(level));
+  }
+  const parsed = Number(level);
+  if (Number.isFinite(parsed)) {
+    return Math.max(1, Math.floor(parsed));
+  }
+  if (typeof level === 'string') {
+    const match = level.match(/(\d+)/);
+    if (match) {
+      const extracted = Number(match[1]);
+      if (Number.isFinite(extracted)) {
+        return Math.max(1, Math.floor(extracted));
+      }
+    }
+  }
+  const fallbackNumber = Number(fallback);
+  if (Number.isFinite(fallbackNumber)) {
+    return Math.max(1, Math.floor(fallbackNumber));
+  }
+  return 1;
+}
+
+function resolveSkillProgressionDetails(definition, level = 1) {
   if (!definition || typeof definition !== 'object') {
     return [];
   }
@@ -7286,49 +7311,73 @@ function formatSkillProgression(definition, level = 1) {
   if (!entries.length) {
     return [];
   }
+  const currentLevel = resolveSkillLevelValue(level);
   const skillId = definition.id || definition.skillId || '';
-  const maxLevel = resolveSkillMaxLevel(skillId) || definition.maxLevel || level;
+  const defaultMaxLevel = resolveSkillLevelValue(
+    resolveSkillMaxLevel(skillId) || definition.maxLevel || currentLevel,
+    currentLevel
+  );
   return entries
-    .map((entry) => formatSkillProgressionEntry(entry, level, maxLevel))
-    .filter((text) => typeof text === 'string' && text);
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object' || !entry.label) {
+        return null;
+      }
+      const format = entry.format || 'percent';
+      const suffix = resolveProgressionSuffix(entry, format);
+      const base = Number(entry.base) || 0;
+      const perLevel = Number(entry.perLevel) || 0;
+      const entryMaxLevel =
+        entry.maxLevel != null ? resolveSkillLevelValue(entry.maxLevel, currentLevel) : defaultMaxLevel;
+      const resolvedMax = Math.max(currentLevel, entryMaxLevel);
+      const extraLevels = Math.max(0, currentLevel - 1);
+      const currentValue = base + perLevel * extraLevels;
+      const maxValue = base + perLevel * Math.max(0, resolvedMax - 1);
+      const formattedCurrent = formatProgressionNumber(currentValue, format, entry);
+      const formattedPerLevel =
+        perLevel !== 0 ? formatProgressionNumber(Math.abs(perLevel), format, entry) : null;
+      const maxDifferent = Math.abs(maxValue - currentValue) > 1e-6;
+      const formattedMax = maxDifferent ? formatProgressionNumber(maxValue, format, entry) : null;
+      let text = `${entry.label}：${formattedCurrent}${suffix}`;
+      if (perLevel !== 0) {
+        const sign = perLevel > 0 ? '+' : '-';
+        text += `（每级${sign}${formattedPerLevel}${suffix}`;
+        if (formattedMax) {
+          text += `，满级${formattedMax}${suffix}`;
+        }
+        text += '）';
+      } else if (formattedMax) {
+        text += `（满级${formattedMax}${suffix}）`;
+      }
+      if (entry.note) {
+        text += `，${entry.note}`;
+      }
+      const magnitudeBase = normalizeMechanicNumber(
+        formatProgressionNumber(Math.abs(base), format, entry)
+      );
+      const magnitudeCurrent = normalizeMechanicNumber(
+        formatProgressionNumber(Math.abs(currentValue), format, entry)
+      );
+      return {
+        label: entry.label,
+        format,
+        suffix,
+        baseValue: base,
+        perLevel,
+        currentValue,
+        maxValue,
+        text,
+        magnitudeBase,
+        magnitudeCurrent
+      };
+    })
+    .filter(Boolean);
 }
 
-function formatSkillProgressionEntry(entry, level, maxLevel) {
-  if (!entry || typeof entry !== 'object' || !entry.label) {
-    return '';
-  }
-  const currentLevel = Math.max(1, Math.floor(level));
-  const resolvedMax = Math.max(currentLevel, Math.floor(Number(entry.maxLevel) || maxLevel || currentLevel));
-  const extraLevels = Math.max(0, currentLevel - 1);
-  const base = Number(entry.base) || 0;
-  const perLevel = Number(entry.perLevel) || 0;
-  const currentValue = base + perLevel * extraLevels;
-  const maxValue = base + perLevel * Math.max(0, resolvedMax - 1);
-  const format = entry.format || 'percent';
-  const suffix = resolveProgressionSuffix(entry, format);
-  const formattedCurrent = formatProgressionNumber(currentValue, format, entry);
-  const maxDifferent = Math.abs(maxValue - currentValue) > 1e-6;
-  let text = `${entry.label}：${formattedCurrent}${suffix}`;
-  if (perLevel !== 0) {
-    const formattedPerLevel = formatProgressionNumber(Math.abs(perLevel), format, entry);
-    const sign = perLevel > 0 ? '+' : '-';
-    text += `（每级${sign}${formattedPerLevel}${suffix}`;
-    if (maxDifferent) {
-      const formattedMax = formatProgressionNumber(maxValue, format, entry);
-      text += `，满级${formattedMax}${suffix}`;
-    }
-    text += '）';
-  } else if (maxDifferent) {
-    const formattedMax = formatProgressionNumber(maxValue, format, entry);
-    text += `（满级${formattedMax}${suffix}）`;
-  }
-  if (entry.note) {
-    text += `，${entry.note}`;
-  }
-  return text;
+function formatSkillProgression(definition, level = 1) {
+  return resolveSkillProgressionDetails(definition, level).map((detail) => detail.text);
 }
 
-function formatSkillMechanics(definition, level = 1) {
+function formatSkillMechanics(definition, level = 1, progressionDetails = null) {
   if (!definition || typeof definition !== 'object') {
     return [];
   }
@@ -7336,45 +7385,25 @@ function formatSkillMechanics(definition, level = 1) {
   if (!mechanics.length) {
     return [];
   }
-  const normalizedLevel = Math.max(1, Math.floor(level));
-  const progression = Array.isArray(definition.progression) ? definition.progression : [];
+  const normalizedLevel = resolveSkillLevelValue(level);
+  const progression =
+    Array.isArray(progressionDetails) && progressionDetails.length
+      ? progressionDetails
+      : resolveSkillProgressionDetails(definition, normalizedLevel);
   if (!progression.length) {
     return mechanics;
   }
-
-  const replacementEntries = progression
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') {
-        return null;
-      }
-      const format = entry.format || 'percent';
-      const base = Number(entry.base) || 0;
-      const perLevel = Number(entry.perLevel) || 0;
-      const extraLevels = normalizedLevel - 1;
-      const currentValue = base + perLevel * extraLevels;
-      const magnitudeBase = formatProgressionNumber(Math.abs(base), format, entry);
-      const magnitudeCurrent = formatProgressionNumber(Math.abs(currentValue), format, entry);
-      if (magnitudeBase == null) {
-        return null;
-      }
-      return {
-        format,
-        baseMagnitude: normalizeMechanicNumber(magnitudeBase),
-        currentMagnitude: magnitudeCurrent
-      };
-    })
-    .filter(Boolean);
-
-  if (!replacementEntries.length) {
-    return mechanics;
-  }
-
   return mechanics.map((text) => {
     if (typeof text !== 'string') {
       return text;
     }
     let updated = text;
-    replacementEntries.forEach((item) => {
+    progression.forEach((item) => {
+      const baseMagnitude = item.magnitudeBase;
+      const replacementMagnitude = item.magnitudeCurrent;
+      if (!baseMagnitude || (!replacementMagnitude && replacementMagnitude !== '0')) {
+        return;
+      }
       updated = updated.replace(/-?\d+(?:\.\d+)?/g, (token, offset, string) => {
         if (!token) {
           return token;
@@ -7385,14 +7414,10 @@ function formatSkillMechanics(definition, level = 1) {
           return token;
         }
         const normalizedMagnitude = normalizeMechanicNumber(magnitude);
-        if (normalizedMagnitude !== item.baseMagnitude) {
+        if (normalizedMagnitude !== baseMagnitude) {
           return token;
         }
         if (!matchesMechanicContext(item.format, string, offset, token.length)) {
-          return token;
-        }
-        const replacementMagnitude = item.currentMagnitude;
-        if (!replacementMagnitude && replacementMagnitude !== '0') {
           return token;
         }
         if (sign) {
