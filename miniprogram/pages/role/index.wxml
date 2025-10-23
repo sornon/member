@@ -432,10 +432,17 @@
               <view wx:if="{{item.detail.resourceText}}" class="skill-slot-card__meta">{{item.detail.resourceText}}</view>
               <view wx:if="{{item.detail.imprintText}}" class="skill-slot-card__meta">{{item.detail.imprintText}}</view>
               <view
-                wx:if="{{item.detail.highlights && item.detail.highlights.length}}"
+                wx:if="{{item.detail.mechanics && item.detail.mechanics.length}}"
                 class="skill-slot-card__highlights"
               >
-                {{item.detail.highlights[0]}}
+                <text class="skill-slot-card__highlight-line"
+                  >1级效果：{{item.detail.mechanics.join('，')}}</text
+                >
+                <text
+                  wx:if="{{item.detail.progressionSummary && item.detail.progressionSummary.length}}"
+                  class="skill-slot-card__highlight-line"
+                  >当前效果：{{item.detail.progressionSummary.join('，')}}</text
+                >
               </view>
             </view>
             <view wx:else class="slot-empty">未装备技能</view>
@@ -476,6 +483,19 @@
               <text wx:if="{{item.resourceText}}" class="skill-tag skill-tag--muted">{{item.resourceText}}</text>
             </view>
             <view wx:if="{{item.imprintText}}" class="skill-card__meta">{{item.imprintText}}</view>
+            <view
+              wx:if="{{item.mechanics && item.mechanics.length}}"
+              class="skill-card__highlights"
+            >
+              <text class="skill-card__highlight-line"
+                >1级效果：{{item.mechanics.join('，')}}</text
+              >
+              <text
+                wx:if="{{item.progressionSummary && item.progressionSummary.length}}"
+                class="skill-card__highlight-line"
+                >当前效果：{{item.progressionSummary.join('，')}}</text
+              >
+            </view>
             <view class="skill-card__footer">
               <button
                 class="pill-btn pill-btn--primary"
