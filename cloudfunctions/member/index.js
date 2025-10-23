@@ -740,6 +740,7 @@ async function initMember(openid, profile = {}, options = {}) {
       data: {
         avatarUnlocks: [],
         claimedLevelRewards: [],
+        deliveredLevelRewards: [],
         createdAt: now,
         updatedAt: now
       }
@@ -1659,9 +1660,14 @@ async function ensureArchiveDefaults(member) {
   }
   member.avatarUnlocks = mergedUnlocks;
 
+  const deliveredClaims = normalizeClaimedLevelRewards(extras.deliveredLevelRewards);
+  if (!arraysEqual(Array.isArray(extras.deliveredLevelRewards) ? extras.deliveredLevelRewards : [], deliveredClaims)) {
+    extrasUpdates.deliveredLevelRewards = deliveredClaims;
+    extras.deliveredLevelRewards = deliveredClaims;
+  }
   const memberClaims = normalizeClaimedLevelRewards(member.claimedLevelRewards);
   const extrasClaims = normalizeClaimedLevelRewards(extras.claimedLevelRewards);
-  const mergedClaims = normalizeClaimedLevelRewards([...extrasClaims, ...memberClaims]);
+  const mergedClaims = normalizeClaimedLevelRewards([...extrasClaims, ...memberClaims, ...deliveredClaims]);
   if (!arraysEqual(extrasClaims, mergedClaims)) {
     extrasUpdates.claimedLevelRewards = mergedClaims;
     extras.claimedLevelRewards = mergedClaims;
