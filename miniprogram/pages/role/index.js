@@ -177,6 +177,48 @@ function normalizeEffectList(list) {
     .filter((entry) => !!entry);
 }
 
+function collectSkillEffectSources(skill) {
+  const sources = [];
+  const pushSource = (candidate) => {
+    if (candidate && typeof candidate === 'object' && !sources.includes(candidate)) {
+      sources.push(candidate);
+    }
+  };
+  pushSource(skill);
+  if (skill && typeof skill.detail === 'object') {
+    pushSource(skill.detail);
+    if (typeof skill.detail.definition === 'object') {
+      pushSource(skill.detail.definition);
+    }
+  }
+  if (skill && typeof skill.definition === 'object') {
+    pushSource(skill.definition);
+  }
+  return sources;
+}
+
+function resolveSkillEffectList(skill, key) {
+  const sources = collectSkillEffectSources(skill);
+  for (let i = 0; i < sources.length; i += 1) {
+    const list = normalizeEffectList(sources[i][key]);
+    if (list.length) {
+      return list;
+    }
+  }
+  return [];
+}
+
+function resolveSkillLevel(skill) {
+  const sources = collectSkillEffectSources(skill);
+  for (let i = 0; i < sources.length; i += 1) {
+    const value = Number(sources[i].level);
+    if (Number.isFinite(value)) {
+      return Math.max(1, Math.floor(value));
+    }
+  }
+  return 1;
+}
+
 function sanitizeProgressionNumberText(text) {
   if (typeof text !== 'string') {
     return '';
@@ -305,7 +347,7 @@ function parseProgressionSummaryEntry(text, level) {
 }
 
 function parseProgressionSummaries(skill, level) {
-  const list = Array.isArray(skill && skill.progressionSummary) ? skill.progressionSummary : [];
+  const list = resolveSkillEffectList(skill, 'progressionSummary');
   return list
     .map((entry) => parseProgressionSummaryEntry(entry, level))
     .filter((entry) => !!entry);
@@ -476,12 +518,11 @@ function resolveSkillEffectTexts(skill) {
   if (!skill || typeof skill !== 'object') {
     return { baseEffectText: '', currentEffectText: '' };
   }
-  const mechanics = normalizeEffectList(skill.mechanics);
-  const highlights = normalizeEffectList(skill.highlights);
-  const progressionSummary = normalizeEffectList(skill.progressionSummary);
+  const mechanics = resolveSkillEffectList(skill, 'mechanics');
+  const highlights = resolveSkillEffectList(skill, 'highlights');
+  const progressionSummary = resolveSkillEffectList(skill, 'progressionSummary');
   const baseEffectText = mechanics[0] || highlights[0] || progressionSummary[0] || '';
-  const levelValue = Number(skill.level);
-  const level = Number.isFinite(levelValue) ? Math.max(1, Math.floor(levelValue)) : 1;
+  const level = resolveSkillLevel(skill);
   let currentEffectText = '';
   if (level > 1 && baseEffectText) {
     currentEffectText = buildCurrentEffectText(skill, baseEffectText, level);
