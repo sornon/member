@@ -168,7 +168,7 @@
 
       <view class="battle-avatars">
         <view
-          class="avatar-wrapper attacker {{attackerKey}} {{battleStage.controlledState && battleStage.controlledState[attackerKey] ? 'is-controlled' : ''}} {{attackActor === attackerKey ? 'attack-active' : ''}} {{attackActor === attackerKey && attackPhase ? 'attack-phase-' + attackPhase : ''}} {{attackActor === attackerKey && attackMotion === 'crit' ? 'attack-motion-crit' : ''}} {{attackTarget === attackerKey && attackPhase ? 'target-under-attack' : ''}} {{attackTarget === attackerKey && targetReaction === 'hit' ? 'is-hit' : ''}} {{attackTarget === attackerKey && targetReaction === 'dodge' ? 'is-dodging' : ''}}"
+          class="avatar-wrapper attacker {{attackerKey}} {{controlledState && controlledState[attackerKey] ? 'is-controlled' : ''}} {{attackActor === attackerKey ? 'attack-active' : ''}} {{attackActor === attackerKey && attackPhase ? 'attack-phase-' + attackPhase : ''}} {{attackActor === attackerKey && attackMotion === 'crit' ? 'attack-motion-crit' : ''}} {{attackTarget === attackerKey && attackPhase ? 'target-under-attack' : ''}} {{attackTarget === attackerKey && targetReaction === 'hit' ? 'is-hit' : ''}} {{attackTarget === attackerKey && targetReaction === 'dodge' ? 'is-dodging' : ''}}"
         >
           <view class="floating-text-layer">
             <view
@@ -195,7 +195,7 @@
           </view>
         </view>
         <view
-          class="avatar-wrapper defender {{defenderKey}} {{battleStage.controlledState && battleStage.controlledState[defenderKey] ? 'is-controlled' : ''}} {{attackActor === defenderKey ? 'attack-active' : ''}} {{attackActor === defenderKey && attackPhase ? 'attack-phase-' + attackPhase : ''}} {{attackActor === defenderKey && attackMotion === 'crit' ? 'attack-motion-crit' : ''}} {{attackTarget === defenderKey && attackPhase ? 'target-under-attack' : ''}} {{attackTarget === defenderKey && targetReaction === 'hit' ? 'is-hit' : ''}} {{attackTarget === defenderKey && targetReaction === 'dodge' ? 'is-dodging' : ''}}"
+          class="avatar-wrapper defender {{defenderKey}} {{controlledState && controlledState[defenderKey] ? 'is-controlled' : ''}} {{attackActor === defenderKey ? 'attack-active' : ''}} {{attackActor === defenderKey && attackPhase ? 'attack-phase-' + attackPhase : ''}} {{attackActor === defenderKey && attackMotion === 'crit' ? 'attack-motion-crit' : ''}} {{attackTarget === defenderKey && attackPhase ? 'target-under-attack' : ''}} {{attackTarget === defenderKey && targetReaction === 'hit' ? 'is-hit' : ''}} {{attackTarget === defenderKey && targetReaction === 'dodge' ? 'is-dodging' : ''}}"
         >
           <view class="floating-text-layer">
             <view
