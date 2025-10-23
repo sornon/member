@@ -432,11 +432,10 @@
               <view wx:if="{{item.detail.resourceText}}" class="skill-slot-card__meta">{{item.detail.resourceText}}</view>
               <view wx:if="{{item.detail.imprintText}}" class="skill-slot-card__meta">{{item.detail.imprintText}}</view>
               <view
-                wx:if="{{ item.detail.effectBaseText || item.detail.effectCurrentText }}"
+                wx:if="{{item.detail.highlights && item.detail.highlights.length}}"
                 class="skill-slot-card__highlights"
               >
-                <view wx:if="{{ item.detail.effectBaseText }}">1级效果：{{item.detail.effectBaseText}}</view>
-                <view wx:if="{{ item.detail.effectCurrentText }}">当前效果：{{item.detail.effectCurrentText}}</view>
+                {{item.detail.highlights[0]}}
               </view>
             </view>
             <view wx:else class="slot-empty">未装备技能</view>
@@ -477,13 +476,6 @@
               <text wx:if="{{item.resourceText}}" class="skill-tag skill-tag--muted">{{item.resourceText}}</text>
             </view>
             <view wx:if="{{item.imprintText}}" class="skill-card__meta">{{item.imprintText}}</view>
-            <view
-              wx:if="{{ item.effectBaseText || item.effectCurrentText }}"
-              class="skill-slot-card__highlights"
-            >
-              <view wx:if="{{ item.effectBaseText }}">1级效果：{{item.effectBaseText}}</view>
-              <view wx:if="{{ item.effectCurrentText }}">当前效果：{{item.effectCurrentText}}</view>
-            </view>
             <view class="skill-card__footer">
               <button
                 class="pill-btn pill-btn--primary"
