@@ -197,6 +197,8 @@ exports.main = async (event = {}) => {
       return loadBattleReplay(actorId, event);
     case 'getLeaderboard':
       return getLeaderboard(actorId, event);
+    case 'inspectArchive':
+      return inspectMemberArchive(actorId, event);
     case 'claimSeasonReward':
       return claimSeasonReward(actorId, event);
     case 'sendInvite':
@@ -390,6 +392,110 @@ async function getLeaderboard(memberId, event = {}) {
     entries,
     updatedAt: snapshot.updatedAt || null,
     myRank: rankIndex >= 0 ? rankIndex + 1 : null
+  };
+}
+
+async function inspectMemberArchive(actorId, event = {}) {
+  const targetId = normalizeMemberId(event.targetId || event.memberId);
+  if (!targetId) {
+    throw createError('TARGET_REQUIRED', '请选择要查看的仙友');
+  }
+  const season = await ensureActiveSeason();
+  const member = await ensureMember(targetId);
+  const profile = await ensurePvpProfile(targetId, member, season);
+
+  const normalizedCombat = normalizeCombatSnapshot(profile.combatSnapshot || {});
+  const attributeSummary =
+    member && member.pveProfile && typeof member.pveProfile === 'object'
+      ? member.pveProfile.attributeSummary || {}
+      : {};
+  const attributeList = Array.isArray(attributeSummary.attributeList)
+    ? attributeSummary.attributeList.map((attr) => ({
+        key: attr.key,
+        label: attr.label,
+        formattedValue: attr.formattedValue,
+        formattedBase: attr.formattedBase,
+        formattedTrained: attr.formattedTrained,
+        formattedEquipment: attr.formattedEquipment,
+        formattedSkill: attr.formattedSkill
+      }))
+    : [];
+  const combatStats = Array.isArray(attributeSummary.combatStats)
+    ? attributeSummary.combatStats.map((stat) => ({
+        key: stat.key,
+        label: stat.label,
+        formattedValue: stat.formattedValue,
+        formattedBase: stat.formattedBase,
+        formattedEquipment: stat.formattedEquipment,
+        formattedSkill: stat.formattedSkill,
+        formattedMultiplier: stat.formattedMultiplier
+      }))
+    : [];
+
+  const tier = resolveTierByPoints(profile.points);
+  const backgroundId = buildBackgroundIdFromMember(member);
+  const background = buildBackgroundPayloadFromId(backgroundId, member.appearanceBackgroundAnimated);
+  const avatarFrame = resolveAvatarFrameValue(
+    profile.memberSnapshot && profile.memberSnapshot.avatarFrame,
+    profile.memberSnapshot && profile.memberSnapshot.appearance && profile.memberSnapshot.appearance.avatarFrame,
+    member && member.avatarFrame,
+    member && member.appearanceFrame,
+    member && member.appearance && member.appearance.avatarFrame,
+    profile.avatarFrame,
+    profile.appearance && profile.appearance.avatarFrame
+  );
+  const portrait = pickPortraitUrl(
+    profile.memberSnapshot && profile.memberSnapshot.portrait,
+    member && member.portrait,
+    profile.memberSnapshot && profile.memberSnapshot.avatarUrl,
+    member && member.avatarUrl,
+    ''
+  );
+
+  const combatPower = Number.isFinite(attributeSummary.combatPower)
+    ? Math.round(attributeSummary.combatPower)
+    : Math.round(normalizedCombat.combatPower || 0);
+
+  return {
+    target: {
+      memberId: targetId,
+      nickName:
+        (profile.memberSnapshot && profile.memberSnapshot.nickName) || member.nickName || member.name || '无名仙友',
+      avatarUrl:
+        (profile.memberSnapshot && profile.memberSnapshot.avatarUrl) || member.avatarUrl || member.portrait || '',
+      avatarFrame: avatarFrame || '',
+      titleId:
+        member.appearanceTitle ||
+        (profile.memberSnapshot && profile.memberSnapshot.appearance && profile.memberSnapshot.appearance.titleId) ||
+        '',
+      titleName:
+        member.appearanceTitleName ||
+        (profile.memberSnapshot && profile.memberSnapshot.appearance && profile.memberSnapshot.appearance.titleName) ||
+        '',
+      levelName:
+        attributeSummary.levelName ||
+        (member.level && (member.level.name || member.level.label)) ||
+        (profile.memberSnapshot && profile.memberSnapshot.levelName) ||
+        '',
+      realmName:
+        attributeSummary.realmName ||
+        (member.level && member.level.realmName) ||
+        (profile.memberSnapshot && profile.memberSnapshot.realmName) ||
+        '',
+      combatPower,
+      tier: tierPayload(tier),
+      points: profile.points,
+      wins: profile.wins,
+      losses: profile.losses,
+      draws: profile.draws,
+      background: background || null,
+      appearanceBackgroundAnimated: !!(background && background.animated),
+      portrait: portrait || ''
+    },
+    attributes: {
+      attributeList,
+      combatStats
+    }
   };
 }
 

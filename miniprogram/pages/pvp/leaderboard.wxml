@@ -31,7 +31,11 @@
             ></image>
           </view>
           <view class="board-info">
-            <view class="board-name">{{item.nickName || '神秘仙友'}}</view>
+            <view
+              class="board-name"
+              data-id="{{item.memberId}}"
+              bindtap="handleViewArchive"
+            >{{item.nickName || '神秘仙友'}}</view>
             <view class="board-meta">{{item.tierName}} · {{item.points}} 分 · {{item.wins}}胜{{item.losses}}负</view>
           </view>
           <view class="board-actions">
