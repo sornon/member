@@ -36,6 +36,12 @@ page {
   line-height: 1;
 }
 
+.role-tab__dot {
+  position: absolute;
+  top: 6rpx;
+  right: 30rpx;
+}
+
 .tab-item::after {
   content: '';
   position: absolute;
@@ -587,10 +593,17 @@ button.pill-btn[disabled] {
   gap: 10rpx;
   line-height: 1;
   transition: all 0.2s ease;
+  position: relative;
 }
 
 .storage-tab__label {
   font-weight: 600;
+}
+
+.storage-tab__dot {
+  position: absolute;
+  top: -6rpx;
+  right: -6rpx;
 }
 
 .storage-tab--active {

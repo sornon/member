@@ -154,18 +154,32 @@ page {
   pointer-events: none;
 }
 
+.profile-avatar__dot {
+  top: -6rpx;
+  right: -6rpx;
+}
+
 .profile-info {
   margin-left: 24rpx;
   max-width: 360rpx;
 }
 
 .profile-name {
+  position: relative;
+  display: inline-block;
+  padding-right: 24rpx;
   font-size: 30rpx;
   font-weight: 600;
   letter-spacing: 2rpx;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.profile-name__dot {
+  position: absolute;
+  top: -6rpx;
+  right: 0;
 }
 
 .profile-meta {
@@ -200,6 +214,12 @@ page {
   align-items: center;
   padding-right: 16rpx;
 }
+
+.profile-meta__item--stone {
+  display: flex;
+  align-items: center;
+  padding-right: 16rpx;
+}
 .profile-meta__dot {
   position: absolute;
   top: 0;
@@ -226,9 +246,22 @@ page {
   border-radius: 24rpx;
 }
 
+.activity-icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .activity-icon {
   font-size: 38rpx;
   margin-bottom: 0rpx;
+}
+
+.activity-item__dot {
+  position: absolute;
+  top: -8rpx;
+  right: -8rpx;
 }
 
 .activity-label {
@@ -564,10 +597,20 @@ page {
 }
 
 .appearance-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-right: 20rpx;
   color: #ffffff4b;
   font-size: 28rpx;
   letter-spacing: 2rpx;
   transition: color 0.2s ease, font-size 0.2s ease;
+}
+
+.appearance-tab__dot {
+  position: absolute;
+  top: -8rpx;
+  right: -8rpx;
 }
 
 .appearance-tab--active {

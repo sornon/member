@@ -1,4 +1,5 @@
 import { ReservationService } from '../../services/api';
+import { acknowledgeBadges, BADGE_KEYS } from '../../utils/badge-center';
 import { formatDate, formatCurrency } from '../../utils/format';
 
 const DEFAULT_START_TIME = '12:00';
@@ -155,6 +156,7 @@ Page({
   },
 
   onShow() {
+    acknowledgeBadges([BADGE_KEYS.HOME_NAV_RESERVATION, BADGE_KEYS.RESERVATION_NOTIFICATION]);
     this.fetchRooms();
   },
 
