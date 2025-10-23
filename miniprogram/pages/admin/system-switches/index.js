@@ -651,6 +651,7 @@ Page({
       while (hasMore) {
         const result = await AdminService.refreshImmortalTournamentPlayers({
           cursor,
+          batchSize: 5,
           total: aggregator.total || undefined,
           processed: aggregator.processed,
           refreshed: aggregator.refreshed,
