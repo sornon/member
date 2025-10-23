@@ -1069,7 +1069,7 @@ Page({
   onShow() {
     this.ensureNavMetrics();
     this.updateToday();
-    this.refreshNavBadgeState(member);
+    this.refreshNavBadgeState();
     this.refreshBadgeBindings();
     this.attachMemberRealtime();
     this.bootstrap();
