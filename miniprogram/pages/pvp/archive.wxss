@@ -291,6 +291,50 @@
   color: #ffffff;
 }
 
+.skills-section {
+  margin-top: 28rpx;
+  padding-top: 24rpx;
+  border-top: 2rpx solid rgba(245, 247, 255, 0.08);
+}
+
+.skills-header {
+  font-size: 28rpx;
+  font-weight: 500;
+  color: #ffffff;
+  margin-bottom: 20rpx;
+}
+
+.skill-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.skill-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 12rpx;
+  padding: 12rpx 20rpx;
+  border-radius: 24rpx;
+  background: rgba(64, 78, 128, 0.35);
+  backdrop-filter: blur(6rpx);
+}
+
+.skill-chip__name {
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.skill-chip__level {
+  font-size: 22rpx;
+  color: rgba(245, 247, 255, 0.9);
+}
+
+.skill-empty {
+  font-size: 24rpx;
+  color: rgba(245, 247, 255, 0.6);
+}
+
 @media (max-width: 750rpx) {
   .archive-hero {
     flex-direction: column;

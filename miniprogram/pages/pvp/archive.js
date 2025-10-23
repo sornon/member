@@ -88,7 +88,8 @@ Page({
     titleImage: '',
     heroImage: DEFAULT_CHARACTER_IMAGE,
     defaultAvatar: DEFAULT_AVATAR,
-    combatPowerText: '--'
+    combatPowerText: '--',
+    equippedSkills: []
   },
 
   onLoad(options = {}) {
@@ -152,6 +153,32 @@ Page({
       payload.attributes && Array.isArray(payload.attributes.combatStats)
         ? payload.attributes.combatStats
         : [];
+    const equippedSkills =
+      payload.skills && Array.isArray(payload.skills.equipped)
+        ? payload.skills.equipped
+            .map((skill, index) => {
+              if (!skill || typeof skill !== 'object') {
+                return null;
+              }
+              const slot = Number.isFinite(skill.slot) ? skill.slot : index;
+              const name = typeof skill.name === 'string' && skill.name ? skill.name : '技能';
+              const level = Math.max(1, Math.floor(Number(skill.level) || 1));
+              const qualityColor =
+                typeof skill.qualityColor === 'string' && skill.qualityColor
+                  ? skill.qualityColor
+                  : '#f5f7ff';
+              const skillId = typeof skill.skillId === 'string' && skill.skillId ? skill.skillId : `${slot}-${name}`;
+              return {
+                slot,
+                skillId,
+                name,
+                level,
+                qualityColor
+              };
+            })
+            .filter((item) => !!item)
+            .sort((a, b) => a.slot - b.slot)
+        : [];
     const backgroundDisplay = resolveBackgroundDisplay(archive.background);
     const heroImage = resolveCharacterImage(archive);
     const titleImage = buildTitleImageUrl(archive.titleId || '');
@@ -164,6 +191,7 @@ Page({
       heroImage,
       titleImage,
       combatPowerText,
+      equippedSkills,
       backgroundImage: backgroundDisplay.image,
       backgroundVideo: backgroundDisplay.video,
       backgroundVideoError: false,
