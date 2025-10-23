@@ -25,7 +25,12 @@ const {
   takeTurn: executeSkillTurn,
   configureResourceDefaults
 } = require('skill-engine');
-const { aggregateSkillEffects } = require('skill-model');
+const {
+  aggregateSkillEffects,
+  SKILL_MAP,
+  resolveSkillQualityColor,
+  resolveSkillQualityLabel
+} = require('skill-model');
 const { createBattlePayload, decorateBattleReplay } = require('battle-schema');
 const {
   DEFAULT_GAME_PARAMETERS,
@@ -456,6 +461,10 @@ async function inspectMemberArchive(actorId, event = {}) {
     ? Math.round(attributeSummary.combatPower)
     : Math.round(normalizedCombat.combatPower || 0);
 
+  const equippedSkills = buildEquippedSkillSummary(member && member.pveProfile);
+  const fallbackSkills = buildEquippedSkillsFromLoadout(normalizedCombat.skillLoadout || []);
+  const skillPayload = equippedSkills.length ? equippedSkills : fallbackSkills;
+
   return {
     target: {
       memberId: targetId,
@@ -495,8 +504,80 @@ async function inspectMemberArchive(actorId, event = {}) {
     attributes: {
       attributeList,
       combatStats
+    },
+    skills: {
+      equipped: skillPayload
     }
   };
+}
+
+function buildEquippedSkillSummary(profile = null) {
+  if (!profile || !profile.skills) {
+    return [];
+  }
+  const skillsState = profile.skills || {};
+  const inventory = Array.isArray(skillsState.inventory) ? skillsState.inventory : [];
+  const equipped = Array.isArray(skillsState.equipped) ? skillsState.equipped : [];
+  if (!equipped.length) {
+    return [];
+  }
+  const inventoryMap = inventory.reduce((map, entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return map;
+    }
+    const skillId = typeof entry.skillId === 'string' ? entry.skillId.trim() : '';
+    if (!skillId) {
+      return map;
+    }
+    map[skillId] = entry;
+    return map;
+  }, {});
+
+  return equipped
+    .map((rawId, index) => {
+      const skillId = typeof rawId === 'string' ? rawId.trim() : '';
+      if (!skillId) {
+        return null;
+      }
+      const definition = SKILL_MAP[skillId];
+      if (!definition) {
+        return null;
+      }
+      const inventoryEntry = inventoryMap[skillId] || {};
+      const level = Math.max(1, Math.floor(Number(inventoryEntry.level) || 1));
+      const quality = definition.quality || 'linggan';
+      return {
+        slot: index,
+        skillId,
+        name: definition.name || '技能',
+        level,
+        quality,
+        qualityLabel: resolveSkillQualityLabel(quality),
+        qualityColor: resolveSkillQualityColor(quality)
+      };
+    })
+    .filter((item) => !!item);
+}
+
+function buildEquippedSkillsFromLoadout(loadout = []) {
+  if (!Array.isArray(loadout)) {
+    return [];
+  }
+  return loadout
+    .filter((entry) => entry && entry.id && entry.id !== 'basic_attack')
+    .map((entry, index) => {
+      const definition = SKILL_MAP[entry.id] || {};
+      const quality = definition.quality || entry.quality || 'linggan';
+      return {
+        slot: index,
+        skillId: entry.id,
+        name: entry.name || definition.name || '技能',
+        level: Math.max(1, Math.floor(Number(entry.level) || 1)),
+        quality,
+        qualityLabel: resolveSkillQualityLabel(quality),
+        qualityColor: resolveSkillQualityColor(quality)
+      };
+    });
 }
 
 async function claimSeasonReward(memberId, event = {}) {

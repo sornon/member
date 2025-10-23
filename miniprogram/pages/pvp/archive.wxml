@@ -64,7 +64,7 @@
       </view>
 
       <view class="archive-panel">
-        <view class="panel-card" wx:if="{{combatStats.length}}">
+        <view class="panel-card" wx:if="{{attributeList.length || combatStats.length || equippedSkills.length}}">
           <view class="panel-header">属性面板</view>
           <view class="attribute-grid" wx:if="{{attributeList.length}}">
             <block wx:for="{{attributeList}}" wx:key="key">
@@ -81,6 +81,16 @@
                 <view class="combat-value">{{item.formattedValue}}</view>
               </view>
             </block>
+          </view>
+          <view class="skills-section">
+            <view class="skills-header">佩戴技能</view>
+            <view wx:if="{{equippedSkills.length}}" class="skill-chip-list">
+              <view class="skill-chip" wx:for="{{equippedSkills}}" wx:key="skillId">
+                <text class="skill-chip__name" style="color: {{item.qualityColor}};">{{item.name}}</text>
+                <text class="skill-chip__level">Lv.{{item.level}}</text>
+              </view>
+            </view>
+            <view wx:else class="skill-empty">暂未佩戴技能</view>
           </view>
         </view>
       </view>
