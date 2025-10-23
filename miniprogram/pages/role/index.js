@@ -336,6 +336,9 @@ function extractDamageSummary({ progression = [], effects = [], mechanics = [] }
     if (!text || seen.has(text)) {
       return;
     }
+    if (/^(每级|满级)/.test(text) || text.indexOf('每级') >= 0) {
+      return;
+    }
     if (!keywords.some((keyword) => text.includes(keyword))) {
       return;
     }
@@ -355,6 +358,7 @@ function normalizeSkillDetail(skill) {
   const effectsSummary = normalizeSkillTextList(skill.effectsSummary);
   const highlights = normalizeSkillTextList(skill.highlights);
   const mechanics = normalizeSkillTextList(skill.mechanics);
+  const rawDamageSummary = normalizeSkillTextList(skill.damageSummary);
   const tags = Array.isArray(skill.tags)
     ? skill.tags
         .map((tag) => (typeof tag === 'string' ? tag.trim() : ''))
@@ -373,11 +377,14 @@ function normalizeSkillDetail(skill) {
     filteredEffects = progressionSummary.slice();
   }
   normalized.effectsSummary = filteredEffects;
-  const damageSummary = extractDamageSummary({
-    progression: progressionSummary,
-    effects: effectsSummary,
-    mechanics
-  });
+  let damageSummary = rawDamageSummary;
+  if (!damageSummary.length) {
+    damageSummary = extractDamageSummary({
+      progression: progressionSummary,
+      effects: effectsSummary,
+      mechanics
+    });
+  }
   normalized.damageSummary = damageSummary;
   let highlightSource = highlights.length ? highlights : [...progressionSummary, ...filteredEffects];
   if (damageSummary.length) {

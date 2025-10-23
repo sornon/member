@@ -6414,7 +6414,8 @@ function decorateSkillInventoryEntry(entry, profile) {
   if (!definition) {
     return null;
   }
-  const effects = resolveSkillEffects(definition, entry.level || 1);
+  const level = entry.level || 1;
+  const effects = resolveSkillEffects(definition, level);
   const flattened = flattenBonusSummary(effects);
   const quality = definition.quality || 'linggan';
   const typeLabel = resolveSkillTypeLabel(definition.type);
@@ -6422,8 +6423,10 @@ function decorateSkillInventoryEntry(entry, profile) {
   const elementLabel = resolveSkillElementLabel(definition.element);
   const resourceText = formatSkillResource(definition.params || {});
   const imprintText = formatSkillImprintInfo(definition);
-  const progressionSummary = formatSkillProgression(definition, entry.level || 1);
+  const progressionDetails = buildSkillProgressionDetails(definition, level);
+  const progressionSummary = flattenSkillProgressionDetails(progressionDetails);
   const effectsSummary = formatStatsText(flattened);
+  const damageSummary = buildSkillDamageSummary({ progressionDetails, effectsSummary });
   const combinedSummary = [...progressionSummary, ...effectsSummary];
   const highlights = buildSkillHighlights(flattened, definition, progressionSummary);
   return {
@@ -6440,6 +6443,7 @@ function decorateSkillInventoryEntry(entry, profile) {
     maxLevel: resolveSkillMaxLevel(entry.skillId),
     effectsSummary: combinedSummary,
     progressionSummary,
+    damageSummary,
     highlights,
     resourceText,
     imprintText,
@@ -7272,6 +7276,11 @@ function formatStatsText(stats) {
 }
 
 function formatSkillProgression(definition, level = 1) {
+  const details = buildSkillProgressionDetails(definition, level);
+  return flattenSkillProgressionDetails(details);
+}
+
+function buildSkillProgressionDetails(definition, level = 1) {
   if (!definition || typeof definition !== 'object') {
     return [];
   }
@@ -7283,12 +7292,31 @@ function formatSkillProgression(definition, level = 1) {
   const maxLevel = resolveSkillMaxLevel(skillId) || definition.maxLevel || level;
   return entries
     .map((entry) => formatSkillProgressionEntry(entry, level, maxLevel))
-    .filter((text) => typeof text === 'string' && text);
+    .filter((detail) => detail && (detail.currentText || detail.perLevelText || detail.maxText || detail.noteText));
+}
+
+function flattenSkillProgressionDetails(details = []) {
+  const lines = [];
+  details.forEach((detail) => {
+    if (!detail) {
+      return;
+    }
+    const { currentText, perLevelText, maxText, noteText } = detail;
+    [currentText, perLevelText, maxText, noteText].forEach((text) => {
+      if (typeof text === 'string') {
+        const trimmed = text.trim();
+        if (trimmed) {
+          lines.push(trimmed);
+        }
+      }
+    });
+  });
+  return lines;
 }
 
 function formatSkillProgressionEntry(entry, level, maxLevel) {
   if (!entry || typeof entry !== 'object' || !entry.label) {
-    return '';
+    return null;
   }
   const currentLevel = Math.max(1, Math.floor(level));
   const resolvedMax = Math.max(currentLevel, Math.floor(Number(entry.maxLevel) || maxLevel || currentLevel));
@@ -7301,24 +7329,64 @@ function formatSkillProgressionEntry(entry, level, maxLevel) {
   const suffix = resolveProgressionSuffix(entry, format);
   const formattedCurrent = formatProgressionNumber(currentValue, format, entry);
   const maxDifferent = Math.abs(maxValue - currentValue) > 1e-6;
-  let text = `${entry.label}：${formattedCurrent}${suffix}`;
+  const detail = {
+    label: entry.label,
+    currentText: `${entry.label}：${formattedCurrent}${suffix}`,
+    perLevelText: null,
+    maxText: null,
+    noteText: null
+  };
   if (perLevel !== 0) {
     const formattedPerLevel = formatProgressionNumber(Math.abs(perLevel), format, entry);
     const sign = perLevel > 0 ? '+' : '-';
-    text += `（每级${sign}${formattedPerLevel}${suffix}`;
-    if (maxDifferent) {
-      const formattedMax = formatProgressionNumber(maxValue, format, entry);
-      text += `，满级${formattedMax}${suffix}`;
-    }
-    text += '）';
-  } else if (maxDifferent) {
+    const direction = perLevel > 0 ? '每级提升' : '每级降低';
+    detail.perLevelText = `${direction}：${sign}${formattedPerLevel}${suffix}`;
+  }
+  if (maxDifferent) {
     const formattedMax = formatProgressionNumber(maxValue, format, entry);
-    text += `（满级${formattedMax}${suffix}）`;
+    detail.maxText = `满级：${formattedMax}${suffix}`;
   }
   if (entry.note) {
-    text += `，${entry.note}`;
+    detail.noteText = entry.note;
   }
-  return text;
+  return detail;
+}
+
+function buildSkillDamageSummary({ progressionDetails = [], effectsSummary = [] } = {}) {
+  const keywords = ['伤害', '倍率'];
+  const summary = [];
+  const seen = new Set();
+  progressionDetails.forEach((detail) => {
+    if (!detail || !detail.label || !detail.currentText) {
+      return;
+    }
+    if (!keywords.some((keyword) => detail.label.includes(keyword))) {
+      return;
+    }
+    if (seen.has(detail.currentText)) {
+      return;
+    }
+    summary.push(detail.currentText);
+    seen.add(detail.currentText);
+  });
+  effectsSummary.forEach((text) => {
+    if (typeof text !== 'string') {
+      return;
+    }
+    const trimmed = text.trim();
+    if (!trimmed) {
+      return;
+    }
+    if (!keywords.some((keyword) => trimmed.includes(keyword))) {
+      return;
+    }
+    if (seen.has(trimmed)) {
+      return;
+    }
+    summary.push(trimmed);
+    seen.add(trimmed);
+  });
+  return summary;
 }
 
 function resolveProgressionSuffix(entry, format) {
