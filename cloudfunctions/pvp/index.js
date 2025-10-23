@@ -32,6 +32,7 @@ const {
   resolveSkillQualityLabel
 } = require('skill-model');
 const { createBattlePayload, decorateBattleReplay } = require('battle-schema');
+const { determineRoundOrder } = require('battle-utils');
 const {
   DEFAULT_GAME_PARAMETERS,
   buildResourceConfigOverrides,
@@ -899,13 +900,21 @@ function simulateBattle(player, opponent, seed) {
   const timeline = [];
   let previousPlayerAttributes = null;
   let previousOpponentAttributes = null;
-  const participants = [playerActor, opponentActor];
-  const firstIndex = playerActor.stats.speed >= opponentActor.stats.speed ? 0 : 1;
-
   for (let round = 1; round <= MATCH_ROUND_LIMIT; round += 1) {
+    const { order: roundOrder } = determineRoundOrder(playerActor, opponentActor, {
+      playerKey: 'player',
+      opponentKey: 'opponent',
+      fallbackFirst: 'player'
+    });
+    const actorsInOrder = roundOrder.map((side) => (side === 'player' ? playerActor : opponentActor));
+
     let sequence = 1;
-    for (let turn = 0; turn < participants.length; turn += 1) {
-      const actor = participants[(firstIndex + turn + round - 1) % participants.length];
+    for (let turn = 0; turn < actorsInOrder.length; turn += 1) {
+      if (playerActor.hp <= 0 || opponentActor.hp <= 0) {
+        break;
+      }
+
+      const actor = actorsInOrder[turn];
       const defender = actor === playerActor ? opponentActor : playerActor;
       if (actor.hp <= 0 || defender.hp <= 0) {
         continue;

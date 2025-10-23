@@ -31,6 +31,7 @@ const {
   FEATURE_TOGGLE_DOC_ID
 } = require('system-settings');
 const { createBattlePayload } = require('battle-schema');
+const { determineRoundOrder } = require('battle-utils');
 const {
   BASE_ATTRIBUTE_KEYS,
   COMBAT_STAT_KEYS,
@@ -7508,10 +7509,11 @@ function runBattleSimulation({
   const maxRounds = 15;
 
   while (playerActor.hp > 0 && enemyActor.hp > 0 && round <= maxRounds) {
-    const playerSpeed = Number(playerActor && playerActor.stats && playerActor.stats.speed) || 0;
-    const enemySpeed = Number(enemyActor && enemyActor.stats && enemyActor.stats.speed) || 0;
-    const playerFirst = playerSpeed >= enemySpeed;
-    const roundOrder = playerFirst ? ['player', 'enemy'] : ['enemy', 'player'];
+    const { order: roundOrder } = determineRoundOrder(playerActor, enemyActor, {
+      playerKey: 'player',
+      opponentKey: 'enemy',
+      fallbackFirst: 'player'
+    });
     let sequence = 1;
 
     for (let i = 0; i < roundOrder.length; i += 1) {

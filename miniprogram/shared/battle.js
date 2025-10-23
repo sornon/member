@@ -499,7 +499,83 @@ function enforceRoundInitiativeOrder(actions = [], { playerSpeed = null, opponen
     if (!bucket || !bucket.length) {
       return;
     }
-    const preferred = resolveInitiativeSide(playerValue, opponentValue, previousFirst);
+    let preferred = resolveInitiativeSide(playerValue, opponentValue, previousFirst);
+
+    const playerCandidates = [];
+    const opponentCandidates = [];
+
+    for (let i = 0; i < bucket.length; i += 1) {
+      const action = bucket[i];
+      if (!action || typeof action !== 'object' || action.type === 'result') {
+        continue;
+      }
+      if (action.attributes && typeof action.attributes === 'object') {
+        if (action.attributes.player) {
+          playerCandidates.push(action.attributes.player);
+        }
+        if (action.attributes.opponent) {
+          opponentCandidates.push(action.attributes.opponent);
+        }
+        if (action.attributes.enemy) {
+          opponentCandidates.push(action.attributes.enemy);
+        }
+      }
+      const raw = action.raw;
+      if (raw && typeof raw === 'object') {
+        if (raw.state && typeof raw.state === 'object') {
+          if (raw.state.player) {
+            playerCandidates.push(raw.state.player);
+            if (raw.state.player.attributes) {
+              playerCandidates.push(raw.state.player.attributes);
+            }
+          }
+          const opponentState = raw.state.opponent || raw.state.enemy;
+          if (opponentState) {
+            opponentCandidates.push(opponentState);
+            if (opponentState.attributes) {
+              opponentCandidates.push(opponentState.attributes);
+            }
+          }
+        }
+        if (raw.actor && typeof raw.actor === 'object') {
+          if (raw.actor.side === 'player') {
+            playerCandidates.push(raw.actor);
+          } else if (raw.actor.side === 'opponent' || raw.actor.side === 'enemy') {
+            opponentCandidates.push(raw.actor);
+          }
+        }
+        if (raw.target && typeof raw.target === 'object') {
+          if (raw.target.side === 'player') {
+            playerCandidates.push(raw.target);
+          } else if (raw.target.side === 'opponent' || raw.target.side === 'enemy') {
+            opponentCandidates.push(raw.target);
+          }
+        }
+        if (raw.participants && typeof raw.participants === 'object') {
+          if (raw.participants.player) {
+            playerCandidates.push(raw.participants.player);
+          }
+          if (raw.participants.opponent) {
+            opponentCandidates.push(raw.participants.opponent);
+          }
+          if (raw.participants.enemy) {
+            opponentCandidates.push(raw.participants.enemy);
+          }
+        }
+      }
+    }
+
+    const roundPlayerSpeed = playerCandidates.length
+      ? resolveSpeedFromSources(playerCandidates)
+      : null;
+    const roundOpponentSpeed = opponentCandidates.length
+      ? resolveSpeedFromSources(opponentCandidates)
+      : null;
+
+    if (roundPlayerSpeed !== null || roundOpponentSpeed !== null) {
+      preferred = resolveInitiativeSide(roundPlayerSpeed, roundOpponentSpeed, preferred);
+    }
+
     previousFirst = preferred;
     if (preferred === 'player' || preferred === 'opponent') {
       const candidateIndex = bucket.findIndex(
