@@ -42,6 +42,7 @@ const WECHAT_DEFAULT_AVATAR_URL =
 const app = getApp();
 
 const NAV_EXPANDED_STORAGE_KEY = 'home-nav-expanded';
+const PROFILE_BADGE_STORAGE_KEY = 'home-profile-badge-dismissed';
 
 function resolveBackgroundUnlocks(source) {
   if (!source) {
@@ -744,6 +745,7 @@ Page({
     progress: null,
     progressRemainingExperience: formatExperience(0),
     realmHasPendingRewards: false,
+    showProfileBadge: true,
     tasks: [],
     loading: true,
     backgroundImage: resolveBackgroundImage(null),
@@ -821,6 +823,7 @@ Page({
     this.ensureNavMetrics();
     this.updateToday();
     this.restoreNavExpansionState();
+    this.restoreProfileBadgeState();
   },
 
   onShow() {
@@ -1054,6 +1057,18 @@ Page({
     }
   },
 
+  restoreProfileBadgeState() {
+    let dismissed = false;
+    try {
+      dismissed = wx.getStorageSync(PROFILE_BADGE_STORAGE_KEY) === true;
+    } catch (err) {
+      // Ignore storage errors and keep the badge visible by default.
+    }
+    if (dismissed && this.data.showProfileBadge) {
+      this.setData({ showProfileBadge: false });
+    }
+  },
+
   shouldShowOnboarding(needsProfile) {
     if (!needsProfile) {
       return false;
@@ -1072,6 +1087,18 @@ Page({
     }
   },
 
+  dismissProfileBadge() {
+    if (!this.data.showProfileBadge) {
+      return;
+    }
+    this.setData({ showProfileBadge: false });
+    try {
+      wx.setStorageSync(PROFILE_BADGE_STORAGE_KEY, true);
+    } catch (err) {
+      // Swallow storage errors so the UI can continue without persistence.
+    }
+  },
+
   formatCurrency,
   formatExperience,
 
@@ -1085,10 +1112,12 @@ Page({
   },
 
   handleProfileTap() {
+    this.dismissProfileBadge();
     this.openArchiveEditor();
   },
 
   handleAvatarTap() {
+    this.dismissProfileBadge();
     this.openAvatarPicker();
   },
 
