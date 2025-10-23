@@ -63,7 +63,7 @@ const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周�
 
 const CLEANUP_TASK_CONCURRENCY = 3;
 const ORPHAN_QUERY_BATCH_LIMIT = 200;
-const PLAYER_REFRESH_BATCH_SIZE = 5;
+const PLAYER_REFRESH_BATCH_SIZE = 1;
 const PLAYER_REFRESH_MAX_DURATION_MS = 2400;
 
 const ACTIVITY_ALLOWED_STATUSES = ['draft', 'published', 'archived'];

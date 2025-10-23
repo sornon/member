@@ -150,7 +150,6 @@
 
 .field-input,
 .field-textarea {
-  width: 100%;
   border-radius: 16rpx;
   padding: 18rpx 22rpx;
   font-size: 26rpx;
