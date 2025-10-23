@@ -7328,24 +7328,6 @@ function formatSkillProgressionEntry(entry, level, maxLevel) {
   return text;
 }
 
-function resolveSkillMechanicProgression(definition, label, level) {
-  if (!definition || typeof definition !== 'object') {
-    return null;
-  }
-  const entries = Array.isArray(definition.progression) ? definition.progression : [];
-  const matched = entries.find((item) => item && item.label === label);
-  if (!matched) {
-    return null;
-  }
-  const normalizedLevel = Math.max(1, Math.floor(level));
-  const extraLevels = normalizedLevel - 1;
-  const base = Number(matched.base) || 0;
-  const perLevel = Number(matched.perLevel) || 0;
-  const value = base + perLevel * extraLevels;
-  const format = matched.format || 'percent';
-  return { value, format, entry: matched };
-}
-
 function formatSkillMechanics(definition, level = 1) {
   if (!definition || typeof definition !== 'object') {
     return [];
@@ -7355,26 +7337,111 @@ function formatSkillMechanics(definition, level = 1) {
     return [];
   }
   const normalizedLevel = Math.max(1, Math.floor(level));
-  if (definition.id === 'sword_breaking_clouds') {
-    const mainRatio = resolveSkillMechanicProgression(definition, '主倍率', normalizedLevel);
-    const critBonus = resolveSkillMechanicProgression(definition, '暴击追加伤害', normalizedLevel);
-    return mechanics.map((text) => {
-      if (typeof text !== 'string') {
-        return text;
-      }
-      let updated = text;
-      if (mainRatio) {
-        const formattedMain = formatProgressionNumber(mainRatio.value, mainRatio.format, mainRatio.entry);
-        updated = updated.replace(/造成\s*\d+(?:\.\d+)?%/, `造成 ${formattedMain}%`);
-      }
-      if (critBonus) {
-        const formattedCrit = formatProgressionNumber(critBonus.value, critBonus.format, critBonus.entry);
-        updated = updated.replace(/额外造成\s*\d+(?:\.\d+)?%/, `额外造成 ${formattedCrit}%`);
-      }
-      return updated;
-    });
+  const progression = Array.isArray(definition.progression) ? definition.progression : [];
+  if (!progression.length) {
+    return mechanics;
   }
-  return mechanics;
+
+  const replacementEntries = progression
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return null;
+      }
+      const format = entry.format || 'percent';
+      const base = Number(entry.base) || 0;
+      const perLevel = Number(entry.perLevel) || 0;
+      const extraLevels = normalizedLevel - 1;
+      const currentValue = base + perLevel * extraLevels;
+      const magnitudeBase = formatProgressionNumber(Math.abs(base), format, entry);
+      const magnitudeCurrent = formatProgressionNumber(Math.abs(currentValue), format, entry);
+      if (magnitudeBase == null) {
+        return null;
+      }
+      return {
+        format,
+        baseMagnitude: normalizeMechanicNumber(magnitudeBase),
+        currentMagnitude: magnitudeCurrent
+      };
+    })
+    .filter(Boolean);
+
+  if (!replacementEntries.length) {
+    return mechanics;
+  }
+
+  return mechanics.map((text) => {
+    if (typeof text !== 'string') {
+      return text;
+    }
+    let updated = text;
+    replacementEntries.forEach((item) => {
+      updated = updated.replace(/-?\d+(?:\.\d+)?/g, (token, offset, string) => {
+        if (!token) {
+          return token;
+        }
+        const sign = token.startsWith('-') ? '-' : '';
+        const magnitude = sign ? token.slice(1) : token;
+        if (!magnitude) {
+          return token;
+        }
+        const normalizedMagnitude = normalizeMechanicNumber(magnitude);
+        if (normalizedMagnitude !== item.baseMagnitude) {
+          return token;
+        }
+        if (!matchesMechanicContext(item.format, string, offset, token.length)) {
+          return token;
+        }
+        const replacementMagnitude = item.currentMagnitude;
+        if (!replacementMagnitude && replacementMagnitude !== '0') {
+          return token;
+        }
+        if (sign) {
+          return `${sign}${replacementMagnitude}`;
+        }
+        return replacementMagnitude;
+      });
+    });
+    return updated;
+  });
+}
+
+function normalizeMechanicNumber(value) {
+  if (value == null) {
+    return '';
+  }
+  const stringValue = `${value}`.trim();
+  if (!stringValue) {
+    return '';
+  }
+  if (!stringValue.includes('.')) {
+    return stringValue.replace(/^0+(?=\d)/, '') || '0';
+  }
+  let normalized = stringValue;
+  while (normalized.includes('.') && /0$/.test(normalized)) {
+    normalized = normalized.slice(0, -1);
+  }
+  if (normalized.endsWith('.')) {
+    normalized = normalized.slice(0, -1);
+  }
+  if (normalized.startsWith('0') && normalized[1] !== '.' && normalized.length > 1) {
+    normalized = normalized.replace(/^0+(?=\d)/, '');
+  }
+  return normalized || '0';
+}
+
+function matchesMechanicContext(format, text, offset, length) {
+  if (!format) {
+    return true;
+  }
+  const nextPortion = text.slice(offset + length, offset + length + 3);
+  const trimmedNext = nextPortion.replace(/^\s+/, '');
+  if (format === 'percent' || format === 'perTurnPercent') {
+    return trimmedNext.startsWith('%');
+  }
+  if (trimmedNext.startsWith('%')) {
+    return false;
+  }
+  return true;
 }
 
 function resolveProgressionSuffix(entry, format) {
