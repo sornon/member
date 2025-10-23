@@ -387,6 +387,138 @@ function buildResourceState(maxValue, currentValue) {
   return { max: effectiveMax, current: normalizedCurrent, percent };
 }
 
+function extractSpeedValue(source) {
+  if (source === null || source === undefined) {
+    return null;
+  }
+  if (typeof source === 'number' && Number.isFinite(source)) {
+    return source;
+  }
+  if (typeof source === 'string' && source.trim()) {
+    const parsed = Number(source);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (typeof source !== 'object') {
+    return null;
+  }
+  if (Number.isFinite(source.speed)) {
+    return Number(source.speed);
+  }
+  const statsSources = [source.stats, source.finalStats, source.combatStats, source.baseStats];
+  for (let i = 0; i < statsSources.length; i += 1) {
+    const stats = statsSources[i];
+    if (stats && Number.isFinite(stats.speed)) {
+      return Number(stats.speed);
+    }
+  }
+  const attributeSources = [source.attributes, source.attributeSummary, source.attributeTotals];
+  for (let i = 0; i < attributeSources.length; i += 1) {
+    const attributes = attributeSources[i];
+    if (attributes && Number.isFinite(attributes.speed)) {
+      return Number(attributes.speed);
+    }
+  }
+  if (source.state && source.state.attributes && Number.isFinite(source.state.attributes.speed)) {
+    return Number(source.state.attributes.speed);
+  }
+  if (source.player && typeof source.player === 'object') {
+    const nested = extractSpeedValue(source.player);
+    if (nested !== null) {
+      return nested;
+    }
+  }
+  if (source.opponent && typeof source.opponent === 'object') {
+    const nested = extractSpeedValue(source.opponent);
+    if (nested !== null) {
+      return nested;
+    }
+  }
+  return null;
+}
+
+function resolveSpeedFromSources(candidates = []) {
+  for (let i = 0; i < candidates.length; i += 1) {
+    const value = extractSpeedValue(candidates[i]);
+    if (value !== null) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function resolveInitiativeSide(playerSpeed, opponentSpeed, fallback = 'player') {
+  const playerValue = Number.isFinite(playerSpeed) ? playerSpeed : null;
+  const opponentValue = Number.isFinite(opponentSpeed) ? opponentSpeed : null;
+  if (playerValue !== null && opponentValue !== null) {
+    if (playerValue > opponentValue) {
+      return 'player';
+    }
+    if (playerValue < opponentValue) {
+      return 'opponent';
+    }
+    return fallback;
+  }
+  if (playerValue !== null) {
+    return 'player';
+  }
+  if (opponentValue !== null) {
+    return 'opponent';
+  }
+  return fallback;
+}
+
+function enforceRoundInitiativeOrder(actions = [], { playerSpeed = null, opponentSpeed = null } = {}) {
+  if (!Array.isArray(actions) || actions.length <= 1) {
+    return actions;
+  }
+  const playerValue = Number.isFinite(playerSpeed) ? playerSpeed : null;
+  const opponentValue = Number.isFinite(opponentSpeed) ? opponentSpeed : null;
+  if (playerValue === null && opponentValue === null) {
+    return actions;
+  }
+
+  const groupedByRound = new Map();
+  actions.forEach((action) => {
+    if (!action || typeof action !== 'object') {
+      return;
+    }
+    const roundKey = Number.isFinite(action.round) ? Number(action.round) : Number(action.round) || 1;
+    const key = Number.isFinite(roundKey) ? roundKey : 1;
+    if (!groupedByRound.has(key)) {
+      groupedByRound.set(key, []);
+    }
+    groupedByRound.get(key).push(action);
+  });
+
+  const sortedRounds = Array.from(groupedByRound.keys()).sort((a, b) => a - b);
+  let previousFirst = resolveInitiativeSide(playerValue, opponentValue, 'player');
+  const rebuilt = [];
+
+  sortedRounds.forEach((round) => {
+    const bucket = groupedByRound.get(round);
+    if (!bucket || !bucket.length) {
+      return;
+    }
+    const preferred = resolveInitiativeSide(playerValue, opponentValue, previousFirst);
+    previousFirst = preferred;
+    if (preferred === 'player' || preferred === 'opponent') {
+      const candidateIndex = bucket.findIndex(
+        (entry) => entry && entry.actor === preferred && entry.type !== 'result'
+      );
+      if (candidateIndex > 0) {
+        const [candidate] = bucket.splice(candidateIndex, 1);
+        bucket.unshift(candidate);
+      }
+    }
+    rebuilt.push(...bucket);
+  });
+
+  if (rebuilt.length === actions.length) {
+    actions.splice(0, actions.length, ...rebuilt);
+  }
+  return actions;
+}
+
 function isStructuredTimelineEntry(entry) {
   if (!entry || typeof entry !== 'object') {
     return false;
@@ -1480,6 +1612,29 @@ function buildStructuredBattleViewModel({
   const playerInitialResource = playerResource;
   const opponentInitialResource = opponentResource;
 
+  const playerSpeedBase = resolveSpeedFromSources([
+    context.playerSpeed,
+    context.playerAttributes,
+    context.player,
+    battle.player,
+    participants.player,
+    playerSource,
+    fallbackParticipants.player,
+    playerAttributes,
+    defaults.playerAttributes
+  ]);
+  const opponentSpeedBase = resolveSpeedFromSources([
+    context.opponentSpeed,
+    context.opponentAttributes,
+    context.opponent,
+    battle.opponent || battle.enemy,
+    participants.opponent || participants.enemy,
+    opponentSource,
+    fallbackParticipants.opponent,
+    opponentAttributes,
+    defaults.opponentAttributes
+  ]);
+
   const totals = {
     playerDamageDealt: 0,
     playerDamageTaken: 0,
@@ -1680,6 +1835,8 @@ function buildStructuredBattleViewModel({
       raw: entry
     });
   }
+
+  enforceRoundInitiativeOrder(actions, { playerSpeed: playerSpeedBase, opponentSpeed: opponentSpeedBase });
 
   const outcome = battle.outcome || {};
   const hasDraw = !!outcome.draw || outcome.result === 'draw' || battle.draw;
@@ -2013,6 +2170,22 @@ function buildPveActions(battle = {}, context = {}) {
   let playerResourceMax = DEFAULT_RESOURCE_MAX;
   let enemyResourceMax = DEFAULT_RESOURCE_MAX;
 
+  const participants = battle.participants || {};
+  const playerSpeedBase = resolveSpeedFromSources([
+    context.playerSpeed,
+    context.playerAttributes,
+    context.player,
+    battle.player,
+    participants.player
+  ]);
+  const opponentSpeedBase = resolveSpeedFromSources([
+    context.opponentSpeed,
+    context.opponentAttributes,
+    context.opponent,
+    battle.opponent || battle.enemy,
+    participants.opponent || participants.enemy
+  ]);
+
   const actions = [];
   log.forEach((entry, index) => {
     if (typeof entry !== 'string' || !entry) {
@@ -2116,6 +2289,8 @@ function buildPveActions(battle = {}, context = {}) {
       raw: entry
     });
   });
+
+  enforceRoundInitiativeOrder(actions, { playerSpeed: playerSpeedBase, opponentSpeed: opponentSpeedBase });
 
   if (battle.victory || battle.draw || log.length) {
     const outcomeTitle = battle.victory ? '胜利' : battle.draw ? '势均力敌' : '惜败';
