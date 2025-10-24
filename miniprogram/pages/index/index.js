@@ -43,7 +43,47 @@ const app = getApp();
 
 const NAV_EXPANDED_STORAGE_KEY = 'home-nav-expanded';
 const AVATAR_BADGE_STORAGE_KEY = 'home-avatar-badge-dismissed';
+const AVATAR_TAB_BADGE_STORAGE_KEY = 'home-avatar-tab-badges';
 const NAME_BADGE_STORAGE_KEY = 'home-name-badge-dismissed';
+
+const APPEARANCE_BADGE_TABS = ['avatar', 'frame', 'title', 'background'];
+
+function cloneDefaultAppearanceBadgeState() {
+  return {
+    avatar: false,
+    frame: false,
+    title: false,
+    background: false
+  };
+}
+
+function normalizeAppearanceBadgeState(source) {
+  const base = cloneDefaultAppearanceBadgeState();
+  if (!source || typeof source !== 'object') {
+    return base;
+  }
+  APPEARANCE_BADGE_TABS.forEach((key) => {
+    if (source[key] === true) {
+      base[key] = true;
+    }
+  });
+  return base;
+}
+
+function markAllAppearanceBadgesDismissed() {
+  const state = cloneDefaultAppearanceBadgeState();
+  APPEARANCE_BADGE_TABS.forEach((key) => {
+    state[key] = true;
+  });
+  return state;
+}
+
+function areAllAppearanceBadgesDismissed(state) {
+  if (!state || typeof state !== 'object') {
+    return false;
+  }
+  return APPEARANCE_BADGE_TABS.every((key) => state[key] === true);
+}
 
 function resolveBackgroundUnlocks(source) {
   if (!source) {
@@ -748,6 +788,7 @@ Page({
     realmHasPendingRewards: false,
     showAvatarBadge: true,
     showNameBadge: true,
+    appearanceBadgeState: cloneDefaultAppearanceBadgeState(),
     tasks: [],
     loading: true,
     backgroundImage: resolveBackgroundImage(null),
@@ -1062,6 +1103,7 @@ Page({
   restoreProfileBadgeState() {
     let avatarDismissed = false;
     let nameDismissed = false;
+    let appearanceState = cloneDefaultAppearanceBadgeState();
     try {
       avatarDismissed = wx.getStorageSync(AVATAR_BADGE_STORAGE_KEY) === true;
     } catch (err) {
@@ -1072,8 +1114,18 @@ Page({
     } catch (err) {
       // Ignore storage errors and keep the name badge visible by default.
     }
-    const nextState = {};
-    if (avatarDismissed && this.data.showAvatarBadge) {
+    try {
+      const storedAppearanceBadges = wx.getStorageSync(AVATAR_TAB_BADGE_STORAGE_KEY);
+      appearanceState = normalizeAppearanceBadgeState(storedAppearanceBadges);
+    } catch (err) {
+      // Ignore storage errors and show all appearance badge dots by default.
+    }
+    if (avatarDismissed) {
+      appearanceState = markAllAppearanceBadgesDismissed();
+    }
+    const nextState = { appearanceBadgeState: appearanceState };
+    const avatarBadgeCleared = avatarDismissed || areAllAppearanceBadgesDismissed(appearanceState);
+    if (avatarBadgeCleared && this.data.showAvatarBadge) {
       nextState.showAvatarBadge = false;
     }
     if (nameDismissed && this.data.showNameBadge) {
@@ -1102,8 +1154,34 @@ Page({
     }
   },
 
-  dismissAvatarBadge() {
+  markAppearanceTabVisited(tab) {
+    if (!APPEARANCE_BADGE_TABS.includes(tab)) {
+      return;
+    }
+    const currentState = this.data.appearanceBadgeState
+      ? { ...this.data.appearanceBadgeState }
+      : cloneDefaultAppearanceBadgeState();
+    if (currentState[tab] === true) {
+      return;
+    }
+    const nextState = { ...currentState, [tab]: true };
+    this.setData({ appearanceBadgeState: nextState });
+    try {
+      wx.setStorageSync(AVATAR_TAB_BADGE_STORAGE_KEY, nextState);
+    } catch (err) {
+      // Ignore storage errors so red dots still clear in the current session.
+    }
+    if (areAllAppearanceBadgesDismissed(nextState)) {
+      this.dismissAvatarBadge(nextState);
+    }
+  },
+
+  dismissAvatarBadge(appearanceStateOverride) {
     if (!this.data.showAvatarBadge) {
+      return;
+    }
+    const appearanceState = appearanceStateOverride || this.data.appearanceBadgeState;
+    if (!areAllAppearanceBadgesDismissed(appearanceState)) {
       return;
     }
     this.setData({ showAvatarBadge: false });
@@ -1144,7 +1222,6 @@ Page({
   },
 
   handleAvatarTap() {
-    this.dismissAvatarBadge();
     this.openAvatarPicker();
   },
 
@@ -1228,7 +1305,11 @@ Page({
     }
     const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
     const tab = typeof dataset.tab === 'string' ? dataset.tab : '';
-    if (!tab || tab === this.data.avatarPicker.activeTab) {
+    if (!tab) {
+      return;
+    }
+    this.markAppearanceTabVisited(tab);
+    if (tab === this.data.avatarPicker.activeTab) {
       return;
     }
     const updates = {
@@ -1295,7 +1376,9 @@ Page({
     if (this.data.profileEditor.appearanceTitle !== appearanceTitle) {
       updates['profileEditor.appearanceTitle'] = appearanceTitle;
     }
-    this.setData(updates);
+    this.setData(updates, () => {
+      this.markAppearanceTabVisited('avatar');
+    });
   },
 
   handleCloseAvatarPicker() {

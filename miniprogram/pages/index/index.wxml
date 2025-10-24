@@ -241,22 +241,34 @@
             class="appearance-tab {{avatarPicker.activeTab === 'avatar' ? 'appearance-tab--active' : ''}}"
             data-tab="avatar"
             bindtap="handleAppearanceTabChange"
-          >头像</view>
+          >
+            头像
+            <view wx:if="{{!appearanceBadgeState.avatar}}" class="badge-dot appearance-tab__dot"></view>
+          </view>
           <view
             class="appearance-tab {{avatarPicker.activeTab === 'frame' ? 'appearance-tab--active' : ''}}"
             data-tab="frame"
             bindtap="handleAppearanceTabChange"
-          >相框</view>
+          >
+            相框
+            <view wx:if="{{!appearanceBadgeState.frame}}" class="badge-dot appearance-tab__dot"></view>
+          </view>
           <view
             class="appearance-tab {{avatarPicker.activeTab === 'title' ? 'appearance-tab--active' : ''}}"
             data-tab="title"
             bindtap="handleAppearanceTabChange"
-          >称号</view>
+          >
+            称号
+            <view wx:if="{{!appearanceBadgeState.title}}" class="badge-dot appearance-tab__dot"></view>
+          </view>
           <view
             class="appearance-tab {{avatarPicker.activeTab === 'background' ? 'appearance-tab--active' : ''}}"
             data-tab="background"
             bindtap="handleAppearanceTabChange"
-          >背景</view>
+          >
+            背景
+            <view wx:if="{{!appearanceBadgeState.background}}" class="badge-dot appearance-tab__dot"></view>
+          </view>
         </view>
       <view class="appearance-modal__body-wrapper">
         <scroll-view scroll-y="true" class="modal-body modal-body--scroll appearance-modal__body">

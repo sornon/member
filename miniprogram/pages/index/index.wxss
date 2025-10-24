@@ -580,15 +580,24 @@ page {
 }
 
 .appearance-tab {
+  position: relative;
   color: #ffffff4b;
   font-size: 28rpx;
   letter-spacing: 2rpx;
   transition: color 0.2s ease, font-size 0.2s ease;
+  padding-right: 24rpx;
 }
 
 .appearance-tab--active {
   font-size: 28rpx;
   color: #ffffff;
+}
+
+.appearance-tab__dot {
+  position: absolute;
+  top: -4rpx;
+  right: 0;
+  transform: translate(45%, -45%);
 }
 
 .modal-title {
