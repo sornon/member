@@ -369,7 +369,7 @@ button.pill-btn[disabled] {
 }
 
 .combat-value {
-  font-size: 20rpx;
+  font-size: 24rpx;
   color: #f1f4ff;
   white-space: nowrap;
   overflow: hidden;
