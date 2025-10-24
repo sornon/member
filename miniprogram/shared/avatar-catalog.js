@@ -20,7 +20,8 @@ const RAW_AVATARS = [
   { gender: 'female', rarity: 'b', index: 5 },
   { gender: 'female', rarity: 'b', index: 6 },
   { gender: 'female', rarity: 'a', index: 1 },
-  { gender: 'female', rarity: 'a', index: 2 }
+  { gender: 'female', rarity: 'a', index: 2 },
+  { gender: 'female', rarity: 'sss', index: 1 }
 ];
 
 function buildAvatarId({ gender, rarity, index }) {
