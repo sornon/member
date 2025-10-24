@@ -12,6 +12,7 @@ const RARITY_LABELS = {
   b: 'B',
   a: 'A',
   s: 'S',
+  ss: 'SS',
   sss: 'SSS'
 };
 
