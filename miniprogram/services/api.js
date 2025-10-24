@@ -187,6 +187,9 @@ export const MemberService = {
   async getRights() {
     return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'rights' });
   },
+  async getCacheVersions() {
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'cacheVersions' });
+  },
   async completeProfile(profile = {}, options = {}) {
     const payload = attachClientEnv({
       action: 'completeProfile',
@@ -762,6 +765,15 @@ export const AdminService = {
       action: 'updateGameParameters',
       parameters
     });
+  },
+  async bumpCacheVersion(scope) {
+    const payload = {
+      action: 'bumpCacheVersion'
+    };
+    if (typeof scope === 'string' && scope.trim()) {
+      payload.scope = scope.trim();
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   },
   async updateImmortalTournamentSettings(updates = {}) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {

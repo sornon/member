@@ -1,4 +1,8 @@
 import { AdminService } from '../../../services/api';
+import {
+  normalizeCacheVersions as normalizeClientCacheVersions,
+  getDefaultCacheVersions
+} from '../../../utils/cache-version.js';
 
 const DEFAULT_IMMORTAL_TOURNAMENT = {
   enabled: false,
@@ -30,9 +34,26 @@ const RAGE_FIELDS = [
   { key: 'critTakenGain', label: '遭受暴击', hint: '遭受暴击时额外获得的真气' }
 ];
 
+const DEFAULT_CACHE_VERSIONS = getDefaultCacheVersions();
+const CACHE_VERSION_SCOPES = [
+  {
+    key: 'global',
+    title: '全局缓存',
+    description: '刷新后会员端会清空所有本地缓存并写入新的版本号，适用于重要配置调整。',
+    actionLabel: '刷新全局'
+  },
+  {
+    key: 'menu',
+    title: '菜单缓存',
+    description: '更新点餐菜单缓存版本，会员端会在下次进入点餐页时重新拉取菜单数据。',
+    actionLabel: '刷新菜单'
+  }
+];
+
 const DEFAULT_FEATURES = {
   cashierEnabled: true,
-  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
+  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
+  cacheVersions: { ...DEFAULT_CACHE_VERSIONS }
 };
 
 function showConfirmationModal({ title = '确认操作', content = '确认执行该操作？', confirmText = '确认', cancelText = '取消' } = {}) {
@@ -184,7 +205,11 @@ function buildTournamentDraft(config) {
 function normalizeFeatures(features) {
   const normalized = {
     cashierEnabled: DEFAULT_FEATURES.cashierEnabled,
-    immortalTournament: cloneImmortalTournament(DEFAULT_FEATURES.immortalTournament)
+    immortalTournament: cloneImmortalTournament(DEFAULT_FEATURES.immortalTournament),
+    cacheVersions: normalizeClientCacheVersions(
+      DEFAULT_FEATURES.cacheVersions,
+      DEFAULT_CACHE_VERSIONS
+    )
   };
   if (features && typeof features === 'object') {
     if (Object.prototype.hasOwnProperty.call(features, 'cashierEnabled')) {
@@ -192,6 +217,12 @@ function normalizeFeatures(features) {
     }
     if (Object.prototype.hasOwnProperty.call(features, 'immortalTournament')) {
       normalized.immortalTournament = cloneImmortalTournament(features.immortalTournament);
+    }
+    if (Object.prototype.hasOwnProperty.call(features, 'cacheVersions')) {
+      normalized.cacheVersions = normalizeClientCacheVersions(
+        features.cacheVersions,
+        DEFAULT_CACHE_VERSIONS
+      );
     }
   }
   return normalized;
@@ -237,7 +268,10 @@ Page({
     rageDefaultValues: cloneRageSettings(DEFAULT_RAGE_SETTINGS),
     rageSaving: false,
     rageError: '',
-    rageFieldList: RAGE_FIELDS
+    rageFieldList: RAGE_FIELDS,
+    cacheScopes: CACHE_VERSION_SCOPES,
+    cacheRefreshing: {},
+    cacheError: ''
   },
 
   onShow() {
@@ -285,7 +319,9 @@ Page({
         rageDefaults: buildRageDraft(rageDefaults),
         rageDefaultValues: rageDefaults,
         rageSaving: false,
-        rageError: ''
+        rageError: '',
+        cacheRefreshing: {},
+        cacheError: ''
       });
     } catch (error) {
       this.setData({
@@ -300,7 +336,8 @@ Page({
         tournamentRefreshError: '',
         tournamentRefreshSummary: '',
         updating: {},
-        rageSaving: false
+        rageSaving: false,
+        cacheRefreshing: {}
       });
     } finally {
       if (options.fromPullDown) {
@@ -351,6 +388,41 @@ Page({
         error: resolveErrorMessage(error, '保存失败，请稍后重试')
       });
       wx.showToast({ title: '保存失败', icon: 'none', duration: 1200 });
+    }
+  },
+
+  async handleCacheRefresh(event) {
+    const { scope } = event.currentTarget.dataset || {};
+    const key = typeof scope === 'string' ? scope.trim() : '';
+    if (!key) {
+      return;
+    }
+    if (this.data.cacheRefreshing && this.data.cacheRefreshing[key]) {
+      return;
+    }
+
+    const nextRefreshing = { ...(this.data.cacheRefreshing || {}), [key]: true };
+    this.setData({ cacheRefreshing: nextRefreshing, cacheError: '' });
+
+    try {
+      const result = await AdminService.bumpCacheVersion(key);
+      const features = normalizeFeatures(result && result.features);
+      const updatedRefreshing = { ...nextRefreshing };
+      delete updatedRefreshing[key];
+      this.setData({
+        features,
+        cacheRefreshing: updatedRefreshing,
+        cacheError: ''
+      });
+      wx.showToast({ title: '已刷新', icon: 'success', duration: 800 });
+    } catch (error) {
+      const updatedRefreshing = { ...(this.data.cacheRefreshing || {}) };
+      delete updatedRefreshing[key];
+      this.setData({
+        cacheRefreshing: updatedRefreshing,
+        cacheError: resolveErrorMessage(error, '刷新失败，请稍后重试')
+      });
+      wx.showToast({ title: '刷新失败', icon: 'none', duration: 1200 });
     }
   },
 

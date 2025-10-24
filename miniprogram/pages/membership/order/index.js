@@ -1,5 +1,10 @@
-import { MenuOrderService, MenuCatalogService } from '../../../services/api';
+import { MemberService, MenuOrderService, MenuCatalogService } from '../../../services/api';
 import { formatCurrency, formatStones } from '../../../utils/format';
+import {
+  applyCacheVersionUpdate,
+  MENU_CATALOG_STORAGE_KEY,
+  MENU_CART_STORAGE_KEY
+} from '../../../utils/cache-version.js';
 import menuData from '../../../shared/menu-data';
 
 let SECTION_META = {};
@@ -43,9 +48,6 @@ const DRINKS_NIGHT_ORDER = [
   'coffee',
   'easter'
 ];
-
-const MENU_CATALOG_STORAGE_KEY = 'membershipMenuCatalog';
-const MENU_CART_STORAGE_KEY = 'membershipMenuCart';
 
 function normalizeSection(value) {
   if (typeof value === 'string') {
@@ -1012,14 +1014,61 @@ Page({
     cancellingId: ''
   },
 
+  async syncMenuCacheVersion() {
+    if (this._menuCacheVersionPromise) {
+      return this._menuCacheVersionPromise;
+    }
+    this._menuCacheVersionPromise = (async () => {
+      try {
+        const result = await MemberService.getCacheVersions();
+        const payload =
+          (result && (result.versions || result.cacheVersions)) ||
+          (result && result.data && (result.data.versions || result.data.cacheVersions)) ||
+          {};
+        const update = applyCacheVersionUpdate(payload);
+        try {
+          const appInstance = getApp();
+          if (appInstance && appInstance.globalData) {
+            appInstance.globalData.cacheVersions = update.versions;
+          }
+        } catch (error) {
+          console.warn('[order] update global cache versions failed', error);
+        }
+        return update;
+      } catch (error) {
+        console.warn('[order] sync cache versions failed', error);
+        return null;
+      } finally {
+        this._menuCacheVersionPromise = null;
+      }
+    })();
+    return this._menuCacheVersionPromise;
+  },
+
   onLoad() {
     this._currentCatalogSignature = '';
     this._catalogHydrated = false;
     this._cartHydrated = false;
-    if (this.restoreCatalogFromCache()) {
-      this.restoreCartFromCache();
-    }
-    this.loadCatalog();
+    const cachePromise = this.syncMenuCacheVersion();
+    cachePromise
+      .then((result) => {
+        const mismatched = (result && result.mismatched) || [];
+        const restored = this.restoreCatalogFromCache();
+        if (restored) {
+          this.restoreCartFromCache();
+        }
+        const needsReload = !restored || mismatched.includes('menu') || !result;
+        if (needsReload) {
+          this.loadCatalog();
+        }
+      })
+      .catch(() => {
+        const restored = this.restoreCatalogFromCache();
+        if (restored) {
+          this.restoreCartFromCache();
+        }
+        this.loadCatalog();
+      });
     this.loadOrders();
   },
 

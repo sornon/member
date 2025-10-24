@@ -71,9 +71,14 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
   registrationStart: '',
   registrationEnd: ''
 };
+const DEFAULT_CACHE_VERSIONS = {
+  global: 1,
+  menu: 1
+};
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
-  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
+  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
+  cacheVersions: { ...DEFAULT_CACHE_VERSIONS }
 };
 
 async function seedSystemSettings() {

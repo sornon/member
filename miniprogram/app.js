@@ -10,7 +10,8 @@ App({
       acknowledged: {},
       latest: {},
       initialized: false
-    }
+    },
+    cacheVersions: null
   },
 
   onLaunch() {

@@ -7,6 +7,28 @@
       <view class="intro-desc">系统全局配置功能，集中管理会员端的关键能力与活动信息。</view>
     </view>
 
+    <view class="card cache-card">
+      <view class="card-title">小程序缓存管理</view>
+      <view class="card-desc">在后台刷新缓存版本号后，会员端会自动清理对应缓存并重新同步数据。</view>
+      <block wx:for="{{cacheScopes}}" wx:key="key">
+        <view class="cache-row">
+          <view class="cache-info">
+            <view class="cache-name">{{item.title}}</view>
+            <view class="cache-desc">{{item.description}}</view>
+            <view class="cache-version">当前版本：{{features.cacheVersions[item.key] || 0}}</view>
+          </view>
+          <button
+            class="ghost-button"
+            bindtap="handleCacheRefresh"
+            data-scope="{{item.key}}"
+            loading="{{cacheRefreshing[item.key]}}"
+            disabled="{{cacheRefreshing[item.key]}}"
+          >{{item.actionLabel}}</button>
+        </view>
+      </block>
+      <view wx:if="{{cacheError}}" class="error-banner">{{cacheError}}</view>
+    </view>
+
     <view class="card switch-card">
       <view class="card-title">基础功能</view>
       <view class="switch-row">

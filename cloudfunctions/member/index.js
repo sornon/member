@@ -16,6 +16,11 @@ const {
   listAvatarIds,
   normalizeAvatarFrameValue
 } = commonConfig;
+const {
+  FEATURE_TOGGLE_DOC_ID,
+  normalizeCacheVersions,
+  cloneCacheVersions
+} = require('system-settings');
 
 const db = cloud.database();
 const _ = db.command;
@@ -198,6 +203,32 @@ function generateStorageInventoryId(itemId, obtainedAt = new Date()) {
     obtainedAt instanceof Date && !Number.isNaN(obtainedAt.getTime()) ? obtainedAt.getTime() : Date.now();
   const random = Math.random().toString(36).slice(2, 8);
   return `st-${base}-${timestamp}-${random}`;
+}
+
+async function loadFeatureToggleDocument() {
+  const snapshot = await db
+    .collection(COLLECTIONS.SYSTEM_SETTINGS)
+    .doc(FEATURE_TOGGLE_DOC_ID)
+    .get()
+    .catch((error) => {
+      if (error && error.errMsg && /not exist|not found/i.test(error.errMsg)) {
+        return null;
+      }
+      throw error;
+    });
+  return snapshot && snapshot.data ? snapshot.data : null;
+}
+
+async function getCacheVersions() {
+  const document = await loadFeatureToggleDocument();
+  const versions = normalizeCacheVersions(document && document.cacheVersions);
+  const response = {
+    versions: cloneCacheVersions(versions)
+  };
+  if (document && document.updatedAt) {
+    response.updatedAt = document.updatedAt;
+  }
+  return response;
 }
 
 function generateEquipmentInventoryId(itemId, obtainedAt = new Date()) {
@@ -679,6 +710,8 @@ exports.main = async (event, context) => {
       return redeemRenameCard(OPENID, event.count || 1);
     case 'breakthrough':
       return breakthrough(OPENID);
+    case 'cacheVersions':
+      return getCacheVersions();
     default:
       throw new Error(`Unknown action: ${action}`);
   }
