@@ -568,6 +568,9 @@ Page({
         const used = Math.min(normalizedItems.length, slotCount);
         const remaining = Math.max(capacity - normalizedItems.length, 0);
         const usagePercent = capacity ? Math.min(100, Math.round((normalizedItems.length / capacity) * 100)) : 0;
+        const hasNewBadge = !isEquipmentCategory
+          ? normalizedItems.some((item) => item && item.showNewBadge)
+          : false;
         return {
           key,
           label,
@@ -580,7 +583,8 @@ Page({
           usagePercent,
           nextCapacity,
           items: normalizedItems,
-          slots
+          slots,
+          hasNewBadge
         };
       })
       .filter((category) => !!category);
@@ -599,6 +603,7 @@ Page({
       const categoryKey = typeof category.key === 'string' ? category.key : '';
       const isEquipmentCategory = categoryKey === 'equipment';
       const items = Array.isArray(category.items) ? category.items : [];
+      let nextHasNewBadge = false;
       if (isEquipmentCategory) {
         items.forEach((item, itemIndex) => {
           if (item && item.showNewBadge) {
@@ -631,6 +636,9 @@ Page({
             updates[`activeStorageCategoryData.items[${itemIndex}].showNewBadge`] = desired;
           }
         }
+        if (desired) {
+          nextHasNewBadge = true;
+        }
       });
       const slots = Array.isArray(category.slots) ? category.slots : [];
       slots.forEach((slotItem, slotIndex) => {
@@ -644,7 +652,19 @@ Page({
             updates[`activeStorageCategoryData.slots[${slotIndex}].showNewBadge`] = desired;
           }
         }
+        if (desired) {
+          nextHasNewBadge = true;
+        }
       });
+      if (!isEquipmentCategory) {
+        const currentHasBadge = !!category.hasNewBadge;
+        if (nextHasNewBadge !== currentHasBadge) {
+          updates[`storageCategories[${categoryIndex}].hasNewBadge`] = nextHasNewBadge;
+          if (categoryIndex === activeIndex) {
+            updates['activeStorageCategoryData.hasNewBadge'] = nextHasNewBadge;
+          }
+        }
+      }
     });
     const profile = (this.data && this.data.profile) || null;
     const profileStorage =

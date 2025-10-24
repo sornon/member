@@ -2,6 +2,7 @@ import { MemberService, TaskService } from '../../services/api';
 import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../services/member-realtime';
 import { formatCombatPower, formatCurrency, formatExperience, formatStones } from '../../utils/format';
 import { shouldShowRoleBadge } from '../../utils/pending-attributes';
+import { hasUnacknowledgedStorageItems } from '../../utils/storage-notifications';
 import {
   buildAvatarUrlById,
   getAvailableAvatars,
@@ -85,6 +86,15 @@ function areAllAppearanceBadgesDismissed(state) {
   return APPEARANCE_BADGE_TABS.every((key) => state[key] === true);
 }
 
+function resolveStorageBadgeVisibility() {
+  try {
+    return hasUnacknowledgedStorageItems();
+  } catch (error) {
+    console.warn('[home] resolve storage badge failed', error);
+    return false;
+  }
+}
+
 function resolveBackgroundUnlocks(source) {
   if (!source) {
     return [];
@@ -159,9 +169,13 @@ const BASE_NAV_ITEMS = [
 
 function buildDefaultNavItems() {
   const showRoleDot = shouldShowRoleBadge(null);
+  const showStorageDot = resolveStorageBadgeVisibility();
   return BASE_NAV_ITEMS.map((item) => {
     if (item.label === '角色') {
       return { ...item, showDot: showRoleDot };
+    }
+    if (item.label === '纳戒') {
+      return { ...item, showDot: showStorageDot };
     }
     return { ...item };
   });
@@ -759,6 +773,7 @@ function resolveNavItems(member) {
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
   const badges = normalizeReservationBadges(member && member.reservationBadges);
   const roleHasPendingAttributes = shouldShowRoleBadge(member);
+  const storageHasPending = resolveStorageBadgeVisibility();
   const navItems = BASE_NAV_ITEMS.map((item) => {
     const next = { ...item };
     if (item.label === '预订') {
@@ -766,6 +781,9 @@ function resolveNavItems(member) {
     }
     if (item.label === '角色') {
       next.showDot = roleHasPendingAttributes;
+    }
+    if (item.label === '纳戒') {
+      next.showDot = storageHasPending;
     }
     return next;
   });
@@ -873,6 +891,7 @@ Page({
   onShow() {
     this.ensureNavMetrics();
     this.updateToday();
+    this.refreshStorageBadgeIndicator();
     this.attachMemberRealtime();
     this.bootstrap();
   },
@@ -1090,6 +1109,15 @@ Page({
     this.setData({
       today: `${now.getFullYear()} · ${formatNumber(now.getMonth() + 1)} · ${formatNumber(now.getDate())}`
     });
+  },
+
+  refreshStorageBadgeIndicator() {
+    if (!this.hasBootstrapped && !this.data.member) {
+      return;
+    }
+    const navItems = resolveNavItems(this.data.member);
+    const collapsedNavItems = buildCollapsedNavItems(navItems);
+    this.setData({ navItems, collapsedNavItems });
   },
 
   restoreNavExpansionState() {

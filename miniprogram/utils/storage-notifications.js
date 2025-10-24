@@ -526,3 +526,27 @@ export function syncStorageBadgeStateFromProfile(profile) {
 export function normalizeStorageItemIdForBadge(item) {
   return buildItemKey(item);
 }
+
+export function hasUnacknowledgedStorageItems() {
+  const state = ensureState();
+  if (!state || !state.initialized) {
+    return false;
+  }
+  const acknowledged = state.acknowledged || {};
+  const latest = state.latest || {};
+  const keys = Object.keys(latest);
+  if (!keys.length) {
+    return false;
+  }
+  return keys.some((key) => {
+    if (!key) {
+      return false;
+    }
+    const latestTime = Number(latest[key]) || 0;
+    if (!latestTime) {
+      return false;
+    }
+    const ackTime = Number(acknowledged[key]) || 0;
+    return ackTime < latestTime;
+  });
+}

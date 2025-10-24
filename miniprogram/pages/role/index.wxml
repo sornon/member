@@ -136,6 +136,7 @@
             bindtap="handleStorageCategoryChange"
           >
             <text class="storage-tab__label">{{item.label}}</text>
+            <view wx:if="{{item.hasNewBadge}}" class="badge-dot storage-tab__dot"></view>
           </view>
         </view>
         <block wx:if="{{activeStorageCategoryData}}">

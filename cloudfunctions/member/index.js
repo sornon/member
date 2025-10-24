@@ -348,6 +348,9 @@ function createStorageRewardItem(reward, now = new Date()) {
       item.slotLabel = '背景';
     }
   }
+  item.isNew = true;
+  item.hasNew = true;
+  item.hasNewBadge = true;
   if (Array.isArray(item.actions) && item.actions.length) {
     const primary = item.actions.find((action) => action.primary) || item.actions[0];
     item.primaryAction = primary || null;
@@ -402,6 +405,17 @@ function appendStorageItemToProfile(profile, item) {
   const category = ensureStorageCategoryEntry(storage, categoryKey);
   const alreadyExists = category.items.some((existing) => existing && existing.inventoryId === item.inventoryId);
   if (!alreadyExists) {
+    if (item && typeof item === 'object') {
+      if (typeof item.isNew !== 'boolean') {
+        item.isNew = true;
+      }
+      if (typeof item.hasNew !== 'boolean') {
+        item.hasNew = true;
+      }
+      if (typeof item.hasNewBadge !== 'boolean') {
+        item.hasNewBadge = true;
+      }
+    }
     category.items.push(item);
   }
   return profile;

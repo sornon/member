@@ -586,11 +586,18 @@ button.pill-btn[disabled] {
   align-items: center;
   gap: 10rpx;
   line-height: 1;
+  position: relative;
   transition: all 0.2s ease;
 }
 
 .storage-tab__label {
   font-weight: 600;
+}
+
+.storage-tab__dot {
+  position: absolute;
+  top: -4rpx;
+  right: -4rpx;
 }
 
 .storage-tab--active {
