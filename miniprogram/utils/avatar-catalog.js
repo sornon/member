@@ -16,7 +16,7 @@ const RARITY_LABELS = {
   sss: 'SSS'
 };
 
-const RARITY_ORDER = ['c', 'b', 'a', 's', 'sss'];
+const RARITY_ORDER = ['c', 'b', 'a', 's', 'ss', 'sss'];
 
 const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
 
