@@ -42,7 +42,8 @@ const WECHAT_DEFAULT_AVATAR_URL =
 const app = getApp();
 
 const NAV_EXPANDED_STORAGE_KEY = 'home-nav-expanded';
-const PROFILE_BADGE_STORAGE_KEY = 'home-profile-badge-dismissed';
+const AVATAR_BADGE_STORAGE_KEY = 'home-avatar-badge-dismissed';
+const NAME_BADGE_STORAGE_KEY = 'home-name-badge-dismissed';
 
 function resolveBackgroundUnlocks(source) {
   if (!source) {
@@ -745,7 +746,8 @@ Page({
     progress: null,
     progressRemainingExperience: formatExperience(0),
     realmHasPendingRewards: false,
-    showProfileBadge: true,
+    showAvatarBadge: true,
+    showNameBadge: true,
     tasks: [],
     loading: true,
     backgroundImage: resolveBackgroundImage(null),
@@ -1058,14 +1060,27 @@ Page({
   },
 
   restoreProfileBadgeState() {
-    let dismissed = false;
+    let avatarDismissed = false;
+    let nameDismissed = false;
     try {
-      dismissed = wx.getStorageSync(PROFILE_BADGE_STORAGE_KEY) === true;
+      avatarDismissed = wx.getStorageSync(AVATAR_BADGE_STORAGE_KEY) === true;
     } catch (err) {
-      // Ignore storage errors and keep the badge visible by default.
+      // Ignore storage errors and keep the avatar badge visible by default.
     }
-    if (dismissed && this.data.showProfileBadge) {
-      this.setData({ showProfileBadge: false });
+    try {
+      nameDismissed = wx.getStorageSync(NAME_BADGE_STORAGE_KEY) === true;
+    } catch (err) {
+      // Ignore storage errors and keep the name badge visible by default.
+    }
+    const nextState = {};
+    if (avatarDismissed && this.data.showAvatarBadge) {
+      nextState.showAvatarBadge = false;
+    }
+    if (nameDismissed && this.data.showNameBadge) {
+      nextState.showNameBadge = false;
+    }
+    if (Object.keys(nextState).length > 0) {
+      this.setData(nextState);
     }
   },
 
@@ -1087,13 +1102,25 @@ Page({
     }
   },
 
-  dismissProfileBadge() {
-    if (!this.data.showProfileBadge) {
+  dismissAvatarBadge() {
+    if (!this.data.showAvatarBadge) {
       return;
     }
-    this.setData({ showProfileBadge: false });
+    this.setData({ showAvatarBadge: false });
     try {
-      wx.setStorageSync(PROFILE_BADGE_STORAGE_KEY, true);
+      wx.setStorageSync(AVATAR_BADGE_STORAGE_KEY, true);
+    } catch (err) {
+      // Swallow storage errors so the UI can continue without persistence.
+    }
+  },
+
+  dismissNameBadge() {
+    if (!this.data.showNameBadge) {
+      return;
+    }
+    this.setData({ showNameBadge: false });
+    try {
+      wx.setStorageSync(NAME_BADGE_STORAGE_KEY, true);
     } catch (err) {
       // Swallow storage errors so the UI can continue without persistence.
     }
@@ -1112,12 +1139,12 @@ Page({
   },
 
   handleProfileTap() {
-    this.dismissProfileBadge();
+    this.dismissNameBadge();
     this.openArchiveEditor();
   },
 
   handleAvatarTap() {
-    this.dismissProfileBadge();
+    this.dismissAvatarBadge();
     this.openAvatarPicker();
   },
 
