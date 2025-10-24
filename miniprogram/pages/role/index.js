@@ -552,7 +552,7 @@ Page({
           } else {
             normalized.recommendedUpgrade = false;
           }
-          normalized.showNewBadge = isEquipmentCategory ? false : shouldDisplayStorageItemNew(normalized);
+          normalized.showNewBadge = shouldDisplayStorageItemNew(normalized);
           return normalized;
         });
         const slotCount = Math.max(capacity, normalizedItems.length);
@@ -568,9 +568,7 @@ Page({
         const used = Math.min(normalizedItems.length, slotCount);
         const remaining = Math.max(capacity - normalizedItems.length, 0);
         const usagePercent = capacity ? Math.min(100, Math.round((normalizedItems.length / capacity) * 100)) : 0;
-        const hasNewBadge = !isEquipmentCategory
-          ? normalizedItems.some((item) => item && item.showNewBadge)
-          : false;
+        const hasNewBadge = normalizedItems.some((item) => item && item.showNewBadge);
         return {
           key,
           label,
@@ -604,27 +602,6 @@ Page({
       const isEquipmentCategory = categoryKey === 'equipment';
       const items = Array.isArray(category.items) ? category.items : [];
       let nextHasNewBadge = false;
-      if (isEquipmentCategory) {
-        items.forEach((item, itemIndex) => {
-          if (item && item.showNewBadge) {
-            updates[`storageCategories[${categoryIndex}].items[${itemIndex}].showNewBadge`] = false;
-            if (categoryIndex === activeIndex) {
-              updates[`activeStorageCategoryData.items[${itemIndex}].showNewBadge`] = false;
-            }
-          }
-        });
-        const slots = Array.isArray(category.slots) ? category.slots : [];
-        slots.forEach((slotItem, slotIndex) => {
-          if (!slotItem || slotItem.placeholder || !slotItem.showNewBadge) {
-            return;
-          }
-          updates[`storageCategories[${categoryIndex}].slots[${slotIndex}].showNewBadge`] = false;
-          if (categoryIndex === activeIndex) {
-            updates[`activeStorageCategoryData.slots[${slotIndex}].showNewBadge`] = false;
-          }
-        });
-        return;
-      }
       items.forEach((item, itemIndex) => {
         if (!item) {
           return;
@@ -656,13 +633,11 @@ Page({
           nextHasNewBadge = true;
         }
       });
-      if (!isEquipmentCategory) {
-        const currentHasBadge = !!category.hasNewBadge;
-        if (nextHasNewBadge !== currentHasBadge) {
-          updates[`storageCategories[${categoryIndex}].hasNewBadge`] = nextHasNewBadge;
-          if (categoryIndex === activeIndex) {
-            updates['activeStorageCategoryData.hasNewBadge'] = nextHasNewBadge;
-          }
+      const currentHasBadge = !!category.hasNewBadge;
+      if (nextHasNewBadge !== currentHasBadge) {
+        updates[`storageCategories[${categoryIndex}].hasNewBadge`] = nextHasNewBadge;
+        if (categoryIndex === activeIndex) {
+          updates['activeStorageCategoryData.hasNewBadge'] = nextHasNewBadge;
         }
       }
     });
@@ -678,14 +653,6 @@ Page({
       const profileCategories = Array.isArray(profileStorage.categories) ? profileStorage.categories : [];
       profileCategories.forEach((category, categoryIndex) => {
         if (!category || !Array.isArray(category.items)) {
-          return;
-        }
-        if ((typeof category.key === 'string' ? category.key : '') === 'equipment') {
-          category.items.forEach((item, itemIndex) => {
-            if (item && item.showNewBadge) {
-              updates[`profile.equipment.storage.categories[${categoryIndex}].items[${itemIndex}].showNewBadge`] = false;
-            }
-          });
           return;
         }
         category.items.forEach((item, itemIndex) => {
@@ -706,11 +673,6 @@ Page({
 
   acknowledgeStorageItem(item) {
     if (!item) {
-      return;
-    }
-    const categoryKey = typeof item.storageCategory === 'string' ? item.storageCategory.trim() : '';
-    const kind = typeof item.kind === 'string' ? item.kind.trim() : '';
-    if (categoryKey === 'equipment' || kind === 'equipment') {
       return;
     }
     acknowledgeStorageItems(item);
