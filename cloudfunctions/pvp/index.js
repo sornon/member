@@ -336,7 +336,7 @@ async function matchFriend(memberId, event = {}) {
   const seed = normalizeSeed(event.seed) || buildMatchSeed(`${memberId}:${targetId}`, season._id);
   const opponent = {
     isBot: false,
-    member,
+    member: opponentMember,
     profile: opponentProfile
   };
   const battle = await resolveBattle(memberId, member, profile, opponent, season, { seed, friendMatch: true });
