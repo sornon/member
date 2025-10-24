@@ -13,11 +13,15 @@ const {
 const {
   DEFAULT_GAME_PARAMETERS,
   DEFAULT_RAGE_SETTINGS,
+  DEFAULT_CACHE_VERSIONS,
   normalizeRageSettings,
   serializeGameParameters,
   cloneGameParameters,
   cloneRageSettings,
-  resolveGameParametersFromDocument
+  resolveGameParametersFromDocument,
+  normalizeCacheVersions,
+  cloneCacheVersions,
+  incrementCacheVersionValue
 } = require('system-settings');
 
 const db = cloud.database();
@@ -47,7 +51,8 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
 };
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
-  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT }
+  immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
+  cacheVersions: { ...DEFAULT_CACHE_VERSIONS }
 };
 const DEFAULT_PVP_RATING = 1200;
 const DEFAULT_PVP_TIER = { id: 'bronze', name: '青铜' };
@@ -74,6 +79,20 @@ const FEATURE_KEY_ALIASES = {
   cashiernabled: 'cashierEnabled',
   'cashier-enabled': 'cashierEnabled',
   'cashier_enabled': 'cashierEnabled'
+};
+
+const CACHE_VERSION_KEY_ALIASES = {
+  global: 'global',
+  overal: 'global',
+  overall: 'global',
+  full: 'global',
+  all: 'all',
+  menu: 'menu',
+  menus: 'menu',
+  catalog: 'menu',
+  menucatalog: 'menu',
+  ordering: 'menu',
+  order: 'menu'
 };
 
 const ACTIONS = {
@@ -113,6 +132,7 @@ const ACTIONS = {
   UPDATE_SYSTEM_FEATURE: 'updateSystemFeature',
   UPDATE_IMMORTAL_TOURNAMENT_SETTINGS: 'updateImmortalTournamentSettings',
   UPDATE_GAME_PARAMETERS: 'updateGameParameters',
+  BUMP_CACHE_VERSION: 'bumpCacheVersion',
   RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament',
   REFRESH_IMMORTAL_TOURNAMENT_PLAYERS: 'refreshImmortalTournamentPlayers',
   LIST_ACTIVITIES: 'listActivities',
@@ -193,6 +213,10 @@ const ACTION_ALIASES = {
   refreshimmortaltournamentplayers: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
   refreshimmortalplayers: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
   refreshpvpprofiles: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
+  bumpcacheversion: ACTIONS.BUMP_CACHE_VERSION,
+  refreshcache: ACTIONS.BUMP_CACHE_VERSION,
+  updatecacheversion: ACTIONS.BUMP_CACHE_VERSION,
+  incrementcacheversion: ACTIONS.BUMP_CACHE_VERSION,
   listactivities: ACTIONS.LIST_ACTIVITIES,
   activities: ACTIONS.LIST_ACTIVITIES,
   createactivity: ACTIONS.CREATE_ACTIVITY,
@@ -294,6 +318,7 @@ const ACTION_HANDLERS = {
     updateImmortalTournamentSettings(openid, event.updates || event),
   [ACTIONS.UPDATE_GAME_PARAMETERS]: (openid, event = {}) =>
     updateGameParameters(openid, event.parameters || event),
+  [ACTIONS.BUMP_CACHE_VERSION]: (openid, event) => bumpCacheVersion(openid, event || {}),
   [ACTIONS.RESET_IMMORTAL_TOURNAMENT]: (openid, event) =>
     resetImmortalTournament(openid, event || {}),
   [ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS]: (openid, event) =>
@@ -745,7 +770,8 @@ function sanitizeFeatureDocument(documentData) {
 function normalizeFeatureToggles(documentData) {
   const toggles = {
     cashierEnabled: DEFAULT_FEATURE_TOGGLES.cashierEnabled,
-    immortalTournament: cloneImmortalTournament(DEFAULT_FEATURE_TOGGLES.immortalTournament)
+    immortalTournament: cloneImmortalTournament(DEFAULT_FEATURE_TOGGLES.immortalTournament),
+    cacheVersions: cloneCacheVersions(DEFAULT_FEATURE_TOGGLES.cacheVersions)
   };
   if (documentData && typeof documentData === 'object') {
     if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
@@ -753,6 +779,9 @@ function normalizeFeatureToggles(documentData) {
     }
     if (Object.prototype.hasOwnProperty.call(documentData, 'immortalTournament')) {
       toggles.immortalTournament = cloneImmortalTournament(documentData.immortalTournament);
+    }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'cacheVersions')) {
+      toggles.cacheVersions = cloneCacheVersions(documentData.cacheVersions);
     }
   }
   return toggles;
@@ -839,6 +868,57 @@ function resolveFeatureEventValue(event = {}, key, fallback) {
   return fallback;
 }
 
+function normalizeCacheVersionScopeKey(input) {
+  if (typeof input !== 'string') {
+    return '';
+  }
+  const trimmed = input.trim();
+  if (!trimmed) {
+    return '';
+  }
+  const normalized = trimmed.replace(/[\s_-]+/g, '').toLowerCase();
+  return CACHE_VERSION_KEY_ALIASES[normalized] || '';
+}
+
+function resolveCacheVersionScope(event = {}) {
+  if (!event || typeof event !== 'object') {
+    return '';
+  }
+  const candidates = [];
+  if (Array.isArray(event.scopes)) {
+    event.scopes.forEach((scope) => {
+      candidates.push(scope);
+    });
+  }
+  ['scope', 'target', 'key', 'name', 'type', 'code'].forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(event, field)) {
+      candidates.push(event[field]);
+    }
+  });
+  for (let i = 0; i < candidates.length; i += 1) {
+    const resolved = normalizeCacheVersionScopeKey(candidates[i]);
+    if (resolved) {
+      return resolved;
+    }
+  }
+  return '';
+}
+
+function resolveCacheVersionTargets(scope, versions = {}) {
+  const normalized = typeof scope === 'string' ? scope : '';
+  if (!normalized) {
+    return [];
+  }
+  if (normalized === 'all') {
+    const keys = new Set([
+      ...Object.keys(DEFAULT_CACHE_VERSIONS),
+      ...Object.keys(versions || {})
+    ]);
+    return Array.from(keys);
+  }
+  return [normalized];
+}
+
 async function updateSystemFeature(openid, event = {}) {
   await ensureAdmin(openid);
   const key = resolveFeatureEventKey(event);
@@ -849,6 +929,9 @@ async function updateSystemFeature(openid, event = {}) {
   const existingDocument = await loadSystemFeatureDocument();
   const currentToggles = normalizeFeatureToggles(existingDocument);
   const currentParameters = resolveGameParametersFromDocument(existingDocument);
+  const currentCacheVersions = normalizeCacheVersions(
+    existingDocument && existingDocument.cacheVersions
+  );
   const nextValue = resolveFeatureEventValue(event, key, currentToggles[key]);
 
   if (currentToggles[key] === nextValue && existingDocument) {
@@ -867,6 +950,7 @@ async function updateSystemFeature(openid, event = {}) {
     ...sanitizedExisting,
     cashierEnabled: key === 'cashierEnabled' ? nextValue : currentToggles.cashierEnabled,
     immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
+    cacheVersions: cloneCacheVersions(currentCacheVersions),
     gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
@@ -894,6 +978,9 @@ async function updateImmortalTournamentSettings(openid, updates = {}) {
   const currentToggles = normalizeFeatureToggles(existingDocument);
   const currentTournament = cloneImmortalTournament(currentToggles.immortalTournament);
   const currentParameters = resolveGameParametersFromDocument(existingDocument);
+  const currentCacheVersions = normalizeCacheVersions(
+    existingDocument && existingDocument.cacheVersions
+  );
 
   let changed = false;
   const nextTournament = { ...currentTournament };
@@ -938,6 +1025,7 @@ async function updateImmortalTournamentSettings(openid, updates = {}) {
     ...sanitizedExisting,
     cashierEnabled: currentToggles.cashierEnabled,
     immortalTournament: serializeImmortalTournament(nextTournament),
+    cacheVersions: cloneCacheVersions(currentCacheVersions),
     gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
@@ -1014,6 +1102,7 @@ async function updateGameParameters(openid, updates = {}) {
     ...sanitizedExisting,
     cashierEnabled: currentToggles.cashierEnabled,
     immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
+    cacheVersions: cloneCacheVersions(currentCacheVersions),
     gameParameters: serializeGameParameters(nextParameters),
     updatedAt: now
   };
@@ -1035,6 +1124,61 @@ async function updateGameParameters(openid, updates = {}) {
       gameParameters: cloneGameParameters(DEFAULT_GAME_PARAMETERS),
       rageSettings: cloneRageSettings(DEFAULT_RAGE_SETTINGS)
     }
+  };
+}
+
+async function bumpCacheVersion(openid, event = {}) {
+  await ensureAdmin(openid);
+  const scope = resolveCacheVersionScope(event);
+  if (!scope) {
+    throw new Error('请选择要刷新的缓存范围');
+  }
+
+  const existingDocument = await loadSystemFeatureDocument();
+  const currentToggles = normalizeFeatureToggles(existingDocument);
+  const currentParameters = resolveGameParametersFromDocument(existingDocument);
+  const currentCacheVersions = normalizeCacheVersions(
+    existingDocument && existingDocument.cacheVersions
+  );
+
+  const targets = Array.from(
+    new Set(resolveCacheVersionTargets(scope, currentCacheVersions).filter(Boolean))
+  );
+  if (!targets.length) {
+    throw new Error('未找到可刷新的缓存范围');
+  }
+
+  const nextCacheVersions = cloneCacheVersions(currentCacheVersions);
+  targets.forEach((key) => {
+    nextCacheVersions[key] = incrementCacheVersionValue(nextCacheVersions[key]);
+  });
+
+  const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);
+  const now = new Date();
+  const sanitizedExisting = sanitizeFeatureDocument(existingDocument);
+
+  const payload = {
+    ...sanitizedExisting,
+    cashierEnabled: currentToggles.cashierEnabled,
+    immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
+    cacheVersions: cloneCacheVersions(nextCacheVersions),
+    gameParameters: serializeGameParameters(currentParameters),
+    updatedAt: now
+  };
+  if (!payload.createdAt) {
+    payload.createdAt = now;
+  }
+
+  await collection.doc(FEATURE_TOGGLE_DOC_ID).set({ data: payload });
+
+  const features = normalizeFeatureToggles(payload);
+  return {
+    success: true,
+    scope,
+    targets,
+    cacheVersions: cloneCacheVersions(nextCacheVersions),
+    features,
+    updatedAt: now
   };
 }
 

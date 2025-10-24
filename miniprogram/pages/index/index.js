@@ -3,6 +3,7 @@ import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../ser
 import { formatCombatPower, formatCurrency, formatExperience, formatStones } from '../../utils/format';
 import { shouldShowRoleBadge } from '../../utils/pending-attributes';
 import { hasUnacknowledgedStorageItems } from '../../utils/storage-notifications';
+import { applyCacheVersionUpdate } from '../../utils/cache-version';
 import {
   buildAvatarUrlById,
   getAvailableAvatars,
@@ -878,14 +879,57 @@ Page({
     },
   },
 
+  async syncCacheVersions() {
+    if (this.cacheVersionSyncPromise) {
+      return this.cacheVersionSyncPromise;
+    }
+    this.cacheVersionSyncPromise = (async () => {
+      try {
+        const result = await MemberService.getCacheVersions();
+        const payload =
+          (result && (result.versions || result.cacheVersions)) ||
+          (result && result.data && (result.data.versions || result.data.cacheVersions)) ||
+          {};
+        const { versions, mismatched } = applyCacheVersionUpdate(payload);
+        try {
+          const appInstance = getApp();
+          if (appInstance && appInstance.globalData) {
+            appInstance.globalData.cacheVersions = versions;
+          }
+        } catch (updateError) {
+          console.warn('[index] update global cache versions failed', updateError);
+        }
+        this.cacheVersionSynced = true;
+        this.cacheVersionSyncResult = { versions, mismatched };
+        return this.cacheVersionSyncResult;
+      } catch (error) {
+        console.warn('[index] sync cache versions failed', error);
+        this.cacheVersionSynced = false;
+        this.cacheVersionSyncResult = null;
+        return null;
+      } finally {
+        this.cacheVersionSyncPromise = null;
+      }
+    })();
+    return this.cacheVersionSyncPromise;
+  },
+
   onLoad() {
+    this.cacheVersionSynced = false;
+    this.cacheVersionSyncResult = null;
+    this.cacheVersionSyncPromise = null;
     this.hasBootstrapped = false;
     this.hasVisitedOtherPage = false;
     this.nameBadgeDismissedFromStorage = false;
     this.ensureNavMetrics();
     this.updateToday();
-    this.restoreNavExpansionState();
-    this.restoreProfileBadgeState();
+    const versionPromise = this.syncCacheVersions();
+    versionPromise
+      .catch(() => null)
+      .finally(() => {
+        this.restoreNavExpansionState();
+        this.restoreProfileBadgeState();
+      });
   },
 
   onShow() {
@@ -1006,6 +1050,7 @@ Page({
   },
 
   async bootstrap(options = {}) {
+    await this.syncCacheVersions();
     if (this.bootstrapRunning) {
       this.bootstrapPending = true;
       return;
