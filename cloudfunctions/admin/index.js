@@ -29,6 +29,7 @@ const _ = db.command;
 const $ = db.command.aggregate;
 
 const ADMIN_ROLES = [...new Set([...DEFAULT_ADMIN_ROLES, 'superadmin'])];
+const FINANCE_EXCLUDED_ROLES = [...new Set([...ADMIN_ROLES, 'test'])];
 const MIN_REPORT_MONTH = new Date(2025, 8, 1);
 const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
 const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
@@ -5994,10 +5995,10 @@ function calculateExperienceGain(amountFen) {
 async function getFinanceReport(openid, monthInput) {
   await ensureAdmin(openid);
   const range = resolveFinanceReportRange(monthInput);
-  const adminMemberIds = await loadAdminMemberIds();
-  const walletMatch = buildWalletMatch(range, adminMemberIds);
-  const menuOrderMatch = buildMenuOrderMatch(range, adminMemberIds);
-  const chargeOrderMatch = buildChargeOrderMatch(range, adminMemberIds);
+  const excludedMemberIds = await loadFinanceExcludedMemberIds();
+  const walletMatch = buildWalletMatch(range, excludedMemberIds);
+  const menuOrderMatch = buildMenuOrderMatch(range, excludedMemberIds);
+  const chargeOrderMatch = buildChargeOrderMatch(range, excludedMemberIds);
   const [walletTotals, menuDiningTotals, chargeDiningTotals] = await Promise.all([
     aggregateWalletTotals(walletMatch),
     aggregateMenuDiningTotals(menuOrderMatch, range),
@@ -6201,7 +6202,7 @@ function normalizeAmountValue(value) {
   return Math.round(numeric);
 }
 
-async function loadAdminMemberIds() {
+async function loadFinanceExcludedMemberIds() {
   const ids = new Set();
   const limit = 100;
   let offset = 0;
@@ -6210,7 +6211,7 @@ async function loadAdminMemberIds() {
   while (hasMore && guard < 40) {
     const snapshot = await db
       .collection(COLLECTIONS.MEMBERS)
-      .where({ roles: _.in(ADMIN_ROLES) })
+      .where({ roles: _.in(FINANCE_EXCLUDED_ROLES) })
       .skip(offset)
       .limit(limit)
       .field({ _id: 1 })
