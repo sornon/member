@@ -10,15 +10,6 @@ import {
 } from '../../utils/storage-notifications';
 import { formatStones } from '../../utils/format';
 import { sanitizeEquipmentProfile } from '../../utils/equipment';
-import {
-  BADGE_KEYS,
-  acknowledgeBadge,
-  acknowledgeBadges,
-  getBadgeSnapshot,
-  shouldShowBadge,
-  subscribeBadge,
-  syncStorageCategoryBadge
-} from '../../utils/badge-center';
 
 const DEFAULT_STORAGE_BASE_CAPACITY = 100;
 const DEFAULT_STORAGE_PER_UPGRADE = 20;
@@ -200,12 +191,6 @@ const STORAGE_CATEGORY_LABELS = {
   material: '材料',
   consumable: '道具'
 };
-const ROLE_TAB_BADGE_KEYS = {
-  character: [BADGE_KEYS.ROLE_TAB_CHARACTER, BADGE_KEYS.HOME_NAV_ROLE],
-  equipment: [BADGE_KEYS.ROLE_TAB_EQUIPMENT, BADGE_KEYS.HOME_NAV_EQUIPMENT],
-  storage: [BADGE_KEYS.ROLE_TAB_STORAGE, BADGE_KEYS.HOME_NAV_STORAGE],
-  skill: [BADGE_KEYS.ROLE_TAB_SKILL, BADGE_KEYS.HOME_NAV_SKILL]
-};
 const STORAGE_DEFAULT_BASE_CAPACITY = 100;
 const STORAGE_DEFAULT_PER_UPGRADE = 20;
 
@@ -349,16 +334,7 @@ Page({
     attributeAdjustments: {},
     attributeAllocationTotal: 0,
     attributeAllocationRemaining: 0,
-    attributeAllocationEnabled: {},
-    badgeIndicators: {
-      tabs: {
-        character: false,
-        equipment: false,
-        storage: false,
-        skill: false
-      },
-      storageCategories: {}
-    }
+    attributeAllocationEnabled: {}
   },
 
   applyProfile(profile, extraState = {}, options = {}) {
@@ -461,28 +437,7 @@ Page({
       updates.skillModal = this.rebuildSkillModal(sanitizedProfile, currentSkillModal);
     }
     this.setData(updates);
-    this.applyBadgeSnapshot(this.badgeSnapshot || getBadgeSnapshot());
     return sanitizedProfile;
-  },
-
-  applyBadgeSnapshot(snapshot = getBadgeSnapshot()) {
-    const tabIndicators = {
-      character: shouldShowBadge(BADGE_KEYS.ROLE_TAB_CHARACTER, snapshot),
-      equipment: shouldShowBadge(BADGE_KEYS.ROLE_TAB_EQUIPMENT, snapshot),
-      storage: shouldShowBadge(BADGE_KEYS.ROLE_TAB_STORAGE, snapshot),
-      skill: shouldShowBadge(BADGE_KEYS.ROLE_TAB_SKILL, snapshot)
-    };
-    const storageCategories = Array.isArray(this.data.storageCategories) ? this.data.storageCategories : [];
-    const storageIndicators = {};
-    storageCategories.forEach((category) => {
-      if (category && category.key) {
-        storageIndicators[category.key] = shouldShowBadge(`storage:tab:${category.key}`, snapshot);
-      }
-    });
-    this.setData({
-      'badgeIndicators.tabs': tabIndicators,
-      'badgeIndicators.storageCategories': storageIndicators
-    });
   },
 
   buildStorageState(profile) {
@@ -492,7 +447,6 @@ Page({
     const activeKey = this.resolveActiveStorageCategory(storageCategories);
     const activeCategory = storageCategories.find((category) => category.key === activeKey) || null;
     const activeIndex = storageCategories.findIndex((category) => category.key === activeKey);
-    this.updateStorageBadgeState(storageCategories);
     return {
       storageCategories,
       storageMeta,
@@ -598,7 +552,7 @@ Page({
           } else {
             normalized.recommendedUpgrade = false;
           }
-          normalized.showNewBadge = isEquipmentCategory ? false : shouldDisplayStorageItemNew(normalized);
+          normalized.showNewBadge = shouldDisplayStorageItemNew(normalized);
           return normalized;
         });
         const slotCount = Math.max(capacity, normalizedItems.length);
@@ -614,6 +568,7 @@ Page({
         const used = Math.min(normalizedItems.length, slotCount);
         const remaining = Math.max(capacity - normalizedItems.length, 0);
         const usagePercent = capacity ? Math.min(100, Math.round((normalizedItems.length / capacity) * 100)) : 0;
+        const hasNewBadge = normalizedItems.some((item) => item && item.showNewBadge);
         return {
           key,
           label,
@@ -626,39 +581,11 @@ Page({
           usagePercent,
           nextCapacity,
           items: normalizedItems,
-          slots
+          slots,
+          hasNewBadge
         };
       })
       .filter((category) => !!category);
-  },
-
-  countNewItemsInCategory(category) {
-    if (!category) {
-      return 0;
-    }
-    const items = Array.isArray(category.items) ? category.items : [];
-    return items.reduce((total, item) => (item && item.showNewBadge ? total + 1 : total), 0);
-  },
-
-  updateStorageBadgeState(categories) {
-    const list = Array.isArray(categories) ? categories : [];
-    let hasNew = false;
-    list.forEach((category) => {
-      if (!category || !category.key) {
-        return;
-      }
-      const newCount = this.countNewItemsInCategory(category);
-      if (newCount > 0) {
-        hasNew = true;
-        syncStorageCategoryBadge(category.key, Date.now(), { newCount });
-      } else {
-        acknowledgeBadge(`storage:tab:${category.key}`);
-      }
-    });
-    if (!hasNew) {
-      acknowledgeBadges([BADGE_KEYS.HOME_NAV_STORAGE, BADGE_KEYS.ROLE_TAB_STORAGE]);
-    }
-    this.applyBadgeSnapshot(this.badgeSnapshot || getBadgeSnapshot());
   },
 
   refreshStorageNewBadges() {
@@ -674,27 +601,7 @@ Page({
       const categoryKey = typeof category.key === 'string' ? category.key : '';
       const isEquipmentCategory = categoryKey === 'equipment';
       const items = Array.isArray(category.items) ? category.items : [];
-      if (isEquipmentCategory) {
-        items.forEach((item, itemIndex) => {
-          if (item && item.showNewBadge) {
-            updates[`storageCategories[${categoryIndex}].items[${itemIndex}].showNewBadge`] = false;
-            if (categoryIndex === activeIndex) {
-              updates[`activeStorageCategoryData.items[${itemIndex}].showNewBadge`] = false;
-            }
-          }
-        });
-        const slots = Array.isArray(category.slots) ? category.slots : [];
-        slots.forEach((slotItem, slotIndex) => {
-          if (!slotItem || slotItem.placeholder || !slotItem.showNewBadge) {
-            return;
-          }
-          updates[`storageCategories[${categoryIndex}].slots[${slotIndex}].showNewBadge`] = false;
-          if (categoryIndex === activeIndex) {
-            updates[`activeStorageCategoryData.slots[${slotIndex}].showNewBadge`] = false;
-          }
-        });
-        return;
-      }
+      let nextHasNewBadge = false;
       items.forEach((item, itemIndex) => {
         if (!item) {
           return;
@@ -705,6 +612,9 @@ Page({
           if (categoryIndex === activeIndex) {
             updates[`activeStorageCategoryData.items[${itemIndex}].showNewBadge`] = desired;
           }
+        }
+        if (desired) {
+          nextHasNewBadge = true;
         }
       });
       const slots = Array.isArray(category.slots) ? category.slots : [];
@@ -719,7 +629,17 @@ Page({
             updates[`activeStorageCategoryData.slots[${slotIndex}].showNewBadge`] = desired;
           }
         }
+        if (desired) {
+          nextHasNewBadge = true;
+        }
       });
+      const currentHasBadge = !!category.hasNewBadge;
+      if (nextHasNewBadge !== currentHasBadge) {
+        updates[`storageCategories[${categoryIndex}].hasNewBadge`] = nextHasNewBadge;
+        if (categoryIndex === activeIndex) {
+          updates['activeStorageCategoryData.hasNewBadge'] = nextHasNewBadge;
+        }
+      }
     });
     const profile = (this.data && this.data.profile) || null;
     const profileStorage =
@@ -735,14 +655,6 @@ Page({
         if (!category || !Array.isArray(category.items)) {
           return;
         }
-        if ((typeof category.key === 'string' ? category.key : '') === 'equipment') {
-          category.items.forEach((item, itemIndex) => {
-            if (item && item.showNewBadge) {
-              updates[`profile.equipment.storage.categories[${categoryIndex}].items[${itemIndex}].showNewBadge`] = false;
-            }
-          });
-          return;
-        }
         category.items.forEach((item, itemIndex) => {
           if (!item) {
             return;
@@ -755,21 +667,12 @@ Page({
       });
     }
     if (Object.keys(updates).length) {
-      this.setData(updates, () => {
-        this.updateStorageBadgeState(this.data.storageCategories);
-      });
-    } else {
-      this.updateStorageBadgeState(categories);
+      this.setData(updates);
     }
   },
 
   acknowledgeStorageItem(item) {
     if (!item) {
-      return;
-    }
-    const categoryKey = typeof item.storageCategory === 'string' ? item.storageCategory.trim() : '';
-    const kind = typeof item.kind === 'string' ? item.kind.trim() : '';
-    if (categoryKey === 'equipment' || kind === 'equipment') {
       return;
     }
     acknowledgeStorageItems(item);
@@ -784,15 +687,6 @@ Page({
     if (initialTab) {
       this.setData({ activeTab: initialTab });
     }
-    this.badgeSnapshot = getBadgeSnapshot();
-    this.unsubscribeBadgeState = subscribeBadge((snapshot) => {
-      this.badgeSnapshot = snapshot;
-      this.applyBadgeSnapshot(snapshot);
-    });
-    const initialBadgeKeys = ROLE_TAB_BADGE_KEYS[this.data.activeTab] || [];
-    if (initialBadgeKeys.length) {
-      acknowledgeBadges(initialBadgeKeys);
-    }
   },
 
   onShow() {
@@ -806,10 +700,6 @@ Page({
 
   onUnload() {
     this.clearAllAttributeAdjustTimers();
-    if (this.unsubscribeBadgeState) {
-      this.unsubscribeBadgeState();
-      this.unsubscribeBadgeState = null;
-    }
   },
 
   onPullDownRefresh() {
@@ -863,17 +753,6 @@ Page({
     const target = this.normalizeTab(dataset.tab);
     if (target && target !== this.data.activeTab) {
       this.setData({ activeTab: target });
-      const badgeKeys = ROLE_TAB_BADGE_KEYS[target] || [];
-      if (badgeKeys.length) {
-        acknowledgeBadges(badgeKeys);
-      }
-      if (target === 'storage') {
-        const activeKey = this.data.activeStorageCategory;
-        if (activeKey) {
-          acknowledgeBadges([`storage:tab:${activeKey}`]);
-        }
-      }
-      this.applyBadgeSnapshot(this.badgeSnapshot || getBadgeSnapshot());
     }
   },
 
@@ -1684,8 +1563,6 @@ Page({
       activeStorageCategoryData: activeCategory,
       activeStorageCategoryIndex: categoryIndex
     });
-    acknowledgeBadges([`storage:tab:${key}`, BADGE_KEYS.HOME_NAV_STORAGE, BADGE_KEYS.ROLE_TAB_STORAGE]);
-    this.applyBadgeSnapshot(this.badgeSnapshot || getBadgeSnapshot());
   },
 
   async handleUpgradeStorage() {

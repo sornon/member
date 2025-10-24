@@ -36,12 +36,6 @@ page {
   line-height: 1;
 }
 
-.role-tab__dot {
-  position: absolute;
-  top: 6rpx;
-  right: 30rpx;
-}
-
 .tab-item::after {
   content: '';
   position: absolute;
@@ -315,6 +309,20 @@ button.pill-btn[disabled] {
   justify-content: space-between;
   color: rgba(168, 184, 241, 0.78);
   font-size: 24rpx;
+}
+
+.attr-extra__remaining {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-right: 22rpx;
+}
+
+.attr-extra__dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translate(45%, -55%);
 }
 
 .attr-actions {
@@ -592,8 +600,8 @@ button.pill-btn[disabled] {
   align-items: center;
   gap: 10rpx;
   line-height: 1;
-  transition: all 0.2s ease;
   position: relative;
+  transition: all 0.2s ease;
 }
 
 .storage-tab__label {
@@ -602,8 +610,8 @@ button.pill-btn[disabled] {
 
 .storage-tab__dot {
   position: absolute;
-  top: -6rpx;
-  right: -6rpx;
+  top: -4rpx;
+  right: -4rpx;
 }
 
 .storage-tab--active {

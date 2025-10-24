@@ -4,7 +4,6 @@ const STORAGE_BADGE_STORAGE_KEY = 'storageBadgeState';
 const FALLBACK_STATE = {
   acknowledged: {},
   latest: {},
-  meta: {},
   initialized: false
 };
 
@@ -15,10 +14,8 @@ function snapshotState(state) {
       : {};
   const latest =
     state && state.latest && typeof state.latest === 'object' ? { ...state.latest } : {};
-  const meta =
-    state && state.meta && typeof state.meta === 'object' ? { ...state.meta } : {};
   const initialized = !!(state && state.initialized);
-  return { acknowledged, latest, meta, initialized };
+  return { acknowledged, latest, initialized };
 }
 
 function readPersistedState() {
@@ -77,7 +74,6 @@ function ensureState() {
         FALLBACK_STATE.acknowledged = persisted.acknowledged;
         FALLBACK_STATE.latest = persisted.latest;
         FALLBACK_STATE.initialized = persisted.initialized;
-        FALLBACK_STATE.meta = persisted.meta || {};
       }
       Object.defineProperty(FALLBACK_STATE, '_hydratedFromStorage', {
         value: true,
@@ -92,7 +88,6 @@ function ensureState() {
     app.globalData.storageBadge = {
       acknowledged: {},
       latest: {},
-      meta: {},
       initialized: false
     };
     return app.globalData.storageBadge;
@@ -102,9 +97,6 @@ function ensureState() {
   }
   if (!globalState.latest || typeof globalState.latest !== 'object') {
     globalState.latest = {};
-  }
-  if (!globalState.meta || typeof globalState.meta !== 'object') {
-    globalState.meta = {};
   }
   if (typeof globalState.initialized !== 'boolean') {
     globalState.initialized = false;
@@ -120,9 +112,6 @@ function ensureState() {
       }
       Object.assign(globalState.acknowledged, persisted.acknowledged);
       Object.assign(globalState.latest, persisted.latest);
-      if (persisted.meta && typeof persisted.meta === 'object') {
-        Object.assign(globalState.meta, persisted.meta);
-      }
       if (persisted.initialized) {
         globalState.initialized = true;
       }
@@ -143,7 +132,6 @@ function writeState(state) {
     FALLBACK_STATE.acknowledged = snapshot.acknowledged;
     FALLBACK_STATE.latest = snapshot.latest;
     FALLBACK_STATE.initialized = snapshot.initialized;
-    FALLBACK_STATE.meta = snapshot.meta;
     persistState(snapshot);
     return;
   }
@@ -297,14 +285,7 @@ function collectStorageItemsFromCategories(categories) {
     if (!category || !Array.isArray(category.items)) {
       return;
     }
-    const categoryKey = normalizeString(category.key);
-    if (isEquipmentCategoryKey(categoryKey)) {
-      return;
-    }
     category.items.forEach((item) => {
-      if (isEquipmentItem(item, categoryKey)) {
-        return;
-      }
       const key = buildItemKey(item);
       if (!key) {
         return;
@@ -451,17 +432,11 @@ function itemHasExplicitNewFlag(item) {
   if (!item || typeof item !== 'object') {
     return false;
   }
-  if (isEquipmentItem(item)) {
-    return false;
-  }
   return isTruthy(item.isNew) || isTruthy(item.new) || isTruthy(item.hasNewBadge) || isTruthy(item.hasNew);
 }
 
 export function shouldDisplayStorageItemNew(item) {
   if (!item) {
-    return false;
-  }
-  if (isEquipmentItem(item)) {
     return false;
   }
   const state = ensureState();
@@ -502,9 +477,6 @@ export function acknowledgeStorageItems(items) {
     if (!item) {
       return;
     }
-    if (isEquipmentItem(item)) {
-      return;
-    }
     const key = buildItemKey(item);
     if (!key) {
       return;
@@ -539,14 +511,26 @@ export function normalizeStorageItemIdForBadge(item) {
   return buildItemKey(item);
 }
 
-export function ensureBadgeState() {
-  return ensureState();
-}
-
-export function writeBadgeState(state) {
-  writeState(state);
-}
-
-export function snapshotBadgeState() {
-  return snapshotState(ensureState());
+export function hasUnacknowledgedStorageItems() {
+  const state = ensureState();
+  if (!state || !state.initialized) {
+    return false;
+  }
+  const acknowledged = state.acknowledged || {};
+  const latest = state.latest || {};
+  const keys = Object.keys(latest);
+  if (!keys.length) {
+    return false;
+  }
+  return keys.some((key) => {
+    if (!key) {
+      return false;
+    }
+    const latestTime = Number(latest[key]) || 0;
+    if (!latestTime) {
+      return false;
+    }
+    const ackTime = Number(acknowledged[key]) || 0;
+    return ackTime < latestTime;
+  });
 }
