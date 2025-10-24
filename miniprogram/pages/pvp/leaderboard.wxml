@@ -47,13 +47,6 @@
               data-name="{{item.nickName}}"
               bindtap="handleChallenge"
             >挑战</button>
-            <button
-              class="board-action board-action--ghost"
-              size="mini"
-              data-id="{{item.memberId}}"
-              data-name="{{item.nickName}}"
-              bindtap="handleShare"
-            >邀战</button>
           </view>
         </view>
       </block>

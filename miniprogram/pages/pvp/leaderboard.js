@@ -1,8 +1,6 @@
 import { PvpService } from '../../services/api';
 import { normalizeAvatarFrameValue } from '../../shared/avatar-frames';
 
-const app = getApp();
-
 function formatDateTime(date) {
   if (!date) return '';
   const parsed = new Date(date);
@@ -73,24 +71,37 @@ Page({
     }
   },
 
-  async handleChallenge(event) {
-    const { id, name } = event.currentTarget.dataset;
+  handleChallenge(event) {
+    const { id, name } = event.currentTarget.dataset || {};
     if (!id || this.data.matchLoadingId) {
       return;
     }
-    this.setData({ matchLoadingId: id });
-    try {
-      const res = await PvpService.matchFriend(id);
-      if (app && app.globalData) {
-        app.globalData.lastPvpBattle = res;
+    const targetId = String(id);
+    this.setData({ matchLoadingId: targetId });
+    wx.navigateTo({
+      url: '/pages/battle/play?mode=pvp',
+      events: {
+        battleFinished: () => {
+          this.handleBattleFinished();
+        }
+      },
+      success: (res) => {
+        if (res && res.eventChannel && typeof res.eventChannel.emit === 'function') {
+          const context = { mode: 'pvp', source: 'challenge', targetId };
+          if (typeof name === 'string' && name.trim()) {
+            context.opponentName = name.trim();
+          }
+          res.eventChannel.emit('battleContext', context);
+        }
+      },
+      fail: (error) => {
+        console.error('[pvp] leaderboard challenge navigation failed', error);
+        wx.showToast({ title: error.errMsg || '战斗画面加载失败', icon: 'none' });
+      },
+      complete: () => {
+        this.setData({ matchLoadingId: '' });
       }
-      wx.showToast({ title: '挑战完成', icon: 'success' });
-      wx.navigateBack({ delta: 1 });
-    } catch (error) {
-      console.error('[pvp] leaderboard challenge failed', error);
-      wx.showToast({ title: error.errMsg || '挑战失败', icon: 'none' });
-      this.setData({ matchLoadingId: '' });
-    }
+    });
   },
 
   handleViewArchive(event) {
@@ -101,9 +112,10 @@ Page({
     wx.navigateTo({ url: `/pages/pvp/archive?memberId=${id}` });
   },
 
-  handleShare(event) {
-    const { id, name } = event.currentTarget.dataset;
-    wx.navigateTo({ url: `/pages/pvp/index?targetId=${id}&targetName=${encodeURIComponent(name || '')}` });
+  handleBattleFinished() {
+    this.fetchLeaderboard().catch((error) => {
+      console.error('[pvp] refresh leaderboard after battle failed', error);
+    });
   },
 
   formatDateTime
