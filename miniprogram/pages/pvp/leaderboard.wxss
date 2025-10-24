@@ -143,6 +143,8 @@
   flex-direction: column;
   gap: 12rpx;
   margin-left: 12rpx;
+  justify-content: center;
+  align-items: stretch;
 }
 
 .board-action {
@@ -153,7 +155,3 @@
   padding: 0 24rpx;
 }
 
-.board-action--ghost {
-  background: transparent;
-  border: 2rpx solid rgba(255, 255, 255, 0.4);
-}
