@@ -1,9 +1,10 @@
-import { MemberService } from '../../services/api';
+import { MemberService, PveService } from '../../services/api';
 import {
   ensureWatcher as ensureMemberWatcher,
   subscribe as subscribeMemberRealtime
 } from '../../services/member-realtime';
 import { formatCurrency, formatExperience, levelBadgeColor } from '../../utils/format';
+import { syncStorageBadgeStateFromProfile } from '../../utils/storage-notifications';
 
 function normalizePercentage(progress) {
   if (!progress || typeof progress.percentage !== 'number') {
@@ -329,6 +330,15 @@ Page({
     }
   },
 
+  async refreshStorageBadgeState() {
+    try {
+      const profile = await PveService.profile();
+      syncStorageBadgeStateFromProfile(profile);
+    } catch (error) {
+      console.warn('[membership] refresh storage badge failed', error);
+    }
+  },
+
   refreshVisibility() {
     const options = {
       currentLevel: this.data.currentLevel,
@@ -349,7 +359,7 @@ Page({
     wx.showLoading({ title: '领取中...', mask: true });
     try {
       await MemberService.claimLevelReward(levelId);
-      await this.fetchData({ showLoading: false });
+      await Promise.all([this.fetchData({ showLoading: false }), this.refreshStorageBadgeState()]);
       wx.hideLoading();
       wx.showToast({ title: '领取成功', icon: 'success' });
     } catch (error) {

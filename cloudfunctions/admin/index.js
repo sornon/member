@@ -107,6 +107,8 @@ const ACTIONS = {
   PREVIEW_CLEANUP_ORPHAN_DATA: 'previewCleanupOrphanData',
   CLEANUP_BATTLE_RECORDS: 'cleanupBattleRecords',
   PREVIEW_CLEANUP_BATTLE_RECORDS: 'previewCleanupBattleRecords',
+  CLEANUP_TEST_MEMBERS: 'cleanupTestMembers',
+  PREVIEW_CLEANUP_TEST_MEMBERS: 'previewCleanupTestMembers',
   GET_SYSTEM_FEATURES: 'getSystemFeatures',
   UPDATE_SYSTEM_FEATURE: 'updateSystemFeature',
   UPDATE_IMMORTAL_TOURNAMENT_SETTINGS: 'updateImmortalTournamentSettings',
@@ -167,6 +169,12 @@ const ACTION_ALIASES = {
   previewcleanupbattlerecords: ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS,
   scanbattlerecords: ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS,
   previewbattlerecords: ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS,
+  cleantestmembers: ACTIONS.CLEANUP_TEST_MEMBERS,
+  cleantestaccounts: ACTIONS.CLEANUP_TEST_MEMBERS,
+  cleanupTestMembers: ACTIONS.CLEANUP_TEST_MEMBERS,
+  scantestmembers: ACTIONS.PREVIEW_CLEANUP_TEST_MEMBERS,
+  previewcleantestmembers: ACTIONS.PREVIEW_CLEANUP_TEST_MEMBERS,
+  previewcleanuptestmembers: ACTIONS.PREVIEW_CLEANUP_TEST_MEMBERS,
   getsystemfeatures: ACTIONS.GET_SYSTEM_FEATURES,
   systemfeatures: ACTIONS.GET_SYSTEM_FEATURES,
   updatesystemfeature: ACTIONS.UPDATE_SYSTEM_FEATURE,
@@ -278,6 +286,8 @@ const ACTION_HANDLERS = {
   [ACTIONS.PREVIEW_CLEANUP_ORPHAN_DATA]: (openid) => previewCleanupResidualData(openid),
   [ACTIONS.CLEANUP_BATTLE_RECORDS]: (openid) => cleanupBattleRecords(openid),
   [ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS]: (openid) => previewCleanupBattleRecords(openid),
+  [ACTIONS.CLEANUP_TEST_MEMBERS]: (openid) => cleanupTestMembers(openid),
+  [ACTIONS.PREVIEW_CLEANUP_TEST_MEMBERS]: (openid) => previewCleanupTestMembers(openid),
   [ACTIONS.GET_SYSTEM_FEATURES]: (openid) => getSystemFeatures(openid),
   [ACTIONS.UPDATE_SYSTEM_FEATURE]: (openid, event) => updateSystemFeature(openid, event),
   [ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS]: (openid, event = {}) =>
@@ -2987,6 +2997,36 @@ async function previewCleanupBattleRecords(openid) {
   return cleanupBattleRecords(openid, { previewOnly: true });
 }
 
+async function previewCleanupTestMembers(openid) {
+  await ensureAdmin(openid);
+
+  const members = await listTestMembers();
+  if (!members.length) {
+    return {
+      memberCount: 0,
+      totalRemoved: 0,
+      summary: { preview: {}, errors: [] },
+      previewOnly: true
+    };
+  }
+
+  const memberIds = members
+    .map((member) => normalizeMemberIdValue(member && member._id))
+    .filter(Boolean);
+  const previewSummary = await summarizeTestMemberAssociations(memberIds);
+  const totalRemoved = Object.keys(previewSummary).reduce((acc, key) => {
+    const value = Number(previewSummary[key]);
+    return acc + (Number.isFinite(value) ? value : 0);
+  }, 0);
+
+  return {
+    memberCount: memberIds.length,
+    totalRemoved,
+    summary: { preview: previewSummary, errors: [] },
+    previewOnly: true
+  };
+}
+
 async function cleanupBattleRecords(openid, options = {}) {
   await ensureAdmin(openid);
 
@@ -3034,6 +3074,58 @@ async function cleanupBattleRecords(openid, options = {}) {
     processedCollections: Array.from(processedCollections),
     summary,
     previewOnly
+  };
+}
+
+async function cleanupTestMembers(openid) {
+  await ensureAdmin(openid);
+
+  const members = await listTestMembers();
+  if (!members.length) {
+    return {
+      memberCount: 0,
+      totalRemoved: 0,
+      summary: { removed: {}, errors: [] },
+      previewOnly: false
+    };
+  }
+
+  const memberIds = members
+    .map((member) => normalizeMemberIdValue(member && member._id))
+    .filter(Boolean);
+  const summary = { removed: {}, errors: [] };
+
+  const cleanupTasks = memberIds.map((memberId) => async () => {
+    try {
+      return await cleanupMemberData(memberId);
+    } catch (error) {
+      return { error, memberId };
+    }
+  });
+
+  const results = await runTasksWithConcurrency(cleanupTasks, CLEANUP_TASK_CONCURRENCY);
+
+  results.forEach((result) => {
+    if (!result) {
+      return;
+    }
+    if (result.error) {
+      pushCleanupError(summary, COLLECTIONS.MEMBERS, result.error, result.memberId);
+      return;
+    }
+    mergeCleanupSummary(summary, result);
+  });
+
+  const totalRemoved = Object.keys(summary.removed || {}).reduce((acc, key) => {
+    const value = Number(summary.removed[key]);
+    return acc + (Number.isFinite(value) ? value : 0);
+  }, 0);
+
+  return {
+    memberCount: memberIds.length,
+    totalRemoved,
+    summary,
+    previewOnly: false
   };
 }
 
@@ -3168,41 +3260,333 @@ async function cleanupResidualMemberData(openid, options = {}) {
   };
 }
 
+async function listTestMembers() {
+  const collection = db.collection(COLLECTIONS.MEMBERS);
+  const pageSize = 100;
+  let skip = 0;
+  const members = [];
+
+  while (true) {
+    let snapshot;
+    try {
+      snapshot = await collection
+        .where({ roles: _.all(['test']) })
+        .orderBy('_id', 'asc')
+        .skip(skip)
+        .limit(pageSize)
+        .field({ _id: true, roles: true })
+        .get();
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        break;
+      }
+      console.error('[admin] list test members failed', error);
+      break;
+    }
+
+    const docs = (snapshot && Array.isArray(snapshot.data)) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+
+    docs.forEach((doc) => {
+      const id = normalizeMemberIdValue(doc && doc._id);
+      const roles = Array.isArray(doc && doc.roles) ? doc.roles.filter(Boolean) : [];
+      if (id && roles.includes('test') && !roles.some((role) => ADMIN_ROLES.includes(role))) {
+        members.push({ _id: id, roles });
+      }
+    });
+
+    if (docs.length < pageSize) {
+      break;
+    }
+    skip += pageSize;
+  }
+
+  return members;
+}
+
+async function summarizeTestMemberAssociations(memberIds) {
+  const preview = {};
+  const ids = Array.isArray(memberIds) ? memberIds.filter(Boolean) : [];
+  if (!ids.length) {
+    return preview;
+  }
+
+  preview[COLLECTIONS.MEMBERS] = ids.length;
+
+  const timelineIds = await collectDocumentIdsForMembers(COLLECTIONS.MEMBER_TIMELINE, ids, {
+    fieldPaths: ['memberId']
+  });
+  if (timelineIds.size) {
+    preview[COLLECTIONS.MEMBER_TIMELINE] = timelineIds.size;
+  }
+
+  const extrasIds = await collectDocumentIdsForMembers(COLLECTIONS.MEMBER_EXTRAS, ids, {
+    useDocId: true
+  });
+  if (extrasIds.size) {
+    preview[COLLECTIONS.MEMBER_EXTRAS] = extrasIds.size;
+  }
+
+  const pveHistoryIds = await collectDocumentIdsForMembers(COLLECTIONS.MEMBER_PVE_HISTORY, ids, {
+    useDocId: true
+  });
+  if (pveHistoryIds.size) {
+    preview[COLLECTIONS.MEMBER_PVE_HISTORY] = pveHistoryIds.size;
+  }
+
+  const reservationsIds = await collectDocumentIdsForMembers(COLLECTIONS.RESERVATIONS, ids, {
+    fieldPaths: ['memberId']
+  });
+  if (reservationsIds.size) {
+    preview[COLLECTIONS.RESERVATIONS] = reservationsIds.size;
+  }
+
+  const rightsIds = await collectDocumentIdsForMembers(COLLECTIONS.MEMBER_RIGHTS, ids, {
+    fieldPaths: ['memberId']
+  });
+  if (rightsIds.size) {
+    preview[COLLECTIONS.MEMBER_RIGHTS] = rightsIds.size;
+  }
+
+  const walletIds = await collectDocumentIdsForMembers(COLLECTIONS.WALLET_TRANSACTIONS, ids, {
+    fieldPaths: ['memberId']
+  });
+  if (walletIds.size) {
+    preview[COLLECTIONS.WALLET_TRANSACTIONS] = walletIds.size;
+  }
+
+  const stoneIds = await collectDocumentIdsForMembers(COLLECTIONS.STONE_TRANSACTIONS, ids, {
+    fieldPaths: ['memberId']
+  });
+  if (stoneIds.size) {
+    preview[COLLECTIONS.STONE_TRANSACTIONS] = stoneIds.size;
+  }
+
+  const taskIds = await collectDocumentIdsForMembers(COLLECTIONS.TASK_RECORDS, ids, {
+    fieldPaths: ['memberId']
+  });
+  if (taskIds.size) {
+    preview[COLLECTIONS.TASK_RECORDS] = taskIds.size;
+  }
+
+  const couponIds = await collectDocumentIdsForMembers(COLLECTIONS.COUPON_RECORDS, ids, {
+    fieldPaths: ['memberId']
+  });
+  if (couponIds.size) {
+    preview[COLLECTIONS.COUPON_RECORDS] = couponIds.size;
+  }
+
+  const chargeIds = await collectDocumentIdsForMembers(COLLECTIONS.CHARGE_ORDERS, ids, {
+    fieldPaths: ['memberId']
+  });
+  if (chargeIds.size) {
+    preview[COLLECTIONS.CHARGE_ORDERS] = chargeIds.size;
+  }
+
+  const menuOrderIds = await collectDocumentIdsForMembers(COLLECTIONS.MENU_ORDERS, ids, {
+    fieldPaths: ['memberId']
+  });
+  if (menuOrderIds.size) {
+    preview[COLLECTIONS.MENU_ORDERS] = menuOrderIds.size;
+  }
+
+  const errorLogIds = await collectDocumentIdsForMembers(COLLECTIONS.ERROR_LOGS, ids, {
+    fieldPaths: ['memberId']
+  });
+  if (errorLogIds.size) {
+    preview[COLLECTIONS.ERROR_LOGS] = errorLogIds.size;
+  }
+
+  const pvpInviteIds = await collectDocumentIdsForMembers(COLLECTIONS.PVP_INVITES, ids, {
+    fieldPaths: ['inviterId', 'opponentId']
+  });
+  if (pvpInviteIds.size) {
+    preview[COLLECTIONS.PVP_INVITES] = pvpInviteIds.size;
+  }
+
+  const pvpMatchIds = await collectDocumentIdsForMembers(COLLECTIONS.PVP_MATCHES, ids, {
+    fieldPaths: ['player.memberId', 'opponent.memberId']
+  });
+  if (pvpMatchIds.size) {
+    preview[COLLECTIONS.PVP_MATCHES] = pvpMatchIds.size;
+  }
+
+  const pvpProfileIds = await collectDocumentIdsForMembers(COLLECTIONS.PVP_PROFILES, ids, {
+    useDocId: true
+  });
+  if (pvpProfileIds.size) {
+    preview[COLLECTIONS.PVP_PROFILES] = pvpProfileIds.size;
+  }
+
+  const leaderboardSummary = await summarizePvpLeaderboardForMembers(ids);
+  if (leaderboardSummary.docCount > 0) {
+    preview[COLLECTIONS.PVP_LEADERBOARD] = leaderboardSummary.docCount;
+  }
+  if (leaderboardSummary.entryCount > 0) {
+    preview.pvpLeaderboardEntries = leaderboardSummary.entryCount;
+  }
+
+  return preview;
+}
+
+async function collectDocumentIdsForMembers(collectionName, memberIds, options = {}) {
+  const ids = Array.isArray(memberIds) ? memberIds.filter(Boolean) : [];
+  if (!ids.length) {
+    return new Set();
+  }
+
+  const useDocId = Boolean(options && options.useDocId);
+  if (useDocId) {
+    const collected = new Set();
+    for (const memberId of ids) {
+      try {
+        const snapshot = await db.collection(collectionName).doc(memberId).field({ _id: true }).get();
+        if (snapshot && snapshot.data && snapshot.data._id) {
+          collected.add(memberId);
+        }
+      } catch (error) {
+        if (!isNotFoundError(error)) {
+          console.error(`[admin] lookup ${collectionName} for member failed`, memberId, error);
+        }
+      }
+    }
+    return collected;
+  }
+
+  const fieldPaths = Array.isArray(options && options.fieldPaths)
+    ? options.fieldPaths.map((field) => (typeof field === 'string' ? field.trim() : '')).filter(Boolean)
+    : [];
+  if (!fieldPaths.length) {
+    return new Set();
+  }
+
+  const collected = new Set();
+  const batchSize = 10;
+  const fetchLimit = 100;
+
+  for (let offset = 0; offset < ids.length; offset += batchSize) {
+    const batch = ids.slice(offset, offset + batchSize);
+    const conditions = fieldPaths.map((field) => ({ [field]: _.in(batch) }));
+    const whereCondition = conditions.length === 1 ? conditions[0] : _.or(conditions);
+    let skip = 0;
+
+    while (true) {
+      let snapshot;
+      try {
+        snapshot = await db
+          .collection(collectionName)
+          .where(whereCondition)
+          .orderBy('_id', 'asc')
+          .skip(skip)
+          .limit(fetchLimit)
+          .field({ _id: true })
+          .get();
+      } catch (error) {
+        if (!isNotFoundError(error)) {
+          console.error(`[admin] query ${collectionName} for members failed`, error);
+        }
+        break;
+      }
+
+      const docs = (snapshot && Array.isArray(snapshot.data)) ? snapshot.data : [];
+      if (!docs.length) {
+        break;
+      }
+
+      docs.forEach((doc) => {
+        const docId = normalizeMemberIdValue(doc && doc._id);
+        if (docId) {
+          collected.add(docId);
+        }
+      });
+
+      if (docs.length < fetchLimit) {
+        break;
+      }
+      skip += fetchLimit;
+    }
+  }
+
+  return collected;
+}
+
+async function summarizePvpLeaderboardForMembers(memberIds) {
+  const ids = Array.isArray(memberIds) ? memberIds.filter(Boolean) : [];
+  if (!ids.length) {
+    return { docCount: 0, entryCount: 0 };
+  }
+
+  const memberSet = new Set(ids.map((id) => normalizeMemberIdValue(id)).filter(Boolean));
+  let snapshot;
+  try {
+    snapshot = await db.collection(COLLECTIONS.PVP_LEADERBOARD).get();
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      console.error('[admin] load pvp leaderboard failed', error);
+    }
+    return { docCount: 0, entryCount: 0 };
+  }
+
+  const docs = (snapshot && Array.isArray(snapshot.data)) ? snapshot.data : [];
+  let docCount = 0;
+  let entryCount = 0;
+
+  docs.forEach((doc) => {
+    const entries = Array.isArray(doc && doc.entries) ? doc.entries : [];
+    let affected = false;
+    entries.forEach((entry) => {
+      const candidate = normalizeMemberIdValue(
+        entry && (entry.memberId || entry._id || entry.id || entry.memberID)
+      );
+      if (candidate && memberSet.has(candidate)) {
+        affected = true;
+        entryCount += 1;
+      }
+    });
+    if (affected) {
+      docCount += 1;
+    }
+  });
+
+  return { docCount, entryCount };
+}
+
 async function cleanupMemberData(memberId) {
   const summary = { removed: {}, errors: [] };
 
-  await removeCollectionByMemberId(COLLECTIONS.MEMBER_TIMELINE, memberId, summary);
-  await removeMemberExtrasDocument(memberId, summary);
-  await removeMemberPveHistoryDocument(memberId, summary);
+  const removalResults = await Promise.all([
+    removeCollectionByMemberId(COLLECTIONS.MEMBER_TIMELINE, memberId, summary),
+    removeMemberExtrasDocument(memberId, summary),
+    removeMemberPveHistoryDocument(memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.RESERVATIONS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.MEMBER_RIGHTS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.WALLET_TRANSACTIONS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.STONE_TRANSACTIONS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.TASK_RECORDS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.COUPON_RECORDS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.CHARGE_ORDERS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.MENU_ORDERS, memberId, summary),
+    removeCollectionByMemberId(COLLECTIONS.ERROR_LOGS, memberId, summary),
+    removeCollectionByMemberIdFields(
+      COLLECTIONS.PVP_INVITES,
+      ['inviterId', 'opponentId'],
+      memberId,
+      summary
+    ),
+    removeCollectionByMemberIdFields(
+      COLLECTIONS.PVP_MATCHES,
+      ['player.memberId', 'opponent.memberId'],
+      memberId,
+      summary
+    ),
+    removeDocumentById(COLLECTIONS.PVP_PROFILES, memberId, summary),
+    removeMemberFromPvpLeaderboard(memberId, summary),
+    removeDocumentById(COLLECTIONS.MEMBERS, memberId, summary)
+  ]);
 
-  const reservationsRemoved = await removeCollectionByMemberId(COLLECTIONS.RESERVATIONS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.MEMBER_RIGHTS, memberId, summary);
-
-  await removeCollectionByMemberId(COLLECTIONS.WALLET_TRANSACTIONS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.STONE_TRANSACTIONS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.TASK_RECORDS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.COUPON_RECORDS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.CHARGE_ORDERS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.MENU_ORDERS, memberId, summary);
-  await removeCollectionByMemberId(COLLECTIONS.ERROR_LOGS, memberId, summary);
-
-  await removeCollectionByMemberIdFields(
-    COLLECTIONS.PVP_INVITES,
-    ['inviterId', 'opponentId'],
-    memberId,
-    summary
-  );
-  await removeCollectionByMemberIdFields(
-    COLLECTIONS.PVP_MATCHES,
-    ['player.memberId', 'opponent.memberId'],
-    memberId,
-    summary
-  );
-  await removeDocumentById(COLLECTIONS.PVP_PROFILES, memberId, summary);
-  await removeMemberFromPvpLeaderboard(memberId, summary);
-
-  await removeDocumentById(COLLECTIONS.MEMBERS, memberId, summary);
-
+  const reservationsRemoved = Number(removalResults[3]) || 0;
   if (reservationsRemoved > 0) {
     await updateAdminReservationBadges({ incrementVersion: true });
   }
@@ -4461,6 +4845,34 @@ async function removeDocumentById(collectionName, docId, summary) {
   }
 }
 
+function mergeCleanupSummary(target, source) {
+  if (!target || !source || typeof source !== 'object') {
+    return;
+  }
+  if (source.removed && typeof source.removed === 'object') {
+    target.removed = target.removed && typeof target.removed === 'object' ? target.removed : {};
+    Object.keys(source.removed).forEach((key) => {
+      const value = Number(source.removed[key]);
+      if (Number.isFinite(value) && value > 0) {
+        target.removed[key] = (target.removed[key] || 0) + value;
+      }
+    });
+  }
+  if (source.preview && typeof source.preview === 'object') {
+    target.preview = target.preview && typeof target.preview === 'object' ? target.preview : {};
+    Object.keys(source.preview).forEach((key) => {
+      const value = Number(source.preview[key]);
+      if (Number.isFinite(value) && value > 0) {
+        target.preview[key] = (target.preview[key] || 0) + value;
+      }
+    });
+  }
+  if (Array.isArray(source.errors) && source.errors.length) {
+    target.errors = Array.isArray(target.errors) ? target.errors : [];
+    target.errors.push(...source.errors);
+  }
+}
+
 async function runTasksWithConcurrency(taskFactories, concurrency = 3) {
   if (!Array.isArray(taskFactories) || taskFactories.length === 0) {
     return [];
@@ -4807,7 +5219,7 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'roles')) {
     const roles = Array.isArray(updates.roles) ? updates.roles : [];
-    const filtered = roles.filter((role) => ['member', 'admin', 'developer'].includes(role));
+    const filtered = roles.filter((role) => ['member', 'admin', 'developer', 'test'].includes(role));
     memberUpdates.roles = filtered.length ? filtered : ['member'];
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'avatarUnlocks')) {

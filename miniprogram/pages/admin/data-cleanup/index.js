@@ -24,6 +24,12 @@ const COLLECTION_LABELS = {
 };
 
 const CLEANUP_COLLECTION_METADATA = {
+  members: {
+    collection: 'members',
+    indexes: ['_id'],
+    description: '会员基础档案',
+    reason: '删除测试账号时需移除账号主体信息'
+  },
   memberTimeline: {
     collection: 'memberTimeline',
     indexes: ['memberId'],
@@ -266,6 +272,10 @@ Page({
     previewAt: '',
     preview: null,
     result: null,
+    testPreviewAt: '',
+    testFinishedAt: '',
+    testPreview: null,
+    testResult: null,
     battlePreviewAt: '',
     battleFinishedAt: '',
     battlePreview: null,
@@ -277,6 +287,13 @@ Page({
       return;
     }
     this.runScan();
+  },
+
+  handleTestScanTap() {
+    if (this.data.loading) {
+      return;
+    }
+    this.runTestScan();
   },
 
   async runScan() {
@@ -309,6 +326,37 @@ Page({
     }
   },
 
+  async runTestScan() {
+    this.setData({ loading: true, loadingAction: 'scanTest' });
+    try {
+      const response = await AdminService.previewCleanupTestMembers();
+      const testPreview = normalizePreviewResult(response || {});
+      this.setData({
+        loading: false,
+        loadingAction: '',
+        testPreview,
+        testPreviewAt: formatTimestamp(new Date()),
+        testResult: null,
+        testFinishedAt: ''
+      });
+      const hasMembers = testPreview.memberCount > 0;
+      wx.showToast({
+        title: hasMembers ? '扫描完成' : '未发现测试账号',
+        icon: hasMembers ? 'success' : 'none'
+      });
+    } catch (error) {
+      console.error('[admin:data-cleanup:test-scan]', error);
+      this.setData({ loading: false, loadingAction: '' });
+      wx.showToast({
+        title:
+          error && (error.errMsg || error.message)
+            ? error.errMsg || error.message
+            : '测试账号扫描失败，请稍后再试',
+        icon: 'none'
+      });
+    }
+  },
+
   handleCleanupTap() {
     if (this.data.loading) {
       return;
@@ -326,6 +374,28 @@ Page({
       success: (res) => {
         if (res.confirm) {
           this.runCleanup();
+        }
+      }
+    });
+  },
+
+  handleTestCleanupTap() {
+    if (this.data.loading) {
+      return;
+    }
+    const testPreview = this.data.testPreview;
+    if (!testPreview || testPreview.memberCount <= 0) {
+      wx.showToast({ title: '请先扫描测试账号', icon: 'none' });
+      return;
+    }
+    wx.showModal({
+      title: '确认清理测试账号？',
+      content: '系统将删除所有带有测试标签的账号及关联数据，该操作不可撤销。',
+      confirmText: '确认清理',
+      cancelText: '再考虑下',
+      success: (res) => {
+        if (res.confirm) {
+          this.runTestCleanup();
         }
       }
     });
@@ -350,6 +420,33 @@ Page({
       this.setData({ loading: false, loadingAction: '' });
       wx.showToast({
         title: error && (error.errMsg || error.message) ? error.errMsg || error.message : '清理失败，请稍后再试',
+        icon: 'none'
+      });
+    }
+  },
+
+  async runTestCleanup() {
+    this.setData({ loading: true, loadingAction: 'cleanupTest' });
+    try {
+      const response = await AdminService.cleanupTestMembers();
+      const testResult = normalizeCleanupResult(response || {});
+      this.setData({
+        loading: false,
+        loadingAction: '',
+        testResult,
+        testFinishedAt: formatTimestamp(new Date()),
+        testPreview: null,
+        testPreviewAt: ''
+      });
+      wx.showToast({ title: '测试账号清理完成', icon: 'success' });
+    } catch (error) {
+      console.error('[admin:data-cleanup:test]', error);
+      this.setData({ loading: false, loadingAction: '' });
+      wx.showToast({
+        title:
+          error && (error.errMsg || error.message)
+            ? error.errMsg || error.message
+            : '清理测试账号失败，请稍后再试',
         icon: 'none'
       });
     }

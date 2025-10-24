@@ -242,7 +242,8 @@ Page({
     roleOptions: [
       { value: 'member', label: '会员', checked: false, disabled: true },
       { value: 'admin', label: '管理员', checked: false },
-      { value: 'developer', label: '开发', checked: false }
+      { value: 'developer', label: '开发', checked: false },
+      { value: 'test', label: '测试', checked: false }
     ],
     avatarOptionGroups: buildAvatarOptionGroups([]),
     form: {

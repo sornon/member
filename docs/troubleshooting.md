@@ -142,8 +142,8 @@ Error: TencentCloud API error: {
 
 **原因分析**
 
-1. 小程序使用 `wx.getUserProfile` 主动获取头像昵称信息（`pages/index/index.js` 的 `handleRequestUserProfile` 与 `handleAvatarPickerSyncWechat`）。该接口只要在按钮点击等用户触发场景中调用，就会返回 `userInfo`。【F:miniprogram/pages/index/index.js†L1366-L1393】【F:miniprogram/pages/index/index.js†L1529-L1565】
-2. 当用户首次同意授权后，微信会缓存授权结果，再次调用 `wx.getUserProfile` 时直接返回上次授权的数据，不会重复弹窗；项目也会把 `authorizationStatus.profileAuthorized` 置为 `true`，在引导界面展示“已授权微信昵称”的状态。【F:miniprogram/pages/index/index.js†L1548-L1565】【F:miniprogram/pages/index/index.js†L968-L1008】
+1. 小程序使用 `wx.getUserProfile` 主动获取头像昵称信息（`pages/index/index.js` 的 `handleRequestUserProfile`）。该接口只要在按钮点击等用户触发场景中调用，就会返回 `userInfo`。【F:miniprogram/pages/index/index.js†L1680-L1705】
+2. 当用户首次同意授权后，微信会缓存授权结果，再次调用 `wx.getUserProfile` 时直接返回上次授权的数据，不会重复弹窗；项目也会把 `authorizationStatus.profileAuthorized` 置为 `true`，在引导界面展示“已授权微信昵称”的状态。【F:miniprogram/pages/index/index.js†L1680-L1705】【F:miniprogram/pages/index/index.js†L1041-L1048】
 
 **处理建议**
 

@@ -34,6 +34,34 @@ function getCurrentMemberId() {
   return '';
 }
 
+function resolveClientEnvPayload() {
+  if (typeof wx === 'undefined' || !wx || typeof wx.getAccountInfoSync !== 'function') {
+    return null;
+  }
+  try {
+    const accountInfo = wx.getAccountInfoSync();
+    const miniProgram = accountInfo && accountInfo.miniProgram ? accountInfo.miniProgram : {};
+    const envVersion = typeof miniProgram.envVersion === 'string' ? miniProgram.envVersion.trim() : '';
+    if (!envVersion) {
+      return null;
+    }
+    return { envVersion };
+  } catch (error) {
+    console.warn('[api] resolve client env failed', error);
+  }
+  return null;
+}
+
+function attachClientEnv(data = {}) {
+  const payload = { ...(data || {}) };
+  const clientEnv = resolveClientEnvPayload();
+  if (clientEnv) {
+    payload.clientEnv = clientEnv;
+    payload.clientEnvVersion = clientEnv.envVersion;
+  }
+  return payload;
+}
+
 function sanitizeValue(value) {
   if (value === null || typeof value === 'undefined') {
     return value;
@@ -136,16 +164,19 @@ const callCloud = async (name, data = {}, options = {}) => {
 
 export const MemberService = {
   async initMember(profile) {
-    return callCloud(CLOUD_FUNCTIONS.MEMBER, {
-      action: 'init',
-      profile
-    });
+    return callCloud(
+      CLOUD_FUNCTIONS.MEMBER,
+      attachClientEnv({
+        action: 'init',
+        profile
+      })
+    );
   },
   async getMember() {
-    return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'profile' });
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, attachClientEnv({ action: 'profile' }));
   },
   async getLevelProgress() {
-    return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'progress' });
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, attachClientEnv({ action: 'progress' }));
   },
   async claimLevelReward(levelId) {
     return callCloud(CLOUD_FUNCTIONS.MEMBER, {
@@ -157,10 +188,10 @@ export const MemberService = {
     return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'rights' });
   },
   async completeProfile(profile = {}, options = {}) {
-    const payload = {
+    const payload = attachClientEnv({
       action: 'completeProfile',
       profile
-    };
+    });
     if (options.phoneCloudId) {
       payload.phone = wx.cloud.CloudID(options.phoneCloudId);
     }
@@ -699,6 +730,16 @@ export const AdminService = {
   async cleanupBattleRecords() {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'cleanupBattleRecords'
+    });
+  },
+  async previewCleanupTestMembers() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'previewCleanupTestMembers'
+    });
+  },
+  async cleanupTestMembers() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'cleanupTestMembers'
     });
   },
   async getSystemFeatures() {
