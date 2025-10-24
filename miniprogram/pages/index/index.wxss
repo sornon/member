@@ -139,8 +139,8 @@ page {
 
 .profile-avatar__dot {
   position: absolute;
-  top: 10rpx;
-  right: 10rpx;
+  top: 8rpx;
+  right: 8rpx;
   transform: translate(45%, -45%);
 }
 
