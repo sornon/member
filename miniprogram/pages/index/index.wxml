@@ -63,17 +63,23 @@
         <view class="profile-other">
             <view class="profile-meta__item" bindtap="handleLevelTap">
               <text class="profile-meta__text">境界 {{member ? (member.level ? member.level.name : '练气初期') : '练气初期'}}</text>
-              <view wx:if="{{realmHasPendingRewards}}" class="badge-dot profile-meta__dot"></view>
+              <view wx:if="{{badgeIndicators.profileRealm}}" class="badge-dot profile-meta__dot"></view>
             </view>
             <text class="profile-meta__text" bindtap="handleCombatPowerTap">战力 {{memberStats.combatPower}}</text>
-            <text class="profile-meta__text" bindtap="handleStoneTap">灵石 {{memberStats.stoneBalance}}</text>
+            <view class="profile-meta__item profile-meta__item--stone" bindtap="handleStoneTap">
+              <text class="profile-meta__text">灵石 {{memberStats.stoneBalance}}</text>
+              <view wx:if="{{badgeIndicators.profileStones}}" class="badge-dot profile-meta__dot"></view>
+            </view>
         </view>
       </view>
 
       <view class="top-bar__actions">
         <view class="activity-panel">
           <view class="activity-item" wx:for="{{activityIcons}}" wx:key="label" data-url="{{item.url}}" data-label="{{item.label}}" bindtap="handleActivityTap">
-            <view class="activity-icon">{{item.icon}}</view>
+            <view class="activity-icon-wrapper">
+              <view class="activity-icon">{{item.icon}}</view>
+              <view wx:if="{{item.showDot}}" class="badge-dot activity-item__dot"></view>
+            </view>
             <view class="activity-label">{{item.label}}</view>
           </view>
         </view>

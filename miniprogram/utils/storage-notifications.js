@@ -4,6 +4,7 @@ const STORAGE_BADGE_STORAGE_KEY = 'storageBadgeState';
 const FALLBACK_STATE = {
   acknowledged: {},
   latest: {},
+  meta: {},
   initialized: false
 };
 
@@ -14,8 +15,10 @@ function snapshotState(state) {
       : {};
   const latest =
     state && state.latest && typeof state.latest === 'object' ? { ...state.latest } : {};
+  const meta =
+    state && state.meta && typeof state.meta === 'object' ? { ...state.meta } : {};
   const initialized = !!(state && state.initialized);
-  return { acknowledged, latest, initialized };
+  return { acknowledged, latest, meta, initialized };
 }
 
 function readPersistedState() {
@@ -74,6 +77,7 @@ function ensureState() {
         FALLBACK_STATE.acknowledged = persisted.acknowledged;
         FALLBACK_STATE.latest = persisted.latest;
         FALLBACK_STATE.initialized = persisted.initialized;
+        FALLBACK_STATE.meta = persisted.meta || {};
       }
       Object.defineProperty(FALLBACK_STATE, '_hydratedFromStorage', {
         value: true,
@@ -88,6 +92,7 @@ function ensureState() {
     app.globalData.storageBadge = {
       acknowledged: {},
       latest: {},
+      meta: {},
       initialized: false
     };
     return app.globalData.storageBadge;
@@ -97,6 +102,9 @@ function ensureState() {
   }
   if (!globalState.latest || typeof globalState.latest !== 'object') {
     globalState.latest = {};
+  }
+  if (!globalState.meta || typeof globalState.meta !== 'object') {
+    globalState.meta = {};
   }
   if (typeof globalState.initialized !== 'boolean') {
     globalState.initialized = false;
@@ -112,6 +120,9 @@ function ensureState() {
       }
       Object.assign(globalState.acknowledged, persisted.acknowledged);
       Object.assign(globalState.latest, persisted.latest);
+      if (persisted.meta && typeof persisted.meta === 'object') {
+        Object.assign(globalState.meta, persisted.meta);
+      }
       if (persisted.initialized) {
         globalState.initialized = true;
       }
@@ -132,6 +143,7 @@ function writeState(state) {
     FALLBACK_STATE.acknowledged = snapshot.acknowledged;
     FALLBACK_STATE.latest = snapshot.latest;
     FALLBACK_STATE.initialized = snapshot.initialized;
+    FALLBACK_STATE.meta = snapshot.meta;
     persistState(snapshot);
     return;
   }
