@@ -78,7 +78,8 @@
 
 .cache-card .ghost-button {
   flex-shrink: 0;
-  min-width: 200rpx;
+  min-width: 40rpx;
+  width:180rpx;
 }
 
 .switch-card {

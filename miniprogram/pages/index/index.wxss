@@ -139,8 +139,8 @@ page {
 
 .profile-avatar__dot {
   position: absolute;
-  top: 0;
-  right: 0;
+  top: 10rpx;
+  right: 10rpx;
   transform: translate(45%, -45%);
 }
 
@@ -180,7 +180,7 @@ page {
 .profile-name__dot {
   position: absolute;
   top: 8rpx;
-  right: 8rpx;
+  right: 26rpx;
   transform: translate(50%, -50%);
 }
 
