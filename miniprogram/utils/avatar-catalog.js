@@ -11,10 +11,11 @@ const RARITY_LABELS = {
   c: 'C',
   b: 'B',
   a: 'A',
-  s: 'S'
+  s: 'S',
+  sss: 'SSS'
 };
 
-const RARITY_ORDER = ['c', 'b', 'a', 's'];
+const RARITY_ORDER = ['c', 'b', 'a', 's', 'sss'];
 
 const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
 

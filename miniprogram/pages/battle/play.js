@@ -28,6 +28,29 @@ function buildCharacterImageMap() {
 
 const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
+const PORTRAIT_NESTED_KEYS = [
+  'memberSnapshot',
+  'snapshot',
+  'profile',
+  'appearance',
+  'member',
+  'player',
+  'self',
+  'opponent',
+  'enemy',
+  'target',
+  'character',
+  'owner',
+  'source',
+  'data',
+  'details',
+  'info',
+  'participant',
+  'participants',
+  'preview',
+  'opponentPreview',
+  'enemyPreview'
+];
 
 function toFiniteNumber(value, fallback = 0) {
   const number = Number(value);
@@ -447,8 +470,8 @@ function resolveCharacterPortraitFromAvatarUrl(url) {
   return '';
 }
 
-function resolvePortraitCandidate(candidate) {
-  if (!candidate) {
+function resolvePortraitCandidate(candidate, visited = new Set()) {
+  if (candidate === null || candidate === undefined) {
     return '';
   }
   if (typeof candidate === 'string') {
@@ -459,12 +482,46 @@ function resolvePortraitCandidate(candidate) {
     const characterPortrait = resolveCharacterPortraitFromAvatarUrl(trimmed);
     return characterPortrait || trimmed;
   }
+  if (Array.isArray(candidate)) {
+    for (let i = 0; i < candidate.length; i += 1) {
+      const resolved = resolvePortraitCandidate(candidate[i], visited);
+      if (resolved) {
+        return resolved;
+      }
+    }
+    return '';
+  }
   if (typeof candidate === 'object') {
-    const directPortrait = resolvePortraitCandidate(candidate.portrait);
+    if (visited.has(candidate)) {
+      return '';
+    }
+    visited.add(candidate);
+    const directPortrait = resolvePortraitCandidate(candidate.portrait, visited);
     if (directPortrait) {
       return directPortrait;
     }
-    return resolvePortraitCandidate(candidate.avatarUrl);
+    const avatarPortrait = resolvePortraitCandidate(candidate.avatarUrl, visited);
+    if (avatarPortrait) {
+      return avatarPortrait;
+    }
+    const legacyAvatarPortrait = resolvePortraitCandidate(candidate.avatar, visited);
+    if (legacyAvatarPortrait) {
+      return legacyAvatarPortrait;
+    }
+    for (let i = 0; i < PORTRAIT_NESTED_KEYS.length; i += 1) {
+      const key = PORTRAIT_NESTED_KEYS[i];
+      if (!Object.prototype.hasOwnProperty.call(candidate, key)) {
+        continue;
+      }
+      const nested = candidate[key];
+      if (!nested) {
+        continue;
+      }
+      const nestedPortrait = resolvePortraitCandidate(nested, visited);
+      if (nestedPortrait) {
+        return nestedPortrait;
+      }
+    }
   }
   return '';
 }
