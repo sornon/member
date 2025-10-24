@@ -863,6 +863,7 @@ Page({
   onLoad() {
     this.hasBootstrapped = false;
     this.hasVisitedOtherPage = false;
+    this.nameBadgeDismissedFromStorage = false;
     this.ensureNavMetrics();
     this.updateToday();
     this.restoreNavExpansionState();
@@ -1060,6 +1061,7 @@ Page({
       });
       this.updateBackgroundDisplay(sanitizedMember, { resetError: true });
       setActiveMember(sanitizedMember);
+      this.syncNameBadgeVisibility(sanitizedMember);
     } catch (err) {
       const width = normalizePercentage(this.data.progress);
       this.setData({
@@ -1071,6 +1073,7 @@ Page({
       });
       this.updateBackgroundDisplay(this.data.member, {});
     }
+    this.syncNameBadgeVisibility();
     this.bootstrapRunning = false;
     if (!this.hasBootstrapped) {
       this.hasBootstrapped = true;
@@ -1102,17 +1105,18 @@ Page({
 
   restoreProfileBadgeState() {
     let avatarDismissed = false;
-    let nameDismissed = false;
     let appearanceState = cloneDefaultAppearanceBadgeState();
+    this.nameBadgeDismissedFromStorage = false;
     try {
       avatarDismissed = wx.getStorageSync(AVATAR_BADGE_STORAGE_KEY) === true;
     } catch (err) {
       // Ignore storage errors and keep the avatar badge visible by default.
     }
     try {
-      nameDismissed = wx.getStorageSync(NAME_BADGE_STORAGE_KEY) === true;
+      this.nameBadgeDismissedFromStorage = wx.getStorageSync(NAME_BADGE_STORAGE_KEY) === true;
     } catch (err) {
       // Ignore storage errors and keep the name badge visible by default.
+      this.nameBadgeDismissedFromStorage = false;
     }
     try {
       const storedAppearanceBadges = wx.getStorageSync(AVATAR_TAB_BADGE_STORAGE_KEY);
@@ -1128,11 +1132,21 @@ Page({
     if (avatarBadgeCleared && this.data.showAvatarBadge) {
       nextState.showAvatarBadge = false;
     }
-    if (nameDismissed && this.data.showNameBadge) {
-      nextState.showNameBadge = false;
-    }
     if (Object.keys(nextState).length > 0) {
       this.setData(nextState);
+    }
+    this.syncNameBadgeVisibility();
+  },
+
+  syncNameBadgeVisibility(memberOverride) {
+    const member = memberOverride || this.data.member;
+    const nickName =
+      member && typeof member.nickName === 'string' ? member.nickName.trim() : '';
+    const hasName = !!nickName;
+    const dismissed = this.nameBadgeDismissedFromStorage === true;
+    const shouldShow = !hasName || !dismissed;
+    if (shouldShow !== this.data.showNameBadge) {
+      this.setData({ showNameBadge: shouldShow });
     }
   },
 
@@ -1196,6 +1210,12 @@ Page({
     if (!this.data.showNameBadge) {
       return;
     }
+    const member = this.data.member || {};
+    const nickName = typeof member.nickName === 'string' ? member.nickName.trim() : '';
+    if (!nickName) {
+      return;
+    }
+    this.nameBadgeDismissedFromStorage = true;
     this.setData({ showNameBadge: false });
     try {
       wx.setStorageSync(NAME_BADGE_STORAGE_KEY, true);
@@ -1498,39 +1518,6 @@ Page({
     });
   },
 
-  handleAvatarPickerSyncWechat() {
-    if (this.data.avatarPickerSaving) {
-      return;
-    }
-    const applyAvatarSelection = (avatarUrl, toastTitle) => {
-      const normalizedAvatar = sanitizeAvatarUrl(avatarUrl || '') || avatarUrl;
-      this.setData({
-        'avatarPicker.avatarUrl': normalizedAvatar,
-        'profileEditor.avatarUrl': normalizedAvatar
-      });
-      this.refreshAvatarPickerOptions();
-      wx.showToast({ title: toastTitle, icon: 'success' });
-    };
-    const applyDefaultAvatar = () => {
-      applyAvatarSelection(DEFAULT_AVATAR, '已使用默认头像');
-    };
-    wx.getUserProfile({
-      desc: '用于同步微信头像',
-      success: (res) => {
-        const info = res && res.userInfo ? res.userInfo : {};
-        const avatarUrl = sanitizeAvatarUrl(info.avatarUrl || '');
-        if (avatarUrl) {
-          applyAvatarSelection(avatarUrl, '已同步微信头像');
-          return;
-        }
-        applyDefaultAvatar();
-      },
-      fail: () => {
-        applyDefaultAvatar();
-      }
-    });
-  },
-
   async handleAvatarPickerConfirm() {
     if (this.data.avatarPickerSaving) {
       return;
@@ -1668,6 +1655,7 @@ Page({
       activeTitleImage: buildTitleImageUrl(sanitizedMember.appearanceTitle)
     });
     this.updateBackgroundDisplay(sanitizedMember, { resetError: true });
+    this.syncNameBadgeVisibility(sanitizedMember);
     if (this.data.showAvatarPicker) {
       this.refreshAvatarPickerOptions();
     }

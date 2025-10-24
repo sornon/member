@@ -284,7 +284,6 @@
                 <image class="avatar-option__image" src="{{item.url}}" mode="aspectFill"></image>
               </view>
             </view>
-            <button class="archive-action" size="mini" bindtap="handleAvatarPickerSyncWechat">同步微信头像</button>
           </view>
           <view wx:elif="{{avatarPicker.activeTab === 'frame'}}" class="archive-section appearance-section">
             <view class="avatar-frame-grid">
