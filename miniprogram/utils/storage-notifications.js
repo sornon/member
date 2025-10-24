@@ -297,14 +297,7 @@ function collectStorageItemsFromCategories(categories) {
     if (!category || !Array.isArray(category.items)) {
       return;
     }
-    const categoryKey = normalizeString(category.key);
-    if (isEquipmentCategoryKey(categoryKey)) {
-      return;
-    }
     category.items.forEach((item) => {
-      if (isEquipmentItem(item, categoryKey)) {
-        return;
-      }
       const key = buildItemKey(item);
       if (!key) {
         return;
@@ -451,17 +444,11 @@ function itemHasExplicitNewFlag(item) {
   if (!item || typeof item !== 'object') {
     return false;
   }
-  if (isEquipmentItem(item)) {
-    return false;
-  }
   return isTruthy(item.isNew) || isTruthy(item.new) || isTruthy(item.hasNewBadge) || isTruthy(item.hasNew);
 }
 
 export function shouldDisplayStorageItemNew(item) {
   if (!item) {
-    return false;
-  }
-  if (isEquipmentItem(item)) {
     return false;
   }
   const state = ensureState();
@@ -502,9 +489,6 @@ export function acknowledgeStorageItems(items) {
     if (!item) {
       return;
     }
-    if (isEquipmentItem(item)) {
-      return;
-    }
     const key = buildItemKey(item);
     if (!key) {
       return;
@@ -539,14 +523,26 @@ export function normalizeStorageItemIdForBadge(item) {
   return buildItemKey(item);
 }
 
-export function ensureBadgeState() {
-  return ensureState();
-}
-
-export function writeBadgeState(state) {
-  writeState(state);
-}
-
-export function snapshotBadgeState() {
-  return snapshotState(ensureState());
+export function hasUnacknowledgedStorageItems() {
+  const state = ensureState();
+  if (!state || !state.initialized) {
+    return false;
+  }
+  const acknowledged = state.acknowledged || {};
+  const latest = state.latest || {};
+  const keys = Object.keys(latest);
+  if (!keys.length) {
+    return false;
+  }
+  return keys.some((key) => {
+    if (!key) {
+      return false;
+    }
+    const latestTime = Number(latest[key]) || 0;
+    if (!latestTime) {
+      return false;
+    }
+    const ackTime = Number(acknowledged[key]) || 0;
+    return ackTime < latestTime;
+  });
 }

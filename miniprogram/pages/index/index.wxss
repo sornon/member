@@ -137,6 +137,13 @@ page {
   height: 120rpx;
 }
 
+.profile-avatar__dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translate(45%, -45%);
+}
+
 .profile-avatar {
   width: 100%;
   height: 100%;
@@ -166,14 +173,20 @@ page {
 
 .profile-name {
   position: relative;
-  display: inline-block;
-  padding-right: 24rpx;
   font-size: 30rpx;
   font-weight: 600;
   letter-spacing: 2rpx;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding-right: 32rpx;
+}
+
+.profile-name__dot {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  transform: translate(50%, -50%);
 }
 
 .profile-name__dot {
@@ -598,13 +611,11 @@ page {
 
 .appearance-tab {
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  padding-right: 20rpx;
   color: #ffffff4b;
   font-size: 28rpx;
   letter-spacing: 2rpx;
   transition: color 0.2s ease, font-size 0.2s ease;
+  padding-right: 24rpx;
 }
 
 .appearance-tab__dot {
@@ -616,6 +627,13 @@ page {
 .appearance-tab--active {
   font-size: 28rpx;
   color: #ffffff;
+}
+
+.appearance-tab__dot {
+  position: absolute;
+  top: -4rpx;
+  right: 0;
+  transform: translate(45%, -45%);
 }
 
 .modal-title {

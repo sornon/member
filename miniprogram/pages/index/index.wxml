@@ -47,12 +47,12 @@
             src="{{member.avatarFrame}}"
             mode="scaleToFill"
           ></image>
-          <view wx:if="{{badgeIndicators.profileAvatar}}" class="badge-dot profile-avatar__dot"></view>
+          <view wx:if="{{showAvatarBadge}}" class="badge-dot profile-avatar__dot"></view>
         </view>
         <view class="profile-info">
           <view class="profile-name" bindtap="handleProfileTap">
             {{member ? (member.nickName || '无名仙友') : '无名仙友'}}
-            <view wx:if="{{badgeIndicators.profileName}}" class="badge-dot profile-name__dot"></view>
+            <view wx:if="{{showNameBadge}}" class="badge-dot profile-name__dot"></view>
           </view>
           <view class="profile-meta">
             <view wx:if="{{activeTitleImage}}" class="profile-meta__title">
@@ -249,7 +249,7 @@
             bindtap="handleAppearanceTabChange"
           >
             头像
-            <view wx:if="{{badgeIndicators.avatarTabs.avatar}}" class="badge-dot appearance-tab__dot"></view>
+            <view wx:if="{{!appearanceBadgeState.avatar}}" class="badge-dot appearance-tab__dot"></view>
           </view>
           <view
             class="appearance-tab {{avatarPicker.activeTab === 'frame' ? 'appearance-tab--active' : ''}}"
@@ -257,7 +257,7 @@
             bindtap="handleAppearanceTabChange"
           >
             相框
-            <view wx:if="{{badgeIndicators.avatarTabs.frame}}" class="badge-dot appearance-tab__dot"></view>
+            <view wx:if="{{!appearanceBadgeState.frame}}" class="badge-dot appearance-tab__dot"></view>
           </view>
           <view
             class="appearance-tab {{avatarPicker.activeTab === 'title' ? 'appearance-tab--active' : ''}}"
@@ -265,7 +265,7 @@
             bindtap="handleAppearanceTabChange"
           >
             称号
-            <view wx:if="{{badgeIndicators.avatarTabs.title}}" class="badge-dot appearance-tab__dot"></view>
+            <view wx:if="{{!appearanceBadgeState.title}}" class="badge-dot appearance-tab__dot"></view>
           </view>
           <view
             class="appearance-tab {{avatarPicker.activeTab === 'background' ? 'appearance-tab--active' : ''}}"
@@ -273,7 +273,7 @@
             bindtap="handleAppearanceTabChange"
           >
             背景
-            <view wx:if="{{badgeIndicators.avatarTabs.background}}" class="badge-dot appearance-tab__dot"></view>
+            <view wx:if="{{!appearanceBadgeState.background}}" class="badge-dot appearance-tab__dot"></view>
           </view>
         </view>
       <view class="appearance-modal__body-wrapper">
@@ -290,7 +290,6 @@
                 <image class="avatar-option__image" src="{{item.url}}" mode="aspectFill"></image>
               </view>
             </view>
-            <button class="archive-action" size="mini" bindtap="handleAvatarPickerSyncWechat">同步微信头像</button>
           </view>
           <view wx:elif="{{avatarPicker.activeTab === 'frame'}}" class="archive-section appearance-section">
             <view class="avatar-frame-grid">

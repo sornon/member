@@ -2,6 +2,7 @@ import { MemberService, TaskService } from '../../services/api';
 import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../services/member-realtime';
 import { formatCombatPower, formatCurrency, formatExperience, formatStones } from '../../utils/format';
 import { shouldShowRoleBadge } from '../../utils/pending-attributes';
+import { hasUnacknowledgedStorageItems } from '../../utils/storage-notifications';
 import {
   BADGE_KEYS,
   acknowledgeBadge,
@@ -57,6 +58,57 @@ const WECHAT_DEFAULT_AVATAR_URL =
 const app = getApp();
 
 const NAV_EXPANDED_STORAGE_KEY = 'home-nav-expanded';
+const AVATAR_BADGE_STORAGE_KEY = 'home-avatar-badge-dismissed';
+const AVATAR_TAB_BADGE_STORAGE_KEY = 'home-avatar-tab-badges';
+const NAME_BADGE_STORAGE_KEY = 'home-name-badge-dismissed';
+
+const APPEARANCE_BADGE_TABS = ['avatar', 'frame', 'title', 'background'];
+
+function cloneDefaultAppearanceBadgeState() {
+  return {
+    avatar: false,
+    frame: false,
+    title: false,
+    background: false
+  };
+}
+
+function normalizeAppearanceBadgeState(source) {
+  const base = cloneDefaultAppearanceBadgeState();
+  if (!source || typeof source !== 'object') {
+    return base;
+  }
+  APPEARANCE_BADGE_TABS.forEach((key) => {
+    if (source[key] === true) {
+      base[key] = true;
+    }
+  });
+  return base;
+}
+
+function markAllAppearanceBadgesDismissed() {
+  const state = cloneDefaultAppearanceBadgeState();
+  APPEARANCE_BADGE_TABS.forEach((key) => {
+    state[key] = true;
+  });
+  return state;
+}
+
+function areAllAppearanceBadgesDismissed(state) {
+  if (!state || typeof state !== 'object') {
+    return false;
+  }
+  return APPEARANCE_BADGE_TABS.every((key) => state[key] === true);
+}
+
+function resolveStorageBadgeVisibility() {
+  try {
+    return hasUnacknowledgedStorageItems();
+  } catch (error) {
+    console.warn('[home] resolve storage badge failed', error);
+    return false;
+  }
+}
 
 function resolveBackgroundUnlocks(source) {
   if (!source) {
@@ -141,11 +193,16 @@ const BASE_NAV_ITEMS = [
 ];
 
 function buildDefaultNavItems() {
-  const snapshot = getBadgeSnapshot();
+  const showRoleDot = shouldShowRoleBadge(null);
+  const showStorageDot = resolveStorageBadgeVisibility();
   return BASE_NAV_ITEMS.map((item) => {
-    const badgeKey = NAV_BADGE_KEY[item.label];
-    const showDot = badgeKey ? shouldShowBadge(badgeKey, snapshot) : false;
-    return { ...item, showDot };
+    if (item.label === '角色') {
+      return { ...item, showDot: showRoleDot };
+    }
+    if (item.label === '纳戒') {
+      return { ...item, showDot: showStorageDot };
+    }
+    return { ...item };
   });
 }
 
@@ -702,11 +759,17 @@ function deriveMemberStats(member) {
 
 function resolveNavItems(member, badgeSnapshot = getBadgeSnapshot()) {
   const roles = Array.isArray(member && member.roles) ? member.roles : [];
+  const badges = normalizeReservationBadges(member && member.reservationBadges);
+  const roleHasPendingAttributes = shouldShowRoleBadge(member);
+  const storageHasPending = resolveStorageBadgeVisibility();
   const navItems = BASE_NAV_ITEMS.map((item) => {
     const next = { ...item };
     const badgeKey = NAV_BADGE_KEY[item.label];
     if (badgeKey) {
       next.showDot = shouldShowBadge(badgeKey, badgeSnapshot);
+    }
+    if (item.label === '纳戒') {
+      next.showDot = storageHasPending;
     }
     return next;
   });
@@ -727,6 +790,9 @@ Page({
     progress: null,
     progressRemainingExperience: formatExperience(0),
     realmHasPendingRewards: false,
+    showAvatarBadge: true,
+    showNameBadge: true,
+    appearanceBadgeState: cloneDefaultAppearanceBadgeState(),
     tasks: [],
     loading: true,
     backgroundImage: resolveBackgroundImage(null),
@@ -814,21 +880,17 @@ Page({
   onLoad() {
     this.hasBootstrapped = false;
     this.hasVisitedOtherPage = false;
-    ensureFirstVisitBadges();
-    this.baseActivityIcons = this.data.activityIcons ? this.data.activityIcons.slice() : [];
-    this.badgeSnapshot = getBadgeSnapshot();
-    this.unsubscribeBadgeState = subscribeBadge((snapshot) => {
-      this.badgeSnapshot = snapshot;
-      this.applyBadgeSnapshot(snapshot);
-    });
+    this.nameBadgeDismissedFromStorage = false;
     this.ensureNavMetrics();
     this.updateToday();
     this.restoreNavExpansionState();
+    this.restoreProfileBadgeState();
   },
 
   onShow() {
     this.ensureNavMetrics();
     this.updateToday();
+    this.refreshStorageBadgeIndicator();
     this.attachMemberRealtime();
     this.bootstrap();
   },
@@ -1027,7 +1089,7 @@ Page({
       });
       this.updateBackgroundDisplay(sanitizedMember, { resetError: true });
       setActiveMember(sanitizedMember);
-      this.applyBadgeSnapshot(this.badgeSnapshot || getBadgeSnapshot());
+      this.syncNameBadgeVisibility(sanitizedMember);
     } catch (err) {
       const width = normalizePercentage(this.data.progress);
       this.setData({
@@ -1039,6 +1101,7 @@ Page({
       });
       this.updateBackgroundDisplay(this.data.member, {});
     }
+    this.syncNameBadgeVisibility();
     this.bootstrapRunning = false;
     if (!this.hasBootstrapped) {
       this.hasBootstrapped = true;
@@ -1057,6 +1120,15 @@ Page({
     });
   },
 
+  refreshStorageBadgeIndicator() {
+    if (!this.hasBootstrapped && !this.data.member) {
+      return;
+    }
+    const navItems = resolveNavItems(this.data.member);
+    const collapsedNavItems = buildCollapsedNavItems(navItems);
+    this.setData({ navItems, collapsedNavItems });
+  },
+
   restoreNavExpansionState() {
     try {
       const stored = wx.getStorageSync(NAV_EXPANDED_STORAGE_KEY);
@@ -1065,6 +1137,53 @@ Page({
       }
     } catch (err) {
       // Ignore storage errors and keep the default collapsed state.
+    }
+  },
+
+  restoreProfileBadgeState() {
+    let avatarDismissed = false;
+    let appearanceState = cloneDefaultAppearanceBadgeState();
+    this.nameBadgeDismissedFromStorage = false;
+    try {
+      avatarDismissed = wx.getStorageSync(AVATAR_BADGE_STORAGE_KEY) === true;
+    } catch (err) {
+      // Ignore storage errors and keep the avatar badge visible by default.
+    }
+    try {
+      this.nameBadgeDismissedFromStorage = wx.getStorageSync(NAME_BADGE_STORAGE_KEY) === true;
+    } catch (err) {
+      // Ignore storage errors and keep the name badge visible by default.
+      this.nameBadgeDismissedFromStorage = false;
+    }
+    try {
+      const storedAppearanceBadges = wx.getStorageSync(AVATAR_TAB_BADGE_STORAGE_KEY);
+      appearanceState = normalizeAppearanceBadgeState(storedAppearanceBadges);
+    } catch (err) {
+      // Ignore storage errors and show all appearance badge dots by default.
+    }
+    if (avatarDismissed) {
+      appearanceState = markAllAppearanceBadgesDismissed();
+    }
+    const nextState = { appearanceBadgeState: appearanceState };
+    const avatarBadgeCleared = avatarDismissed || areAllAppearanceBadgesDismissed(appearanceState);
+    if (avatarBadgeCleared && this.data.showAvatarBadge) {
+      nextState.showAvatarBadge = false;
+    }
+    if (Object.keys(nextState).length > 0) {
+      this.setData(nextState);
+    }
+    this.syncNameBadgeVisibility();
+  },
+
+  syncNameBadgeVisibility(memberOverride) {
+    const member = memberOverride || this.data.member;
+    const nickName =
+      member && typeof member.nickName === 'string' ? member.nickName.trim() : '';
+    const hasName = !!nickName;
+    const dismissed = this.nameBadgeDismissedFromStorage === true;
+    const shouldShow = !hasName || !dismissed;
+    if (shouldShow !== this.data.showNameBadge) {
+      this.setData({ showNameBadge: shouldShow });
     }
   },
 
@@ -1086,6 +1205,62 @@ Page({
     }
   },
 
+  markAppearanceTabVisited(tab) {
+    if (!APPEARANCE_BADGE_TABS.includes(tab)) {
+      return;
+    }
+    const currentState = this.data.appearanceBadgeState
+      ? { ...this.data.appearanceBadgeState }
+      : cloneDefaultAppearanceBadgeState();
+    if (currentState[tab] === true) {
+      return;
+    }
+    const nextState = { ...currentState, [tab]: true };
+    this.setData({ appearanceBadgeState: nextState });
+    try {
+      wx.setStorageSync(AVATAR_TAB_BADGE_STORAGE_KEY, nextState);
+    } catch (err) {
+      // Ignore storage errors so red dots still clear in the current session.
+    }
+    if (areAllAppearanceBadgesDismissed(nextState)) {
+      this.dismissAvatarBadge(nextState);
+    }
+  },
+
+  dismissAvatarBadge(appearanceStateOverride) {
+    if (!this.data.showAvatarBadge) {
+      return;
+    }
+    const appearanceState = appearanceStateOverride || this.data.appearanceBadgeState;
+    if (!areAllAppearanceBadgesDismissed(appearanceState)) {
+      return;
+    }
+    this.setData({ showAvatarBadge: false });
+    try {
+      wx.setStorageSync(AVATAR_BADGE_STORAGE_KEY, true);
+    } catch (err) {
+      // Swallow storage errors so the UI can continue without persistence.
+    }
+  },
+
+  dismissNameBadge() {
+    if (!this.data.showNameBadge) {
+      return;
+    }
+    const member = this.data.member || {};
+    const nickName = typeof member.nickName === 'string' ? member.nickName.trim() : '';
+    if (!nickName) {
+      return;
+    }
+    this.nameBadgeDismissedFromStorage = true;
+    this.setData({ showNameBadge: false });
+    try {
+      wx.setStorageSync(NAME_BADGE_STORAGE_KEY, true);
+    } catch (err) {
+      // Swallow storage errors so the UI can continue without persistence.
+    }
+  },
+
   formatCurrency,
   formatExperience,
 
@@ -1099,7 +1274,7 @@ Page({
   },
 
   handleProfileTap() {
-    acknowledgeBadge(BADGE_KEYS.HOME_NICKNAME);
+    this.dismissNameBadge();
     this.openArchiveEditor();
   },
 
@@ -1190,7 +1365,11 @@ Page({
     }
     const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
     const tab = typeof dataset.tab === 'string' ? dataset.tab : '';
-    if (!tab || tab === this.data.avatarPicker.activeTab) {
+    if (!tab) {
+      return;
+    }
+    this.markAppearanceTabVisited(tab);
+    if (tab === this.data.avatarPicker.activeTab) {
       return;
     }
     const updates = {
@@ -1266,7 +1445,9 @@ Page({
     if (this.data.profileEditor.appearanceTitle !== appearanceTitle) {
       updates['profileEditor.appearanceTitle'] = appearanceTitle;
     }
-    this.setData(updates);
+    this.setData(updates, () => {
+      this.markAppearanceTabVisited('avatar');
+    });
   },
 
   handleCloseAvatarPicker() {
@@ -1383,39 +1564,6 @@ Page({
     this.setData({
       'avatarPicker.dynamicBackground': value,
       'profileEditor.appearanceBackgroundAnimated': value
-    });
-  },
-
-  handleAvatarPickerSyncWechat() {
-    if (this.data.avatarPickerSaving) {
-      return;
-    }
-    const applyAvatarSelection = (avatarUrl, toastTitle) => {
-      const normalizedAvatar = sanitizeAvatarUrl(avatarUrl || '') || avatarUrl;
-      this.setData({
-        'avatarPicker.avatarUrl': normalizedAvatar,
-        'profileEditor.avatarUrl': normalizedAvatar
-      });
-      this.refreshAvatarPickerOptions();
-      wx.showToast({ title: toastTitle, icon: 'success' });
-    };
-    const applyDefaultAvatar = () => {
-      applyAvatarSelection(DEFAULT_AVATAR, '已使用默认头像');
-    };
-    wx.getUserProfile({
-      desc: '用于同步微信头像',
-      success: (res) => {
-        const info = res && res.userInfo ? res.userInfo : {};
-        const avatarUrl = sanitizeAvatarUrl(info.avatarUrl || '');
-        if (avatarUrl) {
-          applyAvatarSelection(avatarUrl, '已同步微信头像');
-          return;
-        }
-        applyDefaultAvatar();
-      },
-      fail: () => {
-        applyDefaultAvatar();
-      }
     });
   },
 
@@ -1561,6 +1709,7 @@ Page({
       activeTitleImage: buildTitleImageUrl(sanitizedMember.appearanceTitle)
     });
     this.updateBackgroundDisplay(sanitizedMember, { resetError: true });
+    this.syncNameBadgeVisibility(sanitizedMember);
     if (this.data.showAvatarPicker) {
       this.refreshAvatarPickerOptions();
     }

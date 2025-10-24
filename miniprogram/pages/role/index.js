@@ -598,7 +598,7 @@ Page({
           } else {
             normalized.recommendedUpgrade = false;
           }
-          normalized.showNewBadge = isEquipmentCategory ? false : shouldDisplayStorageItemNew(normalized);
+          normalized.showNewBadge = shouldDisplayStorageItemNew(normalized);
           return normalized;
         });
         const slotCount = Math.max(capacity, normalizedItems.length);
@@ -614,6 +614,7 @@ Page({
         const used = Math.min(normalizedItems.length, slotCount);
         const remaining = Math.max(capacity - normalizedItems.length, 0);
         const usagePercent = capacity ? Math.min(100, Math.round((normalizedItems.length / capacity) * 100)) : 0;
+        const hasNewBadge = normalizedItems.some((item) => item && item.showNewBadge);
         return {
           key,
           label,
@@ -626,7 +627,8 @@ Page({
           usagePercent,
           nextCapacity,
           items: normalizedItems,
-          slots
+          slots,
+          hasNewBadge
         };
       })
       .filter((category) => !!category);
@@ -674,27 +676,7 @@ Page({
       const categoryKey = typeof category.key === 'string' ? category.key : '';
       const isEquipmentCategory = categoryKey === 'equipment';
       const items = Array.isArray(category.items) ? category.items : [];
-      if (isEquipmentCategory) {
-        items.forEach((item, itemIndex) => {
-          if (item && item.showNewBadge) {
-            updates[`storageCategories[${categoryIndex}].items[${itemIndex}].showNewBadge`] = false;
-            if (categoryIndex === activeIndex) {
-              updates[`activeStorageCategoryData.items[${itemIndex}].showNewBadge`] = false;
-            }
-          }
-        });
-        const slots = Array.isArray(category.slots) ? category.slots : [];
-        slots.forEach((slotItem, slotIndex) => {
-          if (!slotItem || slotItem.placeholder || !slotItem.showNewBadge) {
-            return;
-          }
-          updates[`storageCategories[${categoryIndex}].slots[${slotIndex}].showNewBadge`] = false;
-          if (categoryIndex === activeIndex) {
-            updates[`activeStorageCategoryData.slots[${slotIndex}].showNewBadge`] = false;
-          }
-        });
-        return;
-      }
+      let nextHasNewBadge = false;
       items.forEach((item, itemIndex) => {
         if (!item) {
           return;
@@ -705,6 +687,9 @@ Page({
           if (categoryIndex === activeIndex) {
             updates[`activeStorageCategoryData.items[${itemIndex}].showNewBadge`] = desired;
           }
+        }
+        if (desired) {
+          nextHasNewBadge = true;
         }
       });
       const slots = Array.isArray(category.slots) ? category.slots : [];
@@ -719,7 +704,17 @@ Page({
             updates[`activeStorageCategoryData.slots[${slotIndex}].showNewBadge`] = desired;
           }
         }
+        if (desired) {
+          nextHasNewBadge = true;
+        }
       });
+      const currentHasBadge = !!category.hasNewBadge;
+      if (nextHasNewBadge !== currentHasBadge) {
+        updates[`storageCategories[${categoryIndex}].hasNewBadge`] = nextHasNewBadge;
+        if (categoryIndex === activeIndex) {
+          updates['activeStorageCategoryData.hasNewBadge'] = nextHasNewBadge;
+        }
+      }
     });
     const profile = (this.data && this.data.profile) || null;
     const profileStorage =
@@ -733,14 +728,6 @@ Page({
       const profileCategories = Array.isArray(profileStorage.categories) ? profileStorage.categories : [];
       profileCategories.forEach((category, categoryIndex) => {
         if (!category || !Array.isArray(category.items)) {
-          return;
-        }
-        if ((typeof category.key === 'string' ? category.key : '') === 'equipment') {
-          category.items.forEach((item, itemIndex) => {
-            if (item && item.showNewBadge) {
-              updates[`profile.equipment.storage.categories[${categoryIndex}].items[${itemIndex}].showNewBadge`] = false;
-            }
-          });
           return;
         }
         category.items.forEach((item, itemIndex) => {
@@ -765,11 +752,6 @@ Page({
 
   acknowledgeStorageItem(item) {
     if (!item) {
-      return;
-    }
-    const categoryKey = typeof item.storageCategory === 'string' ? item.storageCategory.trim() : '';
-    const kind = typeof item.kind === 'string' ? item.kind.trim() : '';
-    if (categoryKey === 'equipment' || kind === 'equipment') {
       return;
     }
     acknowledgeStorageItems(item);

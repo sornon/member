@@ -65,6 +65,72 @@
   </view>
 
   <view class="intro-card">
+    <view class="intro-title">清理测试账号</view>
+    <view class="intro-desc">扫描带有“测试”标签的账号，并在确认后批量删除账号及关联数据，便于定期清理体验版或开发版产生的记录。</view>
+    <view class="intro-note">删除操作不可恢复，请确认这些测试账号不再需要保留。</view>
+    <button
+      class="cleanup-button primary"
+      bindtap="handleTestScanTap"
+      loading="{{loading && loadingAction === 'scanTest'}}"
+      disabled="{{loading}}"
+    >
+      {{loading && loadingAction === 'scanTest' ? '扫描中…' : '扫描测试账号'}}
+    </button>
+    <button
+      wx:if="{{testPreview && testPreview.memberCount > 0}}"
+      class="cleanup-button danger"
+      bindtap="handleTestCleanupTap"
+      loading="{{loading && loadingAction === 'cleanupTest'}}"
+      disabled="{{loading}}"
+    >
+      {{loading && loadingAction === 'cleanupTest' ? '清理中…' : '确认清理测试账号'}}
+    </button>
+  </view>
+
+  <view wx:if="{{testPreview}}" class="preview-card">
+    <view class="preview-header">
+      <view class="preview-title">测试账号扫描结果</view>
+      <view wx:if="{{testPreviewAt}}" class="preview-time">{{testPreviewAt}}</view>
+    </view>
+    <view wx:if="{{testPreview.memberCount > 0}}" class="preview-summary">
+      发现 {{testPreview.memberCount}} 个测试账号，关联 {{testPreview.total}} 条数据
+    </view>
+    <view wx:else class="preview-summary muted">未发现需要处理的测试账号</view>
+    <view wx:if="{{testPreview.items.length}}" class="preview-list">
+      <view wx:for="{{testPreview.items}}" wx:key="key" class="preview-item">
+        <view class="preview-name">
+          <text class="preview-collection">{{item.collection}}</text>
+          <text class="preview-label">{{item.label}}</text>
+        </view>
+        <view class="preview-field">索引字段：{{item.indexes}}</view>
+        <view class="preview-desc">数据功能：{{item.description}}</view>
+        <view class="preview-reason">清理原因：{{item.reason}}</view>
+      </view>
+    </view>
+    <view wx:else class="preview-empty">未发现关联数据，当前无需清理。</view>
+  </view>
+
+  <view wx:if="{{testResult}}" class="result-card">
+    <view class="result-header">
+      <view class="result-title">测试账号清理结果</view>
+      <view wx:if="{{testFinishedAt}}" class="result-time">{{testFinishedAt}}</view>
+    </view>
+    <view class="result-summary">共清理 {{testResult.totalRemoved}} 条测试账号相关数据</view>
+    <view class="result-members">删除测试账号：{{testResult.memberCount}} 个</view>
+    <view wx:if="{{testResult.details.length}}" class="detail-list">
+      <view wx:for="{{testResult.details}}" wx:key="key" class="detail-item">
+        <view class="detail-name">{{item.label}}</view>
+        <view class="detail-count">{{item.count}}</view>
+      </view>
+    </view>
+    <view wx:else class="detail-empty">未发现可清理的测试账号，系统保持整洁。</view>
+    <view wx:if="{{testResult.errors.length}}" class="error-block">
+      <view class="error-title">部分测试账号数据未能成功清理：</view>
+      <view wx:for="{{testResult.errors}}" wx:key="index" class="error-item">{{item}}</view>
+    </view>
+  </view>
+
+  <view class="intro-card">
     <view class="intro-title">清理战斗记录与衍生数据</view>
     <view class="intro-desc">该操作会扫描系统内所有 PVE / PVP 战斗产生的记录，包括战报、赛季档案与排行榜缓存，帮助在必要时重置战斗环境。</view>
     <view class="intro-note">清理动作将同步移除战斗相关的派生缓存。建议在停服或维护时执行，并确认不会影响现有运营数据。</view>
