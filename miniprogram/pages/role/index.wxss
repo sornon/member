@@ -311,6 +311,20 @@ button.pill-btn[disabled] {
   font-size: 24rpx;
 }
 
+.attr-extra__remaining {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding-right: 22rpx;
+}
+
+.attr-extra__dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  transform: translate(45%, -55%);
+}
+
 .attr-actions {
   margin-top: 20rpx;
   display: flex;
