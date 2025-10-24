@@ -760,9 +760,6 @@ async function initMember(openid, profile = {}, options = {}) {
       }
     })
     .catch(() => {});
-  if (defaultLevel) {
-    await grantLevelRewards(openid, defaultLevel, []);
-  }
   return { ...doc, _id: openid };
 }
 
@@ -1077,7 +1074,6 @@ async function ensureLevelSync(member, levels) {
         }
       })
       .catch(() => {});
-    await grantLevelRewards(member._id, nextLevel, levels);
     member.levelId = nextLevel._id;
     member.pendingBreakthroughLevelId = '';
     currentLevel = nextLevel;
@@ -1945,8 +1941,6 @@ async function breakthrough(openid) {
     })
     .catch(() => {});
 
-  await grantLevelRewards(openid, targetLevel, levels);
-
   member.levelId = targetLevel._id;
   member.pendingBreakthroughLevelId = '';
   await ensureLevelSync(member, levels);
@@ -2018,7 +2012,7 @@ async function claimLevelReward(openid, levelId) {
       }
     });
 
-  await grantInventoryRewardsForLevel(openid, level);
+  await grantLevelRewards(openid, level, levels);
 
   return getProgress(openid);
 }
