@@ -28,7 +28,7 @@
   </view>
 
   <view wx:if="{{loading}}" class="loading">灵气汇聚中...</view>
-  <scroll-view wx:elif="{{profile}}" scroll-y="true" class="scroll-container">
+  <view wx:elif="{{profile}}" class="scroll-container">
     <block wx:if="{{activeTab === 'character'}}">
       <view class="section-card role-attributes">
         <view class="section-header">
@@ -539,7 +539,7 @@
         <text class="empty-tip">请选择上方分类</text>
       </view>
     </block>
-  </scroll-view>
+  </view>
 
   <view wx:else class="empty-card">
     <text class="empty-tip">暂未获取到角色信息</text>
