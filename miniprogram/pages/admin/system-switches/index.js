@@ -2,7 +2,7 @@ import { AdminService } from '../../../services/api';
 import {
   normalizeCacheVersions as normalizeClientCacheVersions,
   getDefaultCacheVersions
-} from '../../../utils/cache-version';
+} from '../../../utils/cache-version.js';
 
 const DEFAULT_IMMORTAL_TOURNAMENT = {
   enabled: false,

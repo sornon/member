@@ -3,7 +3,7 @@ import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../ser
 import { formatCombatPower, formatCurrency, formatExperience, formatStones } from '../../utils/format';
 import { shouldShowRoleBadge } from '../../utils/pending-attributes';
 import { hasUnacknowledgedStorageItems } from '../../utils/storage-notifications';
-import { applyCacheVersionUpdate } from '../../utils/cache-version';
+import { applyCacheVersionUpdate } from '../../utils/cache-version.js';
 import {
   buildAvatarUrlById,
   getAvailableAvatars,

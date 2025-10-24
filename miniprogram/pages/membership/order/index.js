@@ -4,7 +4,7 @@ import {
   applyCacheVersionUpdate,
   MENU_CATALOG_STORAGE_KEY,
   MENU_CART_STORAGE_KEY
-} from '../../../utils/cache-version';
+} from '../../../utils/cache-version.js';
 import menuData from '../../../shared/menu-data';
 
 let SECTION_META = {};
