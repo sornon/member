@@ -222,6 +222,54 @@
 
   <button class="submit" type="primary" loading="{{saving}}" bindtap="handleSubmit">保存修改</button>
 
+  <view class="section section--secret-realm">
+    <view class="section-title">秘境挑战进度</view>
+    <view class="secret-realm-info">
+      <view>最高解锁：第{{secretRealmProfile.highestUnlockedFloor || 1}}层</view>
+      <view>已通关：{{secretRealmProfile.clearedCount || 0}} / {{secretRealmProfile.totalFloors || 0}} 层</view>
+    </view>
+    <view class="form-item">
+      <view class="form-label">目标解锁楼层</view>
+      <input
+        class="form-input"
+        type="number"
+        value="{{secretRealmDraft.highestUnlockedFloor}}"
+        placeholder="请输入目标楼层"
+        data-field="highestUnlockedFloor"
+        bindinput="handleSecretRealmFieldChange"
+      />
+      <view class="form-hint">
+        范围：不少于 1
+        <text wx:if="{{secretRealmProfile.totalFloors}}"> · 最大 {{secretRealmProfile.totalFloors}}</text>
+      </view>
+    </view>
+    <view class="secret-realm-toggle">
+      <text class="secret-realm-toggle__label">自动补全之前楼层的通关记录</text>
+      <switch
+        checked="{{secretRealmDraft.autoComplete}}"
+        bindchange="handleSecretRealmAutoCompleteChange"
+        color="#566aff"
+        disabled="{{secretRealmSaving || secretRealmResetting}}"
+      ></switch>
+    </view>
+    <view class="secret-realm-actions">
+      <button
+        class="secret-realm-button secret-realm-button--primary"
+        bindtap="handleSecretRealmSave"
+        loading="{{secretRealmSaving}}"
+        disabled="{{secretRealmSaving || secretRealmResetting}}"
+      >保存进度</button>
+      <button
+        class="secret-realm-button"
+        bindtap="handleSecretRealmReset"
+        loading="{{secretRealmResetting}}"
+        disabled="{{secretRealmSaving || secretRealmResetting}}"
+      >重置为初始</button>
+    </view>
+    <view wx:if="{{secretRealmSummary}}" class="status-banner status-banner--success">{{secretRealmSummary}}</view>
+    <view wx:if="{{secretRealmError}}" class="status-banner status-banner--error">{{secretRealmError}}</view>
+  </view>
+
   <view class="section section--equipment">
     <view class="equipment-admin__header">
       <view class="section-title equipment-admin__title">物品管理</view>

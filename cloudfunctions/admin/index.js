@@ -136,6 +136,8 @@ const ACTIONS = {
   BUMP_CACHE_VERSION: 'bumpCacheVersion',
   RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament',
   REFRESH_IMMORTAL_TOURNAMENT_PLAYERS: 'refreshImmortalTournamentPlayers',
+  RESET_SECRET_REALM_PROGRESS: 'resetSecretRealmProgress',
+  UPDATE_SECRET_REALM_PROGRESS: 'updateSecretRealmProgress',
   LIST_ACTIVITIES: 'listActivities',
   CREATE_ACTIVITY: 'createActivity',
   UPDATE_ACTIVITY: 'updateActivity'
@@ -211,6 +213,10 @@ const ACTION_ALIASES = {
   cleartournament: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
   resetimmortaltournamentseason: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
   resetimmortaltournamentdata: ACTIONS.RESET_IMMORTAL_TOURNAMENT,
+  resetsecretrealm: ACTIONS.RESET_SECRET_REALM_PROGRESS,
+  resetsecretrealmprogress: ACTIONS.RESET_SECRET_REALM_PROGRESS,
+  updatesecretrealmprogress: ACTIONS.UPDATE_SECRET_REALM_PROGRESS,
+  secretrealmprogress: ACTIONS.UPDATE_SECRET_REALM_PROGRESS,
   refreshimmortaltournamentplayers: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
   refreshimmortalplayers: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
   refreshpvpprofiles: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
@@ -322,6 +328,10 @@ const ACTION_HANDLERS = {
   [ACTIONS.BUMP_CACHE_VERSION]: (openid, event) => bumpCacheVersion(openid, event || {}),
   [ACTIONS.RESET_IMMORTAL_TOURNAMENT]: (openid, event) =>
     resetImmortalTournament(openid, event || {}),
+  [ACTIONS.RESET_SECRET_REALM_PROGRESS]: (openid, event) =>
+    resetSecretRealmProgress(openid, event || {}),
+  [ACTIONS.UPDATE_SECRET_REALM_PROGRESS]: (openid, event) =>
+    updateSecretRealmProgress(openid, event.memberId, event || {}),
   [ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS]: (openid, event) =>
     refreshImmortalTournamentPlayers(openid, event || {}),
   [ACTIONS.LIST_ACTIVITIES]: (openid, event) => listActivities(openid, event || {}),
@@ -2809,6 +2819,49 @@ async function loadMemberPveProfile(memberId, adminId) {
     console.error('[admin] load member pve profile failed', memberId, error);
     return null;
   }
+}
+
+async function resetSecretRealmProgress(openid, options = {}) {
+  await ensureAdmin(openid);
+  const scope = typeof options.scope === 'string' ? options.scope.trim().toLowerCase() : '';
+  const memberId = normalizeMemberIdValue(options.memberId || options.targetId || '');
+
+  if (scope === 'member' || memberId) {
+    const targetId = memberId || normalizeMemberIdValue(options.memberId || options.targetId || '');
+    if (!targetId) {
+      throw new Error('缺少会员编号');
+    }
+    return updateSecretRealmProgress(openid, targetId, { reset: true });
+  }
+
+  const payload = { actorId: openid, scope: 'global' };
+  const result = await callPveFunction('adminResetSecretRealm', payload);
+  return result || { scope: 'global' };
+}
+
+async function updateSecretRealmProgress(openid, memberId, options = {}) {
+  await ensureAdmin(openid);
+  const targetId = normalizeMemberIdValue(memberId || options.memberId || '');
+  if (!targetId) {
+    throw new Error('缺少会员编号');
+  }
+
+  if (options && options.reset) {
+    const payload = { actorId: openid, scope: 'member', memberId: targetId };
+    const result = await callPveFunction('adminResetSecretRealm', payload);
+    return result || { scope: 'member', memberId: targetId };
+  }
+
+  const payload = { actorId: openid, memberId: targetId };
+  if (Object.prototype.hasOwnProperty.call(options, 'highestUnlockedFloor')) {
+    payload.highestUnlockedFloor = options.highestUnlockedFloor;
+  }
+  if (Object.prototype.hasOwnProperty.call(options, 'autoComplete')) {
+    payload.autoComplete = !!options.autoComplete;
+  }
+
+  const result = await callPveFunction('adminUpdateSecretRealm', payload);
+  return result || { memberId: targetId };
 }
 
 async function syncMemberLevel(memberId) {

@@ -271,7 +271,10 @@ Page({
     rageFieldList: RAGE_FIELDS,
     cacheScopes: CACHE_VERSION_SCOPES,
     cacheRefreshing: {},
-    cacheError: ''
+    cacheError: '',
+    secretRealmResetting: false,
+    secretRealmResetSummary: '',
+    secretRealmResetError: ''
   },
 
   onShow() {
@@ -321,7 +324,10 @@ Page({
         rageSaving: false,
         rageError: '',
         cacheRefreshing: {},
-        cacheError: ''
+        cacheError: '',
+        secretRealmResetting: false,
+        secretRealmResetSummary: '',
+        secretRealmResetError: ''
       });
     } catch (error) {
       this.setData({
@@ -337,7 +343,8 @@ Page({
         tournamentRefreshSummary: '',
         updating: {},
         rageSaving: false,
-        cacheRefreshing: {}
+        cacheRefreshing: {},
+        secretRealmResetting: false
       });
     } finally {
       if (options.fromPullDown) {
@@ -423,6 +430,61 @@ Page({
         cacheError: resolveErrorMessage(error, '刷新失败，请稍后重试')
       });
       wx.showToast({ title: '刷新失败', icon: 'none', duration: 1200 });
+    }
+  },
+
+  async handleSecretRealmReset() {
+    if (this.data.secretRealmResetting) {
+      return;
+    }
+    const confirmed = await showConfirmationModal({
+      title: '重置秘境进度',
+      content: '将清除所有会员的秘境通关记录，确认继续？',
+      confirmText: '立即重置',
+      cancelText: '取消'
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    this.setData({
+      secretRealmResetting: true,
+      secretRealmResetError: '',
+      secretRealmResetSummary: ''
+    });
+
+    try {
+      const result = await AdminService.resetSecretRealmProgress({ scope: 'global' });
+      const updated = Number(result && result.updated);
+      const processed = Number(result && result.processed);
+      const total = Number(result && result.total);
+      const resolvedUpdated = Number.isFinite(updated)
+        ? updated
+        : Number.isFinite(processed)
+        ? processed
+        : 0;
+      const resolvedTotal = Number.isFinite(total)
+        ? total
+        : Number.isFinite(processed)
+        ? processed
+        : Number.isFinite(updated)
+        ? updated
+        : 0;
+      const summary = resolvedTotal
+        ? `已重置 ${resolvedUpdated} / ${resolvedTotal} 名会员的秘境进度`
+        : `已重置 ${resolvedUpdated} 名会员的秘境进度`;
+      this.setData({
+        secretRealmResetting: false,
+        secretRealmResetSummary: summary,
+        secretRealmResetError: ''
+      });
+      wx.showToast({ title: '重置完成', icon: 'success', duration: 1200 });
+    } catch (error) {
+      this.setData({
+        secretRealmResetting: false,
+        secretRealmResetError: resolveErrorMessage(error, '重置失败，请稍后重试')
+      });
+      wx.showToast({ title: '操作失败', icon: 'none', duration: 1200 });
     }
   },
 

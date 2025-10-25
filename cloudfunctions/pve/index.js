@@ -2462,6 +2462,7 @@ const ENEMY_MAP = buildMap(ENEMY_LIBRARY);
 const SECRET_REALM_MAX_FLOOR = ENEMY_LIBRARY.length
   ? ENEMY_LIBRARY[ENEMY_LIBRARY.length - 1].floor
   : 0;
+const SECRET_REALM_RESET_BATCH_SIZE = 100;
 
 function resolveEnemyTarget(enemyId) {
   if (enemyId == null) {
@@ -2757,6 +2758,10 @@ exports.main = async (event = {}) => {
       return removeEquipment(actorId, event);
     case 'updateEquipmentAttributes':
       return updateEquipmentAttributes(actorId, event);
+    case 'adminUpdateSecretRealm':
+      return adminUpdateSecretRealmProgress(actorId, event);
+    case 'adminResetSecretRealm':
+      return adminResetSecretRealm(actorId, event);
     case 'allocatePoints':
       return allocatePoints(actorId, event.allocations || {});
     case 'resetAttributes':
@@ -4051,6 +4056,229 @@ async function updateEquipmentAttributes(actorId, event = {}) {
   );
   const updated = decorateEquipmentInventoryEntry(entry, profile.equipment.slots);
   return { profile: decoratedProfile, updated };
+}
+
+function serializeSecretRealmState(state) {
+  const normalized = normalizeSecretRealm(state || {});
+  const floors = normalized.floors || {};
+  const serializedFloors = Object.keys(floors)
+    .sort()
+    .reduce((acc, id) => {
+      const entry = floors[id] || {};
+      const clearedAt = entry.clearedAt instanceof Date ? entry.clearedAt : entry.clearedAt ? new Date(entry.clearedAt) : null;
+      const clearedAtTime = clearedAt && !Number.isNaN(clearedAt.getTime()) ? clearedAt.getTime() : null;
+      const bestRounds = Number.isFinite(Number(entry.bestRounds)) ? Math.max(1, Math.floor(Number(entry.bestRounds))) : null;
+      const victories = Number.isFinite(Number(entry.victories)) ? Math.max(0, Math.floor(Number(entry.victories))) : 0;
+      acc[id] = { clearedAt: clearedAtTime, bestRounds, victories };
+      return acc;
+    }, {});
+  return {
+    highestUnlockedFloor: normalized.highestUnlockedFloor || 1,
+    floors: serializedFloors
+  };
+}
+
+function buildSecretRealmFloors(highestUnlockedFloor, existingFloors = {}, now = new Date(), { autoComplete = true } = {}) {
+  const floors = {};
+  const highest = Number.isFinite(Number(highestUnlockedFloor))
+    ? Math.max(1, Math.floor(Number(highestUnlockedFloor)))
+    : 1;
+
+  ENEMY_LIBRARY.forEach((enemy) => {
+    if (!enemy || enemy.category !== 'secretRealm') {
+      return;
+    }
+    if (enemy.floor >= highest) {
+      return;
+    }
+    const existing = existingFloors[enemy.id] || {};
+    const clearedAt = existing.clearedAt instanceof Date ? existing.clearedAt : existing.clearedAt ? new Date(existing.clearedAt) : null;
+    const normalizedClearedAt = clearedAt && !Number.isNaN(clearedAt.getTime()) ? clearedAt : now;
+    const bestRounds = Number.isFinite(Number(existing.bestRounds))
+      ? Math.max(1, Math.floor(Number(existing.bestRounds)))
+      : null;
+    let victories = Number.isFinite(Number(existing.victories))
+      ? Math.max(0, Math.floor(Number(existing.victories)))
+      : 0;
+    if (autoComplete && victories <= 0) {
+      victories = 1;
+    }
+    floors[enemy.id] = {
+      clearedAt: normalizedClearedAt,
+      bestRounds,
+      victories
+    };
+  });
+
+  return floors;
+}
+
+async function adminUpdateSecretRealmProgress(actorId, event = {}) {
+  const admin = await ensureMember(actorId);
+  ensureAdminAccess(admin);
+
+  const memberId =
+    typeof event.memberId === 'string' && event.memberId.trim()
+      ? event.memberId.trim()
+      : '';
+  if (!memberId) {
+    throw createError('MEMBER_ID_REQUIRED', '缺少会员编号');
+  }
+
+  if (event.reset) {
+    return adminResetSecretRealm(actorId, { scope: 'member', memberId });
+  }
+
+  const targetMember = await ensureMember(memberId);
+  const now = new Date();
+  const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
+  await attachHistoryToProfile(memberId, profile);
+
+  const currentSecretRealm = normalizeSecretRealm(profile.secretRealm || {}, now);
+  const defaultState = buildDefaultSecretRealmState();
+  const minFloor = defaultState.highestUnlockedFloor || 1;
+  const maxFloor = SECRET_REALM_MAX_FLOOR > 0 ? SECRET_REALM_MAX_FLOOR : Number.MAX_SAFE_INTEGER;
+
+  let desiredFloor = currentSecretRealm.highestUnlockedFloor || minFloor;
+  if (Object.prototype.hasOwnProperty.call(event, 'highestUnlockedFloor')) {
+    const numeric = Number(event.highestUnlockedFloor);
+    if (Number.isFinite(numeric)) {
+      desiredFloor = Math.max(minFloor, Math.min(maxFloor, Math.floor(numeric)));
+    }
+  }
+
+  const autoComplete = event.autoComplete !== false;
+  const nextFloors = buildSecretRealmFloors(desiredFloor, currentSecretRealm.floors || {}, now, {
+    autoComplete
+  });
+  const nextState = {
+    highestUnlockedFloor: desiredFloor,
+    floors: nextFloors
+  };
+
+  const currentSignature = JSON.stringify(serializeSecretRealmState(currentSecretRealm));
+  const nextSignature = JSON.stringify(serializeSecretRealmState(nextState));
+
+  if (currentSignature === nextSignature) {
+    const decoratedProfile = decorateProfile(
+      { ...targetMember, pveProfile: profile },
+      profile,
+      { viewer: admin }
+    );
+    return { profile: decoratedProfile, changed: false };
+  }
+
+  profile.secretRealm = normalizeSecretRealm(nextState, now);
+  refreshAttributeSummary(profile);
+
+  await savePveProfile(memberId, profile, { now, historyDoc: profile.__historyDoc });
+
+  const decoratedProfile = decorateProfile(
+    { ...targetMember, pveProfile: profile },
+    profile,
+    { viewer: admin }
+  );
+
+  return { profile: decoratedProfile, changed: true };
+}
+
+async function adminResetSecretRealm(actorId, event = {}) {
+  const admin = await ensureMember(actorId);
+  ensureAdminAccess(admin);
+
+  const scope = typeof event.scope === 'string' ? event.scope.trim().toLowerCase() : 'global';
+  const memberId =
+    typeof event.memberId === 'string' && event.memberId.trim()
+      ? event.memberId.trim()
+      : '';
+
+  if (scope === 'member' || memberId) {
+    const targetId = memberId || (typeof event.targetId === 'string' ? event.targetId.trim() : '');
+    if (!targetId) {
+      throw createError('MEMBER_ID_REQUIRED', '缺少会员编号');
+    }
+    const defaultState = buildDefaultSecretRealmState();
+    const now = new Date();
+    const targetMember = await ensureMember(targetId);
+    const profile = normalizeProfileWithoutEquipmentDefaults(targetMember.pveProfile, now);
+    await attachHistoryToProfile(targetId, profile);
+    profile.secretRealm = normalizeSecretRealm(defaultState, now);
+    refreshAttributeSummary(profile);
+    await savePveProfile(targetId, profile, { now, historyDoc: profile.__historyDoc });
+    const decoratedProfile = decorateProfile(
+      { ...targetMember, pveProfile: profile },
+      profile,
+      { viewer: admin }
+    );
+    return {
+      scope: 'member',
+      memberId: targetId,
+      profile: decoratedProfile
+    };
+  }
+
+  const defaultSecretRealm = normalizeSecretRealm(buildDefaultSecretRealmState());
+  const membersCollection = db.collection(COLLECTIONS.MEMBERS);
+  const countResult = await membersCollection.count().catch(() => ({ total: 0 }));
+  const total = countResult.total || 0;
+  let processed = 0;
+  let updated = 0;
+
+  while (processed < total) {
+    const snapshot = await membersCollection
+      .skip(processed)
+      .limit(SECRET_REALM_RESET_BATCH_SIZE)
+      .field({ _id: true })
+      .get()
+      .catch(() => ({ data: [] }));
+
+    const docs = snapshot && Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+
+    const now = new Date();
+    await Promise.all(
+      docs.map((doc) => {
+        const docId = doc && doc._id ? doc._id : '';
+        if (!docId) {
+          return Promise.resolve(false);
+        }
+        const resetState = {
+          highestUnlockedFloor: defaultSecretRealm.highestUnlockedFloor || 1,
+          floors: {}
+        };
+        return membersCollection
+          .doc(docId)
+          .update({
+            data: {
+              'pveProfile.secretRealm': _.set(resetState),
+              updatedAt: now
+            }
+          })
+          .then(() => {
+            updated += 1;
+            return true;
+          })
+          .catch((error) => {
+            console.error('[pve] reset secret realm failed', docId, error);
+            return false;
+          });
+      })
+    );
+
+    processed += docs.length;
+    if (docs.length < SECRET_REALM_RESET_BATCH_SIZE) {
+      break;
+    }
+  }
+
+  return {
+    scope: 'global',
+    total,
+    processed,
+    updated
+  };
 }
 
 function resolveActorId(openid, event = {}) {
