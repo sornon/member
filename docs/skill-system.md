@@ -199,6 +199,25 @@
 - **镇魂神符**：沉默命中率 = 70% + 2%×(Lv-1)，Lv50 为 168%（受命中上限限制）；真气压制 = 20% + 2%×(Lv-1)，Lv50 为 -118%。
 - **雷霆断界**：单段倍率 = 60% + 4%×(Lv-1)，Lv50 为 256%；眩晕命中率 = 50% + 2%×(Lv-1)，Lv50 为 148%（按 100% 上限执行）。
 
+## 7. 战斗动作队列
+
+为解决前后端关于控制效果生效时机的分歧，服务器回合逻辑已按照“准备 → 行动 → 收尾”三阶段固定化，并暴露 `controlRuntime` 快照字段用来描述当前控制状态、剩余回合数及禁用规则，方便前端直接对齐表现。
+
+| 阶段 | 关键步骤 | 说明 |
+| --- | --- | --- |
+| 准备阶段 | `decrementCooldowns` → `applyTurnStartResourceGain` → `processStartStatuses` | 在处理回合开始的资源、持续伤害与控制效果时会调用 `updateActorControlSnapshot`，将眩晕、冰冻、沉睡等控制的 `disableDodge/disableActive` 标记、剩余回合写入 `actor.controlRuntime`；若判定需要跳过，则立即返回“跳过动作”并进入收尾。 【F:cloudfunctions/nodejs-layer/node_modules/skill-engine/index.js†L867-L939】【F:cloudfunctions/nodejs-layer/node_modules/skill-engine/index.js†L615-L704】|
+| 行动阶段 | `chooseSkill` → `executeSkill` | 当角色可以行动时，选技逻辑会参考 `controlRuntime` 的沉默、禁普攻标记；伤害结算中 `shouldSuppressDodge` 每次命中前都会刷新目标的控制快照，并在 `disableDodge` 或“即将生效”的控制命中后强制命中，不再允许闪避穿透控制效果。 【F:cloudfunctions/nodejs-layer/node_modules/skill-engine/index.js†L967-L1042】【F:cloudfunctions/nodejs-layer/node_modules/skill-engine/index.js†L1199-L1377】|
+| 收尾阶段 | `finalizeStatuses` | 技能结算结束后统一扣减状态回合，若仍存在控制效果会再次刷新 `controlRuntime`，前端可依据 `remainingTurns` 与 `summaries` 判定滤镜持续时间。 【F:cloudfunctions/nodejs-layer/node_modules/skill-engine/index.js†L1379-L1462】|
+
+### 7.1 控制快照字段
+- `effects`：当前叠加的控制关键字列表（如 `stun`、`freeze`）。
+- `disableDodge / disableActive / disableBasic / skip`：本回合行动限制布尔值。
+- `remainingTurns`：所有控制效果中剩余的最大回合数，用于统一展示灰度滤镜持续时长。
+- `remainingByEffect`：按控制类型分别记录剩余回合，方便前端在多重控制叠加时做拆分提示。
+- `summaries`：控制提示文案映射，保证战斗日志和 UI 描述一致。
+
+服务器在 `addStatus`、`removeStatus`、`clearControlEffects`、`finalizeStatuses` 等节点都会刷新上述快照，从而确保同一回合内的多段伤害、追击、追加 DOT 均能看到最新的控制信息。 【F:cloudfunctions/nodejs-layer/node_modules/skill-engine/index.js†L87-L159】【F:cloudfunctions/nodejs-layer/node_modules/skill-engine/index.js†L734-L916】【F:cloudfunctions/nodejs-layer/node_modules/skill-engine/index.js†L1265-L1377】
+
 ## 7. 技能亮点展示规则
 
 ### 7.1 分类字典
