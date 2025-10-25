@@ -29,7 +29,7 @@ function buildCharacterImageMap() {
 const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
 
-const CONTROL_TEXT_KEYWORDS = ['被控制', '被眩晕', '被沉默', '被冰冻', '陷入沉睡'];
+const CONTROL_TEXT_KEYWORDS = ['被控制', '眩晕', '沉默', '冰冻', '陷入沉睡'];
 
 function toFiniteNumber(value, fallback = 0) {
   const number = Number(value);
