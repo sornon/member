@@ -127,6 +127,62 @@ function resolveFilteredSelection(catalog, currentId) {
   return { id: list[0].id, index: 0 };
 }
 
+function buildSecretRealmProgress(profile) {
+  if (!profile || typeof profile !== 'object') {
+    return {
+      highestUnlockedFloor: 1,
+      clearedCount: 0,
+      totalFloors: 0,
+      nextFloorId: ''
+    };
+  }
+  const secretRealm =
+    profile.secretRealm && typeof profile.secretRealm === 'object' ? profile.secretRealm : {};
+  const highest = Number(secretRealm.highestUnlockedFloor || secretRealm.highestFloor || 0);
+  const cleared = Number(secretRealm.clearedCount || 0);
+  const total = Number(secretRealm.totalFloors || 0);
+  return {
+    highestUnlockedFloor: Number.isFinite(highest) && highest > 0 ? Math.floor(highest) : 1,
+    clearedCount: Number.isFinite(cleared) && cleared >= 0 ? Math.floor(cleared) : 0,
+    totalFloors: Number.isFinite(total) && total >= 0 ? Math.floor(total) : 0,
+    nextFloorId: typeof secretRealm.nextFloorId === 'string' ? secretRealm.nextFloorId : ''
+  };
+}
+
+function buildSecretRealmDraft(progress, previousDraft = {}) {
+  const highest = progress && progress.highestUnlockedFloor ? progress.highestUnlockedFloor : '';
+  const autoComplete =
+    previousDraft && typeof previousDraft.autoComplete === 'boolean'
+      ? previousDraft.autoComplete
+      : true;
+  return {
+    highestUnlockedFloor: highest ? String(highest) : '',
+    autoComplete
+  };
+}
+
+function parseSecretRealmFloorInput(value) {
+  if (typeof value !== 'string') {
+    if (value == null) {
+      return null;
+    }
+    try {
+      value = String(value);
+    } catch (error) {
+      return null;
+    }
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const numeric = Number(trimmed);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  return Math.max(1, Math.floor(numeric));
+}
+
 const RAW_AVATAR_OPTIONS = listAllAvatars();
 
 const AVATAR_OPTION_GROUPS = [
@@ -287,7 +343,13 @@ Page({
     equipmentEditDialogVisible: false,
     equipmentEditItem: null,
     equipmentEditForm: { refine: '' },
-    updatingEquipment: false
+    updatingEquipment: false,
+    secretRealmProfile: { highestUnlockedFloor: 1, clearedCount: 0, totalFloors: 0, nextFloorId: '' },
+    secretRealmDraft: { highestUnlockedFloor: '', autoComplete: true },
+    secretRealmSaving: false,
+    secretRealmResetting: false,
+    secretRealmSummary: '',
+    secretRealmError: ''
   },
 
   onLoad(options) {
@@ -423,7 +485,9 @@ Page({
       },
       roleOptions,
       renameHistory: formatRenameHistory(member.renameHistory),
-      avatarOptionGroups: buildAvatarOptionGroups(avatarUnlocks)
+      avatarOptionGroups: buildAvatarOptionGroups(avatarUnlocks),
+      secretRealmSummary: '',
+      secretRealmError: ''
     });
     this.updatePveProfile(profileToApply, {
       skipSanitize: !hasNewProfile && !!existingProfile,
@@ -462,9 +526,12 @@ Page({
     const skipSanitize = !!(options && options.skipSanitize);
     const sanitizedProfile = skipSanitize ? profile : sanitizeEquipmentProfile(profile);
     const hasProfile = !!(sanitizedProfile && sanitizedProfile.equipment);
+    const secretRealmProgress = buildSecretRealmProgress(sanitizedProfile);
     const updates = {
       pveProfile: sanitizedProfile || null,
-      equipmentProfileLoaded: hasProfile
+      equipmentProfileLoaded: hasProfile,
+      secretRealmProfile: secretRealmProgress,
+      secretRealmDraft: buildSecretRealmDraft(secretRealmProgress, this.data.secretRealmDraft)
     };
     if (hasProfile && options.overrideForm !== false) {
       const storage =
@@ -531,6 +598,121 @@ Page({
       equipmentInventory,
       equipmentProfileLoaded: hasProfile
     });
+  },
+
+  handleSecretRealmFieldChange(event) {
+    const { field } = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    if (field !== 'highestUnlockedFloor') {
+      return;
+    }
+    const value = event && event.detail ? event.detail.value : '';
+    const inputValue = typeof value === 'string' ? value : String(value || '');
+    this.setData({
+      secretRealmDraft: { ...this.data.secretRealmDraft, highestUnlockedFloor: inputValue },
+      secretRealmError: ''
+    });
+  },
+
+  handleSecretRealmAutoCompleteChange(event) {
+    const enabled = !!(event && event.detail && event.detail.value);
+    this.setData({
+      secretRealmDraft: { ...this.data.secretRealmDraft, autoComplete: enabled }
+    });
+  },
+
+  async handleSecretRealmSave() {
+    if (this.data.secretRealmSaving || this.data.secretRealmResetting) {
+      return;
+    }
+    const memberId = this.data.memberId;
+    if (!memberId) {
+      wx.showToast({ title: '缺少会员编号', icon: 'none' });
+      return;
+    }
+    const draft = this.data.secretRealmDraft || {};
+    const parsed = parseSecretRealmFloorInput(draft.highestUnlockedFloor);
+    if (parsed === null) {
+      this.setData({ secretRealmError: '请输入有效的楼层数字' });
+      wx.showToast({ title: '请输入有效楼层', icon: 'none' });
+      return;
+    }
+
+    const totalFloors = Number(this.data.secretRealmProfile && this.data.secretRealmProfile.totalFloors);
+    let targetFloor = parsed;
+    if (Number.isFinite(totalFloors) && totalFloors > 0) {
+      targetFloor = Math.min(totalFloors, targetFloor);
+    }
+    if (targetFloor < 1) {
+      targetFloor = 1;
+    }
+
+    this.setData({ secretRealmSaving: true, secretRealmError: '', secretRealmSummary: '' });
+
+    try {
+      const res = await AdminService.updateSecretRealmProgress(memberId, {
+        highestUnlockedFloor: targetFloor,
+        autoComplete: draft.autoComplete !== false
+      });
+      if (res && res.profile) {
+        this.updatePveProfile(res.profile, { overrideForm: false });
+      }
+      this.setData({
+        secretRealmSaving: false,
+        secretRealmSummary: `已调整至第${targetFloor}层`
+      });
+      wx.showToast({ title: '保存成功', icon: 'success' });
+    } catch (error) {
+      this.setData({
+        secretRealmSaving: false,
+        secretRealmError: error.errMsg || error.message || '保存失败，请稍后重试'
+      });
+      wx.showToast({ title: '保存失败', icon: 'none' });
+    }
+  },
+
+  async handleSecretRealmReset() {
+    if (this.data.secretRealmResetting || this.data.secretRealmSaving) {
+      return;
+    }
+    const memberId = this.data.memberId;
+    if (!memberId) {
+      wx.showToast({ title: '缺少会员编号', icon: 'none' });
+      return;
+    }
+    const confirmed = await new Promise((resolve) => {
+      wx.showModal({
+        title: '重置秘境进度',
+        content: '确认将该会员的秘境进度恢复到初始状态？',
+        confirmText: '立即重置',
+        confirmColor: '#ef4444',
+        cancelText: '取消',
+        success: (res) => resolve(!!(res && res.confirm)),
+        fail: () => resolve(false)
+      });
+    });
+    if (!confirmed) {
+      return;
+    }
+
+    this.setData({ secretRealmResetting: true, secretRealmError: '', secretRealmSummary: '' });
+
+    try {
+      const res = await AdminService.updateSecretRealmProgress(memberId, { reset: true });
+      if (res && res.profile) {
+        this.updatePveProfile(res.profile, { overrideForm: false });
+      }
+      this.setData({
+        secretRealmResetting: false,
+        secretRealmSummary: '已恢复至初始秘境进度'
+      });
+      wx.showToast({ title: '已重置', icon: 'success' });
+    } catch (error) {
+      this.setData({
+        secretRealmResetting: false,
+        secretRealmError: error.errMsg || error.message || '重置失败，请稍后重试'
+      });
+      wx.showToast({ title: '操作失败', icon: 'none' });
+    }
   },
 
   handleEquipmentIconError(event) {

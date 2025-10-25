@@ -796,6 +796,36 @@ export const AdminService = {
     }
     return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   },
+  async resetSecretRealmProgress(options = {}) {
+    const payload = { action: 'resetSecretRealmProgress' };
+    if (options && typeof options === 'object') {
+      if (typeof options.scope === 'string' && options.scope.trim()) {
+        payload.scope = options.scope.trim();
+      }
+      if (typeof options.memberId === 'string' && options.memberId.trim()) {
+        payload.memberId = options.memberId.trim();
+      }
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
+  },
+  async updateSecretRealmProgress(memberId, updates = {}) {
+    const payload = { action: 'updateSecretRealmProgress' };
+    if (typeof memberId === 'string' && memberId.trim()) {
+      payload.memberId = memberId.trim();
+    }
+    if (updates && typeof updates === 'object') {
+      if (Object.prototype.hasOwnProperty.call(updates, 'highestUnlockedFloor')) {
+        payload.highestUnlockedFloor = updates.highestUnlockedFloor;
+      }
+      if (Object.prototype.hasOwnProperty.call(updates, 'autoComplete')) {
+        payload.autoComplete = !!updates.autoComplete;
+      }
+      if (updates.reset) {
+        payload.reset = true;
+      }
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
+  },
   async refreshImmortalTournamentPlayers(options = {}) {
     const payload = { action: 'refreshImmortalTournamentPlayers' };
     if (options && typeof options === 'object') {
