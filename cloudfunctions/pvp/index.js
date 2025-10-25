@@ -323,21 +323,31 @@ async function matchFriend(memberId, event = {}) {
   if (!targetId) {
     throw createError('TARGET_REQUIRED', '请选择要切磋的好友');
   }
-  if (targetId === memberId) {
-    throw createError('SELF_MATCH_FORBIDDEN', '无法与自己切磋');
-  }
   const season = await ensureActiveSeason();
-  const [member, opponentMember] = await Promise.all([ensureMember(memberId), ensureMember(targetId)]);
-  const [profile, opponentProfile] = await Promise.all([
-    ensurePvpProfile(memberId, member, season),
-    ensurePvpProfile(targetId, opponentMember, season)
-  ]);
-  const seed = normalizeSeed(event.seed) || buildMatchSeed(`${memberId}:${targetId}`, season._id);
-  const opponent = {
-    isBot: false,
-    member: opponentMember,
-    profile: opponentProfile
-  };
+  const member = await ensureMember(memberId);
+  const profile = await ensurePvpProfile(memberId, member, season);
+
+  let opponent = null;
+  let seed = normalizeSeed(event.seed);
+  if (targetId === memberId) {
+    const botSeedBase = `${memberId}:sparringBot`;
+    const resolvedSeed = seed || buildMatchSeed(botSeedBase, season._id);
+    opponent = {
+      isBot: true,
+      profile: buildBotProfile(profile, season, resolvedSeed)
+    };
+    seed = resolvedSeed;
+  } else {
+    const opponentMember = await ensureMember(targetId);
+    const opponentProfile = await ensurePvpProfile(targetId, opponentMember, season);
+    seed = seed || buildMatchSeed(`${memberId}:${targetId}`, season._id);
+    opponent = {
+      isBot: false,
+      member: opponentMember,
+      profile: opponentProfile
+    };
+  }
+
   const battle = await resolveBattle(memberId, member, profile, opponent, season, { seed, friendMatch: true });
   await updateLeaderboardCache(season._id);
   const refreshedProfile = await ensurePvpProfile(memberId, member, season);

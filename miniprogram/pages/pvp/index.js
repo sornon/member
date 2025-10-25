@@ -230,11 +230,6 @@ Page({
       : profile.memberId
       ? String(profile.memberId)
       : '';
-    if (selfId && targetId === selfId) {
-      wx.showToast({ title: '无法与自己切磋', icon: 'none' });
-      this.setData({ autoChallengePending: false, targetChallenge: null });
-      return;
-    }
     this.setData({ matching: true, autoChallengePending: false });
     try {
       await this.ensureMemberReady();
