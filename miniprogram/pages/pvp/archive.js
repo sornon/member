@@ -10,7 +10,7 @@ const {
 const {
   resolveFigureScaleClassByRarity,
   normalizeFigureRarity
-} = require('../../shared/figure-scale.js');
+} = require('../../shared/figure-scale');
 
 const app = getApp();
 

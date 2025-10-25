@@ -30,7 +30,7 @@ const {
 const {
   resolveFigureScaleClassByRarity,
   normalizeFigureRarity
-} = require('../../shared/figure-scale.js');
+} = require('../../shared/figure-scale');
 const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
 
 function buildCharacterImageMap() {
