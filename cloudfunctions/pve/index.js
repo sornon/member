@@ -7641,8 +7641,16 @@ function runBattleSimulation({
       const currentActor = attackerKey === 'player' ? playerActor : enemyActor;
       const defender = currentActor === playerActor ? enemyActor : playerActor;
       const beforeState = { player: playerActor.hp, enemy: enemyActor.hp };
+      const beforeControl = {
+        player: captureControlSnapshot(playerActor),
+        opponent: captureControlSnapshot(enemyActor)
+      };
       const turnResult = executeSkillTurn({ actor: currentActor, opponent: defender });
       const afterState = { player: playerActor.hp, enemy: enemyActor.hp };
+      const afterControl = {
+        player: captureControlSnapshot(playerActor),
+        opponent: captureControlSnapshot(enemyActor)
+      };
       const events = [];
       if (Array.isArray(turnResult.preEvents) && turnResult.preEvents.length) {
         events.push(...turnResult.preEvents);
@@ -7676,6 +7684,8 @@ function runBattleSimulation({
           player: previousPlayerAttributesSnapshot,
           opponent: previousEnemyAttributesSnapshot
         },
+        controlBefore: beforeControl,
+        controlAfter: afterControl,
         summaryText
       });
       timeline.push(entry);
@@ -7892,6 +7902,8 @@ function buildTimelineEntry({
   playerAttributesSnapshot,
   enemyAttributesSnapshot,
   previousAttributes = {},
+  controlBefore,
+  controlAfter,
   summaryText
 }) {
   const beforePlayer = before.player;
@@ -7914,14 +7926,18 @@ function buildTimelineEntry({
         after: afterPlayer,
         maxHp: playerMaxHp,
         attributes: playerAttributesSnapshot,
-        previousAttributes: previousAttributes ? previousAttributes.player : null
+        previousAttributes: previousAttributes ? previousAttributes.player : null,
+        controlBefore: controlBefore ? controlBefore.player : null,
+        controlAfter: controlAfter ? controlAfter.player : null
       }),
       opponent: buildTimelineStateSide({
         before: beforeEnemy,
         after: afterEnemy,
         maxHp: enemyMaxHp,
         attributes: enemyAttributesSnapshot,
-        previousAttributes: previousAttributes ? previousAttributes.opponent : null
+        previousAttributes: previousAttributes ? previousAttributes.opponent : null,
+        controlBefore: controlBefore ? controlBefore.opponent : null,
+        controlAfter: controlAfter ? controlAfter.opponent : null
       })
     },
     summary: summaryText
@@ -7934,7 +7950,126 @@ function buildTimelineEntry({
   return entry;
 }
 
-function buildTimelineStateSide({ before, after, maxHp, attributes, previousAttributes }) {
+function normalizeControlRuntimeSnapshot(runtime) {
+  const base = {
+    effects: [],
+    skip: false,
+    disableBasic: false,
+    disableActive: false,
+    disableDodge: false,
+    remainingTurns: 0,
+    remainingByEffect: {},
+    summaries: {},
+    active: false
+  };
+  if (!runtime || typeof runtime !== 'object') {
+    return base;
+  }
+  const effects = Array.isArray(runtime.effects)
+    ? runtime.effects
+        .map((effect) => (typeof effect === 'string' ? effect.trim().toLowerCase() : ''))
+        .filter(Boolean)
+    : [];
+  const skip = !!runtime.skip;
+  const disableBasic = !!runtime.disableBasic;
+  const disableActive = !!runtime.disableActive;
+  const disableDodge = !!runtime.disableDodge;
+  const remainingTurns = Number.isFinite(Number(runtime.remainingTurns))
+    ? Math.max(0, Math.round(Number(runtime.remainingTurns)))
+    : 0;
+  const sourceRemaining =
+    runtime.remainingByEffect && typeof runtime.remainingByEffect === 'object' ? runtime.remainingByEffect : {};
+  const remainingByEffect = {};
+  effects.forEach((effect) => {
+    const raw = Number(sourceRemaining[effect]);
+    if (Number.isFinite(raw)) {
+      remainingByEffect[effect] = Math.max(0, Math.round(raw));
+    }
+  });
+  const sourceSummaries = runtime.summaries && typeof runtime.summaries === 'object' ? runtime.summaries : {};
+  const summaries = {};
+  effects.forEach((effect) => {
+    const summary = sourceSummaries[effect];
+    if (typeof summary === 'string' && summary.trim()) {
+      summaries[effect] = summary.trim();
+    }
+  });
+  const active =
+    effects.length > 0 || skip || disableBasic || disableActive || disableDodge || remainingTurns > 0;
+  return {
+    effects,
+    skip,
+    disableBasic,
+    disableActive,
+    disableDodge,
+    remainingTurns,
+    remainingByEffect,
+    summaries,
+    active
+  };
+}
+
+function captureControlSnapshot(actor) {
+  if (!actor || !actor.controlRuntime) {
+    return normalizeControlRuntimeSnapshot();
+  }
+  return normalizeControlRuntimeSnapshot(actor.controlRuntime);
+}
+
+function cloneControlSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return null;
+  }
+  const effects = Array.isArray(snapshot.effects)
+    ? snapshot.effects.map((effect) => (typeof effect === 'string' ? effect : '')).filter(Boolean)
+    : [];
+  const sourceRemaining = snapshot.remainingByEffect && typeof snapshot.remainingByEffect === 'object'
+    ? snapshot.remainingByEffect
+    : {};
+  const sourceSummaries = snapshot.summaries && typeof snapshot.summaries === 'object' ? snapshot.summaries : {};
+  const remainingByEffect = effects.reduce((acc, effect) => {
+    const value = Number(sourceRemaining[effect]);
+    if (Number.isFinite(value)) {
+      acc[effect] = Math.max(0, Math.round(value));
+    }
+    return acc;
+  }, {});
+  const summaries = effects.reduce((acc, effect) => {
+    const summary = sourceSummaries[effect];
+    if (typeof summary === 'string' && summary.trim()) {
+      acc[effect] = summary.trim();
+    }
+    return acc;
+  }, {});
+  const remainingTurns = Number.isFinite(Number(snapshot.remainingTurns))
+    ? Math.max(0, Math.round(Number(snapshot.remainingTurns)))
+    : 0;
+  const active =
+    typeof snapshot.active === 'boolean'
+      ? snapshot.active
+      : effects.length > 0 || snapshot.skip || snapshot.disableBasic || snapshot.disableActive || snapshot.disableDodge || remainingTurns > 0;
+  return {
+    effects,
+    skip: !!snapshot.skip,
+    disableBasic: !!snapshot.disableBasic,
+    disableActive: !!snapshot.disableActive,
+    disableDodge: !!snapshot.disableDodge,
+    remainingTurns,
+    remainingByEffect,
+    summaries,
+    active
+  };
+}
+
+function buildTimelineStateSide({
+  before,
+  after,
+  maxHp,
+  attributes,
+  previousAttributes,
+  controlBefore,
+  controlAfter
+}) {
   const max = Math.max(1, Math.round(maxHp || 1));
   const beforeValue = Number.isFinite(before) ? before : max;
   const afterValue = Number.isFinite(after) ? after : Math.min(beforeValue, max);
@@ -7955,6 +8090,14 @@ function buildTimelineStateSide({ before, after, maxHp, attributes, previousAttr
     state.shield = {
       before: shieldBefore,
       after: shieldAfter
+    };
+  }
+  const hasControlBefore = controlBefore && (controlBefore.active || controlBefore.effects.length);
+  const hasControlAfter = controlAfter && (controlAfter.active || controlAfter.effects.length);
+  if (hasControlBefore || hasControlAfter) {
+    state.control = {
+      before: cloneControlSnapshot(controlBefore),
+      after: cloneControlSnapshot(controlAfter)
     };
   }
   return state;
