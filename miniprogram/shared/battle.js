@@ -1,6 +1,8 @@
 const { buildCloudAssetUrl, AVATAR_IMAGE_BASE_PATH, CHARACTER_IMAGE_BASE_PATH } = require('./asset-paths');
 const { normalizeAvatarFrameValue } = require('./avatar-frames');
 const { buildTitleImageUrl, normalizeTitleId, resolveTitleById } = require('./titles');
+const { resolveAvatarMetaById } = require('./avatar-catalog');
+const { resolveFigureScaleClassByRarity, normalizeFigureRarity } = require('./figure-scale');
 
 const DEFAULT_BACKGROUND_VIDEO = buildCloudAssetUrl('video', 'battle_default.mp4');
 const DEFAULT_AVATAR_IMAGE = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
@@ -48,6 +50,44 @@ const AVATAR_IMAGE_FIELDS = [
   'icon',
   'iconUrl',
   'iconURL'
+];
+
+const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
+const CHARACTER_URL_PATTERN = /\/assets\/character\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
+const FIGURE_URL_FIELDS = [
+  'portrait',
+  'figure',
+  'avatar',
+  'avatarUrl',
+  'avatarURL',
+  'avatarImage',
+  'characterImage',
+  'heroImage',
+  'icon',
+  'iconUrl',
+  'iconURL',
+  'image',
+  'url'
+];
+const FIGURE_RARITY_FIELDS = [
+  'figureRarity',
+  'avatarRarity',
+  'rarity',
+  'rarityKey',
+  'rarityLabel',
+  'rank',
+  'grade',
+  'characterRarity'
+];
+const FIGURE_RARITY_NESTED_FIELDS = [
+  'avatar',
+  'figure',
+  'character',
+  'appearance',
+  'tier',
+  'extras',
+  'extra',
+  'profile'
 ];
 
 const TITLE_ID_FIELDS = [
@@ -124,6 +164,135 @@ function pushUnique(collection, value) {
   if (!collection.includes(value)) {
     collection.push(value);
   }
+}
+
+function extractAvatarIdFromAssetUrl(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  const raw = typeof value === 'number' ? String(value) : value;
+  const normalized = toTrimmedString(raw).toLowerCase();
+  if (!normalized) {
+    return '';
+  }
+  let match = normalized.match(AVATAR_URL_PATTERN);
+  if (match) {
+    return match[1];
+  }
+  match = normalized.match(CHARACTER_URL_PATTERN);
+  return match ? match[1] : '';
+}
+
+function collectFigureUrlCandidates(target, source, visited = new Set()) {
+  if (source === null || source === undefined) {
+    return;
+  }
+  if (Array.isArray(source)) {
+    for (let i = 0; i < source.length; i += 1) {
+      collectFigureUrlCandidates(target, source[i], visited);
+    }
+    return;
+  }
+  if (typeof source === 'string' || typeof source === 'number') {
+    const raw = typeof source === 'number' ? String(source) : source;
+    const value = toTrimmedString(raw);
+    if (value) {
+      pushUnique(target, value);
+    }
+    return;
+  }
+  if (typeof source !== 'object') {
+    return;
+  }
+  if (visited.has(source)) {
+    return;
+  }
+  visited.add(source);
+  for (let i = 0; i < FIGURE_URL_FIELDS.length; i += 1) {
+    const field = FIGURE_URL_FIELDS[i];
+    if (!Object.prototype.hasOwnProperty.call(source, field)) {
+      continue;
+    }
+    collectFigureUrlCandidates(target, source[field], visited);
+  }
+}
+
+function collectFigureRarityCandidates(target, source, visited = new Set()) {
+  if (source === null || source === undefined) {
+    return;
+  }
+  if (Array.isArray(source)) {
+    for (let i = 0; i < source.length; i += 1) {
+      collectFigureRarityCandidates(target, source[i], visited);
+    }
+    return;
+  }
+  if (typeof source === 'string' || typeof source === 'number') {
+    const raw = typeof source === 'number' ? String(source) : source;
+    const value = toTrimmedString(raw);
+    if (value) {
+      pushUnique(target, value);
+    }
+    return;
+  }
+  if (typeof source !== 'object') {
+    return;
+  }
+  if (visited.has(source)) {
+    return;
+  }
+  visited.add(source);
+  for (let i = 0; i < FIGURE_RARITY_FIELDS.length; i += 1) {
+    const field = FIGURE_RARITY_FIELDS[i];
+    if (!Object.prototype.hasOwnProperty.call(source, field)) {
+      continue;
+    }
+    collectFigureRarityCandidates(target, source[field], visited);
+  }
+  for (let i = 0; i < FIGURE_RARITY_NESTED_FIELDS.length; i += 1) {
+    const field = FIGURE_RARITY_NESTED_FIELDS[i];
+    if (!Object.prototype.hasOwnProperty.call(source, field)) {
+      continue;
+    }
+    collectFigureRarityCandidates(target, source[field], visited);
+  }
+}
+
+function resolveFigureRarityFromCandidates({ direct = [], sources = [], urls = [] } = {}) {
+  for (let i = 0; i < direct.length; i += 1) {
+    const normalized = normalizeFigureRarity(direct[i]);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  const rarityCandidates = [];
+  collectFigureRarityCandidates(rarityCandidates, direct);
+  collectFigureRarityCandidates(rarityCandidates, sources);
+  for (let i = 0; i < rarityCandidates.length; i += 1) {
+    const normalized = normalizeFigureRarity(rarityCandidates[i]);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  const urlCandidates = [];
+  collectFigureUrlCandidates(urlCandidates, urls);
+  collectFigureUrlCandidates(urlCandidates, direct);
+  collectFigureUrlCandidates(urlCandidates, sources);
+  for (let i = 0; i < urlCandidates.length; i += 1) {
+    const avatarId = extractAvatarIdFromAssetUrl(urlCandidates[i]);
+    if (!avatarId) {
+      continue;
+    }
+    const meta = resolveAvatarMetaById(avatarId);
+    if (!meta || !meta.rarity) {
+      continue;
+    }
+    const normalized = normalizeFigureRarity(meta.rarity);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return '';
 }
 
 function looksLikeUrl(value) {
@@ -2194,6 +2363,58 @@ function buildStructuredBattleViewModel({
     sources: opponentRelatedSources
   });
 
+  const playerRarity = resolveFigureRarityFromCandidates({
+    direct: [
+      context.playerRarity,
+      context.playerRank,
+      context.playerGrade,
+      context.playerTier,
+      context.playerTierName,
+      context.playerTier && context.playerTier.name
+    ],
+    sources: playerRelatedSources,
+    urls: [
+      playerPortrait,
+      normalizedPlayerAvatar,
+      context.playerPortrait,
+      context.playerAvatar,
+      context.playerAvatarUrl,
+      context.playerAvatarImage,
+      context.playerImage,
+      context.playerIcon,
+      context.avatar,
+      context.avatarUrl,
+      context.avatarImage
+    ]
+  });
+  const opponentRarity = resolveFigureRarityFromCandidates({
+    direct: [
+      context.opponentRarity,
+      context.opponentRank,
+      context.opponentGrade,
+      context.opponentTier,
+      context.opponentTierName,
+      context.opponentTier && context.opponentTier.name,
+      context.enemyRarity,
+      context.enemyRank
+    ],
+    sources: opponentRelatedSources,
+    urls: [
+      opponentPortrait,
+      normalizedOpponentAvatar,
+      context.opponentPortrait,
+      context.opponentAvatar,
+      context.opponentAvatarUrl,
+      context.opponentAvatarImage,
+      context.enemyPortrait,
+      context.enemyAvatar,
+      context.enemyAvatarUrl,
+      context.enemyAvatarImage
+    ]
+  });
+  const playerFigureScaleClass = resolveFigureScaleClassByRarity(playerRarity);
+  const opponentFigureScaleClass = resolveFigureScaleClassByRarity(opponentRarity);
+
   return {
     player: {
       id: playerId || 'player',
@@ -2206,6 +2427,8 @@ function buildStructuredBattleViewModel({
       titleId: playerTitle.id,
       titleImage: playerTitle.image,
       titleName: playerTitle.name,
+      figureRarity: playerRarity,
+      figureScaleClass: playerFigureScaleClass,
       attributes: playerAttributes ? { ...playerAttributes } : null,
       summary: {
         damageDealt: Math.round(totals.playerDamageDealt),
@@ -2225,6 +2448,8 @@ function buildStructuredBattleViewModel({
       titleId: opponentTitle.id,
       titleImage: opponentTitle.image,
       titleName: opponentTitle.name,
+      figureRarity: opponentRarity,
+      figureScaleClass: opponentFigureScaleClass,
       attributes: opponentAttributes ? { ...opponentAttributes } : null,
       summary: {
         damageDealt: Math.round(totals.enemyDamageDealt),

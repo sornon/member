@@ -96,7 +96,9 @@
       </view>
 
       <view class="hero-figure">
-        <image class="hero-image" src="{{heroImage}}" mode="widthFix"></image>
+        <view class="hero-figure__image-wrapper figure-scale {{heroFigureScaleClass}}">
+          <image class="hero-image" src="{{heroImage}}" mode="widthFix"></image>
+        </view>
         <view class="aura aura-1"></view>
         <view class="aura aura-2"></view>
       </view>

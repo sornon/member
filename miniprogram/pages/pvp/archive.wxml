@@ -59,7 +59,9 @@
           </view>
         </view>
         <view class="archive-figure">
-          <image class="archive-figure__image" src="{{heroImage}}" mode="widthFix"></image>
+          <view class="archive-figure__image-wrapper figure-scale {{heroFigureScaleClass}}">
+            <image class="archive-figure__image" src="{{heroImage}}" mode="widthFix"></image>
+          </view>
         </view>
       </view>
 

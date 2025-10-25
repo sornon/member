@@ -3,12 +3,22 @@ import { formatCombatPower } from '../../utils/format';
 const { buildTitleImageUrl } = require('../../shared/titles.js');
 const { normalizeBackgroundId, resolveBackgroundById, getDefaultBackgroundId } = require('../../shared/backgrounds.js');
 const { CHARACTER_IMAGE_BASE_PATH, AVATAR_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
-const { listAvatarIds } = require('../../shared/avatar-catalog.js');
+const {
+  listAvatarIds,
+  resolveAvatarMetaById
+} = require('../../shared/avatar-catalog.js');
+const {
+  resolveFigureScaleClassByRarity,
+  normalizeFigureRarity
+} = require('../../shared/figure-scale.js');
 
 const app = getApp();
 
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_CHARACTER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
+
+const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
+const CHARACTER_URL_PATTERN = /\/assets\/character\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
 
 function buildCharacterImageMap() {
   const ids = listAvatarIds();
@@ -24,7 +34,15 @@ function extractAvatarIdFromUrl(url) {
   if (typeof url !== 'string') {
     return '';
   }
-  const match = url.trim().toLowerCase().match(/\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png$/);
+  const normalized = url.trim().toLowerCase();
+  if (!normalized) {
+    return '';
+  }
+  let match = normalized.match(AVATAR_URL_PATTERN);
+  if (match) {
+    return match[1];
+  }
+  match = normalized.match(CHARACTER_URL_PATTERN);
   return match ? match[1] : '';
 }
 
@@ -47,6 +65,45 @@ function resolveCharacterImage(archive) {
     return resolveCharacterImageByAvatarId(avatarId);
   }
   return DEFAULT_CHARACTER_IMAGE;
+}
+
+function resolveArchiveRarity(archive) {
+  if (!archive || typeof archive !== 'object') {
+    return '';
+  }
+  const directCandidates = [
+    archive.figureRarity,
+    archive.avatarRarity,
+    archive.rarity,
+    archive.rarityKey,
+    archive.rank,
+    archive.grade,
+    archive.characterRarity
+  ];
+  if (archive.tier && typeof archive.tier === 'object') {
+    directCandidates.push(archive.tier.name, archive.tier.rank);
+  }
+  for (let i = 0; i < directCandidates.length; i += 1) {
+    const normalized = normalizeFigureRarity(directCandidates[i]);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  const avatarId = extractAvatarIdFromUrl(archive.portrait || archive.avatarUrl || '');
+  if (avatarId) {
+    const meta = resolveAvatarMetaById(avatarId);
+    if (meta && meta.rarity) {
+      const normalized = normalizeFigureRarity(meta.rarity);
+      if (normalized) {
+        return normalized;
+      }
+    }
+  }
+  return '';
+}
+
+function resolveHeroFigureScaleClass(archive) {
+  return resolveFigureScaleClassByRarity(resolveArchiveRarity(archive));
 }
 
 function resolveBackgroundDisplay(background) {
@@ -87,6 +144,7 @@ Page({
     navHeight: 88,
     titleImage: '',
     heroImage: DEFAULT_CHARACTER_IMAGE,
+    heroFigureScaleClass: '',
     defaultAvatar: DEFAULT_AVATAR,
     combatPowerText: '--',
     equippedSkills: []
@@ -189,6 +247,7 @@ Page({
       attributeList,
       combatStats,
       heroImage,
+      heroFigureScaleClass: resolveHeroFigureScaleClass(archive),
       titleImage,
       combatPowerText,
       equippedSkills,
