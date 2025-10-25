@@ -29,32 +29,24 @@ Page({
     leaderboardUpdatedAt: '',
     battleResult: null,
     matching: false,
-    inviteSending: false,
-    shareInvite: null,
-    inviteInfo: null,
-    pendingInviteId: '',
-    acceptingInvite: false,
     targetChallenge: null,
     claimingReward: false,
     autoMatchIntent: false,
+    autoChallengePending: false,
     heroBackgroundUrl: buildCloudAssetUrl('background', 'battle-s1.jpg')
   },
 
   onLoad(options = {}) {
     this._ensureMemberPromise = null;
     const nextState = {};
-    if (options.inviteId) {
-      nextState.pendingInviteId = options.inviteId;
-    }
     if (options.targetId) {
       nextState.targetChallenge = {
         id: options.targetId,
         name: options.targetName ? decodeURIComponent(options.targetName) : ''
       };
+      nextState.autoChallengePending = true;
     }
-    const shouldAutoMatch = !nextState.pendingInviteId
-      && !nextState.targetChallenge
-      && !this.hasInternalReferrer();
+    const shouldAutoMatch = !nextState.targetChallenge && !this.hasInternalReferrer();
     if (shouldAutoMatch) {
       nextState.autoMatchIntent = true;
     }
@@ -108,6 +100,7 @@ Page({
           : [],
         leaderboardUpdatedAt: res.leaderboardUpdatedAt || ''
       });
+      this.triggerAutoBattleIfNeeded();
     } catch (error) {
       console.error('[pvp] load profile failed', error);
       wx.showToast({ title: error.errMsg || '加载失败', icon: 'none' });
@@ -142,42 +135,6 @@ Page({
       },
       complete: () => {
         this.setData({ matching: false });
-      }
-    });
-  },
-
-  async handleAcceptInvite() {
-    const { pendingInviteId, acceptingInvite } = this.data;
-    if (!pendingInviteId || acceptingInvite) {
-      return;
-    }
-    try {
-      await this.ensureMemberReady();
-    } catch (error) {
-      console.error('[pvp] ensure member before accepting invite failed', error);
-      wx.showToast({ title: error.errMsg || '进入战斗失败', icon: 'none' });
-      return;
-    }
-    this.setData({ acceptingInvite: true });
-    wx.navigateTo({
-      url: '/pages/battle/play?mode=pvp',
-      events: {
-        battleFinished: (payload = {}) => {
-          this.applyBattlePayload(payload);
-          this.setData({ pendingInviteId: '', acceptingInvite: false });
-        }
-      },
-      success: (res) => {
-        if (res && res.eventChannel && typeof res.eventChannel.emit === 'function') {
-          res.eventChannel.emit('battleContext', { mode: 'pvp', source: 'acceptInvite', inviteId: pendingInviteId });
-        }
-      },
-      fail: () => {
-        wx.showToast({ title: '战斗画面加载失败', icon: 'none' });
-        this.setData({ acceptingInvite: false });
-      },
-      complete: () => {
-        this.setData({ acceptingInvite: false });
       }
     });
   },
@@ -217,47 +174,21 @@ Page({
   },
 
   triggerAutoBattleIfNeeded() {
-    const { pendingInviteId, autoMatchIntent, targetChallenge } = this.data;
-    if (!pendingInviteId) {
-      if (!autoMatchIntent || targetChallenge) {
-        return;
-      }
-      this.setData({ autoMatchIntent: false }, () => {
-        this.handleMatch({ autoInvite: true });
-      });
+    const { autoMatchIntent, targetChallenge, autoChallengePending, matching } = this.data;
+    if (targetChallenge && autoChallengePending && !matching) {
+      Promise.resolve()
+        .then(() => this.handleChallengeConfirm())
+        .catch((error) => {
+          console.error('[pvp] auto challenge failed', error);
+        });
       return;
     }
-    this.handleAcceptInvite();
-  },
-
-  isInviteBattleSource(source) {
-    return source === 'acceptInvite' || source === 'autoInvite';
-  },
-
-  clearPendingInvite() {
-    this.setData({ pendingInviteId: '' });
-  },
-
-  async handleSendInvite() {
-    if (this.data.inviteSending) return;
-    this.setData({ inviteSending: true });
-    try {
-      const res = await PvpService.sendInvite();
-      this.setData({
-        shareInvite: res,
-        inviteInfo: {
-          inviteId: res.inviteId,
-          expiresAt: formatDateTime(res.expiresAt),
-          tier: res.tier
-        },
-        inviteSending: false
-      });
-      wx.showToast({ title: '邀请已生成，快去分享！', icon: 'success' });
-    } catch (error) {
-      console.error('[pvp] send invite failed', error);
-      wx.showToast({ title: error.errMsg || '生成失败', icon: 'none' });
-      this.setData({ inviteSending: false });
+    if (!autoMatchIntent || matching || targetChallenge) {
+      return;
     }
+    this.setData({ autoMatchIntent: false }, () => {
+      this.handleMatch({ autoInvite: true });
+    });
   },
 
   async handleClaimReward() {
@@ -278,12 +209,41 @@ Page({
     }
   },
 
-  handleChallengeConfirm() {
+  async handleChallengeConfirm() {
     const challenge = this.data.targetChallenge;
     if (!challenge || this.data.matching) {
+      this.setData({ autoChallengePending: false });
       return;
     }
-    this.setData({ matching: true });
+    const targetId = typeof challenge.id === 'string'
+      ? challenge.id.trim()
+      : challenge.id
+      ? String(challenge.id)
+      : '';
+    if (!targetId) {
+      this.setData({ autoChallengePending: false, targetChallenge: null });
+      return;
+    }
+    const profile = this.data.profile || {};
+    const selfId = typeof profile.memberId === 'string'
+      ? profile.memberId
+      : profile.memberId
+      ? String(profile.memberId)
+      : '';
+    if (selfId && targetId === selfId) {
+      wx.showToast({ title: '无法与自己切磋', icon: 'none' });
+      this.setData({ autoChallengePending: false, targetChallenge: null });
+      return;
+    }
+    this.setData({ matching: true, autoChallengePending: false });
+    try {
+      await this.ensureMemberReady();
+    } catch (error) {
+      console.error('[pvp] ensure member before spar failed', error);
+      wx.showToast({ title: error.errMsg || '进入战斗失败', icon: 'none' });
+      this.setData({ matching: false });
+      return;
+    }
     wx.navigateTo({
       url: '/pages/battle/play?mode=pvp',
       events: {
@@ -294,7 +254,7 @@ Page({
       },
       success: (res) => {
         if (res && res.eventChannel && typeof res.eventChannel.emit === 'function') {
-          res.eventChannel.emit('battleContext', { mode: 'pvp', source: 'challenge', targetId: challenge.id });
+          res.eventChannel.emit('battleContext', { mode: 'pvp', source: 'challenge', targetId });
         }
       },
       fail: () => {
@@ -308,7 +268,7 @@ Page({
   },
 
   handleCancelChallenge() {
-    this.setData({ targetChallenge: null });
+    this.setData({ targetChallenge: null, autoChallengePending: false });
   },
 
   handleViewLeaderboard() {
@@ -375,13 +335,14 @@ Page({
   },
 
   onShareAppMessage() {
-    const { shareInvite, profile } = this.data;
-    if (shareInvite) {
-      const title = profile && profile.memberSnapshot
-        ? `${profile.memberSnapshot.nickName || '神秘仙友'}向你发起比武` : '竞技场邀战令';
+    const { profile } = this.data;
+    const targetId = profile && typeof profile.memberId === 'string' ? profile.memberId : '';
+    if (targetId) {
+      const nickname = profile && profile.nickName ? profile.nickName : '神秘仙友';
+      const encodedName = encodeURIComponent(nickname);
       return {
-        title,
-        path: `/pages/pvp/index?inviteId=${shareInvite.inviteId}`,
+        title: `${nickname}邀请你切磋`,
+        path: `/pages/pvp/index?targetId=${targetId}&targetName=${encodedName}`,
         imageUrl: SHARE_COVER_IMAGE_URL
       };
     }

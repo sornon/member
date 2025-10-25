@@ -321,10 +321,10 @@ async function matchRandom(memberId, event = {}) {
 async function matchFriend(memberId, event = {}) {
   const targetId = normalizeMemberId(event.targetId);
   if (!targetId) {
-    throw createError('TARGET_REQUIRED', '请选择要挑战的好友');
+    throw createError('TARGET_REQUIRED', '请选择要切磋的好友');
   }
   if (targetId === memberId) {
-    throw createError('SELF_MATCH_FORBIDDEN', '无法挑战自己');
+    throw createError('SELF_MATCH_FORBIDDEN', '无法与自己切磋');
   }
   const season = await ensureActiveSeason();
   const [member, opponentMember] = await Promise.all([ensureMember(memberId), ensureMember(targetId)]);
@@ -332,7 +332,6 @@ async function matchFriend(memberId, event = {}) {
     ensurePvpProfile(memberId, member, season),
     ensurePvpProfile(targetId, opponentMember, season)
   ]);
-  assertBattleCooldown(profile.lastMatchedAt);
   const seed = normalizeSeed(event.seed) || buildMatchSeed(`${memberId}:${targetId}`, season._id);
   const opponent = {
     isBot: false,
@@ -407,7 +406,8 @@ async function getLeaderboard(memberId, event = {}) {
     type,
     entries,
     updatedAt: snapshot.updatedAt || null,
-    myRank: rankIndex >= 0 ? rankIndex + 1 : null
+    myRank: rankIndex >= 0 ? rankIndex + 1 : null,
+    memberId
   };
 }
 
@@ -744,7 +744,6 @@ async function acceptInvite(memberId, event = {}) {
     ensurePvpProfile(memberId, member, season),
     ensurePvpProfile(inviterId, inviterMember, season)
   ]);
-  assertBattleCooldown(profile.lastMatchedAt);
   const seed = invite.seed || buildMatchSeed(`${inviterId}:${memberId}`, season._id);
   const opponent = {
     isBot: false,
