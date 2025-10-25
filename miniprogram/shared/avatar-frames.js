@@ -1,4 +1,6 @@
-const AVATAR_FRAME_BASE_PATH = '/assets/border';
+const { AVATAR_FRAME_IMAGE_BASE_PATH } = require('./asset-paths.js');
+
+const AVATAR_FRAME_BASE_PATH = AVATAR_FRAME_IMAGE_BASE_PATH;
 const AVATAR_FRAME_IDS = ['1', '2', '3'];
 
 const AVATAR_FRAME_URLS = AVATAR_FRAME_IDS.map((id) => `${AVATAR_FRAME_BASE_PATH}/${id}.png`);
