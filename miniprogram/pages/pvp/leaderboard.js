@@ -1,6 +1,27 @@
 import { PvpService } from '../../services/api';
 import { normalizeAvatarFrameValue } from '../../shared/avatar-frames';
 
+const { AVATAR_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
+
+const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
+
+const app = getApp();
+
+function resolveSelfMemberId() {
+  try {
+    if (app && app.globalData && app.globalData.memberInfo) {
+      return app.globalData.memberInfo._id || '';
+    }
+  } catch (error) {
+    console.error('[pvp] resolve self member id failed', error);
+  }
+  return '';
+}
+
+function toTrimmedString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function formatDateTime(date) {
   if (!date) return '';
   const parsed = new Date(date);
@@ -24,10 +45,11 @@ function decorateLeaderboardEntries(entries) {
       return entry;
     }
     const normalizedFrame = normalizeAvatarFrameValue(entry.avatarFrame || '');
+    const avatarUrl = toTrimmedString(entry.avatarUrl) || DEFAULT_AVATAR;
     if (normalizedFrame || entry.avatarFrame) {
-      return { ...entry, avatarFrame: normalizedFrame };
+      return { ...entry, avatarFrame: normalizedFrame, avatarUrl };
     }
-    return { ...entry, avatarFrame: '' };
+    return { ...entry, avatarFrame: '', avatarUrl };
   });
 }
 
@@ -39,10 +61,13 @@ Page({
     updatedAt: '',
     matchLoadingId: '',
     error: '',
-    myRank: null
+    myRank: null,
+    defaultAvatar: DEFAULT_AVATAR,
+    selfMemberId: ''
   },
 
   onLoad() {
+    this.setData({ selfMemberId: resolveSelfMemberId() });
     this.fetchLeaderboard();
   },
 
@@ -57,12 +82,16 @@ Page({
     try {
       const res = await PvpService.leaderboard({ limit: 100 });
       const entries = decorateLeaderboardEntries(res.entries);
+      const resolvedSelfId = toTrimmedString(res.memberId)
+        || this.data.selfMemberId
+        || resolveSelfMemberId();
       this.setData({
         loading: false,
         entries,
         season: res.season || null,
         updatedAt: res.updatedAt ? formatDateTime(res.updatedAt) : '',
-        myRank: Number.isFinite(res.myRank) ? res.myRank : null
+        myRank: Number.isFinite(res.myRank) ? res.myRank : null,
+        selfMemberId: resolvedSelfId
       });
     } catch (error) {
       console.error('[pvp] load leaderboard failed', error);
@@ -73,10 +102,15 @@ Page({
 
   handleChallenge(event) {
     const { id, name } = event.currentTarget.dataset || {};
-    if (!id || this.data.matchLoadingId) {
+    const targetId = toTrimmedString(id);
+    if (!targetId || this.data.matchLoadingId) {
       return;
     }
-    const targetId = String(id);
+    const selfMemberId = this.data.selfMemberId || resolveSelfMemberId();
+    if (selfMemberId && targetId === selfMemberId) {
+      wx.showToast({ title: '无法与自己切磋', icon: 'none' });
+      return;
+    }
     this.setData({ matchLoadingId: targetId });
     wx.navigateTo({
       url: '/pages/battle/play?mode=pvp',

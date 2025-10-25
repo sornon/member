@@ -321,24 +321,33 @@ async function matchRandom(memberId, event = {}) {
 async function matchFriend(memberId, event = {}) {
   const targetId = normalizeMemberId(event.targetId);
   if (!targetId) {
-    throw createError('TARGET_REQUIRED', '请选择要挑战的好友');
-  }
-  if (targetId === memberId) {
-    throw createError('SELF_MATCH_FORBIDDEN', '无法挑战自己');
+    throw createError('TARGET_REQUIRED', '请选择要切磋的好友');
   }
   const season = await ensureActiveSeason();
-  const [member, opponentMember] = await Promise.all([ensureMember(memberId), ensureMember(targetId)]);
-  const [profile, opponentProfile] = await Promise.all([
-    ensurePvpProfile(memberId, member, season),
-    ensurePvpProfile(targetId, opponentMember, season)
-  ]);
-  assertBattleCooldown(profile.lastMatchedAt);
-  const seed = normalizeSeed(event.seed) || buildMatchSeed(`${memberId}:${targetId}`, season._id);
-  const opponent = {
-    isBot: false,
-    member: opponentMember,
-    profile: opponentProfile
-  };
+  const member = await ensureMember(memberId);
+  const profile = await ensurePvpProfile(memberId, member, season);
+
+  let opponent = null;
+  let seed = normalizeSeed(event.seed);
+  if (targetId === memberId) {
+    const botSeedBase = `${memberId}:sparringBot`;
+    const resolvedSeed = seed || buildMatchSeed(botSeedBase, season._id);
+    opponent = {
+      isBot: true,
+      profile: buildBotProfile(profile, season, resolvedSeed)
+    };
+    seed = resolvedSeed;
+  } else {
+    const opponentMember = await ensureMember(targetId);
+    const opponentProfile = await ensurePvpProfile(targetId, opponentMember, season);
+    seed = seed || buildMatchSeed(`${memberId}:${targetId}`, season._id);
+    opponent = {
+      isBot: false,
+      member: opponentMember,
+      profile: opponentProfile
+    };
+  }
+
   const battle = await resolveBattle(memberId, member, profile, opponent, season, { seed, friendMatch: true });
   await updateLeaderboardCache(season._id);
   const refreshedProfile = await ensurePvpProfile(memberId, member, season);
@@ -407,7 +416,8 @@ async function getLeaderboard(memberId, event = {}) {
     type,
     entries,
     updatedAt: snapshot.updatedAt || null,
-    myRank: rankIndex >= 0 ? rankIndex + 1 : null
+    myRank: rankIndex >= 0 ? rankIndex + 1 : null,
+    memberId
   };
 }
 
@@ -744,7 +754,6 @@ async function acceptInvite(memberId, event = {}) {
     ensurePvpProfile(memberId, member, season),
     ensurePvpProfile(inviterId, inviterMember, season)
   ]);
-  assertBattleCooldown(profile.lastMatchedAt);
   const seed = invite.seed || buildMatchSeed(`${inviterId}:${memberId}`, season._id);
   const opponent = {
     isBot: false,
