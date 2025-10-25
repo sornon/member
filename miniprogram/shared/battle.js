@@ -1607,6 +1607,77 @@ function extractEventsFromEntry(entry) {
   return events;
 }
 
+function sanitizeControlSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return null;
+  }
+  const effects = Array.isArray(snapshot.effects)
+    ? snapshot.effects.map((effect) => (typeof effect === 'string' ? effect.trim().toLowerCase() : '')).filter(Boolean)
+    : [];
+  const skip = !!snapshot.skip;
+  const disableBasic = !!snapshot.disableBasic;
+  const disableActive = !!snapshot.disableActive;
+  const disableDodge = !!snapshot.disableDodge;
+  const remainingTurns = Number.isFinite(Number(snapshot.remainingTurns))
+    ? Math.max(0, Math.round(Number(snapshot.remainingTurns)))
+    : 0;
+  const sourceRemaining = snapshot.remainingByEffect && typeof snapshot.remainingByEffect === 'object'
+    ? snapshot.remainingByEffect
+    : {};
+  const sourceSummaries = snapshot.summaries && typeof snapshot.summaries === 'object' ? snapshot.summaries : {};
+  const remainingByEffect = effects.reduce((acc, effect) => {
+    const value = Number(sourceRemaining[effect]);
+    if (Number.isFinite(value)) {
+      acc[effect] = Math.max(0, Math.round(value));
+    }
+    return acc;
+  }, {});
+  const summaries = effects.reduce((acc, effect) => {
+    const summary = sourceSummaries[effect];
+    if (typeof summary === 'string' && summary.trim()) {
+      acc[effect] = summary.trim();
+    }
+    return acc;
+  }, {});
+  const active =
+    typeof snapshot.active === 'boolean'
+      ? snapshot.active
+      : effects.length > 0 || skip || disableBasic || disableActive || disableDodge || remainingTurns > 0;
+  return {
+    effects,
+    skip,
+    disableBasic,
+    disableActive,
+    disableDodge,
+    remainingTurns,
+    remainingByEffect,
+    summaries,
+    active
+  };
+}
+
+function buildControlSnapshotsFromState(state = {}, sideKey) {
+  if (!state || typeof state !== 'object') {
+    return null;
+  }
+  const sideState = state[sideKey];
+  if (!sideState || typeof sideState !== 'object') {
+    return null;
+  }
+  const control = sideState.control;
+  if (!control || typeof control !== 'object') {
+    return null;
+  }
+  const hasBefore = Object.prototype.hasOwnProperty.call(control, 'before');
+  const hasAfter = Object.prototype.hasOwnProperty.call(control, 'after');
+  if (!hasBefore && !hasAfter) {
+    return null;
+  }
+  const before = hasBefore ? sanitizeControlSnapshot(control.before) : null;
+  const after = hasAfter ? sanitizeControlSnapshot(control.after) : null;
+  return { before, after };
+}
+
 function buildStructuredBattleViewModel({
   battle = {},
   timeline = [],
@@ -1766,6 +1837,8 @@ function buildStructuredBattleViewModel({
     }
 
     const entryState = entry.state || {};
+    const playerControlSnapshots = buildControlSnapshotsFromState(entryState, 'player');
+    const opponentControlSnapshots = buildControlSnapshotsFromState(entryState, 'opponent');
     const playerStateSnapshot = resolveTimelineStateSide(entryState, 'player');
     const opponentStateSnapshot = resolveTimelineStateSide(entryState, 'opponent');
     const playerStateAttributes = extractAttributesSnapshot(playerStateSnapshot);
@@ -1908,6 +1981,13 @@ function buildStructuredBattleViewModel({
         player: playerAttributes ? { ...playerAttributes } : null,
         opponent: opponentAttributes ? { ...opponentAttributes } : null
       },
+      control:
+        playerControlSnapshots || opponentControlSnapshots
+          ? {
+              player: playerControlSnapshots || null,
+              opponent: opponentControlSnapshots || null
+            }
+          : null,
       raw: entry
     });
   }

@@ -29,6 +29,8 @@ function buildCharacterImageMap() {
 const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
 
+const CONTROL_TEXT_KEYWORDS = ['被控制', '眩晕', '沉默', '冰冻', '陷入沉睡'];
+
 function toFiniteNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -172,7 +174,13 @@ function textIndicatesControl(text) {
   if (typeof text !== 'string') {
     return false;
   }
-  return text.indexOf('被控制') >= 0;
+  for (let i = 0; i < CONTROL_TEXT_KEYWORDS.length; i += 1) {
+    const keyword = CONTROL_TEXT_KEYWORDS[i];
+    if (keyword && text.indexOf(keyword) >= 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function isControlSkipAction(action = {}) {
@@ -203,7 +211,52 @@ function isControlSkipAction(action = {}) {
   return false;
 }
 
-function resolveControlTargets(action = {}, actorSide = '', targetSide = '') {
+function controlSnapshotIndicatesLock(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return false;
+  }
+  if (typeof snapshot.active === 'boolean') {
+    if (snapshot.active) {
+      return true;
+    }
+  }
+  const effects = Array.isArray(snapshot.effects)
+    ? snapshot.effects.map((effect) => (typeof effect === 'string' ? effect.trim() : '')).filter(Boolean)
+    : [];
+  if (effects.length) {
+    return true;
+  }
+  if (snapshot.skip || snapshot.disableBasic || snapshot.disableActive || snapshot.disableDodge) {
+    return true;
+  }
+  return false;
+}
+
+function extractExplicitControlState(action = {}, currentControlledState = { player: false, opponent: false }) {
+  const control = action && action.control;
+  if (!control || typeof control !== 'object') {
+    return { hasExplicit: false, nextState: { ...currentControlledState } };
+  }
+  const nextState = { ...currentControlledState };
+  let hasExplicit = false;
+  ['player', 'opponent'].forEach((side) => {
+    const sideControl = control[side];
+    if (!sideControl || typeof sideControl !== 'object') {
+      return;
+    }
+    const hasAfter = Object.prototype.hasOwnProperty.call(sideControl, 'after');
+    const hasBefore = Object.prototype.hasOwnProperty.call(sideControl, 'before');
+    if (!hasAfter && !hasBefore) {
+      return;
+    }
+    hasExplicit = true;
+    const snapshot = hasAfter ? sideControl.after : sideControl.before;
+    nextState[side] = controlSnapshotIndicatesLock(snapshot);
+  });
+  return { hasExplicit, nextState };
+}
+
+function resolveControlTargetsFromText(action = {}, actorSide = '', targetSide = '') {
   const controlledSides = [];
   const summaryText = extractActionSummaryText(action);
   const description = toTrimmedString(action.description);
@@ -1504,6 +1557,7 @@ Page({
     this._currentActionUsesIndicator = false;
     this._pendingControlledState = null;
     this._pendingControlledStateApplied = false;
+    this._pendingControlledStateSource = '';
     this.setBattleStageData({
       attackPhase: '',
       attackMotion: '',
@@ -1538,12 +1592,14 @@ Page({
     if (
       this._pendingControlledState &&
       !this._pendingControlledStateApplied &&
+      this._pendingControlledStateSource !== 'controlRuntime' &&
       textIndicatesControl(stringified) &&
       this._pendingControlledState[normalizedSide]
     ) {
       this.setBattleStageData({ controlledState: this._pendingControlledState });
       this._pendingControlledStateApplied = true;
       this._pendingControlledState = null;
+      this._pendingControlledStateSource = '';
     }
     const nextState = cloneFloatingTextState(this._floatingTexts);
     const entryId = `ft-${Date.now()}-${(this._floatingTextId += 1)}`;
@@ -1760,25 +1816,41 @@ Page({
     const currentControlledState =
       (this.data && this.data.battleStage && this.data.battleStage.controlledState) ||
       createBattleStageState().controlledState;
-    const nextControlledState = { ...currentControlledState };
-    let shouldDelayControlledState = false;
-    if (actorSide === 'player' || actorSide === 'opponent') {
-      const actorControlled = isControlSkipAction(action);
-      nextControlledState[actorSide] = actorControlled;
-      if (actorControlled) {
-        shouldDelayControlledState = true;
-      }
-    }
-    const controlledTargets = resolveControlTargets(action, actorSide, targetSide);
-    controlledTargets.forEach((side) => {
-      if (side === 'player' || side === 'opponent') {
-        nextControlledState[side] = true;
-        shouldDelayControlledState = true;
-      }
-    });
-    if (shouldDelayControlledState) {
-      this._pendingControlledState = nextControlledState;
+    let nextControlledState = { ...currentControlledState };
+    let pendingControlSource = '';
+    const explicitControl = extractExplicitControlState(action, currentControlledState);
+    if (explicitControl.hasExplicit) {
+      nextControlledState = explicitControl.nextState;
+      pendingControlSource = 'controlRuntime';
     } else {
+      if (actorSide === 'player' || actorSide === 'opponent') {
+        const actorControlled = isControlSkipAction(action);
+        if (actorControlled !== currentControlledState[actorSide]) {
+          nextControlledState[actorSide] = actorControlled;
+          pendingControlSource = pendingControlSource || 'text';
+        }
+      }
+      const controlledTargets = resolveControlTargetsFromText(action, actorSide, targetSide);
+      controlledTargets.forEach((side) => {
+        if (side === 'player' || side === 'opponent') {
+          if (!nextControlledState[side]) {
+            pendingControlSource = pendingControlSource || 'text';
+          }
+          nextControlledState[side] = true;
+        }
+      });
+    }
+    const controlStateChanged =
+      nextControlledState.player !== currentControlledState.player ||
+      nextControlledState.opponent !== currentControlledState.opponent;
+    if (controlStateChanged) {
+      this._pendingControlledState = nextControlledState;
+      this._pendingControlledStateApplied = false;
+      this._pendingControlledStateSource = pendingControlSource || 'text';
+    } else {
+      this._pendingControlledState = null;
+      this._pendingControlledStateApplied = false;
+      this._pendingControlledStateSource = '';
       this.setBattleStageData({ controlledState: nextControlledState });
     }
 
@@ -1800,6 +1872,7 @@ Page({
         previousResourceState,
         nextResourceState
       );
+      this.commitPendingControlledState();
       this._currentActionUsesIndicator = false;
       return;
     }
@@ -1895,6 +1968,7 @@ Page({
         previousResourceState,
         nextResourceState
       );
+      this.commitPendingControlledState();
     }, impactDelay);
 
     this.queueAttackTimer(() => {
@@ -1917,6 +1991,19 @@ Page({
       });
       this._currentActionUsesIndicator = false;
     }, sequenceEndDelay);
+  },
+
+  commitPendingControlledState() {
+    if (
+      this._pendingControlledState &&
+      !this._pendingControlledStateApplied &&
+      this._pendingControlledStateSource === 'controlRuntime'
+    ) {
+      this.setBattleStageData({ controlledState: this._pendingControlledState });
+      this._pendingControlledStateApplied = true;
+      this._pendingControlledState = null;
+      this._pendingControlledStateSource = '';
+    }
   },
 
   scheduleNextAction(delay = 1200) {
@@ -1954,6 +2041,7 @@ Page({
         const pendingRelease = { ...this._pendingControlledState, [actorSide]: false };
         if (!pendingRelease.player && !pendingRelease.opponent) {
           this._pendingControlledState = null;
+          this._pendingControlledStateSource = '';
         } else {
           this._pendingControlledState = pendingRelease;
         }
