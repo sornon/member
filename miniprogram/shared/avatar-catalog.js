@@ -49,6 +49,22 @@ function buildAvatarId({ gender, rarity, index }) {
 
 const AVATAR_IDS = RAW_AVATARS.map((item) => buildAvatarId(item));
 
+const AVATAR_META_MAP = RAW_AVATARS.reduce((acc, item) => {
+  const id = buildAvatarId(item);
+  acc[id] = {
+    ...item,
+    id
+  };
+  return acc;
+}, {});
+
+function resolveAvatarMetaById(id) {
+  if (!id) {
+    return null;
+  }
+  return AVATAR_META_MAP[id] || null;
+}
+
 function listAvatarIds() {
   return AVATAR_IDS.slice();
 }
@@ -56,5 +72,7 @@ function listAvatarIds() {
 module.exports = {
   RAW_AVATARS,
   buildAvatarId,
-  listAvatarIds
+  listAvatarIds,
+  AVATAR_META_MAP,
+  resolveAvatarMetaById
 };

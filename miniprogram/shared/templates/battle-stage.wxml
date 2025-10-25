@@ -187,11 +187,15 @@
             </view>
           </view>
           <view class="avatar-inner">
-            <image
-              class="actor-portrait"
-              src="{{attackerKey === 'player' ? (player && player.portrait || '') : (opponent && opponent.portrait || '')}}"
-              mode="widthFix"
-            ></image>
+            <view
+              class="actor-figure figure-scale {{attackerKey === 'player' ? ((player && player.figureScaleClass) || '') : ((opponent && opponent.figureScaleClass) || '')}}"
+            >
+              <image
+                class="actor-portrait"
+                src="{{attackerKey === 'player' ? (player && player.portrait || '') : (opponent && opponent.portrait || '')}}"
+                mode="widthFix"
+              ></image>
+            </view>
           </view>
         </view>
         <view
@@ -214,11 +218,15 @@
             </view>
           </view>
           <view class="avatar-inner">
-            <image
-              class="actor-portrait"
-              src="{{defenderKey === 'player' ? (player && player.portrait || '') : (opponent && opponent.portrait || '')}}"
-              mode="widthFix"
-            ></image>
+            <view
+              class="actor-figure figure-scale {{defenderKey === 'player' ? ((player && player.figureScaleClass) || '') : ((opponent && opponent.figureScaleClass) || '')}}"
+            >
+              <image
+                class="actor-portrait"
+                src="{{defenderKey === 'player' ? (player && player.portrait || '') : (opponent && opponent.portrait || '')}}"
+                mode="widthFix"
+              ></image>
+            </view>
           </view>
         </view>
       </view>

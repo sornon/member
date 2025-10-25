@@ -218,6 +218,13 @@
   justify-content: flex-end;
 }
 
+.archive-figure__image-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
 .archive-figure__image {
   width: 100%;
   filter: drop-shadow(0 16rpx 32rpx rgba(0, 0, 0, 0.35));

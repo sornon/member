@@ -23,7 +23,14 @@ const {
 } = require('../../shared/backgrounds.js');
 const { AVATAR_IMAGE_BASE_PATH, CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
 const { buildTitleImageUrl, resolveTitleById, normalizeTitleId } = require('../../shared/titles.js');
-const { listAvatarIds: listAllAvatarIds } = require('../../shared/avatar-catalog.js');
+const {
+  listAvatarIds: listAllAvatarIds,
+  resolveAvatarMetaById
+} = require('../../shared/avatar-catalog.js');
+const {
+  resolveFigureScaleClassByRarity,
+  normalizeFigureRarity
+} = require('../../shared/figure-scale');
 const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
 
 function buildCharacterImageMap() {
@@ -38,6 +45,9 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 
 const DEFAULT_CHARACTER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
+
+const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
+const CHARACTER_URL_PATTERN = /\/assets\/character\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
 const WECHAT_DEFAULT_AVATAR_URL =
   'https://thirdwx.qlogo.cn/mmopen/vi_32/POgEwh4mIHO4nibH0KlMECNjjGxQUq24ZEaGT4poC6icRiccVGKSyXwibcPq4BWmiaIGuG1icwxaQX6grC9VemZoJ8rg/132';
 
@@ -484,7 +494,15 @@ function extractAvatarIdFromUrl(url) {
   if (typeof url !== 'string') {
     return '';
   }
-  const match = url.trim().toLowerCase().match(/\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png$/);
+  const normalized = url.trim().toLowerCase();
+  if (!normalized) {
+    return '';
+  }
+  let match = normalized.match(AVATAR_URL_PATTERN);
+  if (match) {
+    return match[1];
+  }
+  match = normalized.match(CHARACTER_URL_PATTERN);
   return match ? match[1] : '';
 }
 
@@ -505,6 +523,62 @@ function resolveCharacterImage(member) {
     return characterImage;
   }
   return HERO_IMAGE;
+}
+
+function resolveCharacterRarityByAvatarId(avatarId) {
+  if (!avatarId) {
+    return '';
+  }
+  const meta = resolveAvatarMetaById(avatarId);
+  if (!meta || !meta.rarity) {
+    return '';
+  }
+  return normalizeFigureRarity(meta.rarity);
+}
+
+function resolveMemberFigureRarity(member) {
+  if (!member) {
+    return '';
+  }
+  const directCandidates = [
+    member.figureRarity,
+    member.avatarRarity,
+    member.rarity,
+    member.rarityKey,
+    member.appearanceRarity,
+    member.characterRarity
+  ];
+  if (member.avatar && typeof member.avatar === 'object') {
+    directCandidates.push(member.avatar.rarity, member.avatar.rarityKey);
+  }
+  if (member.figure && typeof member.figure === 'object') {
+    directCandidates.push(member.figure.rarity, member.figure.rank);
+  }
+  if (member.tier && typeof member.tier === 'object') {
+    directCandidates.push(member.tier.name, member.tier.rank);
+  }
+  for (let i = 0; i < directCandidates.length; i += 1) {
+    const normalized = normalizeFigureRarity(directCandidates[i]);
+    if (normalized) {
+      return normalized;
+    }
+  }
+  const avatarId = extractAvatarIdFromUrl(sanitizeAvatarUrl(member.avatarUrl));
+  const avatarRarity = resolveCharacterRarityByAvatarId(avatarId);
+  if (avatarRarity) {
+    return avatarRarity;
+  }
+  const figureImage = resolveCharacterImage(member);
+  const figureAvatarId = extractAvatarIdFromUrl(figureImage);
+  const figureRarity = resolveCharacterRarityByAvatarId(figureAvatarId);
+  if (figureRarity) {
+    return figureRarity;
+  }
+  return '';
+}
+
+function resolveHeroFigureScaleClass(member) {
+  return resolveFigureScaleClassByRarity(resolveMemberFigureRarity(member));
 }
 
 function computeAvatarOptionList(member, currentAvatar, gender) {
@@ -833,6 +907,7 @@ Page({
       phoneAuthorized: false
     },
     heroImage: HERO_IMAGE,
+    heroFigureScaleClass: '',
     defaultAvatar: DEFAULT_AVATAR,
     activeTitleImage: '',
     activityIcons: [
@@ -1085,6 +1160,7 @@ Page({
         tasks: tasks.slice(0, 3),
         loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),
+        heroFigureScaleClass: resolveHeroFigureScaleClass(sanitizedMember),
         navItems,
         collapsedNavItems,
         memberStats: deriveMemberStats(sanitizedMember),
@@ -1133,7 +1209,8 @@ Page({
         memberStats: deriveMemberStats(this.data.member),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
-        heroImage: resolveCharacterImage(this.data.member)
+        heroImage: resolveCharacterImage(this.data.member),
+        heroFigureScaleClass: resolveHeroFigureScaleClass(this.data.member)
       });
       this.updateBackgroundDisplay(this.data.member, {});
     }
@@ -1704,6 +1781,7 @@ Page({
       navItems,
       collapsedNavItems,
       heroImage: resolveCharacterImage(sanitizedMember),
+      heroFigureScaleClass: resolveHeroFigureScaleClass(sanitizedMember),
       'profileEditor.nickName': sanitizedMember.nickName || this.data.profileEditor.nickName,
       'profileEditor.gender': normalizeGenderValue(sanitizedMember.gender),
       'profileEditor.avatarUrl': sanitizedMember.avatarUrl || this.data.profileEditor.avatarUrl,
