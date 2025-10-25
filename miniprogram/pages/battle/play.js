@@ -29,6 +29,8 @@ function buildCharacterImageMap() {
 const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
 
+const CONTROL_TEXT_KEYWORDS = ['被控制', '被眩晕', '被沉默', '被冰冻', '陷入沉睡'];
+
 function toFiniteNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -172,7 +174,13 @@ function textIndicatesControl(text) {
   if (typeof text !== 'string') {
     return false;
   }
-  return text.indexOf('被控制') >= 0;
+  for (let i = 0; i < CONTROL_TEXT_KEYWORDS.length; i += 1) {
+    const keyword = CONTROL_TEXT_KEYWORDS[i];
+    if (keyword && text.indexOf(keyword) >= 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function isControlSkipAction(action = {}) {
