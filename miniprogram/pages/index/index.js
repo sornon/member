@@ -1425,7 +1425,11 @@ Page({
   },
 
   handleAvatarTap() {
-    this.openAvatarPicker();
+    this.openAvatarPicker('avatar');
+  },
+
+  handleTitleTap() {
+    this.openAvatarPicker('title');
   },
 
   handleCombatPowerTap() {
@@ -1527,10 +1531,11 @@ Page({
     this.setData(updates);
   },
 
-  openAvatarPicker() {
+  openAvatarPicker(initialTab = 'avatar') {
     if (this.data.avatarPickerSaving) {
       return;
     }
+    const normalizedTab = APPEARANCE_BADGE_TABS.includes(initialTab) ? initialTab : 'avatar';
     const member = this.data.member || {};
     const gender = normalizeGenderValue(this.data.profileEditor.gender || member.gender);
     const baseAvatar = sanitizeAvatarUrl(member.avatarUrl);
@@ -1552,7 +1557,7 @@ Page({
       showAvatarPicker: true,
       avatarPickerSaving: false,
       avatarPicker: {
-        activeTab: 'avatar',
+        activeTab: normalizedTab,
         avatarUrl,
         avatarOptions: options,
         avatarFrame: currentFrame,
@@ -1580,7 +1585,7 @@ Page({
       updates['profileEditor.appearanceTitle'] = appearanceTitle;
     }
     this.setData(updates, () => {
-      this.markAppearanceTabVisited('avatar');
+      this.markAppearanceTabVisited(normalizedTab);
     });
   },
 
