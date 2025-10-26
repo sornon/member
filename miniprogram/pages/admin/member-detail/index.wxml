@@ -88,7 +88,7 @@
         />
       </view>
       <view class="form-item">
-        <view class="form-label">收取灵技次数</view>
+        <view class="form-label">抽取灵技次数</view>
         <input
           class="form-input"
           type="number"
