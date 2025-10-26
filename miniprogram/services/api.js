@@ -871,6 +871,17 @@ export const AdminService = {
       activity
     });
   },
+  async proxyLogin(memberId) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'proxyLogin',
+      memberId
+    });
+  },
+  async proxyLogout() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'proxyLogout'
+    });
+  },
   async updateActivity(activityId, updates = {}) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'updateActivity',

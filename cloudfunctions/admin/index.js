@@ -34,6 +34,9 @@ const MIN_REPORT_MONTH = new Date(2025, 8, 1);
 const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
 const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
 
+const PROXY_SESSION_COLLECTION = COLLECTIONS.ADMIN_PROXY_SESSIONS || 'adminProxySessions';
+const PROXY_LOG_COLLECTION = COLLECTIONS.ADMIN_PROXY_LOGS || 'adminProxyLogs';
+
 const STORAGE_UPGRADE_LIMIT_KEYS = ['upgradeLimit', 'maxUpgrades', 'limit'];
 
 const WINE_EXPIRY_PRESETS = {
@@ -101,6 +104,8 @@ const ACTIONS = {
   GET_MEMBER_DETAIL: 'getMemberDetail',
   UPDATE_MEMBER: 'updateMember',
   DELETE_MEMBER: 'deleteMember',
+  PROXY_LOGIN: 'proxyLogin',
+  PROXY_LOGOUT: 'proxyLogout',
   CREATE_CHARGE_ORDER: 'createChargeOrder',
   GET_CHARGE_ORDER: 'getChargeOrder',
   LIST_CHARGE_ORDERS: 'listChargeOrders',
@@ -155,6 +160,10 @@ const ACTION_ALIASES = {
   getmemberdetail: ACTIONS.GET_MEMBER_DETAIL,
   updatemember: ACTIONS.UPDATE_MEMBER,
   deletemember: ACTIONS.DELETE_MEMBER,
+  proxylogin: ACTIONS.PROXY_LOGIN,
+  proxylogout: ACTIONS.PROXY_LOGOUT,
+  exitproxy: ACTIONS.PROXY_LOGOUT,
+  stopproxy: ACTIONS.PROXY_LOGOUT,
   createchargeorder: ACTIONS.CREATE_CHARGE_ORDER,
   getchargeorder: ACTIONS.GET_CHARGE_ORDER,
   getchargeorderqrcode: ACTIONS.GET_CHARGE_ORDER_QR_CODE,
@@ -260,6 +269,8 @@ const ACTION_HANDLERS = {
   [ACTIONS.UPDATE_MEMBER]: (openid, event) =>
     updateMember(openid, event.memberId, event.updates || {}, event || {}),
   [ACTIONS.DELETE_MEMBER]: (openid, event) => deleteMember(openid, event.memberId),
+  [ACTIONS.PROXY_LOGIN]: (openid, event) => proxyLogin(openid, event.memberId || event.targetId || ''),
+  [ACTIONS.PROXY_LOGOUT]: (openid) => proxyLogout(openid),
   [ACTIONS.CREATE_CHARGE_ORDER]: (openid, event) => createChargeOrder(openid, event.items || []),
   [ACTIONS.GET_CHARGE_ORDER]: (openid, event) => getChargeOrder(openid, event.orderId),
   [ACTIONS.GET_CHARGE_ORDER_QR_CODE]: (openid, event) => getChargeOrderQrCode(openid, event.orderId),
@@ -1763,6 +1774,277 @@ async function deleteMember(openid, memberId) {
     cleanup,
     selfDeleted: deletingSelf
   };
+}
+
+function resolveMemberDisplayName(member) {
+  if (!member || typeof member !== 'object') {
+    return '';
+  }
+  if (typeof member.realName === 'string' && member.realName.trim()) {
+    return member.realName.trim();
+  }
+  if (typeof member.nickName === 'string' && member.nickName.trim()) {
+    return member.nickName.trim();
+  }
+  if (typeof member._id === 'string' && member._id.trim()) {
+    return member._id.trim();
+  }
+  return '';
+}
+
+function generateProxySessionId() {
+  const timestamp = Date.now();
+  const random = Math.floor(Math.random() * 1000000);
+  return `proxy_${timestamp}_${random}`;
+}
+
+function sanitizeProxyLogDetail(value, depth = 0) {
+  if (depth > 3) {
+    return undefined;
+  }
+  if (value === null || typeof value === 'undefined') {
+    return undefined;
+  }
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    const result = value
+      .map((item) => sanitizeProxyLogDetail(item, depth + 1))
+      .filter((item) => typeof item !== 'undefined');
+    return result.length ? result : undefined;
+  }
+  if (typeof value === 'object') {
+    const output = {};
+    Object.keys(value).forEach((key) => {
+      const sanitized = sanitizeProxyLogDetail(value[key], depth + 1);
+      if (typeof sanitized !== 'undefined') {
+        output[key] = sanitized;
+      }
+    });
+    return Object.keys(output).length ? output : undefined;
+  }
+  return undefined;
+}
+
+function sanitizeProxySession(session) {
+  if (!session || typeof session !== 'object') {
+    return null;
+  }
+  const startedAt = session.startedAt || session.createdAt || session.updatedAt || null;
+  const normalized = {
+    sessionId: session.sessionId || '',
+    adminId: session.adminId || '',
+    adminName: session.adminName || '',
+    targetMemberId: session.targetMemberId || '',
+    targetMemberName: session.targetMemberName || '',
+    startedAt,
+    active: session.active !== false
+  };
+  if (session.endedAt) {
+    normalized.endedAt = session.endedAt;
+  }
+  return normalized;
+}
+
+async function recordProxyLog(entry = {}) {
+  if (!entry || !entry.sessionId) {
+    return;
+  }
+  try {
+    const collection = db.collection(PROXY_LOG_COLLECTION);
+    const now = new Date();
+    const data = {
+      sessionId: entry.sessionId,
+      type: entry.type || 'action',
+      adminId: entry.adminId || '',
+      adminName: entry.adminName || '',
+      actorId: entry.actorId || entry.adminId || '',
+      targetMemberId: entry.targetMemberId || '',
+      targetMemberName: entry.targetMemberName || '',
+      action: entry.action || '',
+      createdAt: entry.createdAt ? new Date(entry.createdAt) : now
+    };
+    if (entry.startedAt) {
+      data.startedAt = new Date(entry.startedAt);
+    }
+    if (entry.endedAt) {
+      data.endedAt = new Date(entry.endedAt);
+    }
+    if (entry.reason) {
+      data.reason = String(entry.reason);
+    }
+    const detail = sanitizeProxyLogDetail(entry.detail);
+    if (typeof detail !== 'undefined') {
+      data.detail = detail;
+    }
+    const event = sanitizeProxyLogDetail(entry.event);
+    if (typeof event !== 'undefined') {
+      data.event = event;
+    }
+    await collection.add({ data }).catch((error) => {
+      console.error('[admin] record proxy log failed', error);
+    });
+  } catch (error) {
+    console.error('[admin] record proxy log failed', error);
+  }
+}
+
+async function getActiveProxySession(adminId) {
+  const targetId = normalizeMemberIdValue(adminId);
+  if (!targetId) {
+    return null;
+  }
+  try {
+    const doc = await db.collection(PROXY_SESSION_COLLECTION).doc(targetId).get();
+    if (!doc || !doc.data) {
+      return null;
+    }
+    const session = { ...doc.data };
+    if (!session.sessionId) {
+      session.sessionId = generateProxySessionId();
+      await db
+        .collection(PROXY_SESSION_COLLECTION)
+        .doc(targetId)
+        .update({ data: { sessionId: session.sessionId, updatedAt: new Date() } })
+        .catch(() => {});
+    }
+    if (session.active === false || !session.targetMemberId) {
+      return null;
+    }
+    if (!session.adminId) {
+      session.adminId = targetId;
+    }
+    return session;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function proxyLogin(openid, memberId) {
+  const admin = await ensureAdmin(openid);
+  const targetId = normalizeMemberIdValue(memberId);
+  if (!targetId) {
+    throw new Error('缺少会员编号');
+  }
+  if (targetId === admin._id) {
+    throw new Error('无需上身当前账号');
+  }
+  const memberDoc = await db
+    .collection(COLLECTIONS.MEMBERS)
+    .doc(targetId)
+    .get()
+    .catch(() => null);
+  if (!memberDoc || !memberDoc.data) {
+    throw new Error('会员不存在');
+  }
+  const targetRoles = Array.isArray(memberDoc.data.roles) ? memberDoc.data.roles : [];
+  if (targetRoles.includes('admin') || targetRoles.includes('developer')) {
+    throw new Error('无法上身管理员或开发者账号');
+  }
+
+  const now = new Date();
+  const sessionId = generateProxySessionId();
+  const existing = await getActiveProxySession(openid);
+  if (existing && existing.sessionId) {
+    await recordProxyLog({
+      type: 'end',
+      sessionId: existing.sessionId,
+      adminId: existing.adminId || openid,
+      adminName: existing.adminName || resolveMemberDisplayName(admin),
+      targetMemberId: existing.targetMemberId || '',
+      targetMemberName: existing.targetMemberName || '',
+      endedAt: now,
+      reason: 'override'
+    });
+  }
+
+  const sessionDoc = {
+    sessionId,
+    adminId: openid,
+    adminName: resolveMemberDisplayName(admin),
+    targetMemberId: targetId,
+    targetMemberName: resolveMemberDisplayName(memberDoc.data),
+    targetRoles,
+    active: true,
+    createdAt: now,
+    updatedAt: now,
+    startedAt: now
+  };
+
+  await db
+    .collection(PROXY_SESSION_COLLECTION)
+    .doc(openid)
+    .set({ data: sessionDoc })
+    .catch(async (error) => {
+      if (error && /already exist|duplicate/i.test(error.errMsg || '')) {
+        await db
+          .collection(PROXY_SESSION_COLLECTION)
+          .doc(openid)
+          .update({
+            data: {
+              ...sessionDoc,
+              updatedAt: now
+            }
+          })
+          .catch(() => {});
+        return;
+      }
+      throw error;
+    });
+
+  await recordProxyLog({
+    type: 'start',
+    sessionId,
+    adminId: openid,
+    adminName: sessionDoc.adminName,
+    targetMemberId: targetId,
+    targetMemberName: sessionDoc.targetMemberName,
+    startedAt: now
+  });
+
+  return {
+    success: true,
+    session: sanitizeProxySession({ ...sessionDoc })
+  };
+}
+
+async function proxyLogout(openid) {
+  await ensureAdmin(openid);
+  const existing = await getActiveProxySession(openid);
+  if (!existing) {
+    await db
+      .collection(PROXY_SESSION_COLLECTION)
+      .doc(openid)
+      .remove()
+      .catch(() => {});
+    return { success: true, cleared: false };
+  }
+  const now = new Date();
+  await db
+    .collection(PROXY_SESSION_COLLECTION)
+    .doc(openid)
+    .remove()
+    .catch(async () => {
+      await db
+        .collection(PROXY_SESSION_COLLECTION)
+        .doc(openid)
+        .update({ data: { active: false, endedAt: now, updatedAt: now } })
+        .catch(() => {});
+    });
+  await recordProxyLog({
+    type: 'end',
+    sessionId: existing.sessionId,
+    adminId: existing.adminId || openid,
+    adminName: existing.adminName || '',
+    targetMemberId: existing.targetMemberId || '',
+    targetMemberName: existing.targetMemberName || '',
+    endedAt: now
+  });
+  return { success: true, cleared: true };
 }
 
 async function listEquipmentCatalog(openid) {

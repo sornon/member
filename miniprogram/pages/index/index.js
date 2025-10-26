@@ -1,4 +1,4 @@
-import { MemberService, TaskService } from '../../services/api';
+import { AdminService, MemberService, TaskService } from '../../services/api';
 import { setActiveMember, subscribe as subscribeMemberRealtime } from '../../services/member-realtime';
 import { formatCombatPower, formatCurrency, formatExperience, formatStones } from '../../utils/format';
 import { shouldShowRoleBadge } from '../../utils/pending-attributes';
@@ -57,6 +57,7 @@ const NAV_EXPANDED_STORAGE_KEY = 'home-nav-expanded';
 const AVATAR_BADGE_STORAGE_KEY = 'home-avatar-badge-dismissed';
 const AVATAR_TAB_BADGE_STORAGE_KEY = 'home-avatar-tab-badges';
 const NAME_BADGE_STORAGE_KEY = 'home-name-badge-dismissed';
+const PROXY_LOGOUT_ACTION = 'proxyLogout';
 
 const APPEARANCE_BADGE_TABS = ['avatar', 'frame', 'title', 'background'];
 
@@ -205,9 +206,11 @@ function buildCollapsedNavItems(navItems) {
   const MAX_ITEMS = 3;
   const selected = [];
   const seen = new Set();
+  const exitItem = source.find((item) => item && item.action === PROXY_LOGOUT_ACTION);
+  const maxRegularItems = exitItem ? Math.max(0, MAX_ITEMS - 1) : MAX_ITEMS;
 
   const tryAdd = (item) => {
-    if (!item || seen.has(item.label) || selected.length >= MAX_ITEMS) {
+    if (!item || seen.has(item.label) || selected.length >= maxRegularItems) {
       return;
     }
     selected.push(item);
@@ -224,6 +227,10 @@ function buildCollapsedNavItems(navItems) {
     source.forEach((item) => {
       tryAdd(item);
     });
+  }
+
+  if (exitItem && !seen.has(exitItem.label)) {
+    selected.push(exitItem);
   }
 
   return selected.slice(0, MAX_ITEMS);
@@ -849,6 +856,12 @@ function resolveNavItems(member) {
   const badges = normalizeReservationBadges(member && member.reservationBadges);
   const roleHasPendingAttributes = shouldShowRoleBadge(member);
   const storageHasPending = resolveStorageBadgeVisibility();
+  const proxySessionActive = !!(
+    member &&
+    member.proxySession &&
+    member.proxySession.active !== false &&
+    member.proxySession.targetMemberId
+  );
   const navItems = BASE_NAV_ITEMS.map((item) => {
     const next = { ...item };
     if (item.label === '预订') {
@@ -870,12 +883,21 @@ function resolveNavItems(member) {
       showDot: shouldShowAdminDot(badges)
     });
   }
+  if (proxySessionActive) {
+    navItems.push({
+      icon: '🚪',
+      label: '退出',
+      action: PROXY_LOGOUT_ACTION,
+      url: ''
+    });
+  }
   return navItems;
 }
 
 Page({
   data: {
     member: null,
+    proxySession: null,
     progress: null,
     progressRemainingExperience: formatExperience(0),
     realmHasPendingRewards: false,
@@ -884,6 +906,7 @@ Page({
     appearanceBadgeState: cloneDefaultAppearanceBadgeState(),
     tasks: [],
     loading: true,
+    proxyLogoutPending: false,
     backgroundImage: resolveBackgroundImage(null),
     backgroundVideo: resolveBackgroundVideo(null),
     showBackgroundVideo: false,
@@ -1154,6 +1177,7 @@ Page({
       const realmHasPendingRewards = hasPendingLevelRewards(progress);
       this.setData({
         member: sanitizedMember,
+        proxySession: sanitizedMember ? sanitizedMember.proxySession || null : null,
         progress,
         progressRemainingExperience,
         realmHasPendingRewards,
@@ -1777,6 +1801,7 @@ Page({
     const collapsedNavItems = buildCollapsedNavItems(navItems);
     this.setData({
       member: sanitizedMember,
+      proxySession: sanitizedMember ? sanitizedMember.proxySession || null : null,
       memberStats: deriveMemberStats(sanitizedMember),
       navItems,
       collapsedNavItems,
@@ -1965,8 +1990,37 @@ Page({
   },
 
   handleNavTap(event) {
-    const { url } = event.currentTarget.dataset;
-    wx.navigateTo({ url });
+    const { url, action } = event.currentTarget.dataset;
+    if (action === PROXY_LOGOUT_ACTION) {
+      this.handleProxyLogout();
+      return;
+    }
+    if (url) {
+      wx.navigateTo({ url });
+    }
+  },
+
+  async handleProxyLogout() {
+    if (this.data.proxyLogoutPending) {
+      return;
+    }
+    if (!this.data.proxySession) {
+      return;
+    }
+    this.setData({ proxyLogoutPending: true });
+    wx.showLoading({ title: '恢复中', mask: true });
+    try {
+      await AdminService.proxyLogout();
+      await this.bootstrap({ showLoading: true });
+      wx.hideLoading();
+      wx.showToast({ title: '已退出', icon: 'success' });
+    } catch (error) {
+      wx.hideLoading();
+      wx.showToast({ title: '退出失败，请重试', icon: 'none' });
+      console.error('[home] proxy logout failed', error);
+    } finally {
+      this.setData({ proxyLogoutPending: false });
+    }
   },
 
   onShareAppMessage() {

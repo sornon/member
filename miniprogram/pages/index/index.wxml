@@ -111,6 +111,7 @@
           wx:for="{{navExpanded ? navItems : collapsedNavItems}}"
           wx:key="label"
           data-url="{{item.url}}"
+          data-action="{{item.action}}"
           bindtap="handleNavTap"
         >
           <view class="nav-icon-wrapper">
