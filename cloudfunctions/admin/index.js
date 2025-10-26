@@ -99,6 +99,137 @@ const CACHE_VERSION_KEY_ALIASES = {
   order: 'menu'
 };
 
+const STATIC_TITLE_IDS = new Set(['title_refining_rookie']);
+
+function normalizeTitleId(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.trim();
+}
+
+function normalizeTitleImageFile(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  let sanitized = value.trim();
+  if (!sanitized) {
+    return '';
+  }
+  sanitized = sanitized.replace(/\.png$/i, '');
+  sanitized = sanitized.replace(/[^a-zA-Z0-9_-]+/g, '_');
+  sanitized = sanitized.replace(/_{2,}/g, '_');
+  sanitized = sanitized.replace(/^_+|_+$/g, '');
+  return sanitized.toLowerCase();
+}
+
+function generateCustomTitleId(base, existingIds) {
+  const ids = existingIds || new Set();
+  const normalizedBase = normalizeTitleImageFile(base) || 'title';
+  let candidate = normalizedBase.startsWith('title_') ? normalizedBase : `title_${normalizedBase}`;
+  let suffix = 1;
+  let finalId = candidate;
+  while (ids.has(finalId)) {
+    suffix += 1;
+    finalId = `${candidate}_${suffix}`;
+  }
+  ids.add(finalId);
+  return finalId;
+}
+
+function normalizeTitleCatalogEntry(entry, existingIds) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const ids = existingIds || new Set();
+  let id = typeof entry.id === 'string' ? entry.id.trim() : '';
+  let imageFile = normalizeTitleImageFile(entry.imageFile || entry.fileName || entry.file || id);
+  if (!id) {
+    id = generateCustomTitleId(imageFile || entry.name || '', ids);
+  } else {
+    id = normalizeTitleId(id);
+    if (!id) {
+      id = generateCustomTitleId(imageFile || entry.name || '', ids);
+    }
+  }
+  if (ids.has(id)) {
+    id = generateCustomTitleId(id, ids);
+  }
+  const name = typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : id;
+  imageFile = imageFile || id;
+  if (!ids.has(id)) {
+    ids.add(id);
+  }
+  const normalized = {
+    id,
+    name,
+    imageFile
+  };
+  if (entry.createdAt) {
+    normalized.createdAt = entry.createdAt;
+  }
+  if (entry.createdBy) {
+    normalized.createdBy = entry.createdBy;
+  }
+  return normalized;
+}
+
+function normalizeTitleCatalog(list = []) {
+  const baseIds = new Set(STATIC_TITLE_IDS);
+  const normalized = [];
+  (Array.isArray(list) ? list : []).forEach((entry) => {
+    const normalizedEntry = normalizeTitleCatalogEntry(entry, baseIds);
+    if (!normalizedEntry) {
+      return;
+    }
+    normalized.push(normalizedEntry);
+  });
+  return normalized;
+}
+
+function normalizeTitleUnlockList(unlocks) {
+  if (!Array.isArray(unlocks)) {
+    return [];
+  }
+  const seen = new Set();
+  const result = [];
+  unlocks.forEach((value) => {
+    const id = normalizeTitleId(value);
+    if (!id || seen.has(id)) {
+      return;
+    }
+    seen.add(id);
+    result.push(id);
+  });
+  return result;
+}
+
+function areTitleCatalogsEqual(a, b) {
+  if (a === b) {
+    return true;
+  }
+  if (!Array.isArray(a) || !Array.isArray(b)) {
+    return false;
+  }
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i] || {};
+    const right = b[i] || {};
+    if ((left.id || '') !== (right.id || '')) {
+      return false;
+    }
+    if ((left.name || '') !== (right.name || '')) {
+      return false;
+    }
+    if ((left.imageFile || '') !== (right.imageFile || '')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 const ACTIONS = {
   LIST_MEMBERS: 'listMembers',
   GET_MEMBER_DETAIL: 'getMemberDetail',
@@ -455,6 +586,12 @@ async function resolveMemberExtras(memberId) {
     if (!Array.isArray(extras.wineStorage)) {
       extras.wineStorage = [];
     }
+    if (!Array.isArray(extras.titleUnlocks)) {
+      extras.titleUnlocks = [];
+    }
+    if (!Array.isArray(extras.titleCatalog)) {
+      extras.titleCatalog = [];
+    }
     return extras;
   }
   const now = new Date();
@@ -462,6 +599,8 @@ async function resolveMemberExtras(memberId) {
     avatarUnlocks: [],
     claimedLevelRewards: [],
     wineStorage: [],
+    titleUnlocks: [],
+    titleCatalog: [],
     createdAt: now,
     updatedAt: now
   };
@@ -489,6 +628,8 @@ async function updateMemberExtras(memberId, updates = {}) {
             data: {
               ...payload,
               avatarUnlocks: [],
+              titleUnlocks: [],
+              titleCatalog: [],
               wineStorage: [],
               createdAt: new Date()
             }
@@ -3167,6 +3308,8 @@ async function fetchMemberDetail(memberId, adminId, options = {}) {
   const mergedMember = {
     ...memberDoc.data,
     avatarUnlocks: extras.avatarUnlocks || [],
+    titleUnlocks: normalizeTitleUnlockList(extras.titleUnlocks),
+    titleCatalog: normalizeTitleCatalog(extras.titleCatalog),
     claimedLevelRewards: extras.claimedLevelRewards || [],
     renameHistory
   };
@@ -3436,6 +3579,8 @@ function decorateMemberRecord(member, levelMap) {
     avatarConfig: member.avatarConfig || {},
     roomUsageCount: normalizeUsageCount(member.roomUsageCount),
     avatarUnlocks: normalizeAvatarUnlocksList(member.avatarUnlocks),
+    titleUnlocks: normalizeTitleUnlockList(member.titleUnlocks),
+    titleCatalog: normalizeTitleCatalog(member.titleCatalog),
     pveRespecAvailable: respecStats.available,
     skillDrawCredits
   };
@@ -5831,6 +5976,20 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
     const desiredUnlocks = normalizeAvatarUnlocksList(updates.avatarUnlocks);
     if (!arraysEqual(currentExtrasUnlocks, desiredUnlocks)) {
       extrasUpdates.avatarUnlocks = desiredUnlocks;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'titleUnlocks')) {
+    const currentTitleUnlocks = Array.isArray(extras.titleUnlocks) ? extras.titleUnlocks : [];
+    const desiredTitleUnlocks = normalizeTitleUnlockList(updates.titleUnlocks);
+    if (!arraysEqual(currentTitleUnlocks, desiredTitleUnlocks)) {
+      extrasUpdates.titleUnlocks = desiredTitleUnlocks;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'titleCatalog')) {
+    const currentCatalog = Array.isArray(extras.titleCatalog) ? extras.titleCatalog : [];
+    const desiredCatalog = normalizeTitleCatalog(updates.titleCatalog);
+    if (!areTitleCatalogsEqual(currentCatalog, desiredCatalog)) {
+      extrasUpdates.titleCatalog = desiredCatalog;
     }
   }
 

@@ -20,6 +20,7 @@
     <view class="section-title">基础资料</view>
     <view class="toolbar">
       <button class="recharge" size="mini" bindtap="showRechargeDialog">为该会员充值</button>
+      <button class="title-manager" size="mini" bindtap="openTitleManagerDialog">称号管理</button>
       <button
         wx:if="{{proxyLoginAvailable}}"
         class="proxy-login"
@@ -460,6 +461,87 @@
         size="mini"
         type="primary"
         bindtap="handleAvatarDialogSave"
+      >
+        保存
+      </button>
+    </view>
+  </view>
+</view>
+
+<view wx:if="{{titleManagerVisible}}" class="dialog-mask" bindtap="handleCloseTitleManager">
+  <view class="title-manager-dialog" catchtap="noop" catchtouchmove="noop">
+    <view class="title-manager-dialog__title">称号管理</view>
+    <scroll-view scroll-y class="title-manager-dialog__content">
+      <view wx:if="{{titleManagerEntries.length}}" class="title-manager-list">
+        <block wx:for="{{titleManagerEntries}}" wx:key="id">
+          <view class="title-manager-item">
+            <image
+              wx:if="{{item.preview}}"
+              class="title-manager-item__image"
+              src="{{item.preview}}"
+              mode="aspectFit"
+            ></image>
+            <view class="title-manager-item__details">
+              <view class="title-manager-item__name">{{item.name}}</view>
+              <view class="title-manager-item__meta">文件名：{{item.imageFile}}</view>
+            </view>
+            <view class="title-manager-item__actions">
+              <view class="title-manager-item__toggle">
+                <text class="title-manager-item__toggle-label">已解锁</text>
+                <switch
+                  checked="{{titleManagerUnlocks.indexOf(item.id) >= 0}}"
+                  bindchange="handleTitleManagerToggleUnlock"
+                  data-id="{{item.id}}"
+                ></switch>
+              </view>
+              <button
+                class="title-manager-item__remove"
+                size="mini"
+                type="warn"
+                data-id="{{item.id}}"
+                bindtap="handleTitleManagerRemove"
+              >
+                删除
+              </button>
+            </view>
+          </view>
+        </block>
+      </view>
+      <view wx:else class="title-manager-empty">尚未添加自定义称号</view>
+    </scroll-view>
+    <view class="title-manager-form">
+      <input
+        class="title-manager-form__input"
+        placeholder="称号名称"
+        value="{{titleManagerForm.name}}"
+        data-field="name"
+        bindinput="handleTitleManagerInput"
+      />
+      <input
+        class="title-manager-form__input"
+        placeholder="文件名（不含后缀）"
+        value="{{titleManagerForm.file}}"
+        data-field="file"
+        bindinput="handleTitleManagerInput"
+      />
+      <button class="title-manager-form__add" size="mini" bindtap="handleTitleManagerAdd">添加</button>
+    </view>
+    <view class="title-manager-dialog__actions">
+      <button
+        class="title-manager-dialog__button"
+        size="mini"
+        bindtap="handleCloseTitleManager"
+        disabled="{{titleManagerSaving}}"
+      >
+        取消
+      </button>
+      <button
+        class="title-manager-dialog__button title-manager-dialog__button--primary"
+        size="mini"
+        type="primary"
+        bindtap="handleTitleManagerSave"
+        loading="{{titleManagerSaving}}"
+        disabled="{{titleManagerSaving || !titleManagerDirty}}"
       >
         保存
       </button>

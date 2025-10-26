@@ -1,6 +1,13 @@
 import { AdminService, PveService } from '../../../services/api';
 import { listAllAvatars, normalizeAvatarUnlocks } from '../../../utils/avatar-catalog';
 import { sanitizeEquipmentProfile, buildEquipmentIconPaths } from '../../../utils/equipment';
+const {
+  buildTitleImageUrlByFile,
+  registerCustomTitles,
+  normalizeTitleCatalog,
+  normalizeTitleImageFile,
+  normalizeTitleId
+} = require('../../../shared/titles.js');
 
 const RENAME_SOURCE_LABELS = {
   admin: '管理员调整',
@@ -226,6 +233,33 @@ function buildAvatarPermissionSummary(unlocks = []) {
   return `已解锁头像：${list.length} 个`;
 }
 
+function normalizeTitleUnlocks(unlocks = []) {
+  if (!Array.isArray(unlocks)) {
+    return [];
+  }
+  const seen = new Set();
+  const result = [];
+  unlocks.forEach((value) => {
+    const id = normalizeTitleId(value);
+    if (!id || seen.has(id)) {
+      return;
+    }
+    seen.add(id);
+    result.push(id);
+  });
+  return result;
+}
+
+function buildTitleManagerEntries(catalog = []) {
+  const normalized = normalizeTitleCatalog(catalog);
+  return normalized.map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    imageFile: entry.imageFile,
+    preview: buildTitleImageUrlByFile(entry.imageFile || entry.id)
+  }));
+}
+
 function ensureMemberRole(roles) {
   const list = Array.isArray(roles) ? [...new Set(roles)] : [];
   if (!list.includes('member')) {
@@ -363,7 +397,13 @@ Page({
     secretRealmSaving: false,
     secretRealmResetting: false,
     secretRealmSummary: '',
-    secretRealmError: ''
+    secretRealmError: '',
+    titleManagerVisible: false,
+    titleManagerSaving: false,
+    titleManagerEntries: [],
+    titleManagerUnlocks: [],
+    titleManagerForm: { name: '', file: '' },
+    titleManagerDirty: false
   },
 
   onLoad(options) {
@@ -481,6 +521,11 @@ Page({
   applyDetail(detail) {
     if (!detail || !detail.member) return;
     const { member, levels = [] } = detail;
+    const titleUnlocks = normalizeTitleUnlocks(member.titleUnlocks);
+    const titleCatalog = normalizeTitleCatalog(member.titleCatalog);
+    member.titleUnlocks = titleUnlocks;
+    member.titleCatalog = titleCatalog;
+    registerCustomTitles(titleCatalog);
     const existingProfile = this.data.pveProfile || null;
     const hasNewProfile = !!(detail && detail.pveProfile);
     const profileToApply = hasNewProfile ? detail.pveProfile : existingProfile;
@@ -1242,6 +1287,164 @@ Page({
       wx.showToast({ title: error.errMsg || error.message || '修改失败', icon: 'none' });
     } finally {
       this.setData({ updatingEquipment: false });
+    }
+  },
+
+  openTitleManagerDialog() {
+    const member = this.data.member || {};
+    const catalog = Array.isArray(member.titleCatalog) ? member.titleCatalog : [];
+    const entries = buildTitleManagerEntries(catalog);
+    const unlocks = normalizeTitleUnlocks(member.titleUnlocks);
+    registerCustomTitles(catalog);
+    this.setData({
+      titleManagerVisible: true,
+      titleManagerEntries: entries,
+      titleManagerUnlocks: unlocks,
+      titleManagerForm: { name: '', file: '' },
+      titleManagerDirty: false,
+      titleManagerSaving: false
+    });
+  },
+
+  handleTitleManagerInput(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const field = dataset.field;
+    if (!field) {
+      return;
+    }
+    const value = event && event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
+    this.setData({
+      titleManagerForm: {
+        ...this.data.titleManagerForm,
+        [field]: value
+      }
+    });
+  },
+
+  handleTitleManagerAdd() {
+    const form = this.data.titleManagerForm || {};
+    const name = typeof form.name === 'string' ? form.name.trim() : '';
+    if (!name) {
+      wx.showToast({ title: '请输入称号名称', icon: 'none' });
+      return;
+    }
+    const fileInput = typeof form.file === 'string' ? form.file.trim() : '';
+    const imageFile = normalizeTitleImageFile(fileInput || name);
+    if (!imageFile) {
+      wx.showToast({ title: '请输入文件名', icon: 'none' });
+      return;
+    }
+    const existing = Array.isArray(this.data.titleManagerEntries) ? this.data.titleManagerEntries : [];
+    const baseList = existing.map((entry) => ({ id: entry.id, name: entry.name, imageFile: entry.imageFile }));
+    const appended = normalizeTitleCatalog(baseList.concat([{ name, imageFile }]));
+    if (!appended.length) {
+      wx.showToast({ title: '添加失败，请重试', icon: 'none' });
+      return;
+    }
+    const entries = buildTitleManagerEntries(appended);
+    const newEntry = entries[entries.length - 1];
+    const unlocks = normalizeTitleUnlocks(this.data.titleManagerUnlocks);
+    if (newEntry && newEntry.id && !unlocks.includes(newEntry.id)) {
+      unlocks.push(newEntry.id);
+    }
+    registerCustomTitles(appended);
+    this.setData({
+      titleManagerEntries: entries,
+      titleManagerUnlocks: unlocks,
+      titleManagerForm: { name: '', file: '' },
+      titleManagerDirty: true
+    });
+  },
+
+  handleTitleManagerRemove(event) {
+    const id = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset.id : '';
+    const targetId = normalizeTitleId(id);
+    if (!targetId) {
+      return;
+    }
+    const existing = Array.isArray(this.data.titleManagerEntries) ? this.data.titleManagerEntries : [];
+    const filtered = existing.filter((entry) => entry && entry.id !== targetId);
+    const normalized = normalizeTitleCatalog(filtered);
+    const entries = buildTitleManagerEntries(normalized);
+    const unlocks = normalizeTitleUnlocks(this.data.titleManagerUnlocks).filter((value) => value !== targetId);
+    registerCustomTitles(normalized);
+    this.setData({
+      titleManagerEntries: entries,
+      titleManagerUnlocks: unlocks,
+      titleManagerDirty: true
+    });
+  },
+
+  handleTitleManagerToggleUnlock(event) {
+    const id = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset.id : '';
+    const targetId = normalizeTitleId(id);
+    if (!targetId) {
+      return;
+    }
+    const checked = !!(event && event.detail && event.detail.value);
+    const unlocks = normalizeTitleUnlocks(this.data.titleManagerUnlocks);
+    if (checked && unlocks.includes(targetId)) {
+      return;
+    }
+    if (!checked && !unlocks.includes(targetId)) {
+      return;
+    }
+    let updated = unlocks;
+    if (checked) {
+      if (!unlocks.includes(targetId)) {
+        updated = unlocks.concat([targetId]);
+      }
+    } else {
+      updated = unlocks.filter((value) => value !== targetId);
+    }
+    this.setData({
+      titleManagerUnlocks: updated,
+      titleManagerDirty: true
+    });
+  },
+
+  handleCloseTitleManager() {
+    if (this.data.titleManagerSaving) {
+      return;
+    }
+    const member = this.data.member || {};
+    const catalog = Array.isArray(member.titleCatalog) ? member.titleCatalog : [];
+    registerCustomTitles(catalog);
+    this.setData({
+      titleManagerVisible: false,
+      titleManagerForm: { name: '', file: '' },
+      titleManagerDirty: false
+    });
+  },
+
+  async handleTitleManagerSave() {
+    if (this.data.titleManagerSaving) {
+      return;
+    }
+    const memberId = this.data.memberId;
+    if (!memberId) {
+      wx.showToast({ title: '缺少会员编号', icon: 'none' });
+      return;
+    }
+    const catalog = normalizeTitleCatalog(this.data.titleManagerEntries);
+    const unlocks = normalizeTitleUnlocks(this.data.titleManagerUnlocks);
+    this.setData({ titleManagerSaving: true });
+    try {
+      const detail = await AdminService.updateMember(memberId, {
+        titleCatalog: catalog,
+        titleUnlocks: unlocks
+      });
+      this.applyDetail(detail);
+      this.setData({
+        titleManagerVisible: false,
+        titleManagerSaving: false,
+        titleManagerDirty: false
+      });
+      wx.showToast({ title: '已保存', icon: 'success' });
+    } catch (error) {
+      console.error('[admin] save titles failed', error);
+      this.setData({ titleManagerSaving: false });
+      wx.showToast({ title: error.errMsg || error.message || '保存失败', icon: 'none' });
     }
   },
 
