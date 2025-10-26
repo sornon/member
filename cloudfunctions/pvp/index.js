@@ -161,6 +161,45 @@ function resolveAvatarFrameValue(...candidates) {
   return '';
 }
 
+function normalizeTitleId(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  return trimmed;
+}
+
+function normalizeTitleCatalogEntry(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const id = normalizeTitleId(entry.id);
+  if (!id) {
+    return null;
+  }
+  const name =
+    typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : id;
+  const imageFile =
+    typeof entry.imageFile === 'string' && entry.imageFile.trim()
+      ? entry.imageFile.trim()
+      : id;
+  return { id, name, imageFile };
+}
+
+function normalizeTitleCatalog(list = []) {
+  const seen = new Set();
+  const normalizedList = [];
+  (Array.isArray(list) ? list : []).forEach((item) => {
+    const normalized = normalizeTitleCatalogEntry(item);
+    if (!normalized || seen.has(normalized.id)) {
+      return;
+    }
+    seen.add(normalized.id);
+    normalizedList.push(normalized);
+  });
+  return normalizedList;
+}
+
 let collectionsReady = false;
 let ensuringCollectionsPromise = null;
 
@@ -415,19 +454,22 @@ async function getLeaderboard(memberId, event = {}) {
       const avatarFrame = resolveAvatarFrameValue(entry.avatarFrame);
       const titleId = typeof entry.titleId === 'string' ? entry.titleId : '';
       const titleName = typeof entry.titleName === 'string' ? entry.titleName : '';
+      const titleCatalog = normalizeTitleCatalog(entry.titleCatalog);
       if (avatarFrame || entry.avatarFrame) {
         return {
           ...entry,
           avatarFrame,
           titleId,
-          titleName
+          titleName,
+          titleCatalog
         };
       }
       return {
         ...entry,
         avatarFrame: '',
         titleId,
-        titleName
+        titleName,
+        titleCatalog
       };
     });
   const rankIndex = entries.findIndex((entry) => entry.memberId === memberId);
@@ -1743,6 +1785,12 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
         ? item.memberSnapshot.appearance
         : null;
     const appearance = item.appearance || null;
+    const titleCatalogSource =
+      (snapshotAppearance && snapshotAppearance.titleCatalog) ||
+      (item.memberSnapshot && item.memberSnapshot.titleCatalog) ||
+      item.titleCatalog ||
+      [];
+    const titleCatalog = normalizeTitleCatalog(titleCatalogSource);
     const titleId =
       (snapshotAppearance && snapshotAppearance.titleId) ||
       (item.memberSnapshot && item.memberSnapshot.appearanceTitle) ||
@@ -1768,7 +1816,8 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
       draws: item.draws,
       streak: item.currentStreak || 0,
       titleId: typeof titleId === 'string' ? titleId : '',
-      titleName: typeof titleName === 'string' ? titleName : ''
+      titleName: typeof titleName === 'string' ? titleName : '',
+      titleCatalog
     };
     payload.avatarFrame = avatarFrame || '';
     return payload;
@@ -1848,12 +1897,16 @@ function buildMemberSnapshot(member) {
       member.appearanceFrame ||
       ''
   );
+  const titleCatalog = normalizeTitleCatalog(
+    (member.appearance && member.appearance.titleCatalog) || member.titleCatalog || []
+  );
   return {
     memberId: member._id || member.memberId || '',
     nickName: member.nickName || member.name || '无名仙友',
     avatarUrl: member.avatarUrl || '',
     levelName: level.name || level.label || '',
-    avatarFrame
+    avatarFrame,
+    titleCatalog
   };
 }
 

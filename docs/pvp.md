@@ -79,6 +79,12 @@
 
 服务调用由 `miniprogram/services/api.js` 内新增的 `PvpService` 统一封装。
 
+### 比武榜称号解析规范
+
+- 排行榜接口会在缓存条目中附带 `titleCatalog`，其结构与首页实时资料一致：每个对象包含 `id`、`name` 与 `imageFile`，全部经过云函数统一去重与清洗，确保自定义称号和内置称号共存时不会重复。
+- 前端在渲染排行榜前需先合并所有成员的 `titleCatalog` 并调用 `registerCustomTitles`（`reset: false`）追加到全局称号映射，再通过 `buildTitleImageUrl` 生成图片地址。该流程与首页的自动解析保持一致，自定义称号的图片文件名应优先使用 `imageFile` 字段。
+- 如果后续有其他入口需要展示排行榜称号，请复用上述流程，避免遗漏自定义称号或导致图片解析不一致。
+
 ## 部署步骤
 
 1. 在云开发控制台创建上述五个集合，并设置必要索引（建议对 `pvpProfiles.points`、`pvpMatches.seasonId` 建立排序索引）。如在沙盒环境中暂未手动创建，`pvp` 云函数会在首次调用时尝试自动创建缺失集合，但仍建议在正式环境提前完成，以便配置索引与权限。
