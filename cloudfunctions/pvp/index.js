@@ -9,7 +9,8 @@ const {
   resolveBackgroundById,
   normalizeBackgroundId,
   pickPortraitUrl,
-  normalizeAvatarFrameValue
+  normalizeAvatarFrameValue,
+  TITLE_IMAGE_BASE_PATH
 } = commonConfig;
 const { createProxyHelpers } = require('admin-proxy');
 const {
@@ -1726,7 +1727,9 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
       item.appearance && item.appearance.avatarFrame,
       item.appearanceFrame
     );
+    const titleId = resolveLeaderboardTitleId(item);
     const titleName = resolveLeaderboardTitleName(item);
+    const titleImage = resolveLeaderboardTitleImage(item, titleId);
     const payload = {
       rank: index + 1,
       memberId: item.memberId,
@@ -1734,7 +1737,9 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
       avatarUrl: item.memberSnapshot ? item.memberSnapshot.avatarUrl : '',
       tierId: item.tierId,
       tierName: item.tierName,
+      titleId,
       titleName,
+      titleImage,
       points: item.points,
       wins: item.wins,
       losses: item.losses,
@@ -1768,13 +1773,101 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
     });
 }
 
-function resolveLeaderboardTitleName(profile) {
+function resolveLeaderboardTitleContext(profile) {
   if (!profile || typeof profile !== 'object') {
-    return '';
+    return {
+      snapshot: {},
+      appearanceSnapshot: {},
+      appearance: {}
+    };
   }
   const snapshot = profile.memberSnapshot && typeof profile.memberSnapshot === 'object' ? profile.memberSnapshot : {};
   const appearanceSnapshot = snapshot.appearance && typeof snapshot.appearance === 'object' ? snapshot.appearance : {};
   const appearance = profile.appearance && typeof profile.appearance === 'object' ? profile.appearance : {};
+  return { snapshot, appearanceSnapshot, appearance };
+}
+
+function normalizeLeaderboardTitleId(value) {
+  const trimmed = toTrimmedString(value);
+  if (!trimmed) {
+    return '';
+  }
+  if (looksLikeUrl(trimmed)) {
+    return '';
+  }
+  return trimmed;
+}
+
+function buildLeaderboardTitleImage(value) {
+  const trimmed = toTrimmedString(value);
+  if (!trimmed) {
+    return '';
+  }
+  if (looksLikeUrl(trimmed)) {
+    return trimmed;
+  }
+  const normalized = trimmed.replace(/\.png$/i, '');
+  return `${TITLE_IMAGE_BASE_PATH}/${normalized}.png`;
+}
+
+function resolveLeaderboardTitleId(profile) {
+  const { snapshot, appearanceSnapshot, appearance } = resolveLeaderboardTitleContext(profile);
+  const candidates = [
+    snapshot.titleId,
+    snapshot.title,
+    appearanceSnapshot.titleId,
+    appearanceSnapshot.titleKey,
+    appearanceSnapshot.titleCode,
+    appearanceSnapshot.title,
+    appearance.titleId,
+    appearance.titleKey,
+    appearance.titleCode,
+    appearance.title,
+    profile && profile.appearanceTitleId,
+    profile && profile.appearanceTitle,
+    profile && profile.titleId,
+    profile && profile.titleKey,
+    profile && profile.titleCode,
+    profile && profile.title
+  ];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = normalizeLeaderboardTitleId(candidates[i]);
+    if (candidate) {
+      return candidate;
+    }
+  }
+  return '';
+}
+
+function resolveLeaderboardTitleImage(profile, fallbackId = '') {
+  const { snapshot, appearanceSnapshot, appearance } = resolveLeaderboardTitleContext(profile);
+  const candidates = [
+    snapshot.titleImage,
+    snapshot.titleImageUrl,
+    appearanceSnapshot.titleImage,
+    appearanceSnapshot.titleImageUrl,
+    appearance.titleImage,
+    appearance.titleImageUrl,
+    profile && profile.appearanceTitleImage,
+    profile && profile.appearanceTitleImageUrl,
+    profile && profile.titleImage,
+    profile && profile.titleImageUrl
+  ];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const built = buildLeaderboardTitleImage(candidates[i]);
+    if (built) {
+      return built;
+    }
+  }
+  const normalizedFallback = normalizeLeaderboardTitleId(fallbackId);
+  if (normalizedFallback) {
+    return buildLeaderboardTitleImage(normalizedFallback);
+  }
+  return '';
+}
+
+function resolveLeaderboardTitleName(profile) {
+  const { snapshot, appearanceSnapshot, appearance } = resolveLeaderboardTitleContext(profile);
   const candidates = [
     snapshot.titleName,
     snapshot.title,
@@ -1784,8 +1877,8 @@ function resolveLeaderboardTitleName(profile) {
     appearance.titleName,
     appearance.titleLabel,
     appearance.titleDisplay,
-    profile.appearanceTitleName,
-    profile.titleName
+    profile && profile.appearanceTitleName,
+    profile && profile.titleName
   ];
   for (let i = 0; i < candidates.length; i += 1) {
     const candidate = toTrimmedString(candidates[i]);

@@ -1,5 +1,6 @@
 import { PvpService } from '../../services/api';
 import { normalizeAvatarFrameValue } from '../../shared/avatar-frames';
+const { buildTitleImageUrl, normalizeTitleId } = require('../../shared/titles.js');
 
 const { AVATAR_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
 
@@ -20,6 +21,19 @@ function resolveSelfMemberId() {
 
 function toTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function looksLikeUrl(value) {
+  const trimmed = toTrimmedString(value);
+  if (!trimmed) {
+    return false;
+  }
+  return (
+    /^https?:\/\//.test(trimmed) ||
+    trimmed.startsWith('cloud://') ||
+    trimmed.startsWith('/') ||
+    trimmed.startsWith('wxfile://')
+  );
 }
 
 function formatDateTime(date) {
@@ -48,11 +62,23 @@ function decorateLeaderboardEntries(entries) {
     const avatarUrl = toTrimmedString(entry.avatarUrl) || DEFAULT_AVATAR;
     const titleName = toTrimmedString(entry.titleName);
     const tierName = toTrimmedString(entry.tierName);
+    const normalizedTitleId = normalizeTitleId(entry.titleId || '');
+    const rawTitleImage = toTrimmedString(entry.titleImage || entry.titleImageUrl || '');
+    let resolvedTitleImage = '';
+    if (rawTitleImage) {
+      resolvedTitleImage = looksLikeUrl(rawTitleImage)
+        ? rawTitleImage
+        : buildTitleImageUrl(rawTitleImage);
+    } else if (normalizedTitleId) {
+      resolvedTitleImage = buildTitleImageUrl(normalizedTitleId);
+    }
     const basePayload = {
       ...entry,
       titleName,
       tierName,
-      avatarUrl
+      avatarUrl,
+      titleId: normalizedTitleId,
+      titleImage: resolvedTitleImage
     };
     if (normalizedFrame || entry.avatarFrame) {
       return { ...basePayload, avatarFrame: normalizedFrame };

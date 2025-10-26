@@ -31,7 +31,15 @@
               data-id="{{item.memberId}}"
               bindtap="handleViewArchive"
             >{{item.nickName || '神秘仙友'}}</view>
-            <view wx:if="{{item.titleName}}" class="board-title">{{item.titleName}}</view>
+            <view wx:if="{{item.titleImage || item.titleName}}" class="board-title">
+              <image
+                wx:if="{{item.titleImage}}"
+                class="board-title__image"
+                src="{{item.titleImage}}"
+                mode="heightFix"
+              ></image>
+              <text wx:else class="board-title__text">{{item.titleName}}</text>
+            </view>
           </view>
           <view class="board-actions">
             <button
