@@ -199,6 +199,14 @@ page {
   min-height: 40rpx;
 }
 
+.profile-meta__title-placeholder {
+  padding: 6rpx 16rpx;
+  border-radius: 24rpx;
+  background: rgba(24, 30, 45, 0.6);
+  color: rgba(220, 230, 255, 0.75);
+  font-size: 22rpx;
+}
+
 .profile-meta__title-image {
   height: 60rpx;
   max-width: 260rpx;
