@@ -99,5 +99,6 @@
    - 将 `event` 的 JSON 负载设置为 `{"action":"getLeaderboard","refresh":true}`，新增的 `refresh` 参数会强制重建排行榜缓存，避免复用旧版文档。无需带上登录信息即可刷新缓存，如需验证某个成员的排名，可额外在 JSON 中填入 `actorId`（或 `memberId`）。
    - 调用成功后，可在数据库中确认 `pvpLeaderboard` 文档的 `updatedAt` 字段已刷新，并包含 `titleCatalog` 数据；若调用失败，可在云函数日志中查看报错并重试。
    - 若未携带 `refresh: true`，云函数会根据缓存的 `schemaVersion` 判断是否需要重建。旧缓存因缺少该字段会被自动升级；若在升级前已手动覆盖缓存但 `schemaVersion` 仍为旧值，则不会更新 `updatedAt` 与 `titleCatalog`，请务必按照上述步骤携带 `refresh` 参数重建。
+   - 如果携带 `refresh: true` 后 `titleCatalog` 仍为空，表示旧版本只依赖 `pvpProfiles.memberSnapshot`，其中未同步会员档案与 `memberExtras` 的自定义称号目录。当前版本会在重建缓存时批量读取 `members` 与 `memberExtras` 集合并合并称号，若仍为空请检查目标会员的 `memberExtras.titleCatalog` 是否已有数据，或提醒成员重新打开竞技场以刷新档案。
 
 部署完成后，会员即可在“比武”入口体验天梯匹配、好友切磋与邀战分享，实现线上社交裂变与线下消费联动。

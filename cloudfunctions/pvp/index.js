@@ -1802,45 +1802,113 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
     .limit(limit)
     .get()
     .catch(() => ({ data: [] }));
-  const entries = (snapshot.data || []).map((item, index) => {
-    const avatarFrame = resolveAvatarFrameValue(
-      item.memberSnapshot && item.memberSnapshot.avatarFrame,
-      item.memberSnapshot &&
-        item.memberSnapshot.appearance &&
-        item.memberSnapshot.appearance.avatarFrame,
-      item.memberSnapshot && item.memberSnapshot.appearanceFrame,
-      item.avatarFrame,
-      item.appearance && item.appearance.avatarFrame,
-      item.appearanceFrame
+  const profiles = snapshot.data || [];
+  const memberIds = Array.from(
+    new Set(
+      profiles
+        .map((item) =>
+          normalizeMemberId(
+            item.memberId ||
+              (item.memberSnapshot && item.memberSnapshot.memberId) ||
+              item._id
+          )
+        )
+        .filter((id) => !!id)
+    )
+  );
+  const [membersMap, memberExtrasMap] = await Promise.all([
+    loadDocumentsByIds(COLLECTIONS.MEMBERS, memberIds),
+    loadDocumentsByIds(COLLECTIONS.MEMBER_EXTRAS, memberIds)
+  ]);
+  const entries = profiles.map((item, index) => {
+    const normalizedMemberId = normalizeMemberId(
+      item.memberId || (item.memberSnapshot && item.memberSnapshot.memberId) || item._id
     );
-    const snapshotAppearance =
-      item.memberSnapshot && item.memberSnapshot.appearance
-        ? item.memberSnapshot.appearance
+    const memberId =
+      normalizedMemberId ||
+      item.memberId ||
+      (item.memberSnapshot && item.memberSnapshot.memberId) ||
+      item._id ||
+      '';
+    const memberDoc = normalizedMemberId ? membersMap.get(normalizedMemberId) || null : null;
+    const extrasDoc = normalizedMemberId ? memberExtrasMap.get(normalizedMemberId) || null : null;
+    const snapshotMember =
+      item.memberSnapshot && typeof item.memberSnapshot === 'object'
+        ? item.memberSnapshot
         : null;
-    const appearance = item.appearance || null;
-    const titleCatalogSource =
-      (snapshotAppearance && snapshotAppearance.titleCatalog) ||
-      (item.memberSnapshot && item.memberSnapshot.titleCatalog) ||
-      item.titleCatalog ||
-      [];
-    const titleCatalog = normalizeTitleCatalog(titleCatalogSource);
-    const titleId =
-      (snapshotAppearance && snapshotAppearance.titleId) ||
-      (item.memberSnapshot && item.memberSnapshot.appearanceTitle) ||
-      (appearance && appearance.titleId) ||
+    const snapshotAppearance =
+      snapshotMember && snapshotMember.appearance && typeof snapshotMember.appearance === 'object'
+        ? snapshotMember.appearance
+        : null;
+    const profileAppearance =
+      item.appearance && typeof item.appearance === 'object' ? item.appearance : null;
+    const memberAppearance =
+      memberDoc && memberDoc.appearance && typeof memberDoc.appearance === 'object'
+        ? memberDoc.appearance
+        : null;
+
+    const titleCatalogEntries = [];
+    if (memberAppearance && Array.isArray(memberAppearance.titleCatalog)) {
+      titleCatalogEntries.push(...memberAppearance.titleCatalog);
+    }
+    if (memberDoc && Array.isArray(memberDoc.titleCatalog)) {
+      titleCatalogEntries.push(...memberDoc.titleCatalog);
+    }
+    if (extrasDoc && Array.isArray(extrasDoc.titleCatalog)) {
+      titleCatalogEntries.push(...extrasDoc.titleCatalog);
+    }
+    if (snapshotMember && Array.isArray(snapshotMember.titleCatalog)) {
+      titleCatalogEntries.push(...snapshotMember.titleCatalog);
+    }
+    if (profileAppearance && Array.isArray(profileAppearance.titleCatalog)) {
+      titleCatalogEntries.push(...profileAppearance.titleCatalog);
+    }
+    if (Array.isArray(item.titleCatalog)) {
+      titleCatalogEntries.push(...item.titleCatalog);
+    }
+    const titleCatalog = normalizeTitleCatalog(titleCatalogEntries);
+
+    const titleIdSource =
+      (memberAppearance && memberAppearance.titleId) ||
+      (memberDoc && memberDoc.appearanceTitle) ||
+      (snapshotMember && snapshotMember.appearanceTitle) ||
+      (profileAppearance && profileAppearance.titleId) ||
       item.titleId ||
       '';
-    const titleName =
-      (snapshotAppearance && snapshotAppearance.titleName) ||
-      (item.memberSnapshot && item.memberSnapshot.appearanceTitleName) ||
-      (appearance && appearance.titleName) ||
+    const titleNameSource =
+      (memberAppearance && memberAppearance.titleName) ||
+      (memberDoc && memberDoc.appearanceTitleName) ||
+      (snapshotMember && snapshotMember.appearanceTitleName) ||
+      (profileAppearance && profileAppearance.titleName) ||
       item.titleName ||
       '';
+
+    const avatarFrame = resolveAvatarFrameValue(
+      snapshotMember && snapshotMember.avatarFrame,
+      snapshotAppearance && snapshotAppearance.avatarFrame,
+      snapshotMember && snapshotMember.appearanceFrame,
+      memberAppearance && memberAppearance.avatarFrame,
+      memberDoc && memberDoc.avatarFrame,
+      memberDoc && memberDoc.appearanceFrame,
+      item.avatarFrame,
+      profileAppearance && profileAppearance.avatarFrame,
+      item.appearanceFrame
+    );
+
+    const nickName =
+      (memberDoc && (memberDoc.nickName || memberDoc.name)) ||
+      (snapshotMember && snapshotMember.nickName) ||
+      '';
+    const avatarUrl =
+      (memberDoc && memberDoc.avatarUrl) ||
+      (snapshotMember && snapshotMember.avatarUrl) ||
+      '';
+
     const payload = {
       rank: index + 1,
-      memberId: item.memberId,
-      nickName: item.memberSnapshot ? item.memberSnapshot.nickName : '',
-      avatarUrl: item.memberSnapshot ? item.memberSnapshot.avatarUrl : '',
+      memberId,
+      nickName,
+      avatarUrl,
       tierId: item.tierId,
       tierName: item.tierName,
       points: item.points,
@@ -1848,8 +1916,8 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
       losses: item.losses,
       draws: item.draws,
       streak: item.currentStreak || 0,
-      titleId: typeof titleId === 'string' ? titleId : '',
-      titleName: typeof titleName === 'string' ? titleName : '',
+      titleId: typeof titleIdSource === 'string' ? normalizeTitleId(titleIdSource) : '',
+      titleName: typeof titleNameSource === 'string' ? titleNameSource : '',
       titleCatalog
     };
     payload.avatarFrame = avatarFrame || '';
@@ -2590,6 +2658,47 @@ function normalizeId(value) {
     return value.trim();
   }
   return '';
+}
+
+async function loadDocumentsByIds(collectionName, ids = []) {
+  const normalizedIds = [];
+  (Array.isArray(ids) ? ids : []).forEach((id) => {
+    if (typeof id === 'string') {
+      const trimmed = id.trim();
+      if (trimmed) {
+        normalizedIds.push(trimmed);
+      }
+    }
+  });
+  if (!normalizedIds.length) {
+    return new Map();
+  }
+  const uniqueIds = Array.from(new Set(normalizedIds));
+  const batchSize = 20;
+  const tasks = [];
+  for (let i = 0; i < uniqueIds.length; i += batchSize) {
+    const chunk = uniqueIds.slice(i, i + batchSize);
+    tasks.push(
+      db
+        .collection(collectionName)
+        .where({ _id: _.in(chunk) })
+        .limit(chunk.length)
+        .get()
+        .then((snapshot) => (snapshot && snapshot.data ? snapshot.data : []))
+        .catch((error) => {
+          console.error(`[pvp] load ${collectionName} failed`, error);
+          return [];
+        })
+    );
+  }
+  const documents = (await Promise.all(tasks)).reduce((acc, list) => acc.concat(list), []);
+  const map = new Map();
+  documents.forEach((doc) => {
+    if (doc && doc._id) {
+      map.set(doc._id, doc);
+    }
+  });
+  return map;
 }
 
 function isCollectionMissingError(error) {
