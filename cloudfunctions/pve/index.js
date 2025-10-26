@@ -387,6 +387,286 @@ const SECRET_REALM_ARCHETYPE_SKILLS = Object.freeze({
   realm_overseer: ['sword_immortal_domain', 'spell_pyrocataclysm', 'body_furnace_of_ruin']
 });
 
+const SECRET_REALM_LOOT_PRESETS = Object.freeze({
+  1: {
+    normal: {
+      chance: 0.12,
+      items: ['mortal_weapon_staff', 'mortal_bracer_stone', 'mortal_chest_robe']
+    }
+  },
+  2: {
+    normal: {
+      chance: 0.12,
+      items: ['mortal_boots_cloth', 'mortal_belt_rope', 'mortal_focus_brush']
+    }
+  },
+  3: {
+    normal: {
+      chance: 0.12,
+      items: ['mortal_helm_headband', 'mortal_treasure_dawn', 'mortal_puppet_wood']
+    }
+  },
+  4: {
+    normal: {
+      chance: 0.13,
+      items: ['mortal_weapon_sabre', 'mortal_bracer_echo', 'mortal_chest_plate']
+    }
+  },
+  5: {
+    normal: {
+      chance: 0.13,
+      items: ['mortal_boots_lightstep', 'mortal_belt_ring', 'mortal_orb_calm']
+    }
+  },
+  6: {
+    normal: {
+      chance: 0.13,
+      items: ['mortal_helm_veil', 'mortal_necklace_care', 'mortal_treasure_ward']
+    }
+  },
+  7: {
+    normal: {
+      chance: 0.14,
+      items: ['mortal_weapon_crossbow', 'mortal_bracer_leaf', 'mortal_chest_mantle']
+    }
+  },
+  8: {
+    normal: {
+      chance: 0.14,
+      items: ['mortal_boots_balance', 'mortal_belt_wrap', 'mortal_orb_flame']
+    }
+  },
+  9: {
+    normal: {
+      chance: 0.14,
+      items: ['mortal_helm_mask', 'mortal_necklace_fang', 'mortal_treasure_flare']
+    }
+  },
+  10: {
+    boss: {
+      items: [
+        { itemId: 'novice_sword', chance: 0.18 },
+        { itemId: 'apprentice_robe', chance: 0.18 },
+        { itemId: 'lightstep_boots', chance: 0.18 },
+        { itemId: 'initiate_bracers', chance: 0.18 },
+        { itemId: 'initiate_orb', chance: 0.18 },
+        { itemId: 'spirit_ring', chance: 0.18 },
+        { itemId: 'spirit_blade', chance: 0.08 }
+      ]
+    }
+  },
+  11: {
+    normal: {
+      chance: 0.11,
+      items: ['starsea_mail', 'stoneheart_belt', 'guardian_token']
+    }
+  },
+  12: {
+    normal: {
+      chance: 0.11,
+      items: ['spirit_blade', 'stormwrath_bracers', 'ironwall_puppet']
+    }
+  },
+  13: {
+    normal: {
+      chance: 0.11,
+      items: ['void_silk', 'chronos_orb', 'skyline_necklace']
+    }
+  },
+  14: {
+    normal: {
+      chance: 0.1,
+      items: ['starlit_visor', 'shade_boots', 'umbra_bracers']
+    }
+  },
+  15: {
+    normal: {
+      chance: 0.1,
+      items: ['lumina_belt', 'aegis_orb', 'serene_token']
+    }
+  },
+  16: {
+    normal: {
+      chance: 0.1,
+      items: ['guardian_puppet', 'veil_treasure', 'phantom_focus']
+    }
+  },
+  17: {
+    normal: {
+      chance: 0.09,
+      items: ['abyssal_focus', 'shadow_talisman', 'dragonbone_sabre']
+    }
+  },
+  18: {
+    normal: {
+      chance: 0.09,
+      items: ['void_silk', 'chronos_orb', 'skyline_necklace']
+    }
+  },
+  19: {
+    normal: {
+      chance: 0.09,
+      items: ['lumina_belt', 'aegis_orb', 'guardian_token']
+    }
+  },
+  20: {
+    boss: {
+      items: [
+        { itemId: 'dragonbone_sabre', chance: 0.2 },
+        { itemId: 'abyssal_focus', chance: 0.2 },
+        { itemId: 'shadow_talisman', chance: 0.2 },
+        { itemId: 'guardian_puppet', chance: 0.2 },
+        { itemId: 'veil_treasure', chance: 0.18 },
+        { itemId: 'aegis_orb', chance: 0.18 },
+        { itemId: 'inferno_orb', chance: 0.07 },
+        { itemId: 'ember_focus', chance: 0.07 },
+        { itemId: 'phoenix_plume', chance: 0.07 }
+      ]
+    }
+  },
+  21: {
+    normal: {
+      chance: 0.09,
+      items: ['dragonbone_sabre', 'shadow_talisman', 'abyssal_focus']
+    }
+  },
+  22: {
+    normal: {
+      chance: 0.09,
+      items: ['veil_treasure', 'phantom_focus', 'umbra_bracers']
+    }
+  },
+  23: {
+    normal: {
+      chance: 0.09,
+      items: ['chronos_orb', 'skyline_necklace', 'starlit_visor']
+    }
+  },
+  24: {
+    normal: {
+      chance: 0.09,
+      items: ['shade_boots', 'void_silk', 'guardian_puppet']
+    }
+  },
+  25: {
+    normal: {
+      chance: 0.08,
+      items: ['lumina_belt', 'aegis_orb', 'serene_token']
+    }
+  },
+  26: {
+    normal: {
+      chance: 0.08,
+      items: ['starsea_mail', 'stoneheart_belt', 'guardian_token']
+    }
+  },
+  27: {
+    normal: {
+      chance: 0.08,
+      items: ['stormwrath_bracers', 'spirit_blade', 'ironwall_puppet']
+    }
+  },
+  28: {
+    normal: {
+      items: [
+        { itemId: 'inferno_orb', chance: 0.06 },
+        { itemId: 'ember_focus', chance: 0.06 },
+        { itemId: 'phoenix_plume', chance: 0.06 }
+      ]
+    }
+  },
+  29: {
+    normal: {
+      chance: 0.09,
+      items: ['dragonbone_sabre', 'abyssal_focus', 'shadow_talisman']
+    }
+  },
+  30: {
+    boss: {
+      items: [
+        { itemId: 'dragonbone_sabre', chance: 0.22 },
+        { itemId: 'abyssal_focus', chance: 0.22 },
+        { itemId: 'shadow_talisman', chance: 0.22 },
+        { itemId: 'guardian_puppet', chance: 0.2 },
+        { itemId: 'veil_treasure', chance: 0.2 },
+        { itemId: 'aegis_orb', chance: 0.2 },
+        { itemId: 'inferno_orb', chance: 0.08 },
+        { itemId: 'ember_focus', chance: 0.08 },
+        { itemId: 'phoenix_plume', chance: 0.08 }
+      ]
+    }
+  }
+});
+
+function normalizeLootEntry(entry, baseChance) {
+  if (typeof entry === 'string') {
+    if (!Number.isFinite(baseChance) || baseChance <= 0) {
+      return null;
+    }
+    return { type: 'equipment', itemId: entry, chance: baseChance };
+  }
+  if (entry && typeof entry === 'object') {
+    const chance = Number.isFinite(entry.chance) ? entry.chance : baseChance;
+    if (!Number.isFinite(chance) || chance <= 0) {
+      return null;
+    }
+    const type = entry.type || 'equipment';
+    if (type === 'equipment') {
+      const itemId =
+        typeof entry.itemId === 'string'
+          ? entry.itemId
+          : typeof entry.id === 'string'
+          ? entry.id
+          : '';
+      if (!itemId) {
+        return null;
+      }
+      return { type: 'equipment', itemId, chance };
+    }
+    if (type === 'skill') {
+      const skillId =
+        typeof entry.skillId === 'string'
+          ? entry.skillId
+          : typeof entry.id === 'string'
+          ? entry.id
+          : '';
+      if (!skillId) {
+        return null;
+      }
+      return { type: 'skill', skillId, chance };
+    }
+    if (type === 'consumable') {
+      const consumableId =
+        typeof entry.consumableId === 'string'
+          ? entry.consumableId
+          : typeof entry.id === 'string'
+          ? entry.id
+          : '';
+      if (!consumableId) {
+        return null;
+      }
+      return { type: 'consumable', consumableId, chance };
+    }
+  }
+  return null;
+}
+
+function resolveSecretRealmLoot({ floorNumber, type }) {
+  const preset = SECRET_REALM_LOOT_PRESETS[floorNumber];
+  if (!preset) {
+    return [];
+  }
+  const config = type === 'boss' ? preset.boss || preset.normal : preset.normal;
+  if (!config) {
+    return [];
+  }
+  const baseChance = Number.isFinite(config.chance) ? config.chance : NaN;
+  const items = Array.isArray(config.items) ? config.items : [];
+  return items
+    .map((entry) => normalizeLootEntry(entry, baseChance))
+    .filter(Boolean);
+}
+
 function buildSecretRealmLibrary() {
   if (!Array.isArray(realmConfigs) || !realmConfigs.length) {
     return [];
@@ -420,6 +700,7 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
   const special = generateSecretRealmSpecial(archetype, scaling, type);
   const attributes = deriveEnemyAttributesFromStats(stats, floorNumber);
   const rewards = resolveSecretRealmRewards({ floorNumber, type, scaling });
+  const loot = resolveSecretRealmLoot({ floorNumber, type });
   const normalizedRealmId = realm.id || realm.realmId || `realm_${realmIndex + 1}`;
   const id = `secret_${normalizedRealmId}_${String(floorCode).padStart(2, '0')}`;
   const description = `${archetype.description}（${stageName}）`;
@@ -446,7 +727,7 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
     special,
     skills,
     rewards,
-    loot: [],
+    loot,
     meta: {
       scaling,
       suggestedRewards: rewards && rewards._model ? rewards._model : null
@@ -7859,7 +8140,7 @@ function runBattleSimulation({
   let previousPlayerAttributesSnapshot = null;
   let previousEnemyAttributesSnapshot = null;
   let round = 1;
-  const maxRounds = 15;
+  const maxRounds = 20;
 
   while (playerActor.hp > 0 && enemyActor.hp > 0 && round <= maxRounds) {
     const { order: roundOrder } = determineRoundOrder(playerActor, enemyActor, {
