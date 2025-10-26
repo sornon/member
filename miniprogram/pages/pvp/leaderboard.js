@@ -46,10 +46,18 @@ function decorateLeaderboardEntries(entries) {
     }
     const normalizedFrame = normalizeAvatarFrameValue(entry.avatarFrame || '');
     const avatarUrl = toTrimmedString(entry.avatarUrl) || DEFAULT_AVATAR;
+    const titleName = toTrimmedString(entry.titleName);
+    const tierName = toTrimmedString(entry.tierName);
+    const basePayload = {
+      ...entry,
+      titleName,
+      tierName,
+      avatarUrl
+    };
     if (normalizedFrame || entry.avatarFrame) {
-      return { ...entry, avatarFrame: normalizedFrame, avatarUrl };
+      return { ...basePayload, avatarFrame: normalizedFrame };
     }
-    return { ...entry, avatarFrame: '', avatarUrl };
+    return { ...basePayload, avatarFrame: '' };
   });
 }
 
