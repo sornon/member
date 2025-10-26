@@ -85,7 +85,7 @@ page {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 24rpx;
   row-gap: 20rpx;
-  grid-auto-flow: row dense;
+  align-items: start;
 }
 
 .section--basic .form-item {

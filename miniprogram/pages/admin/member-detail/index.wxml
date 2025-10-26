@@ -16,7 +16,7 @@
     </view>
   </view>
 
-  <view class="section section--basic">
+  <view class="section">
     <view class="section-title">基础资料</view>
     <view class="toolbar">
       <button class="recharge" size="mini" bindtap="showRechargeDialog">为该会员充值</button>
@@ -165,26 +165,26 @@
       <view class="form-item">
         <view class="form-label">灵石余额（枚）</view>
         <input
-        class="form-input"
-        type="number"
-        value="{{form.stoneBalance}}"
-        placeholder="请输入灵石余额"
-        data-field="stoneBalance"
-        bindinput="handleInputChange"
-      />
-    </view>
-    <view class="form-item">
-      <view class="form-label">现金余额（元）</view>
-      <input
-        class="form-input"
-        type="digit"
-        value="{{form.cashBalance}}"
-        placeholder="请输入现金余额"
-        data-field="cashBalance"
-        bindinput="handleInputChange"
-      />
-    </view>
-    <view class="form-item">
+          class="form-input"
+          type="number"
+          value="{{form.stoneBalance}}"
+          placeholder="请输入灵石余额"
+          data-field="stoneBalance"
+          bindinput="handleInputChange"
+        />
+      </view>
+      <view class="form-item">
+        <view class="form-label">现金余额（元）</view>
+        <input
+          class="form-input"
+          type="digit"
+          value="{{form.cashBalance}}"
+          placeholder="请输入现金余额"
+          data-field="cashBalance"
+          bindinput="handleInputChange"
+        />
+      </view>
+      <view class="form-item">
         <view class="form-label">当前境界</view>
         <view class="readonly-value">{{currentLevelName || '—'}}</view>
       </view>
@@ -194,24 +194,25 @@
           <label
             wx:for="{{roleOptions}}"
             wx:key="value"
-          class="role-option {{item.checked ? 'checked' : ''}}"
-        >
-          <checkbox
-            value="{{item.value}}"
-            checked="{{item.checked}}"
-            disabled="{{item.disabled}}"
-          />
-          <text class="role-label">{{item.label}}</text>
-        </label>
-      </checkbox-group>
-    </view>
-    <view class="form-item basic-info-grid__full">
-      <view class="form-label">头像权限</view>
-      <view class="avatar-permission-summary">
-        <text class="avatar-permission-summary__primary">{{avatarPermissionSummary}}</text>
-        <text class="avatar-permission-summary__note">C 级头像默认开放</text>
+            class="role-option {{item.checked ? 'checked' : ''}}"
+          >
+            <checkbox
+              value="{{item.value}}"
+              checked="{{item.checked}}"
+              disabled="{{item.disabled}}"
+            />
+            <text class="role-label">{{item.label}}</text>
+          </label>
+        </checkbox-group>
       </view>
-      <button class="avatar-edit-button" size="mini" bindtap="showAvatarPermissionDialog">编辑头像权限</button>
+      <view class="form-item basic-info-grid__full">
+        <view class="form-label">头像权限</view>
+        <view class="avatar-permission-summary">
+          <text class="avatar-permission-summary__primary">{{avatarPermissionSummary}}</text>
+          <text class="avatar-permission-summary__note">C 级头像默认开放</text>
+        </view>
+        <button class="avatar-edit-button" size="mini" bindtap="showAvatarPermissionDialog">编辑头像权限</button>
+      </view>
     </view>
   </view>
 
