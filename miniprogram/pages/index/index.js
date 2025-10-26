@@ -22,7 +22,13 @@ const {
   isBackgroundUnlocked
 } = require('../../shared/backgrounds.js');
 const { AVATAR_IMAGE_BASE_PATH, CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
-const { buildTitleImageUrl, resolveTitleById, normalizeTitleId } = require('../../shared/titles.js');
+const {
+  buildTitleImageUrl,
+  resolveTitleById,
+  normalizeTitleId,
+  registerCustomTitles,
+  normalizeTitleCatalog
+} = require('../../shared/titles.js');
 const {
   listAvatarIds: listAllAvatarIds,
   resolveAvatarMetaById
@@ -657,6 +663,8 @@ function buildSanitizedMember(member) {
   const titleUnlocks = resolveTitleUnlocks(member);
   const desiredTitle = normalizeTitleId(member.appearanceTitle || '');
   const appearanceTitle = desiredTitle && titleUnlocks.includes(desiredTitle) ? desiredTitle : '';
+  const titleCatalog = normalizeTitleCatalog(member.titleCatalog);
+  registerCustomTitles(titleCatalog);
   return {
     ...member,
     avatarUrl: sanitizedAvatar || '',
@@ -665,6 +673,7 @@ function buildSanitizedMember(member) {
     appearanceBackgroundAnimated: !!member.appearanceBackgroundAnimated,
     appearanceTitle,
     titleUnlocks,
+    titleCatalog,
     backgroundUnlocks: resolveBackgroundUnlocks(member)
   };
 }

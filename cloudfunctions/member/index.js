@@ -44,6 +44,111 @@ function normalizeTitleId(titleId) {
   return titleId.trim();
 }
 
+function normalizeTitleImageFile(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  let sanitized = value.trim();
+  if (!sanitized) {
+    return '';
+  }
+  sanitized = sanitized.replace(/\.png$/i, '');
+  sanitized = sanitized.replace(/[^a-zA-Z0-9_-]+/g, '_');
+  sanitized = sanitized.replace(/_{2,}/g, '_');
+  sanitized = sanitized.replace(/^_+|_+$/g, '');
+  return sanitized.toLowerCase();
+}
+
+function generateCustomTitleId(base, existingIds) {
+  const ids = existingIds || new Set();
+  const normalizedBase = normalizeTitleImageFile(base) || 'title';
+  let candidate = normalizedBase.startsWith('title_') ? normalizedBase : `title_${normalizedBase}`;
+  let suffix = 1;
+  let finalId = candidate;
+  while (ids.has(finalId)) {
+    suffix += 1;
+    finalId = `${candidate}_${suffix}`;
+  }
+  ids.add(finalId);
+  return finalId;
+}
+
+function normalizeTitleCatalogEntry(entry, existingIds) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const ids = existingIds || new Set();
+  let id = typeof entry.id === 'string' ? entry.id.trim() : '';
+  let imageFile = normalizeTitleImageFile(entry.imageFile || entry.fileName || entry.file || id);
+  if (!id) {
+    id = generateCustomTitleId(imageFile || entry.name || '', ids);
+  } else {
+    id = normalizeTitleId(id);
+    if (!id) {
+      id = generateCustomTitleId(imageFile || entry.name || '', ids);
+    }
+  }
+  if (ids.has(id)) {
+    id = generateCustomTitleId(id, ids);
+  }
+  const name = typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : id;
+  imageFile = imageFile || id;
+  if (!ids.has(id)) {
+    ids.add(id);
+  }
+  const normalized = {
+    id,
+    name,
+    imageFile
+  };
+  if (entry.createdAt) {
+    normalized.createdAt = entry.createdAt;
+  }
+  if (entry.createdBy) {
+    normalized.createdBy = entry.createdBy;
+  }
+  return normalized;
+}
+
+function normalizeTitleCatalog(list = []) {
+  const baseIds = new Set(Object.keys(TITLE_LIBRARY));
+  const normalized = [];
+  (Array.isArray(list) ? list : []).forEach((entry) => {
+    const normalizedEntry = normalizeTitleCatalogEntry(entry, baseIds);
+    if (!normalizedEntry) {
+      return;
+    }
+    normalized.push(normalizedEntry);
+  });
+  return normalized;
+}
+
+function areTitleCatalogsEqual(a, b) {
+  if (a === b) {
+    return true;
+  }
+  if (!Array.isArray(a) || !Array.isArray(b)) {
+    return false;
+  }
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i] || {};
+    const right = b[i] || {};
+    if (left.id !== right.id) {
+      return false;
+    }
+    if ((left.name || '') !== (right.name || '')) {
+      return false;
+    }
+    if ((left.imageFile || '') !== (right.imageFile || '')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 const BACKGROUND_LIBRARY = Object.freeze({
   trial_spirit_test: {
     id: 'trial_spirit_test',
@@ -580,6 +685,9 @@ async function resolveMemberExtras(memberId) {
     if (!Array.isArray(extras.titleUnlocks)) {
       extras.titleUnlocks = [];
     }
+    if (!Array.isArray(extras.titleCatalog)) {
+      extras.titleCatalog = [];
+    }
     if (!Array.isArray(extras.backgroundUnlocks)) {
       extras.backgroundUnlocks = [];
     }
@@ -594,6 +702,7 @@ async function resolveMemberExtras(memberId) {
     claimedLevelRewards: [],
     wineStorage: [],
     titleUnlocks: [],
+    titleCatalog: [],
     backgroundUnlocks: [],
     deliveredLevelRewards: [],
     createdAt: now,
@@ -1033,6 +1142,8 @@ async function initMember(openid, profile = {}, options = {}, context = {}) {
     .set({
       data: {
         avatarUnlocks: [],
+        titleUnlocks: [],
+        titleCatalog: [],
         claimedLevelRewards: [],
         deliveredLevelRewards: [],
         createdAt: now,
@@ -1858,6 +1969,17 @@ async function ensureArchiveDefaults(member) {
     extras.titleUnlocks = titleUnlocks;
   }
   extras.titleUnlocks = titleUnlocks;
+
+  const rawTitleCatalog = Array.isArray(extras.titleCatalog) ? extras.titleCatalog : [];
+  const normalizedTitleCatalog = normalizeTitleCatalog(rawTitleCatalog);
+  if (!areTitleCatalogsEqual(rawTitleCatalog, normalizedTitleCatalog)) {
+    extrasUpdates.titleCatalog = normalizedTitleCatalog;
+    extras.titleCatalog = normalizedTitleCatalog;
+  } else {
+    extras.titleCatalog = normalizedTitleCatalog;
+  }
+  member.titleCatalog = normalizedTitleCatalog;
+
   const backgroundUnlocks = Array.isArray(extras.backgroundUnlocks) ? extras.backgroundUnlocks.slice() : [];
 
   if (!GENDER_OPTIONS.includes(member.gender)) {

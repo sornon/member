@@ -1,6 +1,13 @@
 import { AdminService, PveService } from '../../../services/api';
 import { listAllAvatars, normalizeAvatarUnlocks } from '../../../utils/avatar-catalog';
 import { sanitizeEquipmentProfile, buildEquipmentIconPaths } from '../../../utils/equipment';
+const {
+  buildTitleImageUrlByFile,
+  registerCustomTitles,
+  normalizeTitleCatalog,
+  normalizeTitleImageFile,
+  normalizeTitleId
+} = require('../../../shared/titles.js');
 
 const RENAME_SOURCE_LABELS = {
   admin: '管理员调整',
@@ -226,6 +233,64 @@ function buildAvatarPermissionSummary(unlocks = []) {
   return `已解锁头像：${list.length} 个`;
 }
 
+function normalizeTitleUnlocks(unlocks = []) {
+  if (!Array.isArray(unlocks)) {
+    return [];
+  }
+  const seen = new Set();
+  const result = [];
+  unlocks.forEach((value) => {
+    const id = normalizeTitleId(value);
+    if (!id || seen.has(id)) {
+      return;
+    }
+    seen.add(id);
+    result.push(id);
+  });
+  return result;
+}
+
+function buildTitleManagerEntries(catalog = []) {
+  const normalized = normalizeTitleCatalog(catalog);
+  return normalized.map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    imageFile: entry.imageFile,
+    preview: buildTitleImageUrlByFile(entry.imageFile || entry.id)
+  }));
+}
+
+function buildTitleSummaryFromEntries(entries = [], unlocks = []) {
+  const list = Array.isArray(entries) ? entries.filter(Boolean) : [];
+  if (!list.length) {
+    return '暂无自定义称号';
+  }
+  const unlockSet = new Set(normalizeTitleUnlocks(unlocks));
+  const unlockedCount = list.reduce((total, entry) => {
+    if (!entry || !entry.id) {
+      return total;
+    }
+    return unlockSet.has(entry.id) ? total + 1 : total;
+  }, 0);
+  if (!unlockedCount) {
+    return `已添加 ${list.length} 个称号`;
+  }
+  if (unlockedCount === list.length) {
+    return `已解锁 ${unlockedCount} 个称号`;
+  }
+  return `已添加 ${list.length} 个称号 · 已解锁 ${unlockedCount} 个`;
+}
+
+function buildTitleManagerUnlockedEntries(entries = [], unlocks = []) {
+  const unlockSet = new Set(normalizeTitleUnlocks(unlocks));
+  if (!unlockSet.size) {
+    return [];
+  }
+  return (Array.isArray(entries) ? entries : [])
+    .filter((entry) => entry && entry.id && unlockSet.has(entry.id))
+    .map((entry) => ({ ...entry }));
+}
+
 function ensureMemberRole(roles) {
   const list = Array.isArray(roles) ? [...new Set(roles)] : [];
   if (!list.includes('member')) {
@@ -363,7 +428,15 @@ Page({
     secretRealmSaving: false,
     secretRealmResetting: false,
     secretRealmSummary: '',
-    secretRealmError: ''
+    secretRealmError: '',
+    titleSummary: '暂无自定义称号',
+    titleManagerVisible: false,
+    titleManagerSaving: false,
+    titleManagerEntries: [],
+    titleManagerUnlocks: [],
+    titleManagerUnlockedEntries: [],
+    titleManagerForm: { name: '', file: '' },
+    titleManagerDirty: false
   },
 
   onLoad(options) {
@@ -481,6 +554,13 @@ Page({
   applyDetail(detail) {
     if (!detail || !detail.member) return;
     const { member, levels = [] } = detail;
+    const titleUnlocks = normalizeTitleUnlocks(member.titleUnlocks);
+    const titleCatalog = normalizeTitleCatalog(member.titleCatalog);
+    member.titleUnlocks = titleUnlocks;
+    member.titleCatalog = titleCatalog;
+    registerCustomTitles(titleCatalog);
+    const titleEntries = buildTitleManagerEntries(titleCatalog);
+    const titleSummary = buildTitleSummaryFromEntries(titleEntries, titleUnlocks);
     const existingProfile = this.data.pveProfile || null;
     const hasNewProfile = !!(detail && detail.pveProfile);
     const profileToApply = hasNewProfile ? detail.pveProfile : existingProfile;
@@ -532,6 +612,7 @@ Page({
       avatarPermissionSummary: buildAvatarPermissionSummary(avatarUnlocks),
       avatarDialogSelection: avatarUnlocks,
       avatarDialogOptionGroups: buildAvatarOptionGroups(avatarUnlocks),
+      titleSummary,
       secretRealmSummary: '',
       secretRealmError: '',
       proxyLoginAvailable: this.resolveProxyLoginAvailability(member)
@@ -1242,6 +1323,195 @@ Page({
       wx.showToast({ title: error.errMsg || error.message || '修改失败', icon: 'none' });
     } finally {
       this.setData({ updatingEquipment: false });
+    }
+  },
+
+  commitTitleManagerState(partial = {}) {
+    const hasEntries = Object.prototype.hasOwnProperty.call(partial, 'entries');
+    const hasUnlocks = Object.prototype.hasOwnProperty.call(partial, 'unlocks');
+    const entries = hasEntries
+      ? (Array.isArray(partial.entries) ? partial.entries : [])
+      : Array.isArray(this.data.titleManagerEntries)
+      ? this.data.titleManagerEntries
+      : [];
+    const unlocksSource = hasUnlocks ? partial.unlocks : this.data.titleManagerUnlocks;
+    const unlocks = normalizeTitleUnlocks(unlocksSource);
+    const updates = {
+      titleManagerEntries: entries,
+      titleManagerUnlocks: unlocks,
+      titleManagerUnlockedEntries: buildTitleManagerUnlockedEntries(entries, unlocks)
+    };
+    if (partial.form) {
+      updates.titleManagerForm = partial.form;
+    }
+    if (typeof partial.visible === 'boolean') {
+      updates.titleManagerVisible = partial.visible;
+    }
+    if (typeof partial.dirty === 'boolean') {
+      updates.titleManagerDirty = partial.dirty;
+    }
+    if (typeof partial.saving === 'boolean') {
+      updates.titleManagerSaving = partial.saving;
+    }
+    if (partial.summary !== undefined) {
+      updates.titleSummary = partial.summary;
+    }
+    this.setData(updates);
+  },
+
+  openTitleManagerDialog() {
+    const member = this.data.member || {};
+    const catalog = Array.isArray(member.titleCatalog) ? member.titleCatalog : [];
+    const entries = buildTitleManagerEntries(catalog);
+    const unlocks = normalizeTitleUnlocks(member.titleUnlocks);
+    registerCustomTitles(catalog);
+    this.commitTitleManagerState({
+      visible: true,
+      entries,
+      unlocks,
+      form: { name: '', file: '' },
+      dirty: false,
+      saving: false
+    });
+  },
+
+  handleTitleManagerInput(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const field = dataset.field;
+    if (!field) {
+      return;
+    }
+    const value = event && event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
+    this.setData({
+      titleManagerForm: {
+        ...this.data.titleManagerForm,
+        [field]: value
+      }
+    });
+  },
+
+  handleTitleManagerAdd() {
+    const form = this.data.titleManagerForm || {};
+    const name = typeof form.name === 'string' ? form.name.trim() : '';
+    if (!name) {
+      wx.showToast({ title: '请输入称号名称', icon: 'none' });
+      return;
+    }
+    const fileInput = typeof form.file === 'string' ? form.file.trim() : '';
+    const imageFile = normalizeTitleImageFile(fileInput || name);
+    if (!imageFile) {
+      wx.showToast({ title: '请输入文件名', icon: 'none' });
+      return;
+    }
+    const existing = Array.isArray(this.data.titleManagerEntries) ? this.data.titleManagerEntries : [];
+    const baseList = existing.map((entry) => ({ id: entry.id, name: entry.name, imageFile: entry.imageFile }));
+    const appended = normalizeTitleCatalog(baseList.concat([{ name, imageFile }]));
+    if (!appended.length) {
+      wx.showToast({ title: '添加失败，请重试', icon: 'none' });
+      return;
+    }
+    const entries = buildTitleManagerEntries(appended);
+    const newEntry = entries[entries.length - 1];
+    const unlocks = normalizeTitleUnlocks(this.data.titleManagerUnlocks);
+    if (newEntry && newEntry.id && !unlocks.includes(newEntry.id)) {
+      unlocks.push(newEntry.id);
+    }
+    registerCustomTitles(appended);
+    this.commitTitleManagerState({
+      entries,
+      unlocks,
+      form: { name: '', file: '' },
+      dirty: true
+    });
+  },
+
+  handleTitleManagerRemove(event) {
+    const id = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset.id : '';
+    const targetId = normalizeTitleId(id);
+    if (!targetId) {
+      return;
+    }
+    const existing = Array.isArray(this.data.titleManagerEntries) ? this.data.titleManagerEntries : [];
+    const filtered = existing.filter((entry) => entry && entry.id !== targetId);
+    const normalized = normalizeTitleCatalog(filtered);
+    const entries = buildTitleManagerEntries(normalized);
+    const unlocks = normalizeTitleUnlocks(this.data.titleManagerUnlocks).filter((value) => value !== targetId);
+    registerCustomTitles(normalized);
+    this.commitTitleManagerState({ entries, unlocks, dirty: true });
+  },
+
+  handleTitleManagerToggleUnlock(event) {
+    const id = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset.id : '';
+    const targetId = normalizeTitleId(id);
+    if (!targetId) {
+      return;
+    }
+    const checked = !!(event && event.detail && event.detail.value);
+    const unlocks = normalizeTitleUnlocks(this.data.titleManagerUnlocks);
+    const existsIndex = unlocks.indexOf(targetId);
+    if (checked) {
+      if (existsIndex < 0) {
+        unlocks.push(targetId);
+      }
+    } else if (existsIndex >= 0) {
+      unlocks.splice(existsIndex, 1);
+    }
+    this.commitTitleManagerState({ unlocks, dirty: true });
+  },
+
+  handleCloseTitleManager() {
+    if (this.data.titleManagerSaving) {
+      return;
+    }
+    const member = this.data.member || {};
+    const catalog = Array.isArray(member.titleCatalog) ? member.titleCatalog : [];
+    const unlocks = normalizeTitleUnlocks(member.titleUnlocks);
+    const entries = buildTitleManagerEntries(catalog);
+    registerCustomTitles(catalog);
+    this.commitTitleManagerState({
+      visible: false,
+      entries,
+      unlocks,
+      form: { name: '', file: '' },
+      dirty: false
+    });
+  },
+
+  async handleTitleManagerSave() {
+    if (this.data.titleManagerSaving) {
+      return;
+    }
+    const memberId = this.data.memberId;
+    if (!memberId) {
+      wx.showToast({ title: '缺少会员编号', icon: 'none' });
+      return;
+    }
+    const catalog = normalizeTitleCatalog(this.data.titleManagerEntries);
+    const unlocks = normalizeTitleUnlocks(this.data.titleManagerUnlocks);
+    this.commitTitleManagerState({ saving: true });
+    try {
+      const detail = await AdminService.updateMember(memberId, {
+        titleCatalog: catalog,
+        titleUnlocks: unlocks
+      });
+      this.applyDetail(detail);
+      const updatedMember = this.data.member || {};
+      const savedCatalog = Array.isArray(updatedMember.titleCatalog) ? updatedMember.titleCatalog : [];
+      const savedUnlocks = normalizeTitleUnlocks(updatedMember.titleUnlocks);
+      const savedEntries = buildTitleManagerEntries(savedCatalog);
+      this.commitTitleManagerState({
+        visible: false,
+        saving: false,
+        dirty: false,
+        entries: savedEntries,
+        unlocks: savedUnlocks,
+        form: { name: '', file: '' }
+      });
+      wx.showToast({ title: '已保存', icon: 'success' });
+    } catch (error) {
+      console.error('[admin] save titles failed', error);
+      this.commitTitleManagerState({ saving: false });
+      wx.showToast({ title: error.errMsg || error.message || '保存失败', icon: 'none' });
     }
   },
 
