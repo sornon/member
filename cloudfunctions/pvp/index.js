@@ -49,6 +49,7 @@ const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'pvp' });
 const DEFAULT_SEASON_LENGTH_DAYS = 56;
 const MATCH_ROUND_LIMIT = 15;
 const LEADERBOARD_CACHE_SIZE = 100;
+const LEADERBOARD_CACHE_SCHEMA_VERSION = 2;
 const RECENT_MATCH_LIMIT = 10;
 const DEFAULT_RATING = 1200;
 const BATTLE_COOLDOWN_MS = 10 * 1000;
@@ -161,6 +162,45 @@ function resolveAvatarFrameValue(...candidates) {
   return '';
 }
 
+function normalizeTitleId(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  return trimmed;
+}
+
+function normalizeTitleCatalogEntry(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const id = normalizeTitleId(entry.id);
+  if (!id) {
+    return null;
+  }
+  const name =
+    typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : id;
+  const imageFile =
+    typeof entry.imageFile === 'string' && entry.imageFile.trim()
+      ? entry.imageFile.trim()
+      : id;
+  return { id, name, imageFile };
+}
+
+function normalizeTitleCatalog(list = []) {
+  const seen = new Set();
+  const normalizedList = [];
+  (Array.isArray(list) ? list : []).forEach((item) => {
+    const normalized = normalizeTitleCatalogEntry(item);
+    if (!normalized || seen.has(normalized.id)) {
+      return;
+    }
+    seen.add(normalized.id);
+    normalizedList.push(normalized);
+  });
+  return normalizedList;
+}
+
 let collectionsReady = false;
 let ensuringCollectionsPromise = null;
 
@@ -192,7 +232,10 @@ exports.main = async (event = {}) => {
   const { OPENID } = cloud.getWXContext();
   const action = typeof event.action === 'string' ? event.action.trim() : 'profile';
   const { memberId: proxyMemberId, proxySession } = await proxyHelpers.resolveProxyContext(OPENID);
-  const actorId = resolveActorId(proxyMemberId || OPENID, event);
+  const actorId =
+    action === 'getLeaderboard'
+      ? resolveOptionalActorId(proxyMemberId || OPENID, event)
+      : resolveActorId(proxyMemberId || OPENID, event);
 
   if (proxySession) {
     await proxyHelpers.recordProxyAction(proxySession, OPENID, action, event || {});
@@ -405,7 +448,8 @@ async function getLeaderboard(memberId, event = {}) {
   if (!season) {
     throw createError('SEASON_NOT_FOUND', '未找到对应赛季');
   }
-  const snapshot = await loadLeaderboardSnapshot(season._id, { limit, type });
+  const forceRefresh = !!(event && (event.refresh || event.forceRefresh));
+  const snapshot = await loadLeaderboardSnapshot(season._id, { limit, type, forceRefresh });
   const entries = (snapshot.entries || [])
     .slice(0, limit)
     .map((entry) => {
@@ -413,10 +457,25 @@ async function getLeaderboard(memberId, event = {}) {
         return entry;
       }
       const avatarFrame = resolveAvatarFrameValue(entry.avatarFrame);
+      const titleId = typeof entry.titleId === 'string' ? entry.titleId : '';
+      const titleName = typeof entry.titleName === 'string' ? entry.titleName : '';
+      const titleCatalog = normalizeTitleCatalog(entry.titleCatalog);
       if (avatarFrame || entry.avatarFrame) {
-        return { ...entry, avatarFrame };
+        return {
+          ...entry,
+          avatarFrame,
+          titleId,
+          titleName,
+          titleCatalog
+        };
       }
-      return { ...entry, avatarFrame: '' };
+      return {
+        ...entry,
+        avatarFrame: '',
+        titleId,
+        titleName,
+        titleCatalog
+      };
     });
   const rankIndex = entries.findIndex((entry) => entry.memberId === memberId);
   return {
@@ -1679,22 +1738,50 @@ async function loadRecentMatches(memberId, seasonId) {
   return snapshot.data || [];
 }
 
-function leaderboardSnapshotMissingAvatarFrame(snapshot) {
-  if (!snapshot || !Array.isArray(snapshot.entries)) {
-    return false;
+function leaderboardSnapshotNeedsRefresh(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return true;
   }
-  return snapshot.entries.some((entry) => entry && typeof entry === 'object' && !('avatarFrame' in entry));
+  if (snapshot.schemaVersion !== LEADERBOARD_CACHE_SCHEMA_VERSION) {
+    return true;
+  }
+  if (!Array.isArray(snapshot.entries)) {
+    return true;
+  }
+  return snapshot.entries.some((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return true;
+    }
+    if (!('avatarFrame' in entry)) {
+      return true;
+    }
+    if (!('titleCatalog' in entry) || !Array.isArray(entry.titleCatalog)) {
+      return true;
+    }
+    if (!('titleId' in entry)) {
+      return true;
+    }
+    if (!('titleName' in entry)) {
+      return true;
+    }
+    return false;
+  });
 }
 
-async function loadLeaderboardSnapshot(seasonId, { limit = LEADERBOARD_CACHE_SIZE, type = 'season' } = {}) {
+async function loadLeaderboardSnapshot(
+  seasonId,
+  { limit = LEADERBOARD_CACHE_SIZE, type = 'season', forceRefresh = false } = {}
+) {
   const docId = `${seasonId}_${type}`;
-  const snapshot = await db
-    .collection(COLLECTIONS.PVP_LEADERBOARD)
-    .doc(docId)
-    .get()
-    .catch(() => null);
-  if (snapshot && snapshot.data && !leaderboardSnapshotMissingAvatarFrame(snapshot.data)) {
-    return snapshot.data;
+  if (!forceRefresh) {
+    const snapshot = await db
+      .collection(COLLECTIONS.PVP_LEADERBOARD)
+      .doc(docId)
+      .get()
+      .catch(() => null);
+    if (snapshot && snapshot.data && !leaderboardSnapshotNeedsRefresh(snapshot.data)) {
+      return snapshot.data;
+    }
   }
   await updateLeaderboardCache(seasonId, { type, limit });
   const refreshed = await db
@@ -1715,29 +1802,123 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
     .limit(limit)
     .get()
     .catch(() => ({ data: [] }));
-  const entries = (snapshot.data || []).map((item, index) => {
+  const profiles = snapshot.data || [];
+  const memberIds = Array.from(
+    new Set(
+      profiles
+        .map((item) =>
+          normalizeMemberId(
+            item.memberId ||
+              (item.memberSnapshot && item.memberSnapshot.memberId) ||
+              item._id
+          )
+        )
+        .filter((id) => !!id)
+    )
+  );
+  const [membersMap, memberExtrasMap] = await Promise.all([
+    loadDocumentsByIds(COLLECTIONS.MEMBERS, memberIds),
+    loadDocumentsByIds(COLLECTIONS.MEMBER_EXTRAS, memberIds)
+  ]);
+  const entries = profiles.map((item, index) => {
+    const normalizedMemberId = normalizeMemberId(
+      item.memberId || (item.memberSnapshot && item.memberSnapshot.memberId) || item._id
+    );
+    const memberId =
+      normalizedMemberId ||
+      item.memberId ||
+      (item.memberSnapshot && item.memberSnapshot.memberId) ||
+      item._id ||
+      '';
+    const memberDoc = normalizedMemberId ? membersMap.get(normalizedMemberId) || null : null;
+    const extrasDoc = normalizedMemberId ? memberExtrasMap.get(normalizedMemberId) || null : null;
+    const snapshotMember =
+      item.memberSnapshot && typeof item.memberSnapshot === 'object'
+        ? item.memberSnapshot
+        : null;
+    const snapshotAppearance =
+      snapshotMember && snapshotMember.appearance && typeof snapshotMember.appearance === 'object'
+        ? snapshotMember.appearance
+        : null;
+    const profileAppearance =
+      item.appearance && typeof item.appearance === 'object' ? item.appearance : null;
+    const memberAppearance =
+      memberDoc && memberDoc.appearance && typeof memberDoc.appearance === 'object'
+        ? memberDoc.appearance
+        : null;
+
+    const titleCatalogEntries = [];
+    if (memberAppearance && Array.isArray(memberAppearance.titleCatalog)) {
+      titleCatalogEntries.push(...memberAppearance.titleCatalog);
+    }
+    if (memberDoc && Array.isArray(memberDoc.titleCatalog)) {
+      titleCatalogEntries.push(...memberDoc.titleCatalog);
+    }
+    if (extrasDoc && Array.isArray(extrasDoc.titleCatalog)) {
+      titleCatalogEntries.push(...extrasDoc.titleCatalog);
+    }
+    if (snapshotMember && Array.isArray(snapshotMember.titleCatalog)) {
+      titleCatalogEntries.push(...snapshotMember.titleCatalog);
+    }
+    if (profileAppearance && Array.isArray(profileAppearance.titleCatalog)) {
+      titleCatalogEntries.push(...profileAppearance.titleCatalog);
+    }
+    if (Array.isArray(item.titleCatalog)) {
+      titleCatalogEntries.push(...item.titleCatalog);
+    }
+    const titleCatalog = normalizeTitleCatalog(titleCatalogEntries);
+
+    const titleIdSource =
+      (memberAppearance && memberAppearance.titleId) ||
+      (memberDoc && memberDoc.appearanceTitle) ||
+      (snapshotMember && snapshotMember.appearanceTitle) ||
+      (profileAppearance && profileAppearance.titleId) ||
+      item.titleId ||
+      '';
+    const titleNameSource =
+      (memberAppearance && memberAppearance.titleName) ||
+      (memberDoc && memberDoc.appearanceTitleName) ||
+      (snapshotMember && snapshotMember.appearanceTitleName) ||
+      (profileAppearance && profileAppearance.titleName) ||
+      item.titleName ||
+      '';
+
     const avatarFrame = resolveAvatarFrameValue(
-      item.memberSnapshot && item.memberSnapshot.avatarFrame,
-      item.memberSnapshot &&
-        item.memberSnapshot.appearance &&
-        item.memberSnapshot.appearance.avatarFrame,
-      item.memberSnapshot && item.memberSnapshot.appearanceFrame,
+      snapshotMember && snapshotMember.avatarFrame,
+      snapshotAppearance && snapshotAppearance.avatarFrame,
+      snapshotMember && snapshotMember.appearanceFrame,
+      memberAppearance && memberAppearance.avatarFrame,
+      memberDoc && memberDoc.avatarFrame,
+      memberDoc && memberDoc.appearanceFrame,
       item.avatarFrame,
-      item.appearance && item.appearance.avatarFrame,
+      profileAppearance && profileAppearance.avatarFrame,
       item.appearanceFrame
     );
+
+    const nickName =
+      (memberDoc && (memberDoc.nickName || memberDoc.name)) ||
+      (snapshotMember && snapshotMember.nickName) ||
+      '';
+    const avatarUrl =
+      (memberDoc && memberDoc.avatarUrl) ||
+      (snapshotMember && snapshotMember.avatarUrl) ||
+      '';
+
     const payload = {
       rank: index + 1,
-      memberId: item.memberId,
-      nickName: item.memberSnapshot ? item.memberSnapshot.nickName : '',
-      avatarUrl: item.memberSnapshot ? item.memberSnapshot.avatarUrl : '',
+      memberId,
+      nickName,
+      avatarUrl,
       tierId: item.tierId,
       tierName: item.tierName,
       points: item.points,
       wins: item.wins,
       losses: item.losses,
       draws: item.draws,
-      streak: item.currentStreak || 0
+      streak: item.currentStreak || 0,
+      titleId: typeof titleIdSource === 'string' ? normalizeTitleId(titleIdSource) : '',
+      titleName: typeof titleNameSource === 'string' ? titleNameSource : '',
+      titleCatalog
     };
     payload.avatarFrame = avatarFrame || '';
     return payload;
@@ -1746,7 +1927,8 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
     seasonId,
     type,
     entries,
-    updatedAt: new Date()
+    updatedAt: new Date(),
+    schemaVersion: LEADERBOARD_CACHE_SCHEMA_VERSION
   };
   const docId = `${seasonId}_${type}`;
   await db
@@ -1817,12 +1999,16 @@ function buildMemberSnapshot(member) {
       member.appearanceFrame ||
       ''
   );
+  const titleCatalog = normalizeTitleCatalog(
+    (member.appearance && member.appearance.titleCatalog) || member.titleCatalog || []
+  );
   return {
     memberId: member._id || member.memberId || '',
     nickName: member.nickName || member.name || '无名仙友',
     avatarUrl: member.avatarUrl || '',
     levelName: level.name || level.label || '',
-    avatarFrame
+    avatarFrame,
+    titleCatalog
   };
 }
 
@@ -2474,6 +2660,47 @@ function normalizeId(value) {
   return '';
 }
 
+async function loadDocumentsByIds(collectionName, ids = []) {
+  const normalizedIds = [];
+  (Array.isArray(ids) ? ids : []).forEach((id) => {
+    if (typeof id === 'string') {
+      const trimmed = id.trim();
+      if (trimmed) {
+        normalizedIds.push(trimmed);
+      }
+    }
+  });
+  if (!normalizedIds.length) {
+    return new Map();
+  }
+  const uniqueIds = Array.from(new Set(normalizedIds));
+  const batchSize = 20;
+  const tasks = [];
+  for (let i = 0; i < uniqueIds.length; i += batchSize) {
+    const chunk = uniqueIds.slice(i, i + batchSize);
+    tasks.push(
+      db
+        .collection(collectionName)
+        .where({ _id: _.in(chunk) })
+        .limit(chunk.length)
+        .get()
+        .then((snapshot) => (snapshot && snapshot.data ? snapshot.data : []))
+        .catch((error) => {
+          console.error(`[pvp] load ${collectionName} failed`, error);
+          return [];
+        })
+    );
+  }
+  const documents = (await Promise.all(tasks)).reduce((acc, list) => acc.concat(list), []);
+  const map = new Map();
+  documents.forEach((doc) => {
+    if (doc && doc._id) {
+      map.set(doc._id, doc);
+    }
+  });
+  return map;
+}
+
 function isCollectionMissingError(error) {
   if (!error) {
     return false;
@@ -2491,13 +2718,17 @@ function isCollectionAlreadyExistsError(error) {
 }
 
 function resolveActorId(defaultMemberId, event = {}) {
-  const fromEvent = normalizeMemberId(event.actorId);
-  const fromContext = normalizeMemberId(defaultMemberId);
-  const resolved = fromEvent || fromContext;
+  const resolved = resolveOptionalActorId(defaultMemberId, event);
   if (!resolved) {
     throw createError('UNAUTHENTICATED', '缺少身份信息，请重新登录');
   }
   return resolved;
+}
+
+function resolveOptionalActorId(defaultMemberId, event = {}) {
+  const fromEvent = normalizeMemberId(event.actorId || event.memberId);
+  const fromContext = normalizeMemberId(defaultMemberId);
+  return fromEvent || fromContext || null;
 }
 
 function signBattlePayload(payload) {

@@ -79,6 +79,12 @@
 
 服务调用由 `miniprogram/services/api.js` 内新增的 `PvpService` 统一封装。
 
+### 比武榜称号解析规范
+
+- 排行榜接口会在缓存条目中附带 `titleCatalog`，其结构与首页实时资料一致：每个对象包含 `id`、`name` 与 `imageFile`，全部经过云函数统一去重与清洗，确保自定义称号和内置称号共存时不会重复。
+- 前端在渲染排行榜前需先合并所有成员的 `titleCatalog` 并调用 `registerCustomTitles`（`reset: false`）追加到全局称号映射，再通过 `buildTitleImageUrl` 生成图片地址。该流程与首页的自动解析保持一致，自定义称号的图片文件名应优先使用 `imageFile` 字段。
+- 如果后续有其他入口需要展示排行榜称号，请复用上述流程，避免遗漏自定义称号或导致图片解析不一致。
+
 ## 部署步骤
 
 1. 在云开发控制台创建上述五个集合，并设置必要索引（建议对 `pvpProfiles.points`、`pvpMatches.seasonId` 建立排序索引）。如在沙盒环境中暂未手动创建，`pvp` 云函数会在首次调用时尝试自动创建缺失集合，但仍建议在正式环境提前完成，以便配置索引与权限。
@@ -87,5 +93,12 @@
 4. 更新小程序前端代码，确保 `miniprogram/services/config.js` 中新增的 `pvp` 云函数名称与实际部署一致。
 5. 若为老项目升级，请手动执行一次 `pvp` 云函数的 `profile` 动作（或让用户进入竞技场页面），以便生成默认档案。
 6. 赛季奖励文案默认内置，可在云数据库的 `pvpSeasons` 文档中按需调整奖励描述或周期。
+7. 从旧版本升级到支持排行榜称号解析的版本时，请额外刷新一次排行榜缓存。
+   - 打开微信开发者工具，切换到目标环境的「云开发」面板，找到 `pvp` 云函数并点击「云端运行」或「测试」。
+   - 在动作（`action`）字段中填入 `getLeaderboard`，如需显式指定赛季或条数，可在 JSON 中增加 `seasonId`、`limit` 等可选参数。
+   - 将 `event` 的 JSON 负载设置为 `{"action":"getLeaderboard","refresh":true}`，新增的 `refresh` 参数会强制重建排行榜缓存，避免复用旧版文档。无需带上登录信息即可刷新缓存，如需验证某个成员的排名，可额外在 JSON 中填入 `actorId`（或 `memberId`）。
+   - 调用成功后，可在数据库中确认 `pvpLeaderboard` 文档的 `updatedAt` 字段已刷新，并包含 `titleCatalog` 数据；若调用失败，可在云函数日志中查看报错并重试。
+   - 若未携带 `refresh: true`，云函数会根据缓存的 `schemaVersion` 判断是否需要重建。旧缓存因缺少该字段会被自动升级；若在升级前已手动覆盖缓存但 `schemaVersion` 仍为旧值，则不会更新 `updatedAt` 与 `titleCatalog`，请务必按照上述步骤携带 `refresh` 参数重建。
+   - 如果携带 `refresh: true` 后 `titleCatalog` 仍为空，表示旧版本只依赖 `pvpProfiles.memberSnapshot`，其中未同步会员档案与 `memberExtras` 的自定义称号目录。当前版本会在重建缓存时批量读取 `members` 与 `memberExtras` 集合并合并称号，若仍为空请检查目标会员的 `memberExtras.titleCatalog` 是否已有数据，或提醒成员重新打开竞技场以刷新档案。
 
 部署完成后，会员即可在“比武”入口体验天梯匹配、好友切磋与邀战分享，实现线上社交裂变与线下消费联动。
