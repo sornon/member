@@ -71,10 +71,10 @@ Page({
             nextState.battleResult = payload.battle;
             const victory = !!payload.battle.victory;
             const draw = !!payload.battle.draw;
-            wx.showToast({
-              title: draw ? '势均力敌' : victory ? '秘境胜利' : '战斗结束',
-              icon: 'success'
-            });
+            // wx.showToast({
+            //   title: draw ? '势均力敌' : victory ? '秘境胜利' : '战斗结束',
+            //   icon: 'success'
+            // });
           }
           if (Object.keys(nextState).length) {
             this.setData(nextState);
