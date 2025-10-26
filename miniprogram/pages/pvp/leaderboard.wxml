@@ -15,6 +15,7 @@
       <block wx:for="{{entries}}" wx:key="memberId">
         <view class="board-item">
           <view class="board-rank">{{item.rank}}</view>
+          <view class="board-tier">{{item.tierName || '未定级'}}</view>
           <view class="board-avatar-wrapper">
             <image class="board-avatar" src="{{item.avatarUrl || defaultAvatar}}" mode="aspectFill"></image>
             <image
@@ -30,7 +31,7 @@
               data-id="{{item.memberId}}"
               bindtap="handleViewArchive"
             >{{item.nickName || '神秘仙友'}}</view>
-            <view class="board-meta">{{item.tierName}} · {{item.points}} 分 · {{item.wins}}胜{{item.losses}}负</view>
+            <view class="board-title" wx:if="{{item.titleName}}">{{item.titleName}}</view>
           </view>
           <view class="board-actions">
             <button
