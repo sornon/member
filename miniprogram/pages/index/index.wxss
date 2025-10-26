@@ -162,20 +162,31 @@ page {
 }
 
 .profile-info {
-  margin-left: 24rpx;
+  margin-left: 10rpx;
   max-width: 360rpx;
   text-shadow: 1px 1px 0 #000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.profile-identity {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  max-width: 100%;
 }
 
 .profile-name {
   position: relative;
-  font-size: 30rpx;
+  font-size: 36rpx;
   font-weight: 600;
-  letter-spacing: 2rpx;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding-right: 32rpx;
+  text-align: center;
 }
 
 .profile-name__dot {
@@ -185,18 +196,11 @@ page {
   transform: translate(50%, -50%);
 }
 
-.profile-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 8rpx;
-  font-size: 24rpx;
-  color: rgba(220, 230, 255, 0.8);
-}
-
 .profile-meta__title {
   display: flex;
   align-items: center;
   min-height: 40rpx;
+  justify-content: center;
 }
 
 .profile-meta__title-placeholder {
@@ -232,7 +236,7 @@ page {
 .profile-other {
     position: absolute;
     top: 200rpx;
-    left: 185rpx;
+    left: 175rpx;
     font-size: 24rpx;
     line-height: 2;
     text-shadow: 1px 1px 0 #000;
