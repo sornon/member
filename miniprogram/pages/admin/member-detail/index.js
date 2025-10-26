@@ -218,6 +218,14 @@ function buildAvatarOptionGroups(unlocks = []) {
   }));
 }
 
+function buildAvatarPermissionSummary(unlocks = []) {
+  const list = normalizeAvatarUnlocks(unlocks);
+  if (!list.length) {
+    return '当前仅开放默认头像';
+  }
+  return `已解锁头像：${list.length} 个`;
+}
+
 function ensureMemberRole(roles) {
   const list = Array.isArray(roles) ? [...new Set(roles)] : [];
   if (!list.includes('member')) {
@@ -302,6 +310,10 @@ Page({
       { value: 'test', label: '测试', checked: false }
     ],
     avatarOptionGroups: buildAvatarOptionGroups([]),
+    avatarPermissionSummary: buildAvatarPermissionSummary([]),
+    avatarPermissionDialogVisible: false,
+    avatarDialogSelection: [],
+    avatarDialogOptionGroups: buildAvatarOptionGroups([]),
     form: {
       nickName: '',
       realName: '',
@@ -486,6 +498,9 @@ Page({
       roleOptions,
       renameHistory: formatRenameHistory(member.renameHistory),
       avatarOptionGroups: buildAvatarOptionGroups(avatarUnlocks),
+      avatarPermissionSummary: buildAvatarPermissionSummary(avatarUnlocks),
+      avatarDialogSelection: avatarUnlocks,
+      avatarDialogOptionGroups: buildAvatarOptionGroups(avatarUnlocks),
       secretRealmSummary: '',
       secretRealmError: ''
     });
@@ -805,12 +820,50 @@ Page({
     });
   },
 
-  handleAvatarUnlockChange(event) {
+  showAvatarPermissionDialog() {
+    const formUnlocks =
+      this.data.form && Array.isArray(this.data.form.avatarUnlocks)
+        ? this.data.form.avatarUnlocks
+        : [];
+    const unlocks = normalizeAvatarUnlocks(formUnlocks);
+    this.setData({
+      avatarPermissionDialogVisible: true,
+      avatarDialogSelection: unlocks,
+      avatarDialogOptionGroups: buildAvatarOptionGroups(unlocks)
+    });
+  },
+
+  hideAvatarPermissionDialog() {
+    const formUnlocks =
+      this.data.form && Array.isArray(this.data.form.avatarUnlocks)
+        ? this.data.form.avatarUnlocks
+        : [];
+    const unlocks = normalizeAvatarUnlocks(formUnlocks);
+    this.setData({
+      avatarPermissionDialogVisible: false,
+      avatarDialogSelection: unlocks,
+      avatarDialogOptionGroups: buildAvatarOptionGroups(unlocks)
+    });
+  },
+
+  handleAvatarDialogChange(event) {
     const value = Array.isArray(event.detail.value) ? event.detail.value : [];
     const unlocks = normalizeAvatarUnlocks(value);
     this.setData({
+      avatarDialogSelection: unlocks,
+      avatarDialogOptionGroups: buildAvatarOptionGroups(unlocks)
+    });
+  },
+
+  handleAvatarDialogSave() {
+    const unlocks = normalizeAvatarUnlocks(this.data.avatarDialogSelection);
+    this.setData({
       'form.avatarUnlocks': unlocks,
-      avatarOptionGroups: buildAvatarOptionGroups(unlocks)
+      avatarOptionGroups: buildAvatarOptionGroups(unlocks),
+      avatarPermissionSummary: buildAvatarPermissionSummary(unlocks),
+      avatarPermissionDialogVisible: false,
+      avatarDialogSelection: unlocks,
+      avatarDialogOptionGroups: buildAvatarOptionGroups(unlocks)
     });
   },
 

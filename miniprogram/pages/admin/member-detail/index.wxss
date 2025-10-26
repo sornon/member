@@ -262,6 +262,39 @@ page {
   font-size: 26rpx;
 }
 
+.avatar-permission-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  padding: 20rpx;
+  border-radius: 16rpx;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  margin-bottom: 16rpx;
+}
+
+.avatar-permission-summary__primary {
+  font-size: 26rpx;
+  color: #e2e8f0;
+}
+
+.avatar-permission-summary__note {
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+
+.avatar-edit-button {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+  border-radius: 24rpx;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  padding: 0 28rpx;
+}
+
+.avatar-edit-button::after {
+  border: none;
+}
+
 .avatar-permission-note {
   font-size: 22rpx;
   color: #94a3b8;
@@ -317,6 +350,70 @@ page {
   margin-left: 6rpx;
   font-size: 20rpx;
   color: #cbd5f5;
+}
+
+.avatar-permission-dialog {
+  width: 88%;
+  max-width: 640rpx;
+  max-height: 80vh;
+  background: #141a3c;
+  border-radius: 24rpx;
+  padding: 32rpx;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24rpx 60rpx rgba(3, 8, 30, 0.5);
+  color: #e2e8f0;
+}
+
+.avatar-permission-dialog__header {
+  margin-bottom: 16rpx;
+}
+
+.avatar-permission-dialog__title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.avatar-permission-dialog__subtitle {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.avatar-permission-dialog__content {
+  flex: 1;
+  max-height: 540rpx;
+  padding-right: 8rpx;
+}
+
+.avatar-permission-dialog__content .avatar-permission-group {
+  margin-bottom: 20rpx;
+}
+
+.avatar-permission-dialog__actions {
+  margin-top: 24rpx;
+  display: flex;
+  justify-content: flex-end;
+  gap: 16rpx;
+}
+
+.avatar-permission-dialog__button {
+  border-radius: 24rpx;
+  padding: 0 32rpx;
+  height: 64rpx;
+  line-height: 64rpx;
+  background: rgba(255, 255, 255, 0.08);
+  color: #cbd5f5;
+}
+
+.avatar-permission-dialog__button::after {
+  border: none;
+}
+
+.avatar-permission-dialog__button--primary {
+  background: linear-gradient(120deg, rgba(59, 130, 246, 0.92), rgba(99, 102, 241, 0.92));
+  color: #fff;
 }
 
 .submit {
