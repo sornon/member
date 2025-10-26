@@ -17,6 +17,7 @@
           class="board-item"
           data-id="{{item.memberId}}"
           bindtap="handleViewArchive"
+          hover-class="board-item--hover"
         >
           <view class="board-rank">{{item.rank}}</view>
           <view class="board-tier">{{item.tierName || '未评级'}}</view>
