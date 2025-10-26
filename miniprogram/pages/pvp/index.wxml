@@ -78,13 +78,35 @@
         </view>
         <block wx:for="{{leaderboardPreview}}" wx:key="memberId">
           <view
-            class="mini-board-item"
+            class="board-item board-item--preview"
             data-member-id="{{item.memberId}}"
             bindtap="handleViewArchive"
+            hover-class="board-item--preview-hover"
           >
-            <view class="mini-board-rank">{{index + 1}}</view>
-            <view class="mini-board-name">{{item.nickName || '神秘仙友'}}</view>
-            <view class="mini-board-score">{{item.points}} 分</view>
+            <view class="board-rank">{{item.rank || index + 1}}</view>
+            <view class="board-tier">{{item.tierName || '未评级'}}</view>
+            <view class="board-avatar-wrapper">
+              <image
+                class="board-avatar"
+                src="{{item.avatarUrl || defaultAvatar}}"
+                mode="aspectFill"
+              ></image>
+              <image
+                wx:if="{{item.avatarFrame}}"
+                class="board-avatar-frame"
+                src="{{item.avatarFrame}}"
+                mode="scaleToFill"
+              ></image>
+            </view>
+            <view class="board-info">
+              <view class="board-name">{{item.nickName || '神秘仙友'}}</view>
+              <view wx:if="{{item.titleImage}}" class="board-title">
+                <image class="board-title__image" src="{{item.titleImage}}" mode="heightFix"></image>
+              </view>
+            </view>
+            <view class="board-actions board-actions--score">
+              <text class="board-score">{{item.points == null ? '--' : item.points}} 分</text>
+            </view>
           </view>
         </block>
       </view>

@@ -1,14 +1,6 @@
 import { PvpService } from '../../services/api';
-import { normalizeAvatarFrameValue } from '../../shared/avatar-frames';
 
-const { AVATAR_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
-const {
-  buildTitleImageUrl,
-  registerCustomTitles,
-  normalizeTitleCatalog
-} = require('../../shared/titles.js');
-
-const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
+const { decorateLeaderboardEntries, DEFAULT_AVATAR } = require('../../shared/pvp-leaderboard.js');
 
 const app = getApp();
 
@@ -39,55 +31,6 @@ function formatDateTime(date) {
   const hh = String(parsed.getHours()).padStart(2, '0');
   const mi = String(parsed.getMinutes()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
-}
-
-function decorateLeaderboardEntries(entries) {
-  if (!Array.isArray(entries)) {
-    return [];
-  }
-  const sanitized = entries.map((entry) => {
-    if (!entry || typeof entry !== 'object') {
-      return entry;
-    }
-    const normalizedFrame = normalizeAvatarFrameValue(entry.avatarFrame || '');
-    const avatarUrl = toTrimmedString(entry.avatarUrl) || DEFAULT_AVATAR;
-    const titleId = toTrimmedString(entry.titleId);
-    const titleCatalog = normalizeTitleCatalog(entry.titleCatalog);
-    return {
-      ...entry,
-      avatarFrame: normalizedFrame || '',
-      avatarUrl,
-      titleId,
-      titleCatalog
-    };
-  });
-  const catalogEntries = [];
-  const catalogSeen = new Set();
-  sanitized.forEach((entry) => {
-    if (!entry || !Array.isArray(entry.titleCatalog)) {
-      return;
-    }
-    entry.titleCatalog.forEach((item) => {
-      if (!item || !item.id || catalogSeen.has(item.id)) {
-        return;
-      }
-      catalogSeen.add(item.id);
-      catalogEntries.push({ ...item });
-    });
-  });
-  if (catalogEntries.length) {
-    registerCustomTitles(catalogEntries, { reset: false });
-  }
-  return sanitized.map((entry) => {
-    if (!entry || typeof entry !== 'object') {
-      return entry;
-    }
-    const titleImage = entry.titleId ? buildTitleImageUrl(entry.titleId) : '';
-    return {
-      ...entry,
-      titleImage
-    };
-  });
 }
 
 Page({

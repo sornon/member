@@ -1,6 +1,10 @@
 import { MemberService, PvpService } from '../../services/api';
 const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
 const { buildCloudAssetUrl } = require('../../shared/asset-paths.js');
+const {
+  decorateLeaderboardEntries,
+  DEFAULT_AVATAR: DEFAULT_LEADERBOARD_AVATAR
+} = require('../../shared/pvp-leaderboard.js');
 
 const app = getApp();
 
@@ -18,6 +22,13 @@ function formatDateTime(date) {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
+function sanitizeLeaderboardPreview(entries) {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+  return decorateLeaderboardEntries(entries).slice(0, 10);
+}
+
 Page({
   data: {
     loading: true,
@@ -33,7 +44,8 @@ Page({
     claimingReward: false,
     autoMatchIntent: false,
     autoChallengePending: false,
-    heroBackgroundUrl: buildCloudAssetUrl('background', 'battle-s1.jpg')
+    heroBackgroundUrl: buildCloudAssetUrl('background', 'battle-s1.jpg'),
+    defaultAvatar: DEFAULT_LEADERBOARD_AVATAR
   },
 
   onLoad(options = {}) {
@@ -95,9 +107,7 @@ Page({
         profile: res.profile || null,
         history: res.history || [],
         recentMatches: res.recentMatches || [],
-        leaderboardPreview: Array.isArray(res.leaderboardPreview)
-          ? res.leaderboardPreview.slice(0, 10)
-          : [],
+        leaderboardPreview: sanitizeLeaderboardPreview(res.leaderboardPreview),
         leaderboardUpdatedAt: res.leaderboardUpdatedAt || ''
       });
       this.triggerAutoBattleIfNeeded();
@@ -314,9 +324,7 @@ Page({
       nextState.recentMatches = payload.recentMatches;
     }
     if (payload.leaderboardPreview) {
-      nextState.leaderboardPreview = Array.isArray(payload.leaderboardPreview)
-        ? payload.leaderboardPreview.slice(0, 10)
-        : [];
+      nextState.leaderboardPreview = sanitizeLeaderboardPreview(payload.leaderboardPreview);
     }
     if (Object.prototype.hasOwnProperty.call(payload, 'leaderboardUpdatedAt')) {
       nextState.leaderboardUpdatedAt = payload.leaderboardUpdatedAt;
