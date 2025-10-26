@@ -80,6 +80,30 @@ page {
   opacity: 0.6;
 }
 
+.section--basic .basic-info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 24rpx;
+  row-gap: 20rpx;
+  grid-auto-flow: row dense;
+}
+
+.section--basic .form-item {
+  margin-bottom: 0;
+}
+
+.section--basic .basic-info-grid__full {
+  grid-column: 1 / -1;
+}
+
+.section--basic .form-item.basic-info-grid__full {
+  width: 100%;
+}
+
+.section--basic .rename-history {
+  margin-bottom: 0;
+}
+
 .info-row {
   display: flex;
   justify-content: space-between;
@@ -110,11 +134,14 @@ page {
 }
 
 .rename-meta {
-  display: flex;
-  gap: 24rpx;
-  margin-bottom: 20rpx;
+  margin-top: 12rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(148, 163, 184, 0.08);
   font-size: 24rpx;
   color: #cbd5f5;
+  line-height: 1.5;
 }
 
 .rename-history {

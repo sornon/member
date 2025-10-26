@@ -16,7 +16,7 @@
     </view>
   </view>
 
-  <view class="section">
+  <view class="section section--basic">
     <view class="section-title">基础资料</view>
     <view class="toolbar">
       <button class="recharge" size="mini" bindtap="showRechargeDialog">为该会员充值</button>
@@ -41,126 +41,130 @@
         删除会员
       </button>
     </view>
-    <view class="form-item">
-      <view class="form-label">道号</view>
-      <input
-        class="form-input"
-        value="{{form.nickName}}"
-        placeholder="请输入昵称"
-        data-field="nickName"
-        bindinput="handleInputChange"
-      />
-    </view>
-    <view class="form-item">
-      <view class="form-label">真实姓名</view>
-      <input
-        class="form-input"
-        value="{{form.realName}}"
-        placeholder="请输入真实姓名"
-        data-field="realName"
-        bindinput="handleInputChange"
-      />
-    </view>
-    <view class="form-item">
-      <view class="form-label">剩余改名次数</view>
-      <input
-        class="form-input"
-        type="number"
-        value="{{form.renameCredits}}"
-        placeholder="请输入剩余改名次数"
-        data-field="renameCredits"
-        bindinput="handleInputChange"
-      />
-    </view>
-    <view class="rename-meta">
-      <text>已使用改名次数：{{member.renameUsed || 0}}</text>
-    </view>
-    <view class="form-item">
-      <view class="form-label">可洗点次数</view>
-      <input
-        class="form-input"
-        type="number"
-        value="{{form.respecAvailable}}"
-        placeholder="请输入剩余洗点次数"
-        data-field="respecAvailable"
-        bindinput="handleInputChange"
-      />
-    </view>
-    <view class="form-item">
-      <view class="form-label">收取灵技次数</view>
-      <input
-        class="form-input"
-        type="number"
-        value="{{form.skillDrawCredits}}"
-        placeholder="请输入剩余收取灵技次数"
-        data-field="skillDrawCredits"
-        bindinput="handleInputChange"
-      />
-    </view>
-    <view class="form-item">
-      <view class="form-label">纳戒升级次数</view>
-      <input
-        class="form-input"
-        type="number"
-        value="{{form.storageUpgradeAvailable}}"
-        placeholder="请输入剩余纳戒升级次数"
-        data-field="storageUpgradeAvailable"
-        bindinput="handleInputChange"
-      />
-    </view>
-    <view class="form-item">
-      <view class="form-label">纳戒升级上限</view>
-      <input
-        class="form-input"
-        type="number"
-        value="{{form.storageUpgradeLimit}}"
-        placeholder="请输入纳戒升级上限"
-        data-field="storageUpgradeLimit"
-        bindinput="handleInputChange"
-      />
-    </view>
-    <view class="form-item">
-      <view class="form-label">包房使用次数</view>
-      <input
-        class="form-input"
-        type="number"
-        value="{{form.roomUsageCount}}"
-        placeholder="请输入剩余包房使用次数"
-        data-field="roomUsageCount"
-        bindinput="handleInputChange"
-      />
-    </view>
-    <view wx:if="{{renameHistory.length}}" class="rename-history">
-      <view class="rename-history__title">改名记录</view>
-      <view class="rename-history__item" wx:for="{{renameHistory}}" wx:key="id">
-        <view class="rename-history__names">{{item.previous}} → {{item.current}}</view>
-        <view class="rename-history__meta">{{item.time}} · {{item.source}}</view>
+    <view class="basic-info-grid">
+      <view class="form-item">
+        <view class="form-label">道号</view>
+        <input
+          class="form-input"
+          value="{{form.nickName}}"
+          placeholder="请输入昵称"
+          data-field="nickName"
+          bindinput="handleInputChange"
+        />
       </view>
-    </view>
-    <view class="form-item">
-      <view class="form-label">手机号</view>
-      <input
-        class="form-input"
-        value="{{form.mobile}}"
-        placeholder="请输入手机号"
-        data-field="mobile"
-        bindinput="handleInputChange"
-      />
-    </view>
-    <view class="form-item">
-      <view class="form-label">修为值</view>
-      <input
-        class="form-input"
-        type="number"
-        value="{{form.experience}}"
-        placeholder="请输入修为值"
-        data-field="experience"
-        bindinput="handleInputChange"
-      />
-    </view>
-    <view class="form-item">
-      <view class="form-label">灵石余额（枚）</view>
-      <input
+      <view class="form-item">
+        <view class="form-label">真实姓名</view>
+        <input
+          class="form-input"
+          value="{{form.realName}}"
+          placeholder="请输入真实姓名"
+          data-field="realName"
+          bindinput="handleInputChange"
+        />
+      </view>
+      <view class="form-item">
+        <view class="form-label">剩余改名次数</view>
+        <input
+          class="form-input"
+          type="number"
+          value="{{form.renameCredits}}"
+          placeholder="请输入剩余改名次数"
+          data-field="renameCredits"
+          bindinput="handleInputChange"
+        />
+        <view class="rename-meta">
+          <text>已使用改名次数：{{member.renameUsed || 0}}</text>
+        </view>
+      </view>
+      <view class="form-item">
+        <view class="form-label">可洗点次数</view>
+        <input
+          class="form-input"
+          type="number"
+          value="{{form.respecAvailable}}"
+          placeholder="请输入剩余洗点次数"
+          data-field="respecAvailable"
+          bindinput="handleInputChange"
+        />
+      </view>
+      <view class="form-item">
+        <view class="form-label">收取灵技次数</view>
+        <input
+          class="form-input"
+          type="number"
+          value="{{form.skillDrawCredits}}"
+          placeholder="请输入剩余收取灵技次数"
+          data-field="skillDrawCredits"
+          bindinput="handleInputChange"
+        />
+      </view>
+      <view class="form-item">
+        <view class="form-label">纳戒升级次数</view>
+        <input
+          class="form-input"
+          type="number"
+          value="{{form.storageUpgradeAvailable}}"
+          placeholder="请输入剩余纳戒升级次数"
+          data-field="storageUpgradeAvailable"
+          bindinput="handleInputChange"
+        />
+      </view>
+      <view class="form-item">
+        <view class="form-label">纳戒升级上限</view>
+        <input
+          class="form-input"
+          type="number"
+          value="{{form.storageUpgradeLimit}}"
+          placeholder="请输入纳戒升级上限"
+          data-field="storageUpgradeLimit"
+          bindinput="handleInputChange"
+        />
+      </view>
+      <view class="form-item">
+        <view class="form-label">包房使用次数</view>
+        <input
+          class="form-input"
+          type="number"
+          value="{{form.roomUsageCount}}"
+          placeholder="请输入剩余包房使用次数"
+          data-field="roomUsageCount"
+          bindinput="handleInputChange"
+        />
+      </view>
+      <view
+        wx:if="{{renameHistory.length}}"
+        class="rename-history basic-info-grid__full"
+      >
+        <view class="rename-history__title">改名记录</view>
+        <view class="rename-history__item" wx:for="{{renameHistory}}" wx:key="id">
+          <view class="rename-history__names">{{item.previous}} → {{item.current}}</view>
+          <view class="rename-history__meta">{{item.time}} · {{item.source}}</view>
+        </view>
+      </view>
+      <view class="form-item">
+        <view class="form-label">手机号</view>
+        <input
+          class="form-input"
+          value="{{form.mobile}}"
+          placeholder="请输入手机号"
+          data-field="mobile"
+          bindinput="handleInputChange"
+        />
+      </view>
+      <view class="form-item">
+        <view class="form-label">修为值</view>
+        <input
+          class="form-input"
+          type="number"
+          value="{{form.experience}}"
+          placeholder="请输入修为值"
+          data-field="experience"
+          bindinput="handleInputChange"
+        />
+      </view>
+      <view class="form-item">
+        <view class="form-label">灵石余额（枚）</view>
+        <input
         class="form-input"
         type="number"
         value="{{form.stoneBalance}}"
@@ -181,15 +185,15 @@
       />
     </view>
     <view class="form-item">
-      <view class="form-label">当前境界</view>
-      <view class="readonly-value">{{currentLevelName || '—'}}</view>
-    </view>
-    <view class="form-item">
-      <view class="form-label">角色权限</view>
-      <checkbox-group class="role-group" bindchange="handleRolesChange">
-        <label
-          wx:for="{{roleOptions}}"
-          wx:key="value"
+        <view class="form-label">当前境界</view>
+        <view class="readonly-value">{{currentLevelName || '—'}}</view>
+      </view>
+      <view class="form-item basic-info-grid__full">
+        <view class="form-label">角色权限</view>
+        <checkbox-group class="role-group" bindchange="handleRolesChange">
+          <label
+            wx:for="{{roleOptions}}"
+            wx:key="value"
           class="role-option {{item.checked ? 'checked' : ''}}"
         >
           <checkbox
@@ -201,7 +205,7 @@
         </label>
       </checkbox-group>
     </view>
-    <view class="form-item">
+    <view class="form-item basic-info-grid__full">
       <view class="form-label">头像权限</view>
       <view class="avatar-permission-summary">
         <text class="avatar-permission-summary__primary">{{avatarPermissionSummary}}</text>
