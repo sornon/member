@@ -3,6 +3,7 @@ App({
   globalData: {
     env: 'cloud1-8gyoxq651fcc92c2',
     memberInfo: null,
+    proxySession: null,
     ready: false,
     lastPvpBattle: null,
     rolePendingAttributes: null,

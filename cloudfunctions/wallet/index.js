@@ -9,11 +9,14 @@ const {
   EXCLUDED_TRANSACTION_STATUSES,
   analyzeMemberLevelProgress
 } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
+const { createProxyHelpers } = require('admin-proxy');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 const _ = db.command;
+
+const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'wallet' });
 
 const FEATURE_TOGGLE_DOC_ID = 'feature_toggles';
 const DEFAULT_IMMORTAL_TOURNAMENT = {
@@ -591,44 +594,50 @@ async function createUnifiedOrderViaApiV3({ transactionId, amount, openid, notif
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext();
   const action = event.action || 'summary';
+  const { memberId: actingMemberId, proxySession } = await proxyHelpers.resolveProxyContext(OPENID);
+  const targetMemberId = actingMemberId || OPENID;
+
+  if (proxySession) {
+    await proxyHelpers.recordProxyAction(proxySession, OPENID, action, event || {});
+  }
 
   switch (action) {
     case 'summary':
-      return getSummary(OPENID);
+      return getSummary(targetMemberId);
     case 'createRecharge':
-      return createRecharge(OPENID, event.amount);
+      return createRecharge(targetMemberId, event.amount);
     case 'completeRecharge':
-      return completeRecharge(OPENID, event.transactionId);
+      return completeRecharge(targetMemberId, event.transactionId);
     case 'failRecharge':
-      return failRecharge(OPENID, event.transactionId, {
+      return failRecharge(targetMemberId, event.transactionId, {
         reason: event.reason,
         code: event.code,
         errMsg: event.errMsg,
         message: event.message
       });
     case 'balancePay':
-      return payWithBalance(OPENID, event.orderId, event.amount);
+      return payWithBalance(targetMemberId, event.orderId, event.amount);
     case 'loadChargeOrder':
-      return loadChargeOrder(OPENID, event.orderId);
+      return loadChargeOrder(targetMemberId, event.orderId);
     case 'confirmChargeOrder':
-      return confirmChargeOrder(OPENID, event.orderId);
+      return confirmChargeOrder(targetMemberId, event.orderId);
     default:
       throw new Error(`Unknown action: ${action}`);
   }
 };
 
-async function getSummary(openid) {
+async function getSummary(memberId) {
   const transactionsCollection = db.collection(COLLECTIONS.WALLET_TRANSACTIONS);
-  const totalsPromise = resolveEffectiveTotals(transactionsCollection, openid);
+  const totalsPromise = resolveEffectiveTotals(transactionsCollection, memberId);
   const [memberDoc, transactionsSnapshot, totals, extrasDoc, featureToggles] = await Promise.all([
-    db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null),
+    db.collection(COLLECTIONS.MEMBERS).doc(memberId).get().catch(() => null),
     transactionsCollection
-      .where({ memberId: openid })
+      .where({ memberId })
       .orderBy('createdAt', 'desc')
       .limit(20)
       .get(),
     totalsPromise,
-    db.collection(COLLECTIONS.MEMBER_EXTRAS).doc(openid).get().catch(() => null),
+    db.collection(COLLECTIONS.MEMBER_EXTRAS).doc(memberId).get().catch(() => null),
     loadFeatureToggles()
   ]);
 
@@ -649,7 +658,7 @@ async function getSummary(openid) {
     )
   };
 
-  await persistMemberTotalsIfNeeded(openid, member, normalizedTotals);
+  await persistMemberTotalsIfNeeded(memberId, member, normalizedTotals);
 
   const wineStorageEntries = normalizeWineStorageEntries(extras.wineStorage);
   const wineStorageTotal = calculateWineStorageTotal(wineStorageEntries);

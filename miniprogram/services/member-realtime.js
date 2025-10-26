@@ -34,6 +34,27 @@ function sanitizeMemberSnapshot(member) {
   return sanitized;
 }
 
+function cloneProxySession(session) {
+  if (!session || typeof session !== 'object') {
+    return null;
+  }
+  const clone = {
+    sessionId: typeof session.sessionId === 'string' ? session.sessionId : '',
+    adminId: typeof session.adminId === 'string' ? session.adminId : '',
+    adminName: typeof session.adminName === 'string' ? session.adminName : '',
+    targetMemberId: typeof session.targetMemberId === 'string' ? session.targetMemberId : '',
+    targetMemberName: typeof session.targetMemberName === 'string' ? session.targetMemberName : '',
+    active: session.active !== false
+  };
+  if (session.startedAt) {
+    clone.startedAt = session.startedAt;
+  }
+  if (session.endedAt) {
+    clone.endedAt = session.endedAt;
+  }
+  return clone;
+}
+
 function getDatabaseInstance() {
   const canUseDatabase = wx.cloud && typeof wx.cloud.database === 'function';
   if (!canUseDatabase) {
@@ -62,14 +83,42 @@ function notify(event) {
   });
 }
 
-function setGlobalMember(member) {
+function setGlobalMember(member, options = {}) {
   try {
-    if (typeof getApp === 'function') {
-      const app = getApp();
-      if (app && app.globalData) {
-        app.globalData.memberInfo = member;
+    if (typeof getApp !== 'function') {
+      return;
+    }
+    const app = getApp();
+    if (!app || !app.globalData) {
+      return;
+    }
+    let sanitizedMember = member ? { ...member } : null;
+    const memberId =
+      sanitizedMember && typeof sanitizedMember === 'object'
+        ? sanitizedMember._id || sanitizedMember.id || ''
+        : '';
+    const incomingSession = cloneProxySession(member && member.proxySession);
+    const existingSession = cloneProxySession(app.globalData.proxySession);
+    let sessionToApply = incomingSession || null;
+    if (options && options.resetProxySession) {
+      sessionToApply = incomingSession || null;
+    } else if (!sessionToApply && existingSession) {
+      if (!memberId || memberId === existingSession.targetMemberId) {
+        sessionToApply = existingSession;
       }
     }
+    if (sessionToApply && sessionToApply.active === false) {
+      sessionToApply = null;
+    }
+    if (sanitizedMember) {
+      if (sessionToApply) {
+        sanitizedMember.proxySession = sessionToApply;
+      } else if (Object.prototype.hasOwnProperty.call(sanitizedMember, 'proxySession')) {
+        delete sanitizedMember.proxySession;
+      }
+    }
+    app.globalData.memberInfo = sanitizedMember;
+    app.globalData.proxySession = sessionToApply;
   } catch (error) {
     console.error('[member-realtime] set global member failed', error);
   }
