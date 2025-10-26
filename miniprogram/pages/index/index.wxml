@@ -50,21 +50,13 @@
           <view wx:if="{{showAvatarBadge}}" class="badge-dot profile-avatar__dot"></view>
         </view>
         <view class="profile-info">
-          <view class="profile-name" bindtap="handleProfileTap">
-            {{member ? (member.nickName || '无名仙友') : '无名仙友'}}
-            <view wx:if="{{showNameBadge}}" class="badge-dot profile-name__dot"></view>
-          </view>
-          <view class="profile-meta">
-            <view class="profile-meta__title" bindtap="handleTitleTap">
-              <image
-                wx:if="{{activeTitleImage}}"
-                class="profile-meta__title-image"
-                src="{{activeTitleImage}}"
-                mode="heightFix"
-              ></image>
-              <view wx:else class="profile-meta__title-placeholder">无称号</view>
-            </view>
-          </view>
+          <profile-identity
+            name="{{member ? (member.nickName || '无名仙友') : '无名仙友'}}"
+            show-badge="{{showNameBadge}}"
+            title-image="{{activeTitleImage}}"
+            bind:nametap="handleProfileTap"
+            bind:titletap="handleTitleTap"
+          ></profile-identity>
         </view>
         <view class="profile-other">
             <view class="profile-meta__item" bindtap="handleLevelTap">

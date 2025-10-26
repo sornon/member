@@ -1,0 +1,22 @@
+<view class="profile-identity">
+  <view class="profile-identity__name" bindtap="handleNameTap">
+    <text class="profile-identity__name-text">{{name}}</text>
+    <view
+      wx:if="{{showBadge}}"
+      class="badge-dot profile-identity__badge"
+    ></view>
+  </view>
+  <view
+    wx:if="{{titleImage || titleLabel}}"
+    class="profile-identity__title"
+    bindtap="handleTitleTap"
+  >
+    <image
+      wx:if="{{titleImage}}"
+      class="profile-identity__title-image"
+      src="{{titleImage}}"
+      mode="heightFix"
+    ></image>
+    <text wx:else class="profile-identity__title-text">{{titleLabel}}</text>
+  </view>
+</view>

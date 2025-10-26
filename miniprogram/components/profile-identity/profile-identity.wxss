@@ -1,0 +1,59 @@
+.profile-identity {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.profile-identity__name {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  padding-right: 32rpx;
+}
+
+.profile-identity__name-text {
+  font-size: 30rpx;
+  font-weight: 600;
+  letter-spacing: 2rpx;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+.profile-identity__badge {
+  position: absolute;
+  top: 8rpx;
+  right: 26rpx;
+  transform: translate(50%, -50%);
+}
+
+.profile-identity__title {
+  margin-top: 12rpx;
+  min-height: 40rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-identity__title-image {
+  height: 60rpx;
+  max-width: 260rpx;
+  width: auto;
+  display: block;
+}
+
+.profile-identity__title-text {
+  padding: 6rpx 16rpx;
+  border-radius: 24rpx;
+  background: rgba(24, 30, 45, 0.6);
+  color: rgba(220, 230, 255, 0.85);
+  font-size: 22rpx;
+  line-height: 1.2;
+  text-align: center;
+}
