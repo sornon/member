@@ -3,10 +3,12 @@ import { listAllAvatars, normalizeAvatarUnlocks } from '../../../utils/avatar-ca
 import { sanitizeEquipmentProfile, buildEquipmentIconPaths } from '../../../utils/equipment';
 const {
   buildTitleImageUrlByFile,
+  buildTitleImageUrl,
   registerCustomTitles,
   normalizeTitleCatalog,
   normalizeTitleImageFile,
-  normalizeTitleId
+  normalizeTitleId,
+  resolveTitleById
 } = require('../../../shared/titles.js');
 
 const RENAME_SOURCE_LABELS = {
@@ -262,33 +264,70 @@ function buildTitleManagerEntries(catalog = []) {
 
 function buildTitleSummaryFromEntries(entries = [], unlocks = []) {
   const list = Array.isArray(entries) ? entries.filter(Boolean) : [];
+  const unlockList = normalizeTitleUnlocks(unlocks);
   if (!list.length) {
+    if (unlockList.length) {
+      return `基础称号已解锁 ${unlockList.length} 个`;
+    }
     return '暂无自定义称号';
   }
-  const unlockSet = new Set(normalizeTitleUnlocks(unlocks));
-  const unlockedCount = list.reduce((total, entry) => {
+  const customIdSet = new Set(list.map((entry) => entry && entry.id).filter(Boolean));
+  const customUnlockedCount = list.reduce((total, entry) => {
     if (!entry || !entry.id) {
       return total;
     }
-    return unlockSet.has(entry.id) ? total + 1 : total;
+    return unlockList.includes(entry.id) ? total + 1 : total;
   }, 0);
-  if (!unlockedCount) {
-    return `已添加 ${list.length} 个称号`;
+  const builtinUnlockedCount = unlockList.filter((id) => id && !customIdSet.has(id)).length;
+  const segments = [`已添加 ${list.length} 个称号`];
+  if (customUnlockedCount) {
+    segments.push(`自定义已解锁 ${customUnlockedCount} 个`);
+  } else {
+    segments.push('自定义暂未解锁');
   }
-  if (unlockedCount === list.length) {
-    return `已解锁 ${unlockedCount} 个称号`;
+  if (builtinUnlockedCount) {
+    segments.push(`基础已解锁 ${builtinUnlockedCount} 个`);
   }
-  return `已添加 ${list.length} 个称号 · 已解锁 ${unlockedCount} 个`;
+  return segments.join(' · ');
 }
 
 function buildTitleManagerUnlockedEntries(entries = [], unlocks = []) {
-  const unlockSet = new Set(normalizeTitleUnlocks(unlocks));
-  if (!unlockSet.size) {
+  const unlockList = normalizeTitleUnlocks(unlocks);
+  if (!unlockList.length) {
     return [];
   }
-  return (Array.isArray(entries) ? entries : [])
-    .filter((entry) => entry && entry.id && unlockSet.has(entry.id))
-    .map((entry) => ({ ...entry }));
+  const customMap = new Map();
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    if (!entry || !entry.id) {
+      return;
+    }
+    const preview = entry.preview || buildTitleImageUrlByFile(entry.imageFile || entry.id);
+    customMap.set(entry.id, {
+      ...entry,
+      preview
+    });
+  });
+  const seen = new Set();
+  return unlockList
+    .map((id) => {
+      if (!id || seen.has(id)) {
+        return null;
+      }
+      seen.add(id);
+      if (customMap.has(id)) {
+        return customMap.get(id);
+      }
+      const resolved = resolveTitleById(id);
+      if (!resolved) {
+        return null;
+      }
+      return {
+        id: resolved.id,
+        name: resolved.name,
+        preview: resolved.image || buildTitleImageUrl(resolved.id)
+      };
+    })
+    .filter(Boolean);
 }
 
 function ensureMemberRole(roles) {
@@ -1355,6 +1394,8 @@ Page({
     }
     if (partial.summary !== undefined) {
       updates.titleSummary = partial.summary;
+    } else if (hasEntries || hasUnlocks) {
+      updates.titleSummary = buildTitleSummaryFromEntries(entries, unlocks);
     }
     this.setData(updates);
   },
