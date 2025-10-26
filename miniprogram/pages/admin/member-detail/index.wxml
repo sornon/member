@@ -16,7 +16,7 @@
     </view>
   </view>
 
-  <view class="section">
+  <view class="section section--basic">
     <view class="section-title">基础资料</view>
     <view class="toolbar">
       <button class="recharge" size="mini" bindtap="showRechargeDialog">为该会员充值</button>

@@ -135,10 +135,6 @@ page {
 
 .rename-meta {
   margin-top: 12rpx;
-  padding: 16rpx 20rpx;
-  border-radius: 12rpx;
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  background: rgba(148, 163, 184, 0.08);
   font-size: 24rpx;
   color: #cbd5f5;
   line-height: 1.5;
