@@ -262,9 +262,24 @@ function buildTitleManagerEntries(catalog = []) {
   }));
 }
 
+function ensureCustomTitlesUnlocked(entries = [], unlocks = []) {
+  const normalizedUnlocks = normalizeTitleUnlocks(unlocks);
+  const unlockSet = new Set(normalizedUnlocks);
+  let changed = false;
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    if (!entry || !entry.id || unlockSet.has(entry.id)) {
+      return;
+    }
+    unlockSet.add(entry.id);
+    normalizedUnlocks.push(entry.id);
+    changed = true;
+  });
+  return changed ? normalizeTitleUnlocks(normalizedUnlocks) : normalizedUnlocks;
+}
+
 function buildTitleSummaryFromEntries(entries = [], unlocks = []) {
   const list = Array.isArray(entries) ? entries.filter(Boolean) : [];
-  const unlockList = normalizeTitleUnlocks(unlocks);
+  const unlockList = ensureCustomTitlesUnlocked(list, unlocks);
   if (!list.length) {
     if (unlockList.length) {
       return `基础称号已解锁 ${unlockList.length} 个`;
@@ -272,19 +287,8 @@ function buildTitleSummaryFromEntries(entries = [], unlocks = []) {
     return '暂无自定义称号';
   }
   const customIdSet = new Set(list.map((entry) => entry && entry.id).filter(Boolean));
-  const customUnlockedCount = list.reduce((total, entry) => {
-    if (!entry || !entry.id) {
-      return total;
-    }
-    return unlockList.includes(entry.id) ? total + 1 : total;
-  }, 0);
   const builtinUnlockedCount = unlockList.filter((id) => id && !customIdSet.has(id)).length;
-  const segments = [`已添加 ${list.length} 个称号`];
-  if (customUnlockedCount) {
-    segments.push(`自定义已解锁 ${customUnlockedCount} 个`);
-  } else {
-    segments.push('自定义暂未解锁');
-  }
+  const segments = [`已添加 ${list.length} 个称号（自动解锁）`];
   if (builtinUnlockedCount) {
     segments.push(`基础已解锁 ${builtinUnlockedCount} 个`);
   }
@@ -292,7 +296,7 @@ function buildTitleSummaryFromEntries(entries = [], unlocks = []) {
 }
 
 function buildTitleManagerUnlockedEntries(entries = [], unlocks = []) {
-  const unlockList = normalizeTitleUnlocks(unlocks);
+  const unlockList = ensureCustomTitlesUnlocked(entries, unlocks);
   if (!unlockList.length) {
     return [];
   }
@@ -595,11 +599,12 @@ Page({
     const { member, levels = [] } = detail;
     const titleUnlocks = normalizeTitleUnlocks(member.titleUnlocks);
     const titleCatalog = normalizeTitleCatalog(member.titleCatalog);
-    member.titleUnlocks = titleUnlocks;
+    const titleEntries = buildTitleManagerEntries(titleCatalog);
+    const ensuredTitleUnlocks = ensureCustomTitlesUnlocked(titleEntries, titleUnlocks);
+    member.titleUnlocks = ensuredTitleUnlocks;
     member.titleCatalog = titleCatalog;
     registerCustomTitles(titleCatalog);
-    const titleEntries = buildTitleManagerEntries(titleCatalog);
-    const titleSummary = buildTitleSummaryFromEntries(titleEntries, titleUnlocks);
+    const titleSummary = buildTitleSummaryFromEntries(titleEntries, ensuredTitleUnlocks);
     const existingProfile = this.data.pveProfile || null;
     const hasNewProfile = !!(detail && detail.pveProfile);
     const profileToApply = hasNewProfile ? detail.pveProfile : existingProfile;
@@ -1374,7 +1379,7 @@ Page({
       ? this.data.titleManagerEntries
       : [];
     const unlocksSource = hasUnlocks ? partial.unlocks : this.data.titleManagerUnlocks;
-    const unlocks = normalizeTitleUnlocks(unlocksSource);
+    const unlocks = ensureCustomTitlesUnlocked(entries, unlocksSource);
     const updates = {
       titleManagerEntries: entries,
       titleManagerUnlocks: unlocks,
@@ -1404,7 +1409,7 @@ Page({
     const member = this.data.member || {};
     const catalog = Array.isArray(member.titleCatalog) ? member.titleCatalog : [];
     const entries = buildTitleManagerEntries(catalog);
-    const unlocks = normalizeTitleUnlocks(member.titleUnlocks);
+    const unlocks = ensureCustomTitlesUnlocked(entries, member.titleUnlocks);
     registerCustomTitles(catalog);
     this.commitTitleManagerState({
       visible: true,
@@ -1453,7 +1458,7 @@ Page({
     }
     const entries = buildTitleManagerEntries(appended);
     const newEntry = entries[entries.length - 1];
-    const unlocks = normalizeTitleUnlocks(this.data.titleManagerUnlocks);
+    const unlocks = ensureCustomTitlesUnlocked(entries, this.data.titleManagerUnlocks);
     if (newEntry && newEntry.id && !unlocks.includes(newEntry.id)) {
       unlocks.push(newEntry.id);
     }
@@ -1481,33 +1486,14 @@ Page({
     this.commitTitleManagerState({ entries, unlocks, dirty: true });
   },
 
-  handleTitleManagerToggleUnlock(event) {
-    const id = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset.id : '';
-    const targetId = normalizeTitleId(id);
-    if (!targetId) {
-      return;
-    }
-    const checked = !!(event && event.detail && event.detail.value);
-    const unlocks = normalizeTitleUnlocks(this.data.titleManagerUnlocks);
-    const existsIndex = unlocks.indexOf(targetId);
-    if (checked) {
-      if (existsIndex < 0) {
-        unlocks.push(targetId);
-      }
-    } else if (existsIndex >= 0) {
-      unlocks.splice(existsIndex, 1);
-    }
-    this.commitTitleManagerState({ unlocks, dirty: true });
-  },
-
   handleCloseTitleManager() {
     if (this.data.titleManagerSaving) {
       return;
     }
     const member = this.data.member || {};
     const catalog = Array.isArray(member.titleCatalog) ? member.titleCatalog : [];
-    const unlocks = normalizeTitleUnlocks(member.titleUnlocks);
     const entries = buildTitleManagerEntries(catalog);
+    const unlocks = ensureCustomTitlesUnlocked(entries, member.titleUnlocks);
     registerCustomTitles(catalog);
     this.commitTitleManagerState({
       visible: false,
@@ -1528,7 +1514,8 @@ Page({
       return;
     }
     const catalog = normalizeTitleCatalog(this.data.titleManagerEntries);
-    const unlocks = normalizeTitleUnlocks(this.data.titleManagerUnlocks);
+    const entries = buildTitleManagerEntries(catalog);
+    const unlocks = ensureCustomTitlesUnlocked(entries, this.data.titleManagerUnlocks);
     this.commitTitleManagerState({ saving: true });
     try {
       const detail = await AdminService.updateMember(memberId, {
@@ -1538,8 +1525,8 @@ Page({
       this.applyDetail(detail);
       const updatedMember = this.data.member || {};
       const savedCatalog = Array.isArray(updatedMember.titleCatalog) ? updatedMember.titleCatalog : [];
-      const savedUnlocks = normalizeTitleUnlocks(updatedMember.titleUnlocks);
       const savedEntries = buildTitleManagerEntries(savedCatalog);
+      const savedUnlocks = ensureCustomTitlesUnlocked(savedEntries, updatedMember.titleUnlocks);
       this.commitTitleManagerState({
         visible: false,
         saving: false,

@@ -512,14 +512,6 @@
               <view class="title-manager-item__meta">文件名：{{item.imageFile}}</view>
             </view>
             <view class="title-manager-item__actions">
-              <view class="title-manager-item__toggle">
-                <text class="title-manager-item__toggle-label">已解锁</text>
-                <switch
-                  checked="{{titleManagerUnlocks.indexOf(item.id) >= 0}}"
-                  bindchange="handleTitleManagerToggleUnlock"
-                  data-id="{{item.id}}"
-                ></switch>
-              </view>
               <button
                 class="title-manager-item__remove"
                 size="mini"
