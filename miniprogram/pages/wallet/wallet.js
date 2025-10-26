@@ -79,6 +79,8 @@ function formatTransactionAmount(amount) {
   return `${prefix}${formatCurrency(Math.abs(numeric))}`;
 }
 
+const ORDER_DETAIL_SOURCES = new Set(['chargeorder', 'menuorder']);
+
 function decorateTransaction(txn) {
   if (!txn || typeof txn !== 'object') {
     return {
@@ -101,6 +103,7 @@ function decorateTransaction(txn) {
   const status = typeof txn.status === 'string' ? txn.status.trim() : '';
   const normalizedStatus = status ? status.toLowerCase() : '';
   const source = typeof txn.source === 'string' ? txn.source.trim() : '';
+  const normalizedSource = source.toLowerCase();
   const orderId = typeof txn.orderId === 'string' ? txn.orderId.trim() : '';
   const rawType = typeof txn.type === 'string' ? txn.type.trim() : '';
   let amountClass = amount > 0 ? 'income' : amount < 0 ? 'expense' : '';
@@ -137,7 +140,7 @@ function decorateTransaction(txn) {
     amountClass,
     createdAt: txn.createdAt,
     displayDate: formatDate(txn.createdAt),
-    canViewOrder: Boolean(orderId && source === 'chargeOrder')
+    canViewOrder: Boolean(orderId && ORDER_DETAIL_SOURCES.has(normalizedSource))
   };
 }
 
