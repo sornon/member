@@ -231,7 +231,10 @@ exports.main = async (event = {}) => {
   const { OPENID } = cloud.getWXContext();
   const action = typeof event.action === 'string' ? event.action.trim() : 'profile';
   const { memberId: proxyMemberId, proxySession } = await proxyHelpers.resolveProxyContext(OPENID);
-  const actorId = resolveActorId(proxyMemberId || OPENID, event);
+  const actorId =
+    action === 'getLeaderboard'
+      ? resolveOptionalActorId(proxyMemberId || OPENID, event)
+      : resolveActorId(proxyMemberId || OPENID, event);
 
   if (proxySession) {
     await proxyHelpers.recordProxyAction(proxySession, OPENID, action, event || {});
@@ -2575,13 +2578,17 @@ function isCollectionAlreadyExistsError(error) {
 }
 
 function resolveActorId(defaultMemberId, event = {}) {
-  const fromEvent = normalizeMemberId(event.actorId);
-  const fromContext = normalizeMemberId(defaultMemberId);
-  const resolved = fromEvent || fromContext;
+  const resolved = resolveOptionalActorId(defaultMemberId, event);
   if (!resolved) {
     throw createError('UNAUTHENTICATED', '缺少身份信息，请重新登录');
   }
   return resolved;
+}
+
+function resolveOptionalActorId(defaultMemberId, event = {}) {
+  const fromEvent = normalizeMemberId(event.actorId || event.memberId);
+  const fromContext = normalizeMemberId(defaultMemberId);
+  return fromEvent || fromContext || null;
 }
 
 function signBattlePayload(payload) {
