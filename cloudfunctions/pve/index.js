@@ -10,6 +10,7 @@ const {
   pickPortraitUrl,
   normalizeAvatarFrameValue
 } = require('common-config');
+const { createProxyHelpers } = require('admin-proxy');
 const {
   DEFAULT_COMBAT_STATS,
   clamp,
@@ -60,6 +61,8 @@ const {
 
 const db = cloud.database();
 const _ = db.command;
+
+const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'pve' });
 const ensuredCollections = new Set();
 
 const BACKGROUND_IDS = new Set([
@@ -2729,7 +2732,12 @@ exports.main = async (event = {}) => {
     event && typeof event.action === 'string' && event.action.trim()
       ? event.action.trim()
       : 'profile';
-  const actorId = resolveActorId(OPENID, event);
+  const { memberId: proxyMemberId, proxySession } = await proxyHelpers.resolveProxyContext(OPENID);
+  const actorId = resolveActorId(proxyMemberId || OPENID, event);
+
+  if (proxySession) {
+    await proxyHelpers.recordProxyAction(proxySession, OPENID, action, event || {});
+  }
 
   switch (action) {
     case 'profile':

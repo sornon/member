@@ -5,11 +5,14 @@ const {
   DEFAULT_ADMIN_ROLES,
   analyzeMemberLevelProgress
 } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
+const { createProxyHelpers } = require('admin-proxy');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 const _ = db.command;
+
+const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'menuOrder' });
 
 const ADMIN_ROLES = [...new Set([...DEFAULT_ADMIN_ROLES, 'superadmin'])];
 const CATEGORY_TYPES = ['drinks', 'dining'];
@@ -86,27 +89,33 @@ async function ensureCollection(name) {
 exports.main = async (event) => {
   const { OPENID } = cloud.getWXContext();
   const action = event.action || 'listMemberOrders';
+  const { memberId: actingMemberId, proxySession } = await proxyHelpers.resolveProxyContext(OPENID);
+  const targetMemberId = actingMemberId || OPENID;
+
+  if (proxySession) {
+    await proxyHelpers.recordProxyAction(proxySession, OPENID, action, event || {});
+  }
 
   switch (action) {
     case 'createOrder':
       return createOrder(
-        OPENID,
+        targetMemberId,
         event.items || [],
         event.remark || '',
         event.categoryTotals || {}
       );
     case 'listMemberOrders':
-      return listMemberOrders(OPENID);
+      return listMemberOrders(targetMemberId);
     case 'confirmMemberOrder':
-      return confirmMemberOrder(OPENID, event.orderId);
+      return confirmMemberOrder(targetMemberId, event.orderId);
     case 'cancelMemberOrder':
-      return cancelMemberOrder(OPENID, event.orderId, event.remark || event.reason || '');
+      return cancelMemberOrder(targetMemberId, event.orderId, event.remark || event.reason || '');
     case 'listPrepOrders':
-      return listPrepOrders(OPENID, event.status || 'submitted', event.pageSize || 100);
+      return listPrepOrders(targetMemberId, event.status || 'submitted', event.pageSize || 100);
     case 'markOrderReady':
-      return markOrderReady(OPENID, event.orderId, event.remark || '');
+      return markOrderReady(targetMemberId, event.orderId, event.remark || '');
     case 'cancelOrder':
-      return cancelOrder(OPENID, event.orderId, event.remark || event.reason || '');
+      return cancelOrder(targetMemberId, event.orderId, event.remark || event.reason || '');
     default:
       throw new Error(`Unknown action: ${action}`);
   }
