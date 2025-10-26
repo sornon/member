@@ -8140,7 +8140,7 @@ function runBattleSimulation({
   let previousPlayerAttributesSnapshot = null;
   let previousEnemyAttributesSnapshot = null;
   let round = 1;
-  const maxRounds = 15;
+  const maxRounds = 20;
 
   while (playerActor.hp > 0 && enemyActor.hp > 0 && round <= maxRounds) {
     const { order: roundOrder } = determineRoundOrder(playerActor, enemyActor, {

@@ -112,7 +112,7 @@
 3. **伤害路径**：系统会比较物理与法术两条路线的净收益：`max(攻击 × 25%, 攻击 − 防御 × (1 − 穿透))`，并选择更高的一种；随后乘以 0.9~1.1 的浮动并叠加技能额外伤害。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L176-L205】
 4. **暴击与最终修正**：暴击概率为 `clamp(暴击率 − 抗暴, 5%, 95%)`，暴击时按暴击伤害倍率放大；最终伤害再乘以 `(1 + 增伤 − 减伤)`，并保证至少造成 10% 的原始伤害，上限不低于 1 点。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L188-L204】
 5. **吸血与治疗系数**：吸血最多结算 60%，同时受治疗强化与治疗削弱影响，最终回血 = 伤害 × 吸血 × `clamp(1 + 强化 − 削弱, 0, 2)`。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L200-L205】
-6. **战斗节奏**：战斗最多 15 回合，支持护盾、额外伤害与闪避特效；若仍未击败敌人则直接判定为失败，不再结算平局奖励。【F:cloudfunctions/pve/index.js†L4808-L4864】
+6. **战斗节奏**：战斗最多 20 回合，支持护盾、额外伤害与闪避特效；若仍未击败敌人则直接判定为失败，不再结算平局奖励。【F:cloudfunctions/pve/index.js†L8120-L8232】
 7. **掉落与加成**：悟性会提高灵石收益（上限 25%，仅折半计入灵石）并提升装备/技能掉落概率（上限 20%），同时额外属性点奖励完全取决于副本配置。【F:cloudfunctions/pve/index.js†L5878-L5927】
 
 ## 云函数接口
