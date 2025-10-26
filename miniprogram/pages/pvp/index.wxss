@@ -1,3 +1,5 @@
+@import "./leaderboard.wxss";
+
 .pvp-hero-header {
   position: relative;
   width: 100%;
@@ -301,36 +303,24 @@
   margin-bottom: 0;
 }
 
-.mini-board-item {
-  display: flex;
-  align-items: center;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: 16rpx;
-  padding: 16rpx 20rpx;
-  margin-bottom: 12rpx;
-  transition: background 0.2s;
+.board-item--preview {
+  cursor: pointer;
 }
 
-.mini-board-item:active {
-  background: rgba(255, 255, 255, 0.08);
+.board-item--preview-hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
-.mini-board-rank {
-  width: 52rpx;
-  text-align: center;
-  font-size: 30rpx;
-  color: #ffd369;
-  font-weight: 600;
+.board-actions--score {
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0;
+  min-width: 120rpx;
 }
 
-.mini-board-name {
-  flex: 1;
-  margin-left: 16rpx;
+.board-score {
   font-size: 28rpx;
-  font-weight: 500;
+  font-weight: 600;
+  color: #ffd369;
 }
 
-.mini-board-score {
-  font-size: 24rpx;
-  color: rgba(255, 255, 255, 0.7);
-}
