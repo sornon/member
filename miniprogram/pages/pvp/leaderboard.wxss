@@ -98,7 +98,7 @@
   font-size: 24rpx;
   color: rgba(255, 255, 255, 0.9);
   margin-right: 20rpx;
-  min-width: 80rpx;
+  min-width: 70rpx;
   text-align: center;
 }
 
@@ -154,7 +154,7 @@
 }
 
 .board-title__image {
-  height: 40rpx;
+  height: 48rpx;
   max-width: 280rpx;
   display: block;
 }
