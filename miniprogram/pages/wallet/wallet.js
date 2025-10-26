@@ -79,6 +79,8 @@ function formatTransactionAmount(amount) {
   return `${prefix}${formatCurrency(Math.abs(numeric))}`;
 }
 
+const ORDER_DETAIL_SOURCES = new Set(['chargeorder', 'menuorder']);
+
 function decorateTransaction(txn) {
   if (!txn || typeof txn !== 'object') {
     return {
@@ -89,6 +91,8 @@ function decorateTransaction(txn) {
       amountText: formatCurrency(0),
       amountClass: '',
       source: '',
+      orderId: '',
+      canViewOrder: false,
       remark: '',
       createdAt: '',
       displayDate: ''
@@ -98,6 +102,10 @@ function decorateTransaction(txn) {
   const amount = toNumeric(txn.amount, 0);
   const status = typeof txn.status === 'string' ? txn.status.trim() : '';
   const normalizedStatus = status ? status.toLowerCase() : '';
+  const source = typeof txn.source === 'string' ? txn.source.trim() : '';
+  const normalizedSource = source.toLowerCase();
+  const orderId = typeof txn.orderId === 'string' ? txn.orderId.trim() : '';
+  const rawType = typeof txn.type === 'string' ? txn.type.trim() : '';
   let amountClass = amount > 0 ? 'income' : amount < 0 ? 'expense' : '';
   let amountText = formatTransactionAmount(amount);
 
@@ -124,11 +132,15 @@ function decorateTransaction(txn) {
 
   return {
     ...txn,
+    type: rawType || txn.type || '',
+    source,
+    orderId,
     amount,
     amountText,
     amountClass,
     createdAt: txn.createdAt,
-    displayDate: formatDate(txn.createdAt)
+    displayDate: formatDate(txn.createdAt),
+    canViewOrder: Boolean(orderId && ORDER_DETAIL_SOURCES.has(normalizedSource))
   };
 }
 
@@ -392,6 +404,19 @@ Page({
       }
       wx.showToast({ title: '扫码失败，请重试', icon: 'none' });
     }
+  },
+
+  handleTransactionTap(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const orderIdRaw = dataset.orderId;
+    if (!orderIdRaw) {
+      return;
+    }
+    const orderId = typeof orderIdRaw === 'string' ? orderIdRaw.trim() : '';
+    if (!orderId) {
+      return;
+    }
+    wx.navigateTo({ url: `/pages/wallet/charge-confirm/index?orderId=${orderId}` });
   },
 
   parseScanResult(result) {

@@ -20,6 +20,14 @@ function mapOrder(order) {
   const total = Number(order.totalAmount || 0);
   const stoneReward = Number(order.stoneReward || total || 0);
   const status = order.status || 'pending';
+  const adminRemark = typeof order.adminRemark === 'string' ? order.adminRemark.trim() : '';
+  const priceAdjustment = normalizePriceAdjustmentInfo(order.adminPriceAdjustment || order.priceAdjustment);
+  const priceAdjustmentRemark = priceAdjustment && priceAdjustment.remark
+    ? priceAdjustment.remark
+    : typeof order.priceAdjustmentRemark === 'string'
+    ? order.priceAdjustmentRemark.trim()
+    : '';
+  const priceAdjustmentVisible = Boolean(priceAdjustment || priceAdjustmentRemark);
   return {
     ...order,
     totalAmount: total,
@@ -29,7 +37,38 @@ function mapOrder(order) {
     createdAtLabel: formatDateTime(order.createdAt),
     expireAtLabel: formatDateTime(order.expireAt),
     status,
-    statusLabel: status === 'pending' ? '待确认' : status === 'paid' ? '已完成' : status === 'expired' ? '已过期' : '已取消'
+    statusLabel: status === 'pending' ? '待确认' : status === 'paid' ? '已完成' : status === 'expired' ? '已过期' : '已取消',
+    adminRemark,
+    priceAdjustment,
+    priceAdjustmentRemark,
+    priceAdjustmentVisible
+  };
+}
+
+function normalizePriceAdjustmentInfo(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const newAmount = Number(record.newAmount || record.current || record.amount || 0);
+  if (!Number.isFinite(newAmount) || newAmount <= 0) {
+    return null;
+  }
+  const previousAmount = Number(record.previousAmount || record.previous || record.originalAmount || 0);
+  const remark = typeof record.remark === 'string' ? record.remark.trim() : '';
+  const adjustedAt = record.adjustedAt || record.updatedAt || record.createdAt || null;
+  const adjustedBy = typeof record.adjustedBy === 'string' ? record.adjustedBy : '';
+  const adjustedByName = typeof record.adjustedByName === 'string' ? record.adjustedByName : '';
+  const hasPrevious = Number.isFinite(previousAmount) && previousAmount > 0;
+  return {
+    previousAmount,
+    previousAmountLabel: hasPrevious ? formatCurrency(previousAmount) : '',
+    newAmount,
+    newAmountLabel: formatCurrency(newAmount),
+    remark,
+    adjustedAtLabel: formatDateTime(adjustedAt),
+    adjustedBy,
+    adjustedByName,
+    hasPrevious
   };
 }
 

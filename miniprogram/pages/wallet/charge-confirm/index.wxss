@@ -87,6 +87,10 @@
   color: #7cc4ff;
 }
 
+.amount.highlight {
+  color: #8dd9ff;
+}
+
 .stones {
   font-weight: 600;
   color: #f8d477;
@@ -113,4 +117,41 @@
   font-size: 24rpx;
   color: #94a3b8;
   line-height: 1.6;
+}
+
+.info-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+
+.info-block:first-child {
+  margin-top: 0;
+}
+
+.info-label {
+  font-size: 26rpx;
+  color: #cbd5f5;
+  font-weight: 500;
+}
+
+.info-text {
+  font-size: 26rpx;
+  color: #e2e8f0;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.adjust-row {
+  margin-top: 10rpx;
+}
+
+.adjust-meta {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #94a3b8;
+  line-height: 1.5;
+  display: flex;
 }
