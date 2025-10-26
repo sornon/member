@@ -110,7 +110,7 @@
   position: relative;
   width: 88rpx;
   height: 88rpx;
-  margin-right: 20rpx;
+  margin-right: 10rpx;
   flex-shrink: 0;
 }
 

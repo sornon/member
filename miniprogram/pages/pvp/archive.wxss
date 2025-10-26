@@ -159,11 +159,11 @@
   justify-content: center;
   text-align: center;
   max-width: 100%;
-  gap: 4rpx;
+  gap: 0;
 }
 
 .profile-name {
-  font-size: 28rpx;
+  font-size: 32rpx;
   font-weight: 600;
   color: #ffffff;
   max-width: 100%;
@@ -181,7 +181,7 @@
 }
 
 .profile-meta__title-image {
-  height: 48rpx;
+  height: 56rpx;
 }
 
 .profile-meta__tier {
