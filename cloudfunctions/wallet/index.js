@@ -680,10 +680,11 @@ async function getSummary(memberId) {
         type,
         typeLabel: transactionTypeLabel[type] || transactionTypeLabel.unknown,
         amount,
-        source: txn.source || '',
+        source: trimToString(txn.source),
         remark: txn.remark || '',
         createdAt: resolveDate(txn.createdAt) || new Date(),
-        status
+        status,
+        orderId: trimToString(txn.orderId)
       };
     })
   };

@@ -54,13 +54,24 @@
     <view wx:if="{{loading}}">加载中...</view>
     <view wx:elif="{{!summary || !summary.transactions.length}}" class="empty-state">暂无流水记录</view>
     <view wx:else>
-      <view class="transaction" wx:for="{{summary.transactions}}" wx:key="_id">
-        <view>
+      <view
+        class="transaction {{item.canViewOrder ? 'transaction--link' : ''}}"
+        wx:for="{{summary.transactions}}"
+        wx:key="_id"
+        data-order-id="{{item.canViewOrder ? item.orderId : ''}}"
+        bindtap="handleTransactionTap"
+        hover-class="{{item.canViewOrder ? 'transaction--active' : ''}}"
+        hover-stay-time="60"
+      >
+        <view class="txn-info">
           <view class="txn-title">{{item.typeLabel}}</view>
           <view class="txn-date">{{item.displayDate}}</view>
           <view class="txn-remark" wx:if="{{item.remark}}">{{item.remark}}</view>
         </view>
-        <view class="txn-amount {{item.amountClass}}">{{item.amountText}}</view>
+        <view class="txn-right">
+          <view class="txn-amount {{item.amountClass}}">{{item.amountText}}</view>
+          <view class="txn-link" wx:if="{{item.canViewOrder}}">查看详情</view>
+        </view>
       </view>
     </view>
   </view>
