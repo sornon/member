@@ -233,7 +233,10 @@ page {
   flex-wrap: nowrap;
   justify-content: flex-end;
   align-items: center;
-  gap: 32rpx;
+  gap: 24rpx;
+  position: absolute;
+  right: 24rpx;
+  top: 58rpx;
 }
 
 .activity-item {
