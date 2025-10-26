@@ -11,6 +11,7 @@ const {
   pickPortraitUrl,
   normalizeAvatarFrameValue
 } = commonConfig;
+const { createProxyHelpers } = require('admin-proxy');
 const {
   DEFAULT_COMBAT_STATS,
   DEFAULT_SPECIAL_STATS,
@@ -42,6 +43,8 @@ const {
 
 const db = cloud.database();
 const _ = db.command;
+
+const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'pvp' });
 
 const DEFAULT_SEASON_LENGTH_DAYS = 56;
 const MATCH_ROUND_LIMIT = 15;
@@ -188,7 +191,12 @@ function assertBattleCooldown(lastBattleAt, now = new Date()) {
 exports.main = async (event = {}) => {
   const { OPENID } = cloud.getWXContext();
   const action = typeof event.action === 'string' ? event.action.trim() : 'profile';
-  const actorId = resolveActorId(OPENID, event);
+  const { memberId: proxyMemberId, proxySession } = await proxyHelpers.resolveProxyContext(OPENID);
+  const actorId = resolveActorId(proxyMemberId || OPENID, event);
+
+  if (proxySession) {
+    await proxyHelpers.recordProxyAction(proxySession, OPENID, action, event || {});
+  }
 
   await ensurePvpCollections();
 
@@ -2482,9 +2490,9 @@ function isCollectionAlreadyExistsError(error) {
   return code === -502003 || code === 'AlreadyExists';
 }
 
-function resolveActorId(openid, event = {}) {
+function resolveActorId(defaultMemberId, event = {}) {
   const fromEvent = normalizeMemberId(event.actorId);
-  const fromContext = normalizeMemberId(openid);
+  const fromContext = normalizeMemberId(defaultMemberId);
   const resolved = fromEvent || fromContext;
   if (!resolved) {
     throw createError('UNAUTHENTICATED', '缺少身份信息，请重新登录');

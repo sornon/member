@@ -3,10 +3,13 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { COLLECTIONS } = require('common-config');
+const { createProxyHelpers } = require('admin-proxy');
 
 const db = cloud.database();
 const $ = db.command.aggregate;
 const _ = db.command;
+
+const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'stones' });
 
 const STORAGE_CATEGORY_DEFAULT_LABELS = Object.freeze({
   quest: '任务',
@@ -372,17 +375,23 @@ function applyMallProfileEffects(member, effects, quantity) {
   return changed ? profile : null;
 }
 
-exports.main = async (event) => {
+exports.main = async (event = {}) => {
   const { OPENID } = cloud.getWXContext();
   const action = event.action || 'summary';
+  const { memberId: actingMemberId, proxySession } = await proxyHelpers.resolveProxyContext(OPENID);
+  const targetMemberId = actingMemberId || OPENID;
+
+  if (proxySession) {
+    await proxyHelpers.recordProxyAction(proxySession, OPENID, action, event || {});
+  }
 
   switch (action) {
     case 'summary':
-      return getSummary(OPENID);
+      return getSummary(targetMemberId);
     case 'catalog':
       return getCatalog();
     case 'purchase':
-      return purchaseItem(OPENID, event.itemId, event.quantity || 1);
+      return purchaseItem(targetMemberId, event.itemId, event.quantity || 1);
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -397,16 +406,16 @@ function createError(code, message) {
   return error;
 }
 
-async function getSummary(openid) {
+async function getSummary(memberId) {
   const [memberDoc, transactionsSnapshot, totalsSnapshot] = await Promise.all([
-    db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null),
+    db.collection(COLLECTIONS.MEMBERS).doc(memberId).get().catch(() => null),
     db
       .collection(COLLECTIONS.STONE_TRANSACTIONS)
-      .where({ memberId: openid })
+      .where({ memberId })
       .orderBy('createdAt', 'desc')
       .limit(30)
       .get(),
-    aggregateStoneTotals(openid)
+    aggregateStoneTotals(memberId)
   ]);
 
   const member = memberDoc && memberDoc.data ? memberDoc.data : {};
@@ -561,8 +570,8 @@ function getCatalog() {
   };
 }
 
-async function purchaseItem(openid, itemId, quantity = 1) {
-  if (!openid) {
+async function purchaseItem(memberId, itemId, quantity = 1) {
+  if (!memberId) {
     throw createError('AUTH_REQUIRED', '请先登录后再兑换');
   }
   const normalizedId = typeof itemId === 'string' ? itemId.trim() : '';
@@ -587,7 +596,7 @@ async function purchaseItem(openid, itemId, quantity = 1) {
   }
 
   const membersCollection = db.collection(COLLECTIONS.MEMBERS);
-  const existing = await membersCollection.doc(openid).get().catch(() => null);
+  const existing = await membersCollection.doc(memberId).get().catch(() => null);
   if (!existing || !existing.data) {
     throw createError('MEMBER_NOT_FOUND', '请先完成会员注册');
   }
@@ -647,7 +656,7 @@ async function purchaseItem(openid, itemId, quantity = 1) {
     updates.pveProfile = _.set(profileForUpdate);
   }
 
-  await membersCollection.doc(openid).update({
+  await membersCollection.doc(memberId).update({
     data: updates
   });
 
@@ -655,7 +664,7 @@ async function purchaseItem(openid, itemId, quantity = 1) {
   const description = normalizedQuantity > 1 ? `${item.name} x${normalizedQuantity}` : item.name;
   await db.collection(COLLECTIONS.STONE_TRANSACTIONS).add({
     data: {
-      memberId: openid,
+      memberId,
       amount: -totalCost,
       type: 'spend',
       source: 'mall',
@@ -665,7 +674,7 @@ async function purchaseItem(openid, itemId, quantity = 1) {
     }
   });
 
-  const summary = await getSummary(openid);
+  const summary = await getSummary(memberId);
   return {
     success: true,
     item: {
