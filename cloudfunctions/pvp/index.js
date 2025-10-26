@@ -413,10 +413,22 @@ async function getLeaderboard(memberId, event = {}) {
         return entry;
       }
       const avatarFrame = resolveAvatarFrameValue(entry.avatarFrame);
+      const titleId = typeof entry.titleId === 'string' ? entry.titleId : '';
+      const titleName = typeof entry.titleName === 'string' ? entry.titleName : '';
       if (avatarFrame || entry.avatarFrame) {
-        return { ...entry, avatarFrame };
+        return {
+          ...entry,
+          avatarFrame,
+          titleId,
+          titleName
+        };
       }
-      return { ...entry, avatarFrame: '' };
+      return {
+        ...entry,
+        avatarFrame: '',
+        titleId,
+        titleName
+      };
     });
   const rankIndex = entries.findIndex((entry) => entry.memberId === memberId);
   return {
@@ -1726,6 +1738,23 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
       item.appearance && item.appearance.avatarFrame,
       item.appearanceFrame
     );
+    const snapshotAppearance =
+      item.memberSnapshot && item.memberSnapshot.appearance
+        ? item.memberSnapshot.appearance
+        : null;
+    const appearance = item.appearance || null;
+    const titleId =
+      (snapshotAppearance && snapshotAppearance.titleId) ||
+      (item.memberSnapshot && item.memberSnapshot.appearanceTitle) ||
+      (appearance && appearance.titleId) ||
+      item.titleId ||
+      '';
+    const titleName =
+      (snapshotAppearance && snapshotAppearance.titleName) ||
+      (item.memberSnapshot && item.memberSnapshot.appearanceTitleName) ||
+      (appearance && appearance.titleName) ||
+      item.titleName ||
+      '';
     const payload = {
       rank: index + 1,
       memberId: item.memberId,
@@ -1737,7 +1766,9 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
       wins: item.wins,
       losses: item.losses,
       draws: item.draws,
-      streak: item.currentStreak || 0
+      streak: item.currentStreak || 0,
+      titleId: typeof titleId === 'string' ? titleId : '',
+      titleName: typeof titleName === 'string' ? titleName : ''
     };
     payload.avatarFrame = avatarFrame || '';
     return payload;

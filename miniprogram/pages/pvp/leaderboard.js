@@ -2,6 +2,7 @@ import { PvpService } from '../../services/api';
 import { normalizeAvatarFrameValue } from '../../shared/avatar-frames';
 
 const { AVATAR_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
+const { buildTitleImageUrl } = require('../../shared/titles.js');
 
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 
@@ -46,10 +47,24 @@ function decorateLeaderboardEntries(entries) {
     }
     const normalizedFrame = normalizeAvatarFrameValue(entry.avatarFrame || '');
     const avatarUrl = toTrimmedString(entry.avatarUrl) || DEFAULT_AVATAR;
+    const titleId = toTrimmedString(entry.titleId);
+    const titleImage = titleId ? buildTitleImageUrl(titleId) : '';
     if (normalizedFrame || entry.avatarFrame) {
-      return { ...entry, avatarFrame: normalizedFrame, avatarUrl };
+      return {
+        ...entry,
+        avatarFrame: normalizedFrame,
+        avatarUrl,
+        titleId,
+        titleImage
+      };
     }
-    return { ...entry, avatarFrame: '', avatarUrl };
+    return {
+      ...entry,
+      avatarFrame: '',
+      avatarUrl,
+      titleId,
+      titleImage
+    };
   });
 }
 
