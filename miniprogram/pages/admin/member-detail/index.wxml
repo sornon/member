@@ -193,30 +193,11 @@
     </view>
     <view class="form-item">
       <view class="form-label">头像权限</view>
-      <view class="avatar-permission-note">C 级头像默认开放</view>
-      <checkbox-group class="avatar-permission-grid" bindchange="handleAvatarUnlockChange">
-        <block wx:for="{{avatarOptionGroups}}" wx:key="gender">
-          <view class="avatar-permission-group">
-            <view class="avatar-permission-group__title">{{item.label}}</view>
-            <view class="avatar-permission-group__list">
-              <label
-                wx:for="{{item.options}}"
-                wx:for-item="option"
-                wx:key="id"
-                class="avatar-permission-item {{option.disabled ? 'avatar-permission-item--disabled' : ''}}"
-              >
-                <checkbox
-                  value="{{option.id}}"
-                  checked="{{option.checked}}"
-                  disabled="{{option.disabled}}"
-                />
-                <text class="avatar-permission-name {{option.disabled ? 'avatar-permission-name--disabled' : ''}}">{{option.label}}</text>
-                <text wx:if="{{option.disabled}}" class="avatar-permission-tag">默认</text>
-              </label>
-            </view>
-          </view>
-        </block>
-      </checkbox-group>
+      <view class="avatar-permission-summary">
+        <text class="avatar-permission-summary__primary">{{avatarPermissionSummary}}</text>
+        <text class="avatar-permission-summary__note">C 级头像默认开放</text>
+      </view>
+      <button class="avatar-edit-button" size="mini" bindtap="showAvatarPermissionDialog">编辑头像权限</button>
     </view>
   </view>
 
@@ -419,6 +400,51 @@
         loading="{{updatingEquipment}}"
         disabled="{{updatingEquipment}}"
         bindtap="handleEquipmentEditConfirm"
+      >
+        保存
+      </button>
+    </view>
+  </view>
+</view>
+
+<view wx:if="{{avatarPermissionDialogVisible}}" class="dialog-mask" bindtap="hideAvatarPermissionDialog">
+  <view class="avatar-permission-dialog" catchtap="noop" catchtouchmove="noop">
+    <view class="avatar-permission-dialog__header">
+      <view class="avatar-permission-dialog__title">编辑头像权限</view>
+      <text class="avatar-permission-dialog__subtitle">C 级头像默认开放</text>
+    </view>
+    <scroll-view scroll-y class="avatar-permission-dialog__content">
+      <checkbox-group class="avatar-permission-grid" bindchange="handleAvatarDialogChange">
+        <block wx:for="{{avatarDialogOptionGroups}}" wx:key="gender">
+          <view class="avatar-permission-group">
+            <view class="avatar-permission-group__title">{{item.label}}</view>
+            <view class="avatar-permission-group__list">
+              <label
+                wx:for="{{item.options}}"
+                wx:for-item="option"
+                wx:key="id"
+                class="avatar-permission-item {{option.disabled ? 'avatar-permission-item--disabled' : ''}}"
+              >
+                <checkbox
+                  value="{{option.id}}"
+                  checked="{{option.checked}}"
+                  disabled="{{option.disabled}}"
+                />
+                <text class="avatar-permission-name {{option.disabled ? 'avatar-permission-name--disabled' : ''}}">{{option.label}}</text>
+                <text wx:if="{{option.disabled}}" class="avatar-permission-tag">默认</text>
+              </label>
+            </view>
+          </view>
+        </block>
+      </checkbox-group>
+    </scroll-view>
+    <view class="avatar-permission-dialog__actions">
+      <button class="avatar-permission-dialog__button" size="mini" bindtap="hideAvatarPermissionDialog">取消</button>
+      <button
+        class="avatar-permission-dialog__button avatar-permission-dialog__button--primary"
+        size="mini"
+        type="primary"
+        bindtap="handleAvatarDialogSave"
       >
         保存
       </button>
