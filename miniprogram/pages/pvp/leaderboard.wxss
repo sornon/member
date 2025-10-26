@@ -80,6 +80,10 @@
   margin-bottom: 16rpx;
 }
 
+.board-item--preview-hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 .board-rank {
   width: 60rpx;
   font-size: 32rpx;

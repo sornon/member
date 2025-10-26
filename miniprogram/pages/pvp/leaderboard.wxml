@@ -13,7 +13,12 @@
         <view class="board-self__value" wx:else>暂未上榜</view>
       </view>
       <block wx:for="{{entries}}" wx:key="memberId">
-        <view class="board-item">
+        <view
+          class="board-item"
+          data-id="{{item.memberId}}"
+          bindtap="handleViewArchive"
+          hover-class="board-item--preview-hover"
+        >
           <view class="board-rank">{{item.rank}}</view>
           <view class="board-tier">{{item.tierName || '未评级'}}</view>
           <view class="board-avatar-wrapper">
@@ -26,11 +31,7 @@
             ></image>
           </view>
           <view class="board-info">
-            <view
-              class="board-name"
-              data-id="{{item.memberId}}"
-              bindtap="handleViewArchive"
-            >{{item.nickName || '神秘仙友'}}</view>
+            <view class="board-name">{{item.nickName || '神秘仙友'}}</view>
             <view wx:if="{{item.titleImage}}" class="board-title">
               <image class="board-title__image" src="{{item.titleImage}}" mode="heightFix"></image>
             </view>
@@ -43,7 +44,7 @@
               loading="{{matchLoadingId === item.memberId}}"
               data-id="{{item.memberId}}"
               data-name="{{item.nickName}}"
-              bindtap="handleChallenge"
+              catchtap="handleChallenge"
             >切磋</button>
           </view>
         </view>

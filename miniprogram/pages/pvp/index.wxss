@@ -307,10 +307,6 @@
   cursor: pointer;
 }
 
-.board-item--preview-hover {
-  background: rgba(255, 255, 255, 0.12);
-}
-
 .board-actions--score {
   align-items: flex-end;
   justify-content: center;
