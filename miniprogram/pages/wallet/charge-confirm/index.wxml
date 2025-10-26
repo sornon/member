@@ -34,6 +34,41 @@
       </view>
     </view>
 
+    <view class="card" wx:if="{{order.adminRemark || order.priceAdjustmentVisible}}">
+      <view class="title">订单说明</view>
+      <view class="info-block" wx:if="{{order.adminRemark}}">
+        <view class="info-label">管理员备注</view>
+        <view class="info-text">{{order.adminRemark}}</view>
+      </view>
+      <view class="divider" wx:if="{{order.adminRemark && order.priceAdjustmentVisible}}"></view>
+      <view class="info-block" wx:if="{{order.priceAdjustmentVisible}}">
+        <view class="info-label">改价详情</view>
+        <view class="row adjust-row" wx:if="{{order.priceAdjustment && order.priceAdjustment.hasPrevious}}">
+          <text>调整前金额</text>
+          <text class="amount">{{order.priceAdjustment.previousAmountLabel}}</text>
+        </view>
+        <view class="row adjust-row" wx:if="{{order.priceAdjustment}}">
+          <text>调整后金额</text>
+          <text class="amount highlight">{{order.priceAdjustment.newAmountLabel}}</text>
+        </view>
+        <view class="adjust-meta" wx:if="{{order.priceAdjustment && order.priceAdjustment.adjustedAtLabel}}">
+          <text>调整时间：{{order.priceAdjustment.adjustedAtLabel}}</text>
+        </view>
+        <view
+          class="adjust-meta"
+          wx:if="{{order.priceAdjustment && (order.priceAdjustment.adjustedByName || order.priceAdjustment.adjustedBy)}}"
+        >
+          <text>调整人：{{order.priceAdjustment.adjustedByName || order.priceAdjustment.adjustedBy}}</text>
+        </view>
+        <view class="adjust-meta" wx:if="{{order.priceAdjustment && order.priceAdjustment.remark}}">
+          <text>备注：{{order.priceAdjustment.remark}}</text>
+        </view>
+        <view class="adjust-meta" wx:elif="{{order.priceAdjustmentRemark}}">
+          <text>备注：{{order.priceAdjustmentRemark}}</text>
+        </view>
+      </view>
+    </view>
+
     <button
       class="confirm"
       type="primary"

@@ -1463,8 +1463,57 @@ function mapChargeOrder(raw, orderId, now = new Date()) {
     updatedAt: resolveDate(raw.updatedAt),
     expireAt,
     memberId: raw.memberId || '',
-    confirmedAt: resolveDate(raw.confirmedAt)
+    confirmedAt: resolveDate(raw.confirmedAt),
+    adminRemark: typeof raw.adminRemark === 'string' ? raw.adminRemark : '',
+    adminPriceAdjustment: normalizeAdminPriceAdjustment(raw.adminPriceAdjustment),
+    adminPriceAdjustmentHistory: normalizeAdminPriceAdjustmentHistory(
+      raw.adminPriceAdjustmentHistory,
+      raw.adminPriceAdjustment
+    ),
+    priceAdjustment: normalizeAdminPriceAdjustment(raw.priceAdjustment),
+    priceAdjustmentRemark: typeof raw.priceAdjustmentRemark === 'string' ? raw.priceAdjustmentRemark : '',
+    originalTotalAmount: Number(raw.originalTotalAmount || 0) || 0
   };
+}
+
+function normalizeAdminPriceAdjustment(record) {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+  const previousAmount = Number(record.previousAmount || record.previous || 0);
+  const newAmount = Number(record.newAmount || record.current || record.amount || 0);
+  if (!newAmount || !Number.isFinite(newAmount) || newAmount <= 0) {
+    return null;
+  }
+  const remark = typeof record.remark === 'string' ? record.remark : '';
+  const adjustedAt = record.adjustedAt || record.updatedAt || record.createdAt || null;
+  const adjustedBy = typeof record.adjustedBy === 'string' ? record.adjustedBy : '';
+  const adjustedByName = typeof record.adjustedByName === 'string' ? record.adjustedByName : '';
+  return {
+    previousAmount,
+    newAmount,
+    remark,
+    adjustedAt,
+    adjustedBy,
+    adjustedByName
+  };
+}
+
+function normalizeAdminPriceAdjustmentHistory(history, latestRaw) {
+  const latest = normalizeAdminPriceAdjustment(latestRaw);
+  if (!Array.isArray(history)) {
+    return latest ? [latest] : [];
+  }
+  const normalized = history
+    .map((entry) => normalizeAdminPriceAdjustment(entry))
+    .filter(Boolean);
+  if (latest) {
+    const [first] = normalized;
+    if (!first || first.adjustedAt !== latest.adjustedAt || first.newAmount !== latest.newAmount) {
+      normalized.unshift(latest);
+    }
+  }
+  return normalized;
 }
 
 function resolveDate(value) {
