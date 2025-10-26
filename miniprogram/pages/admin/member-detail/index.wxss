@@ -855,19 +855,7 @@ page {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 16rpx;
-}
-
-.title-manager-item__toggle {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  font-size: 24rpx;
-  color: #dbe6ff;
-}
-
-.title-manager-item__toggle-label {
-  font-size: 24rpx;
+  justify-content: center;
 }
 
 .title-manager-item__remove {
