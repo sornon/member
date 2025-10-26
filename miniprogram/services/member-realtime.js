@@ -93,11 +93,19 @@ function setGlobalMember(member, options = {}) {
       return;
     }
     let sanitizedMember = member ? { ...member } : null;
+    const memberId =
+      sanitizedMember && typeof sanitizedMember === 'object'
+        ? sanitizedMember._id || sanitizedMember.id || ''
+        : '';
     const incomingSession = cloneProxySession(member && member.proxySession);
     const existingSession = cloneProxySession(app.globalData.proxySession);
-    let sessionToApply = incomingSession || existingSession || null;
+    let sessionToApply = incomingSession || null;
     if (options && options.resetProxySession) {
       sessionToApply = incomingSession || null;
+    } else if (!sessionToApply && existingSession) {
+      if (!memberId || memberId === existingSession.targetMemberId) {
+        sessionToApply = existingSession;
+      }
     }
     if (sessionToApply && sessionToApply.active === false) {
       sessionToApply = null;

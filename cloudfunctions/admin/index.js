@@ -254,6 +254,18 @@ function isCollectionNotExistsError(error) {
   return /collection not exist|database collection not exists|db or table not exist/i.test(message);
 }
 
+function isDocumentNotExistsError(error) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const code = typeof error.errCode !== 'undefined' ? error.errCode : error.code;
+  const message = typeof error.errMsg === 'string' ? error.errMsg : error.message || '';
+  if (code === -502002) {
+    return true;
+  }
+  return /document with _id .* does not exist|document not exist/i.test(message);
+}
+
 function isCollectionAlreadyExistsError(error) {
   if (!error || typeof error !== 'object') {
     return false;
@@ -1995,7 +2007,7 @@ async function getActiveProxySession(adminId) {
     }
     return session;
   } catch (error) {
-    if (isCollectionNotExistsError(error)) {
+    if (isCollectionNotExistsError(error) || isDocumentNotExistsError(error)) {
       return null;
     }
     console.error('[admin] 获取代理会话失败', error);
