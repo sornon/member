@@ -20,7 +20,6 @@
     <view class="section-title">基础资料</view>
     <view class="toolbar">
       <button class="recharge" size="mini" bindtap="showRechargeDialog">为该会员充值</button>
-      <button class="title-manager" size="mini" bindtap="openTitleManagerDialog">称号管理</button>
       <button
         wx:if="{{proxyLoginAvailable}}"
         class="proxy-login"
@@ -213,6 +212,14 @@
           <text class="avatar-permission-summary__note">C 级头像默认开放</text>
         </view>
         <button class="avatar-edit-button" size="mini" bindtap="showAvatarPermissionDialog">编辑头像权限</button>
+      </view>
+      <view class="form-item basic-info-grid__full">
+        <view class="form-label">称号管理</view>
+        <view class="title-manager-summary">
+          <text class="title-manager-summary__primary">{{titleSummary}}</text>
+          <text class="title-manager-summary__note">图片位于 /assets/title/，文件名无需后缀</text>
+        </view>
+        <button class="title-manager-button" size="mini" bindtap="openTitleManagerDialog">管理称号</button>
       </view>
     </view>
   </view>
@@ -471,6 +478,25 @@
 <view wx:if="{{titleManagerVisible}}" class="dialog-mask" bindtap="handleCloseTitleManager">
   <view class="title-manager-dialog" catchtap="noop" catchtouchmove="noop">
     <view class="title-manager-dialog__title">称号管理</view>
+    <view class="title-manager-owned">
+      <view class="title-manager-owned__label">会员已拥有的称号</view>
+      <view wx:if="{{titleManagerUnlockedEntries.length}}" class="title-manager-owned__list">
+        <view
+          wx:for="{{titleManagerUnlockedEntries}}"
+          wx:key="id"
+          class="title-manager-owned__item"
+        >
+          <image
+            wx:if="{{item.preview}}"
+            class="title-manager-owned__item-image"
+            src="{{item.preview}}"
+            mode="aspectFit"
+          ></image>
+          <text class="title-manager-owned__name">{{item.name}}</text>
+        </view>
+      </view>
+      <view wx:else class="title-manager-owned__empty">暂未解锁任何称号</view>
+    </view>
     <scroll-view scroll-y class="title-manager-dialog__content">
       <view wx:if="{{titleManagerEntries.length}}" class="title-manager-list">
         <block wx:for="{{titleManagerEntries}}" wx:key="id">
