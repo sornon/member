@@ -44,8 +44,8 @@
             ></image>
           </view>
           <view class="profile-info">
-            <view class="profile-name">{{archive.nickName || '神秘仙友'}}</view>
-            <view class="profile-meta">
+            <view class="profile-identity">
+              <view class="profile-name">{{archive.nickName || '神秘仙友'}}</view>
               <view wx:if="{{titleImage}}" class="profile-meta__title">
                 <image class="profile-meta__title-image" src="{{titleImage}}" mode="heightFix"></image>
               </view>

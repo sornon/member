@@ -143,18 +143,34 @@
 .board-info {
   flex: 1;
   display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.board-identity {
+  display: inline-flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  max-width: 100%;
+  gap: 4rpx;
 }
 
 .board-name {
   font-size: 30rpx;
   font-weight: 600;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .board-title {
   min-height: 40rpx;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .board-title__image {

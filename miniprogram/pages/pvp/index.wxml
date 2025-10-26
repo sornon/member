@@ -99,9 +99,11 @@
               ></image>
             </view>
             <view class="board-info">
-              <view class="board-name">{{item.nickName || '神秘仙友'}}</view>
-              <view wx:if="{{item.titleImage}}" class="board-title">
-                <image class="board-title__image" src="{{item.titleImage}}" mode="heightFix"></image>
+              <view class="board-identity">
+                <view class="board-name">{{item.nickName || '神秘仙友'}}</view>
+                <view wx:if="{{item.titleImage}}" class="board-title">
+                  <image class="board-title__image" src="{{item.titleImage}}" mode="heightFix"></image>
+                </view>
               </view>
             </view>
             <view class="board-actions board-actions--score">
