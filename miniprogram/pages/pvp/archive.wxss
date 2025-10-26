@@ -148,6 +148,7 @@
   justify-content: start;
   min-width: 0;
   height: 260rpx;
+  text-shadow: 1px 1px 0 #000;
 }
 
 .profile-name {
@@ -237,7 +238,7 @@
 }
 
 .panel-card {
-  background: rgba(15, 22, 54, 0.5);
+  background: rgba(15, 22, 54, 0.75);
   border-radius: 28rpx;
   padding: 28rpx 32rpx;
   box-shadow: 0 12rpx 32rpx rgba(12, 18, 48, 0.28);
@@ -288,7 +289,7 @@
 }
 
 .combat-label {
-  font-size: 20rpx;
+  font-size: 22rpx;
   color: rgba(245, 247, 255, 0.7);
 }
 
