@@ -49,6 +49,7 @@ const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'pvp' });
 const DEFAULT_SEASON_LENGTH_DAYS = 56;
 const MATCH_ROUND_LIMIT = 15;
 const LEADERBOARD_CACHE_SIZE = 100;
+const LEADERBOARD_CACHE_SCHEMA_VERSION = 2;
 const RECENT_MATCH_LIMIT = 10;
 const DEFAULT_RATING = 1200;
 const BATTLE_COOLDOWN_MS = 10 * 1000;
@@ -447,7 +448,8 @@ async function getLeaderboard(memberId, event = {}) {
   if (!season) {
     throw createError('SEASON_NOT_FOUND', '未找到对应赛季');
   }
-  const snapshot = await loadLeaderboardSnapshot(season._id, { limit, type });
+  const forceRefresh = !!(event && (event.refresh || event.forceRefresh));
+  const snapshot = await loadLeaderboardSnapshot(season._id, { limit, type, forceRefresh });
   const entries = (snapshot.entries || [])
     .slice(0, limit)
     .map((entry) => {
@@ -1736,22 +1738,50 @@ async function loadRecentMatches(memberId, seasonId) {
   return snapshot.data || [];
 }
 
-function leaderboardSnapshotMissingAvatarFrame(snapshot) {
-  if (!snapshot || !Array.isArray(snapshot.entries)) {
-    return false;
+function leaderboardSnapshotNeedsRefresh(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') {
+    return true;
   }
-  return snapshot.entries.some((entry) => entry && typeof entry === 'object' && !('avatarFrame' in entry));
+  if (snapshot.schemaVersion !== LEADERBOARD_CACHE_SCHEMA_VERSION) {
+    return true;
+  }
+  if (!Array.isArray(snapshot.entries)) {
+    return true;
+  }
+  return snapshot.entries.some((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return true;
+    }
+    if (!('avatarFrame' in entry)) {
+      return true;
+    }
+    if (!('titleCatalog' in entry) || !Array.isArray(entry.titleCatalog)) {
+      return true;
+    }
+    if (!('titleId' in entry)) {
+      return true;
+    }
+    if (!('titleName' in entry)) {
+      return true;
+    }
+    return false;
+  });
 }
 
-async function loadLeaderboardSnapshot(seasonId, { limit = LEADERBOARD_CACHE_SIZE, type = 'season' } = {}) {
+async function loadLeaderboardSnapshot(
+  seasonId,
+  { limit = LEADERBOARD_CACHE_SIZE, type = 'season', forceRefresh = false } = {}
+) {
   const docId = `${seasonId}_${type}`;
-  const snapshot = await db
-    .collection(COLLECTIONS.PVP_LEADERBOARD)
-    .doc(docId)
-    .get()
-    .catch(() => null);
-  if (snapshot && snapshot.data && !leaderboardSnapshotMissingAvatarFrame(snapshot.data)) {
-    return snapshot.data;
+  if (!forceRefresh) {
+    const snapshot = await db
+      .collection(COLLECTIONS.PVP_LEADERBOARD)
+      .doc(docId)
+      .get()
+      .catch(() => null);
+    if (snapshot && snapshot.data && !leaderboardSnapshotNeedsRefresh(snapshot.data)) {
+      return snapshot.data;
+    }
   }
   await updateLeaderboardCache(seasonId, { type, limit });
   const refreshed = await db
@@ -1829,7 +1859,8 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
     seasonId,
     type,
     entries,
-    updatedAt: new Date()
+    updatedAt: new Date(),
+    schemaVersion: LEADERBOARD_CACHE_SCHEMA_VERSION
   };
   const docId = `${seasonId}_${type}`;
   await db
