@@ -21,6 +21,16 @@
     <view class="toolbar">
       <button class="recharge" size="mini" bindtap="showRechargeDialog">为该会员充值</button>
       <button
+        wx:if="{{proxyLoginAvailable}}"
+        class="proxy-login"
+        size="mini"
+        loading="{{proxyLoginLoading}}"
+        disabled="{{proxyLoginLoading}}"
+        bindtap="handleProxyLogin"
+      >
+        上身
+      </button>
+      <button
         class="delete-member"
         size="mini"
         type="warn"

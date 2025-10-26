@@ -299,6 +299,8 @@ Page({
     loading: true,
     saving: false,
     deleting: false,
+    proxyLoginAvailable: false,
+    proxyLoginLoading: false,
     member: null,
     levels: [],
     levelIndex: 0,
@@ -447,6 +449,35 @@ Page({
     }
   },
 
+  resolveProxyLoginAvailability(member) {
+    if (!member || !member._id) {
+      return false;
+    }
+    try {
+      if (typeof getApp === 'function') {
+        const appInstance = getApp();
+        if (
+          appInstance &&
+          appInstance.globalData &&
+          appInstance.globalData.proxySession &&
+          appInstance.globalData.proxySession.active !== false
+        ) {
+          return false;
+        }
+      }
+    } catch (error) {
+      console.error('[admin:member] resolve proxy availability failed', error);
+    }
+    if (this.data.currentAdminId && member._id === this.data.currentAdminId) {
+      return false;
+    }
+    const roles = ensureMemberRole(member.roles);
+    if (roles.includes('admin') || roles.includes('developer')) {
+      return false;
+    }
+    return true;
+  },
+
   applyDetail(detail) {
     if (!detail || !detail.member) return;
     const { member, levels = [] } = detail;
@@ -502,7 +533,8 @@ Page({
       avatarDialogSelection: avatarUnlocks,
       avatarDialogOptionGroups: buildAvatarOptionGroups(avatarUnlocks),
       secretRealmSummary: '',
-      secretRealmError: ''
+      secretRealmError: '',
+      proxyLoginAvailable: this.resolveProxyLoginAvailability(member)
     });
     this.updatePveProfile(profileToApply, {
       skipSanitize: !hasNewProfile && !!existingProfile,
@@ -1214,6 +1246,33 @@ Page({
   },
 
   noop() {},
+
+  async handleProxyLogin() {
+    if (!this.data.proxyLoginAvailable || this.data.proxyLoginLoading) {
+      return;
+    }
+    const member = this.data.member;
+    const memberId = member && member._id ? member._id : '';
+    if (!memberId) {
+      return;
+    }
+    this.setData({ proxyLoginLoading: true });
+    wx.showLoading({ title: '正在上身', mask: true });
+    try {
+      await AdminService.proxyLogin(memberId);
+      wx.hideLoading();
+      wx.showToast({ title: '已切换身份', icon: 'success' });
+      setTimeout(() => {
+        wx.reLaunch({ url: '/pages/index/index?proxy=1' });
+      }, 300);
+    } catch (error) {
+      wx.hideLoading();
+      wx.showToast({ title: '上身失败，请重试', icon: 'none' });
+      console.error('[admin:member] proxy login failed', error);
+    } finally {
+      this.setData({ proxyLoginLoading: false });
+    }
+  },
 
   showRechargeDialog() {
     this.setData({ rechargeVisible: true, rechargeAmount: '' });

@@ -56,6 +56,14 @@ page {
   border: none;
 }
 
+.toolbar .proxy-login {
+  background: rgba(148, 163, 184, 0.16);
+  color: #dbeafe;
+  border-radius: 32rpx;
+  padding: 12rpx 24rpx;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
 .toolbar .delete-member {
   background: rgba(244, 63, 94, 0.14);
   color: #fda4af;

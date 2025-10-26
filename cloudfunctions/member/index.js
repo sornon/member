@@ -68,6 +68,79 @@ const STORAGE_REWARD_META = Object.freeze({
 });
 
 const ALLOWED_MEMBER_ROLES = new Set(['member', 'admin', 'developer', 'test']);
+const PROXY_SESSION_COLLECTION = COLLECTIONS.ADMIN_PROXY_SESSIONS || 'adminProxySessions';
+const PROXY_LOG_COLLECTION = COLLECTIONS.ADMIN_PROXY_LOGS || 'adminProxyLogs';
+
+const ensuredCollections = new Set();
+
+function isCollectionNotExistsError(error) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const code = typeof error.errCode !== 'undefined' ? error.errCode : error.code;
+  const message = typeof error.errMsg === 'string' ? error.errMsg : error.message || '';
+  if (code === -502005) {
+    return true;
+  }
+  return /collection not exist|database collection not exists|db or table not exist/i.test(message);
+}
+
+function isCollectionAlreadyExistsError(error) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const code = typeof error.errCode !== 'undefined' ? error.errCode : error.code;
+  const message = typeof error.errMsg === 'string' ? error.errMsg : error.message || '';
+  return code === -502004 || /already exist/i.test(message);
+}
+
+function isPermissionDeniedError(error) {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const code = typeof error.errCode !== 'undefined' ? error.errCode : error.code;
+  const message = typeof error.errMsg === 'string' ? error.errMsg : error.message || '';
+  return code === -501000 || /permission denied/i.test(message);
+}
+
+async function ensureCollectionExists(collectionName) {
+  if (!collectionName || ensuredCollections.has(collectionName)) {
+    return;
+  }
+  try {
+    await db
+      .collection(collectionName)
+      .limit(1)
+      .get();
+    ensuredCollections.add(collectionName);
+    return;
+  } catch (error) {
+    if (!isCollectionNotExistsError(error)) {
+      console.warn(`[member] 检查集合 ${collectionName} 失败`, error);
+      ensuredCollections.add(collectionName);
+      return;
+    }
+  }
+
+  try {
+    await db.createCollection(collectionName);
+    ensuredCollections.add(collectionName);
+  } catch (error) {
+    if (isCollectionAlreadyExistsError(error)) {
+      ensuredCollections.add(collectionName);
+      return;
+    }
+    if (isPermissionDeniedError(error)) {
+      throw new Error(`没有权限自动创建集合 ${collectionName}，请前往云开发控制台手动创建该集合。`);
+    }
+    console.error(`[member] 创建集合 ${collectionName} 失败`, error);
+    throw new Error(`创建集合 ${collectionName} 失败，请稍后重试或在云开发控制台手动创建。`);
+  }
+}
+
+async function ensureProxyLogCollection() {
+  await ensureCollectionExists(PROXY_LOG_COLLECTION);
+}
 
 const SUB_LEVEL_COUNT =
   Array.isArray(subLevelLabels) && subLevelLabels.length ? subLevelLabels.length : 10;
@@ -687,29 +760,203 @@ async function migrateRenameHistoryField(member) {
   member.renameHistory = [];
 }
 
+function normalizeProxyMemberId(value) {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  return '';
+}
+
+function sanitizeProxySessionPayload(session) {
+  if (!session || typeof session !== 'object') {
+    return null;
+  }
+  const targetMemberId = normalizeProxyMemberId(session.targetMemberId);
+  if (!targetMemberId) {
+    return null;
+  }
+  const payload = {
+    sessionId: session.sessionId || '',
+    adminId: normalizeProxyMemberId(session.adminId) || '',
+    adminName: typeof session.adminName === 'string' ? session.adminName : '',
+    targetMemberId,
+    targetMemberName: typeof session.targetMemberName === 'string' ? session.targetMemberName : '',
+    startedAt: session.startedAt || session.createdAt || session.updatedAt || null,
+    active: session.active !== false
+  };
+  if (session.endedAt) {
+    payload.endedAt = session.endedAt;
+  }
+  return payload;
+}
+
+async function resolveProxySessionForAdmin(adminId) {
+  const normalizedAdminId = normalizeProxyMemberId(adminId);
+  if (!normalizedAdminId) {
+    return null;
+  }
+  try {
+    const snapshot = await db.collection(PROXY_SESSION_COLLECTION).doc(normalizedAdminId).get();
+    if (!snapshot || !snapshot.data) {
+      return null;
+    }
+    const session = { ...snapshot.data };
+    if (session.active === false) {
+      return null;
+    }
+    if (!session.sessionId) {
+      session.sessionId = `proxy_${Date.now()}_${Math.floor(Math.random() * 1000000)}`;
+    }
+    if (!session.adminId) {
+      session.adminId = normalizedAdminId;
+    }
+    if (!session.startedAt && (session.createdAt || session.updatedAt)) {
+      session.startedAt = session.createdAt || session.updatedAt;
+    }
+    return sanitizeProxySessionPayload(session);
+  } catch (error) {
+    if (isCollectionNotExistsError(error)) {
+      return null;
+    }
+    console.error('[member] 获取代理会话失败', error);
+    return null;
+  }
+}
+
+function sanitizeProxyActionEvent(event) {
+  if (!event || typeof event !== 'object') {
+    return null;
+  }
+  const allowedKeys = [
+    'action',
+    'type',
+    'operation',
+    'memberId',
+    'targetId',
+    'levelId',
+    'amount',
+    'remark',
+    'updates',
+    'profile'
+  ];
+  const payload = {};
+  allowedKeys.forEach((key) => {
+    if (!Object.prototype.hasOwnProperty.call(event, key)) {
+      return;
+    }
+    const value = event[key];
+    if (value === null || typeof value === 'undefined') {
+      return;
+    }
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      payload[key] = value;
+      return;
+    }
+    if (Array.isArray(value)) {
+      payload[key] = value
+        .filter((item) => typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean')
+        .slice(0, 5);
+      return;
+    }
+    if (typeof value === 'object') {
+      try {
+        payload[key] = JSON.parse(JSON.stringify(value));
+      } catch (error) {
+        payload[key] = '[object]';
+      }
+    }
+  });
+  return Object.keys(payload).length ? payload : null;
+}
+
+async function recordProxyActionUsage(session, actorId, action, event = {}) {
+  if (!session || !session.sessionId) {
+    return;
+  }
+  try {
+    await ensureProxyLogCollection();
+    const collection = db.collection(PROXY_LOG_COLLECTION);
+    const payload = {
+      sessionId: session.sessionId,
+      type: 'action',
+      adminId: session.adminId || actorId,
+      adminName: session.adminName || '',
+      actorId: actorId || session.adminId || '',
+      targetMemberId: session.targetMemberId || '',
+      targetMemberName: session.targetMemberName || '',
+      action: action || '',
+      createdAt: new Date()
+    };
+    const detail = sanitizeProxyActionEvent(event);
+    if (detail) {
+      payload.detail = detail;
+    }
+    await collection.add({ data: payload }).catch((error) => {
+      console.error('[member] record proxy action failed', error);
+      throw error;
+    });
+  } catch (error) {
+    console.error('[member] record proxy action failed', error);
+    throw error;
+  }
+}
+
+function attachProxySession(member, session) {
+  if (!member) {
+    return member;
+  }
+  if (!session) {
+    if (member.proxySession) {
+      const clone = { ...member };
+      delete clone.proxySession;
+      return clone;
+    }
+    return member;
+  }
+  const sanitized = sanitizeProxySessionPayload(session);
+  if (!sanitized) {
+    if (member.proxySession) {
+      const clone = { ...member };
+      delete clone.proxySession;
+      return clone;
+    }
+    return member;
+  }
+  return { ...member, proxySession: sanitized };
+}
+
 exports.main = async (event, context) => {
   const { OPENID } = cloud.getWXContext();
   const action = event.action || 'profile';
+  const proxySession = await resolveProxySessionForAdmin(OPENID);
+  const memberOpenId = proxySession && proxySession.targetMemberId ? proxySession.targetMemberId : OPENID;
+
+  if (proxySession) {
+    await recordProxyActionUsage(proxySession, OPENID, action, event || {});
+  }
 
   switch (action) {
     case 'init':
-      return initMember(OPENID, event.profile || {}, event || {});
+      return initMember(memberOpenId, event.profile || {}, event || {}, { proxySession, actorId: OPENID });
     case 'profile':
-      return getProfile(OPENID, event || {});
+      return getProfile(memberOpenId, event || {}, { proxySession, actorId: OPENID });
     case 'progress':
-      return getProgress(OPENID, event || {});
+      return getProgress(memberOpenId, event || {}, { proxySession, actorId: OPENID });
     case 'rights':
-      return getRights(OPENID);
+      return getRights(memberOpenId);
     case 'claimLevelReward':
-      return claimLevelReward(OPENID, event.levelId);
+      return claimLevelReward(memberOpenId, event.levelId, { proxySession, actorId: OPENID });
     case 'completeProfile':
-      return completeProfile(OPENID, event);
+      return completeProfile(memberOpenId, event, { proxySession, actorId: OPENID });
     case 'updateArchive':
-      return updateArchive(OPENID, event.updates || {});
+      return updateArchive(memberOpenId, event.updates || {}, { proxySession, actorId: OPENID });
     case 'redeemRenameCard':
-      return redeemRenameCard(OPENID, event.count || 1);
+      return redeemRenameCard(memberOpenId, event.count || 1, { proxySession, actorId: OPENID });
     case 'breakthrough':
-      return breakthrough(OPENID);
+      return breakthrough(memberOpenId, { proxySession, actorId: OPENID });
     case 'cacheVersions':
       return getCacheVersions();
     default:
@@ -717,11 +964,11 @@ exports.main = async (event, context) => {
   }
 };
 
-async function initMember(openid, profile = {}, options = {}) {
+async function initMember(openid, profile = {}, options = {}, context = {}) {
   const membersCollection = db.collection(COLLECTIONS.MEMBERS);
   const exist = await membersCollection.doc(openid).get().catch(() => null);
   if (exist && exist.data) {
-    return exist.data;
+    return attachProxySession({ ...exist.data }, context.proxySession);
   }
 
   const levels = await loadLevels();
@@ -793,32 +1040,32 @@ async function initMember(openid, profile = {}, options = {}) {
       }
     })
     .catch(() => {});
-  return { ...doc, _id: openid };
+  return attachProxySession({ ...doc, _id: openid }, context.proxySession);
 }
 
-async function getProfile(openid, options = {}) {
+async function getProfile(openid, options = {}, context = {}) {
   const [levels, memberDoc] = await Promise.all([
     loadLevels(),
     db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null)
   ]);
   if (!memberDoc || !memberDoc.data) {
-    await initMember(openid, options.profile || {}, options);
-    return getProfile(openid, options);
+    await initMember(openid, options.profile || {}, options, context);
+    return getProfile(openid, options, context);
   }
   const normalized = normalizeAssetFields(memberDoc.data);
   const { member: withDefaults } = await ensureArchiveDefaults(normalized);
   const synced = await ensureLevelSync(withDefaults, levels);
-  return decorateMember(synced, levels);
+  return attachProxySession(decorateMember(synced, levels), context.proxySession);
 }
 
-async function getProgress(openid, options = {}) {
+async function getProgress(openid, options = {}, context = {}) {
   const [levels, memberDoc] = await Promise.all([
     loadLevels(),
     db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null)
   ]);
   if (!memberDoc || !memberDoc.data) {
-    await initMember(openid, options.profile || {}, options);
-    return getProgress(openid, options);
+    await initMember(openid, options.profile || {}, options, context);
+    return getProgress(openid, options, context);
   }
   const normalized = normalizeAssetFields(memberDoc.data);
   const { member: withDefaults } = await ensureArchiveDefaults(normalized);
@@ -829,8 +1076,9 @@ async function getProgress(openid, options = {}) {
   const nextDiff = nextLevel ? Math.max(nextLevel.threshold - member.experience, 0) : 0;
   const claimedLevelRewards = normalizeClaimedLevelRewards(member.claimedLevelRewards, levels);
   const experience = Number(member.experience || 0);
+  const decoratedMember = attachProxySession(decorateMember(member, levels), context.proxySession);
   return {
-    member: decorateMember(member, levels),
+    member: decoratedMember,
     levels: levels.map((lvl) => ({
       _id: lvl._id,
       name: lvl.displayName || lvl.name,
@@ -904,7 +1152,7 @@ async function getRights(openid) {
   });
 }
 
-async function completeProfile(openid, payload = {}) {
+async function completeProfile(openid, payload = {}, context = {}) {
   const profile = payload.profile || {};
   const membersCollection = db.collection(COLLECTIONS.MEMBERS);
 
@@ -940,13 +1188,13 @@ async function completeProfile(openid, payload = {}) {
       avatarFrame,
       mobile,
       gender: genderValue
-    });
-    return getProfile(openid);
+    }, {}, context);
+    return getProfile(openid, {}, context);
   }
 
   if (!Object.keys(updates).length) {
     const levels = await loadLevels();
-    return decorateMember(normalizeAssetFields(existing.data), levels);
+    return attachProxySession(decorateMember(normalizeAssetFields(existing.data), levels), context.proxySession);
   }
 
   updates.updatedAt = new Date();
@@ -954,7 +1202,7 @@ async function completeProfile(openid, payload = {}) {
     data: updates
   });
 
-  return getProfile(openid);
+  return getProfile(openid, {}, context);
 }
 
 async function resolveMobile(payload) {
@@ -1745,12 +1993,12 @@ async function ensureArchiveDefaults(member) {
   return { member, extras, renameHistory };
 }
 
-async function updateArchive(openid, updates = {}) {
+async function updateArchive(openid, updates = {}, context = {}) {
   const membersCollection = db.collection(COLLECTIONS.MEMBERS);
   const existing = await membersCollection.doc(openid).get().catch(() => null);
   if (!existing || !existing.data) {
-    await initMember(openid, {});
-    return updateArchive(openid, updates);
+    await initMember(openid, {}, {}, context);
+    return updateArchive(openid, updates, context);
   }
 
   const normalized = normalizeAssetFields(existing.data);
@@ -1850,7 +2098,7 @@ async function updateArchive(openid, updates = {}) {
   }
 
   if (!Object.keys(patch).length) {
-    return decorateMember(member, levels);
+    return attachProxySession(decorateMember(member, levels), context.proxySession);
   }
 
   if (renamed) {
@@ -1863,10 +2111,10 @@ async function updateArchive(openid, updates = {}) {
     data: patch
   });
 
-  return getProfile(openid);
+  return getProfile(openid, {}, context);
 }
 
-async function redeemRenameCard(openid, count = 1) {
+async function redeemRenameCard(openid, count = 1, context = {}) {
   const quantity = Number(count);
   if (!Number.isFinite(quantity) || quantity <= 0) {
     throw createError('INVALID_QUANTITY', '改名卡数量无效');
@@ -1874,8 +2122,8 @@ async function redeemRenameCard(openid, count = 1) {
   const membersCollection = db.collection(COLLECTIONS.MEMBERS);
   const existing = await membersCollection.doc(openid).get().catch(() => null);
   if (!existing || !existing.data) {
-    await initMember(openid, {});
-    return redeemRenameCard(openid, count);
+    await initMember(openid, {}, {}, context);
+    return redeemRenameCard(openid, count, context);
   }
 
   const normalized = normalizeAssetFields(existing.data);
@@ -1902,17 +2150,17 @@ async function redeemRenameCard(openid, count = 1) {
     data: updatePayload
   });
 
-  return getProfile(openid);
+  return getProfile(openid, {}, context);
 }
 
-async function breakthrough(openid) {
+async function breakthrough(openid, context = {}) {
   const [levels, memberDoc] = await Promise.all([
     loadLevels(),
     db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null)
   ]);
   if (!memberDoc || !memberDoc.data) {
-    await initMember(openid, {});
-    return breakthrough(openid);
+    await initMember(openid, {}, {}, context);
+    return breakthrough(openid, context);
   }
 
   const normalized = normalizeAssetFields(memberDoc.data);
@@ -1953,7 +2201,7 @@ async function breakthrough(openid) {
         }
       })
       .catch(() => {});
-    return getProgress(openid);
+    return getProgress(openid, {}, context);
   }
 
   const threshold = typeof targetLevel.threshold === 'number' ? targetLevel.threshold : Number.POSITIVE_INFINITY;
@@ -1978,10 +2226,10 @@ async function breakthrough(openid) {
   member.pendingBreakthroughLevelId = '';
   await ensureLevelSync(member, levels);
 
-  return getProgress(openid);
+  return getProgress(openid, {}, context);
 }
 
-async function claimLevelReward(openid, levelId) {
+async function claimLevelReward(openid, levelId, context = {}) {
   if (typeof levelId !== 'string' || !levelId.trim()) {
     throw createError('INVALID_LEVEL', '无效的等级');
   }
@@ -1991,8 +2239,8 @@ async function claimLevelReward(openid, levelId) {
     db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null)
   ]);
   if (!memberDoc || !memberDoc.data) {
-    await initMember(openid, {});
-    return claimLevelReward(openid, targetLevelId);
+    await initMember(openid, {}, {}, context);
+    return claimLevelReward(openid, targetLevelId, context);
   }
 
   const normalized = normalizeAssetFields(memberDoc.data);
@@ -2047,7 +2295,7 @@ async function claimLevelReward(openid, levelId) {
 
   await grantLevelRewards(openid, level, levels);
 
-  return getProgress(openid);
+  return getProgress(openid, {}, context);
 }
 
 function decorateMember(member, levels) {
