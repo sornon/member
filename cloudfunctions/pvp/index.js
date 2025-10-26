@@ -1726,6 +1726,7 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
       item.appearance && item.appearance.avatarFrame,
       item.appearanceFrame
     );
+    const titleName = resolveLeaderboardTitleName(item);
     const payload = {
       rank: index + 1,
       memberId: item.memberId,
@@ -1733,6 +1734,7 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
       avatarUrl: item.memberSnapshot ? item.memberSnapshot.avatarUrl : '',
       tierId: item.tierId,
       tierName: item.tierName,
+      titleName,
       points: item.points,
       wins: item.wins,
       losses: item.losses,
@@ -1764,6 +1766,34 @@ async function updateLeaderboardCache(seasonId, { type = 'season', limit = LEADE
         throw error;
       }
     });
+}
+
+function resolveLeaderboardTitleName(profile) {
+  if (!profile || typeof profile !== 'object') {
+    return '';
+  }
+  const snapshot = profile.memberSnapshot && typeof profile.memberSnapshot === 'object' ? profile.memberSnapshot : {};
+  const appearanceSnapshot = snapshot.appearance && typeof snapshot.appearance === 'object' ? snapshot.appearance : {};
+  const appearance = profile.appearance && typeof profile.appearance === 'object' ? profile.appearance : {};
+  const candidates = [
+    snapshot.titleName,
+    snapshot.title,
+    appearanceSnapshot.titleName,
+    appearanceSnapshot.titleLabel,
+    appearanceSnapshot.titleDisplay,
+    appearance.titleName,
+    appearance.titleLabel,
+    appearance.titleDisplay,
+    profile.appearanceTitleName,
+    profile.titleName
+  ];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const candidate = toTrimmedString(candidates[i]);
+    if (candidate) {
+      return candidate;
+    }
+  }
+  return '';
 }
 
 function buildSeasonPayload(season) {
@@ -1817,13 +1847,68 @@ function buildMemberSnapshot(member) {
       member.appearanceFrame ||
       ''
   );
-  return {
+  const appearance = buildMemberAppearanceSnapshot(member);
+  const snapshot = {
     memberId: member._id || member.memberId || '',
     nickName: member.nickName || member.name || '无名仙友',
     avatarUrl: member.avatarUrl || '',
     levelName: level.name || level.label || '',
     avatarFrame
   };
+  const portrait = toTrimmedString(member.portrait);
+  if (portrait) {
+    snapshot.portrait = portrait;
+  }
+  if (appearance) {
+    snapshot.appearance = appearance;
+    if (appearance.titleName) {
+      snapshot.titleName = appearance.titleName;
+    }
+  }
+  return snapshot;
+}
+
+function buildMemberAppearanceSnapshot(member) {
+  if (!member) {
+    return null;
+  }
+  const appearance = member.appearance && typeof member.appearance === 'object' ? member.appearance : {};
+  const payload = {};
+  const avatarFrame = normalizeAvatarFrameValue(
+    appearance.avatarFrame ||
+      member.appearanceFrame ||
+      member.avatarFrame ||
+      ''
+  );
+  if (avatarFrame) {
+    payload.avatarFrame = avatarFrame;
+  }
+  const titleId =
+    toTrimmedString(member.appearanceTitle) ||
+    toTrimmedString(appearance.titleId) ||
+    toTrimmedString(appearance.titleKey) ||
+    toTrimmedString(appearance.titleCode);
+  if (titleId) {
+    payload.titleId = titleId;
+  }
+  const titleNameCandidates = [
+    member.appearanceTitleName,
+    appearance.titleName,
+    appearance.titleLabel,
+    appearance.titleDisplay,
+    appearance.title
+  ];
+  for (let i = 0; i < titleNameCandidates.length; i += 1) {
+    const candidate = toTrimmedString(titleNameCandidates[i]);
+    if (candidate) {
+      payload.titleName = candidate;
+      break;
+    }
+  }
+  if (!Object.keys(payload).length) {
+    return null;
+  }
+  return payload;
 }
 
 function buildCombatSnapshot(member) {
