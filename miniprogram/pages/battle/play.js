@@ -11,6 +11,7 @@ const {
   normalizeBackgroundId
 } = require('../../shared/backgrounds');
 const { CHARACTER_IMAGE_BASE_PATH, buildCloudAssetUrl } = require('../../shared/asset-paths');
+const { FIGURE_SCALE_CLASS_MAP } = require('../../shared/figure-scale');
 
 const ARENA_BACKGROUND_VIDEO = buildCloudAssetUrl('background', 'battle-stage.mp4');
 const SECRET_REALM_BACKGROUND_VIDEO = buildCloudAssetUrl('background', 'mijing.mp4');
@@ -1258,6 +1259,31 @@ Page({
     const backgroundVideo = defenderBackground || viewModel.backgroundVideo || DEFAULT_BACKGROUND_VIDEO;
     const stagePlayer = viewModel.player ? { ...viewModel.player } : {};
     const stageOpponent = viewModel.opponent ? { ...viewModel.opponent } : {};
+
+    let forceBossFigureScale = false;
+    if (this.mode === 'pve' && viewModel && viewModel.result) {
+      const enemies = Array.isArray(viewModel.result.enemies) ? viewModel.result.enemies : [];
+      if (enemies.length) {
+        const firstEnemy = enemies[0] || {};
+        const enemyType =
+          typeof firstEnemy.type === 'string' ? firstEnemy.type.trim().toLowerCase() : '';
+        if (enemyType === 'boss') {
+          forceBossFigureScale = true;
+        }
+      }
+    }
+
+    if (forceBossFigureScale) {
+      const sssClass = (FIGURE_SCALE_CLASS_MAP && FIGURE_SCALE_CLASS_MAP.sss) || 'figure-scale--sss';
+      if (stageOpponent && typeof stageOpponent === 'object') {
+        stageOpponent.figureScaleClass = sssClass;
+        stageOpponent.figureRarity = 'sss';
+      }
+      if (viewModel.opponent && typeof viewModel.opponent === 'object') {
+        viewModel.opponent.figureScaleClass = sssClass;
+        viewModel.opponent.figureRarity = 'sss';
+      }
+    }
 
     if (stagePlayer.isBot) {
       stagePlayer.avatar = BATTLE_BOT_AVATAR_IMAGE;
