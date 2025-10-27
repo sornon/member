@@ -90,6 +90,10 @@ const FIGURE_RARITY_NESTED_FIELDS = [
   'profile'
 ];
 
+const SECRET_REALM_CATEGORY_KEY = 'secretrealm';
+const SECRET_REALM_ID_PREFIX = 'secret_';
+const FIGURE_SCALE_SS_CLASS = resolveFigureScaleClassByRarity('ss');
+
 const TITLE_ID_FIELDS = [
   'appearanceTitle',
   'titleId',
@@ -293,6 +297,159 @@ function resolveFigureRarityFromCandidates({ direct = [], sources = [], urls = [
     }
   }
   return '';
+}
+
+function extractPositiveInteger(value) {
+  if (typeof value === 'number') {
+    const int = Math.floor(value);
+    return Number.isFinite(int) && int > 0 ? int : 0;
+  }
+  if (typeof value === 'string') {
+    const match = value.match(/(\d+)/);
+    if (match) {
+      const parsed = parseInt(match[1], 10);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    }
+  }
+  return 0;
+}
+
+function extractSecretRealmFloorFromId(value) {
+  if (typeof value !== 'string') {
+    return 0;
+  }
+  const trimmed = value.trim();
+  if (!trimmed.startsWith(SECRET_REALM_ID_PREFIX)) {
+    return 0;
+  }
+  const match = trimmed.match(/_(\d{1,3})$/);
+  if (!match) {
+    return 0;
+  }
+  const parsed = parseInt(match[1], 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function collectSecretRealmBossIndicator(meta, candidate) {
+  if (!candidate) {
+    return;
+  }
+  if (typeof candidate === 'string') {
+    const normalized = candidate.trim().toLowerCase();
+    if (normalized === 'boss') {
+      meta.isBoss = true;
+    }
+    return;
+  }
+  if (typeof candidate === 'object') {
+    if (candidate.type) {
+      collectSecretRealmBossIndicator(meta, candidate.type);
+    }
+    if (candidate.code) {
+      collectSecretRealmBossIndicator(meta, candidate.code);
+    }
+    if (candidate.key) {
+      collectSecretRealmBossIndicator(meta, candidate.key);
+    }
+    if (candidate.name) {
+      collectSecretRealmBossIndicator(meta, candidate.name);
+    }
+    if (candidate.label) {
+      collectSecretRealmBossIndicator(meta, candidate.label);
+    }
+  }
+}
+
+function updateSecretRealmFloor(meta, candidate) {
+  const value = extractPositiveInteger(candidate);
+  if (!value) {
+    return;
+  }
+  if (value > meta.floor) {
+    meta.floor = value;
+  }
+}
+
+function collectSecretRealmMeta(meta, source, visited = new Set()) {
+  if (source === null || source === undefined) {
+    return;
+  }
+  if (visited.has(source)) {
+    return;
+  }
+  if (Array.isArray(source)) {
+    visited.add(source);
+    for (let i = 0; i < source.length; i += 1) {
+      collectSecretRealmMeta(meta, source[i], visited);
+    }
+    return;
+  }
+  if (typeof source !== 'object') {
+    return;
+  }
+  visited.add(source);
+
+  const categoryCandidates = [source.category, source.enemyCategory];
+  for (let i = 0; i < categoryCandidates.length; i += 1) {
+    const candidate = toTrimmedString(categoryCandidates[i]).toLowerCase();
+    if (candidate && candidate === SECRET_REALM_CATEGORY_KEY) {
+      meta.isSecretRealm = true;
+      break;
+    }
+  }
+
+  const idCandidates = [source.id, source.enemyId, source.enemyID, source.enemyCode, source.enemyKey];
+  for (let i = 0; i < idCandidates.length; i += 1) {
+    const candidate = toTrimmedString(idCandidates[i]);
+    if (!candidate) {
+      continue;
+    }
+    if (candidate.startsWith(SECRET_REALM_ID_PREFIX)) {
+      meta.isSecretRealm = true;
+      updateSecretRealmFloor(meta, extractSecretRealmFloorFromId(candidate));
+    }
+  }
+
+  const floorCandidates = [source.floor, source.floorNumber, source.enemyFloor];
+  for (let i = 0; i < floorCandidates.length; i += 1) {
+    updateSecretRealmFloor(meta, floorCandidates[i]);
+  }
+
+  const floorLabelCandidates = [source.floorLabel, source.stageLabel, source.stageName];
+  for (let i = 0; i < floorLabelCandidates.length; i += 1) {
+    const candidate = floorLabelCandidates[i];
+    if (typeof candidate === 'string') {
+      updateSecretRealmFloor(meta, candidate);
+    }
+  }
+
+  collectSecretRealmBossIndicator(meta, source.type);
+  collectSecretRealmBossIndicator(meta, source.enemyType);
+  collectSecretRealmBossIndicator(meta, source.tier);
+  collectSecretRealmBossIndicator(meta, source.tierKey);
+  collectSecretRealmBossIndicator(meta, source.tierCode);
+  collectSecretRealmBossIndicator(meta, source.tierName);
+
+  const keys = Object.keys(source);
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
+    if (!Object.prototype.hasOwnProperty.call(source, key)) {
+      continue;
+    }
+    const value = source[key];
+    if (!value || typeof value === 'function') {
+      continue;
+    }
+    if (Array.isArray(value) || typeof value === 'object') {
+      collectSecretRealmMeta(meta, value, visited);
+    }
+  }
+}
+
+function resolveSecretRealmMetaFromSources(sources = []) {
+  const meta = { isSecretRealm: false, floor: 0, isBoss: false };
+  collectSecretRealmMeta(meta, sources, new Set());
+  return meta;
 }
 
 function looksLikeUrl(value) {
@@ -2413,7 +2570,14 @@ function buildStructuredBattleViewModel({
     ]
   });
   const playerFigureScaleClass = resolveFigureScaleClassByRarity(playerRarity);
-  const opponentFigureScaleClass = resolveFigureScaleClassByRarity(opponentRarity);
+  let opponentFigureScaleClass = resolveFigureScaleClassByRarity(opponentRarity);
+
+  if (opponentFigureScaleClass === FIGURE_SCALE_SS_CLASS) {
+    const secretRealmMeta = resolveSecretRealmMetaFromSources(opponentRelatedSources);
+    if (secretRealmMeta.isSecretRealm && secretRealmMeta.floor > 0 && secretRealmMeta.floor % 10 !== 0) {
+      opponentFigureScaleClass = '';
+    }
+  }
 
   return {
     player: {
