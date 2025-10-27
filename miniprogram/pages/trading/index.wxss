@@ -4,20 +4,20 @@ page {
 }
 
 .trading-container {
-  padding: 120rpx 32rpx 48rpx;
+  padding: 96rpx 24rpx 36rpx;
   display: flex;
   flex-direction: column;
-  gap: 32rpx;
+  gap: 20rpx;
   box-sizing: border-box;
-  padding-bottom: calc(48rpx + constant(safe-area-inset-bottom));
-  padding-bottom: calc(48rpx + env(safe-area-inset-bottom));
+  padding-bottom: calc(36rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(36rpx + env(safe-area-inset-bottom));
   color: #e7ecff;
 }
 
 .trading-panel {
   background: rgba(14, 22, 54, 0.92);
-  border-radius: 24rpx;
-  padding: 32rpx;
+  border-radius: 20rpx;
+  padding: 24rpx;
   color: #f4f6ff;
   box-shadow: 0 18rpx 36rpx rgba(4, 8, 28, 0.55);
   border: 1rpx solid rgba(119, 138, 230, 0.24);
@@ -30,37 +30,38 @@ page {
 }
 
 .trading-balance-card__label {
-  font-size: 32rpx;
+  font-size: 26rpx;
   font-weight: 600;
 }
 
 .trading-balance-card__value {
-  font-size: 48rpx;
+  font-size: 36rpx;
   font-weight: 700;
   color: #ffd571;
 }
 
 .trading-balance-card__meta {
-  margin-top: 16rpx;
-  font-size: 24rpx;
+  margin-top: 12rpx;
+  font-size: 20rpx;
   color: rgba(244, 246, 255, 0.7);
 }
 
 .trading-balance-card__actions {
-  margin-top: 28rpx;
+  margin-top: 20rpx;
   display: flex;
-  gap: 20rpx;
+  gap: 16rpx;
 }
 
 .trading-primary-button {
   flex: 1;
-  padding: 24rpx 0;
+  padding: 16rpx 0;
   border-radius: 999rpx;
   background: linear-gradient(135deg, #4e7bff 0%, #6a9bff 100%);
   color: #fff;
   font-weight: 600;
   text-align: center;
   border: none;
+  font-size: 24rpx;
 }
 
 .trading-primary-button::after {
@@ -69,13 +70,14 @@ page {
 
 .trading-secondary-button {
   flex: 1;
-  padding: 24rpx 0;
+  padding: 16rpx 0;
   border-radius: 999rpx;
   background: transparent;
   border: 2rpx solid rgba(255, 255, 255, 0.3);
   color: #f4f6ff;
   font-weight: 600;
   text-align: center;
+  font-size: 24rpx;
 }
 
 .trading-secondary-button::after {
@@ -84,13 +86,14 @@ page {
 
 .trading-danger-button {
   flex: 1;
-  padding: 24rpx 0;
+  padding: 16rpx 0;
   border-radius: 999rpx;
   background: rgba(255, 92, 92, 0.2);
   color: #ff7a7a;
   border: 2rpx solid rgba(255, 122, 122, 0.5);
   font-weight: 600;
   text-align: center;
+  font-size: 24rpx;
 }
 
 .trading-danger-button::after {
@@ -108,13 +111,13 @@ page {
 }
 
 .trading-stats__label {
-  font-size: 24rpx;
+  font-size: 20rpx;
   color: rgba(244, 246, 255, 0.7);
 }
 
 .trading-stats__value {
-  margin-top: 8rpx;
-  font-size: 32rpx;
+  margin-top: 6rpx;
+  font-size: 26rpx;
   font-weight: 600;
 }
 
@@ -122,16 +125,16 @@ page {
   display: flex;
   background: rgba(10, 14, 34, 0.9);
   border-radius: 999rpx;
-  padding: 8rpx;
+  padding: 6rpx;
 }
 
 .trading-tab {
   flex: 1;
   text-align: center;
-  padding: 16rpx 0;
+  padding: 12rpx 0;
   color: rgba(244, 246, 255, 0.7);
   border-radius: 999rpx;
-  font-size: 28rpx;
+  font-size: 24rpx;
 }
 
 .trading-tab--active {
@@ -152,13 +155,13 @@ page {
 .trading-list {
   display: grid;
   grid-template-columns: repeat(1, 1fr);
-  gap: 24rpx;
+  gap: 16rpx;
 }
 
 .trading-card {
   background: rgba(12, 18, 38, 0.85);
-  border-radius: 24rpx;
-  padding: 28rpx;
+  border-radius: 20rpx;
+  padding: 20rpx;
   border: 2rpx solid rgba(110, 152, 255, 0.12);
   transition: transform 0.2s ease, border-color 0.2s ease;
 }
@@ -180,52 +183,52 @@ page {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12rpx;
+  margin-bottom: 8rpx;
 }
 
 .trading-card__title {
-  font-size: 32rpx;
+  font-size: 26rpx;
   font-weight: 600;
   color: #ffffff;
 }
 
 .trading-card__status {
-  font-size: 24rpx;
-  padding: 8rpx 20rpx;
+  font-size: 20rpx;
+  padding: 6rpx 16rpx;
   border-radius: 999rpx;
   background: rgba(110, 152, 255, 0.2);
   color: #bfd2ff;
 }
 
 .trading-card__meta {
-  font-size: 24rpx;
+  font-size: 20rpx;
   color: rgba(244, 246, 255, 0.7);
-  margin-bottom: 8rpx;
+  margin-bottom: 6rpx;
 }
 
 .trading-card__price {
-  font-size: 32rpx;
+  font-size: 26rpx;
   font-weight: 600;
   color: #ffd571;
 }
 
 .trading-card__sub {
   margin-top: 4rpx;
-  font-size: 24rpx;
+  font-size: 20rpx;
   color: rgba(255, 213, 113, 0.72);
 }
 
 .trading-card__footer {
-  margin-top: 16rpx;
+  margin-top: 12rpx;
   display: flex;
   justify-content: space-between;
-  font-size: 22rpx;
+  font-size: 18rpx;
   color: rgba(244, 246, 255, 0.6);
 }
 
 .trading-card__hint {
-  margin-top: 12rpx;
-  font-size: 24rpx;
+  margin-top: 8rpx;
+  font-size: 20rpx;
   color: rgba(255, 213, 113, 0.8);
 }
 
@@ -260,8 +263,8 @@ page {
   width: 92%;
   max-width: 640rpx;
   background: rgba(12, 18, 38, 0.95);
-  border-radius: 32rpx;
-  padding: 32rpx;
+  border-radius: 24rpx;
+  padding: 24rpx;
   color: #f4f6ff;
   box-shadow: 0 18rpx 60rpx rgba(0, 0, 0, 0.45);
 }
@@ -270,18 +273,18 @@ page {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24rpx;
+  margin-bottom: 16rpx;
 }
 
 .trading-modal__title {
-  font-size: 36rpx;
+  font-size: 28rpx;
   font-weight: 600;
 }
 
 .trading-modal__close {
-  font-size: 48rpx;
+  font-size: 40rpx;
   line-height: 1;
-  padding: 0 8rpx;
+  padding: 0 6rpx;
   color: rgba(244, 246, 255, 0.7);
 }
 
@@ -292,30 +295,30 @@ page {
 
 .trading-modal__message {
   text-align: center;
-  padding: 48rpx 0;
+  padding: 32rpx 0;
   color: rgba(244, 246, 255, 0.7);
 }
 
 .trading-form-item {
-  margin-bottom: 24rpx;
+  margin-bottom: 16rpx;
 }
 
 .trading-form-item__label {
-  font-size: 26rpx;
-  margin-bottom: 12rpx;
+  font-size: 22rpx;
+  margin-bottom: 8rpx;
   color: rgba(244, 246, 255, 0.85);
 }
 
 .trading-form-item__hint {
-  margin-top: 8rpx;
-  font-size: 22rpx;
+  margin-top: 6rpx;
+  font-size: 18rpx;
   color: rgba(244, 246, 255, 0.55);
 }
 
 .trading-input {
   width: 100%;
-  padding: 18rpx 24rpx;
-  border-radius: 16rpx;
+  padding: 14rpx 18rpx;
+  border-radius: 12rpx;
   background: rgba(8, 11, 26, 0.9);
   color: #ffffff;
   border: 2rpx solid rgba(110, 152, 255, 0.25);
@@ -324,28 +327,29 @@ page {
 
 .trading-radio-group {
   display: flex;
-  gap: 32rpx;
+  gap: 20rpx;
   color: #f4f6ff;
+  font-size: 22rpx;
 }
 
 .trading-radio {
   display: flex;
   align-items: center;
-  gap: 8rpx;
+  gap: 6rpx;
 }
 
 .trading-picker {
-  padding: 18rpx 24rpx;
-  border-radius: 16rpx;
+  padding: 14rpx 18rpx;
+  border-radius: 12rpx;
   background: rgba(8, 11, 26, 0.9);
   color: #ffffff;
   border: 2rpx solid rgba(110, 152, 255, 0.25);
 }
 
 .trading-modal__footer {
-  margin-top: 24rpx;
+  margin-top: 16rpx;
   display: flex;
-  gap: 20rpx;
+  gap: 16rpx;
 }
 
 .trading-modal__footer--actions {
@@ -355,8 +359,8 @@ page {
 .trading-detail-row {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 16rpx;
-  font-size: 26rpx;
+  margin-bottom: 12rpx;
+  font-size: 22rpx;
 }
 
 .trading-detail-label {
@@ -370,14 +374,14 @@ page {
 }
 
 .trading-bid-history {
-  margin-top: 12rpx;
+  margin-top: 8rpx;
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
+  gap: 6rpx;
 }
 
 .trading-bid-history__item {
-  font-size: 24rpx;
+  font-size: 20rpx;
   color: rgba(244, 246, 255, 0.7);
 }
 
