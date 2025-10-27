@@ -2740,12 +2740,54 @@ const CONSUMABLE_LIBRARY = [
 
 const ENEMY_LIBRARY = buildSecretRealmLibrary();
 
+function buildEnemyStaticCache(enemies = []) {
+  const combatPower = Object.create(null);
+  const rewards = Object.create(null);
+  const rewardsText = Object.create(null);
+  const loot = Object.create(null);
+  const adminDetails = Object.create(null);
+
+  enemies.forEach((enemy) => {
+    if (!enemy || !enemy.id) {
+      return;
+    }
+    const identifier = enemy.id;
+    combatPower[identifier] = calculateCombatPower(enemy.stats, enemy.special || {});
+
+    const normalizedRewards = normalizeDungeonRewards(enemy.rewards);
+    rewards[identifier] = Object.freeze({ ...normalizedRewards });
+    rewardsText[identifier] = formatRewardText(normalizedRewards);
+
+    const decoratedLoot = decorateEnemyLoot(enemy.loot || []);
+    loot[identifier] = Object.freeze(decoratedLoot.map((item) => Object.freeze({ ...item })));
+
+    const details = buildEnemyPreviewDetails(enemy);
+    if (details) {
+      adminDetails[identifier] = details;
+    }
+  });
+
+  return {
+    combatPower,
+    rewards,
+    rewardsText,
+    loot,
+    adminDetails
+  };
+}
+
 const EQUIPMENT_MAP = buildMap(EQUIPMENT_LIBRARY);
 const CONSUMABLE_MAP = buildMap(CONSUMABLE_LIBRARY);
 const ENEMY_MAP = buildMap(ENEMY_LIBRARY);
 const SECRET_REALM_MAX_FLOOR = ENEMY_LIBRARY.length
   ? ENEMY_LIBRARY[ENEMY_LIBRARY.length - 1].floor
   : 0;
+const ENEMY_STATIC_CACHE = buildEnemyStaticCache(ENEMY_LIBRARY);
+const ENEMY_COMBAT_POWER_CACHE = ENEMY_STATIC_CACHE.combatPower;
+const ENEMY_REWARD_CACHE = ENEMY_STATIC_CACHE.rewards;
+const ENEMY_REWARD_TEXT_CACHE = ENEMY_STATIC_CACHE.rewardsText;
+const ENEMY_LOOT_CACHE = ENEMY_STATIC_CACHE.loot;
+const ENEMY_ADMIN_DETAILS_CACHE = ENEMY_STATIC_CACHE.adminDetails;
 const SECRET_REALM_RESET_BATCH_SIZE = 100;
 
 function resolveEnemyTarget(enemyId) {
@@ -6850,8 +6892,12 @@ function decorateSecretRealm(secretRealmState, attributeSummary, options = {}) {
   const normalized = normalizeSecretRealm(secretRealmState || {});
   const highestUnlockedFloor = normalized.highestUnlockedFloor || 1;
   const viewerIsAdmin = !!options.viewerIsAdmin;
+  const playerCombatPower = calculateCombatPower(
+    attributeSummary.finalStats || {},
+    attributeSummary.skillSummary || {}
+  );
   const decoratedFloors = ENEMY_LIBRARY.map((enemy) =>
-    decorateEnemy(enemy, attributeSummary, normalized, { viewerIsAdmin })
+    decorateEnemy(enemy, attributeSummary, normalized, { viewerIsAdmin, playerCombatPower })
   );
   const clearedCount = decoratedFloors.filter((floor) => floor.completed).length;
   const nextFloor = decoratedFloors.find((floor) => !floor.completed && !floor.locked);
@@ -6974,11 +7020,41 @@ function decorateSkillInventoryEntry(entry, profile) {
       : false
   };
 }
+function cloneRewardCacheEntry(entry) {
+  if (!entry) {
+    return null;
+  }
+  return {
+    exp: Number(entry.exp) || 0,
+    stones: Number(entry.stones) || 0,
+    attributePoints: Number(entry.attributePoints) || 0
+  };
+}
+
+function cloneLootCacheEntry(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  return list.map((item) => ({ ...item }));
+}
+
 function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) {
-  const combatPower = calculateCombatPower(enemy.stats, enemy.special || {});
-  const playerPower = calculateCombatPower(attributeSummary.finalStats || {}, attributeSummary.skillSummary || {});
-  const difficulty = resolveDifficultyLabel(playerPower, combatPower);
-  const rewards = normalizeDungeonRewards(enemy.rewards);
+  const enemyId = enemy && enemy.id ? enemy.id : '';
+  const cachedCombatPower =
+    enemyId && ENEMY_COMBAT_POWER_CACHE && ENEMY_COMBAT_POWER_CACHE[enemyId] != null
+      ? ENEMY_COMBAT_POWER_CACHE[enemyId]
+      : calculateCombatPower(enemy.stats, enemy.special || {});
+  const hasPlayerPower = typeof options.playerCombatPower === 'number' && Number.isFinite(options.playerCombatPower);
+  const playerPower = hasPlayerPower
+    ? options.playerCombatPower
+    : calculateCombatPower(attributeSummary.finalStats || {}, attributeSummary.skillSummary || {});
+  const difficulty = resolveDifficultyLabel(playerPower, cachedCombatPower);
+  const cachedRewards = enemyId && ENEMY_REWARD_CACHE ? ENEMY_REWARD_CACHE[enemyId] : null;
+  const rewards = cachedRewards ? cloneRewardCacheEntry(cachedRewards) : normalizeDungeonRewards(enemy.rewards);
+  const rewardsText =
+    enemyId && ENEMY_REWARD_TEXT_CACHE && ENEMY_REWARD_TEXT_CACHE[enemyId] != null
+      ? ENEMY_REWARD_TEXT_CACHE[enemyId]
+      : formatRewardText(rewards);
   const floors = secretRealmState && secretRealmState.floors ? secretRealmState.floors : {};
   const floorState = floors[enemy.id] || null;
   let highestUnlockedFloor = ENEMY_LIBRARY.length ? ENEMY_LIBRARY[0].floor : 1;
@@ -6993,7 +7069,13 @@ function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) 
   const victories = floorState && typeof floorState.victories === 'number' ? floorState.victories : 0;
   const statusLabel = locked ? '未解锁' : completed ? '已通关' : '可挑战';
   const viewerIsAdmin = !!options.viewerIsAdmin;
-  const adminEnemyDetails = viewerIsAdmin ? buildEnemyPreviewDetails(enemy) : null;
+  const cachedLoot = enemyId && ENEMY_LOOT_CACHE ? ENEMY_LOOT_CACHE[enemyId] : null;
+  const loot = cachedLoot ? cloneLootCacheEntry(cachedLoot) : decorateEnemyLoot(enemy.loot || []);
+  const adminEnemyDetails = viewerIsAdmin
+    ? (enemyId && ENEMY_ADMIN_DETAILS_CACHE && ENEMY_ADMIN_DETAILS_CACHE[enemyId]
+        ? ENEMY_ADMIN_DETAILS_CACHE[enemyId]
+        : buildEnemyPreviewDetails(enemy))
+    : null;
   return {
     id: enemy.id,
     name: enemy.name,
@@ -7002,11 +7084,11 @@ function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) 
     stats: enemy.stats,
     special: enemy.special || {},
     rewards,
-    rewardsText: formatRewardText(rewards),
-    loot: decorateEnemyLoot(enemy.loot || []),
-    combatPower,
+    rewardsText,
+    loot,
+    combatPower: cachedCombatPower,
     difficulty,
-    recommendedPower: combatPower,
+    recommendedPower: cachedCombatPower,
     floor: enemy.floor,
     floorLabel: enemy.floorLabel || `第${enemy.floor}层`,
     stageName: enemy.stageName || '',
