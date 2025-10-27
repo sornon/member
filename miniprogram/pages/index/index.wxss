@@ -121,7 +121,8 @@ page {
 .top-bar__actions {
   display: flex;
   align-items: flex-start;
-  gap: 24rpx;
+  justify-content: flex-end;
+  flex: 1;
 }
 
 .profile-card {
@@ -243,13 +244,12 @@ page {
 }
 .activity-panel {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
   gap: 24rpx;
-  position: absolute;
-  right: 24rpx;
-  top: 58rpx;
+  max-width: 400rpx;
+  margin-left: auto;
 }
 
 .activity-item {

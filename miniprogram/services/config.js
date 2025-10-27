@@ -11,7 +11,8 @@ export const CLOUD_FUNCTIONS = {
   BOOTSTRAP: 'bootstrap',
   MENU_ORDER: 'menuOrder',
   MENU_CATALOG: 'menuCatalog',
-  ACTIVITIES: 'activities'
+  ACTIVITIES: 'activities',
+  TRADING: 'trading'
 };
 
 export const COLLECTIONS = {
