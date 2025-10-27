@@ -946,7 +946,7 @@ Page({
       { icon: '🎊', label: '活动', url: '/pages/activities/index' },
       { icon: '🏪', label: '商城', url: '/pages/mall/index' },
       { icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
-      { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
+      { icon: '🎫', label: '权益', url: '/pages/rights/rights' },
       { icon: '🥊', label: '比武', url: '/pages/pvp/index' },
       { icon: '⚖️', label: '交易', url: '/pages/trading/index' }
     ],
