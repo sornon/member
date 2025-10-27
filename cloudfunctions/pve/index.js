@@ -754,7 +754,7 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
     realmShort: realm.shortName,
     realmOrder: realmIndex + 1,
     level: floorNumber,
-    name: `${stageName} · ${archetype.title}`,
+    name: `${archetype.title}`,
     description,
     attributes,
     stats,
