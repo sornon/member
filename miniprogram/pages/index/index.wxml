@@ -79,6 +79,10 @@
       </view>
 
       <view class="top-bar__actions">
+        <view class="trade-entry" bindtap="handleTradeTap">
+          <text class="trade-entry__icon">💹</text>
+          <view class="trade-entry__label">交易行</view>
+        </view>
         <view class="activity-panel">
           <view class="activity-item" wx:for="{{activityIcons}}" wx:key="label" data-url="{{item.url}}" data-label="{{item.label}}" bindtap="handleActivityTap">
             <view class="activity-icon">{{item.icon}}</view>

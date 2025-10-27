@@ -1991,6 +1991,10 @@ Page({
     }
   },
 
+  handleTradeTap() {
+    wx.navigateTo({ url: '/pages/trading/index' });
+  },
+
   handleActivityTap(event) {
     const { url, label } = event.currentTarget.dataset;
     if (url) {

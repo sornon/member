@@ -124,6 +124,35 @@ page {
   gap: 24rpx;
 }
 
+.trade-entry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16rpx 20rpx;
+  border-radius: 24rpx;
+  background: rgba(110, 152, 255, 0.2);
+  color: #f4f6ff;
+  min-width: 120rpx;
+  box-shadow: 0 8rpx 24rpx rgba(20, 40, 120, 0.25);
+}
+
+.trade-entry:active {
+  transform: translateY(4rpx);
+  background: rgba(110, 152, 255, 0.3);
+}
+
+.trade-entry__icon {
+  font-size: 40rpx;
+  line-height: 1;
+}
+
+.trade-entry__label {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  letter-spacing: 4rpx;
+}
+
 .profile-card {
   display: flex;
   align-items: center;
