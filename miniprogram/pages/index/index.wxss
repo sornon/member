@@ -247,7 +247,8 @@ page {
   flex-wrap: wrap;
   justify-content: flex-end;
   align-items: center;
-  gap: 24rpx;
+  column-gap: 24rpx;
+  row-gap: 0;
   align-content: flex-start;
   max-width: 400rpx;
   margin-left: auto;
