@@ -4,7 +4,7 @@ page {
 }
 
 .trading-container {
-  padding: 96rpx 24rpx 36rpx;
+  padding: 30rpx 24rpx 36rpx;
   display: flex;
   flex-direction: column;
   gap: 20rpx;
