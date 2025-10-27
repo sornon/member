@@ -8,7 +8,8 @@ const {
   subLevelLabels,
   DEFAULT_ADMIN_ROLES,
   pickPortraitUrl,
-  normalizeAvatarFrameValue
+  normalizeAvatarFrameValue,
+  buildCloudAssetUrl
 } = require('common-config');
 const { createProxyHelpers } = require('admin-proxy');
 const {
@@ -116,6 +117,11 @@ const MAX_LEVEL = 100;
 const MAX_SKILL_SLOTS = 3;
 const MAX_BATTLE_HISTORY = 15;
 const MAX_SKILL_HISTORY = 30;
+const BATTLE_HISTORY_LOG_LIMIT = 30;
+const BATTLE_ARCHIVE_LOG_LIMIT = 120;
+const BATTLE_ARCHIVE_MIGRATION_LIMIT = 2;
+const BATTLE_ARCHIVE_COLLECTION =
+  (COLLECTIONS && COLLECTIONS.MEMBER_BATTLE_ARCHIVE) || 'memberBattleArchive';
 const DEFAULT_SKILL_DRAW_CREDITS = 1;
 const BATTLE_COOLDOWN_MS = 10 * 1000;
 const BATTLE_COOLDOWN_MESSAGE = '您的上一场战斗还没结束，请稍后再战';
@@ -133,6 +139,8 @@ const ENEMY_COMBAT_DEFAULTS = {
   critRate: 0.05,
   critDamage: 1.5
 };
+
+const SECRET_REALM_BACKGROUND_VIDEO = buildCloudAssetUrl('background', 'mijing.mp4');
 
 const SECRET_REALM_BASE_STATS = {
   maxHp: 920,
@@ -189,7 +197,24 @@ const SECRET_REALM_TUNING = {
   }
 };
 
+const GLOBAL_PARAMETERS_TTL_MS = 60 * 1000;
+let cachedGlobalParameters = null;
+let cachedGlobalOverrides = null;
+let cachedGlobalParametersExpiresAt = 0;
+
 async function applyGlobalGameParameters() {
+  const now = Date.now();
+  if (cachedGlobalParameters && cachedGlobalParametersExpiresAt > now) {
+    try {
+      if (cachedGlobalOverrides) {
+        configureResourceDefaults(cachedGlobalOverrides);
+      }
+      return cachedGlobalParameters;
+    } catch (error) {
+      console.error('[pve] reuse cached game parameters failed', error);
+    }
+  }
+
   try {
     const snapshot = await db
       .collection(COLLECTIONS.SYSTEM_SETTINGS)
@@ -197,14 +222,23 @@ async function applyGlobalGameParameters() {
       .get();
     const document = snapshot && snapshot.data ? snapshot.data : null;
     const parameters = resolveGameParametersFromDocument(document);
-    configureResourceDefaults(buildResourceConfigOverrides(parameters));
+    const overrides = buildResourceConfigOverrides(parameters);
+    configureResourceDefaults(overrides);
+    cachedGlobalParameters = parameters;
+    cachedGlobalOverrides = overrides;
+    cachedGlobalParametersExpiresAt = Date.now() + GLOBAL_PARAMETERS_TTL_MS;
     return parameters;
   } catch (error) {
     if (!(error && error.errMsg && /not exist|not found/i.test(error.errMsg))) {
       console.error('[pve] load game parameters failed', error);
     }
-    configureResourceDefaults(buildResourceConfigOverrides(DEFAULT_GAME_PARAMETERS));
-    return DEFAULT_GAME_PARAMETERS;
+    const fallback = DEFAULT_GAME_PARAMETERS;
+    const overrides = buildResourceConfigOverrides(fallback);
+    configureResourceDefaults(overrides);
+    cachedGlobalParameters = fallback;
+    cachedGlobalOverrides = overrides;
+    cachedGlobalParametersExpiresAt = Date.now() + GLOBAL_PARAMETERS_TTL_MS;
+    return fallback;
   }
 }
 
@@ -2799,6 +2833,70 @@ function resolveEnemyTarget(enemyId) {
   return null;
 }
 
+function buildSecretRealmImageUrl(enemyId, folder) {
+  if (typeof enemyId !== 'string') {
+    return '';
+  }
+  const trimmed = enemyId.trim();
+  if (!trimmed) {
+    return '';
+  }
+  const fileName = trimmed.endsWith('.png') ? trimmed : `${trimmed}.png`;
+  return buildCloudAssetUrl(folder, fileName);
+}
+
+function decorateEnemyVisuals(enemy) {
+  if (!enemy || typeof enemy !== 'object') {
+    return enemy;
+  }
+  const decorated = { ...enemy };
+  const enemyId =
+    (typeof decorated.id === 'string' && decorated.id.trim()) ||
+    (typeof decorated.enemyId === 'string' && decorated.enemyId.trim()) ||
+    '';
+
+  if (decorated.category === 'secretRealm' && enemyId) {
+    const resolvedAvatarUrl = buildSecretRealmImageUrl(enemyId, 'avatar');
+    const resolvedPortraitUrl = buildSecretRealmImageUrl(enemyId, 'character');
+    if (resolvedAvatarUrl && !decorated.avatarUrl) {
+      decorated.avatarUrl = resolvedAvatarUrl;
+    }
+    if (resolvedAvatarUrl && !decorated.avatar) {
+      decorated.avatar = resolvedAvatarUrl;
+    }
+    if (resolvedPortraitUrl && !decorated.portrait) {
+      decorated.portrait = resolvedPortraitUrl;
+    }
+    if (resolvedPortraitUrl && !decorated.image) {
+      decorated.image = resolvedPortraitUrl;
+    }
+
+    const scene = decorated.scene && typeof decorated.scene === 'object' ? { ...decorated.scene } : {};
+    if (!scene.video) {
+      scene.video = SECRET_REALM_BACKGROUND_VIDEO;
+    }
+    if (!scene.backgroundVideo) {
+      scene.backgroundVideo = SECRET_REALM_BACKGROUND_VIDEO;
+    }
+    decorated.scene = scene;
+
+    const background =
+      decorated.background && typeof decorated.background === 'object'
+        ? { ...decorated.background }
+        : {};
+    if (!background.video) {
+      background.video = SECRET_REALM_BACKGROUND_VIDEO;
+    }
+    decorated.background = background;
+
+    if (!decorated.backgroundVideo) {
+      decorated.backgroundVideo = SECRET_REALM_BACKGROUND_VIDEO;
+    }
+  }
+
+  return decorated;
+}
+
 async function loadMembershipLevels() {
   if (membershipLevelsCache && membershipLevelsCache.length) {
     return membershipLevelsCache;
@@ -2882,6 +2980,46 @@ function areStatsEqual(a = {}, b = {}) {
     const aValue = Number(a[key]) || 0;
     const bValue = Number(b[key]) || 0;
     if (Math.abs(aValue - bValue) > 0.0001) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function deepEqual(a, b) {
+  if (a === b) {
+    return true;
+  }
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') {
+    return Number.isNaN(a) && Number.isNaN(b);
+  }
+  if (a instanceof Date || b instanceof Date) {
+    const aTime = a instanceof Date ? a.getTime() : new Date(a).getTime();
+    const bTime = b instanceof Date ? b.getTime() : new Date(b).getTime();
+    return aTime === bTime;
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+      return false;
+    }
+    for (let i = 0; i < a.length; i += 1) {
+      if (!deepEqual(a[i], b[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) {
+    return false;
+  }
+  for (let i = 0; i < aKeys.length; i += 1) {
+    const key = aKeys[i];
+    if (!Object.prototype.hasOwnProperty.call(b, key)) {
+      return false;
+    }
+    if (!deepEqual(a[key], b[key])) {
       return false;
     }
   }
@@ -3025,6 +3163,9 @@ exports.main = async (event = {}) => {
       return getProfile(actorId, event);
     case 'battle':
       return simulateBattle(actorId, event.enemyId);
+    case 'battleArchive':
+    case 'battleReplay':
+      return loadBattleArchive(actorId, event);
     case 'drawSkill':
       return drawSkill(actorId, event);
     case 'equipSkill':
@@ -3076,15 +3217,16 @@ async function getProfile(actorId, options = {}) {
 }
 
 async function simulateBattle(actorId, enemyId) {
-  const member = await ensureMember(actorId);
-  const levels = await loadMembershipLevels();
+  const [member, levels] = await Promise.all([ensureMember(actorId), loadMembershipLevels()]);
   const profile = await ensurePveProfile(actorId, member, levels);
   const now = new Date();
   assertBattleCooldown(profile.lastBattleAt, now);
-  const enemy = resolveEnemyTarget(enemyId);
-  if (!enemy) {
+  const enemyDefinition = resolveEnemyTarget(enemyId);
+  if (!enemyDefinition) {
     throw createError('ENEMY_NOT_FOUND', '未找到指定的副本目标');
   }
+
+  const enemy = decorateEnemyVisuals(enemyDefinition);
 
   const secretRealmState = normalizeSecretRealm(profile.secretRealm || {});
   const highestUnlocked = secretRealmState.highestUnlockedFloor || 1;
@@ -3114,19 +3256,35 @@ async function simulateBattle(actorId, enemyId) {
   });
 
   const updatedProfile = applyBattleOutcome(profile, result, enemy, now, member, levels, formattedBattle);
+
+  await offloadBattleHistoryEntries(actorId, updatedProfile, {
+    now,
+    enemy,
+    battlePayload: formattedBattle
+  });
+
   const extraUpdates = {};
   if (result.rewards && result.rewards.stones > 0) {
     extraUpdates.stoneBalance = _.inc(result.rewards.stones);
   }
 
-  await savePveProfile(actorId, updatedProfile, {
+  const savePromise = savePveProfile(actorId, updatedProfile, {
     now,
     extraUpdates,
     historyDoc: profile.__historyDoc
   });
 
-  if (result.rewards && result.rewards.stones > 0) {
-    await recordStoneTransaction(actorId, result, enemy, now).catch(() => {});
+  const shouldRecordStones = result.rewards && result.rewards.stones > 0;
+  const recordPromise = shouldRecordStones
+    ? recordStoneTransaction(actorId, result, enemy, now).catch((error) => {
+        console.error('[pve] record stone transaction failed', error);
+      })
+    : null;
+
+  if (recordPromise) {
+    await Promise.all([savePromise, recordPromise]);
+  } else {
+    await savePromise;
   }
 
   return {
@@ -4743,20 +4901,31 @@ async function savePveProfile(actorId, profile, options = {}) {
     updatePayload.pveProfile = _.set(cloneProfileWithoutHistory(profile));
   }
 
-  await membersCollection.doc(actorId).update({
+  const updateMemberPromise = membersCollection.doc(actorId).update({
     data: updatePayload
   });
 
+  let historyPromise = null;
   if (options.saveHistory !== false) {
     const existingHistory = options.historyDoc || profile.__historyDoc || null;
     const battleHistory = profile && Array.isArray(profile.battleHistory) ? profile.battleHistory : [];
     const skillHistory = profile && Array.isArray(profile.skillHistory) ? profile.skillHistory : [];
-    const savedHistory = await savePveHistory(actorId, battleHistory, skillHistory, nowCandidate, existingHistory);
-    if (profile && typeof profile === 'object') {
-      profile.__historyDoc = savedHistory;
-      profile.battleHistory = savedHistory.battleHistory;
-      profile.skillHistory = savedHistory.skillHistory;
-    }
+    historyPromise = savePveHistory(actorId, battleHistory, skillHistory, nowCandidate, existingHistory).then(
+      (savedHistory) => {
+        if (profile && typeof profile === 'object') {
+          profile.__historyDoc = savedHistory;
+          profile.battleHistory = savedHistory.battleHistory;
+          profile.skillHistory = savedHistory.skillHistory;
+        }
+        return savedHistory;
+      }
+    );
+  }
+
+  if (historyPromise) {
+    await Promise.all([updateMemberPromise, historyPromise]);
+  } else {
+    await updateMemberPromise;
   }
 
   return nowCandidate;
@@ -4774,60 +4943,62 @@ async function attachHistoryToProfile(memberId, profile) {
 
 async function ensurePveProfile(actorId, member, levelCache) {
   const now = new Date();
-  let profile = member.pveProfile;
-  let changed = false;
-  if (!profile || typeof profile !== 'object') {
-    profile = buildDefaultProfile(now);
+  const rawProfile = member && member.pveProfile && typeof member.pveProfile === 'object' ? member.pveProfile : null;
+  const normalizedProfile = normalizeProfile(rawProfile || {}, now);
+  let profile = normalizedProfile;
+  let changed = !rawProfile || !deepEqual(rawProfile, normalizedProfile);
+
+  const levels = Array.isArray(levelCache) ? levelCache : await loadMembershipLevels();
+  let summaryDirty = false;
+  if (syncAttributesWithMemberLevel(profile.attributes, member, levels)) {
     changed = true;
-  } else {
-    const normalized = normalizeProfile(profile, now);
-    if (JSON.stringify(normalized) !== JSON.stringify(profile)) {
-      profile = normalized;
-      changed = true;
-    } else {
-      profile = normalized;
+    summaryDirty = true;
+  }
+
+  if (summaryDirty) {
+    refreshAttributeSummary(profile);
+  }
+
+  let historyDoc = profile.__historyDoc && typeof profile.__historyDoc === 'object' ? profile.__historyDoc : null;
+  if (!historyDoc) {
+    historyDoc = await loadPveHistory(actorId);
+  }
+
+  let battleHistory = Array.isArray(historyDoc.battleHistory) ? historyDoc.battleHistory : [];
+  let skillHistory = Array.isArray(historyDoc.skillHistory) ? historyDoc.skillHistory : [];
+  let historyChanged = false;
+
+  if (!historyDoc.exists) {
+    const normalizedBattle = Array.isArray(profile.battleHistory)
+      ? normalizeHistory(profile.battleHistory, MAX_BATTLE_HISTORY)
+      : [];
+    const normalizedSkill = Array.isArray(profile.skillHistory)
+      ? normalizeHistory(profile.skillHistory, MAX_SKILL_HISTORY)
+      : [];
+    if (normalizedBattle.length) {
+      battleHistory = normalizedBattle;
+      historyChanged = true;
+    }
+    if (normalizedSkill.length) {
+      skillHistory = normalizedSkill;
+      historyChanged = true;
     }
   }
 
-  const levels = Array.isArray(levelCache) ? levelCache : await loadMembershipLevels();
-  if (syncAttributesWithMemberLevel(profile.attributes, member, levels)) {
-    changed = true;
-  }
+  profile.battleHistory = battleHistory;
+  profile.skillHistory = skillHistory;
+  profile.__historyDoc = { ...historyDoc, battleHistory, skillHistory };
 
-  const previousSummary = profile.attributeSummary ? JSON.stringify(profile.attributeSummary) : null;
-  const refreshed = refreshAttributeSummary(profile);
-  if (!changed && previousSummary !== (refreshed ? JSON.stringify(refreshed) : null)) {
-    changed = true;
-  }
+  const shouldPersistProfile = changed;
+  const shouldPersistHistory = historyChanged;
 
-  const historyDoc = await loadPveHistory(actorId);
-  let historyChanged = false;
-  let battleHistory = historyDoc.battleHistory;
-  let skillHistory = historyDoc.skillHistory;
-
-  if ((!battleHistory || battleHistory.length === 0) && Array.isArray(profile.battleHistory) && profile.battleHistory.length) {
-    battleHistory = normalizeHistory(profile.battleHistory, MAX_BATTLE_HISTORY);
-    historyChanged = true;
-  }
-
-  if ((!skillHistory || skillHistory.length === 0) && Array.isArray(profile.skillHistory) && profile.skillHistory.length) {
-    skillHistory = normalizeHistory(profile.skillHistory, MAX_SKILL_HISTORY);
-    historyChanged = true;
-  }
-
-  profile.battleHistory = Array.isArray(battleHistory) ? battleHistory : [];
-  profile.skillHistory = Array.isArray(skillHistory) ? skillHistory : [];
-  profile.__historyDoc = { ...historyDoc, battleHistory: profile.battleHistory, skillHistory: profile.skillHistory };
-
-  const shouldPersistProfile = changed || historyChanged;
-  if (shouldPersistProfile) {
+  if (shouldPersistProfile || shouldPersistHistory) {
     await savePveProfile(actorId, profile, {
       now,
-      saveHistory: true,
-      historyDoc: profile.__historyDoc
+      historyDoc: profile.__historyDoc,
+      saveHistory: shouldPersistHistory,
+      skipProfile: !shouldPersistProfile
     });
-  } else if (!historyDoc.exists) {
-    await savePveHistory(actorId, profile.battleHistory, profile.skillHistory, now, historyDoc).catch(() => {});
   }
 
   return profile;
@@ -6100,8 +6271,16 @@ function decorateStorageInventoryItem(entry, fallbackCategory = '') {
 function decorateProfile(member, profile, options = {}) {
   const viewer = options.viewer || member;
   const viewerIsAdmin = isAdminMember(viewer);
-  const { attributes, equipment, skills } = profile;
-  const attributeSummary = calculateAttributes(attributes, equipment, skills);
+  const attributes = profile && profile.attributes ? profile.attributes : {};
+  const equipment = profile && profile.equipment ? profile.equipment : {};
+  const skills = profile && profile.skills ? profile.skills : {};
+  let attributeSummary = profile && typeof profile.attributeSummary === 'object' ? profile.attributeSummary : null;
+  if (!attributeSummary) {
+    attributeSummary = calculateAttributes(attributes, equipment, skills);
+    if (profile && typeof profile === 'object') {
+      profile.attributeSummary = attributeSummary;
+    }
+  }
   const equipmentSummary = decorateEquipment(profile, attributeSummary.equipmentBonus);
   const skillsSummary = decorateSkills(profile);
   const secretRealm = decorateSecretRealm(profile.secretRealm, attributeSummary, { viewerIsAdmin });
@@ -7134,10 +7313,13 @@ function decorateBattleHistory(history, profile, options = {}) {
     if (entry.type === 'battle') {
       const enemy = ENEMY_MAP[entry.enemyId] || { name: entry.enemyName || '未知对手' };
       const resultLabel = entry.result === 'win' ? '胜利' : entry.result === 'lose' ? '惜败' : '战斗';
-      const adminEnemyDetails = viewerIsAdmin
-        ? buildBattleEnemyDetails(entry, enemy)
-        : null;
-      const participants = entry.participants || (entry.battle && entry.battle.participants) || {};
+      const adminEnemyDetails = viewerIsAdmin ? buildBattleEnemyDetails(entry, enemy) : null;
+      const battleSource = entry.battle && typeof entry.battle === 'object' ? entry.battle : null;
+      const participantsSource =
+        (entry.participants && typeof entry.participants === 'object' ? entry.participants : null) ||
+        (battleSource && typeof battleSource.participants === 'object' ? battleSource.participants : null) ||
+        {};
+      const participants = participantsSource && typeof participantsSource === 'object' ? participantsSource : {};
       const playerParticipant =
         participants.player ||
         participants.self ||
@@ -7187,6 +7369,94 @@ function decorateBattleHistory(history, profile, options = {}) {
         entry.opponentAvatar ||
         (enemy && (enemy.avatarUrl || enemy.avatar)) ||
         '';
+      const logSource = Array.isArray(entry.log)
+        ? entry.log
+        : battleSource && Array.isArray(battleSource.log)
+        ? battleSource.log
+        : [];
+      const rawTimeline = Array.isArray(entry.timeline)
+        ? entry.timeline
+        : battleSource && Array.isArray(battleSource.timeline)
+        ? battleSource.timeline
+        : [];
+      const timeline = rawTimeline.filter((item) => item && typeof item === 'object');
+      const archiveId = entry.battleArchiveId || (battleSource && battleSource.archiveId) || null;
+      const metadataSource =
+        (entry.metadata && typeof entry.metadata === 'object' ? entry.metadata : null) ||
+        (battleSource && typeof battleSource.metadata === 'object' ? battleSource.metadata : null) ||
+        null;
+      const metadata = metadataSource ? { ...metadataSource } : { mode: 'pve' };
+      if (!metadata.mode) {
+        metadata.mode = 'pve';
+      }
+      const outcome = entry.outcome || (battleSource && battleSource.outcome) || null;
+      const rewards = entry.rewards || (battleSource && battleSource.rewards) || null;
+      const combatPower = entry.combatPower || (battleSource && battleSource.combatPower) || null;
+      const remaining = entry.remaining || (battleSource && battleSource.remaining) || null;
+      const rounds = entry.rounds || (battleSource && battleSource.rounds) || null;
+      const victory =
+        typeof entry.victory === 'boolean'
+          ? entry.victory
+          : battleSource && typeof battleSource.victory === 'boolean'
+          ? battleSource.victory
+          : entry.result === 'win';
+      const draw =
+        typeof entry.draw === 'boolean'
+          ? entry.draw
+          : battleSource && typeof battleSource.draw === 'boolean'
+          ? battleSource.draw
+          : entry.result === 'draw';
+
+      let battlePreview = null;
+      if (battleSource) {
+        battlePreview = { ...battleSource };
+        battlePreview.archiveId = archiveId;
+        if (!battlePreview.metadata) {
+          battlePreview.metadata = metadata;
+        } else if (!battlePreview.metadata.mode) {
+          battlePreview.metadata = { ...battlePreview.metadata, mode: 'pve' };
+        }
+        if (!battlePreview.participants && Object.keys(participants).length) {
+          battlePreview.participants = participants;
+        }
+        if (!battlePreview.outcome && outcome) {
+          battlePreview.outcome = outcome;
+        }
+        if (!battlePreview.rewards && rewards) {
+          battlePreview.rewards = rewards;
+        }
+        if (!battlePreview.combatPower && combatPower) {
+          battlePreview.combatPower = combatPower;
+        }
+        if (!battlePreview.remaining && remaining) {
+          battlePreview.remaining = remaining;
+        }
+        if (typeof battlePreview.victory !== 'boolean') {
+          battlePreview.victory = victory;
+        }
+        if (typeof battlePreview.draw !== 'boolean') {
+          battlePreview.draw = draw;
+        }
+        if (!Array.isArray(battlePreview.timeline) || !battlePreview.timeline.length) {
+          delete battlePreview.timeline;
+        }
+      } else if (archiveId) {
+        battlePreview = {
+          archiveId,
+          metadata,
+          participants,
+          outcome,
+          rewards,
+          combatPower,
+          remaining,
+          rounds,
+          victory,
+          draw
+        };
+      }
+
+      const replayAvailable = timeline.length > 0 || logSource.length > 0 || !!archiveId;
+
       return {
         type: 'battle',
         id: entry.id || entry.createdAt || `${entry.enemyId || 'battle'}-${index}`,
@@ -7197,13 +7467,13 @@ function decorateBattleHistory(history, profile, options = {}) {
         result: entry.result,
         resultLabel,
         summary: `${resultLabel} · ${enemy.name}`,
-        rewards: entry.rewards,
-        rewardsText: formatRewardText(entry.rewards),
-        rounds: entry.rounds,
-        combatPower: entry.combatPower,
-        log: Array.isArray(entry.log) ? entry.log : [],
-        timeline: Array.isArray(entry.timeline) ? entry.timeline : [],
-        participants: participants && Object.keys(participants).length ? participants : null,
+        rewards,
+        rewardsText: formatRewardText(rewards),
+        rounds,
+        combatPower,
+        log: logSource,
+        timeline,
+        participants: Object.keys(participants).length ? participants : null,
         playerPortrait: playerPortrait || '',
         opponentPortrait: opponentPortrait || '',
         playerAvatarUrl,
@@ -7217,6 +7487,9 @@ function decorateBattleHistory(history, profile, options = {}) {
           entry.opponentName ||
           (opponentParticipant && (opponentParticipant.displayName || opponentParticipant.name)) ||
           enemy.name,
+        ...(archiveId ? { battleArchiveId: archiveId } : {}),
+        ...(battlePreview ? { battle: battlePreview } : {}),
+        replayAvailable,
         ...(adminEnemyDetails ? { adminEnemyDetails } : {})
       };
     }
@@ -7900,7 +8173,12 @@ function formatStatsText(stats) {
   return texts;
 }
 function buildBattleSetup(profile, enemy, member) {
-  const attributes = calculateAttributes(profile.attributes, profile.equipment, profile.skills);
+  const attributes =
+    (profile && typeof profile.attributeSummary === 'object' && profile.attributeSummary) ||
+    calculateAttributes(profile.attributes, profile.equipment, profile.skills);
+  if (profile && typeof profile === 'object' && profile.attributeSummary !== attributes) {
+    profile.attributeSummary = attributes;
+  }
   const player = createPlayerCombatant(attributes);
   const enemyCombatant = createEnemyCombatant(enemy);
   const playerInfo = buildPlayerBattleInfo(profile, member, attributes, player);
@@ -8703,12 +8981,33 @@ function resolveBattleLoot(loot, insight) {
 }
 
 function applyBattleOutcome(profile, result, enemy, now, member, levels = [], battlePayload = null) {
-  const updated = normalizeProfile(profile, now);
-  updated.attributes.attributePoints =
-    (updated.attributes.attributePoints || 0) + (result.rewards.attributePoints || 0);
+  const updated = profile && typeof profile === 'object' ? profile : buildDefaultProfile(now);
 
-  if (Array.isArray(result.rewards.loot)) {
-    result.rewards.loot.forEach((item) => {
+  if (!updated.attributes || typeof updated.attributes !== 'object') {
+    updated.attributes = buildDefaultAttributes();
+  }
+  if (!updated.equipment || typeof updated.equipment !== 'object') {
+    updated.equipment = buildDefaultEquipment();
+  }
+  if (!updated.skills || typeof updated.skills !== 'object') {
+    updated.skills = buildDefaultSkills(now);
+  }
+  if (!Array.isArray(updated.battleHistory)) {
+    updated.battleHistory = [];
+  }
+  if (!Array.isArray(updated.skillHistory)) {
+    updated.skillHistory = [];
+  }
+  if (!updated.secretRealm || typeof updated.secretRealm !== 'object') {
+    updated.secretRealm = buildDefaultSecretRealmState();
+  }
+
+  const rewards = (result && result.rewards) || {};
+  const rewardAttributePoints = rewards.attributePoints || 0;
+  updated.attributes.attributePoints = (updated.attributes.attributePoints || 0) + rewardAttributePoints;
+
+  if (Array.isArray(rewards.loot)) {
+    rewards.loot.forEach((item) => {
       if (item.type === 'equipment') {
         ensureEquipmentOwned(updated, item.itemId, now);
       }
@@ -8724,8 +9023,7 @@ function applyBattleOutcome(profile, result, enemy, now, member, levels = [], ba
   syncAttributesWithMemberLevel(updated.attributes, member || {}, levels);
 
   if (enemy && enemy.category === 'secretRealm') {
-    updated.secretRealm = normalizeSecretRealm(updated.secretRealm || {});
-    const progress = updated.secretRealm || buildDefaultSecretRealmState();
+    const progress = normalizeSecretRealm(updated.secretRealm || {}, now);
     const floorState = progress.floors[enemy.id] || {};
     if (result.victory) {
       if (!floorState.clearedAt) {
@@ -8787,7 +9085,7 @@ function applyBattleOutcome(profile, result, enemy, now, member, levels = [], ba
     result: result.victory ? 'win' : result.draw ? 'draw' : 'lose',
     rounds: result.rounds,
     rewards: historyRewards,
-    log: historyLog,
+    log: trimBattleLog(historyLog, BATTLE_HISTORY_LOG_LIMIT),
     timeline: historyTimeline,
     participants: historyParticipants,
     outcome: historyOutcome,
@@ -8810,6 +9108,411 @@ function applyBattleOutcome(profile, result, enemy, now, member, levels = [], ba
   updated.lastBattleAt = now;
 
   return updated;
+}
+
+function trimBattleLog(log, limit = BATTLE_HISTORY_LOG_LIMIT) {
+  if (!Array.isArray(log) || limit <= 0) {
+    return [];
+  }
+  const normalizedLimit = Math.max(1, Math.floor(limit));
+  if (log.length <= normalizedLimit) {
+    return log.slice();
+  }
+  const sliceLength = Math.max(1, normalizedLimit - 1);
+  const trimmed = log.slice(0, sliceLength);
+  trimmed.push(`……（共 ${log.length} 条战斗日志，已截断）`);
+  return trimmed;
+}
+
+function expandBattleHistoryEntry(entry) {
+  if (!entry || entry.type !== 'battle' || !entry.battle || typeof entry.battle !== 'object') {
+    return entry;
+  }
+  const battle = entry.battle;
+  if (!entry.participants && battle.participants) {
+    entry.participants = battle.participants;
+  }
+  if (!entry.outcome && battle.outcome) {
+    entry.outcome = battle.outcome;
+  }
+  if (!entry.metadata && battle.metadata) {
+    entry.metadata = battle.metadata;
+  }
+  if (!entry.combatPower && battle.combatPower) {
+    entry.combatPower = battle.combatPower;
+  }
+  if (!entry.remaining && battle.remaining) {
+    entry.remaining = battle.remaining;
+  }
+  if (!entry.rewards && battle.rewards) {
+    entry.rewards = battle.rewards;
+  }
+  if ((!entry.log || !entry.log.length) && Array.isArray(battle.log)) {
+    entry.log = battle.log.slice();
+  }
+  if ((!entry.timeline || !entry.timeline.length) && Array.isArray(battle.timeline)) {
+    entry.timeline = battle.timeline;
+  }
+  if (typeof entry.victory !== 'boolean' && typeof battle.victory === 'boolean') {
+    entry.victory = battle.victory;
+  }
+  if (typeof entry.draw !== 'boolean' && typeof battle.draw === 'boolean') {
+    entry.draw = battle.draw;
+  }
+  if (!entry.rounds && battle.rounds) {
+    entry.rounds = battle.rounds;
+  }
+  if (!entry.result && battle.result) {
+    entry.result = battle.result;
+  }
+  return entry;
+}
+
+function needsBattleArchive(entry) {
+  if (!entry || entry.type !== 'battle' || entry.battleArchiveId) {
+    return false;
+  }
+  if (Array.isArray(entry.timeline) && entry.timeline.length > 0) {
+    return true;
+  }
+  if (entry.battle && Array.isArray(entry.battle.timeline) && entry.battle.timeline.length > 0) {
+    return true;
+  }
+  return false;
+}
+
+function buildBattleArchivePayload(entry, options = {}) {
+  if (!entry || entry.type !== 'battle') {
+    return null;
+  }
+  const now = options.now instanceof Date && !Number.isNaN(options.now.getTime()) ? options.now : new Date();
+  const battlePayload = options.battlePayload && typeof options.battlePayload === 'object' ? options.battlePayload : null;
+
+  const timelineSources = [];
+  if (battlePayload && Array.isArray(battlePayload.timeline) && battlePayload.timeline.length) {
+    timelineSources.push(battlePayload.timeline);
+  }
+  if (Array.isArray(entry.timeline) && entry.timeline.length) {
+    timelineSources.push(entry.timeline);
+  }
+  if (entry.battle && Array.isArray(entry.battle.timeline) && entry.battle.timeline.length) {
+    timelineSources.push(entry.battle.timeline);
+  }
+
+  const timeline = timelineSources.length ? timelineSources[0] : null;
+  if (!timeline || !timeline.length) {
+    return null;
+  }
+
+  const resolveRecord = (source) => (source && typeof source === 'object' ? source : null);
+  const battleRecord = resolveRecord(battlePayload) || resolveRecord(entry.battle) || null;
+
+  const participants =
+    (battlePayload && resolveRecord(battlePayload.participants)) ||
+    resolveRecord(entry.participants) ||
+    (battleRecord && resolveRecord(battleRecord.participants)) ||
+    null;
+  const outcome =
+    (battlePayload && resolveRecord(battlePayload.outcome)) ||
+    resolveRecord(entry.outcome) ||
+    (battleRecord && resolveRecord(battleRecord.outcome)) ||
+    null;
+  const metadataSource =
+    (battlePayload && resolveRecord(battlePayload.metadata)) ||
+    resolveRecord(entry.metadata) ||
+    (battleRecord && resolveRecord(battleRecord.metadata)) ||
+    null;
+  const metadata = metadataSource ? { ...metadataSource } : { mode: 'pve' };
+  if (!metadata.mode) {
+    metadata.mode = 'pve';
+  }
+  const rewards =
+    (battlePayload && resolveRecord(battlePayload.rewards)) ||
+    resolveRecord(entry.rewards) ||
+    (battleRecord && resolveRecord(battleRecord.rewards)) ||
+    null;
+  const combatPower =
+    (battlePayload && resolveRecord(battlePayload.combatPower)) ||
+    resolveRecord(entry.combatPower) ||
+    (battleRecord && resolveRecord(battleRecord.combatPower)) ||
+    null;
+  const remaining =
+    (battlePayload && resolveRecord(battlePayload.remaining)) ||
+    resolveRecord(entry.remaining) ||
+    (battleRecord && resolveRecord(battleRecord.remaining)) ||
+    null;
+
+  const logSource =
+    (battlePayload && Array.isArray(battlePayload.log) ? battlePayload.log : null) ||
+    (Array.isArray(entry.log) ? entry.log : null) ||
+    (battleRecord && Array.isArray(battleRecord.log) ? battleRecord.log : null) ||
+    [];
+
+  const createdAt =
+    entry.createdAt instanceof Date && !Number.isNaN(entry.createdAt.getTime())
+      ? entry.createdAt
+      : typeof entry.createdAt === 'string' || typeof entry.createdAt === 'number'
+      ? new Date(entry.createdAt)
+      : now;
+
+  const enemySnapshot = entry.enemySnapshot || (options.enemy ? captureEnemySnapshot(options.enemy) : null);
+
+  return {
+    memberId: options.actorId || entry.memberId || null,
+    createdAt,
+    updatedAt: now,
+    enemyId: entry.enemyId,
+    enemyName: entry.enemyName,
+    enemyStageName: entry.enemyStageName,
+    enemyRealmName: entry.enemyRealmName,
+    enemyFloor: entry.enemyFloor,
+    enemyType: entry.enemyType,
+    enemySnapshot,
+    result: entry.result,
+    rounds: entry.rounds,
+    rewards,
+    log: trimBattleLog(logSource, BATTLE_ARCHIVE_LOG_LIMIT),
+    timeline: timeline.map((item) => (item && typeof item === 'object' ? { ...item } : item)),
+    participants,
+    outcome,
+    metadata,
+    combatPower,
+    remaining
+  };
+}
+
+async function saveBattleArchiveRecord(memberId, payload) {
+  if (!payload || !Array.isArray(payload.timeline) || !payload.timeline.length) {
+    return null;
+  }
+  const collectionName = BATTLE_ARCHIVE_COLLECTION;
+  await ensureCollection(collectionName);
+  const archiveCollection = db.collection(collectionName);
+  const createdAt =
+    payload.createdAt instanceof Date && !Number.isNaN(payload.createdAt.getTime()) ? payload.createdAt : new Date();
+  const updatedAt =
+    payload.updatedAt instanceof Date && !Number.isNaN(payload.updatedAt.getTime()) ? payload.updatedAt : createdAt;
+  const document = {
+    memberId,
+    createdAt,
+    updatedAt,
+    enemyId: payload.enemyId || '',
+    enemyName: payload.enemyName || '',
+    enemyStageName: payload.enemyStageName || '',
+    enemyRealmName: payload.enemyRealmName || '',
+    enemyFloor: payload.enemyFloor || null,
+    enemyType: payload.enemyType || '',
+    enemySnapshot: payload.enemySnapshot || null,
+    result: payload.result || '',
+    rounds: payload.rounds || null,
+    rewards: payload.rewards || null,
+    log: Array.isArray(payload.log) ? payload.log : [],
+    timeline: payload.timeline,
+    participants: payload.participants || null,
+    outcome: payload.outcome || null,
+    metadata: payload.metadata || { mode: 'pve' },
+    combatPower: payload.combatPower || null,
+    remaining: payload.remaining || null
+  };
+  const addResult = await archiveCollection.add({ data: document });
+  return { _id: addResult._id, ...document };
+}
+
+function buildBattleHistoryPreviewFromEntry(entry, archiveId) {
+  if (!entry || entry.type !== 'battle') {
+    return archiveId ? { archiveId } : null;
+  }
+  const preview = {
+    archiveId: archiveId || entry.battleArchiveId || null,
+    rounds: entry.rounds,
+    rewards: entry.rewards || null,
+    combatPower: entry.combatPower || null,
+    metadata: entry.metadata || null,
+    participants: entry.participants || null,
+    outcome: entry.outcome || null,
+    remaining: entry.remaining || null,
+    result: entry.result,
+    victory:
+      typeof entry.victory === 'boolean'
+        ? entry.victory
+        : typeof entry.result === 'string'
+        ? entry.result === 'win'
+        : undefined,
+    draw:
+      typeof entry.draw === 'boolean'
+        ? entry.draw
+        : typeof entry.result === 'string'
+        ? entry.result === 'draw'
+        : undefined
+  };
+  if (preview.metadata && !preview.metadata.mode) {
+    preview.metadata = { ...preview.metadata, mode: 'pve' };
+  }
+  return preview;
+}
+
+function markHistoryEntryArchived(entry, archiveId, options = {}) {
+  if (!entry || entry.type !== 'battle') {
+    return;
+  }
+  const logLimit = Number.isFinite(options.logLimit) ? Math.max(1, Math.floor(options.logLimit)) : BATTLE_HISTORY_LOG_LIMIT;
+  if (Array.isArray(entry.log) && entry.log.length > logLimit) {
+    entry.log = trimBattleLog(entry.log, logLimit);
+  }
+  entry.battleArchiveId = archiveId || entry.battleArchiveId || null;
+  entry.timeline = [];
+  entry.battle = buildBattleHistoryPreviewFromEntry(entry, archiveId);
+}
+
+async function offloadBattleHistoryEntries(actorId, profile, options = {}) {
+  if (!profile || !Array.isArray(profile.battleHistory) || !profile.battleHistory.length) {
+    return [];
+  }
+  const now = options.now instanceof Date && !Number.isNaN(options.now.getTime()) ? options.now : new Date();
+  const limit = Number.isFinite(options.limit)
+    ? Math.max(0, Math.floor(options.limit))
+    : BATTLE_ARCHIVE_MIGRATION_LIMIT;
+  const enemy = options.enemy || null;
+  const battlePayload = options.battlePayload || null;
+
+  const candidates = [];
+  for (let i = 0; i < profile.battleHistory.length; i += 1) {
+    const entry = profile.battleHistory[i];
+    if (!entry || entry.type !== 'battle') {
+      continue;
+    }
+    expandBattleHistoryEntry(entry);
+    if (!needsBattleArchive(entry)) {
+      if (Array.isArray(entry.log) && entry.log.length > BATTLE_HISTORY_LOG_LIMIT) {
+        entry.log = trimBattleLog(entry.log, BATTLE_HISTORY_LOG_LIMIT);
+      }
+      continue;
+    }
+    candidates.push({ entry, isNewest: i === 0 });
+    if (limit && candidates.length >= limit) {
+      break;
+    }
+  }
+
+  const archived = [];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const { entry, isNewest } = candidates[i];
+    const payload = buildBattleArchivePayload(entry, {
+      battlePayload: isNewest ? battlePayload : null,
+      enemy,
+      now,
+      actorId
+    });
+    if (!payload) {
+      continue;
+    }
+    const archive = await saveBattleArchiveRecord(actorId, payload).catch((error) => {
+      console.error('[pve] save battle archive failed', error);
+      return null;
+    });
+    if (archive && archive._id) {
+      markHistoryEntryArchived(entry, archive._id, { logLimit: BATTLE_HISTORY_LOG_LIMIT });
+      archived.push(archive);
+    }
+  }
+
+  profile.battleHistory.forEach((entry) => {
+    if (!entry || entry.type !== 'battle') {
+      return;
+    }
+    if (entry.metadata && typeof entry.metadata === 'object' && !entry.metadata.mode) {
+      entry.metadata.mode = 'pve';
+    }
+    if (Array.isArray(entry.log) && entry.log.length > BATTLE_HISTORY_LOG_LIMIT) {
+      entry.log = trimBattleLog(entry.log, BATTLE_HISTORY_LOG_LIMIT);
+    }
+  });
+
+  return archived;
+}
+
+function formatBattleArchiveResponse(record) {
+  if (!record || typeof record !== 'object') {
+    return { archiveId: null, battle: null, log: [], timeline: [] };
+  }
+  const archiveId = record._id || record.id || null;
+  const timeline = Array.isArray(record.timeline) ? record.timeline : [];
+  const log = Array.isArray(record.log) ? record.log : [];
+  const metadataSource = record.metadata && typeof record.metadata === 'object' ? record.metadata : null;
+  const metadata = metadataSource ? { ...metadataSource } : { mode: 'pve' };
+  if (!metadata.mode) {
+    metadata.mode = 'pve';
+  }
+  const rounds = Number.isFinite(record.rounds) ? Math.max(1, Math.floor(record.rounds)) : timeline.length;
+  const result = record.result || (record.victory ? 'win' : record.draw ? 'draw' : 'lose');
+  const victory = typeof record.victory === 'boolean' ? record.victory : result === 'win';
+  const draw = typeof record.draw === 'boolean' ? record.draw : result === 'draw';
+  const battle = {
+    archiveId,
+    timeline,
+    log,
+    participants: record.participants || null,
+    outcome: record.outcome || null,
+    metadata,
+    rewards: record.rewards || null,
+    combatPower: record.combatPower || null,
+    remaining: record.remaining || null,
+    rounds,
+    victory,
+    draw
+  };
+  return {
+    archiveId,
+    memberId: record.memberId || null,
+    createdAt: record.createdAt || null,
+    updatedAt: record.updatedAt || null,
+    enemyId: record.enemyId || null,
+    enemyName: record.enemyName || null,
+    enemyStageName: record.enemyStageName || null,
+    enemyRealmName: record.enemyRealmName || null,
+    enemyFloor: record.enemyFloor || null,
+    enemyType: record.enemyType || null,
+    enemySnapshot: record.enemySnapshot || null,
+    result,
+    rounds,
+    rewards: record.rewards || null,
+    log,
+    timeline,
+    participants: record.participants || null,
+    outcome: record.outcome || null,
+    metadata,
+    combatPower: record.combatPower || null,
+    remaining: record.remaining || null,
+    battle
+  };
+}
+
+async function loadBattleArchive(actorId, event = {}) {
+  const archiveIdCandidate =
+    event && typeof event.archiveId === 'string' && event.archiveId.trim() ? event.archiveId.trim() : '';
+  const recordId =
+    archiveIdCandidate ||
+    (event && typeof event.recordId === 'string' && event.recordId.trim() ? event.recordId.trim() : '') ||
+    (event && typeof event.battleId === 'string' && event.battleId.trim() ? event.battleId.trim() : '');
+  if (!recordId) {
+    throw createError('ARCHIVE_ID_REQUIRED', '缺少战斗记录编号');
+  }
+
+  const member = await ensureMember(actorId);
+
+  const collection = db.collection(BATTLE_ARCHIVE_COLLECTION);
+  const snapshot = await collection
+    .doc(recordId)
+    .get()
+    .catch(() => null);
+  if (!snapshot || !snapshot.data) {
+    throw createError('ARCHIVE_NOT_FOUND', '战斗回放不存在或已过期');
+  }
+  const record = snapshot.data;
+  if (record.memberId && record.memberId !== actorId && !isAdminMember(member)) {
+    throw createError('FORBIDDEN', '无权查看该战斗记录');
+  }
+  return formatBattleArchiveResponse({ ...record, _id: recordId });
 }
 
 function ensureEquipmentOwned(profile, itemId, now) {
