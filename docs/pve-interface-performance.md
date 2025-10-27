@@ -116,9 +116,15 @@ CPU 部分，战斗流程涉及：
   - `applyBattleOutcome` 直接复用内存中的档案结构，避免再次执行 `normalizeProfile` 的全量装备/技能归一化，仅对奖励与秘境进度做增量更新。【F:cloudfunctions/pve/index.js†L8805-L8889】
   - `savePveProfile` 将会员档案更新与历史写入改为并行执行，减少串行 RTT。【F:cloudfunctions/pve/index.js†L4820-L4847】
   - `simulateBattle` 并行读取会员信息与等级表，并在写档案的同时异步处理灵石流水，缩短整体响应时间。【F:cloudfunctions/pve/index.js†L3145-L3203】
+- **战斗历史归档与瘦身**：
+  - 战斗结束后通过 `offloadBattleHistoryEntries` 将带有时间线的记录转存到全新的 `memberBattleArchive` 集合，成员文档内仅保留精简摘要与归档编号，避免每次更新都覆盖整份 JSON。【F:cloudfunctions/pve/index.js†L9041-L9176】
+  - 历史日志写入时使用 `trimBattleLog` 做限长处理，新档案默认存储 30 条以内的战报摘要，归档文档则保留最多 120 条详细事件。【F:cloudfunctions/pve/index.js†L8825-L8852】【F:cloudfunctions/pve/index.js†L8893-L8965】
+  - 新增 `battleArchive`/`battleReplay` 接口用于按需拉取归档回放，前端历史页面在缺少时间线时会自动触发补拉，保障回放功能不回退。【F:cloudfunctions/pve/index.js†L3020-L3023】【F:cloudfunctions/pve/index.js†L9178-L9222】【F:miniprogram/pages/pve/history.js†L4-L125】
 
 ## 部署与运维说明
 
 1. **重新上传云函数**：在本地执行 `npm install --production`（若未安装依赖）并通过微信开发者工具或 `tcb functions deploy pve` 将 `cloudfunctions/pve` 重新部署到云端。
 2. **无需新增索引**：优化仅涉及代码层缓存与条件写入，不需要对数据库集合调整索引。
 3. **日志观察**：部署完成后，通过云开发控制台的「云函数日志」观察 `pve` 云函数的执行耗时，确认缓存命中后 `profile`、`battle` 调用均在 3 秒阈值内。
+4. **创建战斗归档集合**：首次上线需在数据库中新建 `memberBattleArchive` 集合，可在云开发控制台创建，或执行 `tcb db:create memberBattleArchive`。该集合主要存放时间线与回放详情，当前无需额外索引。
+5. **历史数据渐进迁移**：上线后的每次战斗请求会自动将最多 2 条遗留的历史记录转存到新集合，若需快速瘦身，可通过触发多次 `{ action: "battle" }` 调用或编写运维脚本批量刷新，待迁移完成后旧集合体积会显著下降。
