@@ -8,7 +8,8 @@ const {
   subLevelLabels,
   DEFAULT_ADMIN_ROLES,
   pickPortraitUrl,
-  normalizeAvatarFrameValue
+  normalizeAvatarFrameValue,
+  buildCloudAssetUrl
 } = require('common-config');
 const { createProxyHelpers } = require('admin-proxy');
 const {
@@ -374,6 +375,11 @@ const SECRET_REALM_ARCHETYPE_LABELS = SECRET_REALM_ARCHETYPES.reduce(
   { [SECRET_REALM_BOSS_ARCHETYPE.key]: SECRET_REALM_BOSS_ARCHETYPE.title }
 );
 
+const SECRET_REALM_FIRST_FLOOR_MEDIA = Object.freeze({
+  avatar: buildCloudAssetUrl('avatar', 'lingmuhuwei.png'),
+  portrait: buildCloudAssetUrl('character', 'lingmuhuwei.png')
+});
+
 const SECRET_REALM_ARCHETYPE_SKILLS = Object.freeze({
   vitality_guardian: ['body_rockridge_guard', 'body_bronze_skin', 'sigil_taiyi_barrier'],
   stone_monk: ['sword_breaking_clouds', 'body_blood_fury', 'sword_flowing_strike'],
@@ -706,7 +712,7 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
   const description = `${archetype.description}（${stageName}）`;
   const skills = resolveSecretRealmSkillSet(archetype.key);
 
-  return {
+  const payload = {
     id,
     category: 'secretRealm',
     archetype: archetype.key,
@@ -733,6 +739,17 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
       suggestedRewards: rewards && rewards._model ? rewards._model : null
     }
   };
+
+  if (floorNumber === 1) {
+    const avatarImage = SECRET_REALM_FIRST_FLOOR_MEDIA.avatar;
+    const portraitImage = SECRET_REALM_FIRST_FLOOR_MEDIA.portrait;
+    payload.avatar = avatarImage;
+    payload.avatarUrl = avatarImage;
+    payload.avatarPortrait = portraitImage;
+    payload.portrait = portraitImage;
+  }
+
+  return payload;
 }
 
 function resolveSecretRealmSkillSet(archetypeKey) {
@@ -6994,6 +7011,16 @@ function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) 
   const statusLabel = locked ? '未解锁' : completed ? '已通关' : '可挑战';
   const viewerIsAdmin = !!options.viewerIsAdmin;
   const adminEnemyDetails = viewerIsAdmin ? buildEnemyPreviewDetails(enemy) : null;
+  const portrait = pickPortraitUrl(
+    enemy && enemy.portrait,
+    enemy && enemy.avatarPortrait,
+    enemy && enemy.avatar,
+    enemy && enemy.avatarUrl,
+    enemy && enemy.image
+  );
+  const avatarUrl =
+    (enemy && (enemy.avatarUrl || enemy.avatar)) ||
+    '';
   return {
     id: enemy.id,
     name: enemy.name,
@@ -7019,6 +7046,8 @@ function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) 
     clearedAtText,
     bestRounds,
     victories,
+    portrait,
+    avatar: avatarUrl,
     suggestedRewards: enemy.meta && enemy.meta.suggestedRewards ? enemy.meta.suggestedRewards : null,
     ...(adminEnemyDetails ? { adminEnemyDetails } : {})
   };
