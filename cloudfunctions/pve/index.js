@@ -8,7 +8,8 @@ const {
   subLevelLabels,
   DEFAULT_ADMIN_ROLES,
   pickPortraitUrl,
-  normalizeAvatarFrameValue
+  normalizeAvatarFrameValue,
+  buildCloudAssetUrl
 } = require('common-config');
 const { createProxyHelpers } = require('admin-proxy');
 const {
@@ -138,6 +139,8 @@ const ENEMY_COMBAT_DEFAULTS = {
   critRate: 0.05,
   critDamage: 1.5
 };
+
+const SECRET_REALM_BACKGROUND_VIDEO = buildCloudAssetUrl('background', 'mijing.mp4');
 
 const SECRET_REALM_BASE_STATS = {
   maxHp: 920,
@@ -2830,6 +2833,70 @@ function resolveEnemyTarget(enemyId) {
   return null;
 }
 
+function buildSecretRealmImageUrl(enemyId, folder) {
+  if (typeof enemyId !== 'string') {
+    return '';
+  }
+  const trimmed = enemyId.trim();
+  if (!trimmed) {
+    return '';
+  }
+  const fileName = trimmed.endsWith('.png') ? trimmed : `${trimmed}.png`;
+  return buildCloudAssetUrl(folder, fileName);
+}
+
+function decorateEnemyVisuals(enemy) {
+  if (!enemy || typeof enemy !== 'object') {
+    return enemy;
+  }
+  const decorated = { ...enemy };
+  const enemyId =
+    (typeof decorated.id === 'string' && decorated.id.trim()) ||
+    (typeof decorated.enemyId === 'string' && decorated.enemyId.trim()) ||
+    '';
+
+  if (decorated.category === 'secretRealm' && enemyId) {
+    const resolvedAvatarUrl = buildSecretRealmImageUrl(enemyId, 'avatar');
+    const resolvedPortraitUrl = buildSecretRealmImageUrl(enemyId, 'character');
+    if (resolvedAvatarUrl && !decorated.avatarUrl) {
+      decorated.avatarUrl = resolvedAvatarUrl;
+    }
+    if (resolvedAvatarUrl && !decorated.avatar) {
+      decorated.avatar = resolvedAvatarUrl;
+    }
+    if (resolvedPortraitUrl && !decorated.portrait) {
+      decorated.portrait = resolvedPortraitUrl;
+    }
+    if (resolvedPortraitUrl && !decorated.image) {
+      decorated.image = resolvedPortraitUrl;
+    }
+
+    const scene = decorated.scene && typeof decorated.scene === 'object' ? { ...decorated.scene } : {};
+    if (!scene.video) {
+      scene.video = SECRET_REALM_BACKGROUND_VIDEO;
+    }
+    if (!scene.backgroundVideo) {
+      scene.backgroundVideo = SECRET_REALM_BACKGROUND_VIDEO;
+    }
+    decorated.scene = scene;
+
+    const background =
+      decorated.background && typeof decorated.background === 'object'
+        ? { ...decorated.background }
+        : {};
+    if (!background.video) {
+      background.video = SECRET_REALM_BACKGROUND_VIDEO;
+    }
+    decorated.background = background;
+
+    if (!decorated.backgroundVideo) {
+      decorated.backgroundVideo = SECRET_REALM_BACKGROUND_VIDEO;
+    }
+  }
+
+  return decorated;
+}
+
 async function loadMembershipLevels() {
   if (membershipLevelsCache && membershipLevelsCache.length) {
     return membershipLevelsCache;
@@ -3154,10 +3221,12 @@ async function simulateBattle(actorId, enemyId) {
   const profile = await ensurePveProfile(actorId, member, levels);
   const now = new Date();
   assertBattleCooldown(profile.lastBattleAt, now);
-  const enemy = resolveEnemyTarget(enemyId);
-  if (!enemy) {
+  const enemyDefinition = resolveEnemyTarget(enemyId);
+  if (!enemyDefinition) {
     throw createError('ENEMY_NOT_FOUND', '未找到指定的副本目标');
   }
+
+  const enemy = decorateEnemyVisuals(enemyDefinition);
 
   const secretRealmState = normalizeSecretRealm(profile.secretRealm || {});
   const highestUnlocked = secretRealmState.highestUnlockedFloor || 1;

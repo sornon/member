@@ -128,3 +128,13 @@ CPU 部分，战斗流程涉及：
 3. **日志观察**：部署完成后，通过云开发控制台的「云函数日志」观察 `pve` 云函数的执行耗时，确认缓存命中后 `profile`、`battle` 调用均在 3 秒阈值内。
 4. **创建战斗归档集合**：首次上线需在数据库中新建 `memberBattleArchive` 集合，可在云开发控制台创建，或执行 `tcb db:create memberBattleArchive`。该集合主要存放时间线与回放详情，当前无需额外索引。
 5. **历史数据渐进迁移**：上线后的每次战斗请求会自动将最多 2 条遗留的历史记录转存到新集合，若需快速瘦身，可通过触发多次 `{ action: "battle" }` 调用或编写运维脚本批量刷新，待迁移完成后旧集合体积会显著下降。
+
+## 新增修复：秘境视觉资源补全
+
+- **问题复盘**：`{ action: "battle", enemyId: "secret_realm_qi_refining_02" }` 返回的 `battle.opponent.avatarUrl` 与 `participants.enemy.avatarUrl`
+  为空，`enemy.scene`/`enemy.background` 缺失导致前端退化到兜底资源。
+- **根因分析**：秘境敌人由 `buildSecretRealmLibrary` 动态生成，但未依据 `enemyId` 补齐头像、立绘及背景字段。
+- **实现方案**：新增 `decorateEnemyVisuals`，在 `simulateBattle` 校验敌人后按以下规则补全视觉资源：
+  - `avatarUrl`/`avatar` 指向 `avatar/<enemyId>.png`，`portrait`/`image` 指向 `character/<enemyId>.png`；
+  - 秘境背景固定为 `background/mijing.mp4`，填充到 `enemy.scene.video`、`scene.backgroundVideo`、`background.video` 与 `backgroundVideo`，仅在字段为空时覆盖。
+- **上线提示**：更新仍属于 `pve` 云函数逻辑，重新部署后即可生效，无需额外环境配置。上线后请在前端秘境战斗页确认背景视频与 NPC 立绘加载正确。
