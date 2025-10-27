@@ -104,6 +104,11 @@
 - 秘境战斗详情页会在管理员登录时自动附加“怪物详细属性”模块：服务端仅对管理员响应关卡信息、六维基础属性、全部衍生属性与技能负载，前端在战力行下方以紧凑网格与技能列表展示，便于客服定位战力或技能异常。【F:cloudfunctions/pve/index.js†L6050-L6369】【F:miniprogram/pages/pve/history.wxml†L8-L52】【F:miniprogram/pages/pve/history.wxss†L40-L143】
 - 秘境挑战首页同样会在管理员账户下展示关卡的怪物属性、衍生数据与技能列表，模块位于挑战按钮上方，保持紧凑排版便于快速核查。【F:cloudfunctions/pve/index.js†L5080-L5132】【F:cloudfunctions/pve/index.js†L5934-L6003】【F:miniprogram/pages/pve/pve.wxml†L27-L67】【F:miniprogram/pages/pve/pve.wxss†L73-L140】
 
+### 展示问题排查记录
+
+- **2025-10-27：秘境实战未加载专属资源**。线上反馈秘境挑战实时战斗时，背景固定落在 `background/1.mp4`，敌方头像/立绘均回退到默认占位图，而战斗回放表现正常。排查发现：实战入口仅携带 `enemyPreview` 概要，不包含头像、立绘及背景字段，且战斗舞台会依据境界名回退到通用背景，导致秘境专用的 `mijing.mp4` 与同名 PNG 资源无法生效。【F:miniprogram/pages/battle/play.js†L1150-L1188】【F:miniprogram/pages/battle/play.js†L893-L950】
+- **修复**：客户端在进入秘境时根据敌方 ID 自动拼接云端头像/立绘 URL，并强制秘境对手使用 `mijing.mp4` 背景，确保实战与回放的一致性，同时把补全后的 `enemyPreview` 缓存在上下文中供后续流程复用。【F:miniprogram/pages/battle/play.js†L883-L950】【F:miniprogram/pages/battle/play.js†L1150-L1188】
+
 ## 战斗计算要点
 
 0. **公共战斗模块**：角色属性整合、命中/伤害结算与战力评分统一收敛在 `cloudfunctions/nodejs-layer/node_modules/combat-system/index.js` 中输出，`pve` 与 `pvp` 云函数共享同一套公式，确保竞技与副本的数值来源一致。【F:cloudfunctions/nodejs-layer/node_modules/combat-system/index.js†L1-L210】【F:cloudfunctions/pve/index.js†L5600-L5702】【F:cloudfunctions/pvp/index.js†L1194-L1319】

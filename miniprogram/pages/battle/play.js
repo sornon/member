@@ -919,6 +919,61 @@ function extractRealmName(enemy = {}) {
   return '';
 }
 
+function isSecretRealmEnemy(enemy = {}) {
+  if (!enemy || typeof enemy !== 'object') {
+    return false;
+  }
+  if (enemy.category === 'secretRealm') {
+    return true;
+  }
+  const enemyId = typeof enemy.id === 'string' ? enemy.id.trim() : '';
+  if (enemyId && enemyId.startsWith('secret_')) {
+    return true;
+  }
+  return false;
+}
+
+function buildSecretRealmPortraitUrl(id) {
+  const trimmed = typeof id === 'string' ? id.trim() : '';
+  if (!trimmed) {
+    return '';
+  }
+  return buildCloudAssetUrl('character', `${trimmed}.png`);
+}
+
+function buildSecretRealmAvatarUrl(id) {
+  const trimmed = typeof id === 'string' ? id.trim() : '';
+  if (!trimmed) {
+    return '';
+  }
+  return buildCloudAssetUrl('avatar', `${trimmed}.png`);
+}
+
+function ensureSecretRealmEnemyAssets(enemy = {}) {
+  if (!enemy || typeof enemy !== 'object') {
+    return {};
+  }
+  if (!isSecretRealmEnemy(enemy)) {
+    return { ...enemy };
+  }
+  const id = typeof enemy.id === 'string' ? enemy.id.trim() : '';
+  if (!id) {
+    return { ...enemy };
+  }
+  const portrait = enemy.portrait || enemy.image || buildSecretRealmPortraitUrl(id);
+  const avatar = enemy.avatar || enemy.avatarUrl || buildSecretRealmAvatarUrl(id);
+  const backgroundVideo =
+    enemy.backgroundVideo || (enemy.background && enemy.background.video) || SECRET_REALM_BACKGROUND_VIDEO;
+  return {
+    ...enemy,
+    portrait,
+    image: enemy.image || portrait,
+    avatar: enemy.avatar || avatar,
+    avatarUrl: enemy.avatarUrl || avatar,
+    backgroundVideo
+  };
+}
+
 function resolvePveSceneBackground(enemy = {}) {
   if (!enemy || typeof enemy !== 'object') {
     return SECRET_REALM_BACKGROUND_VIDEO;
@@ -939,14 +994,16 @@ function resolvePveSceneBackground(enemy = {}) {
     enemy.backgroundId ||
     '';
   const resolvedById = resolveBackgroundVideoById(sceneBackgroundId);
-  if (resolvedById) {
+  if (resolvedById && !isSecretRealmEnemy(enemy)) {
     return resolvedById;
   }
-  const realmName = extractRealmName(enemy);
-  if (realmName) {
-    const background = resolveBackgroundByRealmName(realmName);
-    if (background && background.video) {
-      return background.video;
+  if (!isSecretRealmEnemy(enemy)) {
+    const realmName = extractRealmName(enemy);
+    if (realmName) {
+      const background = resolveBackgroundByRealmName(realmName);
+      if (background && background.video) {
+        return background.video;
+      }
     }
   }
   return SECRET_REALM_BACKGROUND_VIDEO;
@@ -1149,8 +1206,9 @@ Page({
         } else if (typeof context.playerPower === 'string' && context.playerPower.trim()) {
           playerPowerValue = context.playerPower.trim();
         }
-        const enemy = context.enemyPreview || {};
-        const sceneBackground = resolvePveSceneBackground(enemy);
+        const enemyPreview = ensureSecretRealmEnemyAssets(context.enemyPreview || {});
+        this.contextPayload = { ...context, enemyPreview };
+        const sceneBackground = resolvePveSceneBackground(enemyPreview);
         const resolvedBackgroundVideo =
           sceneBackground || context.backgroundVideo || SECRET_REALM_BACKGROUND_VIDEO;
         viewContext = {
@@ -1165,13 +1223,17 @@ Page({
             playerParticipant
           ),
           playerPower: playerPowerValue,
-          opponentName: enemy.name || '秘境之敌',
+          opponentName: enemyPreview.name || '秘境之敌',
           opponentPortrait: pickBattlePortrait(
             DEFAULT_OPPONENT_IMAGE,
             context.opponentPortrait,
-            enemy
+            enemyPreview
           ),
-          backgroundVideo: resolvedBackgroundVideo
+          backgroundVideo: resolvedBackgroundVideo,
+          opponentAvatar: enemyPreview.avatar,
+          opponentAvatarUrl: enemyPreview.avatarUrl,
+          opponentImage: enemyPreview.portrait,
+          opponent: enemyPreview
         };
         this.parentPayload = {
           type: 'pve',
