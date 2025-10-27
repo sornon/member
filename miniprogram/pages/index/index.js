@@ -948,7 +948,7 @@ Page({
       { icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
       { icon: '🎉', label: '盛典', url: '/pages/rights/rights' },
       { icon: '🥊', label: '比武', url: '/pages/pvp/index' },
-      { icon: '💹', label: '交易', url: '/pages/trading/index' }
+      { icon: '⚖️', label: '交易', url: '/pages/trading/index' }
     ],
     navItems: INITIAL_NAV_ITEMS.slice(),
     collapsedNavItems: buildCollapsedNavItems(INITIAL_NAV_ITEMS),

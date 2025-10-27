@@ -144,7 +144,7 @@
           </radio-group>
         </view>
         <view wx:if="{{publishForm.saleMode === 'fixed'}}" class="trading-form-item">
-          <view class="trading-form-item__label">一口价</view>
+          <view class="trading-form-item__label">出价</view>
           <input
             class="trading-input"
             type="number"
