@@ -375,9 +375,11 @@ const SECRET_REALM_ARCHETYPE_LABELS = SECRET_REALM_ARCHETYPES.reduce(
   { [SECRET_REALM_BOSS_ARCHETYPE.key]: SECRET_REALM_BOSS_ARCHETYPE.title }
 );
 
-const SECRET_REALM_FIRST_FLOOR_MEDIA = Object.freeze({
-  avatar: buildCloudAssetUrl('avatar', 'lingmuhuwei.png'),
-  portrait: buildCloudAssetUrl('character', 'lingmuhuwei.png')
+const SECRET_REALM_NPC_MEDIA = Object.freeze({
+  '灵木护卫': {
+    avatar: buildCloudAssetUrl('avatar', 'lingmuhuwei.png'),
+    portrait: buildCloudAssetUrl('character', 'lingmuhuwei.png')
+  }
 });
 
 const SECRET_REALM_ARCHETYPE_SKILLS = Object.freeze({
@@ -740,9 +742,12 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
     }
   };
 
-  if (floorNumber === 1) {
-    const avatarImage = SECRET_REALM_FIRST_FLOOR_MEDIA.avatar;
-    const portraitImage = SECRET_REALM_FIRST_FLOOR_MEDIA.portrait;
+  const archetypeName = archetype && (archetype.title || archetype.name);
+  const media = archetypeName ? SECRET_REALM_NPC_MEDIA[archetypeName] : null;
+
+  if (media) {
+    const avatarImage = media.avatar;
+    const portraitImage = media.portrait;
     payload.avatar = avatarImage;
     payload.avatarUrl = avatarImage;
     payload.avatarPortrait = portraitImage;
