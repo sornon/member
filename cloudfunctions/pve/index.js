@@ -189,7 +189,24 @@ const SECRET_REALM_TUNING = {
   }
 };
 
+const GLOBAL_PARAMETERS_TTL_MS = 60 * 1000;
+let cachedGlobalParameters = null;
+let cachedGlobalOverrides = null;
+let cachedGlobalParametersExpiresAt = 0;
+
 async function applyGlobalGameParameters() {
+  const now = Date.now();
+  if (cachedGlobalParameters && cachedGlobalParametersExpiresAt > now) {
+    try {
+      if (cachedGlobalOverrides) {
+        configureResourceDefaults(cachedGlobalOverrides);
+      }
+      return cachedGlobalParameters;
+    } catch (error) {
+      console.error('[pve] reuse cached game parameters failed', error);
+    }
+  }
+
   try {
     const snapshot = await db
       .collection(COLLECTIONS.SYSTEM_SETTINGS)
@@ -197,14 +214,23 @@ async function applyGlobalGameParameters() {
       .get();
     const document = snapshot && snapshot.data ? snapshot.data : null;
     const parameters = resolveGameParametersFromDocument(document);
-    configureResourceDefaults(buildResourceConfigOverrides(parameters));
+    const overrides = buildResourceConfigOverrides(parameters);
+    configureResourceDefaults(overrides);
+    cachedGlobalParameters = parameters;
+    cachedGlobalOverrides = overrides;
+    cachedGlobalParametersExpiresAt = Date.now() + GLOBAL_PARAMETERS_TTL_MS;
     return parameters;
   } catch (error) {
     if (!(error && error.errMsg && /not exist|not found/i.test(error.errMsg))) {
       console.error('[pve] load game parameters failed', error);
     }
-    configureResourceDefaults(buildResourceConfigOverrides(DEFAULT_GAME_PARAMETERS));
-    return DEFAULT_GAME_PARAMETERS;
+    const fallback = DEFAULT_GAME_PARAMETERS;
+    const overrides = buildResourceConfigOverrides(fallback);
+    configureResourceDefaults(overrides);
+    cachedGlobalParameters = fallback;
+    cachedGlobalOverrides = overrides;
+    cachedGlobalParametersExpiresAt = Date.now() + GLOBAL_PARAMETERS_TTL_MS;
+    return fallback;
   }
 }
 
@@ -2888,6 +2914,46 @@ function areStatsEqual(a = {}, b = {}) {
   return true;
 }
 
+function deepEqual(a, b) {
+  if (a === b) {
+    return true;
+  }
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') {
+    return Number.isNaN(a) && Number.isNaN(b);
+  }
+  if (a instanceof Date || b instanceof Date) {
+    const aTime = a instanceof Date ? a.getTime() : new Date(a).getTime();
+    const bTime = b instanceof Date ? b.getTime() : new Date(b).getTime();
+    return aTime === bTime;
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+      return false;
+    }
+    for (let i = 0; i < a.length; i += 1) {
+      if (!deepEqual(a[i], b[i])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) {
+    return false;
+  }
+  for (let i = 0; i < aKeys.length; i += 1) {
+    const key = aKeys[i];
+    if (!Object.prototype.hasOwnProperty.call(b, key)) {
+      return false;
+    }
+    if (!deepEqual(a[key], b[key])) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function getAttributePointRewardForLevel() {
   return 5;
 }
@@ -4774,60 +4840,62 @@ async function attachHistoryToProfile(memberId, profile) {
 
 async function ensurePveProfile(actorId, member, levelCache) {
   const now = new Date();
-  let profile = member.pveProfile;
-  let changed = false;
-  if (!profile || typeof profile !== 'object') {
-    profile = buildDefaultProfile(now);
+  const rawProfile = member && member.pveProfile && typeof member.pveProfile === 'object' ? member.pveProfile : null;
+  const normalizedProfile = normalizeProfile(rawProfile || {}, now);
+  let profile = normalizedProfile;
+  let changed = !rawProfile || !deepEqual(rawProfile, normalizedProfile);
+
+  const levels = Array.isArray(levelCache) ? levelCache : await loadMembershipLevels();
+  let summaryDirty = false;
+  if (syncAttributesWithMemberLevel(profile.attributes, member, levels)) {
     changed = true;
-  } else {
-    const normalized = normalizeProfile(profile, now);
-    if (JSON.stringify(normalized) !== JSON.stringify(profile)) {
-      profile = normalized;
-      changed = true;
-    } else {
-      profile = normalized;
+    summaryDirty = true;
+  }
+
+  if (summaryDirty) {
+    refreshAttributeSummary(profile);
+  }
+
+  let historyDoc = profile.__historyDoc && typeof profile.__historyDoc === 'object' ? profile.__historyDoc : null;
+  if (!historyDoc) {
+    historyDoc = await loadPveHistory(actorId);
+  }
+
+  let battleHistory = Array.isArray(historyDoc.battleHistory) ? historyDoc.battleHistory : [];
+  let skillHistory = Array.isArray(historyDoc.skillHistory) ? historyDoc.skillHistory : [];
+  let historyChanged = false;
+
+  if (!historyDoc.exists) {
+    const normalizedBattle = Array.isArray(profile.battleHistory)
+      ? normalizeHistory(profile.battleHistory, MAX_BATTLE_HISTORY)
+      : [];
+    const normalizedSkill = Array.isArray(profile.skillHistory)
+      ? normalizeHistory(profile.skillHistory, MAX_SKILL_HISTORY)
+      : [];
+    if (normalizedBattle.length) {
+      battleHistory = normalizedBattle;
+      historyChanged = true;
+    }
+    if (normalizedSkill.length) {
+      skillHistory = normalizedSkill;
+      historyChanged = true;
     }
   }
 
-  const levels = Array.isArray(levelCache) ? levelCache : await loadMembershipLevels();
-  if (syncAttributesWithMemberLevel(profile.attributes, member, levels)) {
-    changed = true;
-  }
+  profile.battleHistory = battleHistory;
+  profile.skillHistory = skillHistory;
+  profile.__historyDoc = { ...historyDoc, battleHistory, skillHistory };
 
-  const previousSummary = profile.attributeSummary ? JSON.stringify(profile.attributeSummary) : null;
-  const refreshed = refreshAttributeSummary(profile);
-  if (!changed && previousSummary !== (refreshed ? JSON.stringify(refreshed) : null)) {
-    changed = true;
-  }
+  const shouldPersistProfile = changed;
+  const shouldPersistHistory = historyChanged;
 
-  const historyDoc = await loadPveHistory(actorId);
-  let historyChanged = false;
-  let battleHistory = historyDoc.battleHistory;
-  let skillHistory = historyDoc.skillHistory;
-
-  if ((!battleHistory || battleHistory.length === 0) && Array.isArray(profile.battleHistory) && profile.battleHistory.length) {
-    battleHistory = normalizeHistory(profile.battleHistory, MAX_BATTLE_HISTORY);
-    historyChanged = true;
-  }
-
-  if ((!skillHistory || skillHistory.length === 0) && Array.isArray(profile.skillHistory) && profile.skillHistory.length) {
-    skillHistory = normalizeHistory(profile.skillHistory, MAX_SKILL_HISTORY);
-    historyChanged = true;
-  }
-
-  profile.battleHistory = Array.isArray(battleHistory) ? battleHistory : [];
-  profile.skillHistory = Array.isArray(skillHistory) ? skillHistory : [];
-  profile.__historyDoc = { ...historyDoc, battleHistory: profile.battleHistory, skillHistory: profile.skillHistory };
-
-  const shouldPersistProfile = changed || historyChanged;
-  if (shouldPersistProfile) {
+  if (shouldPersistProfile || shouldPersistHistory) {
     await savePveProfile(actorId, profile, {
       now,
-      saveHistory: true,
-      historyDoc: profile.__historyDoc
+      historyDoc: profile.__historyDoc,
+      saveHistory: shouldPersistHistory,
+      skipProfile: !shouldPersistProfile
     });
-  } else if (!historyDoc.exists) {
-    await savePveHistory(actorId, profile.battleHistory, profile.skillHistory, now, historyDoc).catch(() => {});
   }
 
   return profile;
@@ -6100,8 +6168,16 @@ function decorateStorageInventoryItem(entry, fallbackCategory = '') {
 function decorateProfile(member, profile, options = {}) {
   const viewer = options.viewer || member;
   const viewerIsAdmin = isAdminMember(viewer);
-  const { attributes, equipment, skills } = profile;
-  const attributeSummary = calculateAttributes(attributes, equipment, skills);
+  const attributes = profile && profile.attributes ? profile.attributes : {};
+  const equipment = profile && profile.equipment ? profile.equipment : {};
+  const skills = profile && profile.skills ? profile.skills : {};
+  let attributeSummary = profile && typeof profile.attributeSummary === 'object' ? profile.attributeSummary : null;
+  if (!attributeSummary) {
+    attributeSummary = calculateAttributes(attributes, equipment, skills);
+    if (profile && typeof profile === 'object') {
+      profile.attributeSummary = attributeSummary;
+    }
+  }
   const equipmentSummary = decorateEquipment(profile, attributeSummary.equipmentBonus);
   const skillsSummary = decorateSkills(profile);
   const secretRealm = decorateSecretRealm(profile.secretRealm, attributeSummary, { viewerIsAdmin });
@@ -7900,7 +7976,12 @@ function formatStatsText(stats) {
   return texts;
 }
 function buildBattleSetup(profile, enemy, member) {
-  const attributes = calculateAttributes(profile.attributes, profile.equipment, profile.skills);
+  const attributes =
+    (profile && typeof profile.attributeSummary === 'object' && profile.attributeSummary) ||
+    calculateAttributes(profile.attributes, profile.equipment, profile.skills);
+  if (profile && typeof profile === 'object' && profile.attributeSummary !== attributes) {
+    profile.attributeSummary = attributes;
+  }
   const player = createPlayerCombatant(attributes);
   const enemyCombatant = createEnemyCombatant(enemy);
   const playerInfo = buildPlayerBattleInfo(profile, member, attributes, player);

@@ -96,3 +96,18 @@ CPU 部分，战斗流程涉及：
    - `ensureMember` 与 `loadMembershipLevels`、`applyGlobalGameParameters` 等无强依赖的查询可通过 `Promise.all` 并行执行，缩短总耗时。
 
 通过以上优化，可显著降低 `profile` 与 `battle` 调用在数据库与 CPU 上的消耗，避免触发 3 秒超时限制。
+
+## 本次实现的优化项
+
+- **全局参数缓存**：`applyGlobalGameParameters` 在内存中缓存系统配置 60 秒，命中缓存时直接复用 `configureResourceDefaults` 的结果，避免每次战斗都访问 `systemSettings` 集合。【F:cloudfunctions/pve/index.js†L189-L225】
+- **档案归一化与持久化调优**：
+  - 使用轻量 `deepEqual` 替换三次 `JSON.stringify`，仅在结构确实发生变化时才写回会员文档；
+  - 当只同步战斗/技能历史时跳过档案写入，历史文档缺失时才触发保存；
+  - 复用 `profile.__historyDoc`，避免每次请求都读 `memberPveHistory`。【F:cloudfunctions/pve/index.js†L270-L332】
+- **属性摘要复用**：`decorateProfile` 与 `buildBattleSetup` 优先使用 `profile.attributeSummary`，只有缺失时才重新计算，减少 CPU 密集型的属性汇总次数。【F:cloudfunctions/pve/index.js†L6149-L6161】【F:cloudfunctions/pve/index.js†L7923-L7929】
+
+## 部署与运维说明
+
+1. **重新上传云函数**：在本地执行 `npm install --production`（若未安装依赖）并通过微信开发者工具或 `tcb functions deploy pve` 将 `cloudfunctions/pve` 重新部署到云端。
+2. **无需新增索引**：优化仅涉及代码层缓存与条件写入，不需要对数据库集合调整索引。
+3. **日志观察**：部署完成后，通过云开发控制台的「云函数日志」观察 `pve` 云函数的执行耗时，确认缓存命中后 `profile`、`battle` 调用均在 3 秒阈值内。
