@@ -10,6 +10,7 @@
     "pages/reservation/reservation",
     "pages/stones/stones",
     "pages/mall/index",
+    "pages/trading/index",
     "pages/battle/play",
     "pages/pve/pve",
     "pages/pve/history",

@@ -478,6 +478,43 @@ export const StoneService = {
   }
 };
 
+export const TradingService = {
+  async dashboard() {
+    return callCloud(CLOUD_FUNCTIONS.TRADING, attachClientEnv({ action: 'dashboard' }));
+  },
+  async sellable() {
+    return callCloud(CLOUD_FUNCTIONS.TRADING, attachClientEnv({ action: 'sellable' }));
+  },
+  async createListing(options = {}) {
+    const payload = attachClientEnv({
+      action: 'createListing',
+      inventoryId: options.inventoryId || '',
+      saleMode: options.saleMode || options.mode || 'fixed',
+      fixedPrice: options.fixedPrice,
+      startPrice: options.startPrice,
+      buyoutPrice: options.buyoutPrice,
+      durationHours: options.durationHours,
+      bidIncrement: options.bidIncrement
+    });
+    return callCloud(CLOUD_FUNCTIONS.TRADING, payload);
+  },
+  async cancelListing(listingId) {
+    return callCloud(
+      CLOUD_FUNCTIONS.TRADING,
+      attachClientEnv({ action: 'cancelListing', listingId: listingId || '' })
+    );
+  },
+  async buyNow(listingId) {
+    return callCloud(CLOUD_FUNCTIONS.TRADING, attachClientEnv({ action: 'buyNow', listingId: listingId || '' }));
+  },
+  async placeBid({ listingId = '', amount = 0 } = {}) {
+    return callCloud(
+      CLOUD_FUNCTIONS.TRADING,
+      attachClientEnv({ action: 'placeBid', listingId: listingId || '', amount })
+    );
+  }
+};
+
 export const AvatarService = {
   async listAssets() {
     return callCloud(CLOUD_FUNCTIONS.AVATAR, { action: 'assets' });
