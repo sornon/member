@@ -324,6 +324,13 @@ export const PveService = {
   async battle(enemyId) {
     return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'battle', enemyId });
   },
+  async battleArchive(archiveId) {
+    const normalizedId = typeof archiveId === 'string' ? archiveId.trim() : '';
+    if (!normalizedId) {
+      throw new Error('缺少战斗记录编号');
+    }
+    return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'battleArchive', archiveId: normalizedId });
+  },
   async drawSkill(options = {}) {
     const payload = { action: 'drawSkill' };
     if (options && typeof options === 'object') {

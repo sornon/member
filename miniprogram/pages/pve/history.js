@@ -1,4 +1,5 @@
 const { buildCloudAssetUrl } = require('../../shared/asset-paths');
+const { PveService } = require('../../services/api');
 
 const SECRET_REALM_BACKGROUND_VIDEO = buildCloudAssetUrl('background', 'mijing.mp4');
 
@@ -101,6 +102,11 @@ Page({
     const structuredTimeline = battleSource && Array.isArray(battleSource.timeline)
       ? battleSource.timeline.filter((entry) => entry && typeof entry === 'object')
       : [];
+    const archiveId = record.battleArchiveId || (battleSource && battleSource.archiveId);
+    if (!structuredTimeline.length && archiveId) {
+      this.loadArchiveRecord(record, archiveId, normalizedLog);
+      return;
+    }
     this._recordResolved = true;
     this.setData({
       loading: false,
@@ -110,8 +116,65 @@ Page({
         combatPowerText: record.combatPowerText || formatCombatPower(record.combatPower)
       },
       log: normalizedLog,
-      replayAvailable: structuredTimeline.length > 0 || normalizedLog.length > 0
+      replayAvailable: structuredTimeline.length > 0 || normalizedLog.length > 0 || !!archiveId
     });
+  },
+
+  async loadArchiveRecord(record, archiveId, fallbackLog = []) {
+    try {
+      this.setData({ loading: true });
+      const archive = await PveService.battleArchive(archiveId);
+      const archiveBattle = archive && typeof archive.battle === 'object' ? archive.battle : null;
+      const archiveTimeline = archiveBattle && Array.isArray(archiveBattle.timeline)
+        ? archiveBattle.timeline.filter((entry) => entry && typeof entry === 'object')
+        : [];
+      const archiveLog = Array.isArray(archiveBattle && archiveBattle.log)
+        ? archiveBattle.log
+        : Array.isArray(archive && archive.log)
+        ? archive.log
+        : [];
+      const mergedLog = fallbackLog.length ? fallbackLog : archiveLog;
+      const mergedBattle = {
+        ...(record.battle && typeof record.battle === 'object' ? record.battle : {}),
+        ...(archiveBattle || {}),
+        timeline: archiveTimeline,
+        archiveId
+      };
+      const mergedRecord = {
+        ...record,
+        battle: mergedBattle,
+        battleArchiveId: archiveId,
+        log: mergedLog.length ? mergedLog : record.log,
+        rounds: record.rounds || mergedBattle.rounds || archive.rounds || record.rounds
+      };
+      this._recordResolved = true;
+      this.setData({
+        loading: false,
+        record: {
+          ...mergedRecord,
+          createdAtText: mergedRecord.createdAtText || formatDateTime(mergedRecord.createdAt),
+          combatPowerText:
+            mergedRecord.combatPowerText ||
+            formatCombatPower(mergedRecord.combatPower || mergedBattle.combatPower || archive.combatPower)
+        },
+        log: mergedLog,
+        replayAvailable: archiveTimeline.length > 0 || mergedLog.length > 0
+      });
+    } catch (error) {
+      console.error('[pve:history] load archive failed', error);
+      wx.showToast({ title: '战斗回放加载失败', icon: 'none' });
+      this._recordResolved = true;
+      this.setData({
+        loading: false,
+        record: {
+          ...record,
+          createdAtText: record.createdAtText || formatDateTime(record.createdAt),
+          combatPowerText: record.combatPowerText || formatCombatPower(record.combatPower)
+        },
+        log: fallbackLog,
+        replayAvailable: fallbackLog.length > 0
+      });
+    }
   },
 
   normalizeReplayRounds(record = {}, fallbackRounds = 0) {

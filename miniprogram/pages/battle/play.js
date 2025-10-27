@@ -1150,9 +1150,23 @@ Page({
           playerPowerValue = context.playerPower.trim();
         }
         const enemy = context.enemyPreview || {};
-        const sceneBackground = resolvePveSceneBackground(enemy);
+        const battleOpponent =
+          (battleData && battleData.opponent) ||
+          (participants && (participants.opponent || participants.enemy)) ||
+          null;
+        const opponentPortrait = pickBattlePortrait(
+          DEFAULT_OPPONENT_IMAGE,
+          battleOpponent,
+          enemy,
+          context.opponentPortrait
+        );
+        const sceneBackground = resolvePveSceneBackground(battleOpponent || enemy);
         const resolvedBackgroundVideo =
           sceneBackground || context.backgroundVideo || SECRET_REALM_BACKGROUND_VIDEO;
+        const opponentName =
+          (battleOpponent && (battleOpponent.displayName || battleOpponent.name)) ||
+          enemy.name ||
+          '秘境之敌';
         viewContext = {
           playerName:
             playerParticipant.displayName ||
@@ -1165,12 +1179,8 @@ Page({
             playerParticipant
           ),
           playerPower: playerPowerValue,
-          opponentName: enemy.name || '秘境之敌',
-          opponentPortrait: pickBattlePortrait(
-            DEFAULT_OPPONENT_IMAGE,
-            context.opponentPortrait,
-            enemy
-          ),
+          opponentName,
+          opponentPortrait,
           backgroundVideo: resolvedBackgroundVideo
         };
         this.parentPayload = {
