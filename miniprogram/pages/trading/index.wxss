@@ -52,52 +52,77 @@ page {
   gap: 16rpx;
 }
 
-.trading-primary-button {
+.trading-button {
   flex: 1;
-  padding: 16rpx 0;
+  min-height: 64rpx;
+  padding: 14rpx 12rpx;
   border-radius: 999rpx;
-  background: linear-gradient(135deg, #4e7bff 0%, #6a9bff 100%);
-  color: #fff;
-  font-weight: 600;
-  text-align: center;
-  border: none;
   font-size: 24rpx;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  text-align: center;
+  border: 2rpx solid transparent;
+  color: #ffffff;
+  background: rgba(110, 152, 255, 0.16);
+  box-sizing: border-box;
+  transition: opacity 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.trading-primary-button::after {
-  border: none;
+.trading-button text {
+  line-height: 1.2;
 }
 
-.trading-secondary-button {
-  flex: 1;
-  padding: 16rpx 0;
-  border-radius: 999rpx;
-  background: transparent;
-  border: 2rpx solid rgba(255, 255, 255, 0.3);
+.trading-button--primary {
+  background: linear-gradient(135deg, rgba(78, 123, 255, 0.95) 0%, rgba(106, 155, 255, 0.95) 100%);
+  box-shadow: 0 12rpx 24rpx rgba(78, 123, 255, 0.35);
+}
+
+.trading-button--secondary {
+  background: rgba(8, 11, 26, 0.55);
   color: #f4f6ff;
-  font-weight: 600;
-  text-align: center;
-  font-size: 24rpx;
+  border-color: rgba(255, 255, 255, 0.28);
 }
 
-.trading-secondary-button::after {
-  border: none;
-}
-
-.trading-danger-button {
-  flex: 1;
-  padding: 16rpx 0;
-  border-radius: 999rpx;
+.trading-button--danger {
   background: rgba(255, 92, 92, 0.2);
   color: #ff7a7a;
-  border: 2rpx solid rgba(255, 122, 122, 0.5);
-  font-weight: 600;
-  text-align: center;
-  font-size: 24rpx;
+  border-color: rgba(255, 122, 122, 0.5);
 }
 
-.trading-danger-button::after {
-  border: none;
+.trading-button:active {
+  opacity: 0.82;
+}
+
+.trading-button--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.trading-button--loading {
+  opacity: 0.68;
+  pointer-events: none;
+}
+
+.trading-button__spinner {
+  width: 20rpx;
+  height: 20rpx;
+  border-radius: 50%;
+  border: 4rpx solid rgba(255, 255, 255, 0.28);
+  border-top-color: rgba(255, 255, 255, 0.9);
+  animation: trading-spin 0.9s linear infinite;
+}
+
+@keyframes trading-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .trading-stats {
@@ -317,12 +342,31 @@ page {
 
 .trading-input {
   width: 100%;
+  display: block;
   padding: 14rpx 18rpx;
   border-radius: 12rpx;
-  background: rgba(8, 11, 26, 0.9);
+  background: rgba(8, 11, 26, 0.92);
   color: #ffffff;
-  border: 2rpx solid rgba(110, 152, 255, 0.25);
+  border: 2rpx solid rgba(110, 152, 255, 0.28);
   box-sizing: border-box;
+  font-size: 22rpx;
+  line-height: 1.6;
+  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  min-height: auto !important;
+  height: auto !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: initial !important;
+}
+
+.trading-input:focus {
+  border-color: rgba(110, 152, 255, 0.6);
+  box-shadow: 0 0 0 3rpx rgba(110, 152, 255, 0.18);
+}
+
+.trading-input__placeholder {
+  color: rgba(231, 236, 255, 0.36);
+  font-size: 20rpx;
 }
 
 .trading-radio-group {

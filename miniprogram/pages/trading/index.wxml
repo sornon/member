@@ -7,8 +7,12 @@
     </view>
     <view class="trading-balance-card__meta">灵石仅支持玩家间交易，系统不回收。</view>
     <view class="trading-balance-card__actions">
-      <button class="trading-primary-button" bindtap="handlePublishTap">上架装备</button>
-      <button class="trading-secondary-button" bindtap="handleRefresh">刷新</button>
+      <view class="trading-button trading-button--primary" bindtap="handlePublishTap">
+        <text>上架装备</text>
+      </view>
+      <view class="trading-button trading-button--secondary" bindtap="handleRefresh">
+        <text>刷新</text>
+      </view>
     </view>
   </view>
 
@@ -141,37 +145,74 @@
         </view>
         <view wx:if="{{publishForm.saleMode === 'fixed'}}" class="trading-form-item">
           <view class="trading-form-item__label">一口价</view>
-          <input class="trading-input" type="number" placeholder="请输入灵石" value="{{publishForm.fixedPrice}}" bindinput="handleFixedPriceInput" />
+          <input
+            class="trading-input"
+            type="number"
+            placeholder="请输入灵石"
+            placeholder-class="trading-input__placeholder"
+            value="{{publishForm.fixedPrice}}"
+            bindinput="handleFixedPriceInput"
+          />
         </view>
         <block wx:elif="{{publishForm.saleMode === 'auction'}}">
           <view class="trading-form-item">
             <view class="trading-form-item__label">起拍价</view>
-            <input class="trading-input" type="number" placeholder="请输入灵石" value="{{publishForm.startPrice}}" bindinput="handleStartPriceInput" />
+            <input
+              class="trading-input"
+              type="number"
+              placeholder="请输入灵石"
+              placeholder-class="trading-input__placeholder"
+              value="{{publishForm.startPrice}}"
+              bindinput="handleStartPriceInput"
+            />
           </view>
           <view class="trading-form-item">
             <view class="trading-form-item__label">最小加价</view>
-            <input class="trading-input" type="number" placeholder="默认按比例计算" value="{{publishForm.bidIncrement}}" bindinput="handleBidIncrementInput" />
+            <input
+              class="trading-input"
+              type="number"
+              placeholder="默认按比例计算"
+              placeholder-class="trading-input__placeholder"
+              value="{{publishForm.bidIncrement}}"
+              bindinput="handleBidIncrementInput"
+            />
           </view>
           <view class="trading-form-item">
             <view class="trading-form-item__label">一口价（可选）</view>
-            <input class="trading-input" type="number" placeholder="可留空" value="{{publishForm.buyoutPrice}}" bindinput="handleBuyoutPriceInput" />
+            <input
+              class="trading-input"
+              type="number"
+              placeholder="可留空"
+              placeholder-class="trading-input__placeholder"
+              value="{{publishForm.buyoutPrice}}"
+              bindinput="handleBuyoutPriceInput"
+            />
           </view>
         </block>
         <view class="trading-form-item">
           <view class="trading-form-item__label">挂单时长（小时）</view>
-          <input class="trading-input" type="number" value="{{publishForm.durationHours}}" bindinput="handleDurationInput" />
+          <input
+            class="trading-input"
+            type="number"
+            placeholder-class="trading-input__placeholder"
+            value="{{publishForm.durationHours}}"
+            bindinput="handleDurationInput"
+          />
           <view class="trading-form-item__hint">范围：{{summary.config.minDurationHours}} ~ {{summary.config.maxDurationHours}} 小时</view>
         </view>
       </block>
     </view>
     <view class="trading-modal__footer">
-      <button class="trading-secondary-button" bindtap="handlePublishClose">取消</button>
-      <button
-        class="trading-primary-button"
+      <view class="trading-button trading-button--secondary" bindtap="handlePublishClose">
+        <text>取消</text>
+      </view>
+      <view
+        class="trading-button trading-button--primary {{publishSubmitting ? 'trading-button--loading trading-button--disabled' : ''}} {{!publishForm.inventoryId ? 'trading-button--disabled' : ''}}"
         bindtap="handlePublishSubmit"
-        loading="{{publishSubmitting}}"
-        disabled="{{publishSubmitting || !publishForm.inventoryId}}"
-      >确认上架</button>
+      >
+        <view wx:if="{{publishSubmitting}}" class="trading-button__spinner"></view>
+        <text>确认上架</text>
+      </view>
     </view>
   </view>
 </view>
@@ -225,33 +266,48 @@
       </view>
       <view wx:if="{{detailListing.saleMode === 'auction'}}" class="trading-form-item">
         <view class="trading-form-item__label">我的出价</view>
-        <input class="trading-input" type="number" placeholder="输入你的出价" value="{{bidAmount}}" bindinput="handleBidAmountInput" />
+        <input
+          class="trading-input"
+          type="number"
+          placeholder="输入你的出价"
+          placeholder-class="trading-input__placeholder"
+          value="{{bidAmount}}"
+          bindinput="handleBidAmountInput"
+        />
         <view class="trading-form-item__hint">至少 {{detailListing.minBidHint}}</view>
       </view>
     </view>
     <view class="trading-modal__footer trading-modal__footer--actions">
-      <button class="trading-secondary-button" bindtap="handleDetailClose">关闭</button>
-      <button
+      <view class="trading-button trading-button--secondary" bindtap="handleDetailClose">
+        <text>关闭</text>
+      </view>
+      <view
         wx:if="{{detailListing.youAreSeller && detailListing.status === 'active'}}"
-        class="trading-danger-button"
+        class="trading-button trading-button--danger {{actionLoading ? 'trading-button--loading trading-button--disabled' : ''}}"
         bindtap="handleCancelListing"
         data-id="{{detailListing.id}}"
-        loading="{{actionLoading}}"
-      >取消挂单</button>
-      <button
+      >
+        <view wx:if="{{actionLoading}}" class="trading-button__spinner"></view>
+        <text>取消挂单</text>
+      </view>
+      <view
         wx:elif="{{detailListing.saleMode === 'fixed' && detailListing.status === 'active'}}"
-        class="trading-primary-button"
+        class="trading-button trading-button--primary {{actionLoading ? 'trading-button--loading trading-button--disabled' : ''}}"
         bindtap="handleBuyNow"
         data-id="{{detailListing.id}}"
-        loading="{{actionLoading}}"
-      >立即购买</button>
-      <button
+      >
+        <view wx:if="{{actionLoading}}" class="trading-button__spinner"></view>
+        <text>立即购买</text>
+      </view>
+      <view
         wx:elif="{{detailListing.saleMode === 'auction' && detailListing.status === 'active'}}"
-        class="trading-primary-button"
+        class="trading-button trading-button--primary {{actionLoading ? 'trading-button--loading trading-button--disabled' : ''}}"
         bindtap="handleSubmitBid"
         data-id="{{detailListing.id}}"
-        loading="{{actionLoading}}"
-      >提交出价</button>
+      >
+        <view wx:if="{{actionLoading}}" class="trading-button__spinner"></view>
+        <text>提交出价</text>
+      </view>
     </view>
   </view>
 </view>

@@ -443,5 +443,7 @@ Page({
       this.setData({ actionLoading: false });
       wx.showToast({ title: error && error.errMsg ? error.errMsg : '取消失败', icon: 'none' });
     }
-  }
+  },
+
+  noop() {}
 });
