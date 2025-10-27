@@ -137,4 +137,5 @@ CPU 部分，战斗流程涉及：
 - **实现方案**：新增 `decorateEnemyVisuals`，在 `simulateBattle` 校验敌人后按以下规则补全视觉资源：
   - `avatarUrl`/`avatar` 指向 `avatar/<enemyId>.png`，`portrait`/`image` 指向 `character/<enemyId>.png`；
   - 秘境背景固定为 `background/mijing.mp4`，填充到 `enemy.scene.video`、`scene.backgroundVideo`、`background.video` 与 `backgroundVideo`，仅在字段为空时覆盖。
+- **前端同步修复**：战斗页（`/pages/battle/play`）先前会优先使用秘境列表的敌人预览，覆盖了云函数回传的 `battle.opponent.portrait`，导致即便接口返回了 `cloud://...secret_realm_qi_refining_03.png` 仍展示默认图。本次改为优先读取 `battle.opponent`/`participants.enemy` 的视觉字段，再回退到预览与上下文，从而确保 NPC 立绘与背景视频均能生效。
 - **上线提示**：更新仍属于 `pve` 云函数逻辑，重新部署后即可生效，无需额外环境配置。上线后请在前端秘境战斗页确认背景视频与 NPC 立绘加载正确。
