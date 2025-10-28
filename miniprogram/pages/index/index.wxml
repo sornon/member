@@ -350,7 +350,7 @@
           </view>
           <view wx:else class="archive-section appearance-section appearance-section--background">
             <view wx:if="{{globalBackgroundEnforced}}" class="appearance-background-global-hint">
-              管理员已启用全局背景，个人设置暂不可修改。
+              全场活动中，个人设置暂不可修改。
             </view>
             <view class="appearance-background-toggle">
               <view class="appearance-background-toggle__info">
