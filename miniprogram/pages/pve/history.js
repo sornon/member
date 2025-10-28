@@ -333,6 +333,9 @@ Page({
       playerName: record.playerName || '你',
       opponentName: record.enemyName || '秘境之敌'
     };
+    if (record.enemyType) {
+      viewContext.enemyType = record.enemyType;
+    }
     if (record.playerPortrait) {
       viewContext.playerPortrait = record.playerPortrait;
     }
