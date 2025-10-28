@@ -66,6 +66,8 @@ const DEFAULT_FEATURES = {
   homeEntries: { ...DEFAULT_HOME_ENTRIES }
 };
 
+const HOME_ENTRIES_STORAGE_KEY = 'home-entries-visibility';
+
 function showConfirmationModal({ title = '确认操作', content = '确认执行该操作？', confirmText = '确认', cancelText = '取消' } = {}) {
   return new Promise((resolve) => {
     wx.showModal({
@@ -217,6 +219,31 @@ function normalizeHomeEntries(entries) {
 function cloneHomeEntries(entries) {
   const normalized = normalizeHomeEntries(entries);
   return { ...normalized };
+}
+
+function persistHomeEntries(entries) {
+  try {
+    const normalized = normalizeHomeEntries(entries);
+    wx.setStorageSync(HOME_ENTRIES_STORAGE_KEY, normalized);
+    return true;
+  } catch (error) {
+    console.warn('[admin] persist home entries failed', error);
+    return false;
+  }
+}
+
+function syncHomeEntriesToApp(entries) {
+  const normalized = normalizeHomeEntries(entries);
+  try {
+    const appInstance = getApp();
+    if (appInstance && appInstance.globalData) {
+      appInstance.globalData.homeEntries = normalized;
+    }
+  } catch (error) {
+    console.warn('[admin] sync global home entries failed', error);
+  }
+  persistHomeEntries(normalized);
+  return normalized;
 }
 
 function buildTournamentDraft(config) {
@@ -415,6 +442,10 @@ Page({
     this.loadFeatures({ showLoading: false, fromPullDown: true });
   },
 
+  syncHomeEntries(entries) {
+    return syncHomeEntriesToApp(entries);
+  },
+
   async loadFeatures(options = {}) {
     const showLoading = options.showLoading !== false;
     if (showLoading) {
@@ -459,6 +490,7 @@ Page({
         secretRealmResetSummary: '',
         secretRealmResetError: ''
       });
+      this.syncHomeEntries(features.homeEntries);
     } catch (error) {
       this.setData({
         loading: false,
@@ -520,6 +552,9 @@ Page({
         updating: nextUpdating,
         error: ''
       });
+      if (key.startsWith('homeEntries')) {
+        this.syncHomeEntries(features.homeEntries);
+      }
       wx.showToast({ title: '已更新', icon: 'success', duration: 800 });
     } catch (error) {
       const nextUpdating = { ...this.data.updating };

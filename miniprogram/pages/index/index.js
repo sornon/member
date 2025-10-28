@@ -1224,6 +1224,18 @@ Page({
   onShow() {
     this.ensureNavMetrics();
     this.updateToday();
+    const globalHomeEntries = app && app.globalData ? app.globalData.homeEntries : null;
+    if (globalHomeEntries) {
+      const normalizedGlobal = normalizeHomeEntryVisibility(globalHomeEntries);
+      const previousEntries =
+        this.homeEntries && typeof this.homeEntries === 'object'
+          ? this.homeEntries
+          : normalizeHomeEntryVisibility(DEFAULT_HOME_ENTRY_VISIBILITY);
+      const hasDifference = HOME_ENTRY_ITEMS.some((item) => normalizedGlobal[item.key] !== previousEntries[item.key]);
+      if (hasDifference) {
+        this.applyHomeEntries(normalizedGlobal);
+      }
+    }
     const shouldRefreshHomeEntries =
       !this.homeEntriesReady ||
       (this.homeEntriesLoadedAt && Date.now() - this.homeEntriesLoadedAt > 300000);
