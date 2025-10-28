@@ -9865,8 +9865,6 @@ function formatRewardText(rewards = {}) {
   const exp = Math.max(0, Math.floor(Number(rewards.exp) || 0));
   if (exp > 0) {
     parts.push(`修为 +${exp}`);
-  } else {
-    parts.push('修为不可提升');
   }
   const stones = Math.max(0, Math.floor(Number(rewards.stones) || 0));
   if (stones > 0) {
@@ -9881,7 +9879,19 @@ function formatRewardText(rewards = {}) {
     if (hasConsumable) {
       parts.push('洗点次数 +1');
     }
-    parts.push('获得掉落');
+    const lootNames = rewards.loot
+      .map((item) => {
+        if (item && typeof item === 'object') {
+          return item.label || item.name || item.itemName || '';
+        }
+        return '';
+      })
+      .filter((name) => name);
+    if (lootNames.length) {
+      parts.push(`掉落：${lootNames.join('、')}`);
+    } else {
+      parts.push('获得掉落');
+    }
   }
   return parts.join(' · ');
 }
