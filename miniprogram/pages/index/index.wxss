@@ -684,6 +684,7 @@ page {
   background: rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.8);
   font-size: 36rpx;
+  line-height: 1;
 }
 
 .modal-body {

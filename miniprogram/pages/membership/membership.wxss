@@ -75,7 +75,7 @@
 }
 
 .breakthrough-button {
-  margin-top: 16rpx;
+  margin-top: 24rpx;
   align-self: flex-start;
   padding: 14rpx 32rpx;
   border-radius: 999rpx;
@@ -112,6 +112,7 @@
   font-size: 22rpx;
   color: #2b2000;
   background: rgba(255, 255, 255, 0.85);
+  text-align: center;
 }
 
 .milestone-text {
