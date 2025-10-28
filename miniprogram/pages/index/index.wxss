@@ -985,6 +985,16 @@ page {
   min-width: 0;
 }
 
+.appearance-background-global-hint {
+  margin: 0 0 16rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 16rpx;
+  font-size: 24rpx;
+  line-height: 1.5;
+  color: #ffb17a;
+  background: rgba(255, 177, 122, 0.12);
+}
+
 .appearance-background-grid {
   margin: 12rpx 0 24rpx;
   display: grid;

@@ -3,6 +3,14 @@ import {
   normalizeCacheVersions as normalizeClientCacheVersions,
   getDefaultCacheVersions
 } from '../../../utils/cache-version.js';
+const {
+  normalizeBackgroundId,
+  resolveBackgroundById,
+  registerCustomBackgrounds,
+  normalizeBackgroundCatalog,
+  buildBackgroundImageUrlByFile,
+  buildBackgroundVideoUrlByFile
+} = require('../../../shared/backgrounds.js');
 
 const DEFAULT_IMMORTAL_TOURNAMENT = {
   enabled: false,
@@ -59,11 +67,165 @@ const CACHE_VERSION_SCOPES = [
   }
 ];
 
+const DEFAULT_GLOBAL_BACKGROUND = {
+  enabled: false,
+  backgroundId: '',
+  animated: false
+};
+
+function normalizeGlobalBackgroundConfig(config = DEFAULT_GLOBAL_BACKGROUND) {
+  const base = config && typeof config === 'object' ? config : {};
+  const enabled = toBoolean(base.enabled, DEFAULT_GLOBAL_BACKGROUND.enabled);
+  const idCandidates = [base.backgroundId, base.id, base.background];
+  let backgroundId = '';
+  for (let i = 0; i < idCandidates.length; i += 1) {
+    const candidate = idCandidates[i];
+    if (typeof candidate === 'string' && candidate.trim()) {
+      backgroundId = normalizeBackgroundId(candidate);
+      if (backgroundId) {
+        break;
+      }
+    }
+  }
+  const animated = toBoolean(base.animated, DEFAULT_GLOBAL_BACKGROUND.animated);
+  return {
+    enabled,
+    backgroundId,
+    animated
+  };
+}
+
+function cloneGlobalBackgroundConfig(config = DEFAULT_GLOBAL_BACKGROUND) {
+  const normalized = normalizeGlobalBackgroundConfig(config);
+  return {
+    enabled: normalized.enabled,
+    backgroundId: normalized.backgroundId,
+    animated: normalized.animated
+  };
+}
+
+function normalizeGlobalBackgroundCatalogList(list = []) {
+  return normalizeBackgroundCatalog(Array.isArray(list) ? list : []);
+}
+
+function cloneGlobalBackgroundCatalog(list = []) {
+  return normalizeGlobalBackgroundCatalogList(list).map((entry) => ({ ...entry }));
+}
+
+function buildGlobalBackgroundManagerEntries(catalog = []) {
+  const normalized = normalizeGlobalBackgroundCatalogList(catalog);
+  return normalized.map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    mediaKey: entry.mediaKey,
+    preview: buildBackgroundImageUrlByFile(entry.mediaKey || entry.id)
+  }));
+}
+
+function buildGlobalBackgroundSummary(catalog = []) {
+  const normalized = normalizeGlobalBackgroundCatalogList(catalog).filter(Boolean);
+  if (!normalized.length) {
+    return '尚未添加自定义背景';
+  }
+  return `已添加 ${normalized.length} 个背景 · 自动解锁`;
+}
+
+function buildGlobalBackgroundOptionsFromCatalog(catalog = []) {
+  const normalized = normalizeGlobalBackgroundCatalogList(catalog);
+  registerCustomBackgrounds(normalized);
+  return normalized.map((entry) => {
+    const resolved = resolveBackgroundById(entry.id);
+    const image =
+      (resolved && resolved.image) || buildBackgroundImageUrlByFile(entry.mediaKey || entry.id);
+    const video =
+      (resolved && resolved.video) ||
+      buildBackgroundVideoUrlByFile(entry.videoFile || entry.mediaKey || entry.id);
+    const segments = [];
+    if (entry.mediaKey) {
+      segments.push(`文件名：${entry.mediaKey}`);
+    }
+    if (entry.realmName) {
+      segments.push(entry.realmName);
+    }
+    return {
+      id: entry.id,
+      name: entry.name,
+      image,
+      video,
+      description: segments.length ? segments.join(' · ') : '自定义背景素材'
+    };
+  });
+}
+
+function buildGlobalBackgroundPreviewFromOptions(
+  config = DEFAULT_GLOBAL_BACKGROUND,
+  options = []
+) {
+  const normalized = cloneGlobalBackgroundConfig(config);
+  const list = Array.isArray(options) ? options : [];
+  const option = list.find((item) => item && item.id === normalized.backgroundId) || null;
+  if (!option) {
+    const hasOptions = list.length > 0;
+    return {
+      image: '',
+      video: '',
+      name: hasOptions ? '背景未找到' : '暂无素材',
+      description: hasOptions
+        ? '该背景已被移除，请重新选择。'
+        : '尚未添加全局背景素材，请点击“管理背景”添加。',
+      animated: false
+    };
+  }
+  const baseDescription = option.description || '自定义背景素材';
+  const stateHint = normalized.enabled
+    ? '开启后会员端将统一展示该背景。'
+    : '当前未启用全局背景，会员仍使用个人背景。';
+  const video = option.video || '';
+  const animated = !!normalized.animated && !!video;
+  return {
+    image: option.image || '',
+    video,
+    name: option.name || '',
+    description: `${baseDescription} · ${stateHint}`,
+    animated
+  };
+}
+
+function prepareGlobalBackgroundState(config = DEFAULT_GLOBAL_BACKGROUND, catalog = []) {
+  const normalizedCatalog = normalizeGlobalBackgroundCatalogList(catalog);
+  const options = buildGlobalBackgroundOptionsFromCatalog(normalizedCatalog);
+  const allowedIds = new Set(options.map((item) => item.id));
+  const background = cloneGlobalBackgroundConfig(config);
+  if (!allowedIds.size) {
+    background.backgroundId = '';
+    background.animated = false;
+  } else if (!background.backgroundId || !allowedIds.has(background.backgroundId)) {
+    background.backgroundId = options[0].id;
+  }
+  if (background.animated) {
+    const selectedOption = options.find((item) => item.id === background.backgroundId);
+    if (!selectedOption || !selectedOption.video) {
+      background.animated = false;
+    }
+  }
+  return {
+    catalog: normalizedCatalog,
+    options,
+    background,
+    preview: buildGlobalBackgroundPreviewFromOptions(background, options),
+    summary: buildGlobalBackgroundSummary(normalizedCatalog),
+    entries: buildGlobalBackgroundManagerEntries(normalizedCatalog),
+    allowedIds: Array.from(allowedIds)
+  };
+}
+
 const DEFAULT_FEATURES = {
   cashierEnabled: true,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
   cacheVersions: { ...DEFAULT_CACHE_VERSIONS },
-  homeEntries: { ...DEFAULT_HOME_ENTRIES }
+  homeEntries: { ...DEFAULT_HOME_ENTRIES },
+  globalBackground: { ...DEFAULT_GLOBAL_BACKGROUND },
+  globalBackgroundCatalog: []
 };
 
 const HOME_ENTRIES_STORAGE_KEY = 'home-entries-visibility';
@@ -263,7 +425,11 @@ function normalizeFeatures(features) {
       DEFAULT_FEATURES.cacheVersions,
       DEFAULT_CACHE_VERSIONS
     ),
-    homeEntries: cloneHomeEntries(DEFAULT_FEATURES.homeEntries)
+    homeEntries: cloneHomeEntries(DEFAULT_FEATURES.homeEntries),
+    globalBackground: cloneGlobalBackgroundConfig(DEFAULT_FEATURES.globalBackground),
+    globalBackgroundCatalog: cloneGlobalBackgroundCatalog(
+      DEFAULT_FEATURES.globalBackgroundCatalog
+    )
   };
   if (features && typeof features === 'object') {
     if (Object.prototype.hasOwnProperty.call(features, 'cashierEnabled')) {
@@ -280,6 +446,14 @@ function normalizeFeatures(features) {
     }
     if (Object.prototype.hasOwnProperty.call(features, 'homeEntries')) {
       normalized.homeEntries = cloneHomeEntries(features.homeEntries);
+    }
+    if (Object.prototype.hasOwnProperty.call(features, 'globalBackground')) {
+      normalized.globalBackground = cloneGlobalBackgroundConfig(features.globalBackground);
+    }
+    if (Object.prototype.hasOwnProperty.call(features, 'globalBackgroundCatalog')) {
+      normalized.globalBackgroundCatalog = cloneGlobalBackgroundCatalog(
+        features.globalBackgroundCatalog
+      );
     }
   }
   return normalized;
@@ -382,6 +556,25 @@ Page({
     secretRealmResetting: false,
     secretRealmResetSummary: '',
     secretRealmResetError: '',
+    globalBackgroundOptions: [],
+    globalBackgroundDraft: cloneGlobalBackgroundConfig(DEFAULT_FEATURES.globalBackground),
+    globalBackgroundSaving: false,
+    globalBackgroundError: '',
+    globalBackgroundPreview: buildGlobalBackgroundPreviewFromOptions(
+      DEFAULT_FEATURES.globalBackground,
+      []
+    ),
+    globalBackgroundSummary: buildGlobalBackgroundSummary([]),
+    globalBackgroundCatalog: cloneGlobalBackgroundCatalog(
+      DEFAULT_FEATURES.globalBackgroundCatalog
+    ),
+    globalBackgroundAllowedIds: [],
+    globalBackgroundManagerVisible: false,
+    globalBackgroundManagerEntries: buildGlobalBackgroundManagerEntries([]),
+    globalBackgroundManagerForm: { name: '', file: '' },
+    globalBackgroundManagerDirty: false,
+    globalBackgroundManagerSaving: false,
+    globalBackgroundManagerError: '',
     homeEntryList: [
       {
         key: 'activities',
@@ -464,9 +657,18 @@ Page({
         DEFAULT_RAGE_SETTINGS;
       const rageDefaults = cloneRageSettings(rageDefaultsSource);
       const rageSettings = cloneRageSettings(responseRage);
+      const globalState = prepareGlobalBackgroundState(
+        features.globalBackground,
+        features.globalBackgroundCatalog
+      );
+      const nextFeatures = {
+        ...features,
+        globalBackground: cloneGlobalBackgroundConfig(globalState.background),
+        globalBackgroundCatalog: cloneGlobalBackgroundCatalog(globalState.catalog)
+      };
       this.setData({
         loading: false,
-        features,
+        features: nextFeatures,
         tournamentDraft: buildTournamentDraft(features.immortalTournament),
         tournamentSaving: false,
         tournamentError: '',
@@ -488,7 +690,21 @@ Page({
         cacheError: '',
         secretRealmResetting: false,
         secretRealmResetSummary: '',
-        secretRealmResetError: ''
+        secretRealmResetError: '',
+        globalBackgroundOptions: globalState.options,
+        globalBackgroundCatalog: cloneGlobalBackgroundCatalog(globalState.catalog),
+        globalBackgroundDraft: cloneGlobalBackgroundConfig(globalState.background),
+        globalBackgroundSaving: false,
+        globalBackgroundError: '',
+        globalBackgroundPreview: globalState.preview,
+        globalBackgroundSummary: globalState.summary,
+        globalBackgroundAllowedIds: globalState.allowedIds,
+        globalBackgroundManagerVisible: false,
+        globalBackgroundManagerEntries: globalState.entries,
+        globalBackgroundManagerForm: { name: '', file: '' },
+        globalBackgroundManagerDirty: false,
+        globalBackgroundManagerSaving: false,
+        globalBackgroundManagerError: ''
       });
       this.syncHomeEntries(features.homeEntries);
     } catch (error) {
@@ -506,13 +722,310 @@ Page({
         updating: {},
         rageSaving: false,
         cacheRefreshing: {},
-        secretRealmResetting: false
+        secretRealmResetting: false,
+        globalBackgroundSaving: false
       });
     } finally {
       if (options.fromPullDown) {
         wx.stopPullDownRefresh();
       }
     }
+  },
+
+  commitGlobalBackground(updates = {}, options = {}) {
+    if (this.data.globalBackgroundSaving) {
+      return Promise.resolve();
+    }
+    const previousDraft = cloneGlobalBackgroundConfig(this.data.globalBackgroundDraft);
+    let mergedDraft = cloneGlobalBackgroundConfig({ ...previousDraft, ...updates });
+    const optionsList = Array.isArray(this.data.globalBackgroundOptions)
+      ? this.data.globalBackgroundOptions
+      : [];
+    const allowedIdsSource = Array.isArray(this.data.globalBackgroundAllowedIds)
+      ? this.data.globalBackgroundAllowedIds
+      : optionsList.map((item) => item && item.id).filter(Boolean);
+    const allowedIds = new Set(allowedIdsSource);
+    const previousPersisted = cloneGlobalBackgroundConfig(this.data.features.globalBackground);
+
+    if (mergedDraft.enabled && !allowedIds.size) {
+      const preview = buildGlobalBackgroundPreviewFromOptions(previousDraft, optionsList);
+      this.setData({
+        globalBackgroundDraft: previousDraft,
+        globalBackgroundError: '',
+        globalBackgroundPreview: preview
+      });
+      wx.showToast({ title: '请先添加自定义背景', icon: 'none', duration: 1200 });
+      return Promise.resolve();
+    }
+
+    if (allowedIds.size) {
+      if (!mergedDraft.backgroundId || !allowedIds.has(mergedDraft.backgroundId)) {
+        const firstOption = optionsList.find((item) => item && item.id);
+        mergedDraft.backgroundId = firstOption ? firstOption.id : '';
+      }
+    } else {
+      mergedDraft.backgroundId = '';
+    }
+
+    let showDynamicUnsupportedToast = false;
+    if (mergedDraft.animated) {
+      const selectedOption = optionsList.find((item) => item && item.id === mergedDraft.backgroundId);
+      if (!selectedOption || !selectedOption.video) {
+        if (Object.prototype.hasOwnProperty.call(updates, 'animated') && updates.animated) {
+          showDynamicUnsupportedToast = true;
+        }
+        mergedDraft.animated = false;
+      }
+    }
+
+    const preview = buildGlobalBackgroundPreviewFromOptions(mergedDraft, optionsList);
+
+    this.setData({
+      globalBackgroundDraft: mergedDraft,
+      globalBackgroundError: '',
+      globalBackgroundPreview: preview
+    });
+
+    if (showDynamicUnsupportedToast) {
+      wx.showToast({ title: '该背景不支持动态效果', icon: 'none', duration: 1200 });
+    }
+
+    const changed =
+      mergedDraft.enabled !== previousPersisted.enabled ||
+      mergedDraft.backgroundId !== previousPersisted.backgroundId ||
+      mergedDraft.animated !== previousPersisted.animated;
+
+    if (!changed && !options.force) {
+      if (options.toast !== false) {
+        const title = options.toastTitle || '暂无改动';
+        wx.showToast({ title, icon: 'none', duration: 1000 });
+      }
+      return Promise.resolve();
+    }
+
+    this.setData({ globalBackgroundSaving: true });
+
+    return AdminService.updateGlobalBackground(mergedDraft)
+      .then((result) => {
+        const features = normalizeFeatures(
+          result && result.features ? result.features : this.data.features
+        );
+        const globalState = prepareGlobalBackgroundState(
+          features.globalBackground,
+          features.globalBackgroundCatalog
+        );
+        const nextFeatures = {
+          ...features,
+          globalBackground: cloneGlobalBackgroundConfig(globalState.background),
+          globalBackgroundCatalog: cloneGlobalBackgroundCatalog(globalState.catalog)
+        };
+        const nextDraft = cloneGlobalBackgroundConfig(globalState.background);
+        this.setData({
+          features: nextFeatures,
+          globalBackgroundOptions: globalState.options,
+          globalBackgroundCatalog: cloneGlobalBackgroundCatalog(globalState.catalog),
+          globalBackgroundDraft: nextDraft,
+          globalBackgroundPreview: globalState.preview,
+          globalBackgroundSummary: globalState.summary,
+          globalBackgroundAllowedIds: globalState.allowedIds,
+          globalBackgroundManagerEntries: globalState.entries,
+          globalBackgroundSaving: false,
+          globalBackgroundError: ''
+        });
+        if (options.toast !== false) {
+          const title = options.toastTitle || '已更新';
+          wx.showToast({ title, icon: 'success', duration: 800 });
+        }
+        return nextDraft;
+      })
+      .catch((error) => {
+        const message = resolveErrorMessage(error, '保存失败，请稍后重试');
+        const fallbackPreview = buildGlobalBackgroundPreviewFromOptions(mergedDraft, optionsList);
+        this.setData({
+          globalBackgroundSaving: false,
+          globalBackgroundError: message,
+          globalBackgroundPreview: fallbackPreview
+        });
+        if (options.toast !== false) {
+          wx.showToast({ title: '保存失败', icon: 'none', duration: 1200 });
+        }
+        throw error;
+      });
+  },
+
+  handleGlobalBackgroundToggle(event) {
+    const enabled = !!(event && event.detail && event.detail.value);
+    this.commitGlobalBackground({ enabled }, { toastTitle: enabled ? '已开启' : '已关闭' }).catch(() => {});
+  },
+
+  handleGlobalBackgroundAnimatedToggle(event) {
+    const animated = !!(event && event.detail && event.detail.value);
+    this.commitGlobalBackground({ animated }, { toastTitle: '已更新' }).catch(() => {});
+  },
+
+  handleGlobalBackgroundSelect(event) {
+    const dataset = event && event.currentTarget ? event.currentTarget.dataset || {} : {};
+    if (dataset && dataset.disabled) {
+      const hint = typeof dataset.hint === 'string' && dataset.hint ? dataset.hint : '该背景不可用';
+      wx.showToast({ title: hint, icon: 'none', duration: 1200 });
+      return;
+    }
+    const id = typeof dataset.id === 'string' ? dataset.id : '';
+    const backgroundId = normalizeBackgroundId(id);
+    if (!backgroundId) {
+      wx.showToast({ title: '未找到背景', icon: 'none', duration: 1000 });
+      return;
+    }
+    this.commitGlobalBackground({ backgroundId }, { toastTitle: '已更新' }).catch(() => {});
+  },
+
+  openGlobalBackgroundManager() {
+    if (this.data.globalBackgroundManagerSaving) {
+      return;
+    }
+    const catalog = this.data.globalBackgroundCatalog || [];
+    this.setData({
+      globalBackgroundManagerVisible: true,
+      globalBackgroundManagerEntries: buildGlobalBackgroundManagerEntries(catalog),
+      globalBackgroundManagerForm: { name: '', file: '' },
+      globalBackgroundManagerDirty: false,
+      globalBackgroundManagerSaving: false,
+      globalBackgroundManagerError: ''
+    });
+  },
+
+  handleGlobalBackgroundManagerClose() {
+    if (this.data.globalBackgroundManagerSaving) {
+      return;
+    }
+    const catalog = this.data.globalBackgroundCatalog || [];
+    this.setData({
+      globalBackgroundManagerVisible: false,
+      globalBackgroundManagerEntries: buildGlobalBackgroundManagerEntries(catalog),
+      globalBackgroundManagerForm: { name: '', file: '' },
+      globalBackgroundManagerDirty: false,
+      globalBackgroundManagerError: ''
+    });
+  },
+
+  handleGlobalBackgroundManagerInput(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const field = dataset.field;
+    if (!field) {
+      return;
+    }
+    const value = event && event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
+    this.setData({
+      globalBackgroundManagerForm: {
+        ...this.data.globalBackgroundManagerForm,
+        [field]: value
+      }
+    });
+  },
+
+  handleGlobalBackgroundManagerAdd() {
+    const form = this.data.globalBackgroundManagerForm || {};
+    const name = typeof form.name === 'string' ? form.name.trim() : '';
+    if (!name) {
+      wx.showToast({ title: '请输入背景名称', icon: 'none' });
+      return;
+    }
+    const fileInput = typeof form.file === 'string' ? form.file.trim() : '';
+    const mediaKeySource = fileInput || name;
+    if (!mediaKeySource) {
+      wx.showToast({ title: '请输入文件名', icon: 'none' });
+      return;
+    }
+    const existingEntries = Array.isArray(this.data.globalBackgroundManagerEntries)
+      ? this.data.globalBackgroundManagerEntries
+      : [];
+    const baseList = existingEntries.map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      mediaKey: entry.mediaKey
+    }));
+    const appended = normalizeBackgroundCatalog(
+      baseList.concat([{ name, mediaKey: mediaKeySource }])
+    );
+    if (!appended.length) {
+      wx.showToast({ title: '添加失败，请重试', icon: 'none' });
+      return;
+    }
+    this.setData({
+      globalBackgroundManagerEntries: buildGlobalBackgroundManagerEntries(appended),
+      globalBackgroundManagerForm: { name: '', file: '' },
+      globalBackgroundManagerDirty: true
+    });
+  },
+
+  handleGlobalBackgroundManagerRemove(event) {
+    const id = event && event.currentTarget && event.currentTarget.dataset
+      ? event.currentTarget.dataset.id
+      : '';
+    const targetId = normalizeBackgroundId(id);
+    if (!targetId) {
+      return;
+    }
+    const existingEntries = Array.isArray(this.data.globalBackgroundManagerEntries)
+      ? this.data.globalBackgroundManagerEntries
+      : [];
+    const filtered = existingEntries.filter((entry) => entry && entry.id !== targetId);
+    const normalized = normalizeBackgroundCatalog(filtered);
+    this.setData({
+      globalBackgroundManagerEntries: buildGlobalBackgroundManagerEntries(normalized),
+      globalBackgroundManagerDirty: true
+    });
+  },
+
+  handleGlobalBackgroundManagerSave() {
+    if (this.data.globalBackgroundManagerSaving) {
+      return;
+    }
+    const entries = Array.isArray(this.data.globalBackgroundManagerEntries)
+      ? this.data.globalBackgroundManagerEntries
+      : [];
+    const catalog = normalizeBackgroundCatalog(
+      entries.map((entry) => ({ id: entry.id, name: entry.name, mediaKey: entry.mediaKey }))
+    );
+    this.setData({ globalBackgroundManagerSaving: true, globalBackgroundManagerError: '' });
+    AdminService.updateGlobalBackgroundCatalog(catalog)
+      .then((result) => {
+        const features = normalizeFeatures(
+          result && result.features ? result.features : this.data.features
+        );
+        const globalState = prepareGlobalBackgroundState(
+          features.globalBackground,
+          features.globalBackgroundCatalog
+        );
+        const nextFeatures = {
+          ...features,
+          globalBackground: cloneGlobalBackgroundConfig(globalState.background),
+          globalBackgroundCatalog: cloneGlobalBackgroundCatalog(globalState.catalog)
+        };
+        this.setData({
+          features: nextFeatures,
+          globalBackgroundOptions: globalState.options,
+          globalBackgroundCatalog: cloneGlobalBackgroundCatalog(globalState.catalog),
+          globalBackgroundDraft: cloneGlobalBackgroundConfig(globalState.background),
+          globalBackgroundPreview: globalState.preview,
+          globalBackgroundSummary: globalState.summary,
+          globalBackgroundAllowedIds: globalState.allowedIds,
+          globalBackgroundManagerVisible: false,
+          globalBackgroundManagerEntries: globalState.entries,
+          globalBackgroundManagerForm: { name: '', file: '' },
+          globalBackgroundManagerDirty: false,
+          globalBackgroundManagerSaving: false,
+          globalBackgroundManagerError: ''
+        });
+        wx.showToast({ title: '已保存', icon: 'success' });
+      })
+      .catch((error) => {
+        const message = resolveErrorMessage(error, '保存失败，请稍后重试');
+        this.setData({
+          globalBackgroundManagerSaving: false,
+          globalBackgroundManagerError: message
+        });
+      });
   },
 
   async handleFeatureToggle(event) {

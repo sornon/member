@@ -25,7 +25,9 @@ const {
   cloneCacheVersions,
   normalizeHomeEntries,
   cloneHomeEntries,
-  DEFAULT_HOME_ENTRIES
+  DEFAULT_HOME_ENTRIES,
+  cloneGlobalBackground,
+  cloneGlobalBackgroundCatalog
 } = require('system-settings');
 
 const db = cloud.database();
@@ -451,8 +453,13 @@ async function getSystemSettings() {
   const document = await loadFeatureToggleDocument();
   const homeEntries = document && document.homeEntries ? document.homeEntries : DEFAULT_HOME_ENTRIES;
   const normalizedHomeEntries = normalizeHomeEntries(homeEntries);
+  const backgroundCatalog = normalizeBackgroundCatalog(
+    (document && document.globalBackgroundCatalog) || []
+  );
   const response = {
-    homeEntries: cloneHomeEntries(normalizedHomeEntries)
+    homeEntries: cloneHomeEntries(normalizedHomeEntries),
+    globalBackground: cloneGlobalBackground(document && document.globalBackground),
+    globalBackgroundCatalog: cloneGlobalBackgroundCatalog(backgroundCatalog)
   };
   if (document && document.updatedAt) {
     response.updatedAt = document.updatedAt;

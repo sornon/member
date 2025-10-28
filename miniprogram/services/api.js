@@ -813,6 +813,18 @@ export const AdminService = {
       parameters
     });
   },
+  async updateGlobalBackground(config = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'updateGlobalBackground',
+      config
+    });
+  },
+  async updateGlobalBackgroundCatalog(catalog = []) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'updateGlobalBackgroundCatalog',
+      catalog
+    });
+  },
   async bumpCacheVersion(scope) {
     const payload = {
       action: 'bumpCacheVersion'

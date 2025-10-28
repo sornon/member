@@ -19,6 +19,7 @@ const {
   DEFAULT_RAGE_SETTINGS,
   DEFAULT_CACHE_VERSIONS,
   DEFAULT_HOME_ENTRIES,
+  DEFAULT_GLOBAL_BACKGROUND,
   normalizeRageSettings,
   serializeGameParameters,
   cloneGameParameters,
@@ -28,6 +29,10 @@ const {
   normalizeHomeEntries,
   cloneCacheVersions,
   cloneHomeEntries,
+  cloneGlobalBackground,
+  cloneGlobalBackgroundCatalog,
+  normalizeGlobalBackground,
+  serializeGlobalBackground,
   incrementCacheVersionValue
 } = require('system-settings');
 
@@ -64,7 +69,9 @@ const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
   cacheVersions: { ...DEFAULT_CACHE_VERSIONS },
-  homeEntries: { ...DEFAULT_HOME_ENTRIES }
+  homeEntries: { ...DEFAULT_HOME_ENTRIES },
+  globalBackground: { ...DEFAULT_GLOBAL_BACKGROUND },
+  globalBackgroundCatalog: []
 };
 const DEFAULT_PVP_RATING = 1200;
 const DEFAULT_PVP_TIER = { id: 'bronze', name: '青铜' };
@@ -94,7 +101,11 @@ const HOME_ENTRY_FEATURE_KEYS = [
   'homeEntries.trading'
 ];
 
-const ALLOWED_FEATURE_KEYS = new Set(['cashierEnabled', ...HOME_ENTRY_FEATURE_KEYS]);
+const ALLOWED_FEATURE_KEYS = new Set([
+  'cashierEnabled',
+  ...HOME_ENTRY_FEATURE_KEYS,
+  'globalBackground.enabled'
+]);
 
 const FEATURE_KEY_ALIASES = {
   cashier: 'cashierEnabled',
@@ -132,7 +143,12 @@ const FEATURE_KEY_ALIASES = {
   trading: 'homeEntries.trading',
   trade: 'homeEntries.trading',
   exchange: 'homeEntries.trading',
-  'homeentries.trading': 'homeEntries.trading'
+  'homeentries.trading': 'homeEntries.trading',
+  globalbackground: 'globalBackground.enabled',
+  'global-background': 'globalBackground.enabled',
+  'global_background': 'globalBackground.enabled',
+  backgroundoverride: 'globalBackground.enabled',
+  backgroundlock: 'globalBackground.enabled'
 };
 
 const CACHE_VERSION_KEY_ALIASES = {
@@ -351,6 +367,8 @@ const ACTIONS = {
   UPDATE_SYSTEM_FEATURE: 'updateSystemFeature',
   UPDATE_IMMORTAL_TOURNAMENT_SETTINGS: 'updateImmortalTournamentSettings',
   UPDATE_GAME_PARAMETERS: 'updateGameParameters',
+  UPDATE_GLOBAL_BACKGROUND: 'updateGlobalBackground',
+  UPDATE_GLOBAL_BACKGROUND_CATALOG: 'updateGlobalBackgroundCatalog',
   BUMP_CACHE_VERSION: 'bumpCacheVersion',
   RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament',
   REFRESH_IMMORTAL_TOURNAMENT_PLAYERS: 'refreshImmortalTournamentPlayers',
@@ -442,6 +460,11 @@ const ACTION_ALIASES = {
   refreshimmortaltournamentplayers: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
   refreshimmortalplayers: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
   refreshpvpprofiles: ACTIONS.REFRESH_IMMORTAL_TOURNAMENT_PLAYERS,
+  updateglobalbackground: ACTIONS.UPDATE_GLOBAL_BACKGROUND,
+  setglobalbackground: ACTIONS.UPDATE_GLOBAL_BACKGROUND,
+  enableglobalbackground: ACTIONS.UPDATE_GLOBAL_BACKGROUND,
+  disableglobalbackground: ACTIONS.UPDATE_GLOBAL_BACKGROUND,
+  globalbackground: ACTIONS.UPDATE_GLOBAL_BACKGROUND,
   bumpcacheversion: ACTIONS.BUMP_CACHE_VERSION,
   refreshcache: ACTIONS.BUMP_CACHE_VERSION,
   updatecacheversion: ACTIONS.BUMP_CACHE_VERSION,
@@ -633,6 +656,10 @@ const ACTION_HANDLERS = {
     updateImmortalTournamentSettings(openid, event.updates || event),
   [ACTIONS.UPDATE_GAME_PARAMETERS]: (openid, event = {}) =>
     updateGameParameters(openid, event.parameters || event),
+  [ACTIONS.UPDATE_GLOBAL_BACKGROUND]: (openid, event = {}) =>
+    updateGlobalBackground(openid, event.config || event),
+  [ACTIONS.UPDATE_GLOBAL_BACKGROUND_CATALOG]: (openid, event = {}) =>
+    updateGlobalBackgroundCatalog(openid, event.catalog || event),
   [ACTIONS.BUMP_CACHE_VERSION]: (openid, event) => bumpCacheVersion(openid, event || {}),
   [ACTIONS.RESET_IMMORTAL_TOURNAMENT]: (openid, event) =>
     resetImmortalTournament(openid, event || {}),
@@ -1111,7 +1138,11 @@ function normalizeFeatureToggles(documentData) {
     cashierEnabled: DEFAULT_FEATURE_TOGGLES.cashierEnabled,
     immortalTournament: cloneImmortalTournament(DEFAULT_FEATURE_TOGGLES.immortalTournament),
     cacheVersions: cloneCacheVersions(DEFAULT_FEATURE_TOGGLES.cacheVersions),
-    homeEntries: cloneHomeEntries(DEFAULT_FEATURE_TOGGLES.homeEntries)
+    homeEntries: cloneHomeEntries(DEFAULT_FEATURE_TOGGLES.homeEntries),
+    globalBackground: cloneGlobalBackground(DEFAULT_FEATURE_TOGGLES.globalBackground),
+    globalBackgroundCatalog: cloneGlobalBackgroundCatalog(
+      DEFAULT_FEATURE_TOGGLES.globalBackgroundCatalog
+    )
   };
   if (documentData && typeof documentData === 'object') {
     if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
@@ -1125,6 +1156,14 @@ function normalizeFeatureToggles(documentData) {
     }
     if (Object.prototype.hasOwnProperty.call(documentData, 'homeEntries')) {
       toggles.homeEntries = cloneHomeEntries(documentData.homeEntries);
+    }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'globalBackground')) {
+      toggles.globalBackground = cloneGlobalBackground(documentData.globalBackground);
+    }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'globalBackgroundCatalog')) {
+      toggles.globalBackgroundCatalog = cloneGlobalBackgroundCatalog(
+        documentData.globalBackgroundCatalog
+      );
     }
   }
   return toggles;
@@ -1348,6 +1387,10 @@ async function updateSystemFeature(openid, event = {}) {
     immortalTournament: serializeImmortalTournament(updatedToggles.immortalTournament),
     cacheVersions: cloneCacheVersions(currentCacheVersions),
     homeEntries: cloneHomeEntries(updatedToggles.homeEntries),
+    globalBackgroundCatalog: cloneGlobalBackgroundCatalog(
+      updatedToggles.globalBackgroundCatalog
+    ),
+    globalBackground: serializeGlobalBackground(updatedToggles.globalBackground),
     gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
@@ -1424,6 +1467,10 @@ async function updateImmortalTournamentSettings(openid, updates = {}) {
     immortalTournament: serializeImmortalTournament(nextTournament),
     cacheVersions: cloneCacheVersions(currentCacheVersions),
     homeEntries: cloneHomeEntries(currentToggles.homeEntries),
+    globalBackgroundCatalog: cloneGlobalBackgroundCatalog(
+      currentToggles.globalBackgroundCatalog
+    ),
+    globalBackground: serializeGlobalBackground(currentToggles.globalBackground),
     gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
@@ -1505,6 +1552,10 @@ async function updateGameParameters(openid, updates = {}) {
     immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
     cacheVersions: cloneCacheVersions(currentCacheVersions),
     homeEntries: cloneHomeEntries(currentToggles.homeEntries),
+    globalBackgroundCatalog: cloneGlobalBackgroundCatalog(
+      currentToggles.globalBackgroundCatalog
+    ),
+    globalBackground: serializeGlobalBackground(currentToggles.globalBackground),
     gameParameters: serializeGameParameters(nextParameters),
     updatedAt: now
   };
@@ -1526,6 +1577,198 @@ async function updateGameParameters(openid, updates = {}) {
       gameParameters: cloneGameParameters(DEFAULT_GAME_PARAMETERS),
       rageSettings: cloneRageSettings(DEFAULT_RAGE_SETTINGS)
     }
+  };
+}
+
+function resolveGlobalBackgroundIdCandidate(config = {}) {
+  const candidates = [];
+  if (Object.prototype.hasOwnProperty.call(config, 'backgroundId')) {
+    candidates.push(config.backgroundId);
+  }
+  if (Object.prototype.hasOwnProperty.call(config, 'background')) {
+    candidates.push(config.background);
+  }
+  if (Object.prototype.hasOwnProperty.call(config, 'id')) {
+    candidates.push(config.id);
+  }
+  for (let i = 0; i < candidates.length; i += 1) {
+    const value = candidates[i];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return undefined;
+}
+
+async function updateGlobalBackground(openid, config = {}) {
+  await ensureAdmin(openid);
+
+  const existingDocument = await loadSystemFeatureDocument();
+  const currentToggles = normalizeFeatureToggles(existingDocument);
+  const currentParameters = resolveGameParametersFromDocument(existingDocument);
+  const currentCacheVersions = normalizeCacheVersions(
+    existingDocument && existingDocument.cacheVersions
+  );
+
+  const previous = cloneGlobalBackground(currentToggles.globalBackground);
+  const merged = { ...previous };
+
+  if (Object.prototype.hasOwnProperty.call(config, 'enabled')) {
+    merged.enabled = config.enabled;
+  }
+  if (Object.prototype.hasOwnProperty.call(config, 'animated')) {
+    merged.animated = config.animated;
+  }
+  const desiredBackgroundId = resolveGlobalBackgroundIdCandidate(config);
+  if (typeof desiredBackgroundId !== 'undefined') {
+    merged.backgroundId = desiredBackgroundId;
+  }
+
+  const nextGlobalBackground = cloneGlobalBackground(merged);
+  const catalog = cloneGlobalBackgroundCatalog(currentToggles.globalBackgroundCatalog);
+  const allowedIds = new Set(catalog.map((entry) => entry.id));
+
+  if (!allowedIds.size) {
+    if (nextGlobalBackground.enabled) {
+      throw new Error('请先添加自定义背景');
+    }
+    nextGlobalBackground.backgroundId = '';
+    nextGlobalBackground.animated = false;
+  } else {
+    if (!nextGlobalBackground.backgroundId || !allowedIds.has(nextGlobalBackground.backgroundId)) {
+      nextGlobalBackground.backgroundId = catalog[0].id;
+    }
+    if (nextGlobalBackground.enabled && !nextGlobalBackground.backgroundId) {
+      throw new Error('请选择要应用的背景');
+    }
+    if (
+      nextGlobalBackground.animated &&
+      nextGlobalBackground.backgroundId !== previous.backgroundId
+    ) {
+      nextGlobalBackground.animated = false;
+    }
+  }
+
+  const changed =
+    nextGlobalBackground.enabled !== previous.enabled ||
+    nextGlobalBackground.backgroundId !== previous.backgroundId ||
+    nextGlobalBackground.animated !== previous.animated;
+
+  if (!changed && existingDocument) {
+    return {
+      success: true,
+      features: currentToggles,
+      updatedAt: existingDocument.updatedAt || null
+    };
+  }
+
+  const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);
+  const now = new Date();
+  const sanitizedExisting = sanitizeFeatureDocument(existingDocument);
+
+  const updatedToggles = { ...currentToggles, globalBackground: nextGlobalBackground };
+
+  const payload = {
+    ...sanitizedExisting,
+    cashierEnabled: updatedToggles.cashierEnabled,
+    immortalTournament: serializeImmortalTournament(updatedToggles.immortalTournament),
+    cacheVersions: cloneCacheVersions(currentCacheVersions),
+    homeEntries: cloneHomeEntries(updatedToggles.homeEntries),
+    globalBackgroundCatalog: cloneGlobalBackgroundCatalog(
+      updatedToggles.globalBackgroundCatalog
+    ),
+    globalBackground: serializeGlobalBackground(nextGlobalBackground),
+    gameParameters: serializeGameParameters(currentParameters),
+    updatedAt: now
+  };
+  if (!payload.createdAt) {
+    payload.createdAt = now;
+  }
+
+  await collection.doc(FEATURE_TOGGLE_DOC_ID).set({ data: payload });
+
+  const features = normalizeFeatureToggles(payload);
+  return {
+    success: true,
+    features,
+    updatedAt: now
+  };
+}
+
+async function updateGlobalBackgroundCatalog(openid, updates = {}) {
+  await ensureAdmin(openid);
+
+  const requestedCatalog = Array.isArray(updates && updates.catalog)
+    ? updates.catalog
+    : updates;
+  const desiredCatalog = normalizeBackgroundCatalog(requestedCatalog);
+
+  const existingDocument = await loadSystemFeatureDocument();
+  const currentToggles = normalizeFeatureToggles(existingDocument);
+  const currentParameters = resolveGameParametersFromDocument(existingDocument);
+  const currentCacheVersions = normalizeCacheVersions(
+    existingDocument && existingDocument.cacheVersions
+  );
+
+  const previousCatalog = cloneGlobalBackgroundCatalog(currentToggles.globalBackgroundCatalog);
+  const catalogUnchanged = areBackgroundCatalogsEqual(previousCatalog, desiredCatalog);
+
+  let nextGlobalBackground = cloneGlobalBackground(currentToggles.globalBackground);
+  const hasCatalogEntries = desiredCatalog.length > 0;
+
+  if (!hasCatalogEntries) {
+    nextGlobalBackground = { enabled: false, backgroundId: '', animated: false };
+  } else if (!desiredCatalog.some((entry) => entry && entry.id === nextGlobalBackground.backgroundId)) {
+    nextGlobalBackground.backgroundId = desiredCatalog[0].id;
+    nextGlobalBackground.animated = false;
+  }
+
+  if (catalogUnchanged) {
+    const backgroundUnchanged =
+      nextGlobalBackground.enabled === currentToggles.globalBackground.enabled &&
+      nextGlobalBackground.backgroundId === currentToggles.globalBackground.backgroundId &&
+      nextGlobalBackground.animated === currentToggles.globalBackground.animated;
+    if (backgroundUnchanged && existingDocument) {
+      return {
+        success: true,
+        features: currentToggles,
+        updatedAt: existingDocument.updatedAt || null
+      };
+    }
+  }
+
+  const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);
+  const now = new Date();
+  const sanitizedExisting = sanitizeFeatureDocument(existingDocument);
+
+  const updatedToggles = {
+    ...currentToggles,
+    globalBackgroundCatalog: desiredCatalog,
+    globalBackground: nextGlobalBackground
+  };
+
+  const payload = {
+    ...sanitizedExisting,
+    cashierEnabled: updatedToggles.cashierEnabled,
+    immortalTournament: serializeImmortalTournament(updatedToggles.immortalTournament),
+    cacheVersions: cloneCacheVersions(currentCacheVersions),
+    homeEntries: cloneHomeEntries(updatedToggles.homeEntries),
+    globalBackgroundCatalog: cloneGlobalBackgroundCatalog(desiredCatalog),
+    globalBackground: serializeGlobalBackground(nextGlobalBackground),
+    gameParameters: serializeGameParameters(currentParameters),
+    updatedAt: now
+  };
+  if (!payload.createdAt) {
+    payload.createdAt = now;
+  }
+
+  await collection.doc(FEATURE_TOGGLE_DOC_ID).set({ data: payload });
+
+  const features = normalizeFeatureToggles(payload);
+  return {
+    success: true,
+    features,
+    updatedAt: now
   };
 }
 
@@ -1565,6 +1808,10 @@ async function bumpCacheVersion(openid, event = {}) {
     immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
     cacheVersions: cloneCacheVersions(nextCacheVersions),
     homeEntries: cloneHomeEntries(currentToggles.homeEntries),
+    globalBackgroundCatalog: cloneGlobalBackgroundCatalog(
+      currentToggles.globalBackgroundCatalog
+    ),
+    globalBackground: serializeGlobalBackground(currentToggles.globalBackground),
     gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
