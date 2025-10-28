@@ -139,6 +139,17 @@
           </view>
         </block>
       </view>
+      <view class="order-rights" wx:if="{{order.appliedRights.length}}">
+        <view class="order-rights-header">
+          <text class="order-rights-title">已用权益</text>
+          <text class="order-rights-badge" wx:if="{{order.drinkVoucherApplied}}">饮品券已使用</text>
+        </view>
+        <view class="order-rights-line" wx:for="{{order.appliedRights}}" wx:key="index" wx:for-item="right">
+          <text class="order-rights-name">{{right.title}}</text>
+          <text class="order-rights-amount">-{{right.amountLabel}}</text>
+        </view>
+        <view class="order-rights-total" wx:if="{{order.discountTotalLabel}}">共计优惠 {{order.discountTotalLabel}}</view>
+      </view>
       <view class="order-remark" wx:if="{{order.remark}}">备注：{{order.remark}}</view>
       <view class="order-remark admin" wx:if="{{order.adminRemark}}">管理员备注：{{order.adminRemark}}</view>
       <view class="order-adjust" wx:if="{{order.priceAdjustmentVisible}}">
@@ -165,7 +176,7 @@
       <view class="order-summary">
         <view class="order-total">
           合计 {{order.totalAmountLabel}}
-          <text class="order-total-original" wx:if="{{order.priceAdjusted && order.originalTotalAmountLabel}}">
+          <text class="order-total-original" wx:if="{{order.showOriginalTotal && order.originalTotalAmountLabel}}">
             原价 {{order.originalTotalAmountLabel}}
           </text>
         </view>

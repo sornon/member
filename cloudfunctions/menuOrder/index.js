@@ -739,7 +739,13 @@ function resolveDrinkVoucherCandidate(items, limit = DRINK_VOUCHER_AMOUNT_LIMIT,
     const price = Number(item.price || 0);
     const quantity = Math.max(1, Math.floor(Number(item.quantity || 0)));
     const amount = Number(item.amount || price * quantity);
-    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(amount) || amount <= 0) {
+    if (
+      !Number.isFinite(price) ||
+      price <= 0 ||
+      price > limit ||
+      !Number.isFinite(amount) ||
+      amount <= 0
+    ) {
       return;
     }
     if (price > highestPrice) {

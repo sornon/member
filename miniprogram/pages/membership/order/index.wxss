@@ -328,6 +328,63 @@
   margin-bottom: 12px;
 }
 
+.order-rights {
+  background: rgba(19, 27, 58, 0.6);
+  border: 1px solid rgba(162, 169, 255, 0.25);
+  border-radius: 16rpx;
+  padding: 18rpx;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.order-rights-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.order-rights-title {
+  font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+}
+
+.order-rights-badge {
+  font-size: 22rpx;
+  color: #9ad8ff;
+  background: rgba(70, 148, 255, 0.24);
+  border: 1px solid rgba(154, 216, 255, 0.4);
+  border-radius: 999px;
+  padding: 4rpx 14rpx;
+}
+
+.order-rights-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 24rpx;
+  gap: 12rpx;
+}
+
+.order-rights-name {
+  color: rgba(255, 255, 255, 0.82);
+  flex: 1;
+}
+
+.order-rights-amount {
+  color: #7ce0b2;
+  font-weight: 600;
+}
+
+.order-rights-total {
+  font-size: 24rpx;
+  color: rgba(154, 216, 255, 0.9);
+  text-align: right;
+}
+
 .order-group {
   display: flex;
   flex-direction: column;

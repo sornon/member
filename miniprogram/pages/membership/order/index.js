@@ -824,6 +824,36 @@ function normalizePriceAdjustmentInfo(record) {
   };
 }
 
+function normalizeAppliedRights(source) {
+  if (!Array.isArray(source)) {
+    return [];
+  }
+  return source
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return null;
+      }
+      const title = typeof entry.title === 'string' && entry.title.trim()
+        ? entry.title.trim()
+        : '权益抵扣';
+      const amount = Number(entry.amount || 0);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return null;
+      }
+      const type = typeof entry.type === 'string' ? entry.type : '';
+      const rightId = typeof entry.rightId === 'string' ? entry.rightId : '';
+      return {
+        ...entry,
+        title,
+        amount,
+        amountLabel: formatCurrency(amount),
+        type,
+        rightId
+      };
+    })
+    .filter(Boolean);
+}
+
 function decorateOrder(order) {
   if (!order) {
     return null;
@@ -878,6 +908,16 @@ function decorateOrder(order) {
     ? order.priceAdjustmentRemark
     : '';
   const priceAdjustmentVisible = priceAdjusted || !!priceAdjustmentRemark;
+  const appliedRights = normalizeAppliedRights(order.appliedRights);
+  let discountTotal = Number(order.discountTotal || 0);
+  if ((!Number.isFinite(discountTotal) || discountTotal <= 0) && appliedRights.length) {
+    discountTotal = appliedRights.reduce((sum, entry) => sum + entry.amount, 0);
+  }
+  discountTotal = Number.isFinite(discountTotal) ? Math.max(0, discountTotal) : 0;
+  const discountTotalLabel = discountTotal > 0 ? formatCurrency(discountTotal) : '';
+  const drinkVoucherApplied = appliedRights.some(
+    (entry) => entry.type === 'drinkVoucher' || entry.rightId === 'right_realm_qi_drink'
+  );
   const cancelRemark = typeof order.cancelRemark === 'string' ? order.cancelRemark : '';
   const cancelledAtLabel = formatDateTime(order.cancelledAt);
   const cancelledByRole = typeof order.cancelledByRole === 'string' ? order.cancelledByRole : '';
@@ -889,6 +929,10 @@ function decorateOrder(order) {
   }
   const canConfirm = order.status === 'pendingMember';
   const canCancel = order.status === 'pendingMember';
+  const showOriginalTotal =
+    Number.isFinite(originalTotalAmount) &&
+    originalTotalAmount > 0 &&
+    originalTotalAmount !== totalAmount;
   return {
     ...order,
     _id: id,
@@ -903,6 +947,10 @@ function decorateOrder(order) {
     priceAdjustmentRemark,
     priceAdjustmentUpdatedAtLabel: priceAdjustment ? priceAdjustment.adjustedAtLabel : '',
     priceAdjustmentVisible,
+    appliedRights,
+    discountTotal,
+    discountTotalLabel,
+    drinkVoucherApplied,
     stoneReward,
     stoneRewardLabel: formatStones(stoneReward),
     statusLabel: STATUS_LABELS[order.status] || '处理中',
@@ -915,7 +963,8 @@ function decorateOrder(order) {
     cancelRemark,
     createdAtTimestamp,
     canConfirm,
-    canCancel
+    canCancel,
+    showOriginalTotal
   };
 }
 
