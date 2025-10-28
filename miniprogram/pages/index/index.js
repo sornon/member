@@ -42,6 +42,8 @@ const {
 } = require('../../shared/figure-scale');
 const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
 
+const DEFAULT_GLOBAL_BACKGROUND = { enabled: false, backgroundId: '', animated: false };
+
 function buildCharacterImageMap() {
   const ids = listAllAvatarIds();
   return ids.reduce((acc, id) => {
@@ -468,6 +470,37 @@ function resolveBackgroundVideo(member) {
   return video;
 }
 
+function normalizeGlobalBackgroundConfig(config) {
+  if (!config || typeof config !== 'object') {
+    return { ...DEFAULT_GLOBAL_BACKGROUND };
+  }
+  const normalized = { ...DEFAULT_GLOBAL_BACKGROUND };
+  normalized.enabled = !!config.enabled;
+  const candidates = [config.backgroundId, config.id, config.background];
+  for (let i = 0; i < candidates.length; i += 1) {
+    const value = typeof candidates[i] === 'string' ? candidates[i].trim() : '';
+    if (!value) {
+      continue;
+    }
+    const sanitized = normalizeBackgroundId(value);
+    if (sanitized) {
+      normalized.backgroundId = sanitized;
+      break;
+    }
+  }
+  normalized.animated = !!config.animated;
+  return normalized;
+}
+
+function cloneGlobalBackgroundConfig(config) {
+  const normalized = normalizeGlobalBackgroundConfig(config);
+  return {
+    enabled: normalized.enabled,
+    backgroundId: normalized.backgroundId,
+    animated: normalized.animated
+  };
+}
+
 function resolveBackgroundDisplay(member) {
   const { image, video } = resolveBackgroundMediaSources(member);
   return {
@@ -475,6 +508,29 @@ function resolveBackgroundDisplay(member) {
     video,
     dynamicEnabled: !!(member && member.appearanceBackgroundAnimated)
   };
+}
+
+function resolveEffectiveBackgroundDisplay(member, globalBackground) {
+  const override = cloneGlobalBackgroundConfig(globalBackground);
+  if (override.enabled) {
+    let targetId = override.backgroundId;
+    if (!targetId) {
+      targetId = resolveSafeBackgroundId(member, member && member.appearanceBackground);
+    }
+    let background = resolveBackgroundById(targetId);
+    if (!background) {
+      background = resolveBackgroundById(getDefaultBackgroundId());
+    }
+    const imageSource = background && background.image ? background.image : resolveBackgroundImage(member);
+    const videoSource = background && background.video ? background.video : '';
+    const dynamicEnabled = !!(override.animated && videoSource);
+    return {
+      image: imageSource,
+      video: dynamicEnabled ? videoSource : '',
+      dynamicEnabled
+    };
+  }
+  return resolveBackgroundDisplay(member);
 }
 
 function buildBackgroundOptionList(member) {
@@ -1041,6 +1097,7 @@ Page({
     showBackgroundOverlay: false,
     backgroundVideoError: false,
     dynamicBackgroundEnabled: false,
+    globalBackgroundEnforced: false,
     navHeight: 88,
     today: '',
     showProfile: false,
@@ -1171,6 +1228,29 @@ Page({
     }
   },
 
+  applyGlobalBackground(config) {
+    const normalized = cloneGlobalBackgroundConfig(config);
+    this.globalBackground = normalized;
+    try {
+      if (app && app.globalData) {
+        app.globalData.globalBackground = normalized;
+      }
+    } catch (error) {
+      console.warn('[index] sync global background failed', error);
+    }
+    const enforced = !!normalized.enabled;
+    const updates = {};
+    if (this.data.globalBackgroundEnforced !== enforced) {
+      updates.globalBackgroundEnforced = enforced;
+    }
+    if (Object.keys(updates).length) {
+      this.setData(updates);
+    }
+    if (this.data.member) {
+      this.updateBackgroundDisplay(this.data.member, { resetError: true });
+    }
+  },
+
   loadHomeEntries() {
     if (this.homeEntryLoadingPromise) {
       return this.homeEntryLoadingPromise;
@@ -1181,6 +1261,9 @@ Page({
         const visibility =
           (result && result.homeEntries) || DEFAULT_HOME_ENTRY_VISIBILITY;
         this.applyHomeEntries(visibility);
+        if (result && result.globalBackground) {
+          this.applyGlobalBackground(result.globalBackground);
+        }
         this.homeEntriesLoadedAt = Date.now();
         return visibility;
       } catch (error) {
@@ -1204,6 +1287,14 @@ Page({
     this.homeEntriesReady = false;
     this.homeEntriesLoadedAt = 0;
     this.homeEntryLoadingPromise = null;
+    this.globalBackground = cloneGlobalBackgroundConfig(DEFAULT_GLOBAL_BACKGROUND);
+    try {
+      if (app && app.globalData) {
+        app.globalData.globalBackground = this.globalBackground;
+      }
+    } catch (error) {
+      console.warn('[index] sync global background failed', error);
+    }
     const globalHomeEntries = app && app.globalData ? app.globalData.homeEntries : null;
     const cachedHomeEntries = loadCachedHomeEntryVisibility();
     if (cachedHomeEntries) {
@@ -1244,6 +1335,22 @@ Page({
         this.applyHomeEntries(normalizedGlobal);
       }
     }
+    try {
+      const globalBackground = app && app.globalData ? app.globalData.globalBackground : null;
+      if (globalBackground) {
+        const normalized = cloneGlobalBackgroundConfig(globalBackground);
+        if (
+          !this.globalBackground ||
+          normalized.enabled !== this.globalBackground.enabled ||
+          normalized.backgroundId !== this.globalBackground.backgroundId ||
+          normalized.animated !== this.globalBackground.animated
+        ) {
+          this.applyGlobalBackground(normalized);
+        }
+      }
+    } catch (error) {
+      console.warn('[index] sync global background from app failed', error);
+    }
     const shouldRefreshHomeEntries =
       !this.homeEntriesReady ||
       (this.homeEntriesLoadedAt && Date.now() - this.homeEntriesLoadedAt > 300000);
@@ -1282,7 +1389,10 @@ Page({
   },
 
   updateBackgroundDisplay(member, options = {}) {
-    const { image, video, dynamicEnabled } = resolveBackgroundDisplay(member);
+    const { image, video, dynamicEnabled } = resolveEffectiveBackgroundDisplay(
+      member,
+      this.globalBackground
+    );
     const shouldShowVideo = dynamicEnabled && !!video;
     const hasError = shouldShowVideo ? (options.resetError ? false : !!this.data.backgroundVideoError) : false;
     const showVideo = hasError ? false : shouldShowVideo;
@@ -1886,6 +1996,10 @@ Page({
     if (this.data.avatarPickerSaving) {
       return;
     }
+    if (this.data.globalBackgroundEnforced) {
+      wx.showToast({ title: '全局背景已启用，暂不可修改', icon: 'none' });
+      return;
+    }
     const dataset = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
     const disabled = dataset.disabled === true || dataset.disabled === 'true';
     if (disabled) {
@@ -1907,6 +2021,10 @@ Page({
     if (this.data.avatarPickerSaving) {
       return;
     }
+    if (this.data.globalBackgroundEnforced) {
+      wx.showToast({ title: '全局背景已启用，暂不可修改', icon: 'none' });
+      return;
+    }
     const detail = event && event.detail ? event.detail : {};
     const value = !!detail.value;
     this.setData({
@@ -1921,21 +2039,28 @@ Page({
     }
     const avatarUrl = sanitizeAvatarUrl(this.data.avatarPicker.avatarUrl) || this.data.defaultAvatar;
     const avatarFrame = sanitizeAvatarFrame(this.data.avatarPicker.avatarFrame);
-    const backgroundId = resolveSafeBackgroundId(
-      this.data.member,
-      this.data.avatarPicker.backgroundId || this.data.profileEditor.appearanceBackground
-    );
-    const isAnimated = !!this.data.avatarPicker.dynamicBackground;
+    const backgroundId = this.data.globalBackgroundEnforced
+      ? resolveSafeBackgroundId(this.data.member, this.data.member && this.data.member.appearanceBackground)
+      : resolveSafeBackgroundId(
+          this.data.member,
+          this.data.avatarPicker.backgroundId || this.data.profileEditor.appearanceBackground
+        );
+    const isAnimated = this.data.globalBackgroundEnforced
+      ? !!(this.data.member && this.data.member.appearanceBackgroundAnimated)
+      : !!this.data.avatarPicker.dynamicBackground;
     const appearanceTitle = resolveActiveTitleId(this.data.member, this.data.avatarPicker.appearanceTitle);
     this.setData({ avatarPickerSaving: true });
     try {
-      const member = await MemberService.updateArchive({
+      const payload = {
         avatarUrl,
         avatarFrame,
-        appearanceBackground: backgroundId,
-        appearanceBackgroundAnimated: isAnimated,
         appearanceTitle
-      });
+      };
+      if (!this.data.globalBackgroundEnforced) {
+        payload.appearanceBackground = backgroundId;
+        payload.appearanceBackgroundAnimated = isAnimated;
+      }
+      const member = await MemberService.updateArchive(payload);
       this.applyMemberUpdate(member);
       this.setData({
         showAvatarPicker: false,
@@ -1971,13 +2096,15 @@ Page({
       gender: this.data.profileEditor.gender,
       avatarUrl: sanitizeAvatarUrl(this.data.profileEditor.avatarUrl) || this.data.defaultAvatar,
       avatarFrame: sanitizeAvatarFrame(this.data.profileEditor.avatarFrame),
-      appearanceBackground: resolveSafeBackgroundId(
-        this.data.member,
-        this.data.profileEditor.appearanceBackground
-      ),
-      appearanceBackgroundAnimated: !!this.data.profileEditor.appearanceBackgroundAnimated,
       appearanceTitle
     };
+    if (!this.data.globalBackgroundEnforced) {
+      payload.appearanceBackground = resolveSafeBackgroundId(
+        this.data.member,
+        this.data.profileEditor.appearanceBackground
+      );
+      payload.appearanceBackgroundAnimated = !!this.data.profileEditor.appearanceBackgroundAnimated;
+    }
     this.setData({ profileSaving: true });
     try {
       const member = await MemberService.updateArchive(payload);

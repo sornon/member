@@ -9,7 +9,8 @@ const {
   resolveBackgroundById,
   normalizeBackgroundId,
   pickPortraitUrl,
-  normalizeAvatarFrameValue
+  normalizeAvatarFrameValue,
+  getDefaultBackgroundId
 } = commonConfig;
 const { createProxyHelpers } = require('admin-proxy');
 const {
@@ -38,13 +39,17 @@ const {
   DEFAULT_GAME_PARAMETERS,
   buildResourceConfigOverrides,
   resolveGameParametersFromDocument,
-  FEATURE_TOGGLE_DOC_ID
+  FEATURE_TOGGLE_DOC_ID,
+  DEFAULT_GLOBAL_BACKGROUND,
+  cloneGlobalBackground
 } = require('system-settings');
 
 const db = cloud.database();
 const _ = db.command;
 
 const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'pvp' });
+
+let globalBackgroundOverride = cloneGlobalBackground(DEFAULT_GLOBAL_BACKGROUND);
 
 const DEFAULT_SEASON_LENGTH_DAYS = 56;
 const MATCH_ROUND_LIMIT = 15;
@@ -94,12 +99,14 @@ async function applyGlobalGameParameters() {
       .get();
     const document = snapshot && snapshot.data ? snapshot.data : null;
     const parameters = resolveGameParametersFromDocument(document);
+    globalBackgroundOverride = cloneGlobalBackground(document && document.globalBackground);
     configureResourceDefaults(buildResourceConfigOverrides(parameters));
     return parameters;
   } catch (error) {
     if (!(error && error.errMsg && /not exist|not found/i.test(error.errMsg))) {
       console.error('[pvp] load game parameters failed', error);
     }
+    globalBackgroundOverride = cloneGlobalBackground(DEFAULT_GLOBAL_BACKGROUND);
     configureResourceDefaults(buildResourceConfigOverrides(DEFAULT_GAME_PARAMETERS));
     return DEFAULT_GAME_PARAMETERS;
   }
@@ -526,8 +533,8 @@ async function inspectMemberArchive(actorId, event = {}) {
     : [];
 
   const tier = resolveTierByPoints(profile.points);
-  const backgroundId = buildBackgroundIdFromMember(member);
-  const background = buildBackgroundPayloadFromId(backgroundId, member.appearanceBackgroundAnimated);
+  const effectiveBackground = resolveEffectiveMemberBackground(member);
+  const background = buildBackgroundPayloadFromId(effectiveBackground.id, effectiveBackground.animated);
   const avatarFrame = resolveAvatarFrameValue(
     profile.memberSnapshot && profile.memberSnapshot.avatarFrame,
     profile.memberSnapshot && profile.memberSnapshot.appearance && profile.memberSnapshot.appearance.avatarFrame,
@@ -2081,8 +2088,7 @@ function normalizeCombatSnapshot(snapshot) {
 function buildBattleActor({ memberId, member, profile, combat, isBot }) {
   const tier = resolveTierByPoints(profile.points);
   const normalized = normalizeCombatSnapshot(combat);
-  const backgroundId = buildBackgroundIdFromMember(member);
-  const backgroundAnimated = !!(member && member.appearanceBackgroundAnimated);
+  const { id: backgroundId, animated: backgroundAnimated } = resolveEffectiveMemberBackground(member);
   const background = buildBackgroundPayloadFromId(backgroundId, backgroundAnimated);
   const avatarUrl =
     (profile.memberSnapshot && profile.memberSnapshot.avatarUrl) || (member && member.avatarUrl) || '';
@@ -2126,9 +2132,25 @@ function buildBattleActor({ memberId, member, profile, combat, isBot }) {
 
 function buildBackgroundIdFromMember(member) {
   if (!member || typeof member.appearanceBackground !== 'string') {
-    return '';
+    return getDefaultBackgroundId();
   }
-  return normalizeBackgroundId(member.appearanceBackground);
+  const normalized = normalizeBackgroundId(member.appearanceBackground);
+  return normalized || getDefaultBackgroundId();
+}
+
+function resolveEffectiveMemberBackground(member) {
+  const override = globalBackgroundOverride || DEFAULT_GLOBAL_BACKGROUND;
+  if (override && override.enabled) {
+    const overrideId = normalizeBackgroundId(override.backgroundId || '') || '';
+    const backgroundId = overrideId || buildBackgroundIdFromMember(member);
+    const definition = resolveBackgroundById(backgroundId) || resolveBackgroundById(getDefaultBackgroundId());
+    const animated = !!(override.animated && definition && definition.video);
+    return { id: backgroundId, animated };
+  }
+  return {
+    id: buildBackgroundIdFromMember(member),
+    animated: !!(member && member.appearanceBackgroundAnimated)
+  };
 }
 
 function buildBattleParticipants({

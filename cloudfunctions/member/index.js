@@ -25,7 +25,8 @@ const {
   cloneCacheVersions,
   normalizeHomeEntries,
   cloneHomeEntries,
-  DEFAULT_HOME_ENTRIES
+  DEFAULT_HOME_ENTRIES,
+  cloneGlobalBackground
 } = require('system-settings');
 
 const db = cloud.database();
@@ -452,7 +453,8 @@ async function getSystemSettings() {
   const homeEntries = document && document.homeEntries ? document.homeEntries : DEFAULT_HOME_ENTRIES;
   const normalizedHomeEntries = normalizeHomeEntries(homeEntries);
   const response = {
-    homeEntries: cloneHomeEntries(normalizedHomeEntries)
+    homeEntries: cloneHomeEntries(normalizedHomeEntries),
+    globalBackground: cloneGlobalBackground(document && document.globalBackground)
   };
   if (document && document.updatedAt) {
     response.updatedAt = document.updatedAt;

@@ -29,6 +29,77 @@
       <view wx:if="{{cacheError}}" class="error-banner">{{cacheError}}</view>
     </view>
 
+    <view class="card global-background-card">
+      <view class="card-title">全局背景</view>
+      <view class="card-desc">统一管理会员首页背景，活动期间可快速切换主题。</view>
+
+      <view class="switch-row">
+        <view class="switch-info">
+          <view class="switch-name">启用全局背景</view>
+          <view class="switch-desc">开启后，所有会员背景将强制应用下方选中的样式。</view>
+        </view>
+        <switch
+          checked="{{globalBackgroundDraft.enabled}}"
+          bindchange="handleGlobalBackgroundToggle"
+          disabled="{{globalBackgroundSaving}}"
+          color="#566aff"
+        ></switch>
+      </view>
+      <view class="switch-hint {{globalBackgroundDraft.enabled ? '' : 'warning'}}">
+        {{globalBackgroundDraft.enabled ? '已启用全局背景，会员端将在刷新后同步。' : '关闭后，会员背景恢复为各自保存的个人设置。'}}
+      </view>
+
+      <view class="global-background-preview">
+        <image class="global-background-preview__image" src="{{globalBackgroundPreview.image}}" mode="aspectFill"></image>
+        <view class="global-background-preview__meta">
+          <view class="global-background-preview__name">{{globalBackgroundPreview.name || '默认背景'}}</view>
+          <view class="global-background-preview__desc">
+            {{globalBackgroundDraft.enabled ? (globalBackgroundPreview.description || '当前背景将在会员端生效。') : '全局背景未启用，会员使用个人背景。'}}
+          </view>
+          <view wx:if="{{globalBackgroundPreview.video}}" class="global-background-preview__tag">
+            {{globalBackgroundDraft.animated ? '动态背景已启用' : '支持动态视频，可根据需要开启'}}
+          </view>
+          <view wx:elif="{{globalBackgroundDraft.enabled}}" class="global-background-preview__tag global-background-preview__tag--muted">
+            当前背景未配置动态视频，将展示静态效果
+          </view>
+        </view>
+      </view>
+
+      <view class="appearance-background-toggle appearance-background-toggle--admin">
+        <view class="appearance-background-toggle__info">
+          <view class="appearance-background-toggle__title">动态背景</view>
+          <view class="appearance-background-toggle__desc">若素材含视频，可开启动态背景覆盖静态图。</view>
+        </view>
+        <switch
+          class="appearance-background-toggle__switch"
+          checked="{{globalBackgroundDraft.animated}}"
+          disabled="{{globalBackgroundSaving || !globalBackgroundPreview.video}}"
+          bindchange="handleGlobalBackgroundAnimatedToggle"
+        ></switch>
+      </view>
+      <view wx:if="{{!globalBackgroundPreview.video}}" class="switch-hint warning">
+        当前背景缺少视频资源，启用动态背景后仍会展示静态图。
+      </view>
+
+      <view class="appearance-background-grid">
+        <view
+          class="appearance-background-option {{globalBackgroundDraft.backgroundId === item.id ? 'appearance-background-option--active' : ''}}"
+          wx:for="{{globalBackgroundOptions}}"
+          wx:key="id"
+          data-id="{{item.id}}"
+          bindtap="handleGlobalBackgroundSelect"
+        >
+          <image class="appearance-background-option__image" src="{{item.image}}" mode="aspectFill"></image>
+          <view class="appearance-background-option__overlay">
+            <view class="appearance-background-option__name">{{item.name}}</view>
+            <view class="appearance-background-option__desc">{{item.description}}</view>
+          </view>
+        </view>
+      </view>
+
+      <view wx:if="{{globalBackgroundError}}" class="error-banner">{{globalBackgroundError}}</view>
+    </view>
+
     <view class="card switch-card">
       <view class="card-title">首页入口</view>
       <view class="card-desc">控制会员端首页快捷入口的展示，调整后会实时生效。</view>
