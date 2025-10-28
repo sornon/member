@@ -959,8 +959,7 @@ async function handleDashboard(memberId) {
   await settleExpiredListings(now);
   await ensureCollection(LISTING_COLLECTION);
   await ensureCollection(BID_COLLECTION);
-  await ensureCollection(METRIC_COLLECTION);
-  const [memberSnapshot, listingsSnapshot, ownSnapshot, bidSnapshot, metricsSnapshot] = await Promise.all([
+  const [memberSnapshot, listingsSnapshot, ownSnapshot, bidSnapshot] = await Promise.all([
     memberId ? db.collection(MEMBERS_COLLECTION).doc(memberId).get().catch(() => null) : Promise.resolve(null),
     db
       .collection(LISTING_COLLECTION)
@@ -984,7 +983,6 @@ async function handleDashboard(memberId) {
           .limit(30)
           .get()
       : Promise.resolve({ data: [] }),
-    db.collection(METRIC_COLLECTION).doc('global').get().catch(() => null)
   ]);
 
   const member = memberSnapshot && memberSnapshot.data ? memberSnapshot.data : null;
@@ -998,19 +996,12 @@ async function handleDashboard(memberId) {
   const myBids = (bidSnapshot.data || [])
     .map((doc) => buildBidResponse(doc, memberId))
     .filter(Boolean);
-  const metrics = metricsSnapshot && metricsSnapshot.data ? metricsSnapshot.data : {};
 
   return {
     balance,
     listings,
     myListings,
     myBids,
-    metrics: {
-      totalVolume: metrics.totalVolume || 0,
-      totalFee: metrics.totalFee || 0,
-      totalOrders: metrics.totalOrders || 0,
-      updatedAt: metrics.updatedAt || null
-    },
     config: {
       feeRate: TRADING_CONFIG.feeRate || 0,
       minDurationHours: TRADING_CONFIG.minDurationHours || 24,
