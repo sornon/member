@@ -125,27 +125,6 @@ page {
   }
 }
 
-.trading-stats {
-  display: flex;
-  justify-content: space-between;
-  text-align: center;
-}
-
-.trading-stats__item {
-  flex: 1;
-}
-
-.trading-stats__label {
-  font-size: 20rpx;
-  color: rgba(244, 246, 255, 0.7);
-}
-
-.trading-stats__value {
-  margin-top: 6rpx;
-  font-size: 26rpx;
-  font-weight: 600;
-}
-
 .trading-tabs {
   display: flex;
   background: rgba(10, 14, 34, 0.9);

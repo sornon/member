@@ -1,0 +1,135 @@
+<custom-nav title="交易行管理" theme="dark"></custom-nav>
+<view class="page">
+  <view class="config-card">
+    <view class="card-title">交易行全局配置</view>
+    <view class="config-grid">
+      <view class="config-item">
+        <view class="config-label">手续费比例</view>
+        <view class="config-input-wrap">
+          <input
+            class="config-input"
+            type="digit"
+            value="{{configForm.feeRatePercent}}"
+            placeholder="例如 5 表示 5%"
+            placeholder-class="config-placeholder"
+            disabled="{{configLoading || configSaving}}"
+            bindinput="handleFeeRateInput"
+          />
+          <text class="config-suffix">%</text>
+        </view>
+      </view>
+      <view class="config-item">
+        <view class="config-label">最短挂单时间（小时）</view>
+        <input
+          class="config-input"
+          type="number"
+          value="{{configForm.minDurationHours}}"
+          placeholder="最少 1 小时"
+          placeholder-class="config-placeholder"
+          disabled="{{configLoading || configSaving}}"
+          bindinput="handleMinDurationInput"
+        />
+      </view>
+      <view class="config-item">
+        <view class="config-label">最长挂单时间（小时）</view>
+        <input
+          class="config-input"
+          type="number"
+          value="{{configForm.maxDurationHours}}"
+          placeholder="不超过 168 小时"
+          placeholder-class="config-placeholder"
+          disabled="{{configLoading || configSaving}}"
+          bindinput="handleMaxDurationInput"
+        />
+      </view>
+    </view>
+    <view class="config-meta" wx:if="{{configMeta.updatedAtLabel}}">
+      最近更新：{{configMeta.updatedAtLabel}}{{configMeta.updatedByName ? ' · ' + configMeta.updatedByName : ''}}
+    </view>
+    <view class="config-actions">
+      <button
+        class="config-btn"
+        type="primary"
+        size="mini"
+        loading="{{configSaving}}"
+        disabled="{{configSaving}}"
+        bindtap="handleSaveConfig"
+      >保存配置</button>
+    </view>
+  </view>
+
+  <view class="filters">
+    <view class="filter-row">
+      <view class="filter-item">
+        <view class="filter-label">会员搜索</view>
+        <input
+          class="filter-input"
+          value="{{memberKeyword}}"
+          placeholder="输入昵称 / 姓名 / 手机号"
+          placeholder-class="filter-placeholder"
+          confirm-type="search"
+          bindinput="handleMemberKeywordInput"
+          bindconfirm="handleSearch"
+        />
+      </view>
+      <view class="filter-item">
+        <view class="filter-label">装备名称</view>
+        <input
+          class="filter-input"
+          value="{{itemKeyword}}"
+          placeholder="输入装备名称或编号"
+          placeholder-class="filter-placeholder"
+          confirm-type="search"
+          bindinput="handleItemKeywordInput"
+          bindconfirm="handleSearch"
+        />
+      </view>
+    </view>
+    <view class="filter-actions">
+      <button class="filter-btn primary" size="mini" loading="{{loading}}" bindtap="handleSearch">查询</button>
+      <button class="filter-btn" size="mini" bindtap="handleResetFilters">重置</button>
+    </view>
+  </view>
+
+  <view class="summary">共 {{total}} 笔交易</view>
+
+  <view class="records">
+    <view class="empty" wx:if="{{!loading && !records.length}}">暂无交易流水</view>
+
+    <block wx:for="{{records}}" wx:key="_id">
+      <view class="record-card">
+        <view class="record-header">
+          <view class="record-name">{{item.itemName}}</view>
+          <view class="record-mode">{{item.saleModeLabel}}</view>
+        </view>
+        <view class="record-meta">
+          <text class="meta-text">成交价：{{item.priceLabel}}</text>
+          <text class="meta-text">手续费：{{item.feeLabel}}</text>
+          <text class="meta-text">卖家实得：{{item.netIncomeLabel}}</text>
+        </view>
+        <view class="record-info">
+          <text class="meta-text">成交类型：{{item.sourceLabel}}</text>
+          <text class="meta-text" wx:if="{{item.listingId}}">挂单编号：{{item.listingId}}</text>
+          <text class="meta-text">成交时间：{{item.createdAtLabel || '—'}} </text>
+        </view>
+        <view class="record-party">
+          <view class="party-title">卖家</view>
+          <text class="party-line" wx:if="{{item.seller.realName}}">姓名：{{item.seller.realName}}</text>
+          <text class="party-line" wx:if="{{item.seller.nickName}}">昵称：{{item.seller.nickName}}</text>
+          <text class="party-line" wx:if="{{item.seller.mobile}}">手机号：{{item.seller.mobile}}</text>
+          <text class="party-line" wx:if="{{!item.seller.realName && !item.seller.nickName && !item.seller.mobile}}">暂无信息</text>
+        </view>
+        <view class="record-party">
+          <view class="party-title">买家</view>
+          <text class="party-line" wx:if="{{item.buyer.realName}}">姓名：{{item.buyer.realName}}</text>
+          <text class="party-line" wx:if="{{item.buyer.nickName}}">昵称：{{item.buyer.nickName}}</text>
+          <text class="party-line" wx:if="{{item.buyer.mobile}}">手机号：{{item.buyer.mobile}}</text>
+          <text class="party-line" wx:if="{{!item.buyer.realName && !item.buyer.nickName && !item.buyer.mobile}}">暂无信息</text>
+        </view>
+      </view>
+    </block>
+
+    <view class="loading" wx:if="{{loading && records.length}}">加载中...</view>
+    <view class="no-more" wx:elif="{{records.length >= total && total > 0}}">没有更多记录</view>
+  </view>
+</view>

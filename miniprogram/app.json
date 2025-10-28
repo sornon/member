@@ -28,6 +28,7 @@
     "pages/admin/member-detail/index",
     "pages/admin/charge/index",
     "pages/admin/orders/index",
+    "pages/admin/trading/index",
     "pages/admin/menu-orders/index",
     "pages/admin/menu-catalog/index",
     "pages/admin/activities/index",

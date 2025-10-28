@@ -16,21 +16,6 @@
     </view>
   </view>
 
-  <view class="trading-panel trading-stats" wx:if="{{summary.metrics.totalOrders}}">
-    <view class="trading-stats__item">
-      <view class="trading-stats__label">累计成交</view>
-      <view class="trading-stats__value">{{summary.metrics.totalOrders}} 笔</view>
-    </view>
-    <view class="trading-stats__item">
-      <view class="trading-stats__label">累计成交额</view>
-      <view class="trading-stats__value">{{summary.metrics.totalVolume}} 枚</view>
-    </view>
-    <view class="trading-stats__item">
-      <view class="trading-stats__label">已焚毁灵石</view>
-      <view class="trading-stats__value">{{summary.metrics.totalFee}} 枚</view>
-    </view>
-  </view>
-
   <view class="trading-tabs">
     <view
       class="trading-tab {{activeTab === 'market' ? 'trading-tab--active' : ''}}"

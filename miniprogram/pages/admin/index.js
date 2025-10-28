@@ -44,6 +44,12 @@ const BASE_ACTIONS = [
     url: '/pages/admin/orders/index'
   },
   {
+    icon: '⚔️',
+    label: '交易行管理',
+    description: '查看交易流水与全局配置',
+    url: '/pages/admin/trading/index'
+  },
+  {
     icon: '💹',
     label: '财务报表',
     description: '查看月度收入与消费统计',
