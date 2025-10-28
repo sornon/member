@@ -254,14 +254,13 @@ page {
 }
 
 .activity-item {
-  flex: 0 0 calc((100% - 96rpx) / 5);
-  max-width: calc((100% - 96rpx) / 5);
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 12rpx 0;
   text-align: center;
   border-radius: 24rpx;
+  width: 50rpx;
 }
 
 .activity-icon {
