@@ -946,7 +946,10 @@ export const MenuCatalogService = {
 
 export const AdminMenuCatalogService = {
   async listCatalog() {
-    return callCloud(CLOUD_FUNCTIONS.MENU_CATALOG, { action: 'adminListCatalog' });
+    return callCloud(CLOUD_FUNCTIONS.MENU_CATALOG, {
+      action: 'listCatalog',
+      scope: 'admin'
+    });
   },
   async createSection(section = {}) {
     return callCloud(CLOUD_FUNCTIONS.MENU_CATALOG, {

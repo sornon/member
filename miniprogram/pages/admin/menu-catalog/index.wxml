@@ -37,7 +37,7 @@
     </view>
     <view class="section-list">
       <view
-        class="section-item {{selectedSectionId === section.sectionId ? 'is-active' : ''}}"
+        class="section-item {{selectedSectionId === section.sectionId ? 'is-active' : ''}} {{section.enabled === false ? 'is-disabled' : ''}}"
         wx:for="{{sections}}"
         wx:for-item="section"
         wx:key="sectionId"
@@ -48,6 +48,7 @@
           <text class="section-name__title">{{section.name}}</text>
           <text class="section-name__id" wx:if="{{section.sectionId}}">（{{section.sectionId}}）</text>
         </view>
+        <view class="section-meta" wx:if="{{section.enabled === false}}">状态：已停用</view>
       </view>
       <view class="empty-hint" wx:if="{{!loading && !sections.length}}">暂未配置一级类目</view>
     </view>
@@ -75,6 +76,14 @@
           value="{{sectionEditForm.sortOrder}}"
           data-field="sortOrder"
           bindinput="handleSectionEditInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">开放</text>
+        <switch
+          class="form-switch"
+          checked="{{sectionEditForm.enabled}}"
+          bindchange="handleSectionEditSwitchChange"
         />
       </view>
       <button
@@ -118,6 +127,14 @@
           value="{{sectionForm.sortOrder}}"
           data-field="sortOrder"
           bindinput="handleSectionFormInput"
+        />
+      </view>
+      <view class="form-row">
+        <text class="form-label">开放</text>
+        <switch
+          class="form-switch"
+          checked="{{sectionForm.enabled}}"
+          bindchange="handleSectionFormSwitchChange"
         />
       </view>
       <button
