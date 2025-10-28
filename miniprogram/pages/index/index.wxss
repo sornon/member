@@ -185,7 +185,6 @@ page {
   font-size: 36rpx;
   font-weight: 600;
   white-space: nowrap;
-  overflow: hidden;
   text-overflow: ellipsis;
   text-align: center;
 }
@@ -193,7 +192,7 @@ page {
 .profile-name__dot {
   position: absolute;
   top: 8rpx;
-  right: 26rpx;
+  right: 0rpx;
   transform: translate(50%, -50%);
 }
 
