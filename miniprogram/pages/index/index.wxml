@@ -349,6 +349,9 @@
             </view>
           </view>
           <view wx:else class="archive-section appearance-section appearance-section--background">
+            <view wx:if="{{globalBackgroundEnforced}}" class="appearance-background-global-hint">
+              管理员已启用全局背景，个人设置暂不可修改。
+            </view>
             <view class="appearance-background-toggle">
               <view class="appearance-background-toggle__info">
                 <view class="appearance-background-toggle__title">动态背景</view>
@@ -358,15 +361,16 @@
                 class="appearance-background-toggle__switch"
                 checked="{{avatarPicker.dynamicBackground}}"
                 bindchange="handleDynamicBackgroundToggle"
+                disabled="{{globalBackgroundEnforced}}"
               ></switch>
             </view>
             <view class="appearance-background-grid">
               <view
-                class="appearance-background-option {{avatarPicker.backgroundId === item.id ? 'appearance-background-option--active' : ''}} {{!item.unlocked ? 'appearance-background-option--locked' : ''}}"
+                class="appearance-background-option {{avatarPicker.backgroundId === item.id ? 'appearance-background-option--active' : ''}} {{(!item.unlocked || globalBackgroundEnforced) ? 'appearance-background-option--locked' : ''}}"
                 wx:for="{{avatarPicker.backgroundOptions}}"
                 wx:key="id"
                 data-id="{{item.id}}"
-                data-disabled="{{!item.unlocked}}"
+                data-disabled="{{!item.unlocked || globalBackgroundEnforced}}"
                 data-hint="{{item.description}}"
                 bindtap="handleBackgroundSelect"
               >
