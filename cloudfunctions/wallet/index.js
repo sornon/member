@@ -1453,6 +1453,20 @@ function mapChargeOrder(raw, orderId, now = new Date()) {
         amount: Number(item.amount || 0)
       }))
     : [];
+  const appliedRights = Array.isArray(raw.appliedRights)
+    ? raw.appliedRights.map((entry) => ({
+        memberRightId: entry.memberRightId || '',
+        rightId: entry.rightId || '',
+        amount: Number(entry.amount || 0),
+        type: entry.type || '',
+        title: entry.title || entry.name || ''
+      }))
+    : [];
+  let discountTotal = Number(raw.discountTotal || 0);
+  if ((!Number.isFinite(discountTotal) || discountTotal <= 0) && appliedRights.length) {
+    discountTotal = appliedRights.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+  }
+  const normalizedDiscountTotal = Number.isFinite(discountTotal) && discountTotal > 0 ? discountTotal : 0;
   return {
     _id: raw._id || orderId,
     status,
@@ -1472,7 +1486,9 @@ function mapChargeOrder(raw, orderId, now = new Date()) {
     ),
     priceAdjustment: normalizeAdminPriceAdjustment(raw.priceAdjustment),
     priceAdjustmentRemark: typeof raw.priceAdjustmentRemark === 'string' ? raw.priceAdjustmentRemark : '',
-    originalTotalAmount: Number(raw.originalTotalAmount || 0) || 0
+    originalTotalAmount: Number(raw.originalTotalAmount || 0) || 0,
+    appliedRights,
+    discountTotal: normalizedDiscountTotal
   };
 }
 

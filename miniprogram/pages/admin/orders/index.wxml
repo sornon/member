@@ -58,6 +58,17 @@
           </view>
           <text class="reward">赠送 {{item.stoneRewardLabel}}</text>
         </view>
+        <view class="order-rights" wx:if="{{item.appliedRights && item.appliedRights.length}}">
+          <view class="order-rights-header">
+            <text class="order-rights-title">已用权益</text>
+            <text class="order-rights-badge" wx:if="{{item.drinkVoucherApplied}}">饮品券</text>
+          </view>
+          <view class="order-rights-line" wx:for="{{item.appliedRights}}" wx:key="index" wx:for-item="right">
+            <text class="order-rights-name">{{right.title}}</text>
+            <text class="order-rights-amount">-{{right.amountLabel}}</text>
+          </view>
+          <view class="order-rights-total" wx:if="{{item.discountTotalLabel}}">共计优惠 {{item.discountTotalLabel}}</view>
+        </view>
         <view class="order-adjust-remark" wx:if="{{item.priceAdjustmentRemark}}">
           改价说明：{{item.priceAdjustmentRemark}}
           <text wx:if="{{item.priceAdjustmentUpdatedAtLabel}}">（{{item.priceAdjustmentUpdatedAtLabel}}）</text>

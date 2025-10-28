@@ -1,6 +1,8 @@
 import { WalletService } from '../../../services/api';
 import { formatCurrency, formatStones } from '../../../utils/format';
 
+const DRINK_VOUCHER_RIGHT_ID = 'right_realm_qi_drink';
+
 function formatDateTime(value) {
   if (!value) return '';
   const date = typeof value === 'string' ? new Date(value) : value;
@@ -28,6 +30,30 @@ function mapOrder(order) {
     ? order.priceAdjustmentRemark.trim()
     : '';
   const priceAdjustmentVisible = Boolean(priceAdjustment || priceAdjustmentRemark);
+  const appliedRightsRaw = Array.isArray(order.appliedRights) ? order.appliedRights : [];
+  const appliedRights = appliedRightsRaw
+    .map((entry) => {
+      const amount = Number(entry.amount || 0);
+      return {
+        memberRightId: entry.memberRightId || '',
+        rightId: entry.rightId || '',
+        type: entry.type || '',
+        title: entry.title || entry.name || '权益',
+        amount,
+        amountLabel: formatCurrency(amount)
+      };
+    })
+    .filter((entry) => entry.title);
+  let discountTotal = Number(order.discountTotal || 0);
+  if ((!Number.isFinite(discountTotal) || discountTotal <= 0) && appliedRights.length) {
+    discountTotal = appliedRights.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+  }
+  const normalizedDiscountTotal = Number.isFinite(discountTotal) && discountTotal > 0 ? discountTotal : 0;
+  let originalTotalAmount = Number(order.originalTotalAmount || 0);
+  if ((!Number.isFinite(originalTotalAmount) || originalTotalAmount <= 0) && normalizedDiscountTotal > 0) {
+    originalTotalAmount = total + normalizedDiscountTotal;
+  }
+  const originalTotalAmountLabel = originalTotalAmount > 0 ? formatCurrency(originalTotalAmount) : '';
   return {
     ...order,
     totalAmount: total,
@@ -41,7 +67,16 @@ function mapOrder(order) {
     adminRemark,
     priceAdjustment,
     priceAdjustmentRemark,
-    priceAdjustmentVisible
+    priceAdjustmentVisible,
+    appliedRights,
+    discountTotal: normalizedDiscountTotal,
+    discountTotalLabel: normalizedDiscountTotal ? formatCurrency(normalizedDiscountTotal) : '',
+    drinkVoucherApplied: appliedRights.some(
+      (entry) => entry.type === 'drinkVoucher' || entry.rightId === DRINK_VOUCHER_RIGHT_ID
+    ),
+    originalTotalAmount,
+    originalTotalAmountLabel,
+    showOriginalAmount: originalTotalAmount > 0 && originalTotalAmount !== total
   };
 }
 

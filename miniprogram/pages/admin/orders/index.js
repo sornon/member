@@ -59,6 +59,8 @@ function normalizePriceAdjustmentInfo(record) {
   };
 }
 
+const DRINK_VOUCHER_RIGHT_ID = 'right_realm_qi_drink';
+
 function parseAmountInputToFen(value) {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Math.round(value * 100);
@@ -180,6 +182,25 @@ function decorateOrder(order) {
         };
       })
     : [];
+  const appliedRightsRaw = Array.isArray(order.appliedRights) ? order.appliedRights : [];
+  const appliedRights = appliedRightsRaw
+    .map((entry) => {
+      const amount = Number(entry.amount || 0);
+      return {
+        memberRightId: entry.memberRightId || '',
+        rightId: entry.rightId || '',
+        type: entry.type || '',
+        title: entry.title || entry.name || '权益',
+        amount,
+        amountLabel: formatCurrency(amount)
+      };
+    })
+    .filter((entry) => entry.title);
+  let discountTotal = Number(order.discountTotal || 0);
+  if ((!Number.isFinite(discountTotal) || discountTotal <= 0) && appliedRights.length) {
+    discountTotal = appliedRights.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+  }
+  const discountTotalLabel = discountTotal > 0 ? formatCurrency(discountTotal) : '';
   const stoneRewardLabel = `${Math.max(0, Math.floor(stoneReward))} 枚`;
   const memberDisplayName = formatMemberDisplayName(
     typeof order.memberName === 'string' ? order.memberName : '',
@@ -202,7 +223,13 @@ function decorateOrder(order) {
     createdAtLabel: order.createdAtLabel || formatDateTime(order.createdAt),
     updatedAtLabel: order.updatedAtLabel || formatDateTime(order.updatedAt),
     confirmedAtLabel: order.confirmedAtLabel || formatDateTime(order.confirmedAt),
-    memberDisplayName
+    memberDisplayName,
+    appliedRights,
+    discountTotal,
+    discountTotalLabel,
+    drinkVoucherApplied: appliedRights.some(
+      (entry) => entry.type === 'drinkVoucher' || entry.rightId === DRINK_VOUCHER_RIGHT_ID
+    )
   };
 }
 

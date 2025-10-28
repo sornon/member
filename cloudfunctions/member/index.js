@@ -1317,6 +1317,7 @@ async function getRights(openid) {
     const usageCredits = Number(mergedMeta.roomUsageCount || mergedMeta.roomUsageCredits || 0);
     return {
       _id: item._id,
+      rightId: item.rightId || '',
       name: right.name || item.name || '权益',
       description: right.description || item.description || '',
       status,

@@ -6991,6 +6991,20 @@ function mapChargeOrder(order) {
   };
   const totalAmount = Number(order.totalAmount || 0);
   const priceAdjustment = normalizePriceAdjustmentRecord(order.priceAdjustment);
+  const appliedRights = Array.isArray(order.appliedRights)
+    ? order.appliedRights.map((entry) => ({
+        memberRightId: entry.memberRightId || '',
+        rightId: entry.rightId || '',
+        amount: Number(entry.amount || 0),
+        type: entry.type || '',
+        title: entry.title || entry.name || ''
+      }))
+    : [];
+  let discountTotal = Number(order.discountTotal || 0);
+  if ((!Number.isFinite(discountTotal) || discountTotal <= 0) && appliedRights.length) {
+    discountTotal = appliedRights.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+  }
+  const normalizedDiscountTotal = Number.isFinite(discountTotal) && discountTotal > 0 ? discountTotal : 0;
   return {
     _id: order._id,
     status: order.status || 'pending',
@@ -7017,7 +7031,9 @@ function mapChargeOrder(order) {
     balanceBefore: normalizeOptionalAmount(order.balanceBefore, hasBalanceBefore),
     balanceAfter: normalizeOptionalAmount(order.balanceAfter, hasBalanceAfter),
     allowNegativeBalance: !!order.allowNegativeBalance,
-    debtIncurred: !!order.debtIncurred
+    debtIncurred: !!order.debtIncurred,
+    appliedRights,
+    discountTotal: normalizedDiscountTotal
   };
 }
 
@@ -7280,6 +7296,25 @@ function decorateChargeOrderRecord(order, member) {
   const priceAdjustmentAdjustedAtLabel = order.priceAdjustment ? formatDate(order.priceAdjustment.adjustedAt) : '';
   const balanceBefore = Number.isFinite(order.balanceBefore) ? order.balanceBefore : null;
   const balanceAfter = Number.isFinite(order.balanceAfter) ? order.balanceAfter : null;
+  const appliedRightsRaw = Array.isArray(order.appliedRights) ? order.appliedRights : [];
+  const appliedRights = appliedRightsRaw
+    .map((entry) => {
+      const amount = Number(entry.amount || 0);
+      return {
+        memberRightId: entry.memberRightId || '',
+        rightId: entry.rightId || '',
+        type: entry.type || '',
+        title: entry.title || entry.name || '权益',
+        amount,
+        amountLabel: amount ? `¥${formatFenToYuan(amount)}` : '¥0.00'
+      };
+    })
+    .filter((entry) => entry.title);
+  let discountTotal = Number(order.discountTotal || 0);
+  if ((!Number.isFinite(discountTotal) || discountTotal <= 0) && appliedRights.length) {
+    discountTotal = appliedRights.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+  }
+  const normalizedDiscountTotal = Number.isFinite(discountTotal) && discountTotal > 0 ? discountTotal : 0;
   return {
     ...order,
     totalAmountLabel: `¥${formatFenToYuan(order.totalAmount)}`,
@@ -7302,7 +7337,13 @@ function decorateChargeOrderRecord(order, member) {
     balanceBeforeLabel: Number.isFinite(balanceBefore) ? `¥${formatFenToYuan(balanceBefore)}` : '',
     balanceAfterLabel: Number.isFinite(balanceAfter) ? `¥${formatFenToYuan(balanceAfter)}` : '',
     allowNegativeBalance: !!order.allowNegativeBalance,
-    debtIncurred: !!order.debtIncurred
+    debtIncurred: !!order.debtIncurred,
+    appliedRights,
+    discountTotal: normalizedDiscountTotal,
+    discountTotalLabel: normalizedDiscountTotal ? `¥${formatFenToYuan(normalizedDiscountTotal)}` : '',
+    drinkVoucherApplied: appliedRights.some(
+      (entry) => entry.type === 'drinkVoucher' || entry.rightId === 'right_realm_qi_drink'
+    )
   };
 }
 

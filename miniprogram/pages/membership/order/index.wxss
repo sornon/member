@@ -258,6 +258,36 @@
   font-size: 26rpx;
 }
 
+.voucher-card {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 16px;
+  color: #f2f3ff;
+}
+
+.voucher-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.voucher-title {
+  font-size: 28rpx;
+  font-weight: 500;
+}
+
+.voucher-switch {
+  transform: scale(0.9);
+}
+
+.voucher-status {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.5;
+}
+
 .cart-summary {
   display: flex;
   justify-content: space-between;
@@ -273,6 +303,17 @@
 .summary-amount {
   font-size: 30rpx;
   font-weight: 600;
+}
+
+.summary-discount {
+  font-size: 26rpx;
+  color: #9aa0ff;
+}
+
+.summary-payable {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #f2f3ff;
 }
 
 .summary-stones {

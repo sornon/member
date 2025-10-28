@@ -49,6 +49,9 @@ const DRINKS_NIGHT_ORDER = [
   'easter'
 ];
 
+const DRINK_VOUCHER_RIGHT_ID = 'right_realm_qi_drink';
+const DRINK_VOUCHER_AMOUNT_LIMIT = 12000;
+
 function normalizeSection(value) {
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -1007,6 +1010,87 @@ function computeCartTotal(cart) {
   return cart.reduce((sum, line) => sum + line.price * line.quantity, 0);
 }
 
+function resolveDrinkVoucherCandidateForCart(cart, limit = DRINK_VOUCHER_AMOUNT_LIMIT, sectionId = 'drinks') {
+  if (!Array.isArray(cart) || !cart.length) {
+    return null;
+  }
+  let targetIndex = -1;
+  let highestPrice = -1;
+  cart.forEach((line, index) => {
+    if (!line) {
+      return;
+    }
+    const section = normalizeSection(line.section);
+    if (section !== sectionId) {
+      return;
+    }
+    const price = Number(line.price || 0);
+    const quantity = Math.max(1, Math.floor(Number(line.quantity || 0)));
+    const amount = Number(line.amount || price * quantity);
+    if (
+      !Number.isFinite(price) ||
+      price <= 0 ||
+      price > limit ||
+      !Number.isFinite(amount) ||
+      amount <= 0
+    ) {
+      return;
+    }
+    if (price > highestPrice) {
+      highestPrice = price;
+      targetIndex = index;
+    }
+  });
+  if (targetIndex < 0) {
+    return null;
+  }
+  const line = cart[targetIndex];
+  const price = Number(line.price || 0);
+  const quantity = Math.max(1, Math.floor(Number(line.quantity || 0)));
+  const amount = Number(line.amount || price * quantity);
+  if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(amount) || amount <= 0) {
+    return null;
+  }
+  const discount = Math.min(limit, price, amount);
+  if (discount <= 0) {
+    return null;
+  }
+  return {
+    index: targetIndex,
+    line,
+    price,
+    quantity,
+    amount,
+    discount
+  };
+}
+
+function buildDrinkVoucherPreview({ cart = [], total = 0, useVoucher = false, available = false } = {}) {
+  const candidate = resolveDrinkVoucherCandidateForCart(cart, DRINK_VOUCHER_AMOUNT_LIMIT, 'drinks');
+  const canApply = available && !!candidate;
+  const shouldApply = canApply && useVoucher;
+  const discountTotal = shouldApply && candidate ? candidate.discount : 0;
+  const payableTotal = Math.max(0, total - discountTotal);
+  return {
+    candidate: candidate
+      ? {
+          key: candidate.line.key || '',
+          title: candidate.line.title || '',
+          spec: candidate.line.spec || '',
+          unit: candidate.line.unit || '',
+          price: candidate.price,
+          priceLabel: formatCurrency(candidate.price),
+          discount: candidate.discount,
+          discountLabel: formatCurrency(candidate.discount)
+        }
+      : null,
+    canApply,
+    discountTotal,
+    discountLabel: discountTotal > 0 ? formatCurrency(discountTotal) : '',
+    payableTotal
+  };
+}
+
 function groupLinesBySection(lines) {
   return SECTION_ORDER.map((section) => {
     if (!SECTION_META[section]) {
@@ -1049,6 +1133,10 @@ Page({
     cartSectionTotals: createEmptyCategoryTotals(),
     cartTotal: 0,
     cartTotalLabel: formatCurrency(0),
+    cartDiscountTotal: 0,
+    cartDiscountLabel: '',
+    cartPayableTotal: 0,
+    cartPayableLabel: formatCurrency(0),
     cartStoneReward: 0,
     cartStoneRewardLabel: formatStones(0),
     remark: '',
@@ -1060,7 +1148,14 @@ Page({
     hasMoreOrders: false,
     showingAllOrders: false,
     confirmingId: '',
-    cancellingId: ''
+    cancellingId: '',
+    drinkVoucherAvailable: false,
+    drinkVoucherLoading: false,
+    drinkVoucherCanApply: false,
+    drinkVoucherCandidate: null,
+    drinkVoucherDiscount: 0,
+    drinkVoucherDiscountLabel: '',
+    useDrinkVoucher: true
   },
 
   async syncMenuCacheVersion() {
@@ -1098,6 +1193,8 @@ Page({
     this._currentCatalogSignature = '';
     this._catalogHydrated = false;
     this._cartHydrated = false;
+    this._manualDrinkVoucherPreference = null;
+    this._loadingDrinkVoucher = null;
     const cachePromise = this.syncMenuCacheVersion();
     cachePromise
       .then((result) => {
@@ -1119,6 +1216,14 @@ Page({
         this.loadCatalog();
       });
     this.loadOrders();
+    this.loadDrinkVoucherStatus();
+  },
+
+  onShow() {
+    if (this._cartHydrated) {
+      this.refreshDrinkVoucherPreview();
+    }
+    this.loadDrinkVoucherStatus();
   },
 
   applyCatalogState(catalog, options = {}) {
@@ -1280,21 +1385,87 @@ Page({
     });
   },
 
-  updateCartState(nextCart) {
+  updateCartState(nextCart, options = {}) {
+    const skipCache = !!options.skipCache;
     const decorated = decorateCart(nextCart);
     const total = computeCartTotal(decorated);
     const sectionTotals = calculateSectionTotals(decorated);
-    const stoneReward = Math.max(0, Math.floor(total));
+    const drinkVoucherAvailable = !!this.data.drinkVoucherAvailable;
+    const useVoucher = drinkVoucherAvailable ? !!this.data.useDrinkVoucher : false;
+    const preview = buildDrinkVoucherPreview({
+      cart: decorated,
+      total,
+      useVoucher,
+      available: drinkVoucherAvailable
+    });
+    const payableTotal = preview.payableTotal;
+    const stoneReward = Math.max(0, Math.floor(payableTotal));
     this.setData({
       cart: decorated,
       cartGroups: groupLinesBySection(decorated),
       cartSectionTotals: sectionTotals,
       cartTotal: total,
       cartTotalLabel: formatCurrency(total),
+      cartDiscountTotal: preview.discountTotal,
+      cartDiscountLabel: preview.discountLabel,
+      cartPayableTotal: payableTotal,
+      cartPayableLabel: formatCurrency(payableTotal),
       cartStoneReward: stoneReward,
-      cartStoneRewardLabel: formatStones(stoneReward)
+      cartStoneRewardLabel: formatStones(stoneReward),
+      drinkVoucherCanApply: preview.canApply,
+      drinkVoucherCandidate: preview.candidate,
+      drinkVoucherDiscount: preview.discountTotal,
+      drinkVoucherDiscountLabel: preview.discountLabel
     });
-    writeCartCache(decorated);
+    if (!skipCache) {
+      writeCartCache(decorated);
+    }
+  },
+
+  refreshDrinkVoucherPreview() {
+    const currentCart = Array.isArray(this.data.cart) ? this.data.cart.map((line) => ({ ...line })) : [];
+    this.updateCartState(currentCart, { skipCache: true });
+  },
+
+  async loadDrinkVoucherStatus() {
+    if (this._loadingDrinkVoucher) {
+      return this._loadingDrinkVoucher;
+    }
+    this._loadingDrinkVoucher = (async () => {
+      this.setData({ drinkVoucherLoading: true });
+      try {
+        const rights = await MemberService.getRights();
+        const available = Array.isArray(rights)
+          ? rights.some(
+              (right) =>
+                right &&
+                right.status === 'active' &&
+                (right.rightId === DRINK_VOUCHER_RIGHT_ID ||
+                  (typeof right.name === 'string' && right.name.includes('饮品券')))
+            )
+          : false;
+        const manualPreference =
+          typeof this._manualDrinkVoucherPreference === 'boolean'
+            ? this._manualDrinkVoucherPreference
+            : null;
+        const nextUseDrinkVoucher = available
+          ? manualPreference === null
+            ? true
+            : manualPreference
+          : false;
+        this.setData({
+          drinkVoucherAvailable: available,
+          useDrinkVoucher: nextUseDrinkVoucher,
+          drinkVoucherLoading: false
+        });
+      } catch (error) {
+        this.setData({ drinkVoucherLoading: false });
+      } finally {
+        this._loadingDrinkVoucher = null;
+        this.refreshDrinkVoucherPreview();
+      }
+    })();
+    return this._loadingDrinkVoucher;
   },
 
   handleAddToCart(event) {
@@ -1334,6 +1505,16 @@ Page({
       });
     }
     this.updateCartState(cart);
+  },
+
+  handleToggleDrinkVoucher(event) {
+    if (!this.data.drinkVoucherAvailable) {
+      return;
+    }
+    const useVoucher = !!(event && event.detail && event.detail.value);
+    this._manualDrinkVoucherPreference = useVoucher;
+    this.setData({ useDrinkVoucher: useVoucher });
+    this.refreshDrinkVoucherPreview();
   },
 
   handleAdjustQuantity(event) {
@@ -1393,11 +1574,14 @@ Page({
       quantity: line.quantity,
       categoryType: line.section
     }));
+    const useDrinkVoucher =
+      this.data.drinkVoucherAvailable && this.data.useDrinkVoucher && this.data.drinkVoucherCanApply;
     try {
       await MenuOrderService.createOrder({
         items,
         remark: this.data.remark,
-        categoryTotals: this.data.cartSectionTotals
+        categoryTotals: this.data.cartSectionTotals,
+        useDrinkVoucher
       });
       wx.showToast({ title: '订单已提交', icon: 'success' });
       this.updateCartState([]);
