@@ -102,7 +102,8 @@ exports.main = async (event) => {
         targetMemberId,
         event.items || [],
         event.remark || '',
-        event.categoryTotals || {}
+        event.categoryTotals || {},
+        { useDrinkVoucher: event.useDrinkVoucher }
       );
     case 'listMemberOrders':
       return listMemberOrders(targetMemberId);
@@ -121,7 +122,7 @@ exports.main = async (event) => {
   }
 };
 
-async function createOrder(openid, itemsInput, remarkInput, categoryTotalsInput = {}) {
+async function createOrder(openid, itemsInput, remarkInput, categoryTotalsInput = {}, options = {}) {
   const member = await ensureMember(openid);
   const items = normalizeItems(itemsInput);
   if (!items.length) {
@@ -143,8 +144,13 @@ async function createOrder(openid, itemsInput, remarkInput, categoryTotalsInput 
     const updatedItems = items.map((item) => ({ ...item }));
     const updatedCategoryTotals = { ...categoryTotals };
 
-    const voucherCandidate = resolveDrinkVoucherCandidate(updatedItems);
-    if (voucherCandidate) {
+    const allowDrinkVoucher =
+      options && Object.prototype.hasOwnProperty.call(options, 'useDrinkVoucher')
+        ? !!options.useDrinkVoucher
+        : true;
+
+    const voucherCandidate = allowDrinkVoucher ? resolveDrinkVoucherCandidate(updatedItems) : null;
+    if (voucherCandidate && allowDrinkVoucher) {
       const lockedRight = await lockDrinkVoucherRight(transaction, openid, now);
       if (lockedRight) {
         discountAmount = voucherCandidate.discount;
@@ -263,6 +269,22 @@ async function ensureChargeOrderForMenuOrder(transaction, orderId, order, adminI
   const memberId = typeof order.memberId === 'string' ? order.memberId : '';
   const memberSnapshot = buildMemberSnapshot(order.memberSnapshot);
   const existingId = typeof order.chargeOrderId === 'string' ? order.chargeOrderId.trim() : '';
+  const normalizedOrder = mapOrder({ _id: orderId, ...order }) || {};
+  const normalizedAppliedRights = Array.isArray(normalizedOrder.appliedRights)
+    ? normalizedOrder.appliedRights
+    : [];
+  const appliedRights = normalizedAppliedRights.map((entry) => ({
+        memberRightId: entry.memberRightId || '',
+        rightId: entry.rightId || '',
+        amount: Number(entry.amount || 0),
+        type: entry.type || '',
+        title: entry.title || ''
+      }));
+  let discountTotal = Number(normalizedOrder.discountTotal || 0);
+  if ((!Number.isFinite(discountTotal) || discountTotal <= 0) && appliedRights.length) {
+    discountTotal = appliedRights.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+  }
+  const normalizedDiscountTotal = Number.isFinite(discountTotal) && discountTotal > 0 ? discountTotal : 0;
   if (existingId) {
     const chargeOrderRef = transaction.collection(COLLECTIONS.CHARGE_ORDERS).doc(existingId);
     const chargeSnapshot = await chargeOrderRef.get().catch(() => null);
@@ -282,6 +304,8 @@ async function ensureChargeOrderForMenuOrder(transaction, orderId, order, adminI
         menuOrderId: orderId,
         source: 'menuOrder',
         remark,
+        appliedRights,
+        discountTotal: normalizedDiscountTotal,
         ...(adminAdjustment
           ? {
               priceAdjustment: adminAdjustment,
@@ -316,6 +340,8 @@ async function ensureChargeOrderForMenuOrder(transaction, orderId, order, adminI
     menuOrderId: orderId,
     source: 'menuOrder',
     remark,
+    appliedRights,
+    discountTotal: normalizedDiscountTotal,
     ...(order.adminPriceAdjustment
       ? {
           priceAdjustment: normalizeAdminPriceAdjustment(order.adminPriceAdjustment),
@@ -739,7 +765,13 @@ function resolveDrinkVoucherCandidate(items, limit = DRINK_VOUCHER_AMOUNT_LIMIT,
     const price = Number(item.price || 0);
     const quantity = Math.max(1, Math.floor(Number(item.quantity || 0)));
     const amount = Number(item.amount || price * quantity);
-    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(amount) || amount <= 0) {
+    if (
+      !Number.isFinite(price) ||
+      price <= 0 ||
+      price > limit ||
+      !Number.isFinite(amount) ||
+      amount <= 0
+    ) {
       return;
     }
     if (price > highestPrice) {

@@ -14,6 +14,8 @@ const STATUS_LABELS = {
   cancelled: '已取消'
 };
 
+const DRINK_VOUCHER_RIGHT_ID = 'right_realm_qi_drink';
+
 function formatDateTime(value) {
   if (!value) return '';
   let date = null;
@@ -79,6 +81,25 @@ function decorateOrder(order) {
         };
       })
     : [];
+  const appliedRightsRaw = Array.isArray(order.appliedRights) ? order.appliedRights : [];
+  const appliedRights = appliedRightsRaw
+    .map((entry) => {
+      const amount = Number(entry.amount || 0);
+      return {
+        memberRightId: entry.memberRightId || '',
+        rightId: entry.rightId || '',
+        type: entry.type || '',
+        title: entry.title || entry.name || '权益',
+        amount,
+        amountLabel: formatCurrency(amount)
+      };
+    })
+    .filter((entry) => entry.title);
+  let discountTotal = Number(order.discountTotal || 0);
+  if ((!Number.isFinite(discountTotal) || discountTotal <= 0) && appliedRights.length) {
+    discountTotal = appliedRights.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+  }
+  const discountTotalLabel = discountTotal > 0 ? formatCurrency(discountTotal) : '';
   const totalAmount = Number(order.totalAmount || 0);
   const shortId = id ? id.slice(-6).toUpperCase() : '';
   const adminRemark = typeof order.adminRemark === 'string' ? order.adminRemark : '';
@@ -138,7 +159,13 @@ function decorateOrder(order) {
     adminRemark,
     cancelRemark,
     shortId,
-    canCancel
+    canCancel,
+    appliedRights,
+    discountTotal,
+    discountTotalLabel,
+    drinkVoucherApplied: appliedRights.some(
+      (entry) => entry.type === 'drinkVoucher' || entry.rightId === DRINK_VOUCHER_RIGHT_ID
+    )
   };
 }
 

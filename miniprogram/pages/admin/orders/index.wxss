@@ -192,6 +192,55 @@ page {
   color: rgba(148, 163, 184, 0.8);
 }
 
+.order-rights {
+  background: rgba(30, 41, 59, 0.6);
+  border-radius: 12rpx;
+  padding: 12rpx 16rpx;
+  margin: 12rpx 0;
+}
+
+.order-rights-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8rpx;
+}
+
+.order-rights-title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.order-rights-badge {
+  font-size: 22rpx;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.18);
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+}
+
+.order-rights-line {
+  display: flex;
+  justify-content: space-between;
+  font-size: 24rpx;
+  color: rgba(226, 232, 240, 0.88);
+  margin-bottom: 6rpx;
+}
+
+.order-rights-name {
+  max-width: 70%;
+}
+
+.order-rights-amount {
+  color: #93c5fd;
+}
+
+.order-rights-total {
+  font-size: 24rpx;
+  color: rgba(148, 163, 184, 0.82);
+}
+
 .order-adjust-remark {
   font-size: 24rpx;
   color: rgba(226, 232, 240, 0.82);

@@ -16,6 +16,24 @@
         <view class="item-right">{{formatCurrency(item.amount || (item.price * item.quantity))}}</view>
       </view>
       <view class="divider"></view>
+      <view class="rights-card" wx:if="{{order.appliedRights.length}}">
+        <view class="rights-header">
+          <text class="rights-title">已用权益</text>
+          <text class="rights-badge" wx:if="{{order.drinkVoucherApplied}}">饮品券</text>
+        </view>
+        <view class="rights-line" wx:for="{{order.appliedRights}}" wx:key="index" wx:for-item="right">
+          <text class="rights-name">{{right.title}}</text>
+          <text class="rights-amount">-{{right.amountLabel}}</text>
+        </view>
+      </view>
+      <view class="row" wx:if="{{order.originalTotalAmountLabel}}">
+        <text>商品合计</text>
+        <text>{{order.originalTotalAmountLabel}}</text>
+      </view>
+      <view class="row discount" wx:if="{{order.discountTotalLabel}}">
+        <text>优惠合计</text>
+        <text class="discount-amount">-{{order.discountTotalLabel}}</text>
+      </view>
       <view class="row">
         <text>应扣金额</text>
         <text class="amount">{{order.totalLabel}}</text>

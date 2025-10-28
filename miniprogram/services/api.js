@@ -1022,12 +1022,13 @@ export const AdminMenuCatalogService = {
 };
 
 export const MenuOrderService = {
-  async createOrder({ items = [], remark = '', categoryTotals = {} } = {}) {
+  async createOrder({ items = [], remark = '', categoryTotals = {}, useDrinkVoucher = true } = {}) {
     return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
       action: 'createOrder',
       items,
       remark,
-      categoryTotals
+      categoryTotals,
+      useDrinkVoucher
     });
   },
   async listOrders() {

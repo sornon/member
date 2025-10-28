@@ -104,9 +104,41 @@
       auto-height
       bindinput="handleRemarkInput"
     ></textarea>
+    <view class="voucher-card">
+      <view class="voucher-header">
+        <text class="voucher-title">饮品券（120 元内）</text>
+        <switch
+          class="voucher-switch"
+          checked="{{drinkVoucherAvailable && useDrinkVoucher}}"
+          disabled="{{!drinkVoucherAvailable}}"
+          color="#6A4DF5"
+          bindchange="handleToggleDrinkVoucher"
+        ></switch>
+      </view>
+      <view class="voucher-status" wx:if="{{drinkVoucherLoading}}">查询可用饮品券...</view>
+      <view class="voucher-status" wx:elif="{{!drinkVoucherAvailable}}">暂无可用饮品券</view>
+      <view class="voucher-status" wx:elif="{{drinkVoucherCandidate}}">
+        <block wx:if="{{useDrinkVoucher && drinkVoucherCanApply}}">
+          <text>已为「{{drinkVoucherCandidate.title}}</text>
+          <text wx:if="{{drinkVoucherCandidate.spec}}">（{{drinkVoucherCandidate.spec}}）</text>
+          <text>」抵扣 {{drinkVoucherDiscountLabel || drinkVoucherCandidate.priceLabel}}</text>
+        </block>
+        <block wx:elif="{{drinkVoucherCanApply}}">
+          <text>可为「{{drinkVoucherCandidate.title}}</text>
+          <text wx:if="{{drinkVoucherCandidate.spec}}">（{{drinkVoucherCandidate.spec}}）</text>
+          <text>」抵扣 {{drinkVoucherCandidate.priceLabel}}，当前未使用</text>
+        </block>
+        <block wx:else>
+          <text>当前购物车暂无符合抵扣条件的饮品</text>
+        </block>
+      </view>
+      <view class="voucher-status" wx:else>当前购物车暂无可抵扣饮品</view>
+    </view>
     <view class="cart-summary">
       <view class="summary-info">
-        <view class="summary-amount">合计 {{cartTotalLabel}}</view>
+        <view class="summary-amount">商品合计 {{cartTotalLabel}}</view>
+        <view class="summary-discount" wx:if="{{cartDiscountTotal > 0}}">饮品券抵扣 -{{cartDiscountLabel}}</view>
+        <view class="summary-payable">应付 {{cartPayableLabel}}</view>
         <view class="summary-stones">送 {{cartStoneRewardLabel}} 灵石</view>
       </view>
       <button class="submit-btn" type="primary" loading="{{submitting}}" bindtap="handleSubmitOrder">提交订单</button>
@@ -139,6 +171,17 @@
           </view>
         </block>
       </view>
+      <view class="order-rights" wx:if="{{order.appliedRights.length}}">
+        <view class="order-rights-header">
+          <text class="order-rights-title">已用权益</text>
+          <text class="order-rights-badge" wx:if="{{order.drinkVoucherApplied}}">饮品券已使用</text>
+        </view>
+        <view class="order-rights-line" wx:for="{{order.appliedRights}}" wx:key="index" wx:for-item="right">
+          <text class="order-rights-name">{{right.title}}</text>
+          <text class="order-rights-amount">-{{right.amountLabel}}</text>
+        </view>
+        <view class="order-rights-total" wx:if="{{order.discountTotalLabel}}">共计优惠 {{order.discountTotalLabel}}</view>
+      </view>
       <view class="order-remark" wx:if="{{order.remark}}">备注：{{order.remark}}</view>
       <view class="order-remark admin" wx:if="{{order.adminRemark}}">管理员备注：{{order.adminRemark}}</view>
       <view class="order-adjust" wx:if="{{order.priceAdjustmentVisible}}">
@@ -165,7 +208,7 @@
       <view class="order-summary">
         <view class="order-total">
           合计 {{order.totalAmountLabel}}
-          <text class="order-total-original" wx:if="{{order.priceAdjusted && order.originalTotalAmountLabel}}">
+          <text class="order-total-original" wx:if="{{order.showOriginalTotal && order.originalTotalAmountLabel}}">
             原价 {{order.originalTotalAmountLabel}}
           </text>
         </view>
