@@ -18,6 +18,14 @@
     "global": 1,
     "menu": 1
   },
+  "homeEntries": {
+    "activities": true,
+    "mall": true,
+    "secretRealm": false,
+    "rights": true,
+    "pvp": false,
+    "trading": false
+  },
   "createdAt": "2025-01-01T00:00:00.000Z",
   "updatedAt": "2025-01-01T00:00:00.000Z"
 }
@@ -34,6 +42,13 @@
 - **cacheVersions**：缓存版本号合集，管理员可在后台手动递增。
   - `global`：全局缓存版本。版本变化时会员端会清空本地存储（含点餐缓存、导航折叠状态等）并写入最新版本号。
   - `menu`：点餐菜单缓存版本。版本不一致时会员端会丢弃缓存的菜单及购物车并重新拉取。
+- **homeEntries**：会员端首页入口开关，控制快捷入口的展示与隐藏。
+  - `activities`：活动聚合入口，默认开启。
+  - `mall`：线上商城入口，默认开启。
+  - `secretRealm`：秘境挑战入口，默认关闭。
+  - `rights`：会员权益专区入口，默认开启。
+  - `pvp`：仙界比武大会入口，默认关闭。
+  - `trading`：交易行入口，默认关闭。
 
 管理员页面新增“缓存管理”模块，分别提供“刷新全局”“刷新菜单”两种操作。点击后会触发 `bumpCacheVersion`
 动作，将对应的版本号加一。会员首页会在每次启动时优先校验 `cacheVersions` 并按需清理本地缓存，点餐页也会在

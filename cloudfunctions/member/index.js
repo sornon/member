@@ -19,7 +19,10 @@ const {
 const {
   FEATURE_TOGGLE_DOC_ID,
   normalizeCacheVersions,
-  cloneCacheVersions
+  cloneCacheVersions,
+  normalizeHomeEntries,
+  cloneHomeEntries,
+  DEFAULT_HOME_ENTRIES
 } = require('system-settings');
 
 const db = cloud.database();
@@ -402,6 +405,19 @@ async function getCacheVersions() {
   const versions = normalizeCacheVersions(document && document.cacheVersions);
   const response = {
     versions: cloneCacheVersions(versions)
+  };
+  if (document && document.updatedAt) {
+    response.updatedAt = document.updatedAt;
+  }
+  return response;
+}
+
+async function getSystemSettings() {
+  const document = await loadFeatureToggleDocument();
+  const homeEntries = document && document.homeEntries ? document.homeEntries : DEFAULT_HOME_ENTRIES;
+  const normalizedHomeEntries = normalizeHomeEntries(homeEntries);
+  const response = {
+    homeEntries: cloneHomeEntries(normalizedHomeEntries)
   };
   if (document && document.updatedAt) {
     response.updatedAt = document.updatedAt;
@@ -1068,6 +1084,8 @@ exports.main = async (event, context) => {
       return breakthrough(memberOpenId, { proxySession, actorId: OPENID });
     case 'cacheVersions':
       return getCacheVersions();
+    case 'systemSettings':
+      return getSystemSettings();
     default:
       throw new Error(`Unknown action: ${action}`);
   }

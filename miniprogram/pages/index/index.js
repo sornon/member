@@ -63,6 +63,7 @@ const NAV_EXPANDED_STORAGE_KEY = 'home-nav-expanded';
 const AVATAR_BADGE_STORAGE_KEY = 'home-avatar-badge-dismissed';
 const AVATAR_TAB_BADGE_STORAGE_KEY = 'home-avatar-tab-badges';
 const NAME_BADGE_STORAGE_KEY = 'home-name-badge-dismissed';
+const HOME_ENTRIES_STORAGE_KEY = 'home-entries-visibility';
 const PROXY_LOGOUT_ACTION = 'proxyLogout';
 
 const APPEARANCE_BADGE_TABS = ['avatar', 'frame', 'title', 'background'];
@@ -184,6 +185,116 @@ const BASE_NAV_ITEMS = [
   { icon: '📜', label: '技能', url: '/pages/role/index?tab=skill' }
   //{ icon: '🧙‍♀️', label: '造型', url: '/pages/avatar/avatar' }
 ];
+
+const HOME_ENTRY_ITEMS = [
+  { key: 'activities', icon: '🎉', label: '活动', url: '/pages/activities/index' },
+  { key: 'mall', icon: '🏪', label: '商城', url: '/pages/mall/index' },
+  { key: 'secretRealm', icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
+  { key: 'rights', icon: '🎫', label: '权益', url: '/pages/rights/rights' },
+  { key: 'pvp', icon: '🥊', label: '比武', url: '/pages/pvp/index' },
+  { key: 'trading', icon: '⚖️', label: '交易', url: '/pages/trading/index' }
+];
+
+const DEFAULT_HOME_ENTRY_VISIBILITY = Object.freeze({
+  activities: true,
+  mall: true,
+  secretRealm: false,
+  rights: true,
+  pvp: false,
+  trading: false
+});
+
+function toBoolean(value, defaultValue = false) {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) {
+      return defaultValue;
+    }
+    return value !== 0;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return defaultValue;
+    }
+    const normalized = trimmed.toLowerCase();
+    if (['false', '0', 'off', 'no', '关闭', '否', '禁用', '停用', 'disabled'].includes(normalized)) {
+      return false;
+    }
+    if (['true', '1', 'on', 'yes', '开启', '启用', 'enable', 'enabled'].includes(normalized)) {
+      return true;
+    }
+    return defaultValue;
+  }
+  if (value == null) {
+    return defaultValue;
+  }
+  if (typeof value.valueOf === 'function') {
+    try {
+      const primitive = value.valueOf();
+      if (primitive !== value) {
+        return toBoolean(primitive, defaultValue);
+      }
+    } catch (error) {
+      return defaultValue;
+    }
+  }
+  return Boolean(value);
+}
+
+function normalizeHomeEntryVisibility(source) {
+  const base = source && typeof source === 'object' ? source : {};
+  return HOME_ENTRY_ITEMS.reduce((acc, item) => {
+    const defaultValue = DEFAULT_HOME_ENTRY_VISIBILITY[item.key];
+    acc[item.key] = toBoolean(base[item.key], defaultValue);
+    return acc;
+  }, {});
+}
+
+function loadCachedHomeEntryVisibility() {
+  try {
+    const cached = wx.getStorageSync(HOME_ENTRIES_STORAGE_KEY);
+    if (!cached) {
+      return null;
+    }
+    if (typeof cached === 'string') {
+      try {
+        const parsed = JSON.parse(cached);
+        return normalizeHomeEntryVisibility(parsed);
+      } catch (error) {
+        return null;
+      }
+    }
+    return normalizeHomeEntryVisibility(cached);
+  } catch (error) {
+    console.warn('[index] load cached home entries failed', error);
+    return null;
+  }
+}
+
+function persistHomeEntryVisibility(visibility) {
+  try {
+    const normalized = normalizeHomeEntryVisibility(visibility);
+    wx.setStorageSync(HOME_ENTRIES_STORAGE_KEY, normalized);
+    return true;
+  } catch (error) {
+    console.warn('[index] persist home entries failed', error);
+    return false;
+  }
+}
+
+function buildHomeActivityIcons(visibility) {
+  const normalized = normalizeHomeEntryVisibility(visibility);
+  return HOME_ENTRY_ITEMS.filter((item) => normalized[item.key] !== false).map((item) => ({
+    icon: item.icon,
+    label: item.label,
+    url: item.url
+  }));
+}
+
+const DEFAULT_ACTIVITY_ICONS = buildHomeActivityIcons(DEFAULT_HOME_ENTRY_VISIBILITY);
 
 function buildDefaultNavItems() {
   const showRoleDot = shouldShowRoleBadge(null);
@@ -942,14 +1053,7 @@ Page({
     heroFigureScaleClass: '',
     defaultAvatar: DEFAULT_AVATAR,
     activeTitleImage: '',
-    activityIcons: [
-      { icon: '🎉', label: '活动', url: '/pages/activities/index' },
-      { icon: '🏪', label: '商城', url: '/pages/mall/index' },
-      { icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
-      { icon: '🎫', label: '权益', url: '/pages/rights/rights' },
-      { icon: '🥊', label: '比武', url: '/pages/pvp/index' },
-      { icon: '⚖️', label: '交易', url: '/pages/trading/index' }
-    ],
+    activityIcons: DEFAULT_ACTIVITY_ICONS.slice(),
     navItems: INITIAL_NAV_ITEMS.slice(),
     collapsedNavItems: buildCollapsedNavItems(INITIAL_NAV_ITEMS),
     navExpanded: false,
@@ -1022,6 +1126,66 @@ Page({
     return this.cacheVersionSyncPromise;
   },
 
+  applyHomeEntries(visibility) {
+    const previous = this.homeEntries || {};
+    const normalized = normalizeHomeEntryVisibility(visibility);
+    this.homeEntries = normalized;
+    try {
+      if (app && app.globalData) {
+        app.globalData.homeEntries = normalized;
+      }
+    } catch (error) {
+      console.warn('[index] sync global home entries failed', error);
+    }
+    const icons = buildHomeActivityIcons(normalized);
+    const currentIcons = Array.isArray(this.data.activityIcons) ? this.data.activityIcons : [];
+    const unchanged =
+      currentIcons.length === icons.length &&
+      currentIcons.every((item, index) => {
+        const next = icons[index];
+        return (
+          item &&
+          next &&
+          item.icon === next.icon &&
+          item.label === next.label &&
+          item.url === next.url
+        );
+      });
+    if (!unchanged) {
+      this.setData({ activityIcons: icons });
+    }
+    const changed = HOME_ENTRY_ITEMS.some((item) => normalized[item.key] !== previous[item.key]);
+    if (changed || !this.homeEntriesPersisted) {
+      const persisted = persistHomeEntryVisibility(normalized);
+      if (persisted) {
+        this.homeEntriesPersisted = true;
+      }
+    }
+  },
+
+  loadHomeEntries() {
+    if (this.homeEntryLoadingPromise) {
+      return this.homeEntryLoadingPromise;
+    }
+    this.homeEntryLoadingPromise = (async () => {
+      try {
+        const result = await MemberService.getSystemSettings();
+        const visibility =
+          (result && result.homeEntries) || DEFAULT_HOME_ENTRY_VISIBILITY;
+        this.applyHomeEntries(visibility);
+        this.homeEntriesLoadedAt = Date.now();
+        return visibility;
+      } catch (error) {
+        console.warn('[index] load home entries failed', error);
+        return null;
+      } finally {
+        this.homeEntryLoadingPromise = null;
+        this.homeEntriesReady = true;
+      }
+    })();
+    return this.homeEntryLoadingPromise;
+  },
+
   onLoad() {
     this.cacheVersionSynced = false;
     this.cacheVersionSyncResult = null;
@@ -1029,8 +1193,25 @@ Page({
     this.hasBootstrapped = false;
     this.hasVisitedOtherPage = false;
     this.nameBadgeDismissedFromStorage = false;
+    this.homeEntriesReady = false;
+    this.homeEntriesLoadedAt = 0;
+    this.homeEntryLoadingPromise = null;
+    const globalHomeEntries = app && app.globalData ? app.globalData.homeEntries : null;
+    const cachedHomeEntries = loadCachedHomeEntryVisibility();
+    if (cachedHomeEntries) {
+      this.homeEntries = cachedHomeEntries;
+      this.homeEntriesPersisted = true;
+    } else if (globalHomeEntries) {
+      this.homeEntries = normalizeHomeEntryVisibility(globalHomeEntries);
+      this.homeEntriesPersisted = false;
+    } else {
+      this.homeEntries = normalizeHomeEntryVisibility(DEFAULT_HOME_ENTRY_VISIBILITY);
+      this.homeEntriesPersisted = false;
+    }
+    this.applyHomeEntries(this.homeEntries);
     this.ensureNavMetrics();
     this.updateToday();
+    this.loadHomeEntries().catch(() => null);
     const versionPromise = this.syncCacheVersions();
     versionPromise
       .catch(() => null)
@@ -1043,6 +1224,24 @@ Page({
   onShow() {
     this.ensureNavMetrics();
     this.updateToday();
+    const globalHomeEntries = app && app.globalData ? app.globalData.homeEntries : null;
+    if (globalHomeEntries) {
+      const normalizedGlobal = normalizeHomeEntryVisibility(globalHomeEntries);
+      const previousEntries =
+        this.homeEntries && typeof this.homeEntries === 'object'
+          ? this.homeEntries
+          : normalizeHomeEntryVisibility(DEFAULT_HOME_ENTRY_VISIBILITY);
+      const hasDifference = HOME_ENTRY_ITEMS.some((item) => normalizedGlobal[item.key] !== previousEntries[item.key]);
+      if (hasDifference) {
+        this.applyHomeEntries(normalizedGlobal);
+      }
+    }
+    const shouldRefreshHomeEntries =
+      !this.homeEntriesReady ||
+      (this.homeEntriesLoadedAt && Date.now() - this.homeEntriesLoadedAt > 300000);
+    if (shouldRefreshHomeEntries) {
+      this.loadHomeEntries();
+    }
     this.refreshStorageBadgeIndicator();
     this.attachMemberRealtime();
     this.bootstrap();

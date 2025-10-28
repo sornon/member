@@ -11,6 +11,7 @@ const {
   realmConfigs,
   membershipRights
 } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
+const { DEFAULT_HOME_ENTRIES } = require('system-settings');
 
 exports.main = async () => {
   await Promise.all([
@@ -78,7 +79,8 @@ const DEFAULT_CACHE_VERSIONS = {
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
-  cacheVersions: { ...DEFAULT_CACHE_VERSIONS }
+  cacheVersions: { ...DEFAULT_CACHE_VERSIONS },
+  homeEntries: { ...DEFAULT_HOME_ENTRIES }
 };
 
 async function seedSystemSettings() {

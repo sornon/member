@@ -30,6 +30,29 @@
     </view>
 
     <view class="card switch-card">
+      <view class="card-title">首页入口</view>
+      <view class="card-desc">控制会员端首页快捷入口的展示，调整后会实时生效。</view>
+      <block wx:for="{{homeEntryList}}" wx:key="fullKey">
+        <view class="switch-row">
+          <view class="switch-info">
+            <view class="switch-name">{{item.label}}</view>
+            <view class="switch-desc">{{item.description}}</view>
+          </view>
+          <switch
+            checked="{{features.homeEntries[item.key]}}"
+            data-key="{{item.fullKey}}"
+            bindchange="handleFeatureToggle"
+            disabled="{{updating[item.fullKey]}}"
+            color="#566aff"
+          ></switch>
+        </view>
+        <view wx:if="{{updating[item.fullKey]}}" class="switch-hint">保存中…</view>
+        <view wx:elif="{{!features.homeEntries[item.key]}}" class="switch-hint warning">{{item.hiddenHint}}</view>
+        <view wx:else class="switch-hint">{{item.visibleHint}}</view>
+      </block>
+    </view>
+
+    <view class="card switch-card">
       <view class="card-title">基础功能</view>
       <view class="switch-row">
         <view class="switch-info">

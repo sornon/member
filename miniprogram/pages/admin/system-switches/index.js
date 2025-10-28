@@ -12,6 +12,15 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
 
 const TOURNAMENT_FIELDS = ['enabled', 'registrationStart', 'registrationEnd'];
 
+const DEFAULT_HOME_ENTRIES = {
+  activities: true,
+  mall: true,
+  secretRealm: false,
+  rights: true,
+  pvp: false,
+  trading: false
+};
+
 const DEFAULT_RAGE_SETTINGS = {
   start: 0,
   turnGain: 20,
@@ -53,8 +62,11 @@ const CACHE_VERSION_SCOPES = [
 const DEFAULT_FEATURES = {
   cashierEnabled: true,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
-  cacheVersions: { ...DEFAULT_CACHE_VERSIONS }
+  cacheVersions: { ...DEFAULT_CACHE_VERSIONS },
+  homeEntries: { ...DEFAULT_HOME_ENTRIES }
 };
+
+const HOME_ENTRIES_STORAGE_KEY = 'home-entries-visibility';
 
 function showConfirmationModal({ title = '确认操作', content = '确认执行该操作？', confirmText = '确认', cancelText = '取消' } = {}) {
   return new Promise((resolve) => {
@@ -193,6 +205,47 @@ function cloneImmortalTournament(config) {
   return { ...normalized };
 }
 
+const HOME_ENTRY_KEYS = Object.keys(DEFAULT_HOME_ENTRIES);
+
+function normalizeHomeEntries(entries) {
+  const source = entries && typeof entries === 'object' ? entries : {};
+  const normalized = {};
+  HOME_ENTRY_KEYS.forEach((key) => {
+    normalized[key] = toBoolean(source[key], DEFAULT_HOME_ENTRIES[key]);
+  });
+  return normalized;
+}
+
+function cloneHomeEntries(entries) {
+  const normalized = normalizeHomeEntries(entries);
+  return { ...normalized };
+}
+
+function persistHomeEntries(entries) {
+  try {
+    const normalized = normalizeHomeEntries(entries);
+    wx.setStorageSync(HOME_ENTRIES_STORAGE_KEY, normalized);
+    return true;
+  } catch (error) {
+    console.warn('[admin] persist home entries failed', error);
+    return false;
+  }
+}
+
+function syncHomeEntriesToApp(entries) {
+  const normalized = normalizeHomeEntries(entries);
+  try {
+    const appInstance = getApp();
+    if (appInstance && appInstance.globalData) {
+      appInstance.globalData.homeEntries = normalized;
+    }
+  } catch (error) {
+    console.warn('[admin] sync global home entries failed', error);
+  }
+  persistHomeEntries(normalized);
+  return normalized;
+}
+
 function buildTournamentDraft(config) {
   const normalized = normalizeImmortalTournament(config);
   return {
@@ -209,7 +262,8 @@ function normalizeFeatures(features) {
     cacheVersions: normalizeClientCacheVersions(
       DEFAULT_FEATURES.cacheVersions,
       DEFAULT_CACHE_VERSIONS
-    )
+    ),
+    homeEntries: cloneHomeEntries(DEFAULT_FEATURES.homeEntries)
   };
   if (features && typeof features === 'object') {
     if (Object.prototype.hasOwnProperty.call(features, 'cashierEnabled')) {
@@ -224,8 +278,61 @@ function normalizeFeatures(features) {
         DEFAULT_CACHE_VERSIONS
       );
     }
+    if (Object.prototype.hasOwnProperty.call(features, 'homeEntries')) {
+      normalized.homeEntries = cloneHomeEntries(features.homeEntries);
+    }
   }
   return normalized;
+}
+
+function resolveFeatureValueByKey(features, key) {
+  if (!key || typeof key !== 'string') {
+    return undefined;
+  }
+  if (!features || typeof features !== 'object') {
+    return undefined;
+  }
+  const segments = key.split('.');
+  let current = features;
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i];
+    if (!segment) {
+      return undefined;
+    }
+    if (i === segments.length - 1) {
+      return current ? current[segment] : undefined;
+    }
+    current = current && typeof current === 'object' ? current[segment] : undefined;
+    if (!current || typeof current !== 'object') {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+function assignFeatureValueByKey(features, key, value) {
+  if (!key || typeof key !== 'string') {
+    return features;
+  }
+  const base = features && typeof features === 'object' ? { ...features } : {};
+  const segments = key.split('.');
+  let cursor = base;
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i];
+    if (!segment) {
+      return base;
+    }
+    if (i === segments.length - 1) {
+      cursor[segment] = value;
+    } else {
+      const nextValue = cursor[segment];
+      const nextContainer =
+        nextValue && typeof nextValue === 'object' ? { ...nextValue } : {};
+      cursor[segment] = nextContainer;
+      cursor = nextContainer;
+    }
+  }
+  return base;
 }
 
 function resolveErrorMessage(error, fallback = '操作失败，请稍后重试') {
@@ -274,7 +381,57 @@ Page({
     cacheError: '',
     secretRealmResetting: false,
     secretRealmResetSummary: '',
-    secretRealmResetError: ''
+    secretRealmResetError: '',
+    homeEntryList: [
+      {
+        key: 'activities',
+        fullKey: 'homeEntries.activities',
+        label: '活动',
+        description: '控制会员端首页的活动聚合入口。',
+        visibleHint: '开启后显示活动入口。',
+        hiddenHint: '关闭后首页不再展示活动入口。'
+      },
+      {
+        key: 'mall',
+        fullKey: 'homeEntries.mall',
+        label: '商城',
+        description: '决定是否在首页展示商城快捷入口。',
+        visibleHint: '开启后支持从首页进入商城。',
+        hiddenHint: '关闭后会员需通过其他路径访问商城。'
+      },
+      {
+        key: 'secretRealm',
+        fullKey: 'homeEntries.secretRealm',
+        label: '秘境',
+        description: '控制秘境挑战入口的默认展示状态。',
+        visibleHint: '开启后展示秘境入口。',
+        hiddenHint: '关闭后秘境入口保持隐藏。'
+      },
+      {
+        key: 'rights',
+        fullKey: 'homeEntries.rights',
+        label: '权益',
+        description: '配置会员权益专区是否出现在首页。',
+        visibleHint: '开启后权益入口默认展示。',
+        hiddenHint: '关闭后权益入口隐藏。'
+      },
+      {
+        key: 'pvp',
+        fullKey: 'homeEntries.pvp',
+        label: '比武',
+        description: '控制比武大会入口在首页的显示。',
+        visibleHint: '开启后展示比武报名入口。',
+        hiddenHint: '关闭后首页不再显示比武入口。'
+      },
+      {
+        key: 'trading',
+        fullKey: 'homeEntries.trading',
+        label: '交易',
+        description: '控制交易行入口是否在首页可见。',
+        visibleHint: '开启后会员可从首页进入交易行。',
+        hiddenHint: '关闭后交易入口保持隐藏。'
+      }
+    ]
   },
 
   onShow() {
@@ -283,6 +440,10 @@ Page({
 
   onPullDownRefresh() {
     this.loadFeatures({ showLoading: false, fromPullDown: true });
+  },
+
+  syncHomeEntries(entries) {
+    return syncHomeEntriesToApp(entries);
   },
 
   async loadFeatures(options = {}) {
@@ -329,6 +490,7 @@ Page({
         secretRealmResetSummary: '',
         secretRealmResetError: ''
       });
+      this.syncHomeEntries(features.homeEntries);
     } catch (error) {
       this.setData({
         loading: false,
@@ -367,10 +529,15 @@ Page({
 
     const enabled = !!(event && event.detail && event.detail.value);
     const previousFeatures = normalizeFeatures(this.data.features);
+    const currentValue = resolveFeatureValueByKey(previousFeatures, key);
+    if (typeof currentValue !== 'undefined' && currentValue === enabled) {
+      return;
+    }
+    const nextFeatures = assignFeatureValueByKey(previousFeatures, key, enabled);
     const updating = { ...this.data.updating, [key]: true };
 
     this.setData({
-      features: { ...previousFeatures, [key]: enabled },
+      features: nextFeatures,
       updating,
       error: ''
     });
@@ -385,6 +552,9 @@ Page({
         updating: nextUpdating,
         error: ''
       });
+      if (key.startsWith('homeEntries')) {
+        this.syncHomeEntries(features.homeEntries);
+      }
       wx.showToast({ title: '已更新', icon: 'success', duration: 800 });
     } catch (error) {
       const nextUpdating = { ...this.data.updating };
