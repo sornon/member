@@ -11,6 +11,7 @@ const {
   resolveFigureScaleClassByRarity,
   normalizeFigureRarity
 } = require('../../shared/figure-scale');
+const { resolveVideoPosterSource } = require('../../utils/media');
 
 const app = getApp();
 
@@ -139,6 +140,7 @@ Page({
     backgroundImage: '',
     backgroundVideo: '',
     showBackgroundVideo: false,
+    backgroundPoster: '',
     backgroundVideoError: false,
     showBackgroundOverlay: true,
     navHeight: 88,
@@ -254,6 +256,7 @@ Page({
       backgroundImage: backgroundDisplay.image,
       backgroundVideo: backgroundDisplay.video,
       backgroundVideoError: false,
+      backgroundPoster: resolveVideoPosterSource(backgroundDisplay.image),
       showBackgroundVideo: backgroundDisplay.dynamicEnabled,
       loading: false
     });
