@@ -206,12 +206,14 @@ Page({
     sectionForm: {
       sectionId: '',
       name: '',
-      sortOrder: ''
+      sortOrder: '',
+      enabled: true
     },
     sectionEditForm: {
       sectionId: '',
       name: '',
-      sortOrder: ''
+      sortOrder: '',
+      enabled: true
     },
     categoryForm: {
       sectionId: '',
@@ -261,12 +263,13 @@ Page({
 
   buildSectionEditForm(section) {
     if (!section) {
-      return { sectionId: '', name: '', sortOrder: '' };
+      return { sectionId: '', name: '', sortOrder: '', enabled: true };
     }
     return {
       sectionId: section.sectionId || '',
       name: section.name || '',
-      sortOrder: typeof section.sortOrder === 'number' ? `${section.sortOrder}` : section.sortOrder || ''
+      sortOrder: typeof section.sortOrder === 'number' ? `${section.sortOrder}` : section.sortOrder || '',
+      enabled: resolveEnabledFlag(section)
     };
   },
 
@@ -542,7 +545,8 @@ Page({
     const baseForm = {
       sectionId: '',
       name: '',
-      sortOrder: ''
+      sortOrder: '',
+      enabled: true
     };
     this.setData({
       showCreateSectionForm: show,
@@ -970,6 +974,12 @@ Page({
     });
   },
 
+  handleSectionFormSwitchChange(event) {
+    this.setData({
+      sectionForm: { ...this.data.sectionForm, enabled: !!event.detail.value }
+    });
+  },
+
   handleCategoryFormInput(event) {
     const { field } = event.currentTarget.dataset || {};
     if (!field) {
@@ -1003,6 +1013,12 @@ Page({
     }
     this.setData({
       sectionEditForm: { ...this.data.sectionEditForm, [field]: event.detail.value }
+    });
+  },
+
+  handleSectionEditSwitchChange(event) {
+    this.setData({
+      sectionEditForm: { ...this.data.sectionEditForm, enabled: !!event.detail.value }
     });
   },
 
@@ -1117,7 +1133,8 @@ Page({
         sectionId,
         name,
         title: name,
-        sortOrder: form.sortOrder
+        sortOrder: form.sortOrder,
+        enabled: form.enabled !== false
       });
       wx.showToast({ title: '已保存', icon: 'success' });
       await this.loadCatalog();
@@ -1248,11 +1265,12 @@ Page({
         sectionId,
         name,
         title: name,
-        sortOrder: form.sortOrder
+        sortOrder: form.sortOrder,
+        enabled: form.enabled !== false
       });
       wx.showToast({ title: '已新增', icon: 'success' });
       this.setData({
-        sectionForm: { sectionId: '', name: '', sortOrder: '' },
+        sectionForm: { sectionId: '', name: '', sortOrder: '', enabled: true },
         showCreateSectionForm: false
       });
       await this.loadCatalog();

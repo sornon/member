@@ -498,30 +498,31 @@ async function loadCatalogData(options = {}) {
   };
 }
 
-async function listCatalog() {
-  const data = await loadCatalogData({ includeInactive: false });
+async function listCatalog(options = {}, openid) {
+  const scope = typeof options.scope === 'string' ? options.scope.trim().toLowerCase() : '';
+  const includeInactive = scope === 'admin' || options.includeInactive === true;
+  if (includeInactive) {
+    await ensureAdmin(openid);
+  }
+  const data = await loadCatalogData({ includeInactive });
   const sections = buildCatalogSections(data.sections, data.categories, data.items);
-  return {
+  const response = {
     catalog: {
       sections,
       generatedAt: new Date().toISOString()
     }
   };
+  if (includeInactive) {
+    response.sectionsRaw = data.sections;
+    response.categoriesRaw = data.categories;
+    response.itemsRaw = data.items;
+  }
+  return response;
 }
 
-async function adminListCatalog(openid) {
-  await ensureAdmin(openid);
-  const data = await loadCatalogData({ includeInactive: true });
-  const sections = buildCatalogSections(data.sections, data.categories, data.items);
-  return {
-    catalog: {
-      sections,
-      generatedAt: new Date().toISOString()
-    },
-    sectionsRaw: data.sections,
-    categoriesRaw: data.categories,
-    itemsRaw: data.items
-  };
+async function adminListCatalog(openid, options = {}) {
+  const mergedOptions = { ...options, scope: 'admin', includeInactive: true };
+  return listCatalog(mergedOptions, openid);
 }
 
 async function findSectionById(sectionId) {
@@ -944,9 +945,9 @@ exports.main = async (event = {}) => {
   const action = resolveAction(event.action || event.type || event.operation || event.op);
   switch (action) {
     case ACTIONS.LIST:
-      return listCatalog();
+      return listCatalog(event, OPENID);
     case ACTIONS.ADMIN_LIST:
-      return adminListCatalog(OPENID);
+      return adminListCatalog(OPENID, event);
     case ACTIONS.CREATE_SECTION:
       return createSection(OPENID, event.section || event.data || {});
     case ACTIONS.CREATE_CATEGORY:

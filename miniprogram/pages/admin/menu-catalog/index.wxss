@@ -72,6 +72,26 @@
   font-size: 26rpx;
 }
 
+.section-item.is-disabled {
+  opacity: 0.5;
+}
+
+.section-item.is-disabled .section-name__title {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.section-item.is-disabled .section-meta {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.section-item.is-active.is-disabled {
+  opacity: 1;
+}
+
+.section-item.is-active.is-disabled .section-meta {
+  color: rgba(255, 255, 255, 0.75);
+}
+
 .category-item.is-disabled {
   opacity: 0.5;
 }
