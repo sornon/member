@@ -19,7 +19,9 @@ const {
   resolveBackgroundByRealmName,
   resolveHighestUnlockedBackgroundByRealmOrder,
   getDefaultBackgroundId,
-  isBackgroundUnlocked
+  isBackgroundUnlocked,
+  registerCustomBackgrounds,
+  normalizeBackgroundCatalog
 } = require('../../shared/backgrounds.js');
 const { AVATAR_IMAGE_BASE_PATH, CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
 const {
@@ -776,6 +778,8 @@ function buildSanitizedMember(member) {
   const desiredTitle = normalizeTitleId(member.appearanceTitle || '');
   const appearanceTitle = desiredTitle && titleUnlocks.includes(desiredTitle) ? desiredTitle : '';
   const titleCatalog = normalizeTitleCatalog(member.titleCatalog);
+  const backgroundCatalog = normalizeBackgroundCatalog(member.backgroundCatalog);
+  registerCustomBackgrounds(backgroundCatalog);
   registerCustomTitles(titleCatalog);
   return {
     ...member,
@@ -786,6 +790,7 @@ function buildSanitizedMember(member) {
     appearanceTitle,
     titleUnlocks,
     titleCatalog,
+    backgroundCatalog,
     backgroundUnlocks: resolveBackgroundUnlocks(member)
   };
 }

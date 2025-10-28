@@ -1,7 +1,11 @@
 import { MemberService } from './api';
 
 const { normalizeAvatarFrameValue } = require('../shared/avatar-frames.js');
-const { normalizeBackgroundId } = require('../shared/backgrounds.js');
+const {
+  normalizeBackgroundId,
+  registerCustomBackgrounds,
+  normalizeBackgroundCatalog
+} = require('../shared/backgrounds.js');
 const { registerCustomTitles, normalizeTitleCatalog } = require('../shared/titles.js');
 
 const MAX_WATCH_RESTART_ATTEMPTS = 5;
@@ -32,6 +36,9 @@ function sanitizeMemberSnapshot(member) {
   sanitized.avatarFrame = sanitizeAvatarFrame(sanitized.avatarFrame);
   sanitized.appearanceBackground = normalizeBackgroundId(sanitized.appearanceBackground || '');
   sanitized.appearanceBackgroundAnimated = !!sanitized.appearanceBackgroundAnimated;
+  const backgroundCatalog = normalizeBackgroundCatalog(sanitized.backgroundCatalog);
+  sanitized.backgroundCatalog = backgroundCatalog;
+  registerCustomBackgrounds(backgroundCatalog);
   const titleCatalog = normalizeTitleCatalog(sanitized.titleCatalog);
   sanitized.titleCatalog = titleCatalog;
   registerCustomTitles(titleCatalog);

@@ -10,6 +10,9 @@ const {
   resolveHighestUnlockedBackgroundByRealmOrder,
   resolveBackgroundByRealmName,
   resolveBackgroundById,
+  registerCustomBackgrounds,
+  normalizeBackgroundCatalog,
+  areBackgroundCatalogsEqual,
   COLLECTIONS,
   realmConfigs,
   subLevelLabels,
@@ -150,6 +153,38 @@ function areTitleCatalogsEqual(a, b) {
     }
   }
   return true;
+}
+
+function normalizeBackgroundUnlockList(list = []) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  const seen = new Set();
+  const result = [];
+  list.forEach((id) => {
+    const normalized = normalizeBackgroundId(id);
+    if (!normalized || seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    result.push(normalized);
+  });
+  return result;
+}
+
+function ensureCustomBackgroundsUnlocked(entries = [], unlocks = []) {
+  const normalizedUnlocks = normalizeBackgroundUnlockList(unlocks);
+  const unlockSet = new Set(normalizedUnlocks);
+  let changed = false;
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    if (!entry || !entry.id || unlockSet.has(entry.id)) {
+      return;
+    }
+    unlockSet.add(entry.id);
+    normalizedUnlocks.push(entry.id);
+    changed = true;
+  });
+  return changed ? normalizeBackgroundUnlockList(normalizedUnlocks) : normalizedUnlocks;
 }
 
 const BACKGROUND_LIBRARY = Object.freeze({
@@ -707,6 +742,9 @@ async function resolveMemberExtras(memberId) {
     if (!Array.isArray(extras.backgroundUnlocks)) {
       extras.backgroundUnlocks = [];
     }
+    if (!Array.isArray(extras.backgroundCatalog)) {
+      extras.backgroundCatalog = [];
+    }
     if (!Array.isArray(extras.deliveredLevelRewards)) {
       extras.deliveredLevelRewards = [];
     }
@@ -720,6 +758,7 @@ async function resolveMemberExtras(memberId) {
     titleUnlocks: [],
     titleCatalog: [],
     backgroundUnlocks: [],
+    backgroundCatalog: [],
     deliveredLevelRewards: [],
     createdAt: now,
     updatedAt: now
@@ -752,7 +791,9 @@ async function updateMemberExtras(memberId, updates = {}) {
               claimedLevelRewards: [],
               wineStorage: [],
               titleUnlocks: [],
+              titleCatalog: [],
               backgroundUnlocks: [],
+              backgroundCatalog: [],
               deliveredLevelRewards: []
             }
           })
@@ -1998,7 +2039,28 @@ async function ensureArchiveDefaults(member) {
   }
   member.titleCatalog = normalizedTitleCatalog;
 
-  const backgroundUnlocks = Array.isArray(extras.backgroundUnlocks) ? extras.backgroundUnlocks.slice() : [];
+  const rawBackgroundCatalog = Array.isArray(extras.backgroundCatalog) ? extras.backgroundCatalog : [];
+  const normalizedBackgroundCatalog = normalizeBackgroundCatalog(rawBackgroundCatalog);
+  registerCustomBackgrounds(normalizedBackgroundCatalog);
+  if (!areBackgroundCatalogsEqual(rawBackgroundCatalog, normalizedBackgroundCatalog)) {
+    extrasUpdates.backgroundCatalog = normalizedBackgroundCatalog;
+    extras.backgroundCatalog = normalizedBackgroundCatalog;
+  } else {
+    extras.backgroundCatalog = normalizedBackgroundCatalog;
+  }
+  let backgroundUnlocks = normalizeBackgroundUnlockList(extras.backgroundUnlocks);
+  const ensuredBackgroundUnlocks = ensureCustomBackgroundsUnlocked(
+    normalizedBackgroundCatalog,
+    backgroundUnlocks
+  );
+  if (!arraysEqual(backgroundUnlocks, ensuredBackgroundUnlocks)) {
+    extrasUpdates.backgroundUnlocks = ensuredBackgroundUnlocks;
+    extras.backgroundUnlocks = ensuredBackgroundUnlocks;
+  } else {
+    extras.backgroundUnlocks = ensuredBackgroundUnlocks;
+  }
+  backgroundUnlocks = ensuredBackgroundUnlocks;
+  member.backgroundCatalog = normalizedBackgroundCatalog;
 
   if (!GENDER_OPTIONS.includes(member.gender)) {
     member.gender = 'unknown';

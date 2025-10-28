@@ -10,6 +10,15 @@ const {
   normalizeTitleId,
   resolveTitleById
 } = require('../../../shared/titles.js');
+const {
+  normalizeBackgroundCatalog,
+  registerCustomBackgrounds,
+  buildBackgroundImageUrlByFile,
+  normalizeBackgroundId,
+  resolveBackgroundById,
+  listBackgrounds,
+  normalizeBackgroundMediaKey
+} = require('../../../shared/backgrounds.js');
 
 const RENAME_SOURCE_LABELS = {
   admin: '管理员调整',
@@ -262,6 +271,107 @@ function buildTitleManagerEntries(catalog = []) {
   }));
 }
 
+function normalizeBackgroundUnlocks(unlocks = []) {
+  if (!Array.isArray(unlocks)) {
+    return [];
+  }
+  const seen = new Set();
+  const result = [];
+  unlocks.forEach((value) => {
+    const id = normalizeBackgroundId(value);
+    if (!id || seen.has(id)) {
+      return;
+    }
+    seen.add(id);
+    result.push(id);
+  });
+  return result;
+}
+
+function buildBackgroundManagerEntries(catalog = []) {
+  const normalized = normalizeBackgroundCatalog(catalog);
+  return normalized.map((entry) => ({
+    id: entry.id,
+    name: entry.name,
+    mediaKey: entry.mediaKey,
+    preview: buildBackgroundImageUrlByFile(entry.mediaKey || entry.id)
+  }));
+}
+
+function ensureCustomBackgroundsUnlocked(entries = [], unlocks = []) {
+  const normalizedUnlocks = normalizeBackgroundUnlocks(unlocks);
+  const unlockSet = new Set(normalizedUnlocks);
+  let changed = false;
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    if (!entry || !entry.id || unlockSet.has(entry.id)) {
+      return;
+    }
+    unlockSet.add(entry.id);
+    normalizedUnlocks.push(entry.id);
+    changed = true;
+  });
+  return changed ? normalizeBackgroundUnlocks(normalizedUnlocks) : normalizedUnlocks;
+}
+
+function buildBackgroundSummaryFromEntries(entries = [], unlocks = []) {
+  const list = Array.isArray(entries) ? entries.filter(Boolean) : [];
+  const unlockList = ensureCustomBackgroundsUnlocked(list, unlocks);
+  if (!list.length) {
+    if (unlockList.length) {
+      return `基础背景已解锁 ${unlockList.length} 个`;
+    }
+    return '暂无自定义背景';
+  }
+  const customIdSet = new Set(list.map((entry) => entry && entry.id).filter(Boolean));
+  const builtinUnlockedCount = unlockList.filter((id) => id && !customIdSet.has(id)).length;
+  const segments = [`已添加 ${list.length} 个背景（自动解锁）`];
+  if (builtinUnlockedCount) {
+    segments.push(`基础已解锁 ${builtinUnlockedCount} 个`);
+  }
+  return segments.join(' · ');
+}
+
+function buildBackgroundManagerUnlockedEntries(entries = [], unlocks = []) {
+  const unlockList = ensureCustomBackgroundsUnlocked(entries, unlocks);
+  if (!unlockList.length) {
+    return [];
+  }
+  const customMap = new Map();
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    if (!entry || !entry.id) {
+      return;
+    }
+    const preview = entry.preview || buildBackgroundImageUrlByFile(entry.mediaKey || entry.id);
+    customMap.set(entry.id, {
+      ...entry,
+      preview
+    });
+  });
+  const baseBackgrounds = listBackgrounds();
+  const baseMap = new Map((Array.isArray(baseBackgrounds) ? baseBackgrounds : []).map((item) => [item.id, item]));
+  const seen = new Set();
+  return unlockList
+    .map((id) => {
+      if (!id || seen.has(id)) {
+        return null;
+      }
+      seen.add(id);
+      if (customMap.has(id)) {
+        return customMap.get(id);
+      }
+      const resolved = resolveBackgroundById(id) || baseMap.get(id);
+      if (!resolved) {
+        return null;
+      }
+      return {
+        id: resolved.id,
+        name: resolved.name || resolved.id,
+        preview: resolved.image || buildBackgroundImageUrlByFile(resolved.mediaKey || resolved.id)
+      };
+    })
+    .filter(Boolean);
+}
+
 function ensureCustomTitlesUnlocked(entries = [], unlocks = []) {
   const normalizedUnlocks = normalizeTitleUnlocks(unlocks);
   const unlockSet = new Set(normalizedUnlocks);
@@ -473,13 +583,21 @@ Page({
     secretRealmSummary: '',
     secretRealmError: '',
     titleSummary: '暂无自定义称号',
+    backgroundSummary: '暂无自定义背景',
     titleManagerVisible: false,
     titleManagerSaving: false,
     titleManagerEntries: [],
     titleManagerUnlocks: [],
     titleManagerUnlockedEntries: [],
     titleManagerForm: { name: '', file: '' },
-    titleManagerDirty: false
+    titleManagerDirty: false,
+    backgroundManagerVisible: false,
+    backgroundManagerSaving: false,
+    backgroundManagerEntries: [],
+    backgroundManagerUnlocks: [],
+    backgroundManagerUnlockedEntries: [],
+    backgroundManagerForm: { name: '', file: '' },
+    backgroundManagerDirty: false
   },
 
   onLoad(options) {
@@ -605,6 +723,14 @@ Page({
     member.titleCatalog = titleCatalog;
     registerCustomTitles(titleCatalog);
     const titleSummary = buildTitleSummaryFromEntries(titleEntries, ensuredTitleUnlocks);
+    const backgroundUnlocks = normalizeBackgroundUnlocks(member.backgroundUnlocks);
+    const backgroundCatalog = normalizeBackgroundCatalog(member.backgroundCatalog);
+    const backgroundEntries = buildBackgroundManagerEntries(backgroundCatalog);
+    const ensuredBackgroundUnlocks = ensureCustomBackgroundsUnlocked(backgroundEntries, backgroundUnlocks);
+    member.backgroundUnlocks = ensuredBackgroundUnlocks;
+    member.backgroundCatalog = backgroundCatalog;
+    registerCustomBackgrounds(backgroundCatalog);
+    const backgroundSummary = buildBackgroundSummaryFromEntries(backgroundEntries, ensuredBackgroundUnlocks);
     const existingProfile = this.data.pveProfile || null;
     const hasNewProfile = !!(detail && detail.pveProfile);
     const profileToApply = hasNewProfile ? detail.pveProfile : existingProfile;
@@ -657,6 +783,7 @@ Page({
       avatarDialogSelection: avatarUnlocks,
       avatarDialogOptionGroups: buildAvatarOptionGroups(avatarUnlocks),
       titleSummary,
+      backgroundSummary,
       secretRealmSummary: '',
       secretRealmError: '',
       proxyLoginAvailable: this.resolveProxyLoginAvailability(member)
@@ -1405,6 +1532,41 @@ Page({
     this.setData(updates);
   },
 
+  commitBackgroundManagerState(partial = {}) {
+    const hasEntries = Object.prototype.hasOwnProperty.call(partial, 'entries');
+    const hasUnlocks = Object.prototype.hasOwnProperty.call(partial, 'unlocks');
+    const entries = hasEntries
+      ? (Array.isArray(partial.entries) ? partial.entries : [])
+      : Array.isArray(this.data.backgroundManagerEntries)
+      ? this.data.backgroundManagerEntries
+      : [];
+    const unlocksSource = hasUnlocks ? partial.unlocks : this.data.backgroundManagerUnlocks;
+    const unlocks = ensureCustomBackgroundsUnlocked(entries, unlocksSource);
+    const updates = {
+      backgroundManagerEntries: entries,
+      backgroundManagerUnlocks: unlocks,
+      backgroundManagerUnlockedEntries: buildBackgroundManagerUnlockedEntries(entries, unlocks)
+    };
+    if (partial.form) {
+      updates.backgroundManagerForm = partial.form;
+    }
+    if (typeof partial.visible === 'boolean') {
+      updates.backgroundManagerVisible = partial.visible;
+    }
+    if (typeof partial.dirty === 'boolean') {
+      updates.backgroundManagerDirty = partial.dirty;
+    }
+    if (typeof partial.saving === 'boolean') {
+      updates.backgroundManagerSaving = partial.saving;
+    }
+    if (partial.summary !== undefined) {
+      updates.backgroundSummary = partial.summary;
+    } else if (hasEntries || hasUnlocks) {
+      updates.backgroundSummary = buildBackgroundSummaryFromEntries(entries, unlocks);
+    }
+    this.setData(updates);
+  },
+
   openTitleManagerDialog() {
     const member = this.data.member || {};
     const catalog = Array.isArray(member.titleCatalog) ? member.titleCatalog : [];
@@ -1539,6 +1701,152 @@ Page({
     } catch (error) {
       console.error('[admin] save titles failed', error);
       this.commitTitleManagerState({ saving: false });
+      wx.showToast({ title: error.errMsg || error.message || '保存失败', icon: 'none' });
+    }
+  },
+
+  openBackgroundManagerDialog() {
+    const member = this.data.member || {};
+    const catalog = Array.isArray(member.backgroundCatalog) ? member.backgroundCatalog : [];
+    const entries = buildBackgroundManagerEntries(catalog);
+    const unlocks = ensureCustomBackgroundsUnlocked(entries, member.backgroundUnlocks);
+    registerCustomBackgrounds(catalog);
+    this.commitBackgroundManagerState({
+      visible: true,
+      entries,
+      unlocks,
+      form: { name: '', file: '' },
+      dirty: false,
+      saving: false
+    });
+  },
+
+  handleBackgroundManagerInput(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const field = dataset.field;
+    if (!field) {
+      return;
+    }
+    const value = event && event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
+    this.setData({
+      backgroundManagerForm: {
+        ...this.data.backgroundManagerForm,
+        [field]: value
+      }
+    });
+  },
+
+  handleBackgroundManagerAdd() {
+    const form = this.data.backgroundManagerForm || {};
+    const name = typeof form.name === 'string' ? form.name.trim() : '';
+    if (!name) {
+      wx.showToast({ title: '请输入背景名称', icon: 'none' });
+      return;
+    }
+    const fileInput = typeof form.file === 'string' ? form.file.trim() : '';
+    const normalizedMediaKey = normalizeBackgroundMediaKey(fileInput || name);
+    if (!normalizedMediaKey) {
+      wx.showToast({ title: '请输入文件名', icon: 'none' });
+      return;
+    }
+    const existing = Array.isArray(this.data.backgroundManagerEntries)
+      ? this.data.backgroundManagerEntries
+      : [];
+    const baseList = existing.map((entry) => ({ id: entry.id, name: entry.name, mediaKey: entry.mediaKey }));
+    const appended = normalizeBackgroundCatalog(baseList.concat([{ name, mediaKey: normalizedMediaKey }]));
+    if (!appended.length) {
+      wx.showToast({ title: '添加失败，请重试', icon: 'none' });
+      return;
+    }
+    const entries = buildBackgroundManagerEntries(appended);
+    const newEntry = entries[entries.length - 1];
+    const unlocks = ensureCustomBackgroundsUnlocked(entries, this.data.backgroundManagerUnlocks);
+    if (newEntry && newEntry.id && !unlocks.includes(newEntry.id)) {
+      unlocks.push(newEntry.id);
+    }
+    registerCustomBackgrounds(appended);
+    this.commitBackgroundManagerState({
+      entries,
+      unlocks,
+      form: { name: '', file: '' },
+      dirty: true
+    });
+  },
+
+  handleBackgroundManagerRemove(event) {
+    const id = event && event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset.id : '';
+    const targetId = normalizeBackgroundId(id);
+    if (!targetId) {
+      return;
+    }
+    const existing = Array.isArray(this.data.backgroundManagerEntries)
+      ? this.data.backgroundManagerEntries
+      : [];
+    const filtered = existing.filter((entry) => entry && entry.id !== targetId);
+    const normalized = normalizeBackgroundCatalog(filtered);
+    const entries = buildBackgroundManagerEntries(normalized);
+    const unlocks = normalizeBackgroundUnlocks(this.data.backgroundManagerUnlocks).filter(
+      (value) => value !== targetId
+    );
+    registerCustomBackgrounds(normalized);
+    this.commitBackgroundManagerState({ entries, unlocks, dirty: true });
+  },
+
+  handleCloseBackgroundManager() {
+    if (this.data.backgroundManagerSaving) {
+      return;
+    }
+    const member = this.data.member || {};
+    const catalog = Array.isArray(member.backgroundCatalog) ? member.backgroundCatalog : [];
+    const entries = buildBackgroundManagerEntries(catalog);
+    const unlocks = ensureCustomBackgroundsUnlocked(entries, member.backgroundUnlocks);
+    registerCustomBackgrounds(catalog);
+    this.commitBackgroundManagerState({
+      visible: false,
+      entries,
+      unlocks,
+      form: { name: '', file: '' },
+      dirty: false
+    });
+  },
+
+  async handleBackgroundManagerSave() {
+    if (this.data.backgroundManagerSaving) {
+      return;
+    }
+    const memberId = this.data.memberId;
+    if (!memberId) {
+      wx.showToast({ title: '缺少会员编号', icon: 'none' });
+      return;
+    }
+    const catalog = normalizeBackgroundCatalog(this.data.backgroundManagerEntries);
+    const entries = buildBackgroundManagerEntries(catalog);
+    const unlocks = ensureCustomBackgroundsUnlocked(entries, this.data.backgroundManagerUnlocks);
+    this.commitBackgroundManagerState({ saving: true });
+    try {
+      const detail = await AdminService.updateMember(memberId, {
+        backgroundCatalog: catalog,
+        backgroundUnlocks: unlocks
+      });
+      this.applyDetail(detail);
+      const updatedMember = this.data.member || {};
+      const savedCatalog = Array.isArray(updatedMember.backgroundCatalog)
+        ? updatedMember.backgroundCatalog
+        : [];
+      const savedEntries = buildBackgroundManagerEntries(savedCatalog);
+      const savedUnlocks = ensureCustomBackgroundsUnlocked(savedEntries, updatedMember.backgroundUnlocks);
+      this.commitBackgroundManagerState({
+        visible: false,
+        saving: false,
+        dirty: false,
+        entries: savedEntries,
+        unlocks: savedUnlocks,
+        form: { name: '', file: '' }
+      });
+      wx.showToast({ title: '已保存', icon: 'success' });
+    } catch (error) {
+      console.error('[admin] save backgrounds failed', error);
+      this.commitBackgroundManagerState({ saving: false });
       wx.showToast({ title: error.errMsg || error.message || '保存失败', icon: 'none' });
     }
   },
