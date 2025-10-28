@@ -214,12 +214,20 @@
         <button class="avatar-edit-button" size="mini" bindtap="showAvatarPermissionDialog">编辑头像权限</button>
       </view>
       <view class="form-item basic-info-grid__full">
-        <view class="form-label">称号管理</view>
-        <view class="title-manager-summary">
-          <text class="title-manager-summary__primary">{{titleSummary}}</text>
-          <text class="title-manager-summary__note">图片位于 /assets/title/，文件名无需后缀</text>
+      <view class="form-label">称号管理</view>
+      <view class="title-manager-summary">
+        <text class="title-manager-summary__primary">{{titleSummary}}</text>
+        <text class="title-manager-summary__note">图片位于 /assets/title/，文件名无需后缀</text>
+      </view>
+      <button class="title-manager-button" size="mini" bindtap="openTitleManagerDialog">管理称号</button>
+    </view>
+      <view class="form-item basic-info-grid__full">
+        <view class="form-label">背景管理</view>
+        <view class="background-manager-summary">
+          <text class="background-manager-summary__primary">{{backgroundSummary}}</text>
+          <text class="background-manager-summary__note">图片位于 /assets/background/，文件名无需后缀</text>
         </view>
-        <button class="title-manager-button" size="mini" bindtap="openTitleManagerDialog">管理称号</button>
+        <button class="background-manager-button" size="mini" bindtap="openBackgroundManagerDialog">管理背景</button>
       </view>
     </view>
   </view>
@@ -560,6 +568,94 @@
         bindtap="handleTitleManagerSave"
         loading="{{titleManagerSaving}}"
         disabled="{{titleManagerSaving || !titleManagerDirty}}"
+      >
+        保存
+      </button>
+    </view>
+  </view>
+</view>
+
+<view wx:if="{{backgroundManagerVisible}}" class="dialog-mask" bindtap="handleCloseBackgroundManager">
+  <view class="background-manager-dialog" catchtap="noop" catchtouchmove="noop">
+    <view class="background-manager-dialog__title">背景管理</view>
+    <view class="background-manager-owned">
+      <view class="background-manager-owned__label">会员已拥有的背景</view>
+      <view wx:if="{{backgroundManagerUnlockedEntries.length}}" class="background-manager-owned__list">
+        <view wx:for="{{backgroundManagerUnlockedEntries}}" wx:key="id" class="background-manager-owned__item">
+          <image
+            wx:if="{{item.preview}}"
+            class="background-manager-owned__item-image"
+            src="{{item.preview}}"
+            mode="aspectFill"
+          />
+          <text class="background-manager-owned__name">{{item.name}}</text>
+        </view>
+      </view>
+      <view wx:else class="background-manager-owned__empty">暂未解锁任何背景</view>
+    </view>
+    <scroll-view scroll-y class="background-manager-dialog__content">
+      <view wx:if="{{backgroundManagerEntries.length}}" class="background-manager-list">
+        <block wx:for="{{backgroundManagerEntries}}" wx:key="id">
+          <view class="background-manager-item">
+            <image
+              wx:if="{{item.preview}}"
+              class="background-manager-item__image"
+              src="{{item.preview}}"
+              mode="aspectFit"
+            />
+            <view class="background-manager-item__details">
+              <view class="background-manager-item__name">{{item.name}}</view>
+              <view class="background-manager-item__meta">文件名：{{item.mediaKey}}</view>
+            </view>
+            <view class="background-manager-item__actions">
+              <button
+                class="background-manager-item__remove"
+                size="mini"
+                type="warn"
+                data-id="{{item.id}}"
+                bindtap="handleBackgroundManagerRemove"
+              >
+                删除
+              </button>
+            </view>
+          </view>
+        </block>
+      </view>
+      <view wx:else class="background-manager-empty">尚未添加自定义背景</view>
+    </scroll-view>
+    <view class="background-manager-form">
+      <input
+        class="background-manager-form__input"
+        placeholder="背景名称"
+        value="{{backgroundManagerForm.name}}"
+        data-field="name"
+        bindinput="handleBackgroundManagerInput"
+      />
+      <input
+        class="background-manager-form__input"
+        placeholder="文件名（不含后缀）"
+        value="{{backgroundManagerForm.file}}"
+        data-field="file"
+        bindinput="handleBackgroundManagerInput"
+      />
+      <button class="background-manager-form__add" size="mini" bindtap="handleBackgroundManagerAdd">添加</button>
+    </view>
+    <view class="background-manager-dialog__actions">
+      <button
+        class="background-manager-dialog__button"
+        size="mini"
+        bindtap="handleCloseBackgroundManager"
+        disabled="{{backgroundManagerSaving}}"
+      >
+        取消
+      </button>
+      <button
+        class="background-manager-dialog__button background-manager-dialog__button--primary"
+        size="mini"
+        type="primary"
+        bindtap="handleBackgroundManagerSave"
+        loading="{{backgroundManagerSaving}}"
+        disabled="{{backgroundManagerSaving || !backgroundManagerDirty}}"
       >
         保存
       </button>

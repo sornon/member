@@ -8,7 +8,11 @@ const {
   EXCLUDED_TRANSACTION_STATUSES,
   DEFAULT_ADMIN_ROLES,
   listAvatarIds,
-  analyzeMemberLevelProgress
+  analyzeMemberLevelProgress,
+  normalizeBackgroundId,
+  normalizeBackgroundCatalog,
+  areBackgroundCatalogsEqual,
+  registerCustomBackgrounds
 } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 const {
   DEFAULT_GAME_PARAMETERS,
@@ -274,6 +278,38 @@ function areTitleCatalogsEqual(a, b) {
     }
   }
   return true;
+}
+
+function normalizeBackgroundUnlockList(unlocks) {
+  if (!Array.isArray(unlocks)) {
+    return [];
+  }
+  const seen = new Set();
+  const result = [];
+  unlocks.forEach((value) => {
+    const id = normalizeBackgroundId(value);
+    if (!id || seen.has(id)) {
+      return;
+    }
+    seen.add(id);
+    result.push(id);
+  });
+  return result;
+}
+
+function ensureCustomBackgroundsUnlocked(entries = [], unlocks = []) {
+  const normalizedUnlocks = normalizeBackgroundUnlockList(unlocks);
+  const unlockSet = new Set(normalizedUnlocks);
+  let changed = false;
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    if (!entry || !entry.id || unlockSet.has(entry.id)) {
+      return;
+    }
+    unlockSet.add(entry.id);
+    normalizedUnlocks.push(entry.id);
+    changed = true;
+  });
+  return changed ? normalizeBackgroundUnlockList(normalizedUnlocks) : normalizedUnlocks;
 }
 
 const ACTIONS = {
@@ -638,6 +674,12 @@ async function resolveMemberExtras(memberId) {
     if (!Array.isArray(extras.titleCatalog)) {
       extras.titleCatalog = [];
     }
+    if (!Array.isArray(extras.backgroundUnlocks)) {
+      extras.backgroundUnlocks = [];
+    }
+    if (!Array.isArray(extras.backgroundCatalog)) {
+      extras.backgroundCatalog = [];
+    }
     return extras;
   }
   const now = new Date();
@@ -647,6 +689,8 @@ async function resolveMemberExtras(memberId) {
     wineStorage: [],
     titleUnlocks: [],
     titleCatalog: [],
+    backgroundUnlocks: [],
+    backgroundCatalog: [],
     createdAt: now,
     updatedAt: now
   };
@@ -676,6 +720,8 @@ async function updateMemberExtras(memberId, updates = {}) {
               avatarUnlocks: [],
               titleUnlocks: [],
               titleCatalog: [],
+              backgroundUnlocks: [],
+              backgroundCatalog: [],
               wineStorage: [],
               createdAt: new Date()
             }
@@ -3420,9 +3466,12 @@ async function fetchMemberDetail(memberId, adminId, options = {}) {
     avatarUnlocks: extras.avatarUnlocks || [],
     titleUnlocks: normalizeTitleUnlockList(extras.titleUnlocks),
     titleCatalog: normalizeTitleCatalog(extras.titleCatalog),
+    backgroundUnlocks: normalizeBackgroundUnlockList(extras.backgroundUnlocks),
+    backgroundCatalog: normalizeBackgroundCatalog(extras.backgroundCatalog),
     claimedLevelRewards: extras.claimedLevelRewards || [],
     renameHistory
   };
+  registerCustomBackgrounds(mergedMember.backgroundCatalog);
   const levelMap = buildLevelMap(levels);
   const includePveProfile = !!(options && options.includePveProfile);
   const pveProfile = includePveProfile ? await loadMemberPveProfile(memberId, adminId) : null;
@@ -3691,6 +3740,8 @@ function decorateMemberRecord(member, levelMap) {
     avatarUnlocks: normalizeAvatarUnlocksList(member.avatarUnlocks),
     titleUnlocks: normalizeTitleUnlockList(member.titleUnlocks),
     titleCatalog: normalizeTitleCatalog(member.titleCatalog),
+    backgroundUnlocks: normalizeBackgroundUnlockList(member.backgroundUnlocks),
+    backgroundCatalog: normalizeBackgroundCatalog(member.backgroundCatalog),
     pveRespecAvailable: respecStats.available,
     skillDrawCredits
   };
@@ -6100,6 +6151,29 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
     const desiredCatalog = normalizeTitleCatalog(updates.titleCatalog);
     if (!areTitleCatalogsEqual(currentCatalog, desiredCatalog)) {
       extrasUpdates.titleCatalog = desiredCatalog;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'backgroundUnlocks')) {
+    const currentBackgroundUnlocks = Array.isArray(extras.backgroundUnlocks) ? extras.backgroundUnlocks : [];
+    const desiredBackgroundUnlocks = normalizeBackgroundUnlockList(updates.backgroundUnlocks);
+    if (!arraysEqual(currentBackgroundUnlocks, desiredBackgroundUnlocks)) {
+      extrasUpdates.backgroundUnlocks = desiredBackgroundUnlocks;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'backgroundCatalog')) {
+    const currentBackgroundCatalog = Array.isArray(extras.backgroundCatalog) ? extras.backgroundCatalog : [];
+    const desiredBackgroundCatalog = normalizeBackgroundCatalog(updates.backgroundCatalog);
+    if (!areBackgroundCatalogsEqual(currentBackgroundCatalog, desiredBackgroundCatalog)) {
+      extrasUpdates.backgroundCatalog = desiredBackgroundCatalog;
+    }
+    const baseUnlocks = extrasUpdates.backgroundUnlocks
+      ? extrasUpdates.backgroundUnlocks
+      : Array.isArray(extras.backgroundUnlocks)
+      ? extras.backgroundUnlocks
+      : [];
+    const ensuredUnlocks = ensureCustomBackgroundsUnlocked(desiredBackgroundCatalog, baseUnlocks);
+    if (!arraysEqual(baseUnlocks, ensuredUnlocks)) {
+      extrasUpdates.backgroundUnlocks = ensuredUnlocks;
     }
   }
 

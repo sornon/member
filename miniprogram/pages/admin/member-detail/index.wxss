@@ -326,7 +326,8 @@ page {
   border: none;
 }
 
-.title-manager-summary {
+.title-manager-summary,
+.background-manager-summary {
   padding: 20rpx;
   border-radius: 16rpx;
   background: rgba(15, 23, 42, 0.65);
@@ -334,19 +335,22 @@ page {
   margin-bottom: 16rpx;
 }
 
-.title-manager-summary__primary {
+.title-manager-summary__primary,
+.background-manager-summary__primary {
   font-size: 26rpx;
   color: #e2e8f0;
 }
 
-.title-manager-summary__note {
+.title-manager-summary__note,
+.background-manager-summary__note {
   display: block;
   margin-top: 8rpx;
   font-size: 22rpx;
   color: #94a3b8;
 }
 
-.title-manager-button {
+.title-manager-button,
+.background-manager-button {
   background: rgba(59, 130, 246, 0.2);
   color: #93c5fd;
   border-radius: 24rpx;
@@ -354,7 +358,8 @@ page {
   padding: 0 28rpx;
 }
 
-.title-manager-button::after {
+.title-manager-button::after,
+.background-manager-button::after {
   border: none;
 }
 
@@ -735,7 +740,8 @@ page {
   box-shadow: 0 10rpx 28rpx rgba(79, 70, 229, 0.32);
 }
 
-.title-manager-dialog {
+.title-manager-dialog,
+.background-manager-dialog {
   width: 88%;
   max-width: 640rpx;
   max-height: 80vh;
@@ -748,14 +754,16 @@ page {
   color: #e4ecff;
 }
 
-.title-manager-dialog__title {
+.title-manager-dialog__title,
+.background-manager-dialog__title {
   font-size: 32rpx;
   font-weight: 600;
   margin-bottom: 24rpx;
   text-align: center;
 }
 
-.title-manager-owned {
+.title-manager-owned,
+.background-manager-owned {
   margin-bottom: 24rpx;
   padding: 16rpx 20rpx;
   background: rgba(15, 23, 42, 0.65);
@@ -763,19 +771,22 @@ page {
   border: 1px solid rgba(148, 163, 184, 0.18);
 }
 
-.title-manager-owned__label {
+.title-manager-owned__label,
+.background-manager-owned__label {
   font-size: 24rpx;
   color: #9fb4ff;
   margin-bottom: 12rpx;
 }
 
-.title-manager-owned__list {
+.title-manager-owned__list,
+.background-manager-owned__list {
   display: flex;
   flex-wrap: wrap;
   gap: 12rpx;
 }
 
-.title-manager-owned__item {
+.title-manager-owned__item,
+.background-manager-owned__item {
   display: flex;
   align-items: center;
   gap: 8rpx;
@@ -785,7 +796,8 @@ page {
   color: #e2e8f0;
 }
 
-.title-manager-owned__item-image {
+.title-manager-owned__item-image,
+.background-manager-owned__item-image {
   width: 96rpx;
   height: 48rpx;
   object-fit: contain;
@@ -793,29 +805,34 @@ page {
   border-radius: 8rpx;
 }
 
-.title-manager-owned__name {
+.title-manager-owned__name,
+.background-manager-owned__name {
   font-size: 24rpx;
   white-space: nowrap;
 }
 
-.title-manager-owned__empty {
+.title-manager-owned__empty,
+.background-manager-owned__empty {
   font-size: 24rpx;
   color: #94a3b8;
 }
 
-.title-manager-dialog__content {
+.title-manager-dialog__content,
+.background-manager-dialog__content {
   flex: 1;
   max-height: 480rpx;
   margin-bottom: 24rpx;
 }
 
-.title-manager-list {
+.title-manager-list,
+.background-manager-list {
   display: flex;
   flex-direction: column;
   gap: 20rpx;
 }
 
-.title-manager-item {
+.title-manager-item,
+.background-manager-item {
   display: flex;
   align-items: center;
   gap: 20rpx;
@@ -825,7 +842,8 @@ page {
   border: 1px solid rgba(148, 163, 184, 0.18);
 }
 
-.title-manager-item__image {
+.title-manager-item__image,
+.background-manager-item__image {
   width: 120rpx;
   height: 60rpx;
   object-fit: contain;
@@ -833,7 +851,8 @@ page {
   border-radius: 12rpx;
 }
 
-.title-manager-item__details {
+.title-manager-item__details,
+.background-manager-item__details {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -841,24 +860,28 @@ page {
   color: #f1f5ff;
 }
 
-.title-manager-item__name {
+.title-manager-item__name,
+.background-manager-item__name {
   font-size: 28rpx;
   font-weight: 600;
 }
 
-.title-manager-item__meta {
+.title-manager-item__meta,
+.background-manager-item__meta {
   font-size: 22rpx;
   color: #9fb4ff;
 }
 
-.title-manager-item__actions {
+.title-manager-item__actions,
+.background-manager-item__actions {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   justify-content: center;
 }
 
-.title-manager-item__remove {
+.title-manager-item__remove,
+.background-manager-item__remove {
   border: none;
   border-radius: 20rpx;
   padding: 8rpx 20rpx;
@@ -866,21 +889,24 @@ page {
   color: #fecaca;
 }
 
-.title-manager-empty {
+.title-manager-empty,
+.background-manager-empty {
   padding: 40rpx 20rpx;
   text-align: center;
   color: #9fb4ff;
   font-size: 26rpx;
 }
 
-.title-manager-form {
+.title-manager-form,
+.background-manager-form {
   display: flex;
   align-items: center;
   gap: 16rpx;
   margin-bottom: 24rpx;
 }
 
-.title-manager-form__input {
+.title-manager-form__input,
+.background-manager-form__input {
   flex: 1;
   height: 72rpx;
   padding: 0 20rpx;
@@ -890,11 +916,13 @@ page {
   color: #f1f5ff;
 }
 
-.title-manager-form__input::placeholder {
+.title-manager-form__input::placeholder,
+.background-manager-form__input::placeholder {
   color: rgba(148, 163, 184, 0.7);
 }
 
-.title-manager-form__add {
+.title-manager-form__add,
+.background-manager-form__add {
   flex-shrink: 0;
   border-radius: 20rpx;
   padding: 0 24rpx;
@@ -903,13 +931,15 @@ page {
   color: #cfe6ff;
 }
 
-.title-manager-dialog__actions {
+.title-manager-dialog__actions,
+.background-manager-dialog__actions {
   display: flex;
   justify-content: flex-end;
   gap: 16rpx;
 }
 
-.title-manager-dialog__button {
+.title-manager-dialog__button,
+.background-manager-dialog__button {
   border: none;
   border-radius: 22rpx;
   padding: 12rpx 28rpx;
@@ -917,7 +947,8 @@ page {
   color: #dce5ff;
 }
 
-.title-manager-dialog__button--primary {
+.title-manager-dialog__button--primary,
+.background-manager-dialog__button--primary {
   background: linear-gradient(135deg, #60a5fa, #8b5cf6);
   color: #0b1330;
   font-weight: 600;
