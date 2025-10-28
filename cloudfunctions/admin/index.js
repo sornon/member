@@ -1134,15 +1134,23 @@ function sanitizeFeatureDocument(documentData) {
 }
 
 function normalizeFeatureToggles(documentData) {
+  let resolvedCatalog = cloneGlobalBackgroundCatalog(
+    DEFAULT_FEATURE_TOGGLES.globalBackgroundCatalog
+  );
+  if (documentData && typeof documentData === 'object') {
+    if (Object.prototype.hasOwnProperty.call(documentData, 'globalBackgroundCatalog')) {
+      resolvedCatalog = cloneGlobalBackgroundCatalog(documentData.globalBackgroundCatalog);
+    }
+  }
+  registerCustomBackgrounds(resolvedCatalog);
+
   const toggles = {
     cashierEnabled: DEFAULT_FEATURE_TOGGLES.cashierEnabled,
     immortalTournament: cloneImmortalTournament(DEFAULT_FEATURE_TOGGLES.immortalTournament),
     cacheVersions: cloneCacheVersions(DEFAULT_FEATURE_TOGGLES.cacheVersions),
     homeEntries: cloneHomeEntries(DEFAULT_FEATURE_TOGGLES.homeEntries),
     globalBackground: cloneGlobalBackground(DEFAULT_FEATURE_TOGGLES.globalBackground),
-    globalBackgroundCatalog: cloneGlobalBackgroundCatalog(
-      DEFAULT_FEATURE_TOGGLES.globalBackgroundCatalog
-    )
+    globalBackgroundCatalog: resolvedCatalog
   };
   if (documentData && typeof documentData === 'object') {
     if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
@@ -1159,11 +1167,6 @@ function normalizeFeatureToggles(documentData) {
     }
     if (Object.prototype.hasOwnProperty.call(documentData, 'globalBackground')) {
       toggles.globalBackground = cloneGlobalBackground(documentData.globalBackground);
-    }
-    if (Object.prototype.hasOwnProperty.call(documentData, 'globalBackgroundCatalog')) {
-      toggles.globalBackgroundCatalog = cloneGlobalBackgroundCatalog(
-        documentData.globalBackgroundCatalog
-      );
     }
   }
   return toggles;
@@ -1610,6 +1613,9 @@ async function updateGlobalBackground(openid, config = {}) {
     existingDocument && existingDocument.cacheVersions
   );
 
+  const catalog = cloneGlobalBackgroundCatalog(currentToggles.globalBackgroundCatalog);
+  registerCustomBackgrounds(catalog);
+
   const previous = cloneGlobalBackground(currentToggles.globalBackground);
   const merged = { ...previous };
 
@@ -1625,7 +1631,6 @@ async function updateGlobalBackground(openid, config = {}) {
   }
 
   const nextGlobalBackground = cloneGlobalBackground(merged);
-  const catalog = cloneGlobalBackgroundCatalog(currentToggles.globalBackgroundCatalog);
   const allowedIds = new Set(catalog.map((entry) => entry.id));
 
   if (!allowedIds.size) {
@@ -1711,6 +1716,7 @@ async function updateGlobalBackgroundCatalog(openid, updates = {}) {
   );
 
   const previousCatalog = cloneGlobalBackgroundCatalog(currentToggles.globalBackgroundCatalog);
+  registerCustomBackgrounds(previousCatalog);
   const catalogUnchanged = areBackgroundCatalogsEqual(previousCatalog, desiredCatalog);
 
   let nextGlobalBackground = cloneGlobalBackground(currentToggles.globalBackground);
@@ -1746,6 +1752,8 @@ async function updateGlobalBackgroundCatalog(openid, updates = {}) {
     globalBackgroundCatalog: desiredCatalog,
     globalBackground: nextGlobalBackground
   };
+
+  registerCustomBackgrounds(desiredCatalog);
 
   const payload = {
     ...sanitizedExisting,

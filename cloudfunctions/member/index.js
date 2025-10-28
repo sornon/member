@@ -456,6 +456,7 @@ async function getSystemSettings() {
   const backgroundCatalog = normalizeBackgroundCatalog(
     (document && document.globalBackgroundCatalog) || []
   );
+  registerCustomBackgrounds(backgroundCatalog);
   const response = {
     homeEntries: cloneHomeEntries(normalizedHomeEntries),
     globalBackground: cloneGlobalBackground(document && document.globalBackground),
