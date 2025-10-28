@@ -1,7 +1,7 @@
 {
   "appid": "wxada3146653042265",
   "projectname": "member-system",
-  "description": "修仙主题会员体系示例小程序",
+  "description": "修仙主题会员体系小程序",
   "setting": {
     "postcss": true,
     "es6": true,
@@ -37,15 +37,7 @@
     "ignore": [
         {
           "type": "folder",
-          "value": "assets/character"
-        },
-        {
-          "type": "folder",
-          "value": "assets/item"
-        },
-        {
-          "type": "folder",
-          "value": "assets/background"
+          "value": "assets/"
         }
     ],
     "include": []

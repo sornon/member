@@ -29,15 +29,7 @@
     "ignore": [
         {
           "type": "folder",
-          "value": "assets/character"
-        },
-        {
-          "type": "folder",
-          "value": "assets/item"
-        },
-        {
-          "type": "folder",
-          "value": "assets/background"
+          "value": "assets/"
         }
     ],
     "include": []
