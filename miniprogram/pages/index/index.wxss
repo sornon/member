@@ -525,12 +525,48 @@ page {
 
 .loading-state {
   position: absolute;
-  top: 50%;
+  bottom: 18%;
   left: 50%;
-  transform: translate(-50%, -50%);
-  color: rgba(225, 232, 255, 0.9);
-  font-size: 28rpx;
-  letter-spacing: 6rpx;
+  transform: translateX(-50%);
+  width: 420rpx;
+  display: flex;
+  justify-content: center;
+}
+
+.loading-bar {
+  width: 100%;
+  padding: 18rpx 0;
+}
+
+.loading-bar__track {
+  position: relative;
+  height: 16rpx;
+  background: rgba(202, 212, 255, 0.18);
+  border-radius: 12rpx;
+  overflow: hidden;
+}
+
+.loading-bar__indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 36%;
+  background: linear-gradient(90deg, rgba(149, 177, 255, 0.2) 0%, rgba(149, 177, 255, 0.85) 100%);
+  border-radius: 12rpx;
+  animation: loading-bar-slide 1.6s ease-in-out infinite;
+}
+
+@keyframes loading-bar-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  50% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
 }
 
 .profile-modal {

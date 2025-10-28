@@ -137,7 +137,11 @@
   </view>
 
   <view wx:if="{{loading}}" class="loading-state">
-    <text>灵力汇聚中...</text>
+    <view class="loading-bar">
+      <view class="loading-bar__track">
+        <view class="loading-bar__indicator"></view>
+      </view>
+    </view>
   </view>
 
   <view wx:if="{{showProfile}}" class="profile-modal">
