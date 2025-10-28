@@ -190,6 +190,9 @@ export const MemberService = {
   async getCacheVersions() {
     return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'cacheVersions' });
   },
+  async getSystemSettings() {
+    return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'systemSettings' });
+  },
   async completeProfile(profile = {}, options = {}) {
     const payload = attachClientEnv({
       action: 'completeProfile',

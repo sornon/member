@@ -14,13 +14,16 @@ const {
   DEFAULT_GAME_PARAMETERS,
   DEFAULT_RAGE_SETTINGS,
   DEFAULT_CACHE_VERSIONS,
+  DEFAULT_HOME_ENTRIES,
   normalizeRageSettings,
   serializeGameParameters,
   cloneGameParameters,
   cloneRageSettings,
   resolveGameParametersFromDocument,
   normalizeCacheVersions,
+  normalizeHomeEntries,
   cloneCacheVersions,
+  cloneHomeEntries,
   incrementCacheVersionValue
 } = require('system-settings');
 
@@ -56,7 +59,8 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
-  cacheVersions: { ...DEFAULT_CACHE_VERSIONS }
+  cacheVersions: { ...DEFAULT_CACHE_VERSIONS },
+  homeEntries: { ...DEFAULT_HOME_ENTRIES }
 };
 const DEFAULT_PVP_RATING = 1200;
 const DEFAULT_PVP_TIER = { id: 'bronze', name: '青铜' };
@@ -77,12 +81,54 @@ const PLAYER_REFRESH_MAX_DURATION_MS = 2400;
 
 const ACTIVITY_ALLOWED_STATUSES = ['draft', 'published', 'archived'];
 
+const HOME_ENTRY_FEATURE_KEYS = [
+  'homeEntries.activities',
+  'homeEntries.mall',
+  'homeEntries.secretRealm',
+  'homeEntries.rights',
+  'homeEntries.pvp',
+  'homeEntries.trading'
+];
+
+const ALLOWED_FEATURE_KEYS = new Set(['cashierEnabled', ...HOME_ENTRY_FEATURE_KEYS]);
+
 const FEATURE_KEY_ALIASES = {
   cashier: 'cashierEnabled',
   cashierenabled: 'cashierEnabled',
   cashiernabled: 'cashierEnabled',
   'cashier-enabled': 'cashierEnabled',
-  'cashier_enabled': 'cashierEnabled'
+  'cashier_enabled': 'cashierEnabled',
+  homeactivities: 'homeEntries.activities',
+  homeactivity: 'homeEntries.activities',
+  activities: 'homeEntries.activities',
+  activity: 'homeEntries.activities',
+  events: 'homeEntries.activities',
+  'homeentries.activities': 'homeEntries.activities',
+  homemall: 'homeEntries.mall',
+  mall: 'homeEntries.mall',
+  market: 'homeEntries.mall',
+  shop: 'homeEntries.mall',
+  homemarket: 'homeEntries.mall',
+  'homeentries.mall': 'homeEntries.mall',
+  homesecretrealm: 'homeEntries.secretRealm',
+  secretrealm: 'homeEntries.secretRealm',
+  realm: 'homeEntries.secretRealm',
+  'homeentries.secretrealm': 'homeEntries.secretRealm',
+  homerights: 'homeEntries.rights',
+  rights: 'homeEntries.rights',
+  perks: 'homeEntries.rights',
+  benefit: 'homeEntries.rights',
+  'homeentries.rights': 'homeEntries.rights',
+  homepvp: 'homeEntries.pvp',
+  pvp: 'homeEntries.pvp',
+  arena: 'homeEntries.pvp',
+  tournament: 'homeEntries.pvp',
+  'homeentries.pvp': 'homeEntries.pvp',
+  hometrading: 'homeEntries.trading',
+  trading: 'homeEntries.trading',
+  trade: 'homeEntries.trading',
+  exchange: 'homeEntries.trading',
+  'homeentries.trading': 'homeEntries.trading'
 };
 
 const CACHE_VERSION_KEY_ALIASES = {
@@ -902,8 +948,8 @@ function normalizeFeatureKey(input) {
   if (!trimmed) {
     return '';
   }
-  if (trimmed === 'cashierEnabled') {
-    return 'cashierEnabled';
+  if (ALLOWED_FEATURE_KEYS.has(trimmed)) {
+    return trimmed;
   }
   const compact = trimmed.replace(/[\s_-]+/g, '').toLowerCase();
   if (FEATURE_KEY_ALIASES[compact]) {
@@ -1018,7 +1064,8 @@ function normalizeFeatureToggles(documentData) {
   const toggles = {
     cashierEnabled: DEFAULT_FEATURE_TOGGLES.cashierEnabled,
     immortalTournament: cloneImmortalTournament(DEFAULT_FEATURE_TOGGLES.immortalTournament),
-    cacheVersions: cloneCacheVersions(DEFAULT_FEATURE_TOGGLES.cacheVersions)
+    cacheVersions: cloneCacheVersions(DEFAULT_FEATURE_TOGGLES.cacheVersions),
+    homeEntries: cloneHomeEntries(DEFAULT_FEATURE_TOGGLES.homeEntries)
   };
   if (documentData && typeof documentData === 'object') {
     if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
@@ -1030,8 +1077,61 @@ function normalizeFeatureToggles(documentData) {
     if (Object.prototype.hasOwnProperty.call(documentData, 'cacheVersions')) {
       toggles.cacheVersions = cloneCacheVersions(documentData.cacheVersions);
     }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'homeEntries')) {
+      toggles.homeEntries = cloneHomeEntries(documentData.homeEntries);
+    }
   }
   return toggles;
+}
+
+function resolveFeatureValueByKey(features, key) {
+  if (!key || typeof key !== 'string') {
+    return undefined;
+  }
+  if (!features || typeof features !== 'object') {
+    return undefined;
+  }
+  const segments = key.split('.');
+  let current = features;
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i];
+    if (!segment) {
+      return undefined;
+    }
+    if (i === segments.length - 1) {
+      return current ? current[segment] : undefined;
+    }
+    current = current && typeof current === 'object' ? current[segment] : undefined;
+    if (!current || typeof current !== 'object') {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+function assignFeatureValueByKey(features, key, value) {
+  if (!key || typeof key !== 'string') {
+    return features;
+  }
+  const base = features && typeof features === 'object' ? { ...features } : {};
+  const segments = key.split('.');
+  let cursor = base;
+  for (let i = 0; i < segments.length; i += 1) {
+    const segment = segments[i];
+    if (!segment) {
+      return base;
+    }
+    if (i === segments.length - 1) {
+      cursor[segment] = value;
+    } else {
+      const nextValue = cursor[segment];
+      const nextContainer =
+        nextValue && typeof nextValue === 'object' ? { ...nextValue } : {};
+      cursor[segment] = nextContainer;
+      cursor = nextContainer;
+    }
+  }
+  return base;
 }
 
 async function loadSystemFeatureDocument() {
@@ -1179,9 +1279,10 @@ async function updateSystemFeature(openid, event = {}) {
   const currentCacheVersions = normalizeCacheVersions(
     existingDocument && existingDocument.cacheVersions
   );
-  const nextValue = resolveFeatureEventValue(event, key, currentToggles[key]);
+  const currentValue = resolveFeatureValueByKey(currentToggles, key);
+  const nextValue = resolveFeatureEventValue(event, key, currentValue);
 
-  if (currentToggles[key] === nextValue && existingDocument) {
+  if (currentValue === nextValue && existingDocument) {
     return {
       success: true,
       features: currentToggles,
@@ -1193,11 +1294,14 @@ async function updateSystemFeature(openid, event = {}) {
   const now = new Date();
   const sanitizedExisting = sanitizeFeatureDocument(existingDocument);
 
+  const updatedToggles = assignFeatureValueByKey(currentToggles, key, nextValue);
+
   const payload = {
     ...sanitizedExisting,
-    cashierEnabled: key === 'cashierEnabled' ? nextValue : currentToggles.cashierEnabled,
-    immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
+    cashierEnabled: updatedToggles.cashierEnabled,
+    immortalTournament: serializeImmortalTournament(updatedToggles.immortalTournament),
     cacheVersions: cloneCacheVersions(currentCacheVersions),
+    homeEntries: cloneHomeEntries(updatedToggles.homeEntries),
     gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
@@ -1273,6 +1377,7 @@ async function updateImmortalTournamentSettings(openid, updates = {}) {
     cashierEnabled: currentToggles.cashierEnabled,
     immortalTournament: serializeImmortalTournament(nextTournament),
     cacheVersions: cloneCacheVersions(currentCacheVersions),
+    homeEntries: cloneHomeEntries(currentToggles.homeEntries),
     gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
@@ -1304,6 +1409,9 @@ async function updateGameParameters(openid, updates = {}) {
   const existingDocument = await loadSystemFeatureDocument();
   const currentToggles = normalizeFeatureToggles(existingDocument);
   const currentParameters = resolveGameParametersFromDocument(existingDocument);
+  const currentCacheVersions = normalizeCacheVersions(
+    existingDocument && existingDocument.cacheVersions
+  );
   const nextParameters = cloneGameParameters(currentParameters);
 
   const rageKeys = ['start', 'turnGain', 'basicAttackGain', 'damageTakenMultiplier', 'critGain', 'critTakenGain'];
@@ -1350,6 +1458,7 @@ async function updateGameParameters(openid, updates = {}) {
     cashierEnabled: currentToggles.cashierEnabled,
     immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
     cacheVersions: cloneCacheVersions(currentCacheVersions),
+    homeEntries: cloneHomeEntries(currentToggles.homeEntries),
     gameParameters: serializeGameParameters(nextParameters),
     updatedAt: now
   };
@@ -1409,6 +1518,7 @@ async function bumpCacheVersion(openid, event = {}) {
     cashierEnabled: currentToggles.cashierEnabled,
     immortalTournament: serializeImmortalTournament(currentToggles.immortalTournament),
     cacheVersions: cloneCacheVersions(nextCacheVersions),
+    homeEntries: cloneHomeEntries(currentToggles.homeEntries),
     gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
