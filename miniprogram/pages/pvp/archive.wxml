@@ -18,7 +18,7 @@
       show-play-btn="{{false}}"
       enable-progress-gesture="{{false}}"
       objectFit="cover"
-      poster="{{backgroundImage}}"
+      poster="{{backgroundPoster}}"
       binderror="handleBackgroundVideoError"
     ></video>
   </view>

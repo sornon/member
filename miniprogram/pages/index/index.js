@@ -4,6 +4,7 @@ import { formatCombatPower, formatCurrency, formatExperience, formatStones } fro
 import { shouldShowRoleBadge } from '../../utils/pending-attributes';
 import { hasUnacknowledgedStorageItems } from '../../utils/storage-notifications';
 import { applyCacheVersionUpdate } from '../../utils/cache-version.js';
+const { resolveVideoPosterSource } = require('../../utils/media');
 import {
   buildAvatarUrlById,
   getAvailableAvatars,
@@ -1035,6 +1036,7 @@ Page({
     proxyLogoutPending: false,
     backgroundImage: STARTUP_COVER_IMAGE,
     backgroundVideo: resolveBackgroundVideo(null),
+    backgroundPoster: resolveVideoPosterSource(STARTUP_COVER_IMAGE),
     showBackgroundVideo: false,
     showBackgroundOverlay: false,
     backgroundVideoError: false,
@@ -1287,6 +1289,7 @@ Page({
     this.setData({
       backgroundImage: image,
       backgroundVideo: video,
+      backgroundPoster: resolveVideoPosterSource(image),
       dynamicBackgroundEnabled: dynamicEnabled,
       showBackgroundVideo: showVideo,
       showBackgroundOverlay: !showVideo,
