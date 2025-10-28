@@ -1030,6 +1030,121 @@ function resolvePvpDefenderBackgroundVideo({ battle = {}, preview = null, source
   return '';
 }
 
+const FIGURE_SCALE_CLASS_PATTERN = /^figure-scale--/;
+const BOSS_TYPE_KEYS = ['type', 'enemyType', 'opponentType', 'category', 'roleType', 'kind'];
+const BOSS_NESTED_KEYS = [
+  'enemy',
+  'opponent',
+  'boss',
+  'preview',
+  'metadata',
+  'context',
+  'target',
+  'source',
+  'snapshot',
+  'details',
+  'data',
+  'info'
+];
+
+function collectBossTypeHints(source, hints, visited) {
+  if (!source) {
+    return;
+  }
+  if (Array.isArray(source)) {
+    source.forEach((item) => collectBossTypeHints(item, hints, visited));
+    return;
+  }
+  const valueType = typeof source;
+  if (valueType === 'string' || valueType === 'number' || valueType === 'boolean') {
+    const normalized = String(source).trim();
+    if (normalized) {
+      hints.push(normalized);
+    }
+    return;
+  }
+  if (valueType !== 'object') {
+    return;
+  }
+  if (visited.has(source)) {
+    return;
+  }
+  visited.add(source);
+
+  for (let i = 0; i < BOSS_TYPE_KEYS.length; i += 1) {
+    const key = BOSS_TYPE_KEYS[i];
+    if (!Object.prototype.hasOwnProperty.call(source, key)) {
+      continue;
+    }
+    const value = source[key];
+    if (typeof value === 'string') {
+      const normalized = value.trim();
+      if (normalized) {
+        hints.push(normalized);
+      }
+    }
+  }
+
+  for (let i = 0; i < BOSS_NESTED_KEYS.length; i += 1) {
+    const nestedKey = BOSS_NESTED_KEYS[i];
+    if (!Object.prototype.hasOwnProperty.call(source, nestedKey)) {
+      continue;
+    }
+    const nestedValue = source[nestedKey];
+    if (!nestedValue) {
+      continue;
+    }
+    collectBossTypeHints(nestedValue, hints, visited);
+  }
+}
+
+function isBossTypeFromSources(candidates = []) {
+  if (!Array.isArray(candidates) || !candidates.length) {
+    return false;
+  }
+  const hints = [];
+  const visited = new Set();
+  for (let i = 0; i < candidates.length; i += 1) {
+    collectBossTypeHints(candidates[i], hints, visited);
+  }
+  for (let i = 0; i < hints.length; i += 1) {
+    const hint = typeof hints[i] === 'string' ? hints[i].trim().toLowerCase() : '';
+    if (hint === 'boss') {
+      return true;
+    }
+  }
+  return false;
+}
+
+function enforceFigureScaleClass(baseClass = '', targetClass = '') {
+  const classes = [];
+  const seen = new Set();
+  if (typeof baseClass === 'string' && baseClass.trim()) {
+    const baseList = baseClass
+      .split(/\s+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    for (let i = 0; i < baseList.length; i += 1) {
+      const name = baseList[i];
+      if (FIGURE_SCALE_CLASS_PATTERN.test(name)) {
+        continue;
+      }
+      if (!seen.has(name)) {
+        seen.add(name);
+        classes.push(name);
+      }
+    }
+  }
+  if (typeof targetClass === 'string' && targetClass.trim()) {
+    const normalized = targetClass.trim();
+    if (!seen.has(normalized)) {
+      seen.add(normalized);
+      classes.push(normalized);
+    }
+  }
+  return classes.join(' ');
+}
+
 Page({
   data: {
     navTitle: '战斗演武',
@@ -1163,6 +1278,12 @@ Page({
         const sceneBackground = resolvePveSceneBackground(battleOpponent || enemy);
         const resolvedBackgroundVideo =
           sceneBackground || context.backgroundVideo || SECRET_REALM_BACKGROUND_VIDEO;
+        const opponentType =
+          (battleOpponent && (battleOpponent.enemyType || battleOpponent.type)) ||
+          enemy.enemyType ||
+          enemy.type ||
+          context.enemyType ||
+          '';
         const opponentName =
           (battleOpponent && (battleOpponent.displayName || battleOpponent.name)) ||
           enemy.name ||
@@ -1183,6 +1304,9 @@ Page({
           opponentPortrait,
           backgroundVideo: resolvedBackgroundVideo
         };
+        if (opponentType) {
+          viewContext.enemyType = opponentType;
+        }
         this.parentPayload = {
           type: 'pve',
           battle: serviceResult.battle || null
@@ -1266,6 +1390,66 @@ Page({
     if (stageOpponent.isBot) {
       stageOpponent.avatar = BATTLE_BOT_AVATAR_IMAGE;
       stageOpponent.portrait = BATTLE_BOT_PORTRAIT_IMAGE;
+    }
+
+    if (this.mode === 'pve') {
+      const battle = this.latestBattle || {};
+      const contextPayload = this.contextPayload || {};
+      const parentPayload = this.parentPayload || {};
+      const bossCandidates = [
+        stageOpponent,
+        viewModel && viewModel.opponent,
+        contextPayload.enemyType,
+        contextPayload.type,
+        contextPayload.enemyPreview,
+        contextPayload.opponentPreview,
+        contextPayload.enemy,
+        contextPayload.target,
+        contextPayload.preview && contextPayload.preview.opponent,
+        contextPayload.preview && contextPayload.preview.enemy,
+        contextPayload.preview && contextPayload.preview.target,
+        contextPayload.enemySnapshot,
+        contextPayload.viewContext && contextPayload.viewContext.enemyType,
+        contextPayload.battle && contextPayload.battle.metadata,
+        contextPayload.battle && contextPayload.battle.opponent,
+        contextPayload.battle && contextPayload.battle.enemy,
+        contextPayload.battle && contextPayload.battle.participants && contextPayload.battle.participants.opponent,
+        contextPayload.battle && contextPayload.battle.participants && contextPayload.battle.participants.enemy,
+        battle && battle.enemyType,
+        battle && battle.type,
+        battle && battle.opponent,
+        battle && battle.enemy,
+        battle && battle.metadata,
+        battle && battle.options,
+        battle && battle.outcome,
+        battle && battle.enemySnapshot,
+        battle && battle.participants && battle.participants.opponent,
+        battle && battle.participants && battle.participants.enemy,
+        parentPayload.enemyType,
+        parentPayload.type,
+        parentPayload.enemy,
+        parentPayload.opponent,
+        parentPayload.preview && parentPayload.preview.opponent,
+        parentPayload.preview && parentPayload.preview.enemy,
+        parentPayload.enemySnapshot,
+        parentPayload.battle && parentPayload.battle.metadata,
+        parentPayload.battle && parentPayload.battle.opponent,
+        parentPayload.battle && parentPayload.battle.enemy,
+        parentPayload.battle && parentPayload.battle.participants && parentPayload.battle.participants.opponent,
+        parentPayload.battle && parentPayload.battle.participants && parentPayload.battle.participants.enemy
+      ];
+      if (isBossTypeFromSources(bossCandidates)) {
+        const enforcedClass = enforceFigureScaleClass(
+          (stageOpponent && stageOpponent.figureScaleClass) ||
+            (viewModel.opponent && viewModel.opponent.figureScaleClass) ||
+            '',
+          'figure-scale--sss'
+        );
+        stageOpponent.figureScaleClass = enforcedClass;
+        if (viewModel.opponent) {
+          viewModel.opponent.figureScaleClass = enforcedClass;
+        }
+      }
     }
 
     this.initialHp = normalizeHpStateMap({
