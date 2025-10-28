@@ -178,6 +178,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  padding-bottom: 10rpx;
 }
 
 .profile-meta__title-image {
