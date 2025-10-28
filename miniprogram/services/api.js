@@ -594,6 +594,26 @@ export const AdminService = {
       action: 'listEquipmentCatalog'
     });
   },
+  async listTradeOrders({ page = 1, pageSize = 20, memberKeyword = '', itemKeyword = '' } = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'listTradeOrders',
+      page,
+      pageSize,
+      memberKeyword,
+      itemKeyword
+    });
+  },
+  async getTradingConfig() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'getTradingConfig'
+    });
+  },
+  async updateTradingConfig(config = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'updateTradingConfig',
+      config
+    });
+  },
   async grantEquipment({ memberId, itemId }) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'grantEquipment',

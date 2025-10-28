@@ -16,6 +16,23 @@ const BID_COLLECTION = COLLECTIONS.TRADE_BIDS || 'tradeBids';
 const METRIC_COLLECTION = COLLECTIONS.TRADE_METRICS || 'tradeMetrics';
 const MEMBERS_COLLECTION = COLLECTIONS.MEMBERS || 'members';
 const STONE_COLLECTION = COLLECTIONS.STONE_TRANSACTIONS || 'stoneTransactions';
+const SETTINGS_COLLECTION = COLLECTIONS.TRADE_SETTINGS || 'tradeSettings';
+
+const DEFAULT_TRADING_CONFIG = {
+  feeRate: typeof TRADING_CONFIG.feeRate === 'number' ? TRADING_CONFIG.feeRate : 0.05,
+  minDurationHours: Math.max(1, TRADING_CONFIG.minDurationHours || 24),
+  maxDurationHours: Math.max(
+    Math.max(1, TRADING_CONFIG.minDurationHours || 24),
+    TRADING_CONFIG.maxDurationHours || 168
+  ),
+  maxListingsPerMember: Math.max(1, TRADING_CONFIG.maxListingsPerMember || 10),
+  maxActiveBidsPerMember: Math.max(1, TRADING_CONFIG.maxActiveBidsPerMember || 50),
+  minBidIncrementRate: Math.max(0.01, TRADING_CONFIG.minBidIncrementRate || 0.05)
+};
+
+const TRADING_CONFIG_CACHE_TTL = 60 * 1000;
+let tradingConfigCache = null;
+let tradingConfigCacheFetchedAt = 0;
 
 const SALE_MODES = Object.freeze(['fixed', 'auction']);
 const LISTING_STATUS = Object.freeze({
@@ -55,6 +72,81 @@ const DEFAULT_EQUIPMENT_IDS = [
 const DEFAULT_EQUIPMENT_ID_SET = new Set(DEFAULT_EQUIPMENT_IDS);
 
 const ensuredCollections = new Set();
+
+function cloneTradingConfig(config = {}) {
+  return {
+    feeRate: config.feeRate,
+    minDurationHours: config.minDurationHours,
+    maxDurationHours: config.maxDurationHours,
+    maxListingsPerMember: config.maxListingsPerMember,
+    maxActiveBidsPerMember: config.maxActiveBidsPerMember,
+    minBidIncrementRate: config.minBidIncrementRate
+  };
+}
+
+function normalizeTradingConfigDocument(doc = {}) {
+  const normalized = cloneTradingConfig(DEFAULT_TRADING_CONFIG);
+  if (!doc || typeof doc !== 'object') {
+    return normalized;
+  }
+  const assignNumber = (key, { min, max, integer } = {}) => {
+    if (!Object.prototype.hasOwnProperty.call(doc, key)) {
+      return;
+    }
+    const value = Number(doc[key]);
+    if (!Number.isFinite(value)) {
+      return;
+    }
+    let numeric = value;
+    if (typeof min === 'number') {
+      numeric = Math.max(min, numeric);
+    }
+    if (typeof max === 'number') {
+      numeric = Math.min(max, numeric);
+    }
+    if (integer) {
+      normalized[key] = Math.max(typeof min === 'number' ? Math.ceil(min) : 0, Math.floor(numeric));
+    } else {
+      normalized[key] = numeric;
+    }
+  };
+
+  assignNumber('feeRate', { min: 0, max: 1 });
+  assignNumber('minDurationHours', { min: 1, integer: true });
+  assignNumber('maxDurationHours', { min: 1, integer: true });
+  assignNumber('maxListingsPerMember', { min: 1, integer: true });
+  assignNumber('maxActiveBidsPerMember', { min: 1, integer: true });
+  assignNumber('minBidIncrementRate', { min: 0.01, max: 1 });
+
+  if (normalized.maxDurationHours < normalized.minDurationHours) {
+    normalized.maxDurationHours = normalized.minDurationHours;
+  }
+
+  return normalized;
+}
+
+async function loadTradingConfigFromStore() {
+  await ensureCollection(SETTINGS_COLLECTION);
+  const snapshot = await db
+    .collection(SETTINGS_COLLECTION)
+    .doc('config')
+    .get()
+    .catch(() => null);
+  const data = snapshot && snapshot.data ? snapshot.data : {};
+  return normalizeTradingConfigDocument(data);
+}
+
+async function getTradingConfig(options = {}) {
+  const forceRefresh = !!(options && options.forceRefresh);
+  const now = Date.now();
+  if (!forceRefresh && tradingConfigCache && now - tradingConfigCacheFetchedAt < TRADING_CONFIG_CACHE_TTL) {
+    return cloneTradingConfig(tradingConfigCache);
+  }
+  const config = await loadTradingConfigFromStore();
+  tradingConfigCache = config;
+  tradingConfigCacheFetchedAt = now;
+  return cloneTradingConfig(config);
+}
 
 function isCollectionNotExistsError(error) {
   if (!error || typeof error !== 'object') {
@@ -148,9 +240,15 @@ function normalizeSaleMode(mode) {
   return SALE_MODES.includes(normalized) ? normalized : 'fixed';
 }
 
-function normalizeDurationHours(hours) {
-  const minHours = Math.max(1, TRADING_CONFIG.minDurationHours || 24);
-  const maxHours = Math.max(minHours, TRADING_CONFIG.maxDurationHours || 168);
+function normalizeDurationHours(hours, config = {}) {
+  const minConfig = Number.isFinite(config.minDurationHours)
+    ? Math.max(1, Math.floor(config.minDurationHours))
+    : DEFAULT_TRADING_CONFIG.minDurationHours;
+  const maxConfig = Number.isFinite(config.maxDurationHours)
+    ? Math.max(minConfig, Math.floor(config.maxDurationHours))
+    : DEFAULT_TRADING_CONFIG.maxDurationHours;
+  const minHours = Math.max(1, minConfig);
+  const maxHours = Math.max(minHours, maxConfig);
   const numeric = Number(hours);
   if (!Number.isFinite(numeric)) {
     return DEFAULT_LISTING_DURATION_HOURS;
@@ -159,8 +257,11 @@ function normalizeDurationHours(hours) {
   return clamped;
 }
 
-function resolveBidIncrement(basePrice, incrementInput) {
-  const minIncrementRate = Math.max(0.01, TRADING_CONFIG.minBidIncrementRate || 0.05);
+function resolveBidIncrement(basePrice, incrementInput, config = {}) {
+  const minIncrementRate = Math.max(
+    0.01,
+    Number.isFinite(config.minBidIncrementRate) ? config.minBidIncrementRate : DEFAULT_TRADING_CONFIG.minBidIncrementRate
+  );
   const minIncrement = Math.max(1, Math.floor(basePrice * minIncrementRate));
   const provided = Number(incrementInput);
   if (!Number.isFinite(provided) || provided <= 0) {
@@ -290,6 +391,7 @@ function buildBidResponse(bid, currentMemberId) {
 async function settleExpiredListings(now = new Date()) {
   const limit = 10;
   await ensureCollection(LISTING_COLLECTION);
+  const tradingConfig = await getTradingConfig();
   const expiredSnapshot = await db
     .collection(LISTING_COLLECTION)
     .where({
@@ -299,13 +401,13 @@ async function settleExpiredListings(now = new Date()) {
     .limit(limit)
     .get();
   const expired = expiredSnapshot.data || [];
-  const tasks = expired.map((doc) => finalizeExpiredListing(doc, now));
+  const tasks = expired.map((doc) => finalizeExpiredListing(doc, now, tradingConfig));
   if (tasks.length) {
     await Promise.allSettled(tasks);
   }
 }
 
-async function finalizeExpiredListing(listingDoc, now = new Date()) {
+async function finalizeExpiredListing(listingDoc, now = new Date(), config = {}) {
   if (!listingDoc || listingDoc.status !== LISTING_STATUS.ACTIVE) {
     return;
   }
@@ -324,13 +426,18 @@ async function finalizeExpiredListing(listingDoc, now = new Date()) {
       return;
     }
     if (listing.saleMode === 'auction' && listing.currentBidderId && listing.currentPrice > 0) {
-      await completeSale(transaction, listing, {
-        buyerId: listing.currentBidderId,
-        buyerName: listing.currentBidderName || '神秘道友',
-        price: listing.currentPrice,
-        source: 'auction',
-        bidId: listing.currentBidId || ''
-      });
+      await completeSale(
+        transaction,
+        listing,
+        {
+          buyerId: listing.currentBidderId,
+          buyerName: listing.currentBidderName || '神秘道友',
+          price: listing.currentPrice,
+          source: 'auction',
+          bidId: listing.currentBidId || ''
+        },
+        config
+      );
       return;
     }
     await restoreListingItem(transaction, listing);
@@ -360,7 +467,7 @@ async function restoreListingItem(transaction, listing) {
   });
 }
 
-async function completeSale(transaction, listing, options = {}) {
+async function completeSale(transaction, listing, options = {}, config = {}) {
   if (!listing || !listing.itemSnapshot) {
     throw createError('LISTING_INVALID', '无法结算该交易');
   }
@@ -375,7 +482,7 @@ async function completeSale(transaction, listing, options = {}) {
   }
   const saleMode = listing.saleMode;
   const now = resolveServerDate();
-  const feeRate = typeof TRADING_CONFIG.feeRate === 'number' ? TRADING_CONFIG.feeRate : 0.05;
+  const feeRate = Number.isFinite(config.feeRate) ? config.feeRate : DEFAULT_TRADING_CONFIG.feeRate;
   const fee = Math.max(0, Math.floor(price * feeRate));
   const sellerIncome = Math.max(0, price - fee);
 
@@ -586,8 +693,12 @@ async function handleCreateListing(memberId, event = {}) {
   const fixedPrice = toPositiveInt(event.fixedPrice || event.price || 0, 0);
   const startPrice = toPositiveInt(event.startPrice || event.basePrice || 0, 0);
   const buyoutPrice = toPositiveInt(event.buyoutPrice || 0, 0);
-  const durationHours = normalizeDurationHours(event.durationHours || event.listingHours || DEFAULT_LISTING_DURATION_HOURS);
-  const bidIncrement = resolveBidIncrement(startPrice || fixedPrice || 0, event.bidIncrement);
+  const tradingConfig = await getTradingConfig();
+  const durationHours = normalizeDurationHours(
+    event.durationHours || event.listingHours || DEFAULT_LISTING_DURATION_HOURS,
+    tradingConfig
+  );
+  const bidIncrement = resolveBidIncrement(startPrice || fixedPrice || 0, event.bidIncrement, tradingConfig);
 
   if (saleMode === 'fixed' && fixedPrice <= 0) {
     throw createError('PRICE_REQUIRED', '请设置有效的一口价');
@@ -596,7 +707,12 @@ async function handleCreateListing(memberId, event = {}) {
     throw createError('START_PRICE_REQUIRED', '请设置有效的起拍价');
   }
 
-  const maxListings = Math.max(1, TRADING_CONFIG.maxListingsPerMember || 10);
+  const maxListings = Math.max(
+    1,
+    Number.isFinite(tradingConfig.maxListingsPerMember)
+      ? Math.floor(tradingConfig.maxListingsPerMember)
+      : DEFAULT_TRADING_CONFIG.maxListingsPerMember
+  );
   const activeCountSnapshot = await db
     .collection(LISTING_COLLECTION)
     .where({ sellerId: memberId, status: LISTING_STATUS.ACTIVE })
@@ -756,6 +872,7 @@ async function handleBuyNow(memberId, event = {}) {
   if (!listingId) {
     throw createError('LISTING_REQUIRED', '请选择要购买的挂单');
   }
+  const tradingConfig = await getTradingConfig();
   await db.runTransaction(async (transaction) => {
     const listingRef = transaction.collection(LISTING_COLLECTION).doc(listingId);
     const listingDoc = await listingRef.get();
@@ -773,12 +890,17 @@ async function handleBuyNow(memberId, event = {}) {
       if (!listing.fixedPrice || listing.fixedPrice <= 0) {
         throw createError('PRICE_INVALID', '该挂单未设置有效价格');
       }
-      await completeSale(transaction, listing, {
-        buyerId: memberId,
-        buyerName: event.buyerName || '',
-        price: listing.fixedPrice,
-        source: 'buyout'
-      });
+      await completeSale(
+        transaction,
+        listing,
+        {
+          buyerId: memberId,
+          buyerName: event.buyerName || '',
+          price: listing.fixedPrice,
+          source: 'buyout'
+        },
+        tradingConfig
+      );
     } else if (listing.saleMode === 'auction') {
       const price = listing.buyoutPrice && listing.buyoutPrice > 0 ? listing.buyoutPrice : listing.currentPrice;
       if (!price || price <= 0) {
@@ -790,12 +912,17 @@ async function handleBuyNow(memberId, event = {}) {
       if (listing.currentBidderId && listing.currentBidderId !== memberId) {
         await refundActiveBid(transaction, listing);
       }
-      await completeSale(transaction, listing, {
-        buyerId: memberId,
-        buyerName: event.buyerName || '',
-        price: listing.buyoutPrice,
-        source: 'buyout'
-      });
+      await completeSale(
+        transaction,
+        listing,
+        {
+          buyerId: memberId,
+          buyerName: event.buyerName || '',
+          price: listing.buyoutPrice,
+          source: 'buyout'
+        },
+        tradingConfig
+      );
     } else {
       throw createError('MODE_UNSUPPORTED', '未知的售卖模式');
     }
@@ -816,7 +943,13 @@ async function handlePlaceBid(memberId, event = {}) {
   if (amount <= 0) {
     throw createError('BID_INVALID', '请输入有效的出价');
   }
-  const maxBids = Math.max(1, TRADING_CONFIG.maxActiveBidsPerMember || 50);
+  const tradingConfig = await getTradingConfig();
+  const maxBids = Math.max(
+    1,
+    Number.isFinite(tradingConfig.maxActiveBidsPerMember)
+      ? Math.floor(tradingConfig.maxActiveBidsPerMember)
+      : DEFAULT_TRADING_CONFIG.maxActiveBidsPerMember
+  );
   const activeBidCount = await db
     .collection(BID_COLLECTION)
     .where({ bidderId: memberId, status: BID_STATUS.ACTIVE })
@@ -846,7 +979,7 @@ async function handlePlaceBid(memberId, event = {}) {
     const basePrice = hasExistingBid
       ? Math.max(listing.currentPrice || 0, listing.startPrice || 0)
       : Math.max(listing.startPrice || 0, 1);
-    const minIncrement = listing.bidIncrement || resolveBidIncrement(basePrice, listing.bidIncrement);
+    const minIncrement = listing.bidIncrement || resolveBidIncrement(basePrice, listing.bidIncrement, tradingConfig);
     const minAcceptable = hasExistingBid ? basePrice + minIncrement : basePrice;
     if (amount < minAcceptable) {
       throw createError('BID_TOO_LOW', `当前最低出价为 ${minAcceptable}`);
@@ -959,8 +1092,7 @@ async function handleDashboard(memberId) {
   await settleExpiredListings(now);
   await ensureCollection(LISTING_COLLECTION);
   await ensureCollection(BID_COLLECTION);
-  await ensureCollection(METRIC_COLLECTION);
-  const [memberSnapshot, listingsSnapshot, ownSnapshot, bidSnapshot, metricsSnapshot] = await Promise.all([
+  const [memberSnapshot, listingsSnapshot, ownSnapshot, bidSnapshot] = await Promise.all([
     memberId ? db.collection(MEMBERS_COLLECTION).doc(memberId).get().catch(() => null) : Promise.resolve(null),
     db
       .collection(LISTING_COLLECTION)
@@ -984,7 +1116,6 @@ async function handleDashboard(memberId) {
           .limit(30)
           .get()
       : Promise.resolve({ data: [] }),
-    db.collection(METRIC_COLLECTION).doc('global').get().catch(() => null)
   ]);
 
   const member = memberSnapshot && memberSnapshot.data ? memberSnapshot.data : null;
@@ -998,25 +1129,21 @@ async function handleDashboard(memberId) {
   const myBids = (bidSnapshot.data || [])
     .map((doc) => buildBidResponse(doc, memberId))
     .filter(Boolean);
-  const metrics = metricsSnapshot && metricsSnapshot.data ? metricsSnapshot.data : {};
+  const tradingConfig = await getTradingConfig();
 
   return {
     balance,
     listings,
     myListings,
     myBids,
-    metrics: {
-      totalVolume: metrics.totalVolume || 0,
-      totalFee: metrics.totalFee || 0,
-      totalOrders: metrics.totalOrders || 0,
-      updatedAt: metrics.updatedAt || null
-    },
     config: {
-      feeRate: TRADING_CONFIG.feeRate || 0,
-      minDurationHours: TRADING_CONFIG.minDurationHours || 24,
-      maxDurationHours: TRADING_CONFIG.maxDurationHours || 168,
-      maxListingsPerMember: TRADING_CONFIG.maxListingsPerMember || 10,
-      minBidIncrementRate: TRADING_CONFIG.minBidIncrementRate || 0.05
+      feeRate: tradingConfig.feeRate || 0,
+      minDurationHours: tradingConfig.minDurationHours || DEFAULT_TRADING_CONFIG.minDurationHours,
+      maxDurationHours: tradingConfig.maxDurationHours || DEFAULT_TRADING_CONFIG.maxDurationHours,
+      maxListingsPerMember:
+        tradingConfig.maxListingsPerMember || DEFAULT_TRADING_CONFIG.maxListingsPerMember,
+      minBidIncrementRate:
+        tradingConfig.minBidIncrementRate || DEFAULT_TRADING_CONFIG.minBidIncrementRate
     }
   };
 }

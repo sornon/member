@@ -121,11 +121,6 @@ Page({
       listings: [],
       myListings: [],
       myBids: [],
-      metrics: {
-        totalVolume: 0,
-        totalFee: 0,
-        totalOrders: 0
-      },
       config: {
         minDurationHours: 24,
         maxDurationHours: 168,
@@ -185,7 +180,6 @@ Page({
       const myBids = Array.isArray(payload && payload.myBids)
         ? payload.myBids.map((bid) => buildBidDisplay(bid)).filter(Boolean)
         : [];
-      const metrics = payload && payload.metrics ? payload.metrics : {};
       const balance = payload && Number.isFinite(payload.balance) ? payload.balance : 0;
       this.setData({
         summary: {
@@ -193,12 +187,6 @@ Page({
           listings,
           myListings,
           myBids,
-          metrics: {
-            totalVolume: metrics.totalVolume || 0,
-            totalFee: metrics.totalFee || 0,
-            totalOrders: metrics.totalOrders || 0,
-            updatedAt: metrics.updatedAt || null
-          },
           config
         },
         balanceText: formatStones(balance),

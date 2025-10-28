@@ -7,6 +7,7 @@ const {
   COLLECTIONS,
   EXCLUDED_TRANSACTION_STATUSES,
   DEFAULT_ADMIN_ROLES,
+  TRADING_CONFIG,
   listAvatarIds,
   analyzeMemberLevelProgress,
   normalizeBackgroundId,
@@ -48,6 +49,8 @@ const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
 
 const PROXY_SESSION_COLLECTION = COLLECTIONS.ADMIN_PROXY_SESSIONS || 'adminProxySessions';
 const PROXY_LOG_COLLECTION = COLLECTIONS.ADMIN_PROXY_LOGS || 'adminProxyLogs';
+const TRADE_ORDER_COLLECTION = COLLECTIONS.TRADE_ORDERS || 'tradeOrders';
+const TRADE_SETTINGS_COLLECTION = COLLECTIONS.TRADE_SETTINGS || 'tradeSettings';
 
 const STORAGE_UPGRADE_LIMIT_KEYS = ['upgradeLimit', 'maxUpgrades', 'limit'];
 
@@ -73,6 +76,14 @@ const DEFAULT_FEATURE_TOGGLES = {
   globalBackground: { ...DEFAULT_GLOBAL_BACKGROUND },
   globalBackgroundCatalog: []
 };
+const DEFAULT_TRADING_SETTINGS = Object.freeze({
+  feeRate: typeof TRADING_CONFIG.feeRate === 'number' ? TRADING_CONFIG.feeRate : 0.05,
+  minDurationHours: Math.max(1, TRADING_CONFIG.minDurationHours || 24),
+  maxDurationHours: Math.max(
+    Math.max(1, TRADING_CONFIG.minDurationHours || 24),
+    TRADING_CONFIG.maxDurationHours || 168
+  )
+});
 const DEFAULT_PVP_RATING = 1200;
 const DEFAULT_PVP_TIER = { id: 'bronze', name: '青铜' };
 const DEFAULT_PVP_SEASON_LENGTH_DAYS = 56;
@@ -166,6 +177,10 @@ const CACHE_VERSION_KEY_ALIASES = {
 };
 
 const STATIC_TITLE_IDS = new Set(['title_refining_rookie']);
+
+const EQUIPMENT_CATALOG_CACHE_TTL = 5 * 60 * 1000;
+let cachedEquipmentCatalog = null;
+let cachedEquipmentCatalogFetchedAt = 0;
 
 function normalizeTitleId(value) {
   if (typeof value !== 'string') {
@@ -353,6 +368,9 @@ const ACTIONS = {
   GRANT_EQUIPMENT: 'grantEquipment',
   REMOVE_EQUIPMENT: 'removeEquipment',
   UPDATE_EQUIPMENT_ATTRIBUTES: 'updateEquipmentAttributes',
+  LIST_TRADE_ORDERS: 'listTradeOrders',
+  GET_TRADING_CONFIG: 'getTradingConfig',
+  UPDATE_TRADING_CONFIG: 'updateTradingConfig',
   GET_FINANCE_REPORT: 'getFinanceReport',
   LIST_WINE_STORAGE: 'listWineStorage',
   ADD_WINE_STORAGE: 'addWineStorage',
@@ -414,6 +432,12 @@ const ACTION_ALIASES = {
   grantequipment: ACTIONS.GRANT_EQUIPMENT,
   removeequipment: ACTIONS.REMOVE_EQUIPMENT,
   updateequipmentattributes: ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES,
+  listtradeorders: ACTIONS.LIST_TRADE_ORDERS,
+  tradelog: ACTIONS.LIST_TRADE_ORDERS,
+  gettradingconfig: ACTIONS.GET_TRADING_CONFIG,
+  tradingconfig: ACTIONS.GET_TRADING_CONFIG,
+  updatetradingconfig: ACTIONS.UPDATE_TRADING_CONFIG,
+  savetradingconfig: ACTIONS.UPDATE_TRADING_CONFIG,
   getfinancereport: ACTIONS.GET_FINANCE_REPORT,
   financereport: ACTIONS.GET_FINANCE_REPORT,
   listwinestorage: ACTIONS.LIST_WINE_STORAGE,
@@ -560,6 +584,177 @@ async function ensureProxyCollections() {
   await ensureCollectionExists(PROXY_LOG_COLLECTION);
 }
 
+function escapeRegExp(text) {
+  if (typeof text !== 'string') {
+    return '';
+  }
+  return text.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\$&');
+}
+
+function buildFuzzyRegExp(keyword) {
+  if (typeof keyword !== 'string') {
+    return null;
+  }
+  const trimmed = keyword.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const escaped = escapeRegExp(trimmed);
+  if (!escaped) {
+    return null;
+  }
+  return db.RegExp({
+    regexp: escaped,
+    options: 'i'
+  });
+}
+
+async function findMemberIdsByRegex(regex, limit = 100) {
+  if (!regex) {
+    return [];
+  }
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 0, 200));
+  const snapshot = await db
+    .collection(COLLECTIONS.MEMBERS)
+    .where(
+      _.or([
+        { nickName: regex },
+        { realName: regex },
+        { mobile: regex }
+      ])
+    )
+    .field({ _id: 1 })
+    .limit(safeLimit)
+    .get()
+    .catch(() => ({ data: [] }));
+  return (snapshot.data || [])
+    .map((entry) => (entry && entry._id ? entry._id : ''))
+    .filter(Boolean);
+}
+
+async function loadEquipmentCatalogForTrading(openid, options = {}) {
+  const forceRefresh = !!(options && options.forceRefresh);
+  const now = Date.now();
+  if (!forceRefresh && cachedEquipmentCatalog && now - cachedEquipmentCatalogFetchedAt < EQUIPMENT_CATALOG_CACHE_TTL) {
+    return cachedEquipmentCatalog;
+  }
+  const result = await callPveFunction('listEquipmentCatalog', { actorId: openid }).catch((error) => {
+    console.error('[admin] load equipment catalog failed', error);
+    return { items: [] };
+  });
+  const items = Array.isArray(result && result.items) ? result.items : [];
+  const simplified = items
+    .map((item) => ({
+      id: item && item.id ? item.id : '',
+      name: item && item.name ? item.name : '',
+      slot: item && item.slot ? item.slot : '',
+      quality: item && item.quality ? item.quality : ''
+    }))
+    .filter((item) => !!item.id);
+  cachedEquipmentCatalog = simplified;
+  cachedEquipmentCatalogFetchedAt = now;
+  return cachedEquipmentCatalog;
+}
+
+function findEquipmentIdsByKeyword(keyword, catalog = []) {
+  if (typeof keyword !== 'string') {
+    return [];
+  }
+  const trimmed = keyword.trim();
+  if (!trimmed) {
+    return [];
+  }
+  const escaped = escapeRegExp(trimmed);
+  if (!escaped) {
+    return [];
+  }
+  const regex = new RegExp(escaped, 'i');
+  const ids = new Set();
+  (Array.isArray(catalog) ? catalog : []).forEach((item) => {
+    if (!item || !item.id) {
+      return;
+    }
+    const name = typeof item.name === 'string' ? item.name : '';
+    if (regex.test(item.id) || (name && regex.test(name))) {
+      ids.add(item.id);
+    }
+  });
+  return Array.from(ids);
+}
+
+function normalizeTradingSettingsDocument(doc = {}) {
+  const normalized = {
+    feeRate: DEFAULT_TRADING_SETTINGS.feeRate,
+    minDurationHours: DEFAULT_TRADING_SETTINGS.minDurationHours,
+    maxDurationHours: DEFAULT_TRADING_SETTINGS.maxDurationHours
+  };
+  if (!doc || typeof doc !== 'object') {
+    return normalized;
+  }
+  const assignNumber = (key, { min, max, integer } = {}) => {
+    if (!Object.prototype.hasOwnProperty.call(doc, key)) {
+      return;
+    }
+    const value = Number(doc[key]);
+    if (!Number.isFinite(value)) {
+      return;
+    }
+    let numeric = value;
+    if (typeof min === 'number') {
+      numeric = Math.max(min, numeric);
+    }
+    if (typeof max === 'number') {
+      numeric = Math.min(max, numeric);
+    }
+    if (integer) {
+      normalized[key] = Math.max(typeof min === 'number' ? Math.ceil(min) : 0, Math.floor(numeric));
+    } else {
+      normalized[key] = numeric;
+    }
+  };
+  assignNumber('feeRate', { min: 0, max: 1 });
+  assignNumber('minDurationHours', { min: 1, integer: true });
+  assignNumber('maxDurationHours', { min: 1, integer: true });
+  if (normalized.maxDurationHours < normalized.minDurationHours) {
+    normalized.maxDurationHours = normalized.minDurationHours;
+  }
+  return normalized;
+}
+
+async function readTradingSettings() {
+  await ensureCollectionExists(TRADE_SETTINGS_COLLECTION);
+  const snapshot = await db
+    .collection(TRADE_SETTINGS_COLLECTION)
+    .doc('config')
+    .get()
+    .catch(() => null);
+  const data = snapshot && snapshot.data ? snapshot.data : {};
+  const config = normalizeTradingSettingsDocument(data);
+  const metadata = {
+    updatedAt: data.updatedAt || null,
+    updatedBy: data.updatedBy || '',
+    updatedByName: data.updatedByName || ''
+  };
+  return { raw: data || {}, config, metadata };
+}
+
+function parseFeeRateInput(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  const clamped = Math.max(0, Math.min(numeric, 1));
+  return Math.round(clamped * 10000) / 10000;
+}
+
+function parseDurationHoursInput(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return null;
+  }
+  return Math.max(1, Math.floor(numeric));
+}
+
 function normalizeAction(action) {
   if (typeof action === 'string' || action instanceof String) {
     const trimmed = String(action).trim();
@@ -634,6 +829,16 @@ const ACTION_HANDLERS = {
     removeEquipment(openid, event.memberId, event.itemId, event.inventoryId),
   [ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES]: (openid, event) =>
     updateEquipmentAttributes(openid, event.memberId, event.itemId, event.attributes || {}, event),
+  [ACTIONS.LIST_TRADE_ORDERS]: (openid, event) =>
+    listTradeOrders(openid, {
+      page: event.page || 1,
+      pageSize: event.pageSize || 20,
+      memberKeyword: event.memberKeyword || event.keyword || '',
+      itemKeyword: event.itemKeyword || event.itemName || ''
+    }),
+  [ACTIONS.GET_TRADING_CONFIG]: (openid) => getTradingConfig(openid),
+  [ACTIONS.UPDATE_TRADING_CONFIG]: (openid, event) =>
+    updateTradingConfig(openid, (event && event.config) || event || {}),
   [ACTIONS.GET_FINANCE_REPORT]: (openid, event) => getFinanceReport(openid, event.month || event.targetMonth || ''),
   [ACTIONS.LIST_WINE_STORAGE]: (openid, event) => listWineStorage(openid, event.memberId),
   [ACTIONS.ADD_WINE_STORAGE]: (openid, event) =>
@@ -2808,6 +3013,235 @@ async function updateEquipmentAttributes(openid, memberId, itemId, attributes = 
     throw new Error(error && error.errMsg ? error.errMsg : '修改装备失败');
   });
   return result || {};
+}
+
+async function listTradeOrders(openid, options = {}) {
+  await ensureAdmin(openid);
+  await ensureCollectionExists(TRADE_ORDER_COLLECTION);
+  const page = Math.max(1, Math.floor(Number(options.page) || 1));
+  const limit = Math.max(1, Math.min(Math.floor(Number(options.pageSize) || 20), 50));
+  const skip = (page - 1) * limit;
+  const rawMemberKeyword =
+    typeof options.memberKeyword === 'string'
+      ? options.memberKeyword
+      : typeof options.keyword === 'string'
+        ? options.keyword
+        : '';
+  const rawItemKeyword =
+    typeof options.itemKeyword === 'string'
+      ? options.itemKeyword
+      : typeof options.itemName === 'string'
+        ? options.itemName
+        : '';
+  const memberKeyword = rawMemberKeyword ? String(rawMemberKeyword).trim() : '';
+  const itemKeyword = rawItemKeyword ? String(rawItemKeyword).trim() : '';
+
+  const filters = [];
+  const memberRegex = buildFuzzyRegExp(memberKeyword);
+  if (memberRegex) {
+    const memberConditions = [{ sellerName: memberRegex }, { buyerName: memberRegex }];
+    const memberIds = await findMemberIdsByRegex(memberRegex, 200);
+    if (memberIds.length) {
+      memberConditions.push({ sellerId: _.in(memberIds) });
+      memberConditions.push({ buyerId: _.in(memberIds) });
+    }
+    filters.push(_.or(memberConditions));
+  }
+
+  let itemIdsFromCatalog = [];
+  const itemRegex = buildFuzzyRegExp(itemKeyword);
+  if (itemRegex || itemKeyword) {
+    if (itemKeyword) {
+      const catalog = await loadEquipmentCatalogForTrading(openid).catch(() => []);
+      itemIdsFromCatalog = findEquipmentIdsByKeyword(itemKeyword, catalog);
+    }
+    const itemConditions = [];
+    if (itemRegex) {
+      itemConditions.push({ itemId: itemRegex });
+    }
+    if (itemIdsFromCatalog.length) {
+      itemConditions.push({ itemId: _.in(itemIdsFromCatalog) });
+    }
+    if (itemConditions.length) {
+      filters.push(_.or(itemConditions));
+    }
+  }
+
+  let query = db.collection(TRADE_ORDER_COLLECTION);
+  if (filters.length === 1) {
+    query = query.where(filters[0]);
+  } else if (filters.length > 1) {
+    query = query.where(_.and(filters));
+  }
+
+  const [snapshot, countResult] = await Promise.all([
+    query
+      .orderBy('createdAt', 'desc')
+      .skip(skip)
+      .limit(limit)
+      .get()
+      .catch(() => ({ data: [] })),
+    query.count().catch(() => ({ total: 0 }))
+  ]);
+
+  const records = snapshot.data || [];
+  if (!records.length) {
+    return {
+      records: [],
+      total: countResult.total || 0,
+      page,
+      pageSize: limit
+    };
+  }
+
+  const memberIdSet = new Set();
+  const itemIdSet = new Set();
+  records.forEach((record) => {
+    if (record && record.sellerId) {
+      memberIdSet.add(record.sellerId);
+    }
+    if (record && record.buyerId) {
+      memberIdSet.add(record.buyerId);
+    }
+    if (record && record.itemId) {
+      itemIdSet.add(record.itemId);
+    }
+  });
+
+  let memberMap = {};
+  if (memberIdSet.size) {
+    const ids = Array.from(memberIdSet);
+    const tasks = [];
+    for (let i = 0; i < ids.length; i += 100) {
+      tasks.push(
+        db
+          .collection(COLLECTIONS.MEMBERS)
+          .where({ _id: _.in(ids.slice(i, i + 100)) })
+          .field({ _id: 1, nickName: 1, realName: 1, mobile: 1 })
+          .get()
+      );
+    }
+    const snapshots = await Promise.all(tasks).catch(() => []);
+    memberMap = {};
+    snapshots.forEach((snap) => {
+      (snap && snap.data ? snap.data : []).forEach((entry) => {
+        if (entry && entry._id) {
+          memberMap[entry._id] = entry;
+        }
+      });
+    });
+  }
+
+  let equipmentMap = {};
+  if (itemIdSet.size) {
+    const catalog = await loadEquipmentCatalogForTrading(openid).catch(() => []);
+    equipmentMap = {};
+    (catalog || []).forEach((item) => {
+      if (item && item.id && !equipmentMap[item.id]) {
+        equipmentMap[item.id] = item;
+      }
+    });
+  }
+
+  const decoratedRecords = records.map((record) => {
+    const sellerInfo = memberMap[record.sellerId] || {};
+    const buyerInfo = memberMap[record.buyerId] || {};
+    const equipment = equipmentMap[record.itemId] || {};
+    const price = Number(record.price);
+    const fee = Number(record.fee);
+    const netIncomeValue = Number(record.netIncome);
+    const resolvedPrice = Number.isFinite(price) ? price : 0;
+    const resolvedFee = Number.isFinite(fee) ? fee : 0;
+    const resolvedNetIncome = Number.isFinite(netIncomeValue)
+      ? netIncomeValue
+      : Math.max(0, resolvedPrice - resolvedFee);
+    return {
+      _id: record._id || '',
+      listingId: record.listingId || '',
+      itemId: record.itemId || '',
+      itemName: equipment.name || record.itemId || '',
+      price: resolvedPrice,
+      fee: resolvedFee,
+      netIncome: resolvedNetIncome,
+      saleMode: record.saleMode || 'fixed',
+      source: record.source || '',
+      createdAt: record.createdAt || record.updatedAt || null,
+      updatedAt: record.updatedAt || null,
+      seller: {
+        id: record.sellerId || '',
+        name: record.sellerName || '',
+        nickName: sellerInfo.nickName || '',
+        realName: sellerInfo.realName || '',
+        mobile: sellerInfo.mobile || ''
+      },
+      buyer: {
+        id: record.buyerId || '',
+        name: record.buyerName || '',
+        nickName: buyerInfo.nickName || '',
+        realName: buyerInfo.realName || '',
+        mobile: buyerInfo.mobile || ''
+      }
+    };
+  });
+
+  return {
+    records: decoratedRecords,
+    total: countResult.total || decoratedRecords.length,
+    page,
+    pageSize: limit
+  };
+}
+
+async function getTradingConfig(openid) {
+  await ensureAdmin(openid);
+  const { config, metadata } = await readTradingSettings();
+  return {
+    config,
+    updatedAt: metadata.updatedAt || null,
+    updatedBy: metadata.updatedBy || '',
+    updatedByName: metadata.updatedByName || ''
+  };
+}
+
+async function updateTradingConfig(openid, updates = {}) {
+  const admin = await ensureAdmin(openid);
+  const feeRate = parseFeeRateInput(updates.feeRate);
+  if (feeRate === null) {
+    throw new Error('请输入有效的手续费比例');
+  }
+  const minDuration = parseDurationHoursInput(updates.minDurationHours);
+  if (minDuration === null) {
+    throw new Error('请输入有效的最短挂单时间');
+  }
+  const maxDuration = parseDurationHoursInput(updates.maxDurationHours);
+  if (maxDuration === null) {
+    throw new Error('请输入有效的最长挂单时间');
+  }
+  if (maxDuration < minDuration) {
+    throw new Error('最长挂单时间需大于等于最短挂单时间');
+  }
+  const now = new Date();
+  const existing = await readTradingSettings();
+  const adminName = resolveMemberDisplayName(admin) || '';
+  const payload = {
+    ...(existing.raw || {}),
+    feeRate,
+    minDurationHours: minDuration,
+    maxDurationHours: maxDuration,
+    updatedAt: now,
+    updatedBy: admin._id,
+    updatedByName: adminName
+  };
+  delete payload._id;
+  await db.collection(TRADE_SETTINGS_COLLECTION).doc('config').set({ data: payload });
+  const config = normalizeTradingSettingsDocument(payload);
+  return {
+    success: true,
+    config,
+    updatedAt: now,
+    updatedBy: admin._id,
+    updatedByName: adminName
+  };
 }
 
 async function createChargeOrder(openid, items) {

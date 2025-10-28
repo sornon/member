@@ -1,0 +1,250 @@
+page {
+  background: #0f172a;
+}
+
+.page {
+  min-height: 100vh;
+  padding: 24rpx 24rpx 120rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.config-card {
+  background: rgba(15, 23, 42, 0.9);
+  border-radius: 18rpx;
+  padding: 28rpx;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18rpx 36rpx rgba(2, 6, 23, 0.55);
+}
+
+.card-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 20rpx;
+}
+
+.config-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18rpx 24rpx;
+}
+
+.config-item {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.config-label {
+  font-size: 26rpx;
+  color: rgba(226, 232, 240, 0.82);
+}
+
+.config-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.config-input {
+  flex: 1;
+  background: rgba(30, 41, 59, 0.68);
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  color: #f8fafc;
+  font-size: 28rpx;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.config-input:disabled {
+  opacity: 0.6;
+}
+
+.config-placeholder {
+  color: rgba(148, 163, 184, 0.55);
+}
+
+.config-suffix {
+  font-size: 26rpx;
+  color: rgba(226, 232, 240, 0.7);
+}
+
+.config-actions {
+  margin-top: 24rpx;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.config-btn {
+  background: #2563eb;
+  color: #ffffff;
+  border-radius: 12rpx;
+  padding: 0 40rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  font-size: 28rpx;
+  border: none;
+}
+
+.config-btn::after {
+  display: none;
+}
+
+.config-meta {
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  color: rgba(148, 163, 184, 0.7);
+}
+
+.filters {
+  background: rgba(15, 23, 42, 0.88);
+  border-radius: 16rpx;
+  padding: 24rpx;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 14rpx 32rpx rgba(2, 6, 23, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.filter-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18rpx 24rpx;
+}
+
+.filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.filter-label {
+  font-size: 26rpx;
+  color: rgba(226, 232, 240, 0.82);
+}
+
+.filter-input {
+  background: rgba(30, 41, 59, 0.65);
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  color: #e2e8f0;
+  font-size: 28rpx;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.filter-placeholder {
+  color: rgba(148, 163, 184, 0.55);
+}
+
+.filter-actions {
+  display: flex;
+  gap: 16rpx;
+}
+
+.filter-btn {
+  flex: 1;
+  font-size: 26rpx;
+  border-radius: 12rpx;
+  background: rgba(30, 41, 59, 0.7);
+  color: #e2e8f0;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.filter-btn::after {
+  display: none;
+}
+
+.filter-btn.primary {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.summary {
+  font-size: 26rpx;
+  color: rgba(203, 213, 225, 0.78);
+}
+
+.records {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.record-card {
+  background: rgba(15, 23, 42, 0.92);
+  border-radius: 18rpx;
+  padding: 28rpx;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18rpx 36rpx rgba(2, 6, 23, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.record-header {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.record-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+.record-mode {
+  margin-left: auto;
+  font-size: 24rpx;
+  padding: 6rpx 18rpx;
+  border-radius: 32rpx;
+  background: rgba(59, 130, 246, 0.16);
+  color: #93c5fd;
+}
+
+.record-meta,
+.record-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx 24rpx;
+}
+
+.meta-text {
+  font-size: 24rpx;
+  color: rgba(226, 232, 240, 0.85);
+}
+
+.record-party {
+  background: rgba(30, 41, 59, 0.6);
+  border-radius: 12rpx;
+  padding: 18rpx 20rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.party-title {
+  font-size: 26rpx;
+  color: #f8fafc;
+  font-weight: 500;
+}
+
+.party-line {
+  font-size: 24rpx;
+  color: rgba(203, 213, 225, 0.8);
+}
+
+.empty,
+.loading,
+.no-more {
+  font-size: 24rpx;
+  color: rgba(148, 163, 184, 0.72);
+  text-align: center;
+  padding: 24rpx 0;
+}
