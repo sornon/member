@@ -51,7 +51,7 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 
 const DEFAULT_CHARACTER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
-const STARTUP_COVER_IMAGE = '/cover-20251028.jpg';
+const STARTUP_COVER_VIDEO = '/cover-20251028.mp4';
 
 const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
 const CHARACTER_URL_PATTERN = /\/assets\/character\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
@@ -1028,9 +1028,9 @@ Page({
     tasks: [],
     loading: true,
     proxyLogoutPending: false,
-    backgroundImage: STARTUP_COVER_IMAGE,
-    backgroundVideo: resolveBackgroundVideo(null),
-    showBackgroundVideo: false,
+    backgroundImage: '',
+    backgroundVideo: STARTUP_COVER_VIDEO,
+    showBackgroundVideo: true,
     showBackgroundOverlay: false,
     backgroundVideoError: false,
     dynamicBackgroundEnabled: false,
