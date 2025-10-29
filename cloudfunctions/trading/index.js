@@ -542,10 +542,11 @@ function buildListingResponse(listing, currentMemberId) {
   };
 }
 
-function buildBidResponse(bid, currentMemberId) {
+function buildBidResponse(bid, currentMemberId, listingDoc = null, listingDisplay = null) {
   if (!bid || typeof bid !== 'object') {
     return null;
   }
+  const listing = listingDisplay || (listingDoc ? buildListingResponse(listingDoc, currentMemberId) : null);
   return {
     id: bid._id,
     listingId: bid.listingId,
@@ -553,8 +554,59 @@ function buildBidResponse(bid, currentMemberId) {
     status: bid.status,
     createdAt: bid.createdAt || null,
     updatedAt: bid.updatedAt || null,
-    isOwner: currentMemberId ? bid.bidderId === currentMemberId : false
+    isOwner: currentMemberId ? bid.bidderId === currentMemberId : false,
+    listing,
+    item: listing && listing.item ? listing.item : null,
+    saleMode: listing ? listing.saleMode : bid.saleMode || '',
+    listingStatus: listing ? listing.status : ''
   };
+}
+
+async function loadListingsByIds(ids = []) {
+  const normalized = Array.isArray(ids)
+    ? ids
+        .map((value) => {
+          if (typeof value === 'string') {
+            return value.trim();
+          }
+          if (value === null || value === undefined) {
+            return '';
+          }
+          return String(value).trim();
+        })
+        .filter((value) => !!value)
+    : [];
+  if (!normalized.length) {
+    return {};
+  }
+  const uniqueIds = Array.from(new Set(normalized));
+  if (!uniqueIds.length) {
+    return {};
+  }
+  await ensureCollection(LISTING_COLLECTION);
+  const chunkSize = 10;
+  const tasks = [];
+  for (let index = 0; index < uniqueIds.length; index += chunkSize) {
+    const slice = uniqueIds.slice(index, index + chunkSize);
+    tasks.push(
+      db
+        .collection(LISTING_COLLECTION)
+        .where({ _id: _.in(slice) })
+        .get()
+        .catch(() => ({ data: [] }))
+    );
+  }
+  const snapshots = await Promise.all(tasks);
+  const map = {};
+  snapshots.forEach((snapshot) => {
+    const data = snapshot && Array.isArray(snapshot.data) ? snapshot.data : [];
+    data.forEach((doc) => {
+      if (doc && doc._id) {
+        map[doc._id] = doc;
+      }
+    });
+  });
+  return map;
 }
 
 async function settleExpiredListings(now = new Date()) {
@@ -1321,8 +1373,31 @@ async function handleDashboard(memberId) {
   const myListings = (ownSnapshot.data || [])
     .map((doc) => buildListingResponse(doc, memberId))
     .filter(Boolean);
-  const myBids = (bidSnapshot.data || [])
-    .map((doc) => buildBidResponse(doc, memberId))
+  const bidDocs = bidSnapshot.data || [];
+  const bidListingIds = bidDocs
+    .map((doc) => (doc && doc.listingId ? doc.listingId : ''))
+    .filter((id) => typeof id === 'string' && id.trim());
+  const bidListingMap = bidListingIds.length ? await loadListingsByIds(bidListingIds) : {};
+  const listingDisplayCache = {};
+  const resolveListingDisplay = (listingId) => {
+    if (!listingId || typeof listingId !== 'string') {
+      return null;
+    }
+    const doc = bidListingMap[listingId];
+    if (!doc) {
+      return null;
+    }
+    if (!listingDisplayCache[listingId]) {
+      listingDisplayCache[listingId] = buildListingResponse(doc, memberId);
+    }
+    return listingDisplayCache[listingId];
+  };
+  const myBids = bidDocs
+    .map((doc) => {
+      const listingDisplay = doc && doc.listingId ? resolveListingDisplay(doc.listingId) : null;
+      const listingDoc = doc && doc.listingId ? bidListingMap[doc.listingId] : null;
+      return buildBidResponse(doc, memberId, listingDoc, listingDisplay);
+    })
     .filter(Boolean);
   const tradingConfig = await getTradingConfig();
 

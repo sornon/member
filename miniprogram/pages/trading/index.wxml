@@ -39,11 +39,91 @@
 
   <block wx:elif="{{activeTab === 'market'}}">
     <view wx:if="{{summary.listings.length}}" class="trading-list">
-      <block wx:for="{{summary.listings}}" wx:key="id">
+      <block wx:for="{{summary.listings}}" wx:for-item="item" wx:for-index="idx" wx:key="id">
         <view class="trading-card" data-id="{{item.id}}" bindtap="handleListingTap">
           <view class="trading-card__header">
             <view class="trading-card__title">{{item.displayName}}</view>
             <view class="trading-card__status">{{item.saleMode === 'fixed' ? '一口价' : '拍卖'}}</view>
+          </view>
+          <view wx:if="{{item.item}}" class="trading-card__equipment">
+            <view class="trading-card__equipment-card">
+              <view class="inventory-card">
+                <view wx:if="{{item.item.slotLabel}}" class="inventory-card__badge">{{item.item.slotLabel}}</view>
+                <view class="inventory-card__frame">
+                  <view
+                    class="inventory-card__icon"
+                    style="border-color: {{item.item.qualityColor || 'rgba(120, 146, 255, 0.62)'}};"
+                  >
+                    <block wx:if="{{item.item.iconUrl}}">
+                      <image
+                        class="inventory-card__icon-image"
+                        src="{{item.item.iconUrl}}"
+                        mode="aspectFill"
+                        data-scope="market"
+                        data-index="{{idx}}"
+                        data-fallback="{{item.item.iconFallbackUrl}}"
+                        binderror="handleSummaryIconError"
+                      />
+                    </block>
+                    <view wx:else class="inventory-card__icon-label">{{item.item.shortName || item.item.displayName}}</view>
+                  </view>
+                </view>
+              </view>
+            </view>
+            <view class="trading-card__equipment-info">
+              <view class="trading-card__equipment-name">
+                {{item.item.displayName || item.item.displayTitle || item.displayName}}
+              </view>
+              <view
+                wx:if="{{item.item.qualityLabel}}"
+                class="trading-card__equipment-quality"
+                style="color: {{item.item.qualityColor}};"
+              >
+                {{item.item.qualityLabel}}
+              </view>
+              <view
+                wx:if="{{item.item.detailSummary && item.item.detailSummary.length}}"
+                class="trading-card__equipment-summary"
+              >
+                <text
+                  wx:for="{{item.item.detailSummary}}"
+                  wx:for-item="summary"
+                  wx:for-index="summaryIndex"
+                  wx:key="summaryIndex"
+                  class="trading-card__equipment-summary-item"
+                >
+                  {{summary}}{{summaryIndex < item.item.detailSummary.length - 1 ? ' · ' : ''}}
+                </text>
+              </view>
+              <view
+                wx:if="{{item.item.detailStats && item.item.detailStats.length}}"
+                class="trading-card__equipment-stats"
+              >
+                <text
+                  wx:for="{{item.item.detailStats}}"
+                  wx:for-item="stat"
+                  wx:for-index="statIndex"
+                  wx:key="statIndex"
+                  class="trading-card__equipment-stat"
+                >
+                  {{stat}}
+                </text>
+              </view>
+              <view
+                wx:if="{{item.item.detailNotes && item.item.detailNotes.length}}"
+                class="trading-card__equipment-effects"
+              >
+                <text
+                  wx:for="{{item.item.detailNotes}}"
+                  wx:for-item="effect"
+                  wx:for-index="effectIndex"
+                  wx:key="effectIndex"
+                  class="trading-card__equipment-effect"
+                >
+                  {{effect}}
+                </text>
+              </view>
+            </view>
           </view>
           <view class="trading-card__meta">挂单人：{{item.sellerName}}</view>
           <view class="trading-card__price">当前价格：{{item.displayPrice}}</view>
@@ -60,11 +140,91 @@
 
   <block wx:elif="{{activeTab === 'myListings'}}">
     <view wx:if="{{summary.myListings.length}}" class="trading-list">
-      <block wx:for="{{summary.myListings}}" wx:key="id">
+      <block wx:for="{{summary.myListings}}" wx:for-item="item" wx:for-index="idx" wx:key="id">
         <view class="trading-card trading-card--mine" data-id="{{item.id}}" bindtap="handleListingTap">
           <view class="trading-card__header">
             <view class="trading-card__title">{{item.displayName}}</view>
             <view class="trading-card__status">{{item.statusLabel}}</view>
+          </view>
+          <view wx:if="{{item.item}}" class="trading-card__equipment">
+            <view class="trading-card__equipment-card">
+              <view class="inventory-card">
+                <view wx:if="{{item.item.slotLabel}}" class="inventory-card__badge">{{item.item.slotLabel}}</view>
+                <view class="inventory-card__frame">
+                  <view
+                    class="inventory-card__icon"
+                    style="border-color: {{item.item.qualityColor || 'rgba(120, 146, 255, 0.62)'}};"
+                  >
+                    <block wx:if="{{item.item.iconUrl}}">
+                      <image
+                        class="inventory-card__icon-image"
+                        src="{{item.item.iconUrl}}"
+                        mode="aspectFill"
+                        data-scope="myListings"
+                        data-index="{{idx}}"
+                        data-fallback="{{item.item.iconFallbackUrl}}"
+                        binderror="handleSummaryIconError"
+                      />
+                    </block>
+                    <view wx:else class="inventory-card__icon-label">{{item.item.shortName || item.item.displayName}}</view>
+                  </view>
+                </view>
+              </view>
+            </view>
+            <view class="trading-card__equipment-info">
+              <view class="trading-card__equipment-name">
+                {{item.item.displayName || item.item.displayTitle || item.displayName}}
+              </view>
+              <view
+                wx:if="{{item.item.qualityLabel}}"
+                class="trading-card__equipment-quality"
+                style="color: {{item.item.qualityColor}};"
+              >
+                {{item.item.qualityLabel}}
+              </view>
+              <view
+                wx:if="{{item.item.detailSummary && item.item.detailSummary.length}}"
+                class="trading-card__equipment-summary"
+              >
+                <text
+                  wx:for="{{item.item.detailSummary}}"
+                  wx:for-item="summary"
+                  wx:for-index="summaryIndex"
+                  wx:key="summaryIndex"
+                  class="trading-card__equipment-summary-item"
+                >
+                  {{summary}}{{summaryIndex < item.item.detailSummary.length - 1 ? ' · ' : ''}}
+                </text>
+              </view>
+              <view
+                wx:if="{{item.item.detailStats && item.item.detailStats.length}}"
+                class="trading-card__equipment-stats"
+              >
+                <text
+                  wx:for="{{item.item.detailStats}}"
+                  wx:for-item="stat"
+                  wx:for-index="statIndex"
+                  wx:key="statIndex"
+                  class="trading-card__equipment-stat"
+                >
+                  {{stat}}
+                </text>
+              </view>
+              <view
+                wx:if="{{item.item.detailNotes && item.item.detailNotes.length}}"
+                class="trading-card__equipment-effects"
+              >
+                <text
+                  wx:for="{{item.item.detailNotes}}"
+                  wx:for-item="effect"
+                  wx:for-index="effectIndex"
+                  wx:key="effectIndex"
+                  class="trading-card__equipment-effect"
+                >
+                  {{effect}}
+                </text>
+              </view>
+            </view>
           </view>
           <view class="trading-card__meta">模式：{{item.saleMode === 'fixed' ? '一口价' : '拍卖'}} · 出价 {{item.bidCount}} 次</view>
           <view class="trading-card__price">当前价格：{{item.displayPrice}}</view>
@@ -77,12 +237,93 @@
 
   <block wx:elif="{{activeTab === 'myBids'}}">
     <view wx:if="{{summary.myBids.length}}" class="trading-list">
-      <block wx:for="{{summary.myBids}}" wx:key="id">
+      <block wx:for="{{summary.myBids}}" wx:for-item="item" wx:for-index="idx" wx:key="id">
         <view class="trading-card trading-card--bid">
           <view class="trading-card__header">
             <view class="trading-card__title">出价 {{item.amount}} 灵石</view>
             <view class="trading-card__status">{{item.statusLabel}}</view>
           </view>
+          <view wx:if="{{item.item}}" class="trading-card__equipment">
+            <view class="trading-card__equipment-card">
+              <view class="inventory-card">
+                <view wx:if="{{item.item.slotLabel}}" class="inventory-card__badge">{{item.item.slotLabel}}</view>
+                <view class="inventory-card__frame">
+                  <view
+                    class="inventory-card__icon"
+                    style="border-color: {{item.item.qualityColor || 'rgba(120, 146, 255, 0.62)'}};"
+                  >
+                    <block wx:if="{{item.item.iconUrl}}">
+                      <image
+                        class="inventory-card__icon-image"
+                        src="{{item.item.iconUrl}}"
+                        mode="aspectFill"
+                        data-scope="myBids"
+                        data-index="{{idx}}"
+                        data-fallback="{{item.item.iconFallbackUrl}}"
+                        binderror="handleSummaryIconError"
+                      />
+                    </block>
+                    <view wx:else class="inventory-card__icon-label">{{item.item.shortName || item.item.displayName}}</view>
+                  </view>
+                </view>
+              </view>
+            </view>
+            <view class="trading-card__equipment-info">
+              <view class="trading-card__equipment-name">
+                {{item.item.displayName || item.item.displayTitle || item.listingName || item.displayName}}
+              </view>
+              <view
+                wx:if="{{item.item.qualityLabel}}"
+                class="trading-card__equipment-quality"
+                style="color: {{item.item.qualityColor}};"
+              >
+                {{item.item.qualityLabel}}
+              </view>
+              <view
+                wx:if="{{item.item.detailSummary && item.item.detailSummary.length}}"
+                class="trading-card__equipment-summary"
+              >
+                <text
+                  wx:for="{{item.item.detailSummary}}"
+                  wx:for-item="summary"
+                  wx:for-index="summaryIndex"
+                  wx:key="summaryIndex"
+                  class="trading-card__equipment-summary-item"
+                >
+                  {{summary}}{{summaryIndex < item.item.detailSummary.length - 1 ? ' · ' : ''}}
+                </text>
+              </view>
+              <view
+                wx:if="{{item.item.detailStats && item.item.detailStats.length}}"
+                class="trading-card__equipment-stats"
+              >
+                <text
+                  wx:for="{{item.item.detailStats}}"
+                  wx:for-item="stat"
+                  wx:for-index="statIndex"
+                  wx:key="statIndex"
+                  class="trading-card__equipment-stat"
+                >
+                  {{stat}}
+                </text>
+              </view>
+              <view
+                wx:if="{{item.item.detailNotes && item.item.detailNotes.length}}"
+                class="trading-card__equipment-effects"
+              >
+                <text
+                  wx:for="{{item.item.detailNotes}}"
+                  wx:for-item="effect"
+                  wx:for-index="effectIndex"
+                  wx:key="effectIndex"
+                  class="trading-card__equipment-effect"
+                >
+                  {{effect}}
+                </text>
+              </view>
+            </view>
+          </view>
+          <view class="trading-card__meta">模式：{{item.saleModeLabel || "未知"}}{{item.currentPriceText ? " · 当前价 " + item.currentPriceText : ""}}</view>
           <view class="trading-card__meta">挂单编号：{{item.listingId}}</view>
           <view class="trading-card__footer">时间：{{item.displayTime}}</view>
         </view>

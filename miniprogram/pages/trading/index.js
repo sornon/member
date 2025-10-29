@@ -302,6 +302,154 @@ function formatRemainingTime(value) {
   return `${seconds} 秒`;
 }
 
+function buildEquipmentDisplayModel(baseItem, detail = null, options = {}) {
+  if (!baseItem || typeof baseItem !== 'object') {
+    return null;
+  }
+  const fallbackName =
+    typeof options.fallbackName === 'string' && options.fallbackName.trim()
+      ? options.fallbackName.trim()
+      : '神秘装备';
+  const shortNameLimit = Number.isFinite(options.shortNameLimit)
+    ? Math.max(3, Math.floor(options.shortNameLimit))
+    : 6;
+  const detailItem = detail && typeof detail === 'object' ? detail : null;
+  const inventoryIdRaw =
+    typeof baseItem.inventoryId === 'string'
+      ? baseItem.inventoryId
+      : baseItem.inventoryId !== undefined && baseItem.inventoryId !== null
+      ? String(baseItem.inventoryId)
+      : '';
+  const inventoryId = inventoryIdRaw.trim();
+  const refineValue =
+    detailItem && typeof detailItem.refine === 'number' ? detailItem.refine : Number(baseItem.refine);
+  const refine = Number.isFinite(refineValue) ? Math.max(0, Math.trunc(refineValue)) : 0;
+  const levelValue =
+    detailItem && typeof detailItem.level === 'number' ? detailItem.level : Number(baseItem.level);
+  const level = Number.isFinite(levelValue) && levelValue > 0 ? Math.trunc(levelValue) : null;
+  const slotLabel =
+    (detailItem && typeof detailItem.slotLabel === 'string' && detailItem.slotLabel.trim()) ||
+    (typeof baseItem.slotLabel === 'string' && baseItem.slotLabel.trim()) ||
+    '';
+  const qualityKey =
+    detailItem && typeof detailItem.quality === 'string'
+      ? detailItem.quality
+      : typeof baseItem.quality === 'string'
+      ? baseItem.quality
+      : 'mortal';
+  const qualityMeta = EQUIPMENT_QUALITY_META[qualityKey] || EQUIPMENT_QUALITY_META.mortal;
+  let iconUrl = detailItem && typeof detailItem.iconUrl === 'string' ? detailItem.iconUrl : '';
+  let iconFallbackUrl =
+    detailItem && typeof detailItem.iconFallbackUrl === 'string' ? detailItem.iconFallbackUrl : '';
+  if (!iconUrl || !iconFallbackUrl) {
+    const iconSource = detailItem || baseItem;
+    const iconPaths = buildEquipmentIconPaths(iconSource);
+    iconUrl = iconUrl || iconPaths.iconUrl;
+    iconFallbackUrl = iconFallbackUrl || iconPaths.iconFallbackUrl;
+  }
+  const baseName = resolveEquipmentName(detailItem || baseItem, fallbackName);
+  const shortSource =
+    (detailItem && typeof detailItem.shortName === 'string' && detailItem.shortName.trim()) ||
+    (typeof baseItem.shortName === 'string' && baseItem.shortName.trim()) ||
+    '';
+  const shortName = shortSource
+    ? shortSource
+    : baseName.length > shortNameLimit
+    ? `${baseName.slice(0, shortNameLimit - 1)}…`
+    : baseName;
+  const obtainedAt = (detailItem && detailItem.obtainedAt) || baseItem.obtainedAt || null;
+  const obtainedAtText =
+    (detailItem && typeof detailItem.obtainedAtText === 'string' && detailItem.obtainedAtText) ||
+    (obtainedAt ? formatDateTime(obtainedAt) : '');
+  const refineLabel =
+    (detailItem && typeof detailItem.refineLabel === 'string' && detailItem.refineLabel.trim()) ||
+    (refine > 0 ? `精炼 +${refine}` : '未精炼');
+  const setName =
+    (detailItem && typeof detailItem.setName === 'string' && detailItem.setName.trim()) || '';
+  const statsSource =
+    detailItem && Array.isArray(detailItem.detailStats)
+      ? detailItem.detailStats
+      : detailItem && Array.isArray(detailItem.statsText)
+      ? detailItem.statsText
+      : Array.isArray(baseItem.detailStats)
+      ? baseItem.detailStats
+      : Array.isArray(baseItem.statsText)
+      ? baseItem.statsText
+      : [];
+  const detailStats = normalizeDisplayLines(statsSource);
+  const notesSource =
+    detailItem && Array.isArray(detailItem.detailNotes)
+      ? detailItem.detailNotes
+      : detailItem && Array.isArray(detailItem.notes)
+      ? detailItem.notes
+      : Array.isArray(baseItem.detailNotes)
+      ? baseItem.detailNotes
+      : Array.isArray(baseItem.notes)
+      ? baseItem.notes
+      : [];
+  const detailNotes = normalizeDisplayLines(notesSource);
+  const effectsSource =
+    detailItem && Array.isArray(detailItem.uniqueEffects)
+      ? detailItem.uniqueEffects
+      : Array.isArray(baseItem.uniqueEffects)
+      ? baseItem.uniqueEffects
+      : [];
+  const detailUniqueEffects = normalizeDisplayLines(
+    effectsSource.map((entry) => {
+      if (!entry) {
+        return '';
+      }
+      if (typeof entry === 'string') {
+        return entry;
+      }
+      if (typeof entry.description === 'string') {
+        return entry.description;
+      }
+      return '';
+    })
+  );
+  const detailDescription =
+    (detailItem && typeof detailItem.description === 'string' && detailItem.description.trim()) ||
+    (detailItem && typeof detailItem.detailDescription === 'string' && detailItem.detailDescription.trim()) ||
+    '';
+  const summaryParts = normalizeDisplayLines([
+    slotLabel ? `槽位：${slotLabel}` : '',
+    level ? `等级 ${level}` : '',
+    refineLabel,
+    setName ? `套装：${setName}` : ''
+  ]);
+  const detailSummary = summaryParts.length ? summaryParts : [qualityMeta.label];
+  return {
+    inventoryId,
+    displayName: baseName,
+    shortName,
+    refine,
+    level,
+    slotLabel,
+    quality: qualityKey,
+    qualityLabel:
+      (detailItem && typeof detailItem.qualityLabel === 'string' && detailItem.qualityLabel.trim()) ||
+      (typeof baseItem.qualityLabel === 'string' && baseItem.qualityLabel.trim()) ||
+      qualityMeta.label,
+    qualityColor:
+      (detailItem && typeof detailItem.qualityColor === 'string' && detailItem.qualityColor) ||
+      baseItem.qualityColor ||
+      qualityMeta.color,
+    iconUrl: iconUrl || baseItem.iconUrl || '',
+    iconFallbackUrl: iconFallbackUrl || baseItem.iconFallbackUrl || '',
+    obtainedAt: obtainedAt || null,
+    obtainedAtText,
+    refineLabel,
+    setName,
+    detailSummary,
+    detailStats,
+    detailNotes,
+    detailUniqueEffects,
+    detailDescription,
+    detail: detailItem || baseItem.detail || null
+  };
+}
+
 function buildListingDisplay(listing, config, detailLookup = null) {
   if (!listing || typeof listing !== 'object') {
     return null;
@@ -317,16 +465,23 @@ function buildListingDisplay(listing, config, detailLookup = null) {
     inventoryId && detailLookup && typeof detailLookup === 'object' ? detailLookup[inventoryId] : null;
   const detailSource = lookupDetail || (rawItem && typeof rawItem.detail === 'object' ? rawItem.detail : null);
   const item = mergeEquipmentDetailSnapshot({ ...rawItem }, detailSource);
-  if (!item.displayName && item.label) {
-    item.displayName = item.label;
+  const equipment = buildEquipmentDisplayModel(item, detailSource || (item && item.detail) || null, {
+    fallbackName: '神秘装备',
+    shortNameLimit: 6
+  });
+  const displayItem = equipment ? { ...item, ...equipment } : item;
+  if (displayItem && typeof displayItem === 'object') {
+    displayItem.displayName = equipment ? equipment.displayName : displayItem.displayName || displayItem.label;
+    displayItem.label = displayItem.displayName || displayItem.label;
   }
-  let refine = Number(item.refine);
-  if (!Number.isFinite(refine)) {
-    refine = Number(rawItem.refine);
+  const cardTitle = equipment
+    ? equipment.refine > 0
+      ? `${equipment.displayName} · 强化 +${equipment.refine}`
+      : equipment.displayName
+    : resolveEquipmentName(item, '神秘装备');
+  if (displayItem) {
+    displayItem.displayTitle = cardTitle;
   }
-  refine = Number.isFinite(refine) ? Math.max(0, Math.trunc(refine)) : 0;
-  const baseName = resolveEquipmentName(item, '神秘装备');
-  const name = `${baseName}${refine > 0 ? ` · 强化 +${refine}` : ''}`;
   const price = listing.currentPrice || listing.fixedPrice || listing.startPrice || 0;
   const displayPrice = `${price} 灵石`;
   const remaining = formatRemainingTime(listing.expiresAt);
@@ -340,12 +495,13 @@ function buildListingDisplay(listing, config, detailLookup = null) {
     : basePrice;
   return {
     ...listing,
-    displayName: name,
+    displayName: cardTitle,
     displayPrice,
     displayRemaining: remaining,
     statusLabel,
     minBidHint: `${minBid} 灵石`,
-    item
+    item: displayItem,
+    equipment
   };
 }
 
@@ -353,102 +509,71 @@ function buildSellableItemDisplay(item, index = 0, detail = null) {
   if (!item || typeof item !== 'object') {
     return null;
   }
-  const inventoryIdRaw =
-    typeof item.inventoryId === 'string'
-      ? item.inventoryId
-      : item.inventoryId !== undefined && item.inventoryId !== null
-      ? String(item.inventoryId)
-      : '';
-  const inventoryId = inventoryIdRaw.trim();
-  if (!inventoryId) {
+  const equipment = buildEquipmentDisplayModel(item, detail, {
+    fallbackName: `装备 ${index + 1}`,
+    shortNameLimit: 6
+  });
+  if (!equipment || !equipment.inventoryId) {
     return null;
   }
-  const detailItem = detail && typeof detail === 'object' ? detail : null;
-  const refineValue = detailItem && typeof detailItem.refine === 'number' ? detailItem.refine : Number(item.refine);
-  const refine = Number.isFinite(refineValue) ? Math.max(0, Math.trunc(refineValue)) : 0;
-  const levelValue = detailItem && typeof detailItem.level === 'number' ? detailItem.level : Number(item.level);
-  const level = Number.isFinite(levelValue) && levelValue > 0 ? Math.trunc(levelValue) : null;
-  const slotLabel =
-    (detailItem && typeof detailItem.slotLabel === 'string' && detailItem.slotLabel.trim()) ||
-    (typeof item.slotLabel === 'string' && item.slotLabel.trim()) ||
-    '';
-  const qualityKey = detailItem && typeof detailItem.quality === 'string' ? detailItem.quality : typeof item.quality === 'string' ? item.quality : 'mortal';
-  const qualityMeta = EQUIPMENT_QUALITY_META[qualityKey] || EQUIPMENT_QUALITY_META.mortal;
-  let iconUrl = detailItem && typeof detailItem.iconUrl === 'string' ? detailItem.iconUrl : '';
-  let iconFallbackUrl =
-    detailItem && typeof detailItem.iconFallbackUrl === 'string' ? detailItem.iconFallbackUrl : '';
-  if (!iconUrl || !iconFallbackUrl) {
-    const iconSource = detailItem || item;
-    const iconPaths = buildEquipmentIconPaths(iconSource);
-    iconUrl = iconUrl || iconPaths.iconUrl;
-    iconFallbackUrl = iconFallbackUrl || iconPaths.iconFallbackUrl;
-  }
-  const baseName = resolveEquipmentName(detailItem || item, `装备 ${index + 1}`);
-  const displayName = baseName;
-  const shortName =
-    (typeof item.shortName === 'string' && item.shortName) ||
-    (displayName.length > 6 ? `${displayName.slice(0, 5)}…` : displayName);
-  const obtainedAt = (detailItem && detailItem.obtainedAt) || item.obtainedAt || null;
-  const obtainedAtText =
-    (detailItem && typeof detailItem.obtainedAtText === 'string' && detailItem.obtainedAtText) ||
-    (obtainedAt ? formatDateTime(obtainedAt) : '');
-  const refineLabel =
-    (detailItem && typeof detailItem.refineLabel === 'string' && detailItem.refineLabel) ||
-    (refine > 0 ? `精炼 +${refine}` : '未精炼');
-  const setName =
-    (detailItem && typeof detailItem.setName === 'string' && detailItem.setName.trim()) || '';
-  const detailStats = normalizeDisplayLines(
-    detailItem && Array.isArray(detailItem.statsText) ? detailItem.statsText : []
-  );
-  const detailNotes = normalizeDisplayLines(
-    detailItem && Array.isArray(detailItem.notes) ? detailItem.notes : []
-  );
-  const detailDescription =
-    (detailItem && typeof detailItem.description === 'string' && detailItem.description.trim()) || '';
-  const summaryParts = normalizeDisplayLines([
-    slotLabel ? `槽位：${slotLabel}` : '',
-    level ? `等级 ${level}` : '',
-    refineLabel,
-    setName ? `套装：${setName}` : ''
-  ]);
   return {
     ...item,
-    inventoryId,
-    refine,
-    level,
-    label: displayName,
-    displayName,
-    shortName,
-    iconUrl: iconUrl || item.iconUrl || '',
-    iconFallbackUrl: iconFallbackUrl || item.iconFallbackUrl || '',
-    qualityColor:
-      (detailItem && typeof detailItem.qualityColor === 'string' && detailItem.qualityColor) ||
-      item.qualityColor ||
-      qualityMeta.color,
-    qualityLabel:
-      (detailItem && typeof detailItem.qualityLabel === 'string' && detailItem.qualityLabel) ||
-      item.qualityLabel ||
-      qualityMeta.label,
-    obtainedAtText,
-    slotLabel,
-    refineLabel,
-    detailSummary: summaryParts.length ? summaryParts : [qualityMeta.label],
-    detailStats,
-    detailNotes,
-    detailDescription,
+    inventoryId: equipment.inventoryId,
+    refine: equipment.refine,
+    level: equipment.level,
+    label: equipment.displayName,
+    displayName: equipment.displayName,
+    shortName: equipment.shortName,
+    iconUrl: equipment.iconUrl,
+    iconFallbackUrl: equipment.iconFallbackUrl,
+    qualityColor: equipment.qualityColor,
+    qualityLabel: equipment.qualityLabel,
+    obtainedAtText: equipment.obtainedAtText,
+    slotLabel: equipment.slotLabel,
+    refineLabel: equipment.refineLabel,
+    detailSummary: equipment.detailSummary,
+    detailStats: equipment.detailStats,
+    detailNotes: equipment.detailNotes,
+    detailUniqueEffects: equipment.detailUniqueEffects,
+    detailDescription: equipment.detailDescription,
+    detail: equipment.detail,
     inventoryIndex: index
   };
 }
 
-function buildBidDisplay(bid) {
+function buildBidDisplay(bid, config, detailLookup = null) {
   if (!bid || typeof bid !== 'object') {
     return null;
   }
   const statusLabel = BID_STATUS_LABELS[bid.status] || '已记录';
+  const listingData = bid.listing && typeof bid.listing === 'object' ? bid.listing : null;
+  const listingDisplay = listingData ? buildListingDisplay(listingData, config, detailLookup) : null;
+  const listing = listingDisplay || listingData || null;
+  const listingName =
+    (listingDisplay && listingDisplay.displayName) ||
+    resolveEquipmentName(listingData ? listingData.item : null, `挂单 ${bid.listingId || ''}`);
+  const saleModeLabel = listing
+    ? listing.saleMode === 'fixed'
+      ? '一口价'
+      : '拍卖'
+    : '';
+  const currentPrice = listing && Number.isFinite(listing.currentPrice)
+    ? listing.currentPrice
+    : listing && Number.isFinite(listing.fixedPrice)
+    ? listing.fixedPrice
+    : listing && Number.isFinite(listing.startPrice)
+    ? listing.startPrice
+    : null;
+  const currentPriceText = Number.isFinite(currentPrice) ? `${currentPrice} 灵石` : '';
   return {
     ...bid,
     statusLabel,
-    displayTime: formatDateTime(bid.createdAt)
+    displayTime: formatDateTime(bid.createdAt),
+    listing,
+    listingName,
+    saleModeLabel,
+    currentPriceText,
+    item: listing && listing.item ? listing.item : null
   };
 }
 
@@ -569,7 +694,7 @@ Page({
         ? payload.myListings.map((item) => buildListingDisplay(item, config, lookup)).filter(Boolean)
         : [];
       const myBids = Array.isArray(payload && payload.myBids)
-        ? payload.myBids.map((bid) => buildBidDisplay(bid)).filter(Boolean)
+        ? payload.myBids.map((bid) => buildBidDisplay(bid, config, lookup)).filter(Boolean)
         : [];
       const balance = payload && Number.isFinite(payload.balance) ? payload.balance : 0;
       this.setData({
@@ -744,6 +869,49 @@ Page({
     }
     const updates = {};
     updates[`sellableItems[${index}].iconUrl`] = fallback;
+    this.setData(updates);
+  },
+
+  handleSummaryIconError(event) {
+    const dataset = (event && event.target && event.target.dataset) || {};
+    const fallback = dataset.fallback;
+    if (!fallback) {
+      return;
+    }
+    const scope = dataset.scope || '';
+    const index = toNumeric(dataset.index, -1);
+    if (index < 0) {
+      return;
+    }
+    let list;
+    let basePath;
+    if (scope === 'market') {
+      list = this.data.summary && Array.isArray(this.data.summary.listings) ? this.data.summary.listings : [];
+      basePath = `summary.listings[${index}]`;
+    } else if (scope === 'myListings') {
+      list = this.data.summary && Array.isArray(this.data.summary.myListings) ? this.data.summary.myListings : [];
+      basePath = `summary.myListings[${index}]`;
+    } else if (scope === 'myBids') {
+      list = this.data.summary && Array.isArray(this.data.summary.myBids) ? this.data.summary.myBids : [];
+      basePath = `summary.myBids[${index}]`;
+    } else {
+      return;
+    }
+    if (!Array.isArray(list) || !list[index]) {
+      return;
+    }
+    const updates = {};
+    updates[`${basePath}.item.iconUrl`] = fallback;
+    updates[`${basePath}.item.iconFallbackUrl`] = fallback;
+    const target = list[index];
+    if (target && target.equipment) {
+      updates[`${basePath}.equipment.iconUrl`] = fallback;
+      updates[`${basePath}.equipment.iconFallbackUrl`] = fallback;
+    }
+    if (scope === 'myBids' && target && target.listing && target.listing.item) {
+      updates[`${basePath}.listing.item.iconUrl`] = fallback;
+      updates[`${basePath}.listing.item.iconFallbackUrl`] = fallback;
+    }
     this.setData(updates);
   },
 
