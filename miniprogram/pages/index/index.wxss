@@ -122,6 +122,7 @@ page {
   z-index: 1;
   animation: drift 18s linear infinite;
   opacity: 0.4;
+  transform: translateX(-4%);
 }
 
 .mist-layer--one {
@@ -136,13 +137,13 @@ page {
 
 @keyframes drift {
   0% {
-    transform: translateX(0);
+    transform: translateX(-4%);
   }
   50% {
-    transform: translateX(8%);
+    transform: translateX(4%);
   }
   100% {
-    transform: translateX(0);
+    transform: translateX(-4%);
   }
 }
 
