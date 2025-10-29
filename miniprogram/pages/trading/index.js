@@ -88,6 +88,10 @@ function buildEquipmentDetailLookup(profile) {
   return lookup;
 }
 
+function hasLookupEntries(lookup) {
+  return !!(lookup && typeof lookup === 'object' && Object.keys(lookup).length);
+}
+
 function toNumeric(value, fallback = 0) {
   const number = Number(value);
   if (Number.isFinite(number)) {
@@ -141,13 +145,23 @@ function formatRemainingTime(value) {
   return `${seconds} 秒`;
 }
 
-function buildListingDisplay(listing, config) {
+function buildListingDisplay(listing, config, detailLookup = null) {
   if (!listing || typeof listing !== 'object') {
     return null;
   }
   const item = listing.item || {};
-  const refine = Number.isFinite(item.refine) ? item.refine : 0;
-  const baseName = resolveEquipmentName(item, '神秘装备');
+  const inventoryId =
+    typeof item.inventoryId === 'string'
+      ? item.inventoryId.trim()
+      : item.inventoryId !== undefined && item.inventoryId !== null
+      ? String(item.inventoryId).trim()
+      : '';
+  const equipmentDetail =
+    inventoryId && detailLookup && typeof detailLookup === 'object' ? detailLookup[inventoryId] : null;
+  const refineSource =
+    equipmentDetail && typeof equipmentDetail.refine === 'number' ? equipmentDetail.refine : item.refine;
+  const refine = Number.isFinite(refineSource) ? Math.max(0, Math.trunc(refineSource)) : 0;
+  const baseName = resolveEquipmentName(equipmentDetail || item, '神秘装备');
   const name = `${baseName}${refine > 0 ? ` · 强化 +${refine}` : ''}`;
   const price = listing.currentPrice || listing.fixedPrice || listing.startPrice || 0;
   const displayPrice = `${price} 灵石`;
@@ -294,6 +308,7 @@ Page({
     publishSubmitting: false,
     sellableLoading: false,
     sellableItems: [],
+    equipmentDetailLookup: {},
     publishStep: 'select',
     selectedSellableItem: null,
     publishForm: {
@@ -319,6 +334,46 @@ Page({
     this.fetchDashboard();
   },
 
+  ensureEquipmentLookup(forceRefresh = false) {
+    if (!forceRefresh) {
+      if (hasLookupEntries(this.data && this.data.equipmentDetailLookup)) {
+        this._equipmentLookup = this.data.equipmentDetailLookup;
+        return Promise.resolve(this.data.equipmentDetailLookup);
+      }
+      if (hasLookupEntries(this._equipmentLookup)) {
+        return Promise.resolve(this._equipmentLookup);
+      }
+      if (this._equipmentLookupPromise) {
+        return this._equipmentLookupPromise;
+      }
+    } else if (this._equipmentLookupPromise) {
+      return this._equipmentLookupPromise;
+    }
+
+    const request = PveService.profile()
+      .then((profile) => {
+        const lookup = buildEquipmentDetailLookup(profile || null);
+        this._equipmentLookup = lookup;
+        this.setData({ equipmentDetailLookup: lookup });
+        return lookup;
+      })
+      .catch((error) => {
+        console.warn('[trading] ensure equipment lookup failed', error);
+        const empty = {};
+        this._equipmentLookup = empty;
+        this.setData({ equipmentDetailLookup: empty });
+        return empty;
+      })
+      .finally(() => {
+        if (this._equipmentLookupPromise === request) {
+          this._equipmentLookupPromise = null;
+        }
+      });
+
+    this._equipmentLookupPromise = request;
+    return request;
+  },
+
   onPullDownRefresh() {
     this.handleRefresh();
   },
@@ -336,13 +391,17 @@ Page({
   async fetchDashboard() {
     this.setData({ loading: true, error: '' });
     try {
-      const payload = await TradingService.dashboard();
+      const [payload, equipmentLookup] = await Promise.all([
+        TradingService.dashboard(),
+        this.ensureEquipmentLookup(false)
+      ]);
+      const lookup = equipmentLookup && typeof equipmentLookup === 'object' ? equipmentLookup : {};
       const config = payload && payload.config ? payload.config : this.data.summary.config;
       const listings = Array.isArray(payload && payload.listings)
-        ? payload.listings.map((item) => buildListingDisplay(item, config)).filter(Boolean)
+        ? payload.listings.map((item) => buildListingDisplay(item, config, lookup)).filter(Boolean)
         : [];
       const myListings = Array.isArray(payload && payload.myListings)
-        ? payload.myListings.map((item) => buildListingDisplay(item, config)).filter(Boolean)
+        ? payload.myListings.map((item) => buildListingDisplay(item, config, lookup)).filter(Boolean)
         : [];
       const myBids = Array.isArray(payload && payload.myBids)
         ? payload.myBids.map((bid) => buildBidDisplay(bid)).filter(Boolean)
@@ -398,14 +457,11 @@ Page({
       }
     });
     try {
-      const [sellableRes, profileRes] = await Promise.all([
+      const [sellableRes, equipmentLookup] = await Promise.all([
         TradingService.sellable(),
-        PveService.profile().catch((error) => {
-          console.warn('[trading] load equipment profile failed', error);
-          return null;
-        })
+        this.ensureEquipmentLookup(true)
       ]);
-      const detailLookup = buildEquipmentDetailLookup(profileRes || null);
+      const detailLookup = equipmentLookup && typeof equipmentLookup === 'object' ? equipmentLookup : {};
       const items = Array.isArray(sellableRes && sellableRes.items) ? sellableRes.items : [];
       const sellableItems = items
         .map((item, index) => {
