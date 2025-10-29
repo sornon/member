@@ -67,6 +67,163 @@ function normalizeDisplayLines(list) {
   return normalized;
 }
 
+function sanitizeEquipmentDetailSnapshot(detail) {
+  if (!detail || typeof detail !== 'object') {
+    return {};
+  }
+  const sanitized = {};
+  const assignString = (targetKey, sourceKeys) => {
+    const keys = Array.isArray(sourceKeys) ? sourceKeys : [sourceKeys];
+    for (let index = 0; index < keys.length; index += 1) {
+      const value = detail[keys[index]];
+      if (typeof value === 'string') {
+        const trimmed = value.trim();
+        if (trimmed) {
+          sanitized[targetKey] = trimmed;
+          return;
+        }
+      }
+    }
+  };
+
+  assignString('displayName', ['displayName', 'label', 'name', 'cnName', 'itemName']);
+  if (sanitized.displayName) {
+    sanitized.label = sanitized.displayName;
+  } else {
+    assignString('label', 'label');
+  }
+  assignString('shortName', 'shortName');
+  assignString('iconUrl', 'iconUrl');
+  assignString('iconFallbackUrl', ['iconFallbackUrl', 'fallbackIconUrl']);
+  assignString('slot', 'slot');
+  assignString('slotLabel', 'slotLabel');
+  assignString('quality', 'quality');
+  assignString('qualityLabel', 'qualityLabel');
+  assignString('qualityColor', 'qualityColor');
+  assignString('refineLabel', 'refineLabel');
+  assignString('setName', 'setName');
+  assignString('description', ['detailDescription', 'description']);
+  if (sanitized.description) {
+    sanitized.detailDescription = sanitized.description;
+  }
+  assignString('obtainedAtText', 'obtainedAtText');
+  assignString('setId', 'setId');
+  assignString('iconId', 'iconId');
+
+  const assignNumeric = (targetKey, sourceKeys, options = {}) => {
+    const keys = Array.isArray(sourceKeys) ? sourceKeys : [sourceKeys];
+    for (let index = 0; index < keys.length; index += 1) {
+      const number = Number(detail[keys[index]]);
+      if (!Number.isFinite(number)) {
+        continue;
+      }
+      let numeric = number;
+      if (typeof options.min === 'number') {
+        numeric = Math.max(options.min, numeric);
+      }
+      if (options.round === 'floor') {
+        numeric = Math.floor(numeric);
+      } else if (options.round === 'ceil') {
+        numeric = Math.ceil(numeric);
+      }
+      sanitized[targetKey] = numeric;
+      return;
+    }
+  };
+
+  assignNumeric('refine', 'refine', { min: 0, round: 'floor' });
+  assignNumeric('level', 'level', { min: 1, round: 'floor' });
+  assignNumeric('qualityRank', 'qualityRank', { min: 0, round: 'floor' });
+
+  if (detail.obtainedAt instanceof Date) {
+    sanitized.obtainedAt = detail.obtainedAt;
+  } else if (typeof detail.obtainedAt === 'string' && detail.obtainedAt.trim()) {
+    sanitized.obtainedAt = detail.obtainedAt.trim();
+  }
+
+  const detailSummary = normalizeDisplayLines(
+    Array.isArray(detail.detailSummary) ? detail.detailSummary : detail.summary
+  );
+  if (detailSummary.length) {
+    sanitized.detailSummary = detailSummary;
+  }
+
+  const statsText = normalizeDisplayLines(
+    Array.isArray(detail.detailStats)
+      ? detail.detailStats
+      : Array.isArray(detail.statsText)
+      ? detail.statsText
+      : []
+  );
+  if (statsText.length) {
+    sanitized.detailStats = statsText;
+    sanitized.statsText = statsText;
+  }
+
+  const notes = normalizeDisplayLines(
+    Array.isArray(detail.detailNotes)
+      ? detail.detailNotes
+      : Array.isArray(detail.notes)
+      ? detail.notes
+      : []
+  );
+  if (notes.length) {
+    sanitized.detailNotes = notes;
+    sanitized.notes = notes;
+  }
+
+  const uniqueEffects = normalizeDisplayLines(
+    Array.isArray(detail.uniqueEffects)
+      ? detail.uniqueEffects.map((entry) => {
+          if (!entry) {
+            return '';
+          }
+          if (typeof entry === 'string') {
+            return entry;
+          }
+          if (typeof entry.description === 'string') {
+            return entry.description;
+          }
+          return '';
+        })
+      : []
+  );
+  if (uniqueEffects.length) {
+    sanitized.uniqueEffects = uniqueEffects;
+  }
+
+  return sanitized;
+}
+
+function mergeEquipmentDetailSnapshot(base, detail) {
+  const target = base && typeof base === 'object' ? { ...base } : {};
+  const normalized = sanitizeEquipmentDetailSnapshot(detail);
+  if (!Object.keys(normalized).length) {
+    return target;
+  }
+  const mergedDetail = { ...(target.detail || {}), ...normalized };
+  target.detail = mergedDetail;
+  Object.keys(normalized).forEach((key) => {
+    const value = normalized[key];
+    if (typeof value === 'undefined') {
+      return;
+    }
+    if (Array.isArray(value) && !value.length) {
+      return;
+    }
+    if (value === null || value === '') {
+      return;
+    }
+    target[key] = value;
+  });
+  return target;
+}
+
+function extractEquipmentDetailSnapshot(item) {
+  const snapshot = sanitizeEquipmentDetailSnapshot(item);
+  return Object.keys(snapshot).length ? snapshot : null;
+}
+
 function buildEquipmentDetailLookup(profile) {
   if (!profile || typeof profile !== 'object') {
     return {};
@@ -149,19 +306,26 @@ function buildListingDisplay(listing, config, detailLookup = null) {
   if (!listing || typeof listing !== 'object') {
     return null;
   }
-  const item = listing.item || {};
+  const rawItem = listing.item && typeof listing.item === 'object' ? listing.item : {};
   const inventoryId =
-    typeof item.inventoryId === 'string'
-      ? item.inventoryId.trim()
-      : item.inventoryId !== undefined && item.inventoryId !== null
-      ? String(item.inventoryId).trim()
+    typeof rawItem.inventoryId === 'string'
+      ? rawItem.inventoryId.trim()
+      : rawItem.inventoryId !== undefined && rawItem.inventoryId !== null
+      ? String(rawItem.inventoryId).trim()
       : '';
-  const equipmentDetail =
+  const lookupDetail =
     inventoryId && detailLookup && typeof detailLookup === 'object' ? detailLookup[inventoryId] : null;
-  const refineSource =
-    equipmentDetail && typeof equipmentDetail.refine === 'number' ? equipmentDetail.refine : item.refine;
-  const refine = Number.isFinite(refineSource) ? Math.max(0, Math.trunc(refineSource)) : 0;
-  const baseName = resolveEquipmentName(equipmentDetail || item, '神秘装备');
+  const detailSource = lookupDetail || (rawItem && typeof rawItem.detail === 'object' ? rawItem.detail : null);
+  const item = mergeEquipmentDetailSnapshot({ ...rawItem }, detailSource);
+  if (!item.displayName && item.label) {
+    item.displayName = item.label;
+  }
+  let refine = Number(item.refine);
+  if (!Number.isFinite(refine)) {
+    refine = Number(rawItem.refine);
+  }
+  refine = Number.isFinite(refine) ? Math.max(0, Math.trunc(refine)) : 0;
+  const baseName = resolveEquipmentName(item, '神秘装备');
   const name = `${baseName}${refine > 0 ? ` · 强化 +${refine}` : ''}`;
   const price = listing.currentPrice || listing.fixedPrice || listing.startPrice || 0;
   const displayPrice = `${price} 灵石`;
@@ -180,7 +344,8 @@ function buildListingDisplay(listing, config, detailLookup = null) {
     displayPrice,
     displayRemaining: remaining,
     statusLabel,
-    minBidHint: `${minBid} 灵石`
+    minBidHint: `${minBid} 灵石`,
+    item
   };
 }
 
@@ -654,6 +819,13 @@ Page({
       const buyoutPrice = toNumeric(form.buyoutPrice, 0);
       if (buyoutPrice > 0) {
         payload.buyoutPrice = buyoutPrice;
+      }
+    }
+    const selectedItem = this.data.selectedSellableItem;
+    if (selectedItem) {
+      const detailSnapshot = extractEquipmentDetailSnapshot(selectedItem);
+      if (detailSnapshot) {
+        payload.inventoryDetail = detailSnapshot;
       }
     }
     this.setData({ publishSubmitting: true });

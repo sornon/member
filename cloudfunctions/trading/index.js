@@ -270,6 +270,160 @@ function resolveBidIncrement(basePrice, incrementInput, config = {}) {
   return Math.max(minIncrement, Math.floor(provided));
 }
 
+function sanitizeString(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.trim();
+}
+
+function sanitizeStringArray(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  const seen = new Set();
+  const normalized = [];
+  list.forEach((entry) => {
+    if (typeof entry !== 'string') {
+      return;
+    }
+    const trimmed = entry.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      return;
+    }
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  });
+  return normalized;
+}
+
+function sanitizeEquipmentDetail(detail) {
+  if (!detail || typeof detail !== 'object') {
+    return {};
+  }
+  const normalized = {};
+  const assignString = (targetKey, sourceKeys) => {
+    const keys = Array.isArray(sourceKeys) ? sourceKeys : [sourceKeys];
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      const value = sanitizeString(detail[key]);
+      if (value) {
+        normalized[targetKey] = value;
+        return;
+      }
+    }
+  };
+
+  assignString('displayName', ['displayName', 'label', 'name', 'cnName', 'itemName']);
+  if (normalized.displayName) {
+    normalized.label = normalized.displayName;
+  } else if (sanitizeString(detail.label)) {
+    normalized.label = sanitizeString(detail.label);
+  }
+  assignString('shortName', 'shortName');
+  assignString('slot', 'slot');
+  assignString('slotLabel', 'slotLabel');
+  assignString('refineLabel', 'refineLabel');
+  assignString('qualityLabel', 'qualityLabel');
+  assignString('qualityColor', 'qualityColor');
+  assignString('setName', 'setName');
+  assignString('description', ['description', 'detailDescription']);
+  if (normalized.description) {
+    normalized.detailDescription = normalized.description;
+  }
+  assignString('iconUrl', 'iconUrl');
+  assignString('iconFallbackUrl', ['iconFallbackUrl', 'fallbackIconUrl']);
+  assignString('obtainedAtText', 'obtainedAtText');
+  assignString('setId', 'setId');
+  assignString('quality', 'quality');
+  assignString('iconId', 'iconId');
+
+  const assignNumeric = (targetKey, sourceKeys, options = {}) => {
+    const keys = Array.isArray(sourceKeys) ? sourceKeys : [sourceKeys];
+    for (let index = 0; index < keys.length; index += 1) {
+      const key = keys[index];
+      const value = Number(detail[key]);
+      if (!Number.isFinite(value)) {
+        continue;
+      }
+      let numeric = value;
+      if (typeof options.min === 'number') {
+        numeric = Math.max(options.min, numeric);
+      }
+      if (options.round === 'floor') {
+        numeric = Math.floor(numeric);
+      } else if (options.round === 'ceil') {
+        numeric = Math.ceil(numeric);
+      }
+      normalized[targetKey] = numeric;
+      return;
+    }
+  };
+
+  assignNumeric('refine', 'refine', { min: 0, round: 'floor' });
+  assignNumeric('level', 'level', { min: 1, round: 'floor' });
+  assignNumeric('qualityRank', 'qualityRank', { min: 0, round: 'floor' });
+
+  if (detail.obtainedAt instanceof Date) {
+    normalized.obtainedAt = detail.obtainedAt;
+  } else if (typeof detail.obtainedAt === 'string' && detail.obtainedAt.trim()) {
+    normalized.obtainedAt = detail.obtainedAt.trim();
+  }
+
+  const detailSummary = sanitizeStringArray(
+    Array.isArray(detail.detailSummary) ? detail.detailSummary : detail.summary
+  );
+  if (detailSummary.length) {
+    normalized.detailSummary = detailSummary;
+  }
+
+  const statsText = sanitizeStringArray(
+    Array.isArray(detail.detailStats)
+      ? detail.detailStats
+      : Array.isArray(detail.statsText)
+      ? detail.statsText
+      : []
+  );
+  if (statsText.length) {
+    normalized.detailStats = statsText;
+    normalized.statsText = statsText;
+  }
+
+  const notes = sanitizeStringArray(
+    Array.isArray(detail.detailNotes)
+      ? detail.detailNotes
+      : Array.isArray(detail.notes)
+      ? detail.notes
+      : []
+  );
+  if (notes.length) {
+    normalized.detailNotes = notes;
+    normalized.notes = notes;
+  }
+
+  const uniqueEffects = sanitizeStringArray(
+    Array.isArray(detail.uniqueEffects)
+      ? detail.uniqueEffects.map((entry) => {
+          if (!entry) {
+            return '';
+          }
+          if (typeof entry === 'string') {
+            return entry;
+          }
+          if (typeof entry.description === 'string') {
+            return entry.description;
+          }
+          return '';
+        })
+      : []
+  );
+  if (uniqueEffects.length) {
+    normalized.uniqueEffects = uniqueEffects;
+  }
+
+  return normalized;
+}
+
 function sanitizeEquipmentEntry(entry) {
   if (!entry || typeof entry !== 'object') {
     return null;
@@ -300,6 +454,19 @@ function buildEquipmentSummary(entry) {
   if (!sanitized) {
     return null;
   }
+  const detailSource = entry && typeof entry === 'object' ? entry.detail || entry : null;
+  const detail = sanitizeEquipmentDetail(detailSource);
+  if (!Object.keys(detail).length) {
+    return {
+      inventoryId: sanitized.inventoryId,
+      itemId: sanitized.itemId,
+      level: sanitized.level,
+      refine: sanitized.refine,
+      quality: sanitized.quality,
+      favorite: sanitized.favorite,
+      obtainedAt: sanitized.obtainedAt || null
+    };
+  }
   return {
     inventoryId: sanitized.inventoryId,
     itemId: sanitized.itemId,
@@ -307,7 +474,9 @@ function buildEquipmentSummary(entry) {
     refine: sanitized.refine,
     quality: sanitized.quality,
     favorite: sanitized.favorite,
-    obtainedAt: sanitized.obtainedAt || null
+    obtainedAt: sanitized.obtainedAt || null,
+    ...detail,
+    detail
   };
 }
 
@@ -748,6 +917,32 @@ async function handleCreateListing(memberId, event = {}) {
       throw createError('ITEM_LOCKED', '默认赠送装备不可交易');
     }
 
+    const clientDetailSource =
+      (event && typeof event.inventoryDetail === 'object' && event.inventoryDetail) ||
+      (event && typeof event.detail === 'object' && event.detail) ||
+      (event && typeof event.itemDetail === 'object' && event.itemDetail) ||
+      null;
+    const detailSnapshot = sanitizeEquipmentDetail(clientDetailSource);
+    if (!detailSnapshot.displayName) {
+      const fallbackName =
+        sanitizeString(item.displayName || item.label || item.name || item.cnName || item.itemName) ||
+        sanitizeString(clientDetailSource && clientDetailSource.name);
+      if (fallbackName) {
+        detailSnapshot.displayName = fallbackName;
+        detailSnapshot.label = fallbackName;
+      }
+    }
+    if (!Object.prototype.hasOwnProperty.call(detailSnapshot, 'refine') && typeof sanitizedItem.refine === 'number') {
+      detailSnapshot.refine = sanitizedItem.refine;
+    }
+    if (!Object.prototype.hasOwnProperty.call(detailSnapshot, 'level') && typeof sanitizedItem.level === 'number') {
+      detailSnapshot.level = sanitizedItem.level;
+    }
+    const itemSnapshot = { ...sanitizedItem };
+    if (Object.keys(detailSnapshot).length) {
+      itemSnapshot.detail = detailSnapshot;
+    }
+
     await memberRef.update({
       data: {
         'pveProfile.equipment.inventory': _.pull({ inventoryId }),
@@ -766,7 +961,7 @@ async function handleCreateListing(memberId, event = {}) {
       buyoutPrice: buyoutPrice > 0 ? buyoutPrice : null,
       bidIncrement: saleMode === 'auction' ? bidIncrement : null,
       bidCount: 0,
-      itemSnapshot: sanitizedItem,
+      itemSnapshot,
       bidHistory: [],
       currentBidderId: '',
       currentBidderName: '',
