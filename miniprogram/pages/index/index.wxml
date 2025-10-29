@@ -34,11 +34,15 @@
     wx:if="{{showStartupOverlay}}"
     class="startup-video-layer {{startupVideoFading ? 'startup-video-layer--fading' : ''}}"
   >
-    <image class="startup-cover" src="{{startupCoverImage}}" mode="aspectFill"></image>
+    <image
+      class="startup-cover {{startupVideoVisible ? 'startup-cover--hidden' : ''}}"
+      src="{{startupCoverImage}}"
+      mode="aspectFill"
+    ></image>
     <video
-      wx:if="{{startupVideoVisible}}"
+      wx:if="{{startupVideoMounted}}"
       id="startupVideo"
-      class="startup-video"
+      class="startup-video {{startupVideoVisible ? 'startup-video--visible' : ''}}"
       src="{{startupVideoSource}}"
       autoplay
       muted
@@ -51,6 +55,8 @@
       enable-progress-gesture="{{false}}"
       objectFit="cover"
       poster="{{startupCoverImage}}"
+      bindloadedmetadata="handleStartupVideoLoaded"
+      bindloadeddata="handleStartupVideoLoaded"
       bindtimeupdate="handleStartupVideoTimeUpdate"
       bindended="handleStartupVideoEnded"
       binderror="handleStartupVideoError"

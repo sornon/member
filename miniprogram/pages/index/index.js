@@ -1189,6 +1189,7 @@ Page({
     startupVideoSource: STARTUP_VIDEO_SOURCE,
     startupCoverImage: STARTUP_COVER_IMAGE,
     showStartupOverlay: true,
+    startupVideoMounted: false,
     startupVideoVisible: false,
     startupVideoFading: false,
     globalBackgroundEnforced: false,
@@ -1418,10 +1419,12 @@ Page({
     this.startupVideoDismissed = false;
     this.startupVideoFadeTimeout = null;
     this.startupVideoActivationTimer = null;
+    this.startupVideoContext = null;
     this.setData({
       startupVideoSource: STARTUP_VIDEO_SOURCE,
       startupCoverImage: STARTUP_COVER_IMAGE,
       showStartupOverlay: true,
+      startupVideoMounted: false,
       startupVideoVisible: false,
       startupVideoFading: false
     });
@@ -1520,6 +1523,7 @@ Page({
     this.detachMemberRealtime();
     this.clearStartupVideoFadeTimer();
     this.clearStartupVideoActivationTimer();
+    this.stopStartupVideo();
     try {
       const pages = getCurrentPages();
       if (Array.isArray(pages) && pages.length > 1) {
@@ -1534,6 +1538,7 @@ Page({
     this.detachMemberRealtime();
     this.clearStartupVideoFadeTimer();
     this.clearStartupVideoActivationTimer();
+    this.stopStartupVideo();
   },
 
   ensureNavMetrics() {
@@ -1577,8 +1582,50 @@ Page({
     }
   },
 
+  ensureStartupVideoContext() {
+    if (this.startupVideoContext) {
+      return this.startupVideoContext;
+    }
+    if (typeof wx === 'undefined' || !wx || typeof wx.createVideoContext !== 'function') {
+      return null;
+    }
+    try {
+      this.startupVideoContext = wx.createVideoContext('startupVideo', this);
+    } catch (error) {
+      console.warn('[index] create startup video context failed', error);
+      this.startupVideoContext = null;
+    }
+    return this.startupVideoContext;
+  },
+
+  playStartupVideo() {
+    const context = this.ensureStartupVideoContext();
+    if (context && typeof context.play === 'function') {
+      try {
+        context.play();
+      } catch (error) {
+        console.warn('[index] play startup video failed', error);
+      }
+    }
+  },
+
+  stopStartupVideo() {
+    if (!this.startupVideoContext) {
+      return;
+    }
+    const context = this.startupVideoContext;
+    this.startupVideoContext = null;
+    if (typeof context.stop === 'function') {
+      try {
+        context.stop();
+      } catch (error) {
+        console.warn('[index] stop startup video failed', error);
+      }
+    }
+  },
+
   activateStartupVideo() {
-    if (this.startupVideoDismissed || this.data.startupVideoVisible) {
+    if (this.startupVideoDismissed || this.data.startupVideoMounted) {
       return;
     }
     if (this.startupVideoActivationTimer) {
@@ -1586,10 +1633,12 @@ Page({
     }
     this.startupVideoActivationTimer = setTimeout(() => {
       this.startupVideoActivationTimer = null;
-      if (this.startupVideoDismissed || this.data.startupVideoVisible) {
+      if (this.startupVideoDismissed || this.data.startupVideoMounted) {
         return;
       }
-      this.setData({ startupVideoVisible: true });
+      this.setData({ startupVideoMounted: true }, () => {
+        this.playStartupVideo();
+      });
     }, STARTUP_VIDEO_ACTIVATION_DELAY_MS);
   },
 
@@ -1603,9 +1652,11 @@ Page({
     if (immediate) {
       this.setData({
         showStartupOverlay: false,
+        startupVideoMounted: false,
         startupVideoVisible: false,
         startupVideoFading: false
       });
+      this.stopStartupVideo();
       return;
     }
     this.setData({ startupVideoFading: true });
@@ -1613,9 +1664,11 @@ Page({
       this.startupVideoFadeTimeout = null;
       this.setData({
         showStartupOverlay: false,
+        startupVideoMounted: false,
         startupVideoVisible: false,
         startupVideoFading: false
       });
+      this.stopStartupVideo();
     }, STARTUP_VIDEO_FADE_DURATION_MS);
   },
 
@@ -1632,6 +1685,16 @@ Page({
 
   handleStartupVideoEnded() {
     this.triggerStartupVideoFade();
+  },
+
+  handleStartupVideoLoaded() {
+    if (this.startupVideoDismissed || this.data.startupVideoVisible) {
+      this.playStartupVideo();
+      return;
+    }
+    this.setData({ startupVideoVisible: true }, () => {
+      this.playStartupVideo();
+    });
   },
 
   handleStartupVideoError() {
