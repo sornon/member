@@ -30,6 +30,38 @@
   <view class="background background--overlay background-layer {{showBackgroundOverlay ? 'background-layer--visible' : ''}}"></view>
   <view class="mist-layer mist-layer--one background-layer {{showBackgroundOverlay ? 'background-layer--visible' : ''}}"></view>
   <view class="mist-layer mist-layer--two background-layer {{showBackgroundOverlay ? 'background-layer--visible' : ''}}"></view>
+  <view
+    wx:if="{{showStartupOverlay}}"
+    class="startup-video-layer {{startupVideoFading ? 'startup-video-layer--fading' : ''}}"
+  >
+    <image
+      class="startup-cover {{startupVideoVisible ? 'startup-cover--hidden' : ''}}"
+      src="{{startupCoverImage}}"
+      mode="aspectFill"
+    ></image>
+    <video
+      wx:if="{{startupVideoMounted}}"
+      id="startupVideo"
+      class="startup-video {{startupVideoVisible ? 'startup-video--visible' : ''}}"
+      src="{{startupVideoSource}}"
+      autoplay
+      muted="{{startupVideoMuted}}"
+      loop="{{false}}"
+      controls="{{false}}"
+      show-center-play-btn="{{false}}"
+      show-fullscreen-btn="{{false}}"
+      show-play-btn="{{false}}"
+      show-screen-lock-button="{{false}}"
+      enable-progress-gesture="{{false}}"
+      objectFit="cover"
+      bindloadedmetadata="handleStartupVideoLoaded"
+      bindloadeddata="handleStartupVideoLoaded"
+      bindplay="handleStartupVideoPlay"
+      bindtimeupdate="handleStartupVideoTimeUpdate"
+      bindended="handleStartupVideoEnded"
+      binderror="handleStartupVideoError"
+    ></video>
+  </view>
   <custom-nav title="会员中心" enable-back="{{false}}" theme="transparent"></custom-nav>
 
   <view class="content" wx:if="{{!loading}}" style="min-height: calc(100vh - {{navHeight}}px);">

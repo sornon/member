@@ -24,7 +24,11 @@ const {
   registerCustomBackgrounds,
   normalizeBackgroundCatalog
 } = require('../../shared/backgrounds.js');
-const { AVATAR_IMAGE_BASE_PATH, CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
+const {
+  AVATAR_IMAGE_BASE_PATH,
+  CHARACTER_IMAGE_BASE_PATH,
+  buildCloudAssetUrl
+} = require('../../shared/asset-paths.js');
 const {
   buildTitleImageUrl,
   resolveTitleById,
@@ -57,6 +61,10 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const DEFAULT_CHARACTER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 const STARTUP_COVER_IMAGE = '/cover-20251028.jpg';
+const STARTUP_VIDEO_SOURCE = buildCloudAssetUrl('background', 'cover-20251028.mp4');
+const STARTUP_VIDEO_FADE_OUT_AT_SECONDS = 5;
+const STARTUP_VIDEO_FADE_DURATION_MS = 1000;
+const STARTUP_VIDEO_ACTIVATION_DELAY_MS = 300;
 
 const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
 const CHARACTER_URL_PATTERN = /\/assets\/character\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
@@ -1178,6 +1186,13 @@ Page({
     showBackgroundOverlay: false,
     backgroundVideoError: false,
     dynamicBackgroundEnabled: false,
+    startupVideoSource: STARTUP_VIDEO_SOURCE,
+    startupCoverImage: STARTUP_COVER_IMAGE,
+    showStartupOverlay: true,
+    startupVideoMounted: false,
+    startupVideoVisible: false,
+    startupVideoFading: false,
+    startupVideoMuted: true,
     globalBackgroundEnforced: false,
     navHeight: 88,
     today: '',
@@ -1402,6 +1417,19 @@ Page({
   },
 
   onLoad() {
+    this.startupVideoDismissed = false;
+    this.startupVideoFadeTimeout = null;
+    this.startupVideoActivationTimer = null;
+    this.startupVideoContext = null;
+    this.setData({
+      startupVideoSource: STARTUP_VIDEO_SOURCE,
+      startupCoverImage: STARTUP_COVER_IMAGE,
+      showStartupOverlay: true,
+      startupVideoMounted: false,
+      startupVideoVisible: false,
+      startupVideoFading: false,
+      startupVideoMuted: true
+    });
     this.cacheVersionSynced = false;
     this.cacheVersionSyncResult = null;
     this.cacheVersionSyncPromise = null;
@@ -1486,12 +1514,18 @@ Page({
     this.refreshStorageBadgeIndicator();
     this.attachMemberRealtime();
     this.bootstrap();
+    this.activateStartupVideo();
   },
 
-  onReady() {},
+  onReady() {
+    this.activateStartupVideo();
+  },
 
   onHide() {
     this.detachMemberRealtime();
+    this.clearStartupVideoFadeTimer();
+    this.clearStartupVideoActivationTimer();
+    this.stopStartupVideo();
     try {
       const pages = getCurrentPages();
       if (Array.isArray(pages) && pages.length > 1) {
@@ -1504,6 +1538,9 @@ Page({
 
   onUnload() {
     this.detachMemberRealtime();
+    this.clearStartupVideoFadeTimer();
+    this.clearStartupVideoActivationTimer();
+    this.stopStartupVideo();
   },
 
   ensureNavMetrics() {
@@ -1531,6 +1568,161 @@ Page({
       showBackgroundOverlay: !showVideo,
       backgroundVideoError: hasError
     });
+  },
+
+  clearStartupVideoFadeTimer() {
+    if (this.startupVideoFadeTimeout) {
+      clearTimeout(this.startupVideoFadeTimeout);
+      this.startupVideoFadeTimeout = null;
+    }
+  },
+
+  clearStartupVideoActivationTimer() {
+    if (this.startupVideoActivationTimer) {
+      clearTimeout(this.startupVideoActivationTimer);
+      this.startupVideoActivationTimer = null;
+    }
+  },
+
+  ensureStartupVideoContext() {
+    if (this.startupVideoContext) {
+      return this.startupVideoContext;
+    }
+    if (typeof wx === 'undefined' || !wx || typeof wx.createVideoContext !== 'function') {
+      return null;
+    }
+    try {
+      this.startupVideoContext = wx.createVideoContext('startupVideo', this);
+    } catch (error) {
+      console.warn('[index] create startup video context failed', error);
+      this.startupVideoContext = null;
+    }
+    return this.startupVideoContext;
+  },
+
+  playStartupVideo() {
+    const context = this.ensureStartupVideoContext();
+    if (context && typeof context.play === 'function') {
+      try {
+        context.play();
+      } catch (error) {
+        console.warn('[index] play startup video failed', error);
+      }
+    }
+  },
+
+  stopStartupVideo() {
+    if (!this.startupVideoContext) {
+      return;
+    }
+    const context = this.startupVideoContext;
+    this.startupVideoContext = null;
+    if (!this.startupVideoDismissed && this.data.startupVideoMuted === false) {
+      this.setData({ startupVideoMuted: true });
+    }
+    if (typeof context.mute === 'function') {
+      try {
+        context.mute(true);
+      } catch (error) {
+        console.warn('[index] mute startup video failed', error);
+      }
+    }
+    if (typeof context.stop === 'function') {
+      try {
+        context.stop();
+      } catch (error) {
+        console.warn('[index] stop startup video failed', error);
+      }
+    }
+  },
+
+  activateStartupVideo() {
+    if (this.startupVideoDismissed || this.data.startupVideoMounted) {
+      return;
+    }
+    if (this.startupVideoActivationTimer) {
+      return;
+    }
+    this.startupVideoActivationTimer = setTimeout(() => {
+      this.startupVideoActivationTimer = null;
+      if (this.startupVideoDismissed || this.data.startupVideoMounted) {
+        return;
+      }
+      this.setData({ startupVideoMounted: true });
+    }, STARTUP_VIDEO_ACTIVATION_DELAY_MS);
+  },
+
+  triggerStartupVideoFade(immediate = false) {
+    if (this.startupVideoDismissed) {
+      return;
+    }
+    this.startupVideoDismissed = true;
+    this.clearStartupVideoFadeTimer();
+    this.clearStartupVideoActivationTimer();
+    if (immediate) {
+      this.setData({
+        showStartupOverlay: false,
+        startupVideoMounted: false,
+        startupVideoVisible: false,
+        startupVideoFading: false,
+        startupVideoMuted: true
+      });
+      this.stopStartupVideo();
+      return;
+    }
+    this.setData({ startupVideoFading: true });
+    this.startupVideoFadeTimeout = setTimeout(() => {
+      this.startupVideoFadeTimeout = null;
+      this.setData({
+        showStartupOverlay: false,
+        startupVideoMounted: false,
+        startupVideoVisible: false,
+        startupVideoFading: false,
+        startupVideoMuted: true
+      });
+      this.stopStartupVideo();
+    }, STARTUP_VIDEO_FADE_DURATION_MS);
+  },
+
+  handleStartupVideoTimeUpdate(event) {
+    if (this.startupVideoDismissed) {
+      return;
+    }
+    const detail = event && event.detail ? event.detail : {};
+    const currentTime = Number(detail.currentTime || 0);
+    if (currentTime >= STARTUP_VIDEO_FADE_OUT_AT_SECONDS) {
+      this.triggerStartupVideoFade();
+    }
+  },
+
+  handleStartupVideoEnded() {
+    this.triggerStartupVideoFade();
+  },
+
+  handleStartupVideoLoaded() {
+    if (this.startupVideoDismissed) {
+      return;
+    }
+    this.playStartupVideo();
+  },
+
+  handleStartupVideoPlay() {
+    if (this.startupVideoDismissed || this.data.startupVideoVisible) {
+      return;
+    }
+    const context = this.ensureStartupVideoContext();
+    if (context && typeof context.mute === 'function') {
+      try {
+        context.mute(false);
+      } catch (error) {
+        console.warn('[index] unmute startup video failed', error);
+      }
+    }
+    this.setData({ startupVideoVisible: true, startupVideoMuted: false });
+  },
+
+  handleStartupVideoError() {
+    this.triggerStartupVideoFade(true);
   },
 
   handleBackgroundVideoError() {
