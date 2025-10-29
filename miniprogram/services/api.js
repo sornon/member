@@ -506,6 +506,9 @@ export const TradingService = {
       durationHours: options.durationHours,
       bidIncrement: options.bidIncrement
     });
+    if (options && typeof options.inventoryDetail === 'object' && options.inventoryDetail) {
+      payload.inventoryDetail = options.inventoryDetail;
+    }
     return callCloud(CLOUD_FUNCTIONS.TRADING, payload);
   },
   async cancelListing(listingId) {
