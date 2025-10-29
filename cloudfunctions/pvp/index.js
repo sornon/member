@@ -508,6 +508,7 @@ async function inspectMemberArchive(actorId, event = {}) {
     throw createError('TARGET_REQUIRED', '请选择要查看的仙友');
   }
   const season = await ensureActiveSeason();
+  await refreshMemberPveAttributeSummary(targetId);
   const member = await ensureMember(targetId);
   const profile = await ensurePvpProfile(targetId, member, season);
 
@@ -611,6 +612,21 @@ async function inspectMemberArchive(actorId, event = {}) {
       equipped: skillPayload
     }
   };
+}
+
+async function refreshMemberPveAttributeSummary(memberId) {
+  const normalized = normalizeMemberId(memberId);
+  if (!normalized) {
+    return;
+  }
+  try {
+    await cloud.callFunction({
+      name: 'pve',
+      data: { action: 'profile', actorId: normalized, refreshOnly: true }
+    });
+  } catch (error) {
+    console.error('[pvp] refreshMemberPveAttributeSummary failed', normalized, error);
+  }
 }
 
 function buildEquippedSkillSummary(profile = null) {
