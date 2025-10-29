@@ -107,7 +107,7 @@
 }
 
 .milestone-tag {
-  padding: 4rpx 12rpx;
+  padding: 12rpx;
   border-radius: 999rpx;
   font-size: 22rpx;
   color: #2b2000;

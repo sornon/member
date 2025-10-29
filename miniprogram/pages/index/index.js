@@ -539,7 +539,12 @@ function buildBackgroundOptionList(member) {
   const backgrounds = listBackgrounds();
   let visibleBackgrounds = backgrounds;
   if (!isMemberAdmin(member)) {
-    const maxRealmOrder = backgrounds.length ? backgrounds[backgrounds.length - 1].realmOrder : 1;
+    const maxRealmOrder = backgrounds.reduce((max, background) => {
+      const value = Number.isFinite(background.realmOrder)
+        ? Math.max(0, Math.floor(background.realmOrder))
+        : 0;
+      return Math.max(max, value);
+    }, 1);
     const highestVisibleOrder = Math.min(maxRealmOrder, realmOrder + 1);
     visibleBackgrounds = backgrounds.filter((background) => background.realmOrder <= highestVisibleOrder);
   }
