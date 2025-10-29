@@ -1,4 +1,4 @@
-<custom-nav title="交易" theme="dark"></custom-nav>
+<custom-nav title="交易中心" theme="dark"></custom-nav>
 <view class="trading-container">
   <view class="trading-panel trading-balance-card">
     <view class="trading-balance-card__header">
