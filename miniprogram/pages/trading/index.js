@@ -1,6 +1,6 @@
-import { TradingService } from '../../services/api';
+import { TradingService, PveService } from '../../services/api';
 import { formatStones } from '../../utils/format';
-import { buildEquipmentIconPaths } from '../../utils/equipment';
+import { sanitizeEquipmentProfile, buildEquipmentIconPaths } from '../../utils/equipment';
 
 const LISTING_STATUS_LABELS = {
   active: '在售',
@@ -29,6 +29,47 @@ const EQUIPMENT_QUALITY_META = {
   primordial: { label: '先天', color: '#f7baff' },
   relic: { label: '至宝', color: '#6cf4ff' }
 };
+
+function normalizeDisplayLines(list) {
+  if (!Array.isArray(list)) {
+    return [];
+  }
+  const normalized = [];
+  list.forEach((value) => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return;
+    }
+    if (!normalized.includes(trimmed)) {
+      normalized.push(trimmed);
+    }
+  });
+  return normalized;
+}
+
+function buildEquipmentDetailLookup(profile) {
+  if (!profile || typeof profile !== 'object') {
+    return {};
+  }
+  const sanitizedProfile = sanitizeEquipmentProfile(profile);
+  const equipment = sanitizedProfile && sanitizedProfile.equipment ? sanitizedProfile.equipment : null;
+  const inventory = equipment && Array.isArray(equipment.inventory) ? equipment.inventory : [];
+  const lookup = {};
+  inventory.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return;
+    }
+    const inventoryId = typeof entry.inventoryId === 'string' ? entry.inventoryId.trim() : '';
+    if (!inventoryId) {
+      return;
+    }
+    lookup[inventoryId] = entry;
+  });
+  return lookup;
+}
 
 function toNumeric(value, fallback = 0) {
   const number = Number(value);
@@ -111,7 +152,7 @@ function buildListingDisplay(listing, config) {
   };
 }
 
-function buildSellableItemDisplay(item, index = 0) {
+function buildSellableItemDisplay(item, index = 0, detail = null) {
   if (!item || typeof item !== 'object') {
     return null;
   }
@@ -125,25 +166,60 @@ function buildSellableItemDisplay(item, index = 0) {
   if (!inventoryId) {
     return null;
   }
-  const refineValue = Number(item.refine);
+  const detailItem = detail && typeof detail === 'object' ? detail : null;
+  const refineValue = detailItem && typeof detailItem.refine === 'number' ? detailItem.refine : Number(item.refine);
   const refine = Number.isFinite(refineValue) ? Math.max(0, Math.trunc(refineValue)) : 0;
-  const levelValue = Number(item.level);
+  const levelValue = detailItem && typeof detailItem.level === 'number' ? detailItem.level : Number(item.level);
   const level = Number.isFinite(levelValue) && levelValue > 0 ? Math.trunc(levelValue) : null;
-  const qualityKey = typeof item.quality === 'string' ? item.quality : 'mortal';
+  const slotLabel =
+    (detailItem && typeof detailItem.slotLabel === 'string' && detailItem.slotLabel.trim()) ||
+    (typeof item.slotLabel === 'string' && item.slotLabel.trim()) ||
+    '';
+  const qualityKey = detailItem && typeof detailItem.quality === 'string' ? detailItem.quality : typeof item.quality === 'string' ? item.quality : 'mortal';
   const qualityMeta = EQUIPMENT_QUALITY_META[qualityKey] || EQUIPMENT_QUALITY_META.mortal;
-  const { iconUrl, iconFallbackUrl } = buildEquipmentIconPaths(item);
+  let iconUrl = detailItem && typeof detailItem.iconUrl === 'string' ? detailItem.iconUrl : '';
+  let iconFallbackUrl =
+    detailItem && typeof detailItem.iconFallbackUrl === 'string' ? detailItem.iconFallbackUrl : '';
+  if (!iconUrl || !iconFallbackUrl) {
+    const iconSource = detailItem || item;
+    const iconPaths = buildEquipmentIconPaths(iconSource);
+    iconUrl = iconUrl || iconPaths.iconUrl;
+    iconFallbackUrl = iconFallbackUrl || iconPaths.iconFallbackUrl;
+  }
   const baseName =
+    (detailItem && typeof detailItem.name === 'string' && detailItem.name.trim()) ||
     (typeof item.name === 'string' && item.name.trim()) ||
     (typeof item.itemName === 'string' && item.itemName.trim()) ||
     (typeof item.label === 'string' && item.label.trim()) ||
     (typeof item.itemId === 'string' && item.itemId.trim()) ||
     `装备 ${index + 1}`;
-  const displayName = refine > 0 ? `${baseName} · 强化 +${refine}` : baseName;
+  const displayName = baseName;
   const shortName =
     (typeof item.shortName === 'string' && item.shortName) ||
     (displayName.length > 6 ? `${displayName.slice(0, 5)}…` : displayName);
-  const obtainedAt = item.obtainedAt || null;
-  const obtainedAtText = obtainedAt ? formatDateTime(obtainedAt) : '';
+  const obtainedAt = (detailItem && detailItem.obtainedAt) || item.obtainedAt || null;
+  const obtainedAtText =
+    (detailItem && typeof detailItem.obtainedAtText === 'string' && detailItem.obtainedAtText) ||
+    (obtainedAt ? formatDateTime(obtainedAt) : '');
+  const refineLabel =
+    (detailItem && typeof detailItem.refineLabel === 'string' && detailItem.refineLabel) ||
+    (refine > 0 ? `精炼 +${refine}` : '未精炼');
+  const setName =
+    (detailItem && typeof detailItem.setName === 'string' && detailItem.setName.trim()) || '';
+  const detailStats = normalizeDisplayLines(
+    detailItem && Array.isArray(detailItem.statsText) ? detailItem.statsText : []
+  );
+  const detailNotes = normalizeDisplayLines(
+    detailItem && Array.isArray(detailItem.notes) ? detailItem.notes : []
+  );
+  const detailDescription =
+    (detailItem && typeof detailItem.description === 'string' && detailItem.description.trim()) || '';
+  const summaryParts = normalizeDisplayLines([
+    slotLabel ? `槽位：${slotLabel}` : '',
+    level ? `等级 ${level}` : '',
+    refineLabel,
+    setName ? `套装：${setName}` : ''
+  ]);
   return {
     ...item,
     inventoryId,
@@ -154,14 +230,21 @@ function buildSellableItemDisplay(item, index = 0) {
     shortName,
     iconUrl: iconUrl || item.iconUrl || '',
     iconFallbackUrl: iconFallbackUrl || item.iconFallbackUrl || '',
-    qualityColor: item.qualityColor || qualityMeta.color,
-    qualityLabel: item.qualityLabel || qualityMeta.label,
+    qualityColor:
+      (detailItem && typeof detailItem.qualityColor === 'string' && detailItem.qualityColor) ||
+      item.qualityColor ||
+      qualityMeta.color,
+    qualityLabel:
+      (detailItem && typeof detailItem.qualityLabel === 'string' && detailItem.qualityLabel) ||
+      item.qualityLabel ||
+      qualityMeta.label,
     obtainedAtText,
-    detailSummary: [
-      level ? `等级 ${level}` : '',
-      refine > 0 ? `强化 +${refine}` : '未强化',
-      qualityMeta.label
-    ].filter(Boolean),
+    slotLabel,
+    refineLabel,
+    detailSummary: summaryParts.length ? summaryParts : [qualityMeta.label],
+    detailStats,
+    detailNotes,
+    detailDescription,
     inventoryIndex: index
   };
 }
@@ -303,10 +386,22 @@ Page({
       }
     });
     try {
-      const res = await TradingService.sellable();
-      const items = Array.isArray(res && res.items) ? res.items : [];
+      const [sellableRes, profileRes] = await Promise.all([
+        TradingService.sellable(),
+        PveService.profile().catch((error) => {
+          console.warn('[trading] load equipment profile failed', error);
+          return null;
+        })
+      ]);
+      const detailLookup = buildEquipmentDetailLookup(profileRes || null);
+      const items = Array.isArray(sellableRes && sellableRes.items) ? sellableRes.items : [];
       const sellableItems = items
-        .map((item, index) => buildSellableItemDisplay(item, index))
+        .map((item, index) => {
+          const inventoryId =
+            item && typeof item.inventoryId === 'string' ? item.inventoryId.trim() : '';
+          const detail = inventoryId ? detailLookup[inventoryId] : null;
+          return buildSellableItemDisplay(item, index, detail);
+        })
         .filter((entry) => !!entry);
       this.setData({ sellableItems, sellableLoading: false });
       if (!sellableItems.length) {

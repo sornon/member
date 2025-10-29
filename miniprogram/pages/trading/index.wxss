@@ -598,3 +598,36 @@ page {
   font-size: 20rpx;
   color: rgba(244, 246, 255, 0.6);
 }
+
+.trading-equipment-detail__section {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16rpx 20rpx;
+  border-radius: 16rpx;
+  background: rgba(244, 246, 255, 0.04);
+  text-align: left;
+}
+
+.trading-equipment-detail__section-title {
+  font-size: 22rpx;
+  color: rgba(244, 246, 255, 0.85);
+  margin-bottom: 8rpx;
+}
+
+.trading-equipment-detail__section-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  font-size: 20rpx;
+  color: rgba(244, 246, 255, 0.78);
+  line-height: 1.4;
+}
+
+.trading-equipment-detail__line {
+  display: block;
+  word-break: break-word;
+}
+
+.trading-equipment-detail__section--description .trading-equipment-detail__section-list {
+  color: rgba(244, 246, 255, 0.7);
+}

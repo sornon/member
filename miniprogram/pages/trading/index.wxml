@@ -301,6 +301,41 @@
           wx:key="summaryIndex"
         >{{summary}}{{summaryIndex < equipmentDetailItem.detailSummary.length - 1 ? ' · ' : ''}}</text>
       </view>
+      <view
+        wx:if="{{equipmentDetailItem.detailStats && equipmentDetailItem.detailStats.length}}"
+        class="trading-equipment-detail__section"
+      >
+        <view class="trading-equipment-detail__section-title">属性</view>
+        <view class="trading-equipment-detail__section-list">
+          <text
+            wx:for="{{equipmentDetailItem.detailStats}}"
+            wx:key="index"
+            class="trading-equipment-detail__line"
+          >{{item}}</text>
+        </view>
+      </view>
+      <view
+        wx:if="{{equipmentDetailItem.detailNotes && equipmentDetailItem.detailNotes.length}}"
+        class="trading-equipment-detail__section"
+      >
+        <view class="trading-equipment-detail__section-title">效果</view>
+        <view class="trading-equipment-detail__section-list">
+          <text
+            wx:for="{{equipmentDetailItem.detailNotes}}"
+            wx:key="index"
+            class="trading-equipment-detail__line"
+          >{{item}}</text>
+        </view>
+      </view>
+      <view
+        wx:if="{{equipmentDetailItem.detailDescription}}"
+        class="trading-equipment-detail__section trading-equipment-detail__section--description"
+      >
+        <view class="trading-equipment-detail__section-title">说明</view>
+        <view class="trading-equipment-detail__section-list">
+          <text class="trading-equipment-detail__line">{{equipmentDetailItem.detailDescription}}</text>
+        </view>
+      </view>
       <view class="trading-equipment-detail__meta">编号：{{equipmentDetailItem.inventoryId}}</view>
       <view wx:if="{{equipmentDetailItem.obtainedAtText}}" class="trading-equipment-detail__meta">
         获得：{{equipmentDetailItem.obtainedAtText}}
