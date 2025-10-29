@@ -1421,6 +1421,7 @@ Page({
     this.startupVideoFadeTimeout = null;
     this.startupVideoActivationTimer = null;
     this.startupVideoContext = null;
+    this.backgroundPosterCleared = false;
     this.setData({
       startupVideoSource: STARTUP_VIDEO_SOURCE,
       startupCoverImage: STARTUP_COVER_IMAGE,
@@ -1559,15 +1560,32 @@ Page({
     const shouldShowVideo = dynamicEnabled && !!video;
     const hasError = shouldShowVideo ? (options.resetError ? false : !!this.data.backgroundVideoError) : false;
     const showVideo = hasError ? false : shouldShowVideo;
-    this.setData({
+    const posterSource = resolveVideoPosterSource(image);
+    const wasShowingVideo = !!this.data.showBackgroundVideo;
+    const posterAlreadyCleared = this.backgroundPosterCleared === true;
+    const shouldUpdatePoster =
+      !showVideo ||
+      !wasShowingVideo ||
+      !posterAlreadyCleared ||
+      this.backgroundPosterSource !== posterSource;
+    const nextState = {
       backgroundImage: image,
       backgroundVideo: video,
-      backgroundPoster: resolveVideoPosterSource(image),
       dynamicBackgroundEnabled: dynamicEnabled,
       showBackgroundVideo: showVideo,
       showBackgroundOverlay: !showVideo,
       backgroundVideoError: hasError
-    });
+    };
+    if (shouldUpdatePoster) {
+      nextState.backgroundPoster = posterSource;
+    }
+    this.setData(nextState);
+    if (!showVideo) {
+      this.backgroundPosterCleared = true;
+    } else if (shouldUpdatePoster) {
+      this.backgroundPosterCleared = false;
+    }
+    this.backgroundPosterSource = posterSource;
   },
 
   clearStartupVideoFadeTimer() {
@@ -1582,6 +1600,26 @@ Page({
       clearTimeout(this.startupVideoActivationTimer);
       this.startupVideoActivationTimer = null;
     }
+  },
+
+  clearBackgroundVideoPoster() {
+    if (this.backgroundPosterCleared) {
+      return;
+    }
+    if (!this.data.backgroundPoster) {
+      this.backgroundPosterCleared = true;
+      return;
+    }
+    this.backgroundPosterCleared = true;
+    this.setData({ backgroundPoster: '' });
+  },
+
+  handleBackgroundVideoLoaded() {
+    this.clearBackgroundVideoPoster();
+  },
+
+  handleBackgroundVideoPlay() {
+    this.clearBackgroundVideoPoster();
   },
 
   ensureStartupVideoContext() {
@@ -1734,6 +1772,7 @@ Page({
       showBackgroundVideo: false,
       showBackgroundOverlay: true
     });
+    this.backgroundPosterCleared = true;
   },
 
   attachMemberRealtime() {
