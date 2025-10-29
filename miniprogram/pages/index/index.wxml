@@ -61,6 +61,13 @@
       bindended="handleStartupVideoEnded"
       binderror="handleStartupVideoError"
     ></video>
+    <view
+      wx:if="{{startupVideoMounted}}"
+      class="startup-audio-toggle {{startupVideoSoundEnabled ? 'startup-audio-toggle--active' : ''}}"
+      bindtap="handleStartupVideoSoundTap"
+    >
+      {{startupVideoSoundEnabled ? '关闭声音' : '开启声音'}}
+    </view>
   </view>
   <custom-nav title="会员中心" enable-back="{{false}}" theme="transparent"></custom-nav>
 
