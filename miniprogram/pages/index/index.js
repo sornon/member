@@ -1192,6 +1192,7 @@ Page({
     startupVideoMounted: false,
     startupVideoVisible: false,
     startupVideoFading: false,
+    startupVideoMuted: true,
     globalBackgroundEnforced: false,
     navHeight: 88,
     today: '',
@@ -1426,7 +1427,8 @@ Page({
       showStartupOverlay: true,
       startupVideoMounted: false,
       startupVideoVisible: false,
-      startupVideoFading: false
+      startupVideoFading: false,
+      startupVideoMuted: true
     });
     this.cacheVersionSynced = false;
     this.cacheVersionSyncResult = null;
@@ -1615,6 +1617,16 @@ Page({
     }
     const context = this.startupVideoContext;
     this.startupVideoContext = null;
+    if (!this.startupVideoDismissed && this.data.startupVideoMuted === false) {
+      this.setData({ startupVideoMuted: true });
+    }
+    if (typeof context.mute === 'function') {
+      try {
+        context.mute(true);
+      } catch (error) {
+        console.warn('[index] mute startup video failed', error);
+      }
+    }
     if (typeof context.stop === 'function') {
       try {
         context.stop();
@@ -1652,7 +1664,8 @@ Page({
         showStartupOverlay: false,
         startupVideoMounted: false,
         startupVideoVisible: false,
-        startupVideoFading: false
+        startupVideoFading: false,
+        startupVideoMuted: true
       });
       this.stopStartupVideo();
       return;
@@ -1664,7 +1677,8 @@ Page({
         showStartupOverlay: false,
         startupVideoMounted: false,
         startupVideoVisible: false,
-        startupVideoFading: false
+        startupVideoFading: false,
+        startupVideoMuted: true
       });
       this.stopStartupVideo();
     }, STARTUP_VIDEO_FADE_DURATION_MS);
@@ -1696,7 +1710,15 @@ Page({
     if (this.startupVideoDismissed || this.data.startupVideoVisible) {
       return;
     }
-    this.setData({ startupVideoVisible: true });
+    const context = this.ensureStartupVideoContext();
+    if (context && typeof context.mute === 'function') {
+      try {
+        context.mute(false);
+      } catch (error) {
+        console.warn('[index] unmute startup video failed', error);
+      }
+    }
+    this.setData({ startupVideoVisible: true, startupVideoMuted: false });
   },
 
   handleStartupVideoError() {

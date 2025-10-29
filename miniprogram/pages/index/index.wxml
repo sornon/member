@@ -45,7 +45,7 @@
       class="startup-video {{startupVideoVisible ? 'startup-video--visible' : ''}}"
       src="{{startupVideoSource}}"
       autoplay
-      muted
+      muted="{{startupVideoMuted}}"
       loop="{{false}}"
       controls="{{false}}"
       show-center-play-btn="{{false}}"
