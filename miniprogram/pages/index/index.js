@@ -61,7 +61,12 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const DEFAULT_CHARACTER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 const STARTUP_COVER_IMAGE = '/cover-20251028.jpg';
-const STARTUP_VIDEO_SOURCE = buildCloudAssetUrl('background', 'cover-20251028.mp4');
+const STARTUP_VIDEO_SOURCES = [
+  buildCloudAssetUrl('background', 'cover-20251028.mp4'),
+  buildCloudAssetUrl('background', 'cover-20251030.mp4')
+];
+const STARTUP_VIDEO_SOURCE =
+  STARTUP_VIDEO_SOURCES[Math.floor(Math.random() * STARTUP_VIDEO_SOURCES.length)];
 const STARTUP_VIDEO_FADE_OUT_AT_SECONDS = 5;
 const STARTUP_VIDEO_FADE_DURATION_MS = 1000;
 const STARTUP_VIDEO_ACTIVATION_DELAY_MS = 300;
