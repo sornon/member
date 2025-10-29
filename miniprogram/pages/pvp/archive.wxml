@@ -51,7 +51,7 @@
               </view>
             </view>
             <view class="profile-record">
-                <text class="profile-meta__text">境界 {{archive.realmName || archive.levelName || '未知境界'}}</text>
+                <text class="profile-meta__text">境界 {{archive.levelName || '未知境界'}}</text>
                 <text class="profile-meta__text">战力 {{combatPowerText}}</text>
                 <text class="profile-meta__text">{{archive.tier.name}} {{archive.points}} 分</text>
                 <text class="profile-meta__text">战绩 {{archive.wins}}胜{{archive.losses}}负{{archive.draws}}平</text>
