@@ -533,22 +533,72 @@ function resolveEffectiveBackgroundDisplay(member, globalBackground) {
   return resolveBackgroundDisplay(member);
 }
 
-function buildBackgroundOptionList(member) {
+function buildBackgroundOptionList(member, options = {}) {
   const realmOrder = resolveMemberRealmOrder(member);
-  const activeId = resolveSafeBackgroundId(member, member && member.appearanceBackground);
+  const globalCatalog = Array.isArray(options.globalBackgroundCatalog)
+    ? options.globalBackgroundCatalog
+    : [];
+  const memberCatalog = Array.isArray(options.memberBackgroundCatalog)
+    ? options.memberBackgroundCatalog
+    : member && Array.isArray(member.backgroundCatalog)
+    ? member.backgroundCatalog
+    : [];
+  const globalBackgroundIds = new Set(
+    globalCatalog
+      .map((item) => (item && typeof item.id === 'string' ? item.id.trim() : ''))
+      .filter((id) => !!id)
+  );
+  const memberBackgroundIds = new Set(
+    memberCatalog
+      .map((item) => (item && typeof item.id === 'string' ? item.id.trim() : ''))
+      .filter((id) => !!id)
+  );
+  const backgroundUnlocks = resolveBackgroundUnlocks(member);
+  const globalBackground = options.globalBackground || null;
+  const globalBackgroundEnforced = !!options.globalBackgroundEnforced;
+  const enforcedBackgroundId = globalBackgroundEnforced
+    ? normalizeBackgroundId(
+        (globalBackground && globalBackground.backgroundId) || options.globalBackgroundId || ''
+      )
+    : '';
+  const activeId = enforcedBackgroundId || resolveSafeBackgroundId(member, member && member.appearanceBackground);
   const backgrounds = listBackgrounds();
   let visibleBackgrounds = backgrounds;
   if (!isMemberAdmin(member)) {
-    const maxRealmOrder = backgrounds.length ? backgrounds[backgrounds.length - 1].realmOrder : 1;
+    const maxRealmOrder = backgrounds.reduce((max, background) => {
+      const value = Number.isFinite(background.realmOrder)
+        ? Math.max(0, Math.floor(background.realmOrder))
+        : 0;
+      return Math.max(max, value);
+    }, 1);
     const highestVisibleOrder = Math.min(maxRealmOrder, realmOrder + 1);
     visibleBackgrounds = backgrounds.filter((background) => background.realmOrder <= highestVisibleOrder);
   }
-  const backgroundUnlocks = resolveBackgroundUnlocks(member);
+  visibleBackgrounds = visibleBackgrounds.filter((background) => {
+    if (!background) {
+      return false;
+    }
+    const backgroundId = background.id;
+    if (globalBackgroundEnforced && enforcedBackgroundId && backgroundId === enforcedBackgroundId) {
+      return true;
+    }
+    if (globalBackgroundIds.has(backgroundId) && !memberBackgroundIds.has(backgroundId)) {
+      return isBackgroundUnlocked(backgroundId, realmOrder, backgroundUnlocks);
+    }
+    return true;
+  });
   return visibleBackgrounds.map((background) => {
-    const unlocked = isBackgroundUnlocked(background.id, realmOrder, backgroundUnlocks);
+    const backgroundId = background.id;
+    const unlocked = isBackgroundUnlocked(backgroundId, realmOrder, backgroundUnlocks);
+    const isEnforcedSelection =
+      globalBackgroundEnforced && enforcedBackgroundId && backgroundId === enforcedBackgroundId;
     let description = background.unlockType === 'manual' ? '使用奖励道具后解锁' : `突破至${background.realmName}解锁`;
-    if (unlocked) {
-      description = background.id === activeId ? '当前使用' : '已解锁';
+    if (isEnforcedSelection) {
+      description = '管理员已启用';
+    } else if (backgroundId === activeId && unlocked) {
+      description = '当前使用';
+    } else if (unlocked) {
+      description = '已解锁';
     }
     return {
       ...background,
@@ -556,6 +606,38 @@ function buildBackgroundOptionList(member) {
       description
     };
   });
+}
+
+function resolveBackgroundOptionContext(scope, member) {
+  if (!scope) {
+    return {};
+  }
+  const memberCatalog = Array.isArray(scope.memberBackgroundCatalog)
+    ? scope.memberBackgroundCatalog
+    : member && Array.isArray(member.backgroundCatalog)
+    ? member.backgroundCatalog
+    : [];
+  return {
+    globalBackgroundEnforced: scope.data && scope.data.globalBackgroundEnforced,
+    globalBackground: scope.globalBackground,
+    globalBackgroundCatalog: scope.globalBackgroundCatalog,
+    memberBackgroundCatalog: memberCatalog
+  };
+}
+
+function resolveActiveBackgroundId(member, scope) {
+  const context = resolveBackgroundOptionContext(scope, member);
+  if (context.globalBackgroundEnforced) {
+    const enforcedId = normalizeBackgroundId(
+      context.globalBackground && context.globalBackground.backgroundId
+        ? context.globalBackground.backgroundId
+        : ''
+    );
+    if (enforcedId) {
+      return enforcedId;
+    }
+  }
+  return resolveSafeBackgroundId(member, member && member.appearanceBackground);
 }
 
 function resolveSafeBackgroundId(member, desiredId) {
@@ -1246,7 +1328,25 @@ Page({
       this.setData(updates);
     }
     if (this.data.member) {
-      this.updateBackgroundDisplay(this.data.member, { resetError: true });
+      const member = this.data.member;
+      const activeBackgroundId = resolveActiveBackgroundId(member, this);
+      const backgroundUpdates = {
+        'avatarPicker.backgroundOptions': buildBackgroundOptionList(
+          member,
+          resolveBackgroundOptionContext(this, member)
+        ),
+        'avatarPicker.backgroundId': activeBackgroundId
+      };
+      if (enforced && activeBackgroundId && this.data.profileEditor.appearanceBackground !== activeBackgroundId) {
+        backgroundUpdates['profileEditor.appearanceBackground'] = activeBackgroundId;
+      } else if (!enforced) {
+        const memberBackgroundId = resolveSafeBackgroundId(member, member && member.appearanceBackground);
+        if (this.data.profileEditor.appearanceBackground !== memberBackgroundId) {
+          backgroundUpdates['profileEditor.appearanceBackground'] = memberBackgroundId;
+        }
+      }
+      this.setData(backgroundUpdates);
+      this.updateBackgroundDisplay(member, { resetError: true });
     }
   },
 
@@ -1570,11 +1670,11 @@ Page({
           sanitizedMember && sanitizedMember.appearanceBackground
         ),
         'profileEditor.appearanceBackgroundAnimated': !!sanitizedMember.appearanceBackgroundAnimated,
-        'avatarPicker.backgroundOptions': buildBackgroundOptionList(sanitizedMember),
-        'avatarPicker.backgroundId': resolveSafeBackgroundId(
+        'avatarPicker.backgroundOptions': buildBackgroundOptionList(
           sanitizedMember,
-          sanitizedMember && sanitizedMember.appearanceBackground
+          resolveBackgroundOptionContext(this, sanitizedMember)
         ),
+        'avatarPicker.backgroundId': resolveActiveBackgroundId(sanitizedMember, this),
         'avatarPicker.dynamicBackground': !!sanitizedMember.appearanceBackgroundAnimated
       });
       this.updateBackgroundDisplay(sanitizedMember, { resetError: true });
@@ -1868,7 +1968,10 @@ Page({
       'avatarPicker.activeTab': tab
     };
     if (tab === 'background') {
-      updates['avatarPicker.backgroundOptions'] = buildBackgroundOptionList(this.data.member);
+      updates['avatarPicker.backgroundOptions'] = buildBackgroundOptionList(
+        this.data.member,
+        resolveBackgroundOptionContext(this, this.data.member)
+      );
     }
     if (tab === 'title') {
       updates['avatarPicker.titleOptions'] = buildTitleOptionList(this.data.member);
@@ -1890,8 +1993,16 @@ Page({
     const currentFrame = sanitizeAvatarFrame(
       this.data.profileEditor.avatarFrame || member.avatarFrame || ''
     );
-    const backgroundId = resolveSafeBackgroundId(member, this.data.profileEditor.appearanceBackground || member.appearanceBackground);
-    const backgroundOptions = buildBackgroundOptionList(member);
+    const backgroundId = this.data.globalBackgroundEnforced
+      ? resolveActiveBackgroundId(member, this)
+      : resolveSafeBackgroundId(
+          member,
+          this.data.profileEditor.appearanceBackground || member.appearanceBackground
+        );
+    const backgroundOptions = buildBackgroundOptionList(
+      member,
+      resolveBackgroundOptionContext(this, member)
+    );
     const dynamicBackground =
       typeof this.data.profileEditor.appearanceBackgroundAnimated === 'boolean'
         ? this.data.profileEditor.appearanceBackgroundAnimated
@@ -1955,7 +2066,10 @@ Page({
     const updates = {
       'avatarPicker.avatarOptions': avatarOptions,
       'avatarPicker.avatarUrl': avatarUrl,
-      'avatarPicker.backgroundOptions': buildBackgroundOptionList(this.data.member),
+      'avatarPicker.backgroundOptions': buildBackgroundOptionList(
+        this.data.member,
+        resolveBackgroundOptionContext(this, this.data.member)
+      ),
       'avatarPicker.titleOptions': titleOptions,
       'avatarPicker.appearanceTitle': appearanceTitle
     };
@@ -2197,8 +2311,11 @@ Page({
       'avatarPicker.frameOptions': this.data.avatarPicker.frameOptions && this.data.avatarPicker.frameOptions.length
         ? this.data.avatarPicker.frameOptions
         : cloneAvatarFrameOptions(),
-      'avatarPicker.backgroundId': resolveSafeBackgroundId(sanitizedMember, sanitizedMember.appearanceBackground),
-      'avatarPicker.backgroundOptions': buildBackgroundOptionList(sanitizedMember),
+      'avatarPicker.backgroundId': resolveActiveBackgroundId(sanitizedMember, this),
+      'avatarPicker.backgroundOptions': buildBackgroundOptionList(
+        sanitizedMember,
+        resolveBackgroundOptionContext(this, sanitizedMember)
+      ),
       'avatarPicker.appearanceTitle': sanitizedMember.appearanceTitle,
       'avatarPicker.titleOptions': buildTitleOptionList(sanitizedMember),
       'avatarPicker.dynamicBackground': !!sanitizedMember.appearanceBackgroundAnimated,
