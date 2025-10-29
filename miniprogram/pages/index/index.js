@@ -1636,9 +1636,7 @@ Page({
       if (this.startupVideoDismissed || this.data.startupVideoMounted) {
         return;
       }
-      this.setData({ startupVideoMounted: true }, () => {
-        this.playStartupVideo();
-      });
+      this.setData({ startupVideoMounted: true });
     }, STARTUP_VIDEO_ACTIVATION_DELAY_MS);
   },
 
@@ -1688,13 +1686,17 @@ Page({
   },
 
   handleStartupVideoLoaded() {
-    if (this.startupVideoDismissed || this.data.startupVideoVisible) {
-      this.playStartupVideo();
+    if (this.startupVideoDismissed) {
       return;
     }
-    this.setData({ startupVideoVisible: true }, () => {
-      this.playStartupVideo();
-    });
+    this.playStartupVideo();
+  },
+
+  handleStartupVideoPlay() {
+    if (this.startupVideoDismissed || this.data.startupVideoVisible) {
+      return;
+    }
+    this.setData({ startupVideoVisible: true });
   },
 
   handleStartupVideoError() {
