@@ -1,5 +1,6 @@
 import { TradingService } from '../../services/api';
 import { formatStones } from '../../utils/format';
+import { buildEquipmentIconPaths } from '../../utils/equipment';
 
 const LISTING_STATUS_LABELS = {
   active: '在售',
@@ -15,6 +16,18 @@ const BID_STATUS_LABELS = {
   settled: '已结算',
   refunded: '已退还',
   outbid: '已被超越'
+};
+
+const EQUIPMENT_QUALITY_META = {
+  mortal: { label: '凡品', color: '#8d9099' },
+  inferior: { label: '下品', color: '#63a86c' },
+  standard: { label: '中品', color: '#3c9bd4' },
+  superior: { label: '上品', color: '#7f6bff' },
+  excellent: { label: '极品', color: '#ff985a' },
+  immortal: { label: '仙品', color: '#f05d7d' },
+  perfect: { label: '完美', color: '#d4a93c' },
+  primordial: { label: '先天', color: '#f7baff' },
+  relic: { label: '至宝', color: '#6cf4ff' }
 };
 
 function toNumeric(value, fallback = 0) {
@@ -98,6 +111,61 @@ function buildListingDisplay(listing, config) {
   };
 }
 
+function buildSellableItemDisplay(item, index = 0) {
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+  const inventoryIdRaw =
+    typeof item.inventoryId === 'string'
+      ? item.inventoryId
+      : item.inventoryId !== undefined && item.inventoryId !== null
+      ? String(item.inventoryId)
+      : '';
+  const inventoryId = inventoryIdRaw.trim();
+  if (!inventoryId) {
+    return null;
+  }
+  const refineValue = Number(item.refine);
+  const refine = Number.isFinite(refineValue) ? Math.max(0, Math.trunc(refineValue)) : 0;
+  const levelValue = Number(item.level);
+  const level = Number.isFinite(levelValue) && levelValue > 0 ? Math.trunc(levelValue) : null;
+  const qualityKey = typeof item.quality === 'string' ? item.quality : 'mortal';
+  const qualityMeta = EQUIPMENT_QUALITY_META[qualityKey] || EQUIPMENT_QUALITY_META.mortal;
+  const { iconUrl, iconFallbackUrl } = buildEquipmentIconPaths(item);
+  const baseName =
+    (typeof item.name === 'string' && item.name.trim()) ||
+    (typeof item.itemName === 'string' && item.itemName.trim()) ||
+    (typeof item.label === 'string' && item.label.trim()) ||
+    (typeof item.itemId === 'string' && item.itemId.trim()) ||
+    `装备 ${index + 1}`;
+  const displayName = refine > 0 ? `${baseName} · 强化 +${refine}` : baseName;
+  const shortName =
+    (typeof item.shortName === 'string' && item.shortName) ||
+    (displayName.length > 6 ? `${displayName.slice(0, 5)}…` : displayName);
+  const obtainedAt = item.obtainedAt || null;
+  const obtainedAtText = obtainedAt ? formatDateTime(obtainedAt) : '';
+  return {
+    ...item,
+    inventoryId,
+    refine,
+    level,
+    label: displayName,
+    displayName,
+    shortName,
+    iconUrl: iconUrl || item.iconUrl || '',
+    iconFallbackUrl: iconFallbackUrl || item.iconFallbackUrl || '',
+    qualityColor: item.qualityColor || qualityMeta.color,
+    qualityLabel: item.qualityLabel || qualityMeta.label,
+    obtainedAtText,
+    detailSummary: [
+      level ? `等级 ${level}` : '',
+      refine > 0 ? `强化 +${refine}` : '未强化',
+      qualityMeta.label
+    ].filter(Boolean),
+    inventoryIndex: index
+  };
+}
+
 function buildBidDisplay(bid) {
   if (!bid || typeof bid !== 'object') {
     return null;
@@ -131,10 +199,11 @@ Page({
     publishSubmitting: false,
     sellableLoading: false,
     sellableItems: [],
+    publishStep: 'select',
+    selectedSellableItem: null,
     publishForm: {
       inventoryId: '',
       inventoryLabel: '',
-      inventoryIndex: 0,
       saleMode: 'fixed',
       fixedPrice: '',
       startPrice: '',
@@ -142,6 +211,9 @@ Page({
       buyoutPrice: '',
       durationHours: 72
     },
+    showEquipmentDetail: false,
+    equipmentDetailItem: null,
+    equipmentDetailMode: 'select',
     showDetail: false,
     detailListing: null,
     bidAmount: '',
@@ -214,27 +286,28 @@ Page({
     this.setData({
       showPublish: true,
       sellableLoading: true,
+      publishStep: 'select',
+      selectedSellableItem: null,
+      showEquipmentDetail: false,
+      equipmentDetailItem: null,
+      equipmentDetailMode: 'select',
       publishForm: {
         ...this.data.publishForm,
         inventoryId: '',
         inventoryLabel: '',
-        inventoryIndex: 0
+        saleMode: 'fixed',
+        fixedPrice: '',
+        startPrice: '',
+        bidIncrement: '',
+        buyoutPrice: ''
       }
     });
     try {
       const res = await TradingService.sellable();
       const items = Array.isArray(res && res.items) ? res.items : [];
-      const sellableItems = items.map((item, index) => {
-        const refine = Number.isFinite(item.refine) ? item.refine : 0;
-        const label = item.itemId
-          ? `${item.itemId}${refine ? ` · 强化 +${refine}` : ''}`
-          : `装备 ${index + 1}`;
-        return {
-          ...item,
-          label,
-          value: item.inventoryId || ''
-        };
-      });
+      const sellableItems = items
+        .map((item, index) => buildSellableItemDisplay(item, index))
+        .filter((entry) => !!entry);
       this.setData({ sellableItems, sellableLoading: false });
       if (!sellableItems.length) {
         wx.showToast({ title: '暂无可上架装备', icon: 'none' });
@@ -247,20 +320,103 @@ Page({
   },
 
   handlePublishClose() {
-    this.setData({ showPublish: false, publishSubmitting: false, sellableLoading: false });
+    this.setData({
+      showPublish: false,
+      publishSubmitting: false,
+      sellableLoading: false,
+      publishStep: 'select',
+      selectedSellableItem: null,
+      showEquipmentDetail: false,
+      equipmentDetailItem: null,
+      equipmentDetailMode: 'select'
+    });
   },
 
-  handleInventoryChange(event) {
-    const index = toNumeric(event && event.detail && event.detail.value, 0);
-    const item = this.data.sellableItems[index];
+  handleSelectEquipmentTap(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const index = toNumeric(dataset.index, -1);
+    const item = index >= 0 ? this.data.sellableItems[index] : null;
+    if (!item) {
+      return;
+    }
+    this.openEquipmentDetail(item, 'select');
+  },
+
+  openEquipmentDetail(item, mode = 'select') {
     if (!item) {
       return;
     }
     this.setData({
-      'publishForm.inventoryIndex': index,
-      'publishForm.inventoryId': item.inventoryId,
-      'publishForm.inventoryLabel': item.label
+      showEquipmentDetail: true,
+      equipmentDetailItem: { ...item },
+      equipmentDetailMode: mode
     });
+  },
+
+  handleEquipmentDetailClose() {
+    this.setData({ showEquipmentDetail: false, equipmentDetailItem: null });
+  },
+
+  handleEquipmentDetailConfirm() {
+    const item = this.data.equipmentDetailItem;
+    if (!item) {
+      return;
+    }
+    const updates = {
+      publishStep: 'form',
+      selectedSellableItem: { ...item },
+      showEquipmentDetail: false,
+      equipmentDetailItem: null,
+      equipmentDetailMode: 'select',
+      'publishForm.inventoryId': item.inventoryId,
+      'publishForm.inventoryLabel': item.displayName || item.label || '',
+      'publishForm.saleMode': this.data.publishForm.saleMode || 'fixed'
+    };
+    this.setData(updates);
+  },
+
+  handleEquipmentDetailReselect() {
+    this.setData({
+      showEquipmentDetail: false,
+      equipmentDetailItem: null,
+      publishStep: 'select',
+      selectedSellableItem: null,
+      'publishForm.inventoryId': '',
+      'publishForm.inventoryLabel': '',
+      equipmentDetailMode: 'select'
+    });
+  },
+
+  handleSelectedEquipmentTap() {
+    const item = this.data.selectedSellableItem;
+    if (!item) {
+      return;
+    }
+    this.openEquipmentDetail(item, 'form');
+  },
+
+  handleSellableIconError(event) {
+    const dataset = (event && event.target && event.target.dataset) || {};
+    const fallback = dataset.fallback;
+    if (!fallback) {
+      return;
+    }
+    const mode = dataset.mode || '';
+    if (mode === 'selected') {
+      this.setData({ 'selectedSellableItem.iconUrl': fallback });
+      return;
+    }
+    if (mode === 'detail') {
+      this.setData({ 'equipmentDetailItem.iconUrl': fallback });
+      return;
+    }
+    const index = toNumeric(dataset.index, -1);
+    if (index < 0) {
+      return;
+    }
+    const updates = {};
+    updates[`sellableItems[${index}].iconUrl`] = fallback;
+    this.setData(updates);
   },
 
   handleSaleModeChange(event) {
