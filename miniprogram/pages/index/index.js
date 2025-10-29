@@ -1421,6 +1421,7 @@ Page({
     this.startupVideoFadeTimeout = null;
     this.startupVideoActivationTimer = null;
     this.startupVideoContext = null;
+    this.backgroundPosterCleared = false;
     this.setData({
       startupVideoSource: STARTUP_VIDEO_SOURCE,
       startupCoverImage: STARTUP_COVER_IMAGE,
@@ -1568,6 +1569,7 @@ Page({
       showBackgroundOverlay: !showVideo,
       backgroundVideoError: hasError
     });
+    this.backgroundPosterCleared = !showVideo;
   },
 
   clearStartupVideoFadeTimer() {
@@ -1582,6 +1584,26 @@ Page({
       clearTimeout(this.startupVideoActivationTimer);
       this.startupVideoActivationTimer = null;
     }
+  },
+
+  clearBackgroundVideoPoster() {
+    if (this.backgroundPosterCleared) {
+      return;
+    }
+    if (!this.data.backgroundPoster) {
+      this.backgroundPosterCleared = true;
+      return;
+    }
+    this.backgroundPosterCleared = true;
+    this.setData({ backgroundPoster: '' });
+  },
+
+  handleBackgroundVideoLoaded() {
+    this.clearBackgroundVideoPoster();
+  },
+
+  handleBackgroundVideoPlay() {
+    this.clearBackgroundVideoPoster();
   },
 
   ensureStartupVideoContext() {
@@ -1734,6 +1756,7 @@ Page({
       showBackgroundVideo: false,
       showBackgroundOverlay: true
     });
+    this.backgroundPosterCleared = true;
   },
 
   attachMemberRealtime() {

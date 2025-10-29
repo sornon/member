@@ -24,6 +24,8 @@
       enable-progress-gesture="{{false}}"
       objectFit="cover"
       poster="{{backgroundPoster}}"
+      bindloadedmetadata="handleBackgroundVideoLoaded"
+      bindplay="handleBackgroundVideoPlay"
       binderror="handleBackgroundVideoError"
     ></video>
   </view>
