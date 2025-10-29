@@ -30,6 +30,30 @@
   <view class="background background--overlay background-layer {{showBackgroundOverlay ? 'background-layer--visible' : ''}}"></view>
   <view class="mist-layer mist-layer--one background-layer {{showBackgroundOverlay ? 'background-layer--visible' : ''}}"></view>
   <view class="mist-layer mist-layer--two background-layer {{showBackgroundOverlay ? 'background-layer--visible' : ''}}"></view>
+  <view
+    wx:if="{{showStartupVideo}}"
+    class="startup-video-layer {{startupVideoFading ? 'startup-video-layer--fading' : ''}}"
+  >
+    <video
+      id="startupVideo"
+      class="startup-video"
+      src="{{startupVideoSource}}"
+      autoplay
+      muted
+      loop="{{false}}"
+      controls="{{false}}"
+      show-center-play-btn="{{false}}"
+      show-fullscreen-btn="{{false}}"
+      show-play-btn="{{false}}"
+      show-screen-lock-button="{{false}}"
+      enable-progress-gesture="{{false}}"
+      objectFit="cover"
+      poster="{{backgroundImage}}"
+      bindtimeupdate="handleStartupVideoTimeUpdate"
+      bindended="handleStartupVideoEnded"
+      binderror="handleStartupVideoError"
+    ></video>
+  </view>
   <custom-nav title="会员中心" enable-back="{{false}}" theme="transparent"></custom-nav>
 
   <view class="content" wx:if="{{!loading}}" style="min-height: calc(100vh - {{navHeight}}px);">

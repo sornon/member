@@ -24,7 +24,11 @@ const {
   registerCustomBackgrounds,
   normalizeBackgroundCatalog
 } = require('../../shared/backgrounds.js');
-const { AVATAR_IMAGE_BASE_PATH, CHARACTER_IMAGE_BASE_PATH } = require('../../shared/asset-paths.js');
+const {
+  AVATAR_IMAGE_BASE_PATH,
+  CHARACTER_IMAGE_BASE_PATH,
+  buildCloudAssetUrl
+} = require('../../shared/asset-paths.js');
 const {
   buildTitleImageUrl,
   resolveTitleById,
@@ -57,6 +61,9 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const DEFAULT_CHARACTER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 const STARTUP_COVER_IMAGE = '/cover-20251028.jpg';
+const STARTUP_VIDEO_SOURCE = buildCloudAssetUrl('background', 'cover-20251028.mp4');
+const STARTUP_VIDEO_FADE_OUT_AT_SECONDS = 5;
+const STARTUP_VIDEO_FADE_DURATION_MS = 1000;
 
 const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
 const CHARACTER_URL_PATTERN = /\/assets\/character\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
@@ -1178,6 +1185,9 @@ Page({
     showBackgroundOverlay: false,
     backgroundVideoError: false,
     dynamicBackgroundEnabled: false,
+    startupVideoSource: STARTUP_VIDEO_SOURCE,
+    showStartupVideo: true,
+    startupVideoFading: false,
     globalBackgroundEnforced: false,
     navHeight: 88,
     today: '',
@@ -1402,6 +1412,13 @@ Page({
   },
 
   onLoad() {
+    this.startupVideoDismissed = false;
+    this.startupVideoFadeTimeout = null;
+    this.setData({
+      startupVideoSource: STARTUP_VIDEO_SOURCE,
+      showStartupVideo: true,
+      startupVideoFading: false
+    });
     this.cacheVersionSynced = false;
     this.cacheVersionSyncResult = null;
     this.cacheVersionSyncPromise = null;
@@ -1492,6 +1509,7 @@ Page({
 
   onHide() {
     this.detachMemberRealtime();
+    this.clearStartupVideoFadeTimer();
     try {
       const pages = getCurrentPages();
       if (Array.isArray(pages) && pages.length > 1) {
@@ -1504,6 +1522,7 @@ Page({
 
   onUnload() {
     this.detachMemberRealtime();
+    this.clearStartupVideoFadeTimer();
   },
 
   ensureNavMetrics() {
@@ -1531,6 +1550,52 @@ Page({
       showBackgroundOverlay: !showVideo,
       backgroundVideoError: hasError
     });
+  },
+
+  clearStartupVideoFadeTimer() {
+    if (this.startupVideoFadeTimeout) {
+      clearTimeout(this.startupVideoFadeTimeout);
+      this.startupVideoFadeTimeout = null;
+    }
+  },
+
+  triggerStartupVideoFade(immediate = false) {
+    if (this.startupVideoDismissed) {
+      return;
+    }
+    this.startupVideoDismissed = true;
+    this.clearStartupVideoFadeTimer();
+    if (immediate) {
+      this.setData({
+        showStartupVideo: false,
+        startupVideoFading: false
+      });
+      return;
+    }
+    this.setData({ startupVideoFading: true });
+    this.startupVideoFadeTimeout = setTimeout(() => {
+      this.startupVideoFadeTimeout = null;
+      this.setData({ showStartupVideo: false });
+    }, STARTUP_VIDEO_FADE_DURATION_MS);
+  },
+
+  handleStartupVideoTimeUpdate(event) {
+    if (this.startupVideoDismissed) {
+      return;
+    }
+    const detail = event && event.detail ? event.detail : {};
+    const currentTime = Number(detail.currentTime || 0);
+    if (currentTime >= STARTUP_VIDEO_FADE_OUT_AT_SECONDS) {
+      this.triggerStartupVideoFade();
+    }
+  },
+
+  handleStartupVideoEnded() {
+    this.triggerStartupVideoFade();
+  },
+
+  handleStartupVideoError() {
+    this.triggerStartupVideoFade(true);
   },
 
   handleBackgroundVideoError() {
