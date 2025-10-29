@@ -30,6 +30,23 @@ const EQUIPMENT_QUALITY_META = {
   relic: { label: '至宝', color: '#6cf4ff' }
 };
 
+function resolveEquipmentName(source, fallback = '') {
+  if (!source || typeof source !== 'object') {
+    return fallback;
+  }
+  const name =
+    (typeof source.displayName === 'string' && source.displayName.trim()) ||
+    (typeof source.cnName === 'string' && source.cnName.trim()) ||
+    (typeof source.name === 'string' && source.name.trim()) ||
+    (typeof source.itemName === 'string' && source.itemName.trim()) ||
+    (typeof source.label === 'string' && source.label.trim()) ||
+    '';
+  if (name) {
+    return name;
+  }
+  return fallback;
+}
+
 function normalizeDisplayLines(list) {
   if (!Array.isArray(list)) {
     return [];
@@ -130,7 +147,8 @@ function buildListingDisplay(listing, config) {
   }
   const item = listing.item || {};
   const refine = Number.isFinite(item.refine) ? item.refine : 0;
-  const name = item.itemId ? `${item.itemId}${refine ? ` · 强化 +${refine}` : ''}` : listing.id;
+  const baseName = resolveEquipmentName(item, '神秘装备');
+  const name = `${baseName}${refine > 0 ? ` · 强化 +${refine}` : ''}`;
   const price = listing.currentPrice || listing.fixedPrice || listing.startPrice || 0;
   const displayPrice = `${price} 灵石`;
   const remaining = formatRemainingTime(listing.expiresAt);
@@ -186,13 +204,7 @@ function buildSellableItemDisplay(item, index = 0, detail = null) {
     iconUrl = iconUrl || iconPaths.iconUrl;
     iconFallbackUrl = iconFallbackUrl || iconPaths.iconFallbackUrl;
   }
-  const baseName =
-    (detailItem && typeof detailItem.name === 'string' && detailItem.name.trim()) ||
-    (typeof item.name === 'string' && item.name.trim()) ||
-    (typeof item.itemName === 'string' && item.itemName.trim()) ||
-    (typeof item.label === 'string' && item.label.trim()) ||
-    (typeof item.itemId === 'string' && item.itemId.trim()) ||
-    `装备 ${index + 1}`;
+  const baseName = resolveEquipmentName(detailItem || item, `装备 ${index + 1}`);
   const displayName = baseName;
   const shortName =
     (typeof item.shortName === 'string' && item.shortName) ||
