@@ -23,7 +23,6 @@
       show-screen-lock-button="{{false}}"
       enable-progress-gesture="{{false}}"
       objectFit="cover"
-      poster="{{backgroundPoster}}"
       binderror="handleBackgroundVideoError"
     ></video>
   </view>
