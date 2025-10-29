@@ -1560,16 +1560,32 @@ Page({
     const shouldShowVideo = dynamicEnabled && !!video;
     const hasError = shouldShowVideo ? (options.resetError ? false : !!this.data.backgroundVideoError) : false;
     const showVideo = hasError ? false : shouldShowVideo;
-    this.setData({
+    const posterSource = resolveVideoPosterSource(image);
+    const wasShowingVideo = !!this.data.showBackgroundVideo;
+    const posterAlreadyCleared = this.backgroundPosterCleared === true;
+    const shouldUpdatePoster =
+      !showVideo ||
+      !wasShowingVideo ||
+      !posterAlreadyCleared ||
+      this.backgroundPosterSource !== posterSource;
+    const nextState = {
       backgroundImage: image,
       backgroundVideo: video,
-      backgroundPoster: resolveVideoPosterSource(image),
       dynamicBackgroundEnabled: dynamicEnabled,
       showBackgroundVideo: showVideo,
       showBackgroundOverlay: !showVideo,
       backgroundVideoError: hasError
-    });
-    this.backgroundPosterCleared = !showVideo;
+    };
+    if (shouldUpdatePoster) {
+      nextState.backgroundPoster = posterSource;
+    }
+    this.setData(nextState);
+    if (!showVideo) {
+      this.backgroundPosterCleared = true;
+    } else if (shouldUpdatePoster) {
+      this.backgroundPosterCleared = false;
+    }
+    this.backgroundPosterSource = posterSource;
   },
 
   clearStartupVideoFadeTimer() {
