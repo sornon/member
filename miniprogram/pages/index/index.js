@@ -64,6 +64,7 @@ const STARTUP_COVER_IMAGE = '/cover-20251028.jpg';
 const STARTUP_VIDEO_SOURCE = buildCloudAssetUrl('background', 'cover-20251028.mp4');
 const STARTUP_VIDEO_FADE_OUT_AT_SECONDS = 5;
 const STARTUP_VIDEO_FADE_DURATION_MS = 1000;
+const STARTUP_VIDEO_ACTIVATION_DELAY_MS = 300;
 
 const AVATAR_URL_PATTERN = /\/assets\/avatar\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
 const CHARACTER_URL_PATTERN = /\/assets\/character\/((male|female)-[a-z]+-\d+)\.png(?:\?.*)?$/;
@@ -1186,7 +1187,9 @@ Page({
     backgroundVideoError: false,
     dynamicBackgroundEnabled: false,
     startupVideoSource: STARTUP_VIDEO_SOURCE,
-    showStartupVideo: true,
+    startupCoverImage: STARTUP_COVER_IMAGE,
+    showStartupOverlay: true,
+    startupVideoVisible: false,
     startupVideoFading: false,
     globalBackgroundEnforced: false,
     navHeight: 88,
@@ -1414,9 +1417,12 @@ Page({
   onLoad() {
     this.startupVideoDismissed = false;
     this.startupVideoFadeTimeout = null;
+    this.startupVideoActivationTimer = null;
     this.setData({
       startupVideoSource: STARTUP_VIDEO_SOURCE,
-      showStartupVideo: true,
+      startupCoverImage: STARTUP_COVER_IMAGE,
+      showStartupOverlay: true,
+      startupVideoVisible: false,
       startupVideoFading: false
     });
     this.cacheVersionSynced = false;
@@ -1503,13 +1509,17 @@ Page({
     this.refreshStorageBadgeIndicator();
     this.attachMemberRealtime();
     this.bootstrap();
+    this.activateStartupVideo();
   },
 
-  onReady() {},
+  onReady() {
+    this.activateStartupVideo();
+  },
 
   onHide() {
     this.detachMemberRealtime();
     this.clearStartupVideoFadeTimer();
+    this.clearStartupVideoActivationTimer();
     try {
       const pages = getCurrentPages();
       if (Array.isArray(pages) && pages.length > 1) {
@@ -1523,6 +1533,7 @@ Page({
   onUnload() {
     this.detachMemberRealtime();
     this.clearStartupVideoFadeTimer();
+    this.clearStartupVideoActivationTimer();
   },
 
   ensureNavMetrics() {
@@ -1559,15 +1570,40 @@ Page({
     }
   },
 
+  clearStartupVideoActivationTimer() {
+    if (this.startupVideoActivationTimer) {
+      clearTimeout(this.startupVideoActivationTimer);
+      this.startupVideoActivationTimer = null;
+    }
+  },
+
+  activateStartupVideo() {
+    if (this.startupVideoDismissed || this.data.startupVideoVisible) {
+      return;
+    }
+    if (this.startupVideoActivationTimer) {
+      return;
+    }
+    this.startupVideoActivationTimer = setTimeout(() => {
+      this.startupVideoActivationTimer = null;
+      if (this.startupVideoDismissed || this.data.startupVideoVisible) {
+        return;
+      }
+      this.setData({ startupVideoVisible: true });
+    }, STARTUP_VIDEO_ACTIVATION_DELAY_MS);
+  },
+
   triggerStartupVideoFade(immediate = false) {
     if (this.startupVideoDismissed) {
       return;
     }
     this.startupVideoDismissed = true;
     this.clearStartupVideoFadeTimer();
+    this.clearStartupVideoActivationTimer();
     if (immediate) {
       this.setData({
-        showStartupVideo: false,
+        showStartupOverlay: false,
+        startupVideoVisible: false,
         startupVideoFading: false
       });
       return;
@@ -1575,7 +1611,11 @@ Page({
     this.setData({ startupVideoFading: true });
     this.startupVideoFadeTimeout = setTimeout(() => {
       this.startupVideoFadeTimeout = null;
-      this.setData({ showStartupVideo: false });
+      this.setData({
+        showStartupOverlay: false,
+        startupVideoVisible: false,
+        startupVideoFading: false
+      });
     }, STARTUP_VIDEO_FADE_DURATION_MS);
   },
 

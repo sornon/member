@@ -31,10 +31,12 @@
   <view class="mist-layer mist-layer--one background-layer {{showBackgroundOverlay ? 'background-layer--visible' : ''}}"></view>
   <view class="mist-layer mist-layer--two background-layer {{showBackgroundOverlay ? 'background-layer--visible' : ''}}"></view>
   <view
-    wx:if="{{showStartupVideo}}"
+    wx:if="{{showStartupOverlay}}"
     class="startup-video-layer {{startupVideoFading ? 'startup-video-layer--fading' : ''}}"
   >
+    <image class="startup-cover" src="{{startupCoverImage}}" mode="aspectFill"></image>
     <video
+      wx:if="{{startupVideoVisible}}"
       id="startupVideo"
       class="startup-video"
       src="{{startupVideoSource}}"
@@ -48,7 +50,7 @@
       show-screen-lock-button="{{false}}"
       enable-progress-gesture="{{false}}"
       objectFit="cover"
-      poster="{{backgroundImage}}"
+      poster="{{startupCoverImage}}"
       bindtimeupdate="handleStartupVideoTimeUpdate"
       bindended="handleStartupVideoEnded"
       binderror="handleStartupVideoError"
