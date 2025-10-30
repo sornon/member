@@ -35,6 +35,12 @@
   gap: 20rpx;
 }
 
+.activity-card--hover {
+  background: rgba(24, 34, 78, 0.96);
+  border-color: rgba(119, 138, 230, 0.45);
+  box-shadow: 0 20rpx 40rpx rgba(8, 14, 42, 0.6);
+}
+
 .activity-card__header {
   display: flex;
   align-items: flex-start;
@@ -49,10 +55,6 @@
   flex: 1;
   min-width: 0;
   color: inherit;
-}
-
-.activity-card__title-wrap--hover .activity-card__title {
-  opacity: 0.72;
 }
 
 .activity-card__title {
@@ -82,7 +84,11 @@
   line-height: 1;
 }
 
-.activity-card__title-wrap--hover .activity-card__indicator {
+.activity-card--hover .activity-card__title {
+  opacity: 0.78;
+}
+
+.activity-card--hover .activity-card__indicator {
   background: rgba(113, 144, 255, 0.32);
 }
 
