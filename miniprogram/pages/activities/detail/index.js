@@ -144,6 +144,18 @@ Page({
     if (!this.activityId) {
       return;
     }
+    const fallback = buildHalloweenFallbackActivity(this.activityId);
+    if (fallback) {
+      this.setData({
+        loading: false,
+        error: '',
+        activity: fallback.activity,
+        specialActivity: fallback.specialActivity,
+        immersiveMode: true
+      });
+      return;
+    }
+
     this.setData({ loading: true, error: '' });
     try {
       const response = await ActivityService.detail(this.activityId);
