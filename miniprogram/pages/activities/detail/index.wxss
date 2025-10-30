@@ -235,15 +235,8 @@
   justify-content: flex-start;
   gap: 12rpx;
   padding: 0 48rpx 160rpx;
-  padding-top: 220rpx;
+  padding-top: 845rpx;
   box-sizing: border-box;
-}
-
-.activity-detail__immersive-heading {
-  font-size: 48rpx;
-  font-weight: 700;
-  letter-spacing: 6rpx;
-  color: #ffffff;
 }
 
 .activity-detail__immersive-content {
@@ -251,7 +244,6 @@
   margin-top: -120rpx;
   padding: 120rpx 48rpx 160rpx;
   box-sizing: border-box;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.92) 0%, rgba(0, 0, 0, 0.96) 24%, rgba(0, 0, 0, 1) 68%);
 }
 
 .activity-detail__immersive-meta {

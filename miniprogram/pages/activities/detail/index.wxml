@@ -1,4 +1,4 @@
-<custom-nav title="活动详情" theme="{{immersiveMode ? 'transparent' : 'dark'}}"></custom-nav>
+<custom-nav title="{{immersiveMode ? '' : '活动详情'}}" theme="{{immersiveMode ? 'transparent' : 'dark'}}"></custom-nav>
 <view
   class="container activity-detail {{immersiveMode ? 'activity-detail--immersive-root' : ''}}"
   style="{{immersiveMode ? 'margin-top:-' + navHeight + 'px;' : ''}}"
@@ -21,11 +21,7 @@
               mode="widthFix"
             ></image>
             <view class="activity-detail__immersive-hero-overlay"></view>
-            <view
-              class="activity-detail__immersive-hero-content"
-              style="{{navHeight ? 'padding-top:' + (navHeight + 48) + 'px;' : ''}}"
-            >
-              <view class="activity-detail__immersive-heading">{{specialActivity.title}}</view>
+            <view class="activity-detail__immersive-hero-content">
               <view class="activity-detail__immersive-meta">{{specialActivity.time}}</view>
               <view class="activity-detail__immersive-meta">入场形式：{{specialActivity.entry}}</view>
               <view class="activity-detail__immersive-meta">服装要求：{{specialActivity.dressCode}}</view>
