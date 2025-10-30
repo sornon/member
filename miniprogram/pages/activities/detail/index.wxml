@@ -13,20 +13,26 @@
   <block wx:elif="{{activity}}">
     <block wx:if="{{specialActivity}}">
       <view class="activity-detail__immersive">
-        <scroll-view class="activity-detail__immersive-scroll" scroll-y="true" enable-flex="true">
+        <view class="activity-detail__immersive-scroll">
           <view class="activity-detail__immersive-hero">
             <image
               class="activity-detail__immersive-hero-image"
               src="{{specialActivity.backgroundImage}}"
-              mode="aspectFill"
+              mode="widthFix"
             ></image>
             <view class="activity-detail__immersive-hero-overlay"></view>
+            <view
+              class="activity-detail__immersive-hero-content"
+              style="{{navHeight ? 'padding-top:' + (navHeight + 48) + 'px;' : ''}}"
+            >
+              <view class="activity-detail__immersive-heading">{{specialActivity.title}}</view>
+              <view class="activity-detail__immersive-meta">{{specialActivity.time}}</view>
+              <view class="activity-detail__immersive-meta">入场形式：{{specialActivity.entry}}</view>
+              <view class="activity-detail__immersive-meta">服装要求：{{specialActivity.dressCode}}</view>
+              <view class="activity-detail__immersive-highlight">活动特色：{{specialActivity.feature}}</view>
+            </view>
           </view>
           <view class="activity-detail__immersive-content">
-            <view class="activity-detail__immersive-meta">{{specialActivity.time}}</view>
-            <view class="activity-detail__immersive-meta">入场形式：{{specialActivity.entry}}</view>
-            <view class="activity-detail__immersive-meta">服装要求：{{specialActivity.dressCode}}</view>
-            <view class="activity-detail__immersive-highlight">活动特色：{{specialActivity.feature}}</view>
             <view class="activity-detail__immersive-divider"></view>
             <view class="activity-detail__immersive-subtitle">票价方案</view>
             <view class="activity-detail__immersive-tickets">
@@ -47,7 +53,7 @@
               </view>
             </view>
           </view>
-        </scroll-view>
+        </view>
       </view>
     </block>
     <block wx:else>
