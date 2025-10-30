@@ -187,6 +187,7 @@
 
 .activity-detail__share-button:first-child {
   min-width: 240rpx;
+  line-height: 2;
 }
 
 .activity-detail__immersive {
@@ -217,13 +218,6 @@
 .activity-detail__immersive-hero-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.05) 0%,
-    rgba(0, 0, 0, 0.35) 36%,
-    rgba(0, 0, 0, 0.78) 74%,
-    rgba(0, 0, 0, 0.92) 100%
-  );
   pointer-events: none;
 }
 
@@ -241,7 +235,7 @@
 
 .activity-detail__immersive-content {
   position: relative;
-  margin-top: -120rpx;
+  margin-top: -370rpx;
   padding: 120rpx 48rpx 160rpx;
   box-sizing: border-box;
 }
@@ -270,6 +264,7 @@
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   letter-spacing: 3rpx;
+  line-height: 2;
 }
 
 .activity-detail__immersive-tickets {
@@ -325,7 +320,7 @@
   border-radius: 999rpx;
   font-size: 30rpx;
   height: 92rpx;
-  line-height: 92rpx;
+  line-height: 2;
 }
 
 .activity-detail__share-button--immersive::after {

@@ -20,7 +20,6 @@
               src="{{specialActivity.backgroundImage}}"
               mode="widthFix"
             ></image>
-            <view class="activity-detail__immersive-hero-overlay"></view>
             <view class="activity-detail__immersive-hero-content">
               <view class="activity-detail__immersive-meta">{{specialActivity.time}}</view>
               <view class="activity-detail__immersive-meta">入场形式：{{specialActivity.entry}}</view>
