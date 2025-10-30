@@ -11,6 +11,7 @@ const HALLOWEEN_EVENT_IDS = new Set(
 );
 const HALLOWEEN_EVENT_TITLE_KEYWORDS = ['酒隐之茄——万圣节私人派对', '万圣节古巴之夜'];
 const HALLOWEEN_BACKGROUND_IMAGE = buildCloudAssetUrl('background', 'activity-29251031-2.jpg');
+const HALLOWEEN_SHARE_COVER_IMAGE = buildCloudAssetUrl('background', 'cover-20251031.jpg');
 
 const HALLOWEEN_CUSTOM_CONTENT = {
   title: '酒隐之茄——万圣节私人派对',
@@ -61,6 +62,9 @@ function resolveHalloweenCustomContent(activity) {
 }
 
 function buildShareImage(activity) {
+  if (matchesHalloweenActivity(activity)) {
+    return HALLOWEEN_SHARE_COVER_IMAGE;
+  }
   if (activity && typeof activity.coverImage === 'string' && activity.coverImage.trim()) {
     return activity.coverImage;
   }
