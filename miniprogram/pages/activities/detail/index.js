@@ -71,6 +71,25 @@ function buildShareImage(activity) {
   return '';
 }
 
+function buildHalloweenFallbackActivity(id) {
+  if (!id) {
+    return null;
+  }
+  if (!matchesHalloweenActivity({ id })) {
+    return null;
+  }
+  const fallbackActivity = decorateActivity({
+    id,
+    title: HALLOWEEN_CUSTOM_CONTENT.title,
+    status: 'published'
+  });
+  const specialActivity = resolveHalloweenCustomContent(fallbackActivity);
+  return {
+    activity: fallbackActivity,
+    specialActivity
+  };
+}
+
 function buildShareTitle(activity) {
   if (activity && typeof activity.title === 'string' && activity.title.trim()) {
     return activity.title;
@@ -140,6 +159,17 @@ Page({
       this.setData({ activity, specialActivity, loading: false, immersiveMode });
     } catch (error) {
       console.error('[activities:detail] fetch failed', error);
+      const fallback = buildHalloweenFallbackActivity(this.activityId);
+      if (fallback) {
+        this.setData({
+          loading: false,
+          error: '',
+          activity: fallback.activity,
+          specialActivity: fallback.specialActivity,
+          immersiveMode: true
+        });
+        return;
+      }
       this.setData({
         loading: false,
         error: (error && (error.errMsg || error.message)) || '活动暂不可用',
