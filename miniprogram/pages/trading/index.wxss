@@ -338,11 +338,14 @@ page {
   position: relative;
   width: 92%;
   max-width: 640rpx;
+  max-height: 88vh;
   background: rgba(12, 18, 38, 0.95);
   border-radius: 24rpx;
   padding: 24rpx;
   color: #f4f6ff;
   box-shadow: 0 18rpx 60rpx rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
 }
 
 .trading-modal__header {
@@ -365,8 +368,11 @@ page {
 }
 
 .trading-modal__body {
+  flex: 1;
+  min-height: 0;
   max-height: 640rpx;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .trading-modal__message {
