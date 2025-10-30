@@ -1,5 +1,8 @@
-<custom-nav title="活动详情" theme="dark"></custom-nav>
-<view class="container activity-detail">
+<custom-nav title="活动详情" theme="{{immersiveMode ? 'transparent' : 'dark'}}"></custom-nav>
+<view
+  class="container activity-detail {{immersiveMode ? 'activity-detail--immersive-root' : ''}}"
+  style="{{immersiveMode ? 'margin-top:-' + navHeight + 'px;' : ''}}"
+>
   <view wx:if="{{loading}}" class="card activity-detail__state">
     <text class="activity-detail__state-text">活动情报加载中...</text>
   </view>
@@ -8,39 +11,80 @@
     <button class="activity-detail__retry" size="mini" type="primary" bindtap="handleRetry">重新加载</button>
   </view>
   <block wx:elif="{{activity}}">
-    <view class="card activity-detail__card">
-      <view class="activity-detail__header">
-        <view class="activity-detail__title">{{activity.title}}</view>
-        <view class="activity-detail__status activity-detail__status--{{activity.statusType}}">{{activity.statusLabel}}</view>
+    <block wx:if="{{specialActivity}}">
+      <view class="activity-detail__immersive">
+        <scroll-view class="activity-detail__immersive-scroll" scroll-y="true" enable-flex="true">
+          <view class="activity-detail__immersive-hero">
+            <image
+              class="activity-detail__immersive-hero-image"
+              src="{{specialActivity.backgroundImage}}"
+              mode="aspectFill"
+            ></image>
+            <view class="activity-detail__immersive-hero-overlay"></view>
+          </view>
+          <view class="activity-detail__immersive-content">
+            <view class="activity-detail__immersive-meta">{{specialActivity.time}}</view>
+            <view class="activity-detail__immersive-meta">入场形式：{{specialActivity.entry}}</view>
+            <view class="activity-detail__immersive-meta">服装要求：{{specialActivity.dressCode}}</view>
+            <view class="activity-detail__immersive-highlight">活动特色：{{specialActivity.feature}}</view>
+            <view class="activity-detail__immersive-divider"></view>
+            <view class="activity-detail__immersive-subtitle">票价方案</view>
+            <view class="activity-detail__immersive-tickets">
+              <view wx:for="{{specialActivity.tickets}}" wx:key="name" class="activity-detail__immersive-ticket">
+                <view class="activity-detail__immersive-ticket-header">
+                  <view class="activity-detail__immersive-ticket-name">{{item.name}}</view>
+                  <view class="activity-detail__immersive-ticket-price">{{item.price}}</view>
+                </view>
+                <view class="activity-detail__immersive-ticket-desc">{{item.description}}</view>
+              </view>
+            </view>
+            <view class="activity-detail__immersive-divider"></view>
+            <view class="activity-detail__immersive-share">
+              <view class="activity-detail__immersive-subtitle">邀友一起参与</view>
+              <view class="activity-detail__share-actions">
+                <button class="activity-detail__share-button activity-detail__share-button--immersive activity-detail__share-button--primary" type="primary" open-type="share">邀请好友</button>
+                <button class="activity-detail__share-button activity-detail__share-button--immersive activity-detail__share-button--secondary" type="default" bindtap="handleShareToTimeline">分享朋友圈</button>
+              </view>
+            </view>
+          </view>
+        </scroll-view>
       </view>
-      <view wx:if="{{activity.tagline}}" class="activity-detail__tagline">{{activity.tagline}}</view>
-      <view wx:if="{{activity.summary}}" class="activity-detail__summary">{{activity.summary}}</view>
-      <view wx:if="{{activity.coverImage}}" class="activity-detail__cover">
-        <image class="activity-detail__cover-image" src="{{activity.coverImage}}" mode="aspectFill"></image>
-      </view>
-      <view wx:if="{{activity.timeRangeLabel}}" class="activity-detail__meta">时间：{{activity.timeRangeLabel}}</view>
-      <view wx:if="{{activity.location}}" class="activity-detail__meta">地点：{{activity.location}}</view>
-      <view wx:if="{{activity.priceLabel}}" class="activity-detail__meta">方案：{{activity.priceLabel}}</view>
-      <view wx:if="{{activity.highlight}}" class="activity-detail__highlight">{{activity.highlight}}</view>
-      <view wx:if="{{activity.perks.length}}" class="activity-detail__section">
-        <view class="activity-detail__section-title">礼遇详情</view>
-        <view wx:for="{{activity.perks}}" wx:key="index" class="activity-detail__perk">
-          <text class="activity-detail__bullet">•</text>
-          <text class="activity-detail__perk-text">{{item}}</text>
+    </block>
+    <block wx:else>
+      <view class="card activity-detail__card">
+        <view class="activity-detail__header">
+          <view class="activity-detail__title">{{activity.title}}</view>
+          <view class="activity-detail__status activity-detail__status--{{activity.statusType}}">{{activity.statusLabel}}</view>
+        </view>
+        <view wx:if="{{activity.tagline}}" class="activity-detail__tagline">{{activity.tagline}}</view>
+        <view wx:if="{{activity.summary}}" class="activity-detail__summary">{{activity.summary}}</view>
+        <view wx:if="{{activity.coverImage}}" class="activity-detail__cover">
+          <image class="activity-detail__cover-image" src="{{activity.coverImage}}" mode="aspectFill"></image>
+        </view>
+        <view wx:if="{{activity.timeRangeLabel}}" class="activity-detail__meta">时间：{{activity.timeRangeLabel}}</view>
+        <view wx:if="{{activity.location}}" class="activity-detail__meta">地点：{{activity.location}}</view>
+        <view wx:if="{{activity.priceLabel}}" class="activity-detail__meta">方案：{{activity.priceLabel}}</view>
+        <view wx:if="{{activity.highlight}}" class="activity-detail__highlight">{{activity.highlight}}</view>
+        <view wx:if="{{activity.perks.length}}" class="activity-detail__section">
+          <view class="activity-detail__section-title">礼遇详情</view>
+          <view wx:for="{{activity.perks}}" wx:key="index" class="activity-detail__perk">
+            <text class="activity-detail__bullet">•</text>
+            <text class="activity-detail__perk-text">{{item}}</text>
+          </view>
+        </view>
+        <view wx:if="{{activity.notes}}" class="activity-detail__notes">{{activity.notes}}</view>
+        <view wx:if="{{activity.tags.length}}" class="activity-detail__tags">
+          <view wx:for="{{activity.tags}}" wx:key="tag" class="activity-detail__tag">{{item}}</view>
         </view>
       </view>
-      <view wx:if="{{activity.notes}}" class="activity-detail__notes">{{activity.notes}}</view>
-      <view wx:if="{{activity.tags.length}}" class="activity-detail__tags">
-        <view wx:for="{{activity.tags}}" wx:key="tag" class="activity-detail__tag">{{item}}</view>
+      <view class="card activity-detail__share">
+        <view class="activity-detail__share-title">邀友一起参与</view>
+        <view class="activity-detail__share-actions">
+          <button class="activity-detail__share-button" type="primary" open-type="share">邀请好友</button>
+          <button class="activity-detail__share-button" type="default" bindtap="handleShareToTimeline">分享朋友圈</button>
+        </view>
       </view>
-    </view>
-    <view class="card activity-detail__share">
-      <view class="activity-detail__share-title">邀友一起参与</view>
-      <view class="activity-detail__share-actions">
-        <button class="activity-detail__share-button" type="primary" open-type="share">邀请好友</button>
-        <button class="activity-detail__share-button" type="default" bindtap="handleShareToTimeline">分享朋友圈</button>
-      </view>
-    </view>
+    </block>
   </block>
   <view wx:else class="card activity-detail__state activity-detail__state--empty">
     <text class="activity-detail__state-text">活动不存在或已下架</text>
