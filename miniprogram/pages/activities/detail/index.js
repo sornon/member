@@ -5,9 +5,14 @@ const { buildCloudAssetUrl } = require('../../../shared/asset-paths.js');
 const app = getApp();
 
 const HALLOWEEN_EVENT_IDS = new Set(
-  ['activity_202510_halloween', 'activity_20251031_halloween', 'activity_202510_halloween_private'].map((id) =>
-    id.toLowerCase()
-  )
+  [
+    'activity_202510_halloween',
+    'activity_20251031_halloween',
+    'activity_202510_halloween_private',
+    'activity_202410_halloween',
+    'activity_20241031_halloween',
+    'activity_202410_halloween_private'
+  ].map((id) => id.toLowerCase())
 );
 const HALLOWEEN_EVENT_TITLE_KEYWORDS = ['酒隐之茄——万圣节私人派对', '万圣节私人派对'];
 const HALLOWEEN_BACKGROUND_IMAGE = buildCloudAssetUrl('background', 'activity-29251031-2.jpg');
@@ -42,7 +47,8 @@ const HALLOWEEN_CUSTOM_CONTENT = {
 function matchesHalloweenActivity(activity = {}) {
   const id = typeof activity.id === 'string' ? activity.id.trim().toLowerCase() : '';
   const title = typeof activity.title === 'string' ? activity.title.trim() : '';
-  const matchesId = id && HALLOWEEN_EVENT_IDS.has(id);
+  const matchesId =
+    !!id && (HALLOWEEN_EVENT_IDS.has(id) || (id.includes('halloween') && id.includes('activity')));
   const matchesTitle = title && HALLOWEEN_EVENT_TITLE_KEYWORDS.some((keyword) => title.includes(keyword));
   return matchesId || matchesTitle;
 }
@@ -69,6 +75,25 @@ function buildShareImage(activity) {
     return activity.coverImage;
   }
   return '';
+}
+
+function buildHalloweenFallbackActivity(id) {
+  if (!id) {
+    return null;
+  }
+  if (!matchesHalloweenActivity({ id })) {
+    return null;
+  }
+  const fallbackActivity = decorateActivity({
+    id,
+    title: HALLOWEEN_CUSTOM_CONTENT.title,
+    status: 'published'
+  });
+  const specialActivity = resolveHalloweenCustomContent(fallbackActivity);
+  return {
+    activity: fallbackActivity,
+    specialActivity
+  };
 }
 
 function buildShareTitle(activity) {
@@ -125,6 +150,18 @@ Page({
     if (!this.activityId) {
       return;
     }
+    const fallback = buildHalloweenFallbackActivity(this.activityId);
+    if (fallback) {
+      this.setData({
+        loading: false,
+        error: '',
+        activity: fallback.activity,
+        specialActivity: fallback.specialActivity,
+        immersiveMode: true
+      });
+      return;
+    }
+
     this.setData({ loading: true, error: '' });
     try {
       const response = await ActivityService.detail(this.activityId);
@@ -140,6 +177,17 @@ Page({
       this.setData({ activity, specialActivity, loading: false, immersiveMode });
     } catch (error) {
       console.error('[activities:detail] fetch failed', error);
+      const fallback = buildHalloweenFallbackActivity(this.activityId);
+      if (fallback) {
+        this.setData({
+          loading: false,
+          error: '',
+          activity: fallback.activity,
+          specialActivity: fallback.specialActivity,
+          immersiveMode: true
+        });
+        return;
+      }
       this.setData({
         loading: false,
         error: (error && (error.errMsg || error.message)) || '活动暂不可用',
