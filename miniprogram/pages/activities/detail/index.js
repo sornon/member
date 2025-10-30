@@ -8,7 +8,7 @@ const HALLOWEEN_EVENT_IDS = new Set(
   )
 );
 const HALLOWEEN_EVENT_TITLE_KEYWORDS = ['酒隐之茄——万圣节私人派对', '万圣节古巴之夜'];
-const HALLOWEEN_BACKGROUND_IMAGE = buildCloudAssetUrl('background', 'cover-20251028.jpg');
+const HALLOWEEN_BACKGROUND_IMAGE = buildCloudAssetUrl('background', 'activity-20251031.jpg');
 
 const HALLOWEEN_CUSTOM_CONTENT = {
   title: '酒隐之茄——万圣节私人派对',

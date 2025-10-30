@@ -9,7 +9,12 @@
   </view>
   <block wx:elif="{{activity}}">
     <block wx:if="{{specialActivity}}">
-      <view class="activity-detail__immersive" style="background-image: url({{specialActivity.backgroundImage}});">
+      <view class="activity-detail__immersive">
+        <image
+          class="activity-detail__immersive-background"
+          src="{{specialActivity.backgroundImage}}"
+          mode="aspectFill"
+        ></image>
         <view class="activity-detail__immersive-content">
           <view class="activity-detail__immersive-header">
             <view class="activity-detail__immersive-title">{{specialActivity.title}}</view>
