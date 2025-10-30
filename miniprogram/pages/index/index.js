@@ -1198,6 +1198,7 @@ Page({
     startupVideoVisible: false,
     startupVideoFading: false,
     startupVideoMuted: true,
+    startupVideoSoundEnabled: false,
     globalBackgroundEnforced: false,
     navHeight: 88,
     today: '',
@@ -1433,7 +1434,8 @@ Page({
       startupVideoMounted: false,
       startupVideoVisible: false,
       startupVideoFading: false,
-      startupVideoMuted: true
+      startupVideoMuted: true,
+      startupVideoSoundEnabled: false
     });
     this.cacheVersionSynced = false;
     this.cacheVersionSyncResult = null;
@@ -1622,8 +1624,10 @@ Page({
     }
     const context = this.startupVideoContext;
     this.startupVideoContext = null;
-    if (!this.startupVideoDismissed && this.data.startupVideoMuted === false) {
-      this.setData({ startupVideoMuted: true });
+    if (!this.startupVideoDismissed && (this.data.startupVideoMuted === false || this.data.startupVideoSoundEnabled)) {
+      this.setData({ startupVideoMuted: true, startupVideoSoundEnabled: false });
+    } else if (this.data.startupVideoSoundEnabled) {
+      this.setData({ startupVideoSoundEnabled: false });
     }
     if (typeof context.mute === 'function') {
       try {
@@ -1670,7 +1674,8 @@ Page({
         startupVideoMounted: false,
         startupVideoVisible: false,
         startupVideoFading: false,
-        startupVideoMuted: true
+        startupVideoMuted: true,
+        startupVideoSoundEnabled: false
       });
       this.stopStartupVideo();
       return;
@@ -1683,7 +1688,8 @@ Page({
         startupVideoMounted: false,
         startupVideoVisible: false,
         startupVideoFading: false,
-        startupVideoMuted: true
+        startupVideoMuted: true,
+        startupVideoSoundEnabled: false
       });
       this.stopStartupVideo();
     }, STARTUP_VIDEO_FADE_DURATION_MS);
@@ -1712,22 +1718,47 @@ Page({
   },
 
   handleStartupVideoPlay() {
-    if (this.startupVideoDismissed || this.data.startupVideoVisible) {
+    if (this.startupVideoDismissed) {
       return;
     }
-    const context = this.ensureStartupVideoContext();
-    if (context && typeof context.mute === 'function') {
-      try {
-        context.mute(false);
-      } catch (error) {
-        console.warn('[index] unmute startup video failed', error);
-      }
+    if (!this.data.startupVideoVisible) {
+      this.setData({ startupVideoVisible: true });
     }
-    this.setData({ startupVideoVisible: true, startupVideoMuted: false });
   },
 
   handleStartupVideoError() {
     this.triggerStartupVideoFade(true);
+  },
+
+  handleStartupVideoSoundTap() {
+    if (this.startupVideoDismissed) {
+      return;
+    }
+    const context = this.ensureStartupVideoContext();
+    if (!context) {
+      return;
+    }
+    const currentlyEnabled = !!this.data.startupVideoSoundEnabled;
+    const nextEnabled = !currentlyEnabled;
+    if (typeof context.mute === 'function') {
+      try {
+        context.mute(!nextEnabled);
+      } catch (error) {
+        console.warn('[index] toggle startup video mute failed', error);
+      }
+    }
+    if (nextEnabled && typeof context.play === 'function') {
+      try {
+        context.play();
+      } catch (error) {
+        console.warn('[index] resume startup video play failed', error);
+      }
+    }
+    this.setData({
+      startupVideoMuted: !nextEnabled,
+      startupVideoSoundEnabled: nextEnabled,
+      startupVideoVisible: true
+    });
   },
 
   handleBackgroundVideoError() {
