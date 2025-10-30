@@ -23,7 +23,6 @@
             <view class="activity-detail__immersive-hero-overlay"></view>
           </view>
           <view class="activity-detail__immersive-content">
-            <view class="activity-detail__immersive-heading">{{specialActivity.title}}</view>
             <view class="activity-detail__immersive-meta">{{specialActivity.time}}</view>
             <view class="activity-detail__immersive-meta">入场形式：{{specialActivity.entry}}</view>
             <view class="activity-detail__immersive-meta">服装要求：{{specialActivity.dressCode}}</view>
