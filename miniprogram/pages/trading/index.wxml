@@ -333,8 +333,8 @@
   </block>
 </view>
 
-<view wx:if="{{showPublish}}" class="trading-modal" catchtouchmove="noop">
-  <view class="trading-modal__mask" bindtap="handlePublishClose"></view>
+<view wx:if="{{showPublish}}" class="trading-modal">
+  <view class="trading-modal__mask" bindtap="handlePublishClose" catchtouchmove="noop"></view>
   <view class="trading-modal__panel">
     <view class="trading-modal__header">
       <view class="trading-modal__title">{{publishStep === 'select' ? '选择装备' : '上架装备'}}</view>
@@ -502,8 +502,8 @@
   </view>
 </view>
 
-<view wx:if="{{showEquipmentDetail && equipmentDetailItem}}" class="trading-modal" catchtouchmove="noop">
-  <view class="trading-modal__mask" bindtap="handleEquipmentDetailClose"></view>
+<view wx:if="{{showEquipmentDetail && equipmentDetailItem}}" class="trading-modal">
+  <view class="trading-modal__mask" bindtap="handleEquipmentDetailClose" catchtouchmove="noop"></view>
   <view class="trading-modal__panel trading-modal__panel--detail">
     <view class="trading-modal__header">
       <view class="trading-modal__title">装备详情</view>
@@ -604,8 +604,8 @@
   </view>
 </view>
 
-<view wx:if="{{showDetail && detailListing}}" class="trading-modal" catchtouchmove="noop">
-  <view class="trading-modal__mask" bindtap="handleDetailClose"></view>
+<view wx:if="{{showDetail && detailListing}}" class="trading-modal">
+  <view class="trading-modal__mask" bindtap="handleDetailClose" catchtouchmove="noop"></view>
   <view class="trading-modal__panel">
     <view class="trading-modal__header">
       <view class="trading-modal__title">挂单详情</view>
