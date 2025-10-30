@@ -2,6 +2,8 @@ import { ActivityService } from '../../../services/api';
 import { decorateActivity } from '../../../shared/activity';
 const { buildCloudAssetUrl } = require('../../../shared/asset-paths.js');
 
+const app = getApp();
+
 const HALLOWEEN_EVENT_IDS = new Set(
   ['activity_202510_halloween', 'activity_20251031_halloween', 'activity_202510_halloween_private'].map((id) =>
     id.toLowerCase()
@@ -36,15 +38,19 @@ const HALLOWEEN_CUSTOM_CONTENT = {
   ]
 };
 
-function resolveHalloweenCustomContent(activity) {
-  if (!activity) {
-    return null;
-  }
+function matchesHalloweenActivity(activity = {}) {
   const id = typeof activity.id === 'string' ? activity.id.trim().toLowerCase() : '';
   const title = typeof activity.title === 'string' ? activity.title.trim() : '';
   const matchesId = id && HALLOWEEN_EVENT_IDS.has(id);
   const matchesTitle = title && HALLOWEEN_EVENT_TITLE_KEYWORDS.some((keyword) => title.includes(keyword));
-  if (!matchesId && !matchesTitle) {
+  return matchesId || matchesTitle;
+}
+
+function resolveHalloweenCustomContent(activity) {
+  if (!activity) {
+    return null;
+  }
+  if (!matchesHalloweenActivity(activity)) {
     return null;
   }
   return {
@@ -78,12 +84,20 @@ Page({
     loading: true,
     activity: null,
     error: '',
-    specialActivity: null
+    specialActivity: null,
+    immersiveMode: false,
+    navHeight: 0
   },
 
   onLoad(options = {}) {
     const id = typeof options.id === 'string' ? options.id.trim() : '';
     this.activityId = id;
+
+    const immersiveMode = matchesHalloweenActivity({ id });
+    this.setData({ immersiveMode });
+    if (immersiveMode) {
+      this.ensureNavMetrics();
+    }
 
     if (wx.showShareMenu) {
       wx.showShareMenu({
@@ -115,13 +129,18 @@ Page({
         throw new Error('活动不存在或已下架');
       }
       const specialActivity = resolveHalloweenCustomContent(activity);
-      this.setData({ activity, specialActivity, loading: false });
+      const immersiveMode = !!specialActivity;
+      if (immersiveMode) {
+        this.ensureNavMetrics();
+      }
+      this.setData({ activity, specialActivity, loading: false, immersiveMode });
     } catch (error) {
       console.error('[activities:detail] fetch failed', error);
       this.setData({
         loading: false,
         error: (error && (error.errMsg || error.message)) || '活动暂不可用',
-        specialActivity: null
+        specialActivity: null,
+        immersiveMode: false
       });
     }
   },
@@ -131,6 +150,19 @@ Page({
       return;
     }
     this.fetchActivity();
+  },
+
+  ensureNavMetrics() {
+    try {
+      const { customNav = {}, safeArea = {} } = (app && app.globalData) || {};
+      const statusBarHeight = customNav.statusBarHeight ?? safeArea.top ?? 0;
+      const navHeight = customNav.navHeight || (statusBarHeight + 44);
+      if (navHeight && navHeight !== this.data.navHeight) {
+        this.setData({ navHeight });
+      }
+    } catch (err) {
+      // Ignore failures to resolve navigation metrics.
+    }
   },
 
   handleShareToTimeline() {

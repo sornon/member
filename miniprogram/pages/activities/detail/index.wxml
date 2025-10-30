@@ -1,5 +1,8 @@
-<custom-nav title="活动详情" theme="{{specialActivity ? 'transparent' : 'dark'}}"></custom-nav>
-<view class="container activity-detail {{specialActivity ? 'activity-detail--immersive-root' : ''}}">
+<custom-nav title="活动详情" theme="{{immersiveMode ? 'transparent' : 'dark'}}"></custom-nav>
+<view
+  class="container activity-detail {{immersiveMode ? 'activity-detail--immersive-root' : ''}}"
+  style="{{immersiveMode ? 'margin-top:-' + navHeight + 'px;' : ''}}"
+>
   <view wx:if="{{loading}}" class="card activity-detail__state">
     <text class="activity-detail__state-text">活动情报加载中...</text>
   </view>
@@ -10,41 +13,39 @@
   <block wx:elif="{{activity}}">
     <block wx:if="{{specialActivity}}">
       <view class="activity-detail__immersive">
-        <image
-          class="activity-detail__immersive-background"
-          src="{{specialActivity.backgroundImage}}"
-          mode="aspectFill"
-        ></image>
-        <scroll-view class="activity-detail__immersive-content" scroll-y="true" enable-flex="true">
-          <view class="activity-detail__immersive-meta">{{specialActivity.time}}</view>
-          <view class="activity-detail__immersive-meta">入场形式：{{specialActivity.entry}}</view>
-          <view class="activity-detail__immersive-meta">服装要求：{{specialActivity.dressCode}}</view>
-          <view class="activity-detail__immersive-highlight">活动特色：{{specialActivity.feature}}</view>
-          <view class="activity-detail__immersive-divider"></view>
-          <view class="activity-detail__immersive-subtitle">票价方案</view>
-          <view class="activity-detail__immersive-tickets">
-            <view wx:for="{{specialActivity.tickets}}" wx:key="name" class="activity-detail__immersive-ticket">
-              <view class="activity-detail__immersive-ticket-header">
-                <view class="activity-detail__immersive-ticket-name">{{item.name}}</view>
-                <view class="activity-detail__immersive-ticket-price">{{item.price}}</view>
-              </view>
-              <view class="activity-detail__immersive-ticket-desc">{{item.description}}</view>
-            </view>
+        <scroll-view class="activity-detail__immersive-scroll" scroll-y="true" enable-flex="true">
+          <view class="activity-detail__immersive-hero">
+            <image
+              class="activity-detail__immersive-hero-image"
+              src="{{specialActivity.backgroundImage}}"
+              mode="aspectFill"
+            ></image>
+            <view class="activity-detail__immersive-hero-overlay"></view>
           </view>
-          <view class="activity-detail__immersive-divider"></view>
-          <view class="activity-detail__immersive-share">
-            <view class="activity-detail__immersive-subtitle">邀友一起参与</view>
-            <view class="activity-detail__share-actions">
-              <button
-                class="activity-detail__share-button activity-detail__share-button--immersive activity-detail__share-button--primary"
-                type="primary"
-                open-type="share"
-              >邀请好友</button>
-              <button
-                class="activity-detail__share-button activity-detail__share-button--immersive activity-detail__share-button--secondary"
-                type="default"
-                bindtap="handleShareToTimeline"
-              >分享朋友圈</button>
+          <view class="activity-detail__immersive-content">
+            <view class="activity-detail__immersive-heading">{{specialActivity.title}}</view>
+            <view class="activity-detail__immersive-meta">{{specialActivity.time}}</view>
+            <view class="activity-detail__immersive-meta">入场形式：{{specialActivity.entry}}</view>
+            <view class="activity-detail__immersive-meta">服装要求：{{specialActivity.dressCode}}</view>
+            <view class="activity-detail__immersive-highlight">活动特色：{{specialActivity.feature}}</view>
+            <view class="activity-detail__immersive-divider"></view>
+            <view class="activity-detail__immersive-subtitle">票价方案</view>
+            <view class="activity-detail__immersive-tickets">
+              <view wx:for="{{specialActivity.tickets}}" wx:key="name" class="activity-detail__immersive-ticket">
+                <view class="activity-detail__immersive-ticket-header">
+                  <view class="activity-detail__immersive-ticket-name">{{item.name}}</view>
+                  <view class="activity-detail__immersive-ticket-price">{{item.price}}</view>
+                </view>
+                <view class="activity-detail__immersive-ticket-desc">{{item.description}}</view>
+              </view>
+            </view>
+            <view class="activity-detail__immersive-divider"></view>
+            <view class="activity-detail__immersive-share">
+              <view class="activity-detail__immersive-subtitle">邀友一起参与</view>
+              <view class="activity-detail__share-actions">
+                <button class="activity-detail__share-button activity-detail__share-button--immersive activity-detail__share-button--primary" type="primary" open-type="share">邀请好友</button>
+                <button class="activity-detail__share-button activity-detail__share-button--immersive activity-detail__share-button--secondary" type="default" bindtap="handleShareToTimeline">分享朋友圈</button>
+              </view>
             </view>
           </view>
         </scroll-view>
