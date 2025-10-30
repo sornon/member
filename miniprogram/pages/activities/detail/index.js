@@ -5,9 +5,14 @@ const { buildCloudAssetUrl } = require('../../../shared/asset-paths.js');
 const app = getApp();
 
 const HALLOWEEN_EVENT_IDS = new Set(
-  ['activity_202510_halloween', 'activity_20251031_halloween', 'activity_202510_halloween_private'].map((id) =>
-    id.toLowerCase()
-  )
+  [
+    'activity_202510_halloween',
+    'activity_20251031_halloween',
+    'activity_202510_halloween_private',
+    'activity_202410_halloween',
+    'activity_20241031_halloween',
+    'activity_202410_halloween_private'
+  ].map((id) => id.toLowerCase())
 );
 const HALLOWEEN_EVENT_TITLE_KEYWORDS = ['酒隐之茄——万圣节私人派对', '万圣节私人派对'];
 const HALLOWEEN_BACKGROUND_IMAGE = buildCloudAssetUrl('background', 'activity-29251031-2.jpg');
@@ -42,7 +47,8 @@ const HALLOWEEN_CUSTOM_CONTENT = {
 function matchesHalloweenActivity(activity = {}) {
   const id = typeof activity.id === 'string' ? activity.id.trim().toLowerCase() : '';
   const title = typeof activity.title === 'string' ? activity.title.trim() : '';
-  const matchesId = id && HALLOWEEN_EVENT_IDS.has(id);
+  const matchesId =
+    !!id && (HALLOWEEN_EVENT_IDS.has(id) || (id.includes('halloween') && id.includes('activity')));
   const matchesTitle = title && HALLOWEEN_EVENT_TITLE_KEYWORDS.some((keyword) => title.includes(keyword));
   return matchesId || matchesTitle;
 }

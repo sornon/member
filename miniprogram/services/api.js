@@ -142,6 +142,23 @@ function recordNetworkError(name, data, error) {
   });
 }
 
+const PERMISSION_DENIED_ERR_CODE = -501023;
+
+function isPermissionDeniedError(error) {
+  if (!error) {
+    return false;
+  }
+  const code = typeof error.errCode === 'number' ? error.errCode : undefined;
+  if (code === PERMISSION_DENIED_ERR_CODE) {
+    return true;
+  }
+  const message = typeof error.errMsg === 'string' ? error.errMsg.toLowerCase() : '';
+  if (!message) {
+    return false;
+  }
+  return message.includes('permission denied') || message.includes('unauthenticated access is denied');
+}
+
 const callCloud = async (name, data = {}, options = {}) => {
   try {
     const res = await wx.cloud.callFunction({
@@ -151,8 +168,11 @@ const callCloud = async (name, data = {}, options = {}) => {
     return res.result;
   } catch (error) {
     console.error(`[cloud:${name}]`, error);
-    recordNetworkError(name, data, error);
-    if (!options || !options.suppressErrorToast) {
+    const permissionDenied = isPermissionDeniedError(error);
+    if (!permissionDenied) {
+      recordNetworkError(name, data, error);
+    }
+    if (!permissionDenied && (!options || !options.suppressErrorToast)) {
       wx.showToast({
         title: error.errMsg || '网络异常',
         icon: 'none'
