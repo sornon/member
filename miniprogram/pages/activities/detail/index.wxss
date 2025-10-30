@@ -6,6 +6,13 @@
   padding-bottom: calc(32rpx + env(safe-area-inset-bottom));
 }
 
+.activity-detail--immersive-root {
+  padding: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
 .activity-detail__state {
   text-align: center;
   padding: 80rpx 24rpx;
@@ -180,4 +187,152 @@
 
 .activity-detail__share-button:first-child {
   min-width: 240rpx;
+}
+
+.activity-detail__immersive {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  color: #f8faff;
+  overflow: hidden;
+}
+
+.activity-detail__immersive::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(5, 9, 33, 0.25) 0%, rgba(5, 9, 33, 0.78) 55%, rgba(5, 9, 33, 0.95) 100%);
+}
+
+.activity-detail__immersive-content {
+  position: relative;
+  padding: 88rpx 48rpx 64rpx;
+  padding-bottom: calc(64rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(64rpx + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.activity-detail__immersive-header {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.activity-detail__immersive-title {
+  font-size: 56rpx;
+  font-weight: 700;
+  line-height: 1.2;
+  text-shadow: 0 12rpx 24rpx rgba(2, 6, 20, 0.6);
+}
+
+.activity-detail__immersive-header .activity-detail__status {
+  align-self: flex-start;
+  box-shadow: 0 12rpx 24rpx rgba(8, 12, 36, 0.4);
+}
+
+.activity-detail__immersive-meta {
+  font-size: 28rpx;
+  line-height: 1.7;
+  color: rgba(247, 249, 255, 0.96);
+}
+
+.activity-detail__immersive-highlight {
+  font-size: 30rpx;
+  line-height: 1.6;
+  color: rgba(255, 222, 188, 0.95);
+  margin-top: 8rpx;
+}
+
+.activity-detail__immersive-divider {
+  margin: 20rpx 0;
+  height: 1rpx;
+  background: rgba(241, 244, 255, 0.3);
+}
+
+.activity-detail__immersive-subtitle {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  letter-spacing: 3rpx;
+}
+
+.activity-detail__immersive-tickets {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.activity-detail__immersive-ticket {
+  background: rgba(6, 12, 36, 0.55);
+  border-radius: 28rpx;
+  border: 1rpx solid rgba(205, 216, 255, 0.32);
+  padding: 28rpx 32rpx;
+  backdrop-filter: blur(24rpx);
+  box-shadow: 0 18rpx 36rpx rgba(6, 10, 32, 0.45);
+  color: rgba(244, 247, 255, 0.95);
+}
+
+.activity-detail__immersive-ticket-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-bottom: 12rpx;
+}
+
+.activity-detail__immersive-ticket-name {
+  font-size: 32rpx;
+  font-weight: 600;
+  letter-spacing: 2rpx;
+}
+
+.activity-detail__immersive-ticket-price {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #ffdf8c;
+}
+
+.activity-detail__immersive-ticket-desc {
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: rgba(230, 236, 255, 0.88);
+}
+
+.activity-detail__immersive-share {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  margin-top: 4rpx;
+}
+
+.activity-detail__share-button--immersive {
+  border-radius: 999rpx;
+  font-size: 30rpx;
+  height: 92rpx;
+  line-height: 92rpx;
+}
+
+.activity-detail__share-button--immersive::after {
+  border: none;
+}
+
+.activity-detail__share-button--primary {
+  background: linear-gradient(135deg, rgba(110, 130, 255, 0.98), rgba(172, 140, 255, 0.95));
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 18rpx 32rpx rgba(38, 26, 95, 0.45);
+}
+
+.activity-detail__share-button--secondary {
+  background: rgba(10, 16, 40, 0.55);
+  color: rgba(241, 244, 255, 0.92);
+  border: 1rpx solid rgba(211, 223, 255, 0.35);
+  backdrop-filter: blur(10rpx);
 }
