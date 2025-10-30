@@ -8,10 +8,8 @@
 
 .activity-detail--immersive-root {
   padding: 0;
-  height: 100vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   background: #000;
 }
 
@@ -189,22 +187,18 @@
 
 .activity-detail__share-button:first-child {
   min-width: 240rpx;
+  line-height: 2;
 }
 
 .activity-detail__immersive {
   position: relative;
-  flex: 1;
-  height: 100%;
   display: flex;
   flex-direction: column;
   color: #f8faff;
-  overflow: hidden;
   background: #000;
 }
 
 .activity-detail__immersive-scroll {
-  flex: 1;
-  height: 100%;
   display: flex;
   flex-direction: column;
   background: #000;
@@ -213,34 +207,37 @@
 .activity-detail__immersive-hero {
   position: relative;
   width: 100%;
-  height: 940rpx;
   overflow: hidden;
 }
 
 .activity-detail__immersive-hero-image {
-  position: absolute;
-  inset: 0;
   width: 100%;
-  height: 100%;
   display: block;
 }
 
 .activity-detail__immersive-hero-overlay {
   position: absolute;
   inset: 0;
+  pointer-events: none;
 }
 
-.activity-detail__immersive-content {
-  padding: 0rpx 48rpx 120rpx;
+.activity-detail__immersive-hero-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 12rpx;
+  padding: 0 48rpx 160rpx;
+  padding-top: 845rpx;
   box-sizing: border-box;
 }
 
-.activity-detail__immersive-heading {
-  font-size: 48rpx;
-  font-weight: 700;
-  letter-spacing: 6rpx;
-  color: #ffffff;
-  margin-bottom: 12rpx;
+.activity-detail__immersive-content {
+  position: relative;
+  margin-top: -370rpx;
+  padding: 120rpx 48rpx 160rpx;
+  box-sizing: border-box;
 }
 
 .activity-detail__immersive-meta {
@@ -267,6 +264,7 @@
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   letter-spacing: 3rpx;
+  line-height: 2;
 }
 
 .activity-detail__immersive-tickets {
@@ -322,7 +320,7 @@
   border-radius: 999rpx;
   font-size: 30rpx;
   height: 92rpx;
-  line-height: 92rpx;
+  line-height: 2;
 }
 
 .activity-detail__share-button--immersive::after {
