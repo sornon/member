@@ -9,7 +9,7 @@ const HALLOWEEN_EVENT_IDS = new Set(
     id.toLowerCase()
   )
 );
-const HALLOWEEN_EVENT_TITLE_KEYWORDS = ['酒隐之茄——万圣节私人派对', '万圣节古巴之夜'];
+const HALLOWEEN_EVENT_TITLE_KEYWORDS = ['酒隐之茄——万圣节私人派对', '万圣节私人派对'];
 const HALLOWEEN_BACKGROUND_IMAGE = buildCloudAssetUrl('background', 'activity-29251031-2.jpg');
 const HALLOWEEN_SHARE_COVER_IMAGE = buildCloudAssetUrl('background', 'cover-20251031.jpg');
 
@@ -17,7 +17,7 @@ const HALLOWEEN_CUSTOM_CONTENT = {
   title: '酒隐之茄——万圣节私人派对',
   time: '时间：2025年10月31日19:00通宵。',
   entry: '邀请制',
-  dressCode: 'cosplay或smart casual',
+  dressCode: 'Cosplay或Smart Casual',
   feature: '关闭大门、全店包场、包房唱K共享。',
   tickets: [
     {

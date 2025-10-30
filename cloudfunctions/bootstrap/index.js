@@ -285,7 +285,7 @@ const defaultActivities = [
   },
   {
     _id: 'activity_202410_halloween',
-    title: '万圣节古巴之夜',
+    title: '万圣节私人派对',
     tagline: '门票 1288 赠高希霸世纪 6',
     summary: '10月31日 20:00 开场，畅饮多款精品酒水',
     status: 'published',
