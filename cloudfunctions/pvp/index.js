@@ -1421,7 +1421,7 @@ function computeRatingDelta({ profile, opponentProfile, outcome, isBot, options 
 
 async function findRandomOpponent(memberId, season, profile) {
   const collection = db.collection(COLLECTIONS.PVP_PROFILES);
-  const range = Math.max(150, Math.round(profile.points * 0.1));
+  const range = Math.max(150, Math.round(profile.points * 0.3));
   const minPoints = Math.max(0, profile.points - range);
   const snapshot = await collection
     .where({
