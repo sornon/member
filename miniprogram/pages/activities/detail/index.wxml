@@ -1,4 +1,4 @@
-<custom-nav title="活动详情" theme="dark"></custom-nav>
+<custom-nav title="活动详情" theme="{{specialActivity ? 'transparent' : 'dark'}}"></custom-nav>
 <view class="container activity-detail {{specialActivity ? 'activity-detail--immersive-root' : ''}}">
   <view wx:if="{{loading}}" class="card activity-detail__state">
     <text class="activity-detail__state-text">活动情报加载中...</text>
@@ -15,11 +15,7 @@
           src="{{specialActivity.backgroundImage}}"
           mode="aspectFill"
         ></image>
-        <view class="activity-detail__immersive-content">
-          <view class="activity-detail__immersive-header">
-            <view class="activity-detail__immersive-title">{{specialActivity.title}}</view>
-            <view class="activity-detail__status activity-detail__status--{{activity.statusType}}">{{activity.statusLabel}}</view>
-          </view>
+        <scroll-view class="activity-detail__immersive-content" scroll-y="true" enable-flex="true">
           <view class="activity-detail__immersive-meta">{{specialActivity.time}}</view>
           <view class="activity-detail__immersive-meta">入场形式：{{specialActivity.entry}}</view>
           <view class="activity-detail__immersive-meta">服装要求：{{specialActivity.dressCode}}</view>
@@ -51,7 +47,7 @@
               >分享朋友圈</button>
             </view>
           </view>
-        </view>
+        </scroll-view>
       </view>
     </block>
     <block wx:else>

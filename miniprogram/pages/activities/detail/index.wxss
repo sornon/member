@@ -8,9 +8,10 @@
 
 .activity-detail--immersive-root {
   padding: 0;
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .activity-detail__state {
@@ -192,9 +193,9 @@
 .activity-detail__immersive {
   position: relative;
   flex: 1;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   color: #f8faff;
   overflow: hidden;
 }
@@ -224,24 +225,9 @@
   display: flex;
   flex-direction: column;
   gap: 20rpx;
-}
-
-.activity-detail__immersive-header {
-  display: flex;
-  flex-direction: column;
-  gap: 24rpx;
-}
-
-.activity-detail__immersive-title {
-  font-size: 56rpx;
-  font-weight: 700;
-  line-height: 1.2;
-  text-shadow: 0 12rpx 24rpx rgba(2, 6, 20, 0.6);
-}
-
-.activity-detail__immersive-header .activity-detail__status {
-  align-self: flex-start;
-  box-shadow: 0 12rpx 24rpx rgba(8, 12, 36, 0.4);
+  box-sizing: border-box;
+  flex: 1;
+  height: 100%;
 }
 
 .activity-detail__immersive-meta {
