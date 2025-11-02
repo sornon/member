@@ -61,7 +61,7 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 
 const DEFAULT_CHARACTER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
-const STARTUP_COVER_IMAGE = '/cover-20251028.jpg';
+const STARTUP_COVER_IMAGE = '/cover-20251102.jpg';
 const STARTUP_VIDEO_DEFAULT_SOURCES = [
   buildCloudAssetUrl('background', 'cover-20251028.mp4'),
   buildCloudAssetUrl('background', 'cover-20251030.mp4')

@@ -4,7 +4,7 @@ const LOCAL_CONFIG = {
      * 是否启用开屏视频。
      * 设置为 false 可以直接关闭开屏视频相关的逻辑。
      */
-    enabled: true,
+    enabled: false,
     /**
      * 开屏视频在云存储中的相对地址，例如："background/cover-20251028.mp4"。
      * 为空时会回退到内置的默认视频列表。
