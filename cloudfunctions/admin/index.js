@@ -8,7 +8,11 @@ const {
   EXCLUDED_TRANSACTION_STATUSES,
   DEFAULT_ADMIN_ROLES,
   TRADING_CONFIG,
-  listAvatarIds,
+  registerCustomAvatars,
+  normalizeAvatarCatalog: normalizeAvatarCatalogShared,
+  normalizeAvatarUnlocks: normalizeAvatarUnlocksShared,
+  calculateAvatarAttributeBonus,
+  ensureCustomAvatarsUnlocked: ensureCustomAvatarsUnlockedShared,
   analyzeMemberLevelProgress,
   normalizeBackgroundId,
   normalizeBackgroundCatalog,
@@ -44,9 +48,6 @@ const $ = db.command.aggregate;
 const ADMIN_ROLES = [...new Set([...DEFAULT_ADMIN_ROLES, 'superadmin'])];
 const FINANCE_EXCLUDED_ROLES = [...new Set([...ADMIN_ROLES, 'test'])];
 const MIN_REPORT_MONTH = new Date(2025, 8, 1);
-const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
-const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
-
 const PROXY_SESSION_COLLECTION = COLLECTIONS.ADMIN_PROXY_SESSIONS || 'adminProxySessions';
 const PROXY_LOG_COLLECTION = COLLECTIONS.ADMIN_PROXY_LOGS || 'adminProxyLogs';
 const TRADE_ORDER_COLLECTION = COLLECTIONS.TRADE_ORDERS || 'tradeOrders';
@@ -912,6 +913,12 @@ async function resolveMemberExtras(memberId) {
     if (!Array.isArray(extras.backgroundCatalog)) {
       extras.backgroundCatalog = [];
     }
+    if (!Array.isArray(extras.avatarCatalog)) {
+      extras.avatarCatalog = [];
+    }
+    if (typeof extras.avatarAttributeBonus !== 'number' || Number.isNaN(extras.avatarAttributeBonus)) {
+      extras.avatarAttributeBonus = 0;
+    }
     return extras;
   }
   const now = new Date();
@@ -923,6 +930,8 @@ async function resolveMemberExtras(memberId) {
     titleCatalog: [],
     backgroundUnlocks: [],
     backgroundCatalog: [],
+    avatarCatalog: [],
+    avatarAttributeBonus: 0,
     createdAt: now,
     updatedAt: now
   };
@@ -4150,9 +4159,22 @@ async function fetchMemberDetail(memberId, adminId, options = {}) {
   }
   const extras = await resolveMemberExtras(memberId);
   const renameHistory = await loadRenameTimeline(memberId, 50);
+  const normalizedAvatarCatalog = normalizeAvatarCatalogShared(extras.avatarCatalog);
+  registerCustomAvatars(normalizedAvatarCatalog);
+  const normalizedAvatarUnlocks = normalizeAvatarUnlocksShared(extras.avatarUnlocks);
+  const ensuredAvatarUnlocks = ensureCustomAvatarsUnlockedShared(
+    normalizedAvatarCatalog,
+    normalizedAvatarUnlocks
+  );
+  const avatarAttributeBonus = Math.max(
+    0,
+    Math.floor(Number(extras.avatarAttributeBonus) || 0)
+  );
   const mergedMember = {
     ...memberDoc.data,
-    avatarUnlocks: extras.avatarUnlocks || [],
+    avatarUnlocks: ensuredAvatarUnlocks,
+    avatarCatalog: normalizedAvatarCatalog,
+    avatarAttributeBonus,
     titleUnlocks: normalizeTitleUnlockList(extras.titleUnlocks),
     titleCatalog: normalizeTitleCatalog(extras.titleCatalog),
     backgroundUnlocks: normalizeBackgroundUnlockList(extras.backgroundUnlocks),
@@ -6666,28 +6688,34 @@ function resolveSkillDrawCredits(member) {
 }
 
 function normalizeAvatarUnlocksList(unlocks) {
-  if (!Array.isArray(unlocks)) {
-    return [];
+  return normalizeAvatarUnlocksShared(unlocks);
+}
+
+function areAvatarCatalogsEqual(a = [], b = []) {
+  if (a === b) {
+    return true;
   }
-  const seen = new Set();
-  const result = [];
-  unlocks.forEach((value) => {
-    if (typeof value !== 'string') {
-      return;
-    }
-    const trimmed = value.trim().toLowerCase();
+  if (!Array.isArray(a) || !Array.isArray(b)) {
+    return false;
+  }
+  if (a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i] || {};
+    const right = b[i] || {};
     if (
-      !trimmed ||
-      seen.has(trimmed) ||
-      !AVATAR_ID_PATTERN.test(trimmed) ||
-      !ALLOWED_AVATAR_IDS.has(trimmed)
+      left.id !== right.id ||
+      left.name !== right.name ||
+      left.gender !== right.gender ||
+      left.rarity !== right.rarity ||
+      left.file !== right.file ||
+      left.characterFile !== right.characterFile
     ) {
-      return;
+      return false;
     }
-    seen.add(trimmed);
-    result.push(trimmed);
-  });
-  return result;
+  }
+  return true;
 }
 
 function normalizeReservationBadges(badges) {
@@ -6821,12 +6849,34 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
     const filtered = roles.filter((role) => ['member', 'admin', 'developer', 'test'].includes(role));
     memberUpdates.roles = filtered.length ? filtered : ['member'];
   }
-  if (Object.prototype.hasOwnProperty.call(updates, 'avatarUnlocks')) {
-    const currentExtrasUnlocks = Array.isArray(extras.avatarUnlocks) ? extras.avatarUnlocks : [];
-    const desiredUnlocks = normalizeAvatarUnlocksList(updates.avatarUnlocks);
-    if (!arraysEqual(currentExtrasUnlocks, desiredUnlocks)) {
-      extrasUpdates.avatarUnlocks = desiredUnlocks;
+  const currentAvatarCatalog = normalizeAvatarCatalogShared(extras.avatarCatalog);
+  let desiredAvatarCatalog = currentAvatarCatalog;
+  if (Object.prototype.hasOwnProperty.call(updates, 'avatarCatalog')) {
+    desiredAvatarCatalog = normalizeAvatarCatalogShared(updates.avatarCatalog);
+    if (!areAvatarCatalogsEqual(currentAvatarCatalog, desiredAvatarCatalog)) {
+      extrasUpdates.avatarCatalog = desiredAvatarCatalog;
     }
+  }
+  const currentAvatarUnlocks = normalizeAvatarUnlocksList(extras.avatarUnlocks);
+  let desiredAvatarUnlocks = currentAvatarUnlocks;
+  if (Object.prototype.hasOwnProperty.call(updates, 'avatarUnlocks')) {
+    desiredAvatarUnlocks = normalizeAvatarUnlocksList(updates.avatarUnlocks);
+  }
+  const catalogForUnlocks = extrasUpdates.avatarCatalog
+    ? extrasUpdates.avatarCatalog
+    : desiredAvatarCatalog;
+  const ensuredUnlocks = ensureCustomAvatarsUnlockedShared(catalogForUnlocks, desiredAvatarUnlocks);
+  if (!arraysEqual(desiredAvatarUnlocks, ensuredUnlocks)) {
+    desiredAvatarUnlocks = ensuredUnlocks;
+  }
+  if (!arraysEqual(currentAvatarUnlocks, desiredAvatarUnlocks)) {
+    extrasUpdates.avatarUnlocks = desiredAvatarUnlocks;
+  }
+  const catalogForBonus = extrasUpdates.avatarCatalog ? extrasUpdates.avatarCatalog : desiredAvatarCatalog;
+  const desiredAvatarBonus = calculateAvatarAttributeBonus(desiredAvatarUnlocks, catalogForBonus);
+  const currentAvatarBonus = Math.max(0, Math.floor(Number(extras.avatarAttributeBonus) || 0));
+  if (desiredAvatarBonus !== currentAvatarBonus) {
+    extrasUpdates.avatarAttributeBonus = desiredAvatarBonus;
   }
   if (Object.prototype.hasOwnProperty.call(updates, 'titleUnlocks')) {
     const currentTitleUnlocks = Array.isArray(extras.titleUnlocks) ? extras.titleUnlocks : [];

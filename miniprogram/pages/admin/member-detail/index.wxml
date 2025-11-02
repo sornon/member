@@ -214,6 +214,14 @@
         <button class="avatar-edit-button" size="mini" bindtap="showAvatarPermissionDialog">编辑头像权限</button>
       </view>
       <view class="form-item basic-info-grid__full">
+        <view class="form-label">自定义头像</view>
+        <view class="avatar-manager-summary">
+          <text class="avatar-manager-summary__primary">{{avatarManagerSummary}}</text>
+          <text class="avatar-manager-summary__note">头像位于 /assets/avatar/，立绘位于 /assets/character/，文件名无需后缀</text>
+        </view>
+        <button class="avatar-manager-button" size="mini" bindtap="openAvatarManagerDialog">管理头像</button>
+      </view>
+      <view class="form-item basic-info-grid__full">
       <view class="form-label">称号管理</view>
       <view class="title-manager-summary">
         <text class="title-manager-summary__primary">{{titleSummary}}</text>
@@ -461,7 +469,24 @@
                   checked="{{option.checked}}"
                   disabled="{{option.disabled}}"
                 />
-                <text class="avatar-permission-name {{option.disabled ? 'avatar-permission-name--disabled' : ''}}">{{option.label}}</text>
+                <image
+                  wx:if="{{option.url}}"
+                  class="avatar-permission-item__image"
+                  src="{{option.url}}"
+                  mode="aspectFill"
+                ></image>
+                <view class="avatar-permission-item__info">
+                  <text class="avatar-permission-name {{option.disabled ? 'avatar-permission-name--disabled' : ''}}">{{option.label}}</text>
+                  <view class="avatar-permission-item__meta">
+                    <text>{{option.genderLabel}}</text>
+                    <text class="avatar-permission-item__dot">·</text>
+                    <text>{{option.rarityLabel}}</text>
+                    <text
+                      wx:if="{{option.attributeBonus}}"
+                      class="avatar-permission-item__bonus"
+                    >· 属性+{{option.attributeBonus}}</text>
+                  </view>
+                </view>
                 <text wx:if="{{option.disabled}}" class="avatar-permission-tag">默认</text>
               </label>
             </view>
@@ -476,6 +501,94 @@
         size="mini"
         type="primary"
         bindtap="handleAvatarDialogSave"
+      >
+        保存
+      </button>
+    </view>
+  </view>
+</view>
+
+<view wx:if="{{avatarManagerVisible}}" class="dialog-mask" bindtap="handleCloseAvatarManager">
+  <view class="avatar-manager-dialog" catchtap="noop" catchtouchmove="noop">
+    <view class="avatar-manager-dialog__title">头像管理</view>
+    <view class="avatar-manager-owned">
+      <view class="avatar-manager-owned__label">会员已拥有的头像</view>
+      <view wx:if="{{avatarManagerUnlockedEntries.length}}" class="avatar-manager-owned__list">
+        <view wx:for="{{avatarManagerUnlockedEntries}}" wx:key="id" class="avatar-manager-owned__item">
+          <image wx:if="{{item.preview}}" class="avatar-manager-owned__item-image" src="{{item.preview}}" mode="aspectFill"></image>
+          <view class="avatar-manager-owned__info">
+            <text class="avatar-manager-owned__name">{{item.name}}</text>
+            <text class="avatar-manager-owned__meta">{{item.rarityLabel}}</text>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="avatar-manager-owned__empty">暂未解锁任何头像</view>
+    </view>
+    <scroll-view scroll-y class="avatar-manager-dialog__content">
+      <view wx:if="{{avatarManagerEntries.length}}" class="avatar-manager-list">
+        <block wx:for="{{avatarManagerEntries}}" wx:key="id">
+          <view class="avatar-manager-item">
+            <image wx:if="{{item.preview}}" class="avatar-manager-item__image" src="{{item.preview}}" mode="aspectFill"></image>
+            <view class="avatar-manager-item__details">
+              <view class="avatar-manager-item__name">{{item.name}}</view>
+              <view class="avatar-manager-item__meta">
+                {{item.genderLabel}} · {{item.rarityLabel}}
+                <text wx:if="{{item.attributeBonus}}"> · 属性+{{item.attributeBonus}}</text>
+              </view>
+              <view class="avatar-manager-item__meta">文件名：{{item.file}}</view>
+            </view>
+            <button class="avatar-manager-item__remove" size="mini" data-id="{{item.id}}" bindtap="handleAvatarManagerRemove">移除</button>
+          </view>
+        </block>
+      </view>
+      <view wx:else class="avatar-manager-empty">尚未添加自定义头像</view>
+    </scroll-view>
+    <view class="avatar-manager-form">
+      <input
+        class="avatar-manager-form__input"
+        placeholder="头像名称"
+        value="{{avatarManagerForm.name}}"
+        data-field="name"
+        bindinput="handleAvatarManagerInput"
+      />
+      <picker
+        mode="selector"
+        range="{{avatarGenderOptions}}"
+        range-key="label"
+        value="{{avatarManagerForm.gender === 'female' ? 1 : 0}}"
+        data-field="gender"
+        bindchange="handleAvatarManagerPickerChange"
+      >
+        <view class="avatar-manager-form__picker">{{avatarManagerForm.gender === 'female' ? '女修' : '男修'}}</view>
+      </picker>
+      <picker
+        mode="selector"
+        range="{{avatarRarityOptions}}"
+        range-key="label"
+        value="{{avatarRarityIndexMap[avatarManagerForm.rarity] || 0}}"
+        data-field="rarity"
+        bindchange="handleAvatarManagerPickerChange"
+      >
+        <view class="avatar-manager-form__picker">{{rarityLabels[avatarManagerForm.rarity] || avatarManagerForm.rarity.toUpperCase()}}</view>
+      </picker>
+      <input
+        class="avatar-manager-form__input"
+        placeholder="头像文件名（无后缀）"
+        value="{{avatarManagerForm.file}}"
+        data-field="file"
+        bindinput="handleAvatarManagerInput"
+      />
+      <button class="avatar-manager-form__add" size="mini" bindtap="handleAvatarManagerAdd">添加</button>
+    </view>
+    <view class="avatar-manager-dialog__actions">
+      <button class="avatar-manager-dialog__button" size="mini" bindtap="handleCloseAvatarManager">取消</button>
+      <button
+        class="avatar-manager-dialog__button avatar-manager-dialog__button--primary"
+        size="mini"
+        type="primary"
+        loading="{{avatarManagerSaving}}"
+        disabled="{{avatarManagerSaving || !avatarManagerDirty}}"
+        bindtap="handleAvatarManagerSave"
       >
         保存
       </button>
