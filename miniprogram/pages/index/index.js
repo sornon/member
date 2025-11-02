@@ -62,6 +62,7 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 const DEFAULT_CHARACTER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 const STARTUP_COVER_IMAGE = '/cover-20251102.jpg';
+const STARTUP_OVERLAY_ENABLED = !!STARTUP_COVER_IMAGE;
 const STARTUP_VIDEO_DEFAULT_SOURCES = [
   buildCloudAssetUrl('background', 'cover-20251028.mp4'),
   buildCloudAssetUrl('background', 'cover-20251030.mp4')
@@ -1248,8 +1249,8 @@ Page({
     backgroundVideoError: false,
     dynamicBackgroundEnabled: false,
     startupVideoSource: STARTUP_VIDEO_SOURCE,
-    startupCoverImage: STARTUP_VIDEO_ENABLED ? STARTUP_COVER_IMAGE : '',
-    showStartupOverlay: STARTUP_VIDEO_ENABLED,
+    startupCoverImage: STARTUP_COVER_IMAGE,
+    showStartupOverlay: STARTUP_OVERLAY_ENABLED,
     startupVideoMounted: false,
     startupVideoVisible: false,
     startupVideoFading: false,
@@ -1478,7 +1479,7 @@ Page({
   },
 
   onLoad() {
-    this.startupVideoDismissed = !STARTUP_VIDEO_ENABLED;
+    this.startupVideoDismissed = !STARTUP_OVERLAY_ENABLED;
     this.startupVideoFadeTimeout = null;
     this.startupVideoActivationTimer = null;
     this.startupVideoContext = null;
@@ -1487,8 +1488,8 @@ Page({
     this.startupOverlayFadePending = false;
     this.setData({
       startupVideoSource: STARTUP_VIDEO_SOURCE,
-      startupCoverImage: STARTUP_VIDEO_ENABLED ? STARTUP_COVER_IMAGE : '',
-      showStartupOverlay: STARTUP_VIDEO_ENABLED,
+      startupCoverImage: STARTUP_COVER_IMAGE,
+      showStartupOverlay: STARTUP_OVERLAY_ENABLED,
       startupVideoMounted: false,
       startupVideoVisible: false,
       startupVideoFading: false,
@@ -1730,10 +1731,16 @@ Page({
   },
 
   triggerStartupVideoFade(immediate = false) {
-    if (!STARTUP_VIDEO_ENABLED) {
+    if (!STARTUP_OVERLAY_ENABLED) {
+      if (this.homeReady && this.data.loading) {
+        this.setData({ loading: false });
+      }
       return;
     }
     if (this.startupVideoDismissed) {
+      if (this.homeReady && this.data.loading) {
+        this.setData({ loading: false });
+      }
       return;
     }
     if (!this.homeReady && !immediate) {
@@ -1757,7 +1764,9 @@ Page({
         nextState.loading = false;
       }
       this.setData(nextState);
-      this.stopStartupVideo();
+      if (STARTUP_VIDEO_ENABLED) {
+        this.stopStartupVideo();
+      }
       return;
     }
     this.setData({ startupVideoFading: true });
@@ -1771,7 +1780,9 @@ Page({
         startupVideoMuted: true,
         loading: false
       });
-      this.stopStartupVideo();
+      if (STARTUP_VIDEO_ENABLED) {
+        this.stopStartupVideo();
+      }
     }, STARTUP_VIDEO_FADE_DURATION_MS);
   },
 
@@ -1799,12 +1810,12 @@ Page({
       return;
     }
     this.homeReady = true;
-    if (STARTUP_VIDEO_ENABLED) {
+    if (STARTUP_OVERLAY_ENABLED) {
       if (this.startupVideoDismissed) {
         this.setData({ loading: false });
         return;
       }
-      if (this.startupVideoRevealPending) {
+      if (STARTUP_VIDEO_ENABLED && this.startupVideoRevealPending) {
         this.revealStartupVideo();
       }
       this.triggerStartupVideoFade();
