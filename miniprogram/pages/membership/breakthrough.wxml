@@ -30,9 +30,9 @@
         binderror="handleFigureError"
       ></image>
       <image class="figure-image figure-image--flash" src="{{figureImage}}" mode="widthFix"></image>
+      <view class="success-message {{showSuccessMessage ? 'success-message--visible' : ''}}">
+        渡劫成功
+      </view>
     </view>
-  </view>
-  <view class="success-message {{showSuccessMessage ? 'success-message--visible' : ''}}">
-    渡劫成功
   </view>
 </view>
