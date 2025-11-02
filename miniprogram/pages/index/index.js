@@ -45,7 +45,7 @@ const {
   normalizeFigureRarity
 } = require('../../shared/figure-scale');
 const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
-const { getStartupVideoConfig } = require('../../local-config.js');
+const { getStartupVideoConfig } = require('../../local-config');
 
 const DEFAULT_GLOBAL_BACKGROUND = { enabled: false, backgroundId: '', animated: false };
 
