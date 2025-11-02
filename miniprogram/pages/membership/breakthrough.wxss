@@ -94,6 +94,7 @@
   color: #fff7d9;
   font-size: 34rpx;
   letter-spacing: 6rpx;
+  white-space: nowrap;
   opacity: 0;
   transition: opacity 0.4s ease-in;
   pointer-events: none;
