@@ -61,7 +61,17 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 
 const DEFAULT_CHARACTER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
+
+const AVATAR_RARITY_LABELS = {
+  c: 'C',
+  b: 'B',
+  a: 'A',
+  s: 'S',
+  ss: 'SS',
+  sss: 'SSS'
+};
 const STARTUP_COVER_IMAGE = '/cover-20251102.jpg';
+const STARTUP_OVERLAY_ENABLED = !!STARTUP_COVER_IMAGE;
 const STARTUP_VIDEO_DEFAULT_SOURCES = [
   buildCloudAssetUrl('background', 'cover-20251028.mp4'),
   buildCloudAssetUrl('background', 'cover-20251030.mp4')
@@ -928,6 +938,30 @@ function resolveHeroFigureScaleClass(member) {
   return resolveFigureScaleClassByRarity(resolveMemberFigureRarity(member));
 }
 
+function buildAvatarOptionPayload({
+  meta,
+  id,
+  url,
+  name
+}) {
+  const resolvedMeta = meta || null;
+  const rarityKey = resolvedMeta && resolvedMeta.rarity ? resolvedMeta.rarity : 'c';
+  const rarityLabel = AVATAR_RARITY_LABELS[rarityKey] || (rarityKey || '').toUpperCase() || 'C';
+  const rawBonus = resolvedMeta && typeof resolvedMeta.attributeBonus === 'number' ? resolvedMeta.attributeBonus : 0;
+  const attributeBonus = Number.isFinite(rawBonus) ? Math.max(0, Math.floor(rawBonus)) : 0;
+  const displayName = typeof name === 'string' && name.trim() ? name.trim() : '头像';
+  return {
+    id,
+    url,
+    name: displayName,
+    rarity: rarityKey,
+    rarityLabel,
+    attributeBonus,
+    attributeBonusLabel:
+      attributeBonus > 0 ? `属性奖励：+${attributeBonus} 属性点` : '属性奖励：无属性'
+  };
+}
+
 function computeAvatarOptionList(member, currentAvatar, gender) {
   const unlocks = normalizeAvatarUnlocks((member && member.avatarUnlocks) || []);
   const available = getAvailableAvatars({ gender, unlocks });
@@ -938,7 +972,14 @@ function computeAvatarOptionList(member, currentAvatar, gender) {
     const currentId = extractAvatarIdFromUrl(currentAvatar);
     const meta = currentId ? resolveAvatarById(currentId) : null;
     const currentName = meta ? meta.name : '当前头像';
-    result.push({ id: meta ? meta.id : 'current', url: currentAvatar, name: currentName, rarity: meta ? meta.rarity : undefined });
+    result.push(
+      buildAvatarOptionPayload({
+        meta,
+        id: meta ? meta.id : 'current',
+        url: currentAvatar,
+        name: currentName
+      })
+    );
     seen.add(currentAvatar);
   }
 
@@ -946,7 +987,14 @@ function computeAvatarOptionList(member, currentAvatar, gender) {
     if (!avatar || !avatar.url || seen.has(avatar.url)) {
       return;
     }
-    result.push({ id: avatar.id, url: avatar.url, name: avatar.name, rarity: avatar.rarity });
+    result.push(
+      buildAvatarOptionPayload({
+        meta: avatar,
+        id: avatar.id,
+        url: avatar.url,
+        name: avatar.name
+      })
+    );
     seen.add(avatar.url);
   });
 
@@ -955,12 +1003,14 @@ function computeAvatarOptionList(member, currentAvatar, gender) {
     if (fallback) {
       const fallbackId = extractAvatarIdFromUrl(fallback);
       const meta = fallbackId ? resolveAvatarById(fallbackId) : null;
-      result.push({
-        id: meta ? meta.id : 'default',
-        url: fallback,
-        name: meta ? meta.name : '默认头像',
-        rarity: meta ? meta.rarity : undefined
-      });
+      result.push(
+        buildAvatarOptionPayload({
+          meta,
+          id: meta ? meta.id : 'default',
+          url: fallback,
+          name: meta ? meta.name : '默认头像'
+        })
+      );
     }
   }
 
@@ -1260,8 +1310,8 @@ Page({
     backgroundVideoError: false,
     dynamicBackgroundEnabled: false,
     startupVideoSource: STARTUP_VIDEO_SOURCE,
-    startupCoverImage: STARTUP_VIDEO_ENABLED ? STARTUP_COVER_IMAGE : '',
-    showStartupOverlay: STARTUP_VIDEO_ENABLED,
+    startupCoverImage: STARTUP_COVER_IMAGE,
+    showStartupOverlay: STARTUP_OVERLAY_ENABLED,
     startupVideoMounted: false,
     startupVideoVisible: false,
     startupVideoFading: false,
@@ -1490,14 +1540,17 @@ Page({
   },
 
   onLoad() {
-    this.startupVideoDismissed = !STARTUP_VIDEO_ENABLED;
+    this.startupVideoDismissed = !STARTUP_OVERLAY_ENABLED;
     this.startupVideoFadeTimeout = null;
     this.startupVideoActivationTimer = null;
     this.startupVideoContext = null;
+    this.startupVideoRevealPending = false;
+    this.homeReady = false;
+    this.startupOverlayFadePending = false;
     this.setData({
       startupVideoSource: STARTUP_VIDEO_SOURCE,
-      startupCoverImage: STARTUP_VIDEO_ENABLED ? STARTUP_COVER_IMAGE : '',
-      showStartupOverlay: STARTUP_VIDEO_ENABLED,
+      startupCoverImage: STARTUP_COVER_IMAGE,
+      showStartupOverlay: STARTUP_OVERLAY_ENABLED,
       startupVideoMounted: false,
       startupVideoVisible: false,
       startupVideoFading: false,
@@ -1739,24 +1792,42 @@ Page({
   },
 
   triggerStartupVideoFade(immediate = false) {
-    if (!STARTUP_VIDEO_ENABLED) {
+    if (!STARTUP_OVERLAY_ENABLED) {
+      if (this.homeReady && this.data.loading) {
+        this.setData({ loading: false });
+      }
       return;
     }
     if (this.startupVideoDismissed) {
+      if (this.homeReady && this.data.loading) {
+        this.setData({ loading: false });
+      }
       return;
     }
+    if (!this.homeReady && !immediate) {
+      this.startupOverlayFadePending = true;
+      return;
+    }
+    this.startupOverlayFadePending = false;
     this.startupVideoDismissed = true;
     this.clearStartupVideoFadeTimer();
     this.clearStartupVideoActivationTimer();
+    this.startupVideoRevealPending = false;
     if (immediate) {
-      this.setData({
+      const nextState = {
         showStartupOverlay: false,
         startupVideoMounted: false,
         startupVideoVisible: false,
         startupVideoFading: false,
         startupVideoMuted: true
-      });
-      this.stopStartupVideo();
+      };
+      if (this.homeReady) {
+        nextState.loading = false;
+      }
+      this.setData(nextState);
+      if (STARTUP_VIDEO_ENABLED) {
+        this.stopStartupVideo();
+      }
       return;
     }
     this.setData({ startupVideoFading: true });
@@ -1767,10 +1838,51 @@ Page({
         startupVideoMounted: false,
         startupVideoVisible: false,
         startupVideoFading: false,
-        startupVideoMuted: true
+        startupVideoMuted: true,
+        loading: false
       });
-      this.stopStartupVideo();
+      if (STARTUP_VIDEO_ENABLED) {
+        this.stopStartupVideo();
+      }
     }, STARTUP_VIDEO_FADE_DURATION_MS);
+  },
+
+  revealStartupVideo() {
+    if (!STARTUP_VIDEO_ENABLED) {
+      return;
+    }
+    if (this.startupVideoDismissed || this.data.startupVideoVisible) {
+      return;
+    }
+    const context = this.ensureStartupVideoContext();
+    if (context && typeof context.mute === 'function') {
+      try {
+        context.mute(false);
+      } catch (error) {
+        console.warn('[index] unmute startup video failed', error);
+      }
+    }
+    this.startupVideoRevealPending = false;
+    this.setData({ startupVideoVisible: true, startupVideoMuted: false });
+  },
+
+  markHomeReady() {
+    if (this.homeReady) {
+      return;
+    }
+    this.homeReady = true;
+    if (STARTUP_OVERLAY_ENABLED) {
+      if (this.startupVideoDismissed) {
+        this.setData({ loading: false });
+        return;
+      }
+      if (STARTUP_VIDEO_ENABLED && this.startupVideoRevealPending) {
+        this.revealStartupVideo();
+      }
+      this.triggerStartupVideoFade();
+      return;
+    }
+    this.setData({ loading: false });
   },
 
   handleStartupVideoTimeUpdate(event) {
@@ -1811,15 +1923,11 @@ Page({
     if (this.startupVideoDismissed || this.data.startupVideoVisible) {
       return;
     }
-    const context = this.ensureStartupVideoContext();
-    if (context && typeof context.mute === 'function') {
-      try {
-        context.mute(false);
-      } catch (error) {
-        console.warn('[index] unmute startup video failed', error);
-      }
+    if (!this.homeReady) {
+      this.startupVideoRevealPending = true;
+      return;
     }
-    this.setData({ startupVideoVisible: true, startupVideoMuted: false });
+    this.revealStartupVideo();
   },
 
   handleStartupVideoError() {
@@ -1932,7 +2040,6 @@ Page({
         progressRemainingExperience,
         realmHasPendingRewards,
         tasks: tasks.slice(0, 3),
-        loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),
         heroFigureScaleClass: resolveHeroFigureScaleClass(sanitizedMember),
         navItems,
@@ -1974,12 +2081,12 @@ Page({
         'avatarPicker.dynamicBackground': !!sanitizedMember.appearanceBackgroundAnimated
       });
       this.updateBackgroundDisplay(sanitizedMember, { resetError: true });
+      this.markHomeReady();
       setActiveMember(sanitizedMember);
       this.syncNameBadgeVisibility(sanitizedMember);
     } catch (err) {
       const width = normalizePercentage(this.data.progress);
       this.setData({
-        loading: false,
         memberStats: deriveMemberStats(this.data.member),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
@@ -1987,6 +2094,7 @@ Page({
         heroFigureScaleClass: resolveHeroFigureScaleClass(this.data.member)
       });
       this.updateBackgroundDisplay(this.data.member, {});
+      this.markHomeReady();
     }
     this.syncNameBadgeVisibility();
     this.bootstrapRunning = false;

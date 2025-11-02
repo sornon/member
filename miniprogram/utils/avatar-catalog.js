@@ -1,5 +1,11 @@
-const { RAW_AVATARS, buildAvatarId, listAvatarIds } = require('../shared/avatar-catalog.js');
-const { AVATAR_IMAGE_BASE_PATH } = require('../shared/asset-paths.js');
+const {
+  listRegisteredAvatars,
+  normalizeAvatarUnlocks: normalizeAvatarUnlocksShared,
+  buildAvatarUrl,
+  registerCustomAvatars,
+  normalizeAvatarCatalog,
+  resolveAvatarMetaById
+} = require('../shared/avatar-catalog.js');
 
 const AVATAR_GENDER_LABELS = {
   male: '男',
@@ -19,31 +25,22 @@ const RARITY_LABELS = {
 
 const RARITY_ORDER = ['c', 'b', 'a', 's', 'ss', 'sss'];
 
-const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
-
 function padIndex(index) {
   return index < 10 ? `0${index}` : `${index}`;
 }
 
-function buildAvatarName({ gender, rarity, index }) {
-  const genderLabel = AVATAR_GENDER_LABELS[gender] || '通用';
-  const rarityLabel = RARITY_LABELS[rarity] || rarity.toUpperCase();
-  return `${genderLabel} · ${rarityLabel} · ${padIndex(index)}`;
+function buildAvatarName(meta = {}) {
+  if (meta && typeof meta.name === 'string' && meta.name.trim()) {
+    return meta.name.trim();
+  }
+  const genderLabel = AVATAR_GENDER_LABELS[meta.gender] || '通用';
+  const rarityLabel = RARITY_LABELS[meta.rarity] || (meta.rarity || '').toUpperCase();
+  const index = Number(meta.index);
+  if (Number.isFinite(index) && index > 0) {
+    return `${genderLabel} · ${rarityLabel} · ${padIndex(index)}`;
+  }
+  return `${genderLabel} · ${rarityLabel}`;
 }
-
-function buildAvatarUrl(id) {
-  return `${AVATAR_IMAGE_BASE_PATH}/${id}.png`;
-}
-
-export const AVATAR_CATALOG = RAW_AVATARS.map((item) => {
-  const id = buildAvatarId(item);
-  return {
-    ...item,
-    id,
-    name: buildAvatarName(item),
-    url: buildAvatarUrl(id)
-  };
-});
 
 function compareAvatars(a, b) {
   if (a.gender !== b.gender) {
@@ -55,17 +52,35 @@ function compareAvatars(a, b) {
       return diff;
     }
   }
-  return a.index - b.index;
+  const indexA = Number(a.index) || 0;
+  const indexB = Number(b.index) || 0;
+  return indexA - indexB;
 }
 
-export const SORTED_AVATARS = AVATAR_CATALOG.slice().sort(compareAvatars);
+function mapAvatarMeta(meta) {
+  const url = buildAvatarUrl(meta.id);
+  return {
+    ...meta,
+    name: buildAvatarName(meta),
+    url
+  };
+}
 
 export function listAllAvatars() {
-  return SORTED_AVATARS.slice();
+  const metas = listRegisteredAvatars();
+  const mapped = metas.map((meta) => mapAvatarMeta(meta));
+  return mapped.sort(compareAvatars);
 }
 
 export function isValidAvatarId(id) {
-  return typeof id === 'string' && ALLOWED_AVATAR_IDS.has(id);
+  if (typeof id !== 'string') {
+    return false;
+  }
+  const normalized = id.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return !!resolveAvatarMetaById(normalized);
 }
 
 function resolveGenders(gender) {
@@ -75,44 +90,23 @@ function resolveGenders(gender) {
   return ['male', 'female'];
 }
 
-export function normalizeAvatarUnlocks(unlocks) {
-  if (!Array.isArray(unlocks)) {
-    return [];
-  }
-  const seen = new Set();
-  const result = [];
-  unlocks.forEach((value) => {
-    if (typeof value !== 'string') {
-      return;
-    }
-    const trimmed = value.trim().toLowerCase();
-    if (!trimmed || !isValidAvatarId(trimmed) || seen.has(trimmed)) {
-      return;
-    }
-    if (!AVATAR_CATALOG.some((avatar) => avatar.id === trimmed)) {
-      return;
-    }
-    seen.add(trimmed);
-    result.push(trimmed);
-  });
-  return result;
-}
+export const normalizeAvatarUnlocks = normalizeAvatarUnlocksShared;
 
 export function listAvatarsByGender(gender) {
   const genders = resolveGenders(gender);
-  return SORTED_AVATARS.filter((avatar) => genders.includes(avatar.gender));
+  return listAllAvatars().filter((avatar) => genders.includes(avatar.gender));
 }
 
 export function getDefaultAvatarId(gender) {
   const avatars = listAvatarsByGender(gender).filter((avatar) => avatar.rarity === DEFAULT_RARITY);
-  const candidate = avatars[0] || SORTED_AVATARS.find((avatar) => avatar.rarity === DEFAULT_RARITY);
+  const candidate = avatars[0] || listAllAvatars().find((avatar) => avatar.rarity === DEFAULT_RARITY);
   return candidate ? candidate.id : '';
 }
 
 export function getAvailableAvatars({ gender = 'unknown', unlocks = [] } = {}) {
   const genders = resolveGenders(gender);
   const unlockSet = new Set(normalizeAvatarUnlocks(unlocks));
-  const filtered = SORTED_AVATARS.filter((avatar) => {
+  const filtered = listAllAvatars().filter((avatar) => {
     if (!genders.includes(avatar.gender)) {
       return false;
     }
@@ -128,7 +122,8 @@ export function resolveAvatarById(id) {
   if (!id) {
     return null;
   }
-  return SORTED_AVATARS.find((avatar) => avatar.id === id) || null;
+  const meta = resolveAvatarMetaById(id);
+  return meta ? mapAvatarMeta(meta) : null;
 }
 
 export function buildAvatarUrlById(id) {
@@ -140,3 +135,5 @@ export function buildAvatarUrlById(id) {
 
 export const AVATAR_DEFAULT_RARITY = DEFAULT_RARITY;
 export const AVATAR_RARITY_ORDER = RARITY_ORDER.slice();
+
+export { registerCustomAvatars, normalizeAvatarCatalog };

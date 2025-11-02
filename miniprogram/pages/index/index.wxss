@@ -67,7 +67,7 @@ page {
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 30;
+  z-index: 120;
   background: #050921;
   display: flex;
   align-items: center;
@@ -107,6 +107,17 @@ page {
 
 .startup-video--visible {
   opacity: 1;
+}
+
+.startup-loading {
+  position: absolute;
+  bottom: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 420rpx;
+  display: flex;
+  justify-content: center;
+  z-index: 130;
 }
 
 .background--overlay {
@@ -880,17 +891,31 @@ page {
 
 .avatar-option {
   position: relative;
+  width: 180rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14rpx;
+  padding: 12rpx 0 6rpx;
+  transition: transform 0.2s ease;
+}
+
+.avatar-option--active {
+  transform: translateY(-4rpx);
+}
+
+.avatar-option__thumb {
   width: 160rpx;
   height: 160rpx;
   border-radius: 50%;
   overflow: hidden;
   border: 4rpx solid transparent;
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.avatar-option--active {
+.avatar-option--active .avatar-option__thumb {
   border-color: rgba(156, 178, 255, 0.85);
-  transform: translateY(-4rpx);
   box-shadow: 0 0 0 8rpx rgba(156, 178, 255, 0.2);
 }
 
@@ -898,6 +923,20 @@ page {
   width: 100%;
   height: 100%;
   border-radius: 50%;
+}
+
+.avatar-option__label {
+  font-size: 24rpx;
+  color: rgba(224, 230, 255, 0.92);
+  text-align: center;
+  line-height: 34rpx;
+}
+
+.avatar-option__bonus {
+  font-size: 22rpx;
+  color: rgba(198, 208, 255, 0.78);
+  text-align: center;
+  line-height: 30rpx;
 }
 
 .avatar-frame-section {

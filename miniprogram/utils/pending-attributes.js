@@ -65,6 +65,8 @@ export function extractPendingAttributePointCountFromMember(member) {
   }
   const candidates = [];
 
+  const resolvedTotalAvatarBonus = normalizePointValue(member.avatarAttributeBonus);
+
   ATTRIBUTE_KEYS.forEach((key) => {
     if (Object.prototype.hasOwnProperty.call(member, key)) {
       candidates.push(member[key]);
@@ -83,10 +85,32 @@ export function extractPendingAttributePointCountFromMember(member) {
   }
 
   const profile = member.pveProfile && typeof member.pveProfile === 'object' ? member.pveProfile : null;
+  let appliedAvatarBonus = null;
   if (profile) {
     const profilePoints = extractPendingAttributePointCountFromProfile(profile);
     if (profilePoints !== null) {
       candidates.push(profilePoints);
+    }
+    const profileAttributes = profile.attributes && typeof profile.attributes === 'object' ? profile.attributes : null;
+    if (profileAttributes && Object.prototype.hasOwnProperty.call(profileAttributes, 'avatarBonusPoints')) {
+      appliedAvatarBonus = normalizePointValue(profileAttributes.avatarBonusPoints);
+    }
+  }
+
+  if (resolvedTotalAvatarBonus !== null && resolvedTotalAvatarBonus > 0) {
+    if (appliedAvatarBonus === null) {
+      const memberAttributes = member.attributes && typeof member.attributes === 'object' ? member.attributes : null;
+      if (memberAttributes && Object.prototype.hasOwnProperty.call(memberAttributes, 'avatarBonusPoints')) {
+        appliedAvatarBonus = normalizePointValue(memberAttributes.avatarBonusPoints);
+      }
+    }
+    if (appliedAvatarBonus === null && summary && Object.prototype.hasOwnProperty.call(summary, 'avatarBonusPoints')) {
+      appliedAvatarBonus = normalizePointValue(summary.avatarBonusPoints);
+    }
+    const normalizedApplied = appliedAvatarBonus === null ? 0 : appliedAvatarBonus;
+    const pendingBonus = Math.max(resolvedTotalAvatarBonus - normalizedApplied, 0);
+    if (pendingBonus > 0) {
+      candidates.push(pendingBonus);
     }
   }
 

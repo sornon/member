@@ -204,7 +204,9 @@
             <text class="role-label">{{item.label}}</text>
           </label>
         </checkbox-group>
+
       </view>
+
       <view class="form-item basic-info-grid__full">
         <view class="form-label">头像权限</view>
         <view class="avatar-permission-summary">
@@ -214,13 +216,13 @@
         <button class="avatar-edit-button" size="mini" bindtap="showAvatarPermissionDialog">编辑头像权限</button>
       </view>
       <view class="form-item basic-info-grid__full">
-      <view class="form-label">称号管理</view>
-      <view class="title-manager-summary">
-        <text class="title-manager-summary__primary">{{titleSummary}}</text>
-        <text class="title-manager-summary__note">图片位于 /assets/title/，文件名无需后缀</text>
+        <view class="form-label">称号管理</view>
+        <view class="title-manager-summary">
+          <text class="title-manager-summary__primary">{{titleSummary}}</text>
+          <text class="title-manager-summary__note">图片位于 /assets/title/，文件名无需后缀</text>
+        </view>
+        <button class="title-manager-button" size="mini" bindtap="openTitleManagerDialog">管理称号</button>
       </view>
-      <button class="title-manager-button" size="mini" bindtap="openTitleManagerDialog">管理称号</button>
-    </view>
       <view class="form-item basic-info-grid__full">
         <view class="form-label">背景管理</view>
         <view class="background-manager-summary">
@@ -461,13 +463,114 @@
                   checked="{{option.checked}}"
                   disabled="{{option.disabled}}"
                 />
-                <text class="avatar-permission-name {{option.disabled ? 'avatar-permission-name--disabled' : ''}}">{{option.label}}</text>
+                <image
+                  wx:if="{{option.url}}"
+                  class="avatar-permission-item__image"
+                  src="{{option.url}}"
+                  mode="aspectFill"
+                ></image>
+                <view class="avatar-permission-item__info">
+                  <text class="avatar-permission-name {{option.disabled ? 'avatar-permission-name--disabled' : ''}}">{{option.label}}</text>
+                  <view class="avatar-permission-item__meta">
+                    <text>{{option.genderLabel}}</text>
+                    <text class="avatar-permission-item__dot">·</text>
+                    <text>{{option.rarityLabel}}</text>
+                    <text
+                      wx:if="{{option.attributeBonus}}"
+                      class="avatar-permission-item__bonus"
+                    >· 属性+{{option.attributeBonus}}</text>
+                  </view>
+                </view>
                 <text wx:if="{{option.disabled}}" class="avatar-permission-tag">默认</text>
               </label>
             </view>
           </view>
         </block>
       </checkbox-group>
+
+      <view class="avatar-permission-owned">
+        <view class="avatar-permission-owned__label">会员已拥有的头像</view>
+        <view wx:if="{{avatarManagerUnlockedEntries.length}}" class="avatar-permission-owned__list">
+          <view wx:for="{{avatarManagerUnlockedEntries}}" wx:key="id" class="avatar-permission-owned__item">
+            <image wx:if="{{item.preview}}" class="avatar-permission-owned__item-image" src="{{item.preview}}" mode="aspectFill"></image>
+            <view class="avatar-permission-owned__info">
+              <text class="avatar-permission-owned__name">{{item.name}}</text>
+              <text class="avatar-permission-owned__meta">{{item.rarityLabel}}</text>
+            </view>
+          </view>
+        </view>
+        <view wx:else class="avatar-permission-owned__empty">暂未解锁任何头像</view>
+      </view>
+
+      <view class="avatar-permission-custom">
+        <view class="avatar-permission-custom__header">
+          <view class="avatar-permission-custom__title">新增自定义头像</view>
+          <text class="avatar-permission-custom__note">头像位于 /assets/avatar/，立绘位于 /assets/character/，文件名无需后缀</text>
+        </view>
+        <view wx:if="{{avatarManagerEntries.length}}" class="avatar-custom-list">
+          <block wx:for="{{avatarManagerEntries}}" wx:key="id">
+            <view class="avatar-custom-item">
+              <image wx:if="{{item.preview}}" class="avatar-custom-item__image" src="{{item.preview}}" mode="aspectFill"></image>
+              <view class="avatar-custom-item__details">
+                <view class="avatar-custom-item__name">{{item.name}}</view>
+                <view class="avatar-custom-item__meta">{{item.genderLabel}} · {{item.rarityLabel}} · 文件名：{{item.file}}</view>
+              </view>
+              <button
+                class="avatar-custom-item__remove"
+                size="mini"
+                data-id="{{item.id}}"
+                data-name="{{item.name}}"
+                bindtap="handleAvatarManagerRemove"
+                disabled="{{avatarManagerSaving}}"
+              >
+                删除
+              </button>
+            </view>
+          </block>
+        </view>
+        <view wx:else class="avatar-custom-empty">尚未添加自定义头像</view>
+
+        <view class="avatar-custom-form">
+          <input
+            class="avatar-custom-form__input"
+            placeholder="头像名称"
+            value="{{avatarManagerForm.name}}"
+            data-field="name"
+            bindinput="handleAvatarManagerInput"
+          />
+          <picker
+            mode="selector"
+            class="avatar-custom-form__picker"
+            range="{{avatarGenderOptions}}"
+            range-key="label"
+            data-field="gender"
+            value="{{avatarManagerForm.gender === 'female' ? 1 : 0}}"
+            bindchange="handleAvatarManagerPickerChange"
+          >
+            <view class="avatar-custom-form__picker-view">{{avatarManagerForm.gender === 'female' ? '女修' : '男修'}}</view>
+          </picker>
+          <picker
+            mode="selector"
+            class="avatar-custom-form__picker"
+            range="{{avatarRarityOptions}}"
+            range-key="label"
+            data-field="rarity"
+            value="{{avatarRarityIndexMap[avatarManagerForm.rarity] || 0}}"
+            bindchange="handleAvatarManagerPickerChange"
+          >
+            <view class="avatar-custom-form__picker-view">{{rarityLabels[avatarManagerForm.rarity] || avatarManagerForm.rarity.toUpperCase()}}</view>
+          </picker>
+          <input
+            class="avatar-custom-form__input"
+            placeholder="文件名（无需后缀）"
+            value="{{avatarManagerForm.file}}"
+            data-field="file"
+            bindinput="handleAvatarManagerInput"
+          />
+          <button class="avatar-custom-form__add" size="mini" bindtap="handleAvatarManagerAdd">添加</button>
+        </view>
+      </view>
+
     </scroll-view>
     <view class="avatar-permission-dialog__actions">
       <button class="avatar-permission-dialog__button" size="mini" bindtap="hideAvatarPermissionDialog">取消</button>
@@ -475,13 +578,16 @@
         class="avatar-permission-dialog__button avatar-permission-dialog__button--primary"
         size="mini"
         type="primary"
-        bindtap="handleAvatarDialogSave"
+        loading="{{avatarManagerSaving}}"
+        disabled="{{avatarManagerSaving || !avatarManagerDirty}}"
+        bindtap="handleAvatarManagerSave"
       >
         保存
       </button>
     </view>
   </view>
 </view>
+
 
 <view wx:if="{{titleManagerVisible}}" class="dialog-mask" bindtap="handleCloseTitleManager">
   <view class="title-manager-dialog" catchtap="noop" catchtouchmove="noop">

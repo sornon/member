@@ -1,5 +1,11 @@
 import { AdminService, PveService } from '../../../services/api';
-import { listAllAvatars, normalizeAvatarUnlocks } from '../../../utils/avatar-catalog';
+import {
+  listAllAvatars,
+  normalizeAvatarUnlocks,
+  registerCustomAvatars,
+  normalizeAvatarCatalog,
+  buildAvatarUrlById
+} from '../../../utils/avatar-catalog';
 import { sanitizeEquipmentProfile, buildEquipmentIconPaths } from '../../../utils/equipment';
 const {
   buildTitleImageUrlByFile,
@@ -25,6 +31,39 @@ const RENAME_SOURCE_LABELS = {
   manual: '会员修改',
   system: '系统同步'
 };
+
+const RARITY_LABELS = {
+  c: 'C',
+  b: 'B',
+  a: 'A',
+  s: 'S',
+  ss: 'SS',
+  sss: 'SSS'
+};
+
+const RARITY_ORDER = ['c', 'b', 'a', 's', 'ss', 'sss'];
+
+const AVATAR_GENDER_LABELS = {
+  male: '男',
+  female: '女'
+};
+
+const AVATAR_GENDER_OPTIONS = [
+  { value: 'male', label: '男修' },
+  { value: 'female', label: '女修' }
+];
+
+const AVATAR_RARITY_OPTIONS = RARITY_ORDER.map((value) => ({
+  value,
+  label: RARITY_LABELS[value] || value.toUpperCase()
+}));
+
+const DEFAULT_AVATAR_FORM = { name: '', gender: 'male', rarity: 'c', file: '' };
+
+const AVATAR_RARITY_INDEX_MAP = RARITY_ORDER.reduce((acc, value, index) => {
+  acc[value] = index;
+  return acc;
+}, {});
 
 function formatEquipmentSlots(profile) {
   if (!profile || !profile.equipment || !Array.isArray(profile.equipment.slots)) {
@@ -201,39 +240,61 @@ function parseSecretRealmFloorInput(value) {
   return Math.max(1, Math.floor(numeric));
 }
 
-const RAW_AVATAR_OPTIONS = listAllAvatars();
-
-const AVATAR_OPTION_GROUPS = [
-  {
-    gender: 'male',
-    label: '男修',
-    options: RAW_AVATAR_OPTIONS.filter((item) => item.gender === 'male').map((item) => ({
-      id: item.id,
-      label: item.name,
-      disabled: item.rarity === 'c'
-    }))
-  },
-  {
-    gender: 'female',
-    label: '女修',
-    options: RAW_AVATAR_OPTIONS.filter((item) => item.gender === 'female').map((item) => ({
-      id: item.id,
-      label: item.name,
-      disabled: item.rarity === 'c'
-    }))
-  }
-];
-
 function buildAvatarOptionGroups(unlocks = []) {
   const unlockSet = new Set(normalizeAvatarUnlocks(unlocks));
-  return AVATAR_OPTION_GROUPS.map((group) => ({
-    gender: group.gender,
-    label: group.label,
-    options: group.options.map((option) => ({
-      ...option,
-      checked: option.disabled || unlockSet.has(option.id)
-    }))
-  }));
+  const avatars = listAllAvatars();
+  const groups = [
+    { gender: 'male', label: '男修', options: [] },
+    { gender: 'female', label: '女修', options: [] }
+  ];
+  const groupMap = groups.reduce((acc, group) => {
+    acc[group.gender] = group;
+    return acc;
+  }, {});
+  avatars.forEach((avatar) => {
+    const group = groupMap[avatar.gender];
+    if (!group) {
+      return;
+    }
+    group.options.push({
+      id: avatar.id,
+      label: avatar.name,
+      disabled: avatar.rarity === 'c',
+      checked: avatar.rarity === 'c' || unlockSet.has(avatar.id),
+      url: avatar.url,
+      rarity: avatar.rarity,
+      rarityLabel: RARITY_LABELS[avatar.rarity] || avatar.rarity.toUpperCase(),
+      genderLabel: AVATAR_GENDER_LABELS[avatar.gender] || '未知',
+      attributeBonus: avatar.attributeBonus || 0
+    });
+  });
+  return groups;
+}
+
+function calculateAvatarAttributeBonus(unlocks = []) {
+  const unlockList = normalizeAvatarUnlocks(unlocks);
+  if (!unlockList.length) {
+    return 0;
+  }
+  const avatars = listAllAvatars();
+  const avatarMap = new Map(avatars.map((avatar) => [avatar.id, avatar]));
+  return unlockList.reduce((total, id) => {
+    const avatar = avatarMap.get(id);
+    if (avatar && avatar.attributeBonus) {
+      return total + avatar.attributeBonus;
+    }
+    return total;
+  }, 0);
+}
+
+function areUnlockListsEqual(a = [], b = []) {
+  const listA = normalizeAvatarUnlocks(a);
+  const listB = normalizeAvatarUnlocks(b);
+  if (listA.length !== listB.length) {
+    return false;
+  }
+  const setB = new Set(listB);
+  return listA.every((id) => setB.has(id));
 }
 
 function buildAvatarPermissionSummary(unlocks = []) {
@@ -241,7 +302,58 @@ function buildAvatarPermissionSummary(unlocks = []) {
   if (!list.length) {
     return '当前仅开放默认头像';
   }
-  return `已解锁头像：${list.length} 个`;
+  const bonus = calculateAvatarAttributeBonus(list);
+  const segments = [`已解锁头像：${list.length} 个`];
+  if (bonus > 0) {
+    segments.push(`额外属性点：+${bonus}`);
+  }
+  return segments.join(' · ');
+}
+
+function buildAvatarManagerEntries(catalog = []) {
+  const normalized = normalizeAvatarCatalog(catalog);
+  registerCustomAvatars(normalized);
+  return normalized.map((entry) => ({
+    ...entry,
+    preview: buildAvatarUrlById(entry.id),
+    rarityLabel: RARITY_LABELS[entry.rarity] || entry.rarity.toUpperCase(),
+    genderLabel: AVATAR_GENDER_LABELS[entry.gender] || '未知',
+    attributeBonus: entry.attributeBonus || 0
+  }));
+}
+
+function buildAvatarManagerUnlockedEntries(entries = [], unlocks = []) {
+  const normalizedEntries = normalizeAvatarCatalog(entries);
+  const entryMap = new Map(normalizedEntries.map((entry) => [entry.id, entry]));
+  const avatarMap = new Map(listAllAvatars().map((avatar) => [avatar.id, avatar]));
+  const seen = new Set();
+  return normalizeAvatarUnlocks(unlocks)
+    .map((id) => {
+      if (!id || seen.has(id)) {
+        return null;
+      }
+      seen.add(id);
+      if (entryMap.has(id)) {
+        const entry = entryMap.get(id);
+        return {
+          id: entry.id,
+          name: entry.name,
+          preview: buildAvatarUrlById(entry.id),
+          rarityLabel: RARITY_LABELS[entry.rarity] || entry.rarity.toUpperCase()
+        };
+      }
+      if (avatarMap.has(id)) {
+        const avatar = avatarMap.get(id);
+        return {
+          id: avatar.id,
+          name: avatar.name,
+          preview: avatar.url,
+          rarityLabel: RARITY_LABELS[avatar.rarity] || avatar.rarity.toUpperCase()
+        };
+      }
+      return null;
+    })
+    .filter(Boolean);
 }
 
 function normalizeTitleUnlocks(unlocks = []) {
@@ -534,6 +646,18 @@ Page({
     avatarPermissionDialogVisible: false,
     avatarDialogSelection: [],
     avatarDialogOptionGroups: buildAvatarOptionGroups([]),
+    avatarAttributeBonus: 0,
+    avatarGenderOptions: AVATAR_GENDER_OPTIONS,
+    avatarRarityOptions: AVATAR_RARITY_OPTIONS,
+    avatarRarityIndexMap: AVATAR_RARITY_INDEX_MAP,
+    rarityLabels: RARITY_LABELS,
+    avatarManagerSaving: false,
+    avatarManagerEntries: [],
+    avatarManagerUnlocks: [],
+    avatarManagerInitialUnlocks: [],
+    avatarManagerUnlockedEntries: [],
+    avatarManagerForm: { ...DEFAULT_AVATAR_FORM },
+    avatarManagerDirty: false,
     form: {
       nickName: '',
       realName: '',
@@ -744,7 +868,12 @@ Page({
       ...option,
       checked: roles.includes(option.value)
     }));
+    const avatarEntries = buildAvatarManagerEntries(member.avatarCatalog);
     const avatarUnlocks = normalizeAvatarUnlocks(member.avatarUnlocks);
+    const avatarManagerUnlockedEntries = buildAvatarManagerUnlockedEntries(avatarEntries, avatarUnlocks);
+    const avatarAttributeBonus = Number.isFinite(Number(member.avatarAttributeBonus))
+      ? Math.max(0, Math.floor(Number(member.avatarAttributeBonus)))
+      : calculateAvatarAttributeBonus(avatarUnlocks);
     const previousForm = this.data.form || {};
     this.setData({
       member,
@@ -782,6 +911,14 @@ Page({
       avatarPermissionSummary: buildAvatarPermissionSummary(avatarUnlocks),
       avatarDialogSelection: avatarUnlocks,
       avatarDialogOptionGroups: buildAvatarOptionGroups(avatarUnlocks),
+      avatarAttributeBonus,
+      avatarManagerEntries: avatarEntries,
+      avatarManagerUnlocks: avatarUnlocks,
+      avatarManagerInitialUnlocks: avatarUnlocks,
+      avatarManagerUnlockedEntries: avatarManagerUnlockedEntries,
+      avatarManagerForm: { ...DEFAULT_AVATAR_FORM },
+      avatarManagerSaving: false,
+      avatarManagerDirty: false,
       titleSummary,
       backgroundSummary,
       secretRealmSummary: '',
@@ -1105,50 +1242,55 @@ Page({
   },
 
   showAvatarPermissionDialog() {
+    const member = this.data.member || {};
+    const catalog = Array.isArray(member.avatarCatalog) ? member.avatarCatalog : [];
     const formUnlocks =
       this.data.form && Array.isArray(this.data.form.avatarUnlocks)
         ? this.data.form.avatarUnlocks
         : [];
-    const unlocks = normalizeAvatarUnlocks(formUnlocks);
+    const sourceUnlocks = formUnlocks.length ? formUnlocks : member.avatarUnlocks;
+    const unlocks = normalizeAvatarUnlocks(sourceUnlocks);
+    this.commitAvatarManagerState({
+      entries: catalog,
+      unlocks,
+      form: { ...DEFAULT_AVATAR_FORM },
+      dirty: false,
+      saving: false,
+      initialUnlocks: unlocks
+    });
     this.setData({
       avatarPermissionDialogVisible: true,
-      avatarDialogSelection: unlocks,
-      avatarDialogOptionGroups: buildAvatarOptionGroups(unlocks)
+      avatarManagerForm: { ...DEFAULT_AVATAR_FORM },
+      avatarManagerSaving: false
     });
   },
 
   hideAvatarPermissionDialog() {
-    const formUnlocks =
-      this.data.form && Array.isArray(this.data.form.avatarUnlocks)
-        ? this.data.form.avatarUnlocks
-        : [];
-    const unlocks = normalizeAvatarUnlocks(formUnlocks);
+    const member = this.data.member || {};
+    const catalog = Array.isArray(member.avatarCatalog) ? member.avatarCatalog : [];
+    const unlocks = normalizeAvatarUnlocks(member.avatarUnlocks);
+    this.commitAvatarManagerState({
+      entries: catalog,
+      unlocks,
+      form: { ...DEFAULT_AVATAR_FORM },
+      dirty: false,
+      saving: false,
+      initialUnlocks: unlocks
+    });
     this.setData({
       avatarPermissionDialogVisible: false,
-      avatarDialogSelection: unlocks,
-      avatarDialogOptionGroups: buildAvatarOptionGroups(unlocks)
+      avatarManagerForm: { ...DEFAULT_AVATAR_FORM },
+      avatarManagerSaving: false
     });
   },
 
   handleAvatarDialogChange(event) {
     const value = Array.isArray(event.detail.value) ? event.detail.value : [];
     const unlocks = normalizeAvatarUnlocks(value);
-    this.setData({
-      avatarDialogSelection: unlocks,
-      avatarDialogOptionGroups: buildAvatarOptionGroups(unlocks)
-    });
-  },
-
-  handleAvatarDialogSave() {
-    const unlocks = normalizeAvatarUnlocks(this.data.avatarDialogSelection);
-    this.setData({
-      'form.avatarUnlocks': unlocks,
-      avatarOptionGroups: buildAvatarOptionGroups(unlocks),
-      avatarPermissionSummary: buildAvatarPermissionSummary(unlocks),
-      avatarPermissionDialogVisible: false,
-      avatarDialogSelection: unlocks,
-      avatarDialogOptionGroups: buildAvatarOptionGroups(unlocks)
-    });
+    const initial = normalizeAvatarUnlocks(this.data.avatarManagerInitialUnlocks);
+    const changed = !areUnlockListsEqual(unlocks, initial);
+    const dirty = changed || !!this.data.avatarManagerDirty;
+    this.commitAvatarManagerState({ unlocks, dirty });
   },
 
   showEquipmentGrantDialog() {
@@ -1567,6 +1709,49 @@ Page({
     this.setData(updates);
   },
 
+  commitAvatarManagerState(partial = {}) {
+    const hasEntries = Object.prototype.hasOwnProperty.call(partial, 'entries');
+    const hasUnlocks = Object.prototype.hasOwnProperty.call(partial, 'unlocks');
+    const baseEntries = hasEntries
+      ? (Array.isArray(partial.entries) ? partial.entries : [])
+      : Array.isArray(this.data.avatarManagerEntries)
+      ? this.data.avatarManagerEntries
+      : [];
+    const normalizedCatalog = normalizeAvatarCatalog(baseEntries);
+    const entries = buildAvatarManagerEntries(normalizedCatalog);
+    const unlocksSource = hasUnlocks ? partial.unlocks : this.data.avatarManagerUnlocks;
+    const unlocks = normalizeAvatarUnlocks(unlocksSource);
+    entries.forEach((entry) => {
+      if (!unlocks.includes(entry.id)) {
+        unlocks.push(entry.id);
+      }
+    });
+    const updates = {
+      avatarManagerEntries: entries,
+      avatarManagerUnlocks: unlocks,
+      avatarManagerUnlockedEntries: buildAvatarManagerUnlockedEntries(entries, unlocks),
+      avatarOptionGroups: buildAvatarOptionGroups(unlocks),
+      avatarPermissionSummary: buildAvatarPermissionSummary(unlocks),
+      avatarDialogSelection: unlocks,
+      avatarDialogOptionGroups: buildAvatarOptionGroups(unlocks),
+      avatarAttributeBonus: calculateAvatarAttributeBonus(unlocks),
+      'form.avatarUnlocks': unlocks
+    };
+    if (partial.form) {
+      updates.avatarManagerForm = partial.form;
+    }
+    if (typeof partial.dirty === 'boolean') {
+      updates.avatarManagerDirty = partial.dirty;
+    }
+    if (typeof partial.saving === 'boolean') {
+      updates.avatarManagerSaving = partial.saving;
+    }
+    if (Object.prototype.hasOwnProperty.call(partial, 'initialUnlocks')) {
+      updates.avatarManagerInitialUnlocks = normalizeAvatarUnlocks(partial.initialUnlocks);
+    }
+    this.setData(updates);
+  },
+
   openTitleManagerDialog() {
     const member = this.data.member || {};
     const catalog = Array.isArray(member.titleCatalog) ? member.titleCatalog : [];
@@ -1719,6 +1904,156 @@ Page({
       dirty: false,
       saving: false
     });
+  },
+
+  handleAvatarManagerInput(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const field = dataset.field;
+    if (!field) {
+      return;
+    }
+    const value = event && event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
+    this.setData({
+      avatarManagerForm: {
+        ...this.data.avatarManagerForm,
+        [field]: value
+      }
+    });
+  },
+
+  handleAvatarManagerPickerChange(event) {
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const field = dataset.field;
+    if (!field) {
+      return;
+    }
+    const index = Number(event && event.detail && event.detail.value);
+    if (!Number.isFinite(index) || index < 0) {
+      return;
+    }
+    const options = field === 'gender' ? AVATAR_GENDER_OPTIONS : AVATAR_RARITY_OPTIONS;
+    const option = options[index];
+    if (!option) {
+      return;
+    }
+    this.setData({
+      avatarManagerForm: {
+        ...this.data.avatarManagerForm,
+        [field]: option.value
+      }
+    });
+  },
+
+  handleAvatarManagerAdd() {
+    const form = this.data.avatarManagerForm || {};
+    const name = typeof form.name === 'string' ? form.name.trim() : '';
+    if (!name) {
+      wx.showToast({ title: '请输入头像名称', icon: 'none' });
+      return;
+    }
+    const fileInput = typeof form.file === 'string' ? form.file.trim() : '';
+    const file = fileInput || name;
+    const gender = form.gender === 'female' ? 'female' : 'male';
+    const rarity = RARITY_ORDER.includes(form.rarity) ? form.rarity : 'c';
+    const existing = normalizeAvatarCatalog(this.data.avatarManagerEntries);
+    const appended = normalizeAvatarCatalog(existing.concat([{ name, file, gender, rarity }]));
+    if (!appended.length) {
+      wx.showToast({ title: '添加失败，请重试', icon: 'none' });
+      return;
+    }
+    const entries = buildAvatarManagerEntries(appended);
+    const unlocks = normalizeAvatarUnlocks(this.data.avatarManagerUnlocks).slice();
+    const newest = entries[entries.length - 1];
+    if (newest && newest.id && !unlocks.includes(newest.id)) {
+      unlocks.push(newest.id);
+    }
+    this.commitAvatarManagerState({
+      entries,
+      unlocks,
+      form: { ...DEFAULT_AVATAR_FORM, gender, rarity },
+      dirty: true
+    });
+  },
+
+  handleAvatarManagerRemove(event) {
+    if (this.data.avatarManagerSaving) {
+      return;
+    }
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const id = typeof dataset.id === 'string' ? dataset.id : '';
+    if (!id) {
+      return;
+    }
+    const displayName = typeof dataset.name === 'string' && dataset.name ? dataset.name : '';
+    wx.showModal({
+      title: '删除自定义头像',
+      content: `确定要删除“${displayName || id}”吗？删除后需要保存才能生效。`,
+      confirmColor: '#ef4444',
+      success: (res) => {
+        if (!res || !res.confirm) {
+          return;
+        }
+        const existing = normalizeAvatarCatalog(this.data.avatarManagerEntries);
+        if (!existing.length) {
+          return;
+        }
+        const filtered = existing.filter((entry) => entry.id !== id);
+        if (filtered.length === existing.length) {
+          return;
+        }
+        const entries = buildAvatarManagerEntries(filtered);
+        const unlocks = normalizeAvatarUnlocks(this.data.avatarManagerUnlocks).filter((value) => value !== id);
+        this.commitAvatarManagerState({ entries, unlocks, dirty: true });
+        wx.showToast({ title: '已标记删除，记得保存', icon: 'none' });
+      }
+    });
+  },
+
+  async handleAvatarManagerSave() {
+    if (this.data.avatarManagerSaving) {
+      return;
+    }
+    const memberId = this.data.memberId;
+    if (!memberId) {
+      wx.showToast({ title: '缺少会员编号', icon: 'none' });
+      return;
+    }
+    const catalog = normalizeAvatarCatalog(this.data.avatarManagerEntries);
+    const unlocks = normalizeAvatarUnlocks(this.data.avatarManagerUnlocks);
+    if (!this.data.avatarManagerDirty) {
+      this.setData({ avatarPermissionDialogVisible: false, avatarManagerForm: { ...DEFAULT_AVATAR_FORM } });
+      return;
+    }
+    this.setData({ avatarManagerSaving: true });
+    try {
+      const detail = await AdminService.updateMember(memberId, {
+        avatarCatalog: catalog,
+        avatarUnlocks: unlocks
+      });
+      this.applyDetail(detail);
+      const updatedMember = (detail && detail.member) || this.data.member || {};
+      const savedCatalog = Array.isArray(updatedMember.avatarCatalog) ? updatedMember.avatarCatalog : catalog;
+      const savedUnlocks = normalizeAvatarUnlocks(updatedMember.avatarUnlocks || unlocks);
+      this.commitAvatarManagerState({
+        entries: savedCatalog,
+        unlocks: savedUnlocks,
+        form: { ...DEFAULT_AVATAR_FORM },
+        dirty: false,
+        saving: false,
+        initialUnlocks: savedUnlocks
+      });
+      this.setData({
+        avatarPermissionDialogVisible: false,
+        avatarManagerSaving: false,
+        avatarManagerDirty: false,
+        avatarManagerForm: { ...DEFAULT_AVATAR_FORM }
+      });
+      wx.showToast({ title: '已保存', icon: 'success' });
+    } catch (error) {
+      console.error('[admin] save avatars failed', error);
+      this.setData({ avatarManagerSaving: false });
+      wx.showToast({ title: error.errMsg || error.message || '保存失败', icon: 'none' });
+    }
   },
 
   handleBackgroundManagerInput(event) {

@@ -1137,6 +1137,12 @@ async function loadMemberExtras(memberId) {
     if (!Array.isArray(extras.deliveredLevelRewards)) {
       extras.deliveredLevelRewards = [];
     }
+    if (!Array.isArray(extras.avatarCatalog)) {
+      extras.avatarCatalog = [];
+    }
+    if (typeof extras.avatarAttributeBonus !== 'number' || Number.isNaN(extras.avatarAttributeBonus)) {
+      extras.avatarAttributeBonus = 0;
+    }
     return extras;
   }
   const now = new Date();
@@ -1147,6 +1153,8 @@ async function loadMemberExtras(memberId) {
     titleUnlocks: [],
     backgroundUnlocks: [],
     deliveredLevelRewards: [],
+    avatarCatalog: [],
+    avatarAttributeBonus: 0,
     createdAt: now,
     updatedAt: now
   };
@@ -4951,6 +4959,20 @@ async function ensurePveProfile(actorId, member, levelCache) {
   const levels = Array.isArray(levelCache) ? levelCache : await loadMembershipLevels();
   let summaryDirty = false;
   if (syncAttributesWithMemberLevel(profile.attributes, member, levels)) {
+    changed = true;
+    summaryDirty = true;
+  }
+
+  const extras = await loadMemberExtras(actorId);
+  const attrs = profile.attributes || {};
+  const currentAvatarBonus = Math.max(0, Math.floor(Number(attrs.avatarBonusPoints) || 0));
+  const desiredAvatarBonus = Math.max(0, Math.floor(Number(extras.avatarAttributeBonus) || 0));
+  if (desiredAvatarBonus !== currentAvatarBonus) {
+    const availablePoints = Math.max(0, Math.floor(Number(attrs.attributePoints) || 0));
+    const diff = desiredAvatarBonus - currentAvatarBonus;
+    attrs.attributePoints = Math.max(0, availablePoints + diff);
+    attrs.avatarBonusPoints = desiredAvatarBonus;
+    profile.attributes = attrs;
     changed = true;
     summaryDirty = true;
   }
