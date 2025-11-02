@@ -1482,6 +1482,7 @@ Page({
     this.startupVideoFadeTimeout = null;
     this.startupVideoActivationTimer = null;
     this.startupVideoContext = null;
+    this.startupVideoRevealPending = false;
     this.homeReady = false;
     this.startupOverlayFadePending = false;
     this.setData({
@@ -1743,14 +1744,19 @@ Page({
     this.startupVideoDismissed = true;
     this.clearStartupVideoFadeTimer();
     this.clearStartupVideoActivationTimer();
+    this.startupVideoRevealPending = false;
     if (immediate) {
-      this.setData({
+      const nextState = {
         showStartupOverlay: false,
         startupVideoMounted: false,
         startupVideoVisible: false,
         startupVideoFading: false,
         startupVideoMuted: true
-      });
+      };
+      if (this.homeReady) {
+        nextState.loading = false;
+      }
+      this.setData(nextState);
       this.stopStartupVideo();
       return;
     }
@@ -1762,10 +1768,30 @@ Page({
         startupVideoMounted: false,
         startupVideoVisible: false,
         startupVideoFading: false,
-        startupVideoMuted: true
+        startupVideoMuted: true,
+        loading: false
       });
       this.stopStartupVideo();
     }, STARTUP_VIDEO_FADE_DURATION_MS);
+  },
+
+  revealStartupVideo() {
+    if (!STARTUP_VIDEO_ENABLED) {
+      return;
+    }
+    if (this.startupVideoDismissed || this.data.startupVideoVisible) {
+      return;
+    }
+    const context = this.ensureStartupVideoContext();
+    if (context && typeof context.mute === 'function') {
+      try {
+        context.mute(false);
+      } catch (error) {
+        console.warn('[index] unmute startup video failed', error);
+      }
+    }
+    this.startupVideoRevealPending = false;
+    this.setData({ startupVideoVisible: true, startupVideoMuted: false });
   },
 
   markHomeReady() {
@@ -1774,8 +1800,17 @@ Page({
     }
     this.homeReady = true;
     if (STARTUP_VIDEO_ENABLED) {
+      if (this.startupVideoDismissed) {
+        this.setData({ loading: false });
+        return;
+      }
+      if (this.startupVideoRevealPending) {
+        this.revealStartupVideo();
+      }
       this.triggerStartupVideoFade();
+      return;
     }
+    this.setData({ loading: false });
   },
 
   handleStartupVideoTimeUpdate(event) {
@@ -1816,15 +1851,11 @@ Page({
     if (this.startupVideoDismissed || this.data.startupVideoVisible) {
       return;
     }
-    const context = this.ensureStartupVideoContext();
-    if (context && typeof context.mute === 'function') {
-      try {
-        context.mute(false);
-      } catch (error) {
-        console.warn('[index] unmute startup video failed', error);
-      }
+    if (!this.homeReady) {
+      this.startupVideoRevealPending = true;
+      return;
     }
-    this.setData({ startupVideoVisible: true, startupVideoMuted: false });
+    this.revealStartupVideo();
   },
 
   handleStartupVideoError() {
@@ -1937,7 +1968,6 @@ Page({
         progressRemainingExperience,
         realmHasPendingRewards,
         tasks: tasks.slice(0, 3),
-        loading: false,
         heroImage: resolveCharacterImage(sanitizedMember),
         heroFigureScaleClass: resolveHeroFigureScaleClass(sanitizedMember),
         navItems,
@@ -1985,7 +2015,6 @@ Page({
     } catch (err) {
       const width = normalizePercentage(this.data.progress);
       this.setData({
-        loading: false,
         memberStats: deriveMemberStats(this.data.member),
         progressWidth: width,
         progressStyle: buildWidthStyle(width),
