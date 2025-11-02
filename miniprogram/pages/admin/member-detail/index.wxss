@@ -673,6 +673,10 @@ page {
   border: none;
 }
 
+.avatar-custom-item__remove[disabled] {
+  opacity: 0.6;
+}
+
 .avatar-custom-empty {
   min-height: 200rpx;
   display: flex;

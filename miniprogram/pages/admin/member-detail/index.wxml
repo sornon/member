@@ -515,7 +515,16 @@
                 <view class="avatar-custom-item__name">{{item.name}}</view>
                 <view class="avatar-custom-item__meta">{{item.genderLabel}} · {{item.rarityLabel}} · 文件名：{{item.file}}</view>
               </view>
-              <button class="avatar-custom-item__remove" size="mini" data-id="{{item.id}}" bindtap="handleAvatarManagerRemove">移除</button>
+              <button
+                class="avatar-custom-item__remove"
+                size="mini"
+                data-id="{{item.id}}"
+                data-name="{{item.name}}"
+                bindtap="handleAvatarManagerRemove"
+                disabled="{{avatarManagerSaving}}"
+              >
+                删除
+              </button>
             </view>
           </block>
         </view>

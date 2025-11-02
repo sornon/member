@@ -1976,16 +1976,37 @@ Page({
   },
 
   handleAvatarManagerRemove(event) {
-    const id =
-      (event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.id) || '';
+    if (this.data.avatarManagerSaving) {
+      return;
+    }
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const id = typeof dataset.id === 'string' ? dataset.id : '';
     if (!id) {
       return;
     }
-    const existing = normalizeAvatarCatalog(this.data.avatarManagerEntries);
-    const filtered = existing.filter((entry) => entry.id !== id);
-    const entries = buildAvatarManagerEntries(filtered);
-    const unlocks = normalizeAvatarUnlocks(this.data.avatarManagerUnlocks).filter((value) => value !== id);
-    this.commitAvatarManagerState({ entries, unlocks, dirty: true });
+    const displayName = typeof dataset.name === 'string' && dataset.name ? dataset.name : '';
+    wx.showModal({
+      title: '删除自定义头像',
+      content: `确定要删除“${displayName || id}”吗？删除后需要保存才能生效。`,
+      confirmColor: '#ef4444',
+      success: (res) => {
+        if (!res || !res.confirm) {
+          return;
+        }
+        const existing = normalizeAvatarCatalog(this.data.avatarManagerEntries);
+        if (!existing.length) {
+          return;
+        }
+        const filtered = existing.filter((entry) => entry.id !== id);
+        if (filtered.length === existing.length) {
+          return;
+        }
+        const entries = buildAvatarManagerEntries(filtered);
+        const unlocks = normalizeAvatarUnlocks(this.data.avatarManagerUnlocks).filter((value) => value !== id);
+        this.commitAvatarManagerState({ entries, unlocks, dirty: true });
+        wx.showToast({ title: '已标记删除，记得保存', icon: 'none' });
+      }
+    });
   },
 
   async handleAvatarManagerSave() {
