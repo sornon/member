@@ -5,6 +5,7 @@ const BACKGROUND_VIDEO_URL = buildCloudAssetUrl('background', 'tupo.mp4');
 const EFFECT_START_TIME = 2.2;
 const EFFECT_END_TIME = 4.6;
 const SUCCESS_NAVIGATION_DELAY = 2200;
+const DEFAULT_FIGURE_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 
 function normalizeAssetUrl(url) {
   if (typeof url !== 'string') {
@@ -30,7 +31,7 @@ function extractAvatarId(url) {
 }
 
 function resolveFigureImage(member) {
-  const defaultImage = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
+  const defaultImage = DEFAULT_FIGURE_IMAGE;
   if (!member || typeof member !== 'object') {
     return defaultImage;
   }
@@ -84,7 +85,7 @@ function resolveFigureImage(member) {
 Page({
   data: {
     videoSrc: BACKGROUND_VIDEO_URL,
-    figureImage: '',
+    figureImage: DEFAULT_FIGURE_IMAGE,
     showFigure: false,
     vibrationActive: false,
     flashActive: false,

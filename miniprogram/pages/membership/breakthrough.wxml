@@ -21,9 +21,12 @@
   <view
     class="figure-layer {{showFigure ? 'figure-layer--visible' : ''}} {{vibrationActive ? 'figure-layer--vibrating' : ''}} {{flashActive ? 'figure-layer--flashing' : ''}}"
   >
-    <image class="figure-image" src="{{figureImage}}" mode="widthFix"></image>
+    <view class="figure-container">
+      <image class="figure-image" src="{{figureImage}}" mode="widthFix"></image>
+      <image class="figure-image figure-image--flash" src="{{figureImage}}" mode="widthFix"></image>
+    </view>
   </view>
   <view class="success-message {{showSuccessMessage ? 'success-message--visible' : ''}}">
-    渡劫成功，达到{{levelName || '全新'}}境界
+    渡劫成功
   </view>
 </view>
