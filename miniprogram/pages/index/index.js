@@ -738,7 +738,19 @@ function normalizePercentage(progress) {
 }
 
 function hasPendingLevelRewards(progress) {
-  if (!progress || !Array.isArray(progress.levels)) {
+  if (!progress || typeof progress !== 'object') {
+    return false;
+  }
+  const pendingBreakthroughId =
+    (typeof progress.pendingBreakthroughLevelId === 'string' && progress.pendingBreakthroughLevelId) ||
+    (progress.member &&
+      typeof progress.member.pendingBreakthroughLevelId === 'string' &&
+      progress.member.pendingBreakthroughLevelId) ||
+    '';
+  if (pendingBreakthroughId) {
+    return true;
+  }
+  if (!Array.isArray(progress.levels)) {
     return false;
   }
   return progress.levels.some((level) => level && level.claimable);

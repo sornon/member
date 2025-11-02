@@ -30,7 +30,10 @@
         loading="{{breakthroughLoading}}"
         disabled="{{breakthroughLoading}}"
         bindtap="handleBreakthrough"
-      >突破境界</button>
+      >
+        <text>突破境界</text>
+        <view class="badge-dot breakthrough-button__dot"></view>
+      </button>
       <view class="milestone-hint" wx:if="{{upcomingMilestone}}">
         <text class="milestone-tag">境界大奖</text>
         <text class="milestone-text">冲刺至 {{upcomingMilestone.displayName}} 可得 {{upcomingMilestone.milestoneReward}}</text>

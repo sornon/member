@@ -377,21 +377,21 @@ Page({
     }
   },
 
-  async handleBreakthrough() {
+  handleBreakthrough() {
     if (this.data.breakthroughLoading || !this.data.pendingBreakthroughLevelId) {
       return;
     }
     this.setData({ breakthroughLoading: true });
-    try {
-      await MemberService.breakthrough();
-      wx.showToast({ title: '突破成功', icon: 'success' });
-      await this.fetchData({ showLoading: false });
-    } catch (error) {
-      console.error('[membership] breakthrough failed', error);
-      wx.showToast({ title: (error && error.errMsg) || '突破失败', icon: 'none' });
-    } finally {
-      this.setData({ breakthroughLoading: false });
-    }
+    const levelName = this.data.breakthroughLevel
+      ? this.data.breakthroughLevel.displayName || this.data.breakthroughLevel.name || ''
+      : '';
+    const query = levelName ? `?levelName=${encodeURIComponent(levelName)}` : '';
+    wx.navigateTo({
+      url: `/pages/membership/breakthrough${query}`,
+      complete: () => {
+        this.setData({ breakthroughLoading: false });
+      }
+    });
   },
 
   formatCurrency,

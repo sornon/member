@@ -1,0 +1,136 @@
+.breakthrough-page {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: #01030f;
+  color: #fefefe;
+}
+
+.breakthrough-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.figure-layer {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.figure-layer--visible {
+  opacity: 1;
+  transform: translate(-50%, -52%);
+}
+
+.figure-container {
+  position: relative;
+  width: 280rpx;
+  max-width: 44vw;
+  display: flex;
+  justify-content: center;
+}
+
+.figure-image {
+  width: 100%;
+  filter: drop-shadow(0 24rpx 48rpx rgba(0, 0, 0, 0.6));
+  transform-origin: center;
+  display: block;
+}
+
+.figure-image--flash {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  opacity: 0;
+  mix-blend-mode: screen;
+  filter: brightness(2.6) saturate(0.35);
+  pointer-events: none;
+}
+
+.figure-layer--flashing .figure-image--flash {
+  opacity: 0.85;
+  animation: figure-flash 0.12s linear infinite;
+}
+
+.figure-container::after {
+  content: '';
+  position: absolute;
+  inset: -6% -10% -6% -10%;
+  border-radius: 48rpx;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 65%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.figure-layer--flashing .figure-container::after {
+  opacity: 0.5;
+  animation: figure-flash 0.18s linear infinite;
+}
+
+.figure-layer--vibrating .figure-container {
+  animation: figure-shake 0.08s linear infinite;
+}
+
+.success-message {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 28rpx);
+  transform: translateX(-50%);
+  padding: 22rpx 48rpx;
+  border-radius: 999rpx;
+  background: rgba(18, 8, 42, 0.72);
+  box-shadow: 0 18rpx 54rpx rgba(255, 238, 160, 0.45);
+  color: #fff7d9;
+  font-size: 34rpx;
+  letter-spacing: 6rpx;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.4s ease-in;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.success-message--visible {
+  opacity: 1;
+}
+
+@keyframes figure-shake {
+  0% {
+    transform: translate3d(-10rpx, 0, 0) scale(1.02);
+  }
+  25% {
+    transform: translate3d(12rpx, -4rpx, 0) scale(1.015);
+  }
+  50% {
+    transform: translate3d(-8rpx, 3rpx, 0) scale(1.03);
+  }
+  75% {
+    transform: translate3d(10rpx, -2rpx, 0) scale(1.02);
+  }
+  100% {
+    transform: translate3d(-10rpx, 1rpx, 0) scale(1.03);
+  }
+}
+
+@keyframes figure-flash {
+  0% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0.1;
+  }
+}
