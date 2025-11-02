@@ -45,6 +45,7 @@ const {
   normalizeFigureRarity
 } = require('../../shared/figure-scale');
 const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
+const { getStartupVideoConfig } = require('../../local-config');
 
 const DEFAULT_GLOBAL_BACKGROUND = { enabled: false, backgroundId: '', animated: false };
 
@@ -60,13 +61,68 @@ const CHARACTER_IMAGE_MAP = buildCharacterImageMap();
 
 const DEFAULT_CHARACTER_IMAGE = `${CHARACTER_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
-const STARTUP_COVER_IMAGE = '/cover-20251028.jpg';
-const STARTUP_VIDEO_SOURCES = [
+const STARTUP_COVER_IMAGE = '/cover-20251102.jpg';
+const STARTUP_VIDEO_DEFAULT_SOURCES = [
   buildCloudAssetUrl('background', 'cover-20251028.mp4'),
   buildCloudAssetUrl('background', 'cover-20251030.mp4')
 ];
-const STARTUP_VIDEO_SOURCE =
-  STARTUP_VIDEO_SOURCES[Math.floor(Math.random() * STARTUP_VIDEO_SOURCES.length)];
+
+function normalizeStartupVideoConfig(source) {
+  const fallback = { enabled: true, cloudRelativePath: '' };
+  if (!source || typeof source !== 'object') {
+    return fallback;
+  }
+  const enabled = source.enabled === false ? false : true;
+  const cloudRelativePath =
+    typeof source.cloudRelativePath === 'string' ? source.cloudRelativePath.trim() : '';
+  return { enabled, cloudRelativePath };
+}
+
+function resolveStartupVideoConfig() {
+  const fallback = { enabled: true, cloudRelativePath: '' };
+  if (typeof getStartupVideoConfig !== 'function') {
+    return fallback;
+  }
+  try {
+    return normalizeStartupVideoConfig(getStartupVideoConfig());
+  } catch (error) {
+    console.warn('[index] load startup video config failed', error);
+    return fallback;
+  }
+}
+
+function buildStartupVideoUrlFromRelativePath(relativePath) {
+  if (typeof relativePath !== 'string') {
+    return '';
+  }
+  const segments = relativePath.split('/').map((segment) => segment.trim()).filter(Boolean);
+  if (!segments.length) {
+    return '';
+  }
+  return buildCloudAssetUrl(...segments);
+}
+
+function resolveStartupVideoSource(config) {
+  if (!config || config.enabled === false) {
+    return '';
+  }
+  if (config.cloudRelativePath) {
+    const customUrl = buildStartupVideoUrlFromRelativePath(config.cloudRelativePath);
+    if (customUrl) {
+      return customUrl;
+    }
+  }
+  if (!STARTUP_VIDEO_DEFAULT_SOURCES.length) {
+    return '';
+  }
+  return STARTUP_VIDEO_DEFAULT_SOURCES[
+    Math.floor(Math.random() * STARTUP_VIDEO_DEFAULT_SOURCES.length)
+  ];
+}
+
+const STARTUP_VIDEO_CONFIG = resolveStartupVideoConfig();
+const STARTUP_VIDEO_SOURCE = resolveStartupVideoSource(STARTUP_VIDEO_CONFIG);
+const STARTUP_VIDEO_ENABLED = !!STARTUP_VIDEO_SOURCE;
 const STARTUP_VIDEO_FADE_OUT_AT_SECONDS = 5;
 const STARTUP_VIDEO_FADE_DURATION_MS = 1000;
 const STARTUP_VIDEO_ACTIVATION_DELAY_MS = 300;
@@ -1192,8 +1248,8 @@ Page({
     backgroundVideoError: false,
     dynamicBackgroundEnabled: false,
     startupVideoSource: STARTUP_VIDEO_SOURCE,
-    startupCoverImage: STARTUP_COVER_IMAGE,
-    showStartupOverlay: true,
+    startupCoverImage: STARTUP_VIDEO_ENABLED ? STARTUP_COVER_IMAGE : '',
+    showStartupOverlay: STARTUP_VIDEO_ENABLED,
     startupVideoMounted: false,
     startupVideoVisible: false,
     startupVideoFading: false,
@@ -1422,14 +1478,14 @@ Page({
   },
 
   onLoad() {
-    this.startupVideoDismissed = false;
+    this.startupVideoDismissed = !STARTUP_VIDEO_ENABLED;
     this.startupVideoFadeTimeout = null;
     this.startupVideoActivationTimer = null;
     this.startupVideoContext = null;
     this.setData({
       startupVideoSource: STARTUP_VIDEO_SOURCE,
-      startupCoverImage: STARTUP_COVER_IMAGE,
-      showStartupOverlay: true,
+      startupCoverImage: STARTUP_VIDEO_ENABLED ? STARTUP_COVER_IMAGE : '',
+      showStartupOverlay: STARTUP_VIDEO_ENABLED,
       startupVideoMounted: false,
       startupVideoVisible: false,
       startupVideoFading: false,
@@ -1519,11 +1575,15 @@ Page({
     this.refreshStorageBadgeIndicator();
     this.attachMemberRealtime();
     this.bootstrap();
-    this.activateStartupVideo();
+    if (STARTUP_VIDEO_ENABLED) {
+      this.activateStartupVideo();
+    }
   },
 
   onReady() {
-    this.activateStartupVideo();
+    if (STARTUP_VIDEO_ENABLED) {
+      this.activateStartupVideo();
+    }
   },
 
   onHide() {
@@ -1590,6 +1650,9 @@ Page({
   },
 
   ensureStartupVideoContext() {
+    if (!STARTUP_VIDEO_ENABLED) {
+      return null;
+    }
     if (this.startupVideoContext) {
       return this.startupVideoContext;
     }
@@ -1606,6 +1669,9 @@ Page({
   },
 
   playStartupVideo() {
+    if (!STARTUP_VIDEO_ENABLED) {
+      return;
+    }
     const context = this.ensureStartupVideoContext();
     if (context && typeof context.play === 'function') {
       try {
@@ -1642,6 +1708,9 @@ Page({
   },
 
   activateStartupVideo() {
+    if (!STARTUP_VIDEO_ENABLED) {
+      return;
+    }
     if (this.startupVideoDismissed || this.data.startupVideoMounted) {
       return;
     }
@@ -1658,6 +1727,9 @@ Page({
   },
 
   triggerStartupVideoFade(immediate = false) {
+    if (!STARTUP_VIDEO_ENABLED) {
+      return;
+    }
     if (this.startupVideoDismissed) {
       return;
     }
@@ -1690,6 +1762,9 @@ Page({
   },
 
   handleStartupVideoTimeUpdate(event) {
+    if (!STARTUP_VIDEO_ENABLED) {
+      return;
+    }
     if (this.startupVideoDismissed) {
       return;
     }
@@ -1701,10 +1776,16 @@ Page({
   },
 
   handleStartupVideoEnded() {
+    if (!STARTUP_VIDEO_ENABLED) {
+      return;
+    }
     this.triggerStartupVideoFade();
   },
 
   handleStartupVideoLoaded() {
+    if (!STARTUP_VIDEO_ENABLED) {
+      return;
+    }
     if (this.startupVideoDismissed) {
       return;
     }
@@ -1712,6 +1793,9 @@ Page({
   },
 
   handleStartupVideoPlay() {
+    if (!STARTUP_VIDEO_ENABLED) {
+      return;
+    }
     if (this.startupVideoDismissed || this.data.startupVideoVisible) {
       return;
     }
@@ -1727,6 +1811,9 @@ Page({
   },
 
   handleStartupVideoError() {
+    if (!STARTUP_VIDEO_ENABLED) {
+      return;
+    }
     this.triggerStartupVideoFade(true);
   },
 
