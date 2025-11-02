@@ -60,6 +60,13 @@
       bindended="handleStartupVideoEnded"
       binderror="handleStartupVideoError"
     ></video>
+    <view wx:if="{{loading}}" class="startup-loading">
+      <view class="loading-bar">
+        <view class="loading-bar__track">
+          <view class="loading-bar__indicator"></view>
+        </view>
+      </view>
+    </view>
   </view>
   <custom-nav title="会员中心" enable-back="{{false}}" theme="transparent"></custom-nav>
 
@@ -167,7 +174,7 @@
     </view>
   </view>
 
-  <view wx:if="{{loading}}" class="loading-state">
+  <view wx:if="{{loading && !showStartupOverlay}}" class="loading-state">
     <view class="loading-bar">
       <view class="loading-bar__track">
         <view class="loading-bar__indicator"></view>
