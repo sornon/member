@@ -1,0 +1,29 @@
+<view class="breakthrough-page">
+  <video
+    class="breakthrough-video"
+    src="{{videoSrc}}"
+    autoplay
+    muted
+    loop="{{false}}"
+    controls="{{false}}"
+    show-center-play-btn="{{false}}"
+    show-fullscreen-btn="{{false}}"
+    show-play-btn="{{false}}"
+    show-screen-lock-button="{{false}}"
+    enable-progress-gesture="{{false}}"
+    objectFit="cover"
+    bindloadedmetadata="handleVideoLoaded"
+    bindloadeddata="handleVideoLoaded"
+    bindtimeupdate="handleVideoTimeUpdate"
+    bindended="handleVideoEnded"
+    binderror="handleVideoError"
+  ></video>
+  <view
+    class="figure-layer {{showFigure ? 'figure-layer--visible' : ''}} {{vibrationActive ? 'figure-layer--vibrating' : ''}} {{flashActive ? 'figure-layer--flashing' : ''}}"
+  >
+    <image class="figure-image" src="{{figureImage}}" mode="widthFix"></image>
+  </view>
+  <view class="success-message {{showSuccessMessage ? 'success-message--visible' : ''}}">
+    渡劫成功，达到{{levelName || '全新'}}境界
+  </view>
+</view>

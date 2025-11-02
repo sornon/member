@@ -84,10 +84,22 @@
   color: #2e1a00;
   font-size: 24rpx;
   font-weight: 600;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8rpx;
 }
 
 .breakthrough-button::after {
   display: none;
+}
+
+.breakthrough-button__dot {
+  position: absolute;
+  top: -6rpx;
+  right: -6rpx;
+  box-shadow: 0 0 12rpx rgba(255, 95, 109, 0.75);
 }
 
 .breakthrough-button--hover {
