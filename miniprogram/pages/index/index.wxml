@@ -327,7 +327,11 @@
                 data-url="{{item.url}}"
                 bindtap="handleAvatarPickerSelect"
               >
-                <image class="avatar-option__image" src="{{item.url}}" mode="aspectFill"></image>
+                <view class="avatar-option__thumb">
+                  <image class="avatar-option__image" src="{{item.url}}" mode="aspectFill"></image>
+                </view>
+                <view class="avatar-option__label">{{item.rarityLabel}}级 {{item.name}}</view>
+                <view class="avatar-option__bonus">{{item.attributeBonusLabel}}</view>
               </view>
             </view>
           </view>
