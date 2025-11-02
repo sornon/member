@@ -85,13 +85,14 @@ function resolveFigureImage(member) {
 Page({
   data: {
     videoSrc: BACKGROUND_VIDEO_URL,
-    figureImage: DEFAULT_FIGURE_IMAGE,
+    figureImage: '',
     showFigure: false,
     vibrationActive: false,
     flashActive: false,
     showSuccessMessage: false,
     levelName: '',
-    videoReady: false
+    videoReady: false,
+    figureReady: false
   },
 
   onLoad(options = {}) {
@@ -124,7 +125,7 @@ Page({
     if (this.figureRevealed) {
       return;
     }
-    if (this.data.videoReady && this.data.figureImage) {
+    if (this.data.videoReady && this.data.figureReady && this.data.figureImage) {
       this.figureRevealed = true;
       this.setData({ showFigure: true });
     }
@@ -141,7 +142,8 @@ Page({
         '';
       this.setData({
         levelName: resolvedLevelName,
-        figureImage: resolveFigureImage(member)
+        figureImage: resolveFigureImage(member),
+        figureReady: false
       });
       this.maybeRevealFigure();
     } catch (error) {
@@ -158,6 +160,25 @@ Page({
 
   handleVideoLoaded() {
     this.setData({ videoReady: true });
+    this.maybeRevealFigure();
+  },
+
+  handleFigureLoaded() {
+    if (!this.data.figureReady) {
+      this.setData({ figureReady: true });
+    }
+    this.maybeRevealFigure();
+  },
+
+  handleFigureError() {
+    if (this.data.figureImage && this.data.figureImage !== DEFAULT_FIGURE_IMAGE) {
+      this.setData({
+        figureImage: DEFAULT_FIGURE_IMAGE,
+        figureReady: false
+      });
+      return;
+    }
+    this.setData({ figureReady: true });
     this.maybeRevealFigure();
   },
 

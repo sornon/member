@@ -22,7 +22,13 @@
     class="figure-layer {{showFigure ? 'figure-layer--visible' : ''}} {{vibrationActive ? 'figure-layer--vibrating' : ''}} {{flashActive ? 'figure-layer--flashing' : ''}}"
   >
     <view class="figure-container">
-      <image class="figure-image" src="{{figureImage}}" mode="widthFix"></image>
+      <image
+        class="figure-image"
+        src="{{figureImage}}"
+        mode="widthFix"
+        bindload="handleFigureLoaded"
+        binderror="handleFigureError"
+      ></image>
       <image class="figure-image figure-image--flash" src="{{figureImage}}" mode="widthFix"></image>
     </view>
   </view>
