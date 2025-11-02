@@ -1482,6 +1482,8 @@ Page({
     this.startupVideoFadeTimeout = null;
     this.startupVideoActivationTimer = null;
     this.startupVideoContext = null;
+    this.homeReady = false;
+    this.startupOverlayFadePending = false;
     this.setData({
       startupVideoSource: STARTUP_VIDEO_SOURCE,
       startupCoverImage: STARTUP_VIDEO_ENABLED ? STARTUP_COVER_IMAGE : '',
@@ -1733,6 +1735,11 @@ Page({
     if (this.startupVideoDismissed) {
       return;
     }
+    if (!this.homeReady && !immediate) {
+      this.startupOverlayFadePending = true;
+      return;
+    }
+    this.startupOverlayFadePending = false;
     this.startupVideoDismissed = true;
     this.clearStartupVideoFadeTimer();
     this.clearStartupVideoActivationTimer();
@@ -1759,6 +1766,16 @@ Page({
       });
       this.stopStartupVideo();
     }, STARTUP_VIDEO_FADE_DURATION_MS);
+  },
+
+  markHomeReady() {
+    if (this.homeReady) {
+      return;
+    }
+    this.homeReady = true;
+    if (STARTUP_VIDEO_ENABLED) {
+      this.triggerStartupVideoFade();
+    }
   },
 
   handleStartupVideoTimeUpdate(event) {
@@ -1962,6 +1979,7 @@ Page({
         'avatarPicker.dynamicBackground': !!sanitizedMember.appearanceBackgroundAnimated
       });
       this.updateBackgroundDisplay(sanitizedMember, { resetError: true });
+      this.markHomeReady();
       setActiveMember(sanitizedMember);
       this.syncNameBadgeVisibility(sanitizedMember);
     } catch (err) {
@@ -1975,6 +1993,7 @@ Page({
         heroFigureScaleClass: resolveHeroFigureScaleClass(this.data.member)
       });
       this.updateBackgroundDisplay(this.data.member, {});
+      this.markHomeReady();
     }
     this.syncNameBadgeVisibility();
     this.bootstrapRunning = false;
