@@ -287,6 +287,16 @@ function calculateAvatarAttributeBonus(unlocks = []) {
   }, 0);
 }
 
+function areUnlockListsEqual(a = [], b = []) {
+  const listA = normalizeAvatarUnlocks(a);
+  const listB = normalizeAvatarUnlocks(b);
+  if (listA.length !== listB.length) {
+    return false;
+  }
+  const setB = new Set(listB);
+  return listA.every((id) => setB.has(id));
+}
+
 function buildAvatarPermissionSummary(unlocks = []) {
   const list = normalizeAvatarUnlocks(unlocks);
   if (!list.length) {
@@ -344,19 +354,6 @@ function buildAvatarManagerUnlockedEntries(entries = [], unlocks = []) {
       return null;
     })
     .filter(Boolean);
-}
-
-function buildAvatarManagerSummary(entries = []) {
-  const normalized = normalizeAvatarCatalog(entries);
-  if (!normalized.length) {
-    return '暂无自定义头像';
-  }
-  const bonus = normalized.reduce((total, entry) => total + (entry.attributeBonus || 0), 0);
-  const segments = [`已添加 ${normalized.length} 个头像（自动解锁）`];
-  if (bonus > 0) {
-    segments.push(`属性加成 +${bonus}`);
-  }
-  return segments.join(' · ');
 }
 
 function normalizeTitleUnlocks(unlocks = []) {
@@ -654,11 +651,10 @@ Page({
     avatarRarityOptions: AVATAR_RARITY_OPTIONS,
     avatarRarityIndexMap: AVATAR_RARITY_INDEX_MAP,
     rarityLabels: RARITY_LABELS,
-    avatarManagerSummary: '暂无自定义头像',
-    avatarManagerVisible: false,
     avatarManagerSaving: false,
     avatarManagerEntries: [],
     avatarManagerUnlocks: [],
+    avatarManagerInitialUnlocks: [],
     avatarManagerUnlockedEntries: [],
     avatarManagerForm: { ...DEFAULT_AVATAR_FORM },
     avatarManagerDirty: false,
@@ -875,7 +871,6 @@ Page({
     const avatarEntries = buildAvatarManagerEntries(member.avatarCatalog);
     const avatarUnlocks = normalizeAvatarUnlocks(member.avatarUnlocks);
     const avatarManagerUnlockedEntries = buildAvatarManagerUnlockedEntries(avatarEntries, avatarUnlocks);
-    const avatarManagerSummary = buildAvatarManagerSummary(avatarEntries);
     const avatarAttributeBonus = Number.isFinite(Number(member.avatarAttributeBonus))
       ? Math.max(0, Math.floor(Number(member.avatarAttributeBonus)))
       : calculateAvatarAttributeBonus(avatarUnlocks);
@@ -917,11 +912,12 @@ Page({
       avatarDialogSelection: avatarUnlocks,
       avatarDialogOptionGroups: buildAvatarOptionGroups(avatarUnlocks),
       avatarAttributeBonus,
-      avatarManagerSummary,
       avatarManagerEntries: avatarEntries,
       avatarManagerUnlocks: avatarUnlocks,
+      avatarManagerInitialUnlocks: avatarUnlocks,
       avatarManagerUnlockedEntries: avatarManagerUnlockedEntries,
       avatarManagerForm: { ...DEFAULT_AVATAR_FORM },
+      avatarManagerSaving: false,
       avatarManagerDirty: false,
       titleSummary,
       backgroundSummary,
@@ -1246,57 +1242,55 @@ Page({
   },
 
   showAvatarPermissionDialog() {
+    const member = this.data.member || {};
+    const catalog = Array.isArray(member.avatarCatalog) ? member.avatarCatalog : [];
     const formUnlocks =
       this.data.form && Array.isArray(this.data.form.avatarUnlocks)
         ? this.data.form.avatarUnlocks
         : [];
-    const unlocks = normalizeAvatarUnlocks(formUnlocks);
+    const sourceUnlocks = formUnlocks.length ? formUnlocks : member.avatarUnlocks;
+    const unlocks = normalizeAvatarUnlocks(sourceUnlocks);
+    this.commitAvatarManagerState({
+      entries: catalog,
+      unlocks,
+      form: { ...DEFAULT_AVATAR_FORM },
+      dirty: false,
+      saving: false,
+      initialUnlocks: unlocks
+    });
     this.setData({
       avatarPermissionDialogVisible: true,
-      avatarDialogSelection: unlocks,
-      avatarDialogOptionGroups: buildAvatarOptionGroups(unlocks)
+      avatarManagerForm: { ...DEFAULT_AVATAR_FORM },
+      avatarManagerSaving: false
     });
   },
 
   hideAvatarPermissionDialog() {
-    const formUnlocks =
-      this.data.form && Array.isArray(this.data.form.avatarUnlocks)
-        ? this.data.form.avatarUnlocks
-        : [];
-    const unlocks = normalizeAvatarUnlocks(formUnlocks);
+    const member = this.data.member || {};
+    const catalog = Array.isArray(member.avatarCatalog) ? member.avatarCatalog : [];
+    const unlocks = normalizeAvatarUnlocks(member.avatarUnlocks);
+    this.commitAvatarManagerState({
+      entries: catalog,
+      unlocks,
+      form: { ...DEFAULT_AVATAR_FORM },
+      dirty: false,
+      saving: false,
+      initialUnlocks: unlocks
+    });
     this.setData({
       avatarPermissionDialogVisible: false,
-      avatarDialogSelection: unlocks,
-      avatarDialogOptionGroups: buildAvatarOptionGroups(unlocks)
+      avatarManagerForm: { ...DEFAULT_AVATAR_FORM },
+      avatarManagerSaving: false
     });
   },
 
   handleAvatarDialogChange(event) {
     const value = Array.isArray(event.detail.value) ? event.detail.value : [];
     const unlocks = normalizeAvatarUnlocks(value);
-    this.setData({
-      avatarDialogSelection: unlocks,
-      avatarDialogOptionGroups: buildAvatarOptionGroups(unlocks)
-    });
-  },
-
-  handleAvatarDialogSave() {
-    const unlocks = normalizeAvatarUnlocks(this.data.avatarDialogSelection);
-    this.setData({
-      'form.avatarUnlocks': unlocks,
-      avatarOptionGroups: buildAvatarOptionGroups(unlocks),
-      avatarPermissionSummary: buildAvatarPermissionSummary(unlocks),
-      avatarPermissionDialogVisible: false,
-      avatarDialogSelection: unlocks,
-      avatarDialogOptionGroups: buildAvatarOptionGroups(unlocks),
-      avatarManagerUnlocks: unlocks,
-      avatarManagerUnlockedEntries: buildAvatarManagerUnlockedEntries(
-        this.data.avatarManagerEntries,
-        unlocks
-      ),
-      avatarManagerSummary: buildAvatarManagerSummary(this.data.avatarManagerEntries),
-      avatarAttributeBonus: calculateAvatarAttributeBonus(unlocks)
-    });
+    const initial = normalizeAvatarUnlocks(this.data.avatarManagerInitialUnlocks);
+    const changed = !areUnlockListsEqual(unlocks, initial);
+    const dirty = changed || !!this.data.avatarManagerDirty;
+    this.commitAvatarManagerState({ unlocks, dirty });
   },
 
   showEquipmentGrantDialog() {
@@ -1736,8 +1730,6 @@ Page({
       avatarManagerEntries: entries,
       avatarManagerUnlocks: unlocks,
       avatarManagerUnlockedEntries: buildAvatarManagerUnlockedEntries(entries, unlocks),
-      avatarManagerSummary:
-        partial.summary !== undefined ? partial.summary : buildAvatarManagerSummary(entries),
       avatarOptionGroups: buildAvatarOptionGroups(unlocks),
       avatarPermissionSummary: buildAvatarPermissionSummary(unlocks),
       avatarDialogSelection: unlocks,
@@ -1748,14 +1740,14 @@ Page({
     if (partial.form) {
       updates.avatarManagerForm = partial.form;
     }
-    if (typeof partial.visible === 'boolean') {
-      updates.avatarManagerVisible = partial.visible;
-    }
     if (typeof partial.dirty === 'boolean') {
       updates.avatarManagerDirty = partial.dirty;
     }
     if (typeof partial.saving === 'boolean') {
       updates.avatarManagerSaving = partial.saving;
+    }
+    if (Object.prototype.hasOwnProperty.call(partial, 'initialUnlocks')) {
+      updates.avatarManagerInitialUnlocks = normalizeAvatarUnlocks(partial.initialUnlocks);
     }
     this.setData(updates);
   },
@@ -1914,21 +1906,6 @@ Page({
     });
   },
 
-  openAvatarManagerDialog() {
-    const member = this.data.member || {};
-    const catalog = Array.isArray(member.avatarCatalog) ? member.avatarCatalog : [];
-    const entries = buildAvatarManagerEntries(catalog);
-    const unlocks = normalizeAvatarUnlocks(member.avatarUnlocks);
-    this.commitAvatarManagerState({
-      visible: true,
-      entries,
-      unlocks,
-      form: { ...DEFAULT_AVATAR_FORM },
-      dirty: false,
-      saving: false
-    });
-  },
-
   handleAvatarManagerInput(event) {
     const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
     const field = dataset.field;
@@ -2011,24 +1988,6 @@ Page({
     this.commitAvatarManagerState({ entries, unlocks, dirty: true });
   },
 
-  handleCloseAvatarManager() {
-    if (this.data.avatarManagerSaving) {
-      return;
-    }
-    const member = this.data.member || {};
-    const catalog = Array.isArray(member.avatarCatalog) ? member.avatarCatalog : [];
-    const entries = buildAvatarManagerEntries(catalog);
-    const unlocks = normalizeAvatarUnlocks(member.avatarUnlocks);
-    this.commitAvatarManagerState({
-      visible: false,
-      entries,
-      unlocks,
-      form: { ...DEFAULT_AVATAR_FORM },
-      dirty: false,
-      saving: false
-    });
-  },
-
   async handleAvatarManagerSave() {
     if (this.data.avatarManagerSaving) {
       return;
@@ -2040,29 +1999,38 @@ Page({
     }
     const catalog = normalizeAvatarCatalog(this.data.avatarManagerEntries);
     const unlocks = normalizeAvatarUnlocks(this.data.avatarManagerUnlocks);
-    this.commitAvatarManagerState({ saving: true });
+    if (!this.data.avatarManagerDirty) {
+      this.setData({ avatarPermissionDialogVisible: false, avatarManagerForm: { ...DEFAULT_AVATAR_FORM } });
+      return;
+    }
+    this.setData({ avatarManagerSaving: true });
     try {
       const detail = await AdminService.updateMember(memberId, {
         avatarCatalog: catalog,
         avatarUnlocks: unlocks
       });
       this.applyDetail(detail);
-      const updatedMember = this.data.member || {};
+      const updatedMember = (detail && detail.member) || this.data.member || {};
       const savedCatalog = Array.isArray(updatedMember.avatarCatalog) ? updatedMember.avatarCatalog : catalog;
-      const entries = buildAvatarManagerEntries(savedCatalog);
       const savedUnlocks = normalizeAvatarUnlocks(updatedMember.avatarUnlocks || unlocks);
       this.commitAvatarManagerState({
-        visible: false,
-        saving: false,
-        dirty: false,
-        entries,
+        entries: savedCatalog,
         unlocks: savedUnlocks,
-        form: { ...DEFAULT_AVATAR_FORM }
+        form: { ...DEFAULT_AVATAR_FORM },
+        dirty: false,
+        saving: false,
+        initialUnlocks: savedUnlocks
+      });
+      this.setData({
+        avatarPermissionDialogVisible: false,
+        avatarManagerSaving: false,
+        avatarManagerDirty: false,
+        avatarManagerForm: { ...DEFAULT_AVATAR_FORM }
       });
       wx.showToast({ title: '已保存', icon: 'success' });
     } catch (error) {
       console.error('[admin] save avatars failed', error);
-      this.commitAvatarManagerState({ saving: false });
+      this.setData({ avatarManagerSaving: false });
       wx.showToast({ title: error.errMsg || error.message || '保存失败', icon: 'none' });
     }
   },
