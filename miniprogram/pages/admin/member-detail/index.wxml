@@ -205,6 +205,8 @@
           </label>
         </checkbox-group>
 
+      </view>
+
       <view class="form-item basic-info-grid__full">
         <view class="form-label">头像权限</view>
         <view class="avatar-permission-summary">
@@ -214,13 +216,13 @@
         <button class="avatar-edit-button" size="mini" bindtap="showAvatarPermissionDialog">编辑头像权限</button>
       </view>
       <view class="form-item basic-info-grid__full">
-      <view class="form-label">称号管理</view>
-      <view class="title-manager-summary">
-        <text class="title-manager-summary__primary">{{titleSummary}}</text>
-        <text class="title-manager-summary__note">图片位于 /assets/title/，文件名无需后缀</text>
+        <view class="form-label">称号管理</view>
+        <view class="title-manager-summary">
+          <text class="title-manager-summary__primary">{{titleSummary}}</text>
+          <text class="title-manager-summary__note">图片位于 /assets/title/，文件名无需后缀</text>
+        </view>
+        <button class="title-manager-button" size="mini" bindtap="openTitleManagerDialog">管理称号</button>
       </view>
-      <button class="title-manager-button" size="mini" bindtap="openTitleManagerDialog">管理称号</button>
-    </view>
       <view class="form-item basic-info-grid__full">
         <view class="form-label">背景管理</view>
         <view class="background-manager-summary">
