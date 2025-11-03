@@ -42,6 +42,12 @@ const TITLE_LIBRARY = Object.freeze({
     id: 'title_refining_rookie',
     name: '炼气新人',
     description: '初入修行的身份称号，可在档案中展示。'
+  },
+  title_foundation_initiate: {
+    id: 'title_foundation_initiate',
+    name: '筑基初成',
+    description: '筑基阶段的专属身份称号，可在档案中展示。',
+    imageFile: 'zhujichucheng'
   }
 });
 
@@ -369,6 +375,18 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       name: '背景·筑基背景',
       description: '突破筑基后自动解锁的专属背景，无需额外道具。',
       autoUnlock: true
+    }
+  ],
+  level_011: [
+    {
+      type: 'title',
+      titleId: 'title_foundation_initiate',
+      storageItemId: 'reward_title_foundation_initiate',
+      storageCategory: 'consumable',
+      name: '称号·筑基初成',
+      description: '使用后解锁称号“筑基初成”，并可在档案中展示。',
+      slotLabel: '称号',
+      usage: { type: 'unlockTitle', titleId: 'title_foundation_initiate' }
     }
   ]
 });

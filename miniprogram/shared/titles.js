@@ -1,7 +1,8 @@
 const { TITLE_IMAGE_BASE_PATH } = require('./asset-paths.js');
 
 const RAW_TITLES = [
-  { id: 'title_refining_rookie', name: '炼气新人' }
+  { id: 'title_refining_rookie', name: '炼气新人' },
+  { id: 'title_foundation_initiate', name: '筑基初成', imageFile: 'zhujichucheng' }
 ];
 
 const CUSTOM_TITLE_MAP = new Map();
@@ -92,17 +93,38 @@ function normalizeTitleId(id) {
   return id.trim();
 }
 
-function buildTitleImageUrl(id) {
+const BASE_TITLE_IMAGE_FILE_MAP = new Map();
+
+function registerBaseTitleImageFile(id, imageFile) {
+  const normalizedId = normalizeTitleId(id);
+  if (!normalizedId) {
+    return;
+  }
+  const normalizedFile = normalizeTitleImageFile(imageFile || id) || normalizedId;
+  BASE_TITLE_IMAGE_FILE_MAP.set(normalizedId, normalizedFile);
+}
+
+function resolveTitleImageFile(id) {
   const normalized = normalizeTitleId(id);
   if (!normalized) {
     return '';
   }
   if (CUSTOM_TITLE_MAP.has(normalized)) {
     const definition = CUSTOM_TITLE_MAP.get(normalized);
-    const imageFile = definition && definition.imageFile ? definition.imageFile : normalized;
-    return `${TITLE_IMAGE_BASE_PATH}/${imageFile}.png`;
+    return (definition && definition.imageFile) || normalized;
   }
-  return `${TITLE_IMAGE_BASE_PATH}/${normalized}.png`;
+  if (BASE_TITLE_IMAGE_FILE_MAP.has(normalized)) {
+    return BASE_TITLE_IMAGE_FILE_MAP.get(normalized);
+  }
+  return normalized;
+}
+
+function buildTitleImageUrl(id) {
+  const imageFile = resolveTitleImageFile(id);
+  if (!imageFile) {
+    return '';
+  }
+  return `${TITLE_IMAGE_BASE_PATH}/${imageFile}.png`;
 }
 
 function buildTitleImageUrlByFile(fileName) {
@@ -124,9 +146,17 @@ function decorateTitle(definition) {
   return {
     ...definition,
     id: normalized,
+    imageFile: resolveTitleImageFile(normalized),
     image: buildTitleImageUrl(normalized)
   };
 }
+
+RAW_TITLES.forEach((entry) => {
+  if (!entry || !entry.id) {
+    return;
+  }
+  registerBaseTitleImageFile(entry.id, entry.imageFile || entry.fileName || entry.file || entry.image);
+});
 
 const TITLES = RAW_TITLES.map((item) => decorateTitle(item)).filter(Boolean);
 const TITLE_MAP = new Map(TITLES.map((item) => [item.id, item]));
