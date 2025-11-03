@@ -42,6 +42,42 @@ const TITLE_LIBRARY = Object.freeze({
     id: 'title_refining_rookie',
     name: '炼气新人',
     description: '初入修行的身份称号，可在档案中展示。'
+  },
+  title_foundation_initiate: {
+    id: 'title_foundation_initiate',
+    name: '筑基初成',
+    description: '筑基阶段的专属身份称号，可在档案中展示。',
+    imageFile: 'zhujichucheng'
+  },
+  title_core_forming_initiate: {
+    id: 'title_core_forming_initiate',
+    name: '结丹初凝',
+    description: '结丹阶段的专属身份称号，可在档案中展示。',
+    imageFile: 'jiedanchuning'
+  },
+  title_nascent_soul_initiate: {
+    id: 'title_nascent_soul_initiate',
+    name: '元婴初现',
+    description: '元婴阶段的专属身份称号，可在档案中展示。',
+    imageFile: 'yuanyingchuxian'
+  },
+  title_divine_transformation_initiate: {
+    id: 'title_divine_transformation_initiate',
+    name: '化神初悟',
+    description: '化神阶段的专属身份称号，可在档案中展示。',
+    imageFile: 'huashenchuwu'
+  },
+  title_void_refining_initiate: {
+    id: 'title_void_refining_initiate',
+    name: '炼虚洞明',
+    description: '炼虚阶段的专属身份称号，可在档案中展示。',
+    imageFile: 'lianxudongming'
+  },
+  title_unity_initiate: {
+    id: 'title_unity_initiate',
+    name: '合体初合',
+    description: '合体阶段的专属身份称号，可在档案中展示。',
+    imageFile: 'hetichuhe'
   }
 });
 
@@ -369,6 +405,78 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       name: '背景·筑基背景',
       description: '突破筑基后自动解锁的专属背景，无需额外道具。',
       autoUnlock: true
+    }
+  ],
+  level_011: [
+    {
+      type: 'title',
+      titleId: 'title_foundation_initiate',
+      storageItemId: 'reward_title_foundation_initiate',
+      storageCategory: 'consumable',
+      name: '称号·筑基初成',
+      description: '使用后解锁称号“筑基初成”，并可在档案中展示。',
+      slotLabel: '称号',
+      usage: { type: 'unlockTitle', titleId: 'title_foundation_initiate' }
+    }
+  ],
+  level_021: [
+    {
+      type: 'title',
+      titleId: 'title_core_forming_initiate',
+      storageItemId: 'reward_title_core_forming_initiate',
+      storageCategory: 'consumable',
+      name: '称号·结丹初凝',
+      description: '使用后解锁称号“结丹初凝”，并可在档案中展示。',
+      slotLabel: '称号',
+      usage: { type: 'unlockTitle', titleId: 'title_core_forming_initiate' }
+    }
+  ],
+  level_031: [
+    {
+      type: 'title',
+      titleId: 'title_nascent_soul_initiate',
+      storageItemId: 'reward_title_nascent_soul_initiate',
+      storageCategory: 'consumable',
+      name: '称号·元婴初现',
+      description: '使用后解锁称号“元婴初现”，并可在档案中展示。',
+      slotLabel: '称号',
+      usage: { type: 'unlockTitle', titleId: 'title_nascent_soul_initiate' }
+    }
+  ],
+  level_041: [
+    {
+      type: 'title',
+      titleId: 'title_divine_transformation_initiate',
+      storageItemId: 'reward_title_divine_transformation_initiate',
+      storageCategory: 'consumable',
+      name: '称号·化神初悟',
+      description: '使用后解锁称号“化神初悟”，并可在档案中展示。',
+      slotLabel: '称号',
+      usage: { type: 'unlockTitle', titleId: 'title_divine_transformation_initiate' }
+    }
+  ],
+  level_051: [
+    {
+      type: 'title',
+      titleId: 'title_void_refining_initiate',
+      storageItemId: 'reward_title_void_refining_initiate',
+      storageCategory: 'consumable',
+      name: '称号·炼虚洞明',
+      description: '使用后解锁称号“炼虚洞明”，并可在档案中展示。',
+      slotLabel: '称号',
+      usage: { type: 'unlockTitle', titleId: 'title_void_refining_initiate' }
+    }
+  ],
+  level_061: [
+    {
+      type: 'title',
+      titleId: 'title_unity_initiate',
+      storageItemId: 'reward_title_unity_initiate',
+      storageCategory: 'consumable',
+      name: '称号·合体初合',
+      description: '使用后解锁称号“合体初合”，并可在档案中展示。',
+      slotLabel: '称号',
+      usage: { type: 'unlockTitle', titleId: 'title_unity_initiate' }
     }
   ]
 });
