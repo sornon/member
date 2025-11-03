@@ -2014,6 +2014,12 @@ Page({
     this.bootstrapRunning = true;
     const showLoading = options.showLoading ?? !this.hasBootstrapped;
     if (showLoading) {
+      // Reset the home ready flag so that markHomeReady can clear the loading
+      // state after the new bootstrap cycle completes. Without this reset the
+      // subsequent markHomeReady invocation would exit early, leaving the page
+      // stuck on the loading overlay (observed when administrators exit proxy
+      // mode and return to the member home page).
+      this.homeReady = false;
       this.setData({ loading: true });
     }
     try {
