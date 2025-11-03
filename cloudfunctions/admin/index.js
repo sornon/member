@@ -2,6 +2,7 @@ const cloud = require('wx-server-sdk');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
+const commonConfig = require('common-config');
 const {
   EXPERIENCE_PER_YUAN,
   COLLECTIONS,
@@ -9,7 +10,6 @@ const {
   DEFAULT_ADMIN_ROLES,
   TRADING_CONFIG,
   registerCustomAvatars,
-  normalizeAvatarCatalog: normalizeAvatarCatalogShared,
   normalizeAvatarUnlocks: normalizeAvatarUnlocksShared,
   calculateAvatarAttributeBonus,
   ensureCustomAvatarsUnlocked: ensureCustomAvatarsUnlockedShared,
@@ -18,7 +18,10 @@ const {
   normalizeBackgroundCatalog,
   areBackgroundCatalogsEqual,
   registerCustomBackgrounds
-} = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
+} = commonConfig; //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
+const { createAvatarCatalogHelpers } = require('../avatar-catalog-helpers');
+
+const { normalizeAvatarCatalog } = createAvatarCatalogHelpers(commonConfig);
 const {
   DEFAULT_GAME_PARAMETERS,
   DEFAULT_RAGE_SETTINGS,
@@ -4159,7 +4162,7 @@ async function fetchMemberDetail(memberId, adminId, options = {}) {
   }
   const extras = await resolveMemberExtras(memberId);
   const renameHistory = await loadRenameTimeline(memberId, 50);
-  const normalizedAvatarCatalog = normalizeAvatarCatalogShared(extras.avatarCatalog);
+  const normalizedAvatarCatalog = normalizeAvatarCatalog(extras.avatarCatalog);
   registerCustomAvatars(normalizedAvatarCatalog);
   const normalizedAvatarUnlocks = normalizeAvatarUnlocksShared(extras.avatarUnlocks);
   const ensuredAvatarUnlocks = ensureCustomAvatarsUnlockedShared(
@@ -6849,10 +6852,10 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
     const filtered = roles.filter((role) => ['member', 'admin', 'developer', 'test'].includes(role));
     memberUpdates.roles = filtered.length ? filtered : ['member'];
   }
-  const currentAvatarCatalog = normalizeAvatarCatalogShared(extras.avatarCatalog);
+  const currentAvatarCatalog = normalizeAvatarCatalog(extras.avatarCatalog);
   let desiredAvatarCatalog = currentAvatarCatalog;
   if (Object.prototype.hasOwnProperty.call(updates, 'avatarCatalog')) {
-    desiredAvatarCatalog = normalizeAvatarCatalogShared(updates.avatarCatalog);
+    desiredAvatarCatalog = normalizeAvatarCatalog(updates.avatarCatalog);
     if (!areAvatarCatalogsEqual(currentAvatarCatalog, desiredAvatarCatalog)) {
       extrasUpdates.avatarCatalog = desiredAvatarCatalog;
     }
