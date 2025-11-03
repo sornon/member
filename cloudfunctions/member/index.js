@@ -18,11 +18,107 @@ const {
   subLevelLabels,
   normalizeAvatarFrameValue,
   registerCustomAvatars,
-  normalizeAvatarCatalog,
+  normalizeAvatarCatalog: normalizeAvatarCatalogFromConfig,
+  normalizeAvatarCatalogEntry,
+  listAvatarIds,
+  normalizeAvatarGender,
+  normalizeAvatarRarity,
+  normalizeAvatarFileName,
+  AVATAR_RARITY_ATTRIBUTE_BONUS,
   ensureCustomAvatarsUnlocked,
   calculateAvatarAttributeBonus,
   resolveAvatarMetaById
 } = commonConfig;
+
+function fallbackGenerateCustomAvatarId(base, gender, rarity, existingIds) {
+  const ids = existingIds || new Set();
+  const normalizedBase =
+    typeof normalizeAvatarFileName === 'function'
+      ? normalizeAvatarFileName(base)
+      : typeof base === 'string'
+        ? base.trim().toLowerCase()
+        : '';
+  const slug = normalizedBase || 'custom';
+  let candidate = `${gender}-${rarity}-${slug}`;
+  let suffix = 1;
+  while (ids.has(candidate)) {
+    suffix += 1;
+    candidate = `${gender}-${rarity}-${slug}-${suffix}`;
+  }
+  ids.add(candidate);
+  return candidate;
+}
+
+function fallbackNormalizeAvatarCatalogEntry(entry, existingIds) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const ids = existingIds || new Set();
+  const gender =
+    typeof normalizeAvatarGender === 'function'
+      ? normalizeAvatarGender(entry.gender)
+      : 'male';
+  const rarity =
+    typeof normalizeAvatarRarity === 'function'
+      ? normalizeAvatarRarity(entry.rarity)
+      : 'c';
+  const name = typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : '';
+  const file =
+    typeof normalizeAvatarFileName === 'function'
+      ? normalizeAvatarFileName(entry.file || entry.fileName || entry.avatarFile || entry.id || entry.name)
+      : typeof entry.file === 'string'
+        ? entry.file.trim().toLowerCase()
+        : '';
+  if (!file) {
+    return null;
+  }
+  let id = typeof entry.id === 'string' ? entry.id.trim().toLowerCase() : '';
+  if (!id || ids.has(id)) {
+    id = fallbackGenerateCustomAvatarId(id || file, gender, rarity, ids);
+  } else {
+    ids.add(id);
+  }
+  const characterFile =
+    typeof normalizeAvatarFileName === 'function'
+      ? normalizeAvatarFileName(entry.characterFile || file)
+      : file;
+  const attributeBonus =
+    AVATAR_RARITY_ATTRIBUTE_BONUS && AVATAR_RARITY_ATTRIBUTE_BONUS[rarity]
+      ? AVATAR_RARITY_ATTRIBUTE_BONUS[rarity]
+      : 0;
+  return {
+    id,
+    name: name || id,
+    gender,
+    rarity,
+    file,
+    characterFile,
+    attributeBonus
+  };
+}
+
+function fallbackNormalizeAvatarCatalog(list = []) {
+  const baseIdsSource = typeof listAvatarIds === 'function' ? listAvatarIds() : [];
+  const baseIds = new Set(Array.isArray(baseIdsSource) ? baseIdsSource : []);
+  const normalized = [];
+  (Array.isArray(list) ? list : []).forEach((entry) => {
+    let normalizedEntry = null;
+    if (typeof normalizeAvatarCatalogEntry === 'function') {
+      normalizedEntry = normalizeAvatarCatalogEntry(entry, baseIds);
+    } else {
+      normalizedEntry = fallbackNormalizeAvatarCatalogEntry(entry, baseIds);
+    }
+    if (normalizedEntry) {
+      normalized.push(normalizedEntry);
+    }
+  });
+  return normalized;
+}
+
+const normalizeAvatarCatalog =
+  typeof normalizeAvatarCatalogFromConfig === 'function'
+    ? normalizeAvatarCatalogFromConfig
+    : fallbackNormalizeAvatarCatalog;
 const {
   FEATURE_TOGGLE_DOC_ID,
   normalizeCacheVersions,
