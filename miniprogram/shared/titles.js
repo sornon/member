@@ -3,7 +3,9 @@ const { TITLE_IMAGE_BASE_PATH } = require('./asset-paths.js');
 const RAW_TITLES = [
   { id: 'title_refining_rookie', name: '炼气新人' },
   { id: 'title_foundation_initiate', name: '筑基初成', imageFile: 'zhujichucheng' },
-  { id: 'title_core_forming_initiate', name: '结丹初凝', imageFile: 'jiedanchuning' }
+  { id: 'title_core_forming_initiate', name: '结丹初凝', imageFile: 'jiedanchuning' },
+  { id: 'title_nascent_soul_initiate', name: '元婴初现', imageFile: 'jiedanchuning' },
+  { id: 'title_divine_transformation_initiate', name: '化神初悟', imageFile: 'huashenchuwu' }
 ];
 
 const CUSTOM_TITLE_MAP = new Map();

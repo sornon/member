@@ -180,7 +180,9 @@ const CACHE_VERSION_KEY_ALIASES = {
 const STATIC_TITLE_IDS = new Set([
   'title_refining_rookie',
   'title_foundation_initiate',
-  'title_core_forming_initiate'
+  'title_core_forming_initiate',
+  'title_nascent_soul_initiate',
+  'title_divine_transformation_initiate'
 ]);
 
 const EQUIPMENT_CATALOG_CACHE_TTL = 5 * 60 * 1000;

@@ -54,6 +54,18 @@ const TITLE_LIBRARY = Object.freeze({
     name: '结丹初凝',
     description: '结丹阶段的专属身份称号，可在档案中展示。',
     imageFile: 'jiedanchuning'
+  },
+  title_nascent_soul_initiate: {
+    id: 'title_nascent_soul_initiate',
+    name: '元婴初现',
+    description: '元婴阶段的专属身份称号，可在档案中展示。',
+    imageFile: 'jiedanchuning'
+  },
+  title_divine_transformation_initiate: {
+    id: 'title_divine_transformation_initiate',
+    name: '化神初悟',
+    description: '化神阶段的专属身份称号，可在档案中展示。',
+    imageFile: 'huashenchuwu'
   }
 });
 
@@ -405,6 +417,30 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       description: '使用后解锁称号“结丹初凝”，并可在档案中展示。',
       slotLabel: '称号',
       usage: { type: 'unlockTitle', titleId: 'title_core_forming_initiate' }
+    }
+  ],
+  level_031: [
+    {
+      type: 'title',
+      titleId: 'title_nascent_soul_initiate',
+      storageItemId: 'reward_title_nascent_soul_initiate',
+      storageCategory: 'consumable',
+      name: '称号·元婴初现',
+      description: '使用后解锁称号“元婴初现”，并可在档案中展示。',
+      slotLabel: '称号',
+      usage: { type: 'unlockTitle', titleId: 'title_nascent_soul_initiate' }
+    }
+  ],
+  level_041: [
+    {
+      type: 'title',
+      titleId: 'title_divine_transformation_initiate',
+      storageItemId: 'reward_title_divine_transformation_initiate',
+      storageCategory: 'consumable',
+      name: '称号·化神初悟',
+      description: '使用后解锁称号“化神初悟”，并可在档案中展示。',
+      slotLabel: '称号',
+      usage: { type: 'unlockTitle', titleId: 'title_divine_transformation_initiate' }
     }
   ]
 });
