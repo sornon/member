@@ -16,8 +16,12 @@ const {
   COLLECTIONS,
   realmConfigs,
   subLevelLabels,
-  listAvatarIds,
-  normalizeAvatarFrameValue
+  normalizeAvatarFrameValue,
+  registerCustomAvatars,
+  normalizeAvatarCatalog,
+  ensureCustomAvatarsUnlocked,
+  calculateAvatarAttributeBonus,
+  resolveAvatarMetaById
 } = commonConfig;
 const {
   FEATURE_TOGGLE_DOC_ID,
@@ -35,7 +39,17 @@ const _ = db.command;
 
 const GENDER_OPTIONS = ['unknown', 'male', 'female'];
 const AVATAR_ID_PATTERN = /^(male|female)-([a-z]+)-(\d+)$/;
-const ALLOWED_AVATAR_IDS = new Set(listAvatarIds());
+
+function isAllowedAvatarId(id) {
+  if (typeof id !== 'string') {
+    return false;
+  }
+  const normalized = id.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  return !!resolveAvatarMetaById(normalized);
+}
 
 const TITLE_LIBRARY = Object.freeze({
   title_refining_rookie: {
@@ -820,6 +834,30 @@ function arraysEqual(a, b) {
   }
   for (let i = 0; i < a.length; i += 1) {
     if (a[i] !== b[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function areAvatarCatalogsEqual(a = [], b = []) {
+  if (a === b) {
+    return true;
+  }
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) {
+    return false;
+  }
+  for (let i = 0; i < a.length; i += 1) {
+    const left = a[i] || {};
+    const right = b[i] || {};
+    if (
+      left.id !== right.id ||
+      left.name !== right.name ||
+      left.gender !== right.gender ||
+      left.rarity !== right.rarity ||
+      left.file !== right.file ||
+      left.characterFile !== right.characterFile
+    ) {
       return false;
     }
   }
@@ -2048,6 +2086,17 @@ async function ensureArchiveDefaults(member) {
   }
   member.titleCatalog = normalizedTitleCatalog;
 
+  const rawAvatarCatalog = Array.isArray(extras.avatarCatalog) ? extras.avatarCatalog : [];
+  const normalizedAvatarCatalog = normalizeAvatarCatalog(rawAvatarCatalog);
+  registerCustomAvatars(normalizedAvatarCatalog);
+  if (!areAvatarCatalogsEqual(rawAvatarCatalog, normalizedAvatarCatalog)) {
+    extrasUpdates.avatarCatalog = normalizedAvatarCatalog;
+    extras.avatarCatalog = normalizedAvatarCatalog;
+  } else {
+    extras.avatarCatalog = normalizedAvatarCatalog;
+  }
+  member.avatarCatalog = normalizedAvatarCatalog;
+
   const rawBackgroundCatalog = Array.isArray(extras.backgroundCatalog) ? extras.backgroundCatalog : [];
   const normalizedBackgroundCatalog = normalizeBackgroundCatalog(rawBackgroundCatalog);
   registerCustomBackgrounds(normalizedBackgroundCatalog);
@@ -2152,15 +2201,29 @@ async function ensureArchiveDefaults(member) {
   const hadClaimsField = Object.prototype.hasOwnProperty.call(member, 'claimedLevelRewards');
   const memberUnlocks = normalizeAvatarUnlocksList(member.avatarUnlocks);
   const extrasUnlocks = normalizeAvatarUnlocksList(extras.avatarUnlocks);
-  const mergedUnlocks = Array.from(new Set([...extrasUnlocks, ...memberUnlocks]));
-  if (!arraysEqual(extrasUnlocks, mergedUnlocks)) {
-    extrasUpdates.avatarUnlocks = mergedUnlocks;
-    extras.avatarUnlocks = mergedUnlocks;
+  const mergedUnlocksSet = new Set([...extrasUnlocks, ...memberUnlocks]);
+  const mergedUnlocks = Array.from(mergedUnlocksSet);
+  const ensuredAvatarUnlocks = ensureCustomAvatarsUnlocked(normalizedAvatarCatalog, mergedUnlocks);
+  if (!arraysEqual(extrasUnlocks, ensuredAvatarUnlocks)) {
+    extrasUpdates.avatarUnlocks = ensuredAvatarUnlocks;
+    extras.avatarUnlocks = ensuredAvatarUnlocks;
+  } else {
+    extras.avatarUnlocks = ensuredAvatarUnlocks;
   }
   if (hadAvatarUnlocksField) {
     updates.avatarUnlocks = _.remove();
   }
-  member.avatarUnlocks = mergedUnlocks;
+  member.avatarUnlocks = ensuredAvatarUnlocks;
+
+  const currentAvatarBonus = Math.max(0, Math.floor(Number(extras.avatarAttributeBonus) || 0));
+  const desiredAvatarBonus = calculateAvatarAttributeBonus(ensuredAvatarUnlocks, normalizedAvatarCatalog);
+  if (!Object.is(desiredAvatarBonus, currentAvatarBonus)) {
+    extrasUpdates.avatarAttributeBonus = desiredAvatarBonus;
+    extras.avatarAttributeBonus = desiredAvatarBonus;
+  } else {
+    extras.avatarAttributeBonus = currentAvatarBonus;
+  }
+  member.avatarAttributeBonus = desiredAvatarBonus;
 
   const deliveredClaims = normalizeClaimedLevelRewards(extras.deliveredLevelRewards);
   if (!arraysEqual(Array.isArray(extras.deliveredLevelRewards) ? extras.deliveredLevelRewards : [], deliveredClaims)) {
@@ -2574,12 +2637,7 @@ function normalizeAvatarUnlocksList(unlocks) {
       return;
     }
     const trimmed = value.trim().toLowerCase();
-    if (
-      !trimmed ||
-      seen.has(trimmed) ||
-      !AVATAR_ID_PATTERN.test(trimmed) ||
-      !ALLOWED_AVATAR_IDS.has(trimmed)
-    ) {
+    if (!trimmed || seen.has(trimmed) || !AVATAR_ID_PATTERN.test(trimmed) || !isAllowedAvatarId(trimmed)) {
       return;
     }
     seen.add(trimmed);
@@ -2628,7 +2686,7 @@ function extractAvatarIdFromUrl(url) {
     return '';
   }
   const id = match[1];
-  return ALLOWED_AVATAR_IDS.has(id) ? id : '';
+  return isAllowedAvatarId(id) ? id : '';
 }
 
 function isAvatarAllowedForMember(url, member) {
@@ -2636,7 +2694,7 @@ function isAvatarAllowedForMember(url, member) {
   if (!avatarId) {
     return true;
   }
-  if (!ALLOWED_AVATAR_IDS.has(avatarId)) {
+  if (!isAllowedAvatarId(avatarId)) {
     return false;
   }
   const parts = avatarId.split('-');
