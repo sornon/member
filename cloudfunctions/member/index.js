@@ -59,7 +59,7 @@ const TITLE_LIBRARY = Object.freeze({
     id: 'title_nascent_soul_initiate',
     name: '元婴初现',
     description: '元婴阶段的专属身份称号，可在档案中展示。',
-    imageFile: 'jiedanchuning'
+    imageFile: 'yuanyingchuxian'
   },
   title_divine_transformation_initiate: {
     id: 'title_divine_transformation_initiate',
