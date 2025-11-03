@@ -958,7 +958,7 @@ function buildAvatarOptionPayload({
     rarityLabel,
     attributeBonus,
     attributeBonusLabel:
-      attributeBonus > 0 ? `属性奖励：+${attributeBonus} 属性点` : '属性奖励：无属性'
+      attributeBonus > 0 ? `${attributeBonus} 属性点` : '无属性'
   };
 }
 
