@@ -6857,6 +6857,7 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
       extrasUpdates.avatarCatalog = desiredAvatarCatalog;
     }
   }
+  registerCustomAvatars(desiredAvatarCatalog);
   const currentAvatarUnlocks = normalizeAvatarUnlocksList(extras.avatarUnlocks);
   let desiredAvatarUnlocks = currentAvatarUnlocks;
   if (Object.prototype.hasOwnProperty.call(updates, 'avatarUnlocks')) {
