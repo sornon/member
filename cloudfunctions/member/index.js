@@ -66,6 +66,18 @@ const TITLE_LIBRARY = Object.freeze({
     name: '化神初悟',
     description: '化神阶段的专属身份称号，可在档案中展示。',
     imageFile: 'huashenchuwu'
+  },
+  title_void_refining_initiate: {
+    id: 'title_void_refining_initiate',
+    name: '炼虚洞明',
+    description: '炼虚阶段的专属身份称号，可在档案中展示。',
+    imageFile: 'lianxudongming'
+  },
+  title_unity_initiate: {
+    id: 'title_unity_initiate',
+    name: '合体初合',
+    description: '合体阶段的专属身份称号，可在档案中展示。',
+    imageFile: 'hetichuhe'
   }
 });
 
@@ -441,6 +453,30 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       description: '使用后解锁称号“化神初悟”，并可在档案中展示。',
       slotLabel: '称号',
       usage: { type: 'unlockTitle', titleId: 'title_divine_transformation_initiate' }
+    }
+  ],
+  level_051: [
+    {
+      type: 'title',
+      titleId: 'title_void_refining_initiate',
+      storageItemId: 'reward_title_void_refining_initiate',
+      storageCategory: 'consumable',
+      name: '称号·炼虚洞明',
+      description: '使用后解锁称号“炼虚洞明”，并可在档案中展示。',
+      slotLabel: '称号',
+      usage: { type: 'unlockTitle', titleId: 'title_void_refining_initiate' }
+    }
+  ],
+  level_061: [
+    {
+      type: 'title',
+      titleId: 'title_unity_initiate',
+      storageItemId: 'reward_title_unity_initiate',
+      storageCategory: 'consumable',
+      name: '称号·合体初合',
+      description: '使用后解锁称号“合体初合”，并可在档案中展示。',
+      slotLabel: '称号',
+      usage: { type: 'unlockTitle', titleId: 'title_unity_initiate' }
     }
   ]
 });
