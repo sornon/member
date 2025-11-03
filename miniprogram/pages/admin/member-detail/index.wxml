@@ -497,6 +497,17 @@
               <text class="avatar-permission-owned__name">{{item.name}}</text>
               <text class="avatar-permission-owned__meta">{{item.rarityLabel}}</text>
             </view>
+            <button
+              wx:if="{{item.isCustom}}"
+              class="avatar-custom-item__remove avatar-permission-owned__remove"
+              size="mini"
+              data-id="{{item.id}}"
+              data-name="{{item.name}}"
+              bindtap="handleAvatarManagerRemove"
+              disabled="{{avatarManagerSaving}}"
+            >
+              删除
+            </button>
           </view>
         </view>
         <view wx:else class="avatar-permission-owned__empty">暂未解锁任何头像</view>

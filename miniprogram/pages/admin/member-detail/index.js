@@ -118,18 +118,28 @@ function buildFallbackAvatarUnlockEntry(id) {
     nameSegments.push(rest.toUpperCase());
   }
   let preview = buildAvatarUrlById(normalizedId);
+  let normalizedFile = '';
   if (!preview) {
     const fallbackFile = normalizeAvatarFileName(rest);
     if (fallbackFile) {
+      normalizedFile = fallbackFile;
       preview = buildAvatarUrlByFile(fallbackFile);
     }
+  }
+  if (!normalizedFile) {
+    normalizedFile = normalizeAvatarFileName(rest || normalizedId);
   }
   const name = nameSegments.length ? nameSegments.join(' · ') : normalizedId;
   return {
     id: normalizedId,
     name,
     preview,
-    rarityLabel
+    rarity,
+    rarityLabel,
+    gender,
+    genderLabel: AVATAR_GENDER_LABELS[gender] || '',
+    file: normalizedFile,
+    isFallback: true
   };
 }
 
@@ -407,7 +417,9 @@ function buildAvatarManagerUnlockedEntries(entries = [], unlocks = []) {
           id: entry.id,
           name: entry.name,
           preview: buildAvatarUrlById(entry.id),
-          rarityLabel: RARITY_LABELS[entry.rarity] || entry.rarity.toUpperCase()
+          rarityLabel: RARITY_LABELS[entry.rarity] || entry.rarity.toUpperCase(),
+          source: 'customCatalog',
+          isCustom: true
         };
       }
       if (avatarMap.has(id)) {
@@ -416,10 +428,23 @@ function buildAvatarManagerUnlockedEntries(entries = [], unlocks = []) {
           id: avatar.id,
           name: avatar.name,
           preview: avatar.url,
-          rarityLabel: RARITY_LABELS[avatar.rarity] || avatar.rarity.toUpperCase()
+          rarityLabel: RARITY_LABELS[avatar.rarity] || avatar.rarity.toUpperCase(),
+          source: 'builtin',
+          isCustom: false
         };
       }
-      return buildFallbackAvatarUnlockEntry(id);
+      const fallback = buildFallbackAvatarUnlockEntry(id);
+      if (!fallback) {
+        return null;
+      }
+      return {
+        id: fallback.id,
+        name: fallback.name,
+        preview: fallback.preview,
+        rarityLabel: fallback.rarityLabel,
+        source: 'customFallback',
+        isCustom: true
+      };
     })
     .filter(Boolean);
 }
