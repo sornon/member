@@ -1,7 +1,7 @@
 import { AdminService, PveService } from '../../../services/api';
 import {
   listAllAvatars,
-  normalizeAvatarUnlocks,
+  normalizeAvatarUnlocks as normalizeAvatarUnlocksStrict,
   registerCustomAvatars,
   normalizeAvatarCatalog,
   buildAvatarUrlById
@@ -64,6 +64,65 @@ const AVATAR_RARITY_INDEX_MAP = RARITY_ORDER.reduce((acc, value, index) => {
   acc[value] = index;
   return acc;
 }, {});
+
+function normalizePotentialAvatarId(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.trim().toLowerCase();
+}
+
+function isLikelyCustomAvatarId(id) {
+  if (!id) {
+    return false;
+  }
+  return id.includes('-custom-') || id.startsWith('custom-');
+}
+
+function normalizeAvatarUnlocks(unlocks = []) {
+  const normalized = normalizeAvatarUnlocksStrict(unlocks);
+  const seen = new Set(normalized);
+  (Array.isArray(unlocks) ? unlocks : []).forEach((value) => {
+    const id = normalizePotentialAvatarId(value);
+    if (!id || seen.has(id)) {
+      return;
+    }
+    if (isLikelyCustomAvatarId(id)) {
+      normalized.push(id);
+      seen.add(id);
+    }
+  });
+  return normalized;
+}
+
+function buildFallbackAvatarUnlockEntry(id) {
+  const normalizedId = normalizePotentialAvatarId(id);
+  if (!normalizedId || !isLikelyCustomAvatarId(normalizedId)) {
+    return null;
+  }
+  const segments = normalizedId.split('-');
+  const gender = segments[0] || '';
+  const rarity = segments[1] || '';
+  const rest = segments.slice(2).join('-');
+  const rarityLabel = RARITY_LABELS[rarity] || rarity.toUpperCase();
+  const nameSegments = [];
+  if (AVATAR_GENDER_LABELS[gender]) {
+    nameSegments.push(AVATAR_GENDER_LABELS[gender]);
+  }
+  if (rarityLabel) {
+    nameSegments.push(rarityLabel);
+  }
+  if (rest) {
+    nameSegments.push(rest.toUpperCase());
+  }
+  const name = nameSegments.length ? nameSegments.join(' · ') : normalizedId;
+  return {
+    id: normalizedId,
+    name,
+    preview: buildAvatarUrlById(normalizedId),
+    rarityLabel
+  };
+}
 
 function formatEquipmentSlots(profile) {
   if (!profile || !profile.equipment || !Array.isArray(profile.equipment.slots)) {
@@ -351,7 +410,7 @@ function buildAvatarManagerUnlockedEntries(entries = [], unlocks = []) {
           rarityLabel: RARITY_LABELS[avatar.rarity] || avatar.rarity.toUpperCase()
         };
       }
-      return null;
+      return buildFallbackAvatarUnlockEntry(id);
     })
     .filter(Boolean);
 }
