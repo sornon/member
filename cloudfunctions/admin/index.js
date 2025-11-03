@@ -177,7 +177,11 @@ const CACHE_VERSION_KEY_ALIASES = {
   order: 'menu'
 };
 
-const STATIC_TITLE_IDS = new Set(['title_refining_rookie', 'title_foundation_initiate']);
+const STATIC_TITLE_IDS = new Set([
+  'title_refining_rookie',
+  'title_foundation_initiate',
+  'title_core_forming_initiate'
+]);
 
 const EQUIPMENT_CATALOG_CACHE_TTL = 5 * 60 * 1000;
 let cachedEquipmentCatalog = null;

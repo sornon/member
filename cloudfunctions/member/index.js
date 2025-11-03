@@ -48,6 +48,12 @@ const TITLE_LIBRARY = Object.freeze({
     name: '筑基初成',
     description: '筑基阶段的专属身份称号，可在档案中展示。',
     imageFile: 'zhujichucheng'
+  },
+  title_core_forming_initiate: {
+    id: 'title_core_forming_initiate',
+    name: '结丹初凝',
+    description: '结丹阶段的专属身份称号，可在档案中展示。',
+    imageFile: 'jiedanchuning'
   }
 });
 
@@ -387,6 +393,18 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       description: '使用后解锁称号“筑基初成”，并可在档案中展示。',
       slotLabel: '称号',
       usage: { type: 'unlockTitle', titleId: 'title_foundation_initiate' }
+    }
+  ],
+  level_021: [
+    {
+      type: 'title',
+      titleId: 'title_core_forming_initiate',
+      storageItemId: 'reward_title_core_forming_initiate',
+      storageCategory: 'consumable',
+      name: '称号·结丹初凝',
+      description: '使用后解锁称号“结丹初凝”，并可在档案中展示。',
+      slotLabel: '称号',
+      usage: { type: 'unlockTitle', titleId: 'title_core_forming_initiate' }
     }
   ]
 });
