@@ -1469,6 +1469,9 @@ Page({
 
   async handleSubmit() {
     if (this.data.saving) return;
+    const localAvatarCatalog = normalizeAvatarCatalog(this.data.avatarManagerEntries);
+    const localAvatarUnlocks = normalizeAvatarUnlocks(this.data.form.avatarUnlocks);
+    const wasAvatarManagerDirty = !!this.data.avatarManagerDirty;
     this.setData({ saving: true });
     try {
       const payload = {
@@ -1488,11 +1491,28 @@ Page({
           this.data.form.storageUpgradeAvailable
         ),
         storageUpgradeLimit: this.parseStorageUpgradeLimit(this.data.form.storageUpgradeLimit),
-        avatarCatalog: normalizeAvatarCatalog(this.data.avatarManagerEntries),
-        avatarUnlocks: normalizeAvatarUnlocks(this.data.form.avatarUnlocks)
+        avatarCatalog: localAvatarCatalog,
+        avatarUnlocks: localAvatarUnlocks
       };
       const detail = await AdminService.updateMember(this.data.memberId, payload);
       this.applyDetail(detail);
+      const updatedMember = (detail && detail.member) || {};
+      const serverCatalog = Array.isArray(updatedMember.avatarCatalog)
+        ? normalizeAvatarCatalog(updatedMember.avatarCatalog)
+        : [];
+      const resolvedCatalog = serverCatalog.length ? serverCatalog : localAvatarCatalog;
+      const serverUnlocks = Array.isArray(updatedMember.avatarUnlocks)
+        ? normalizeAvatarUnlocks(updatedMember.avatarUnlocks)
+        : [];
+      const resolvedUnlocks = serverUnlocks.length ? serverUnlocks : localAvatarUnlocks;
+      this.commitAvatarManagerState({
+        entries: resolvedCatalog,
+        unlocks: resolvedUnlocks,
+        initialUnlocks: resolvedUnlocks
+      });
+      if (wasAvatarManagerDirty) {
+        this.setData({ avatarManagerDirty: true });
+      }
       wx.showToast({ title: '保存成功', icon: 'success' });
     } catch (error) {
       console.error('[admin:member:update]', error);
