@@ -1488,6 +1488,7 @@ Page({
           this.data.form.storageUpgradeAvailable
         ),
         storageUpgradeLimit: this.parseStorageUpgradeLimit(this.data.form.storageUpgradeLimit),
+        avatarCatalog: normalizeAvatarCatalog(this.data.avatarManagerEntries),
         avatarUnlocks: normalizeAvatarUnlocks(this.data.form.avatarUnlocks)
       };
       const detail = await AdminService.updateMember(this.data.memberId, payload);
