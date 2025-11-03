@@ -868,8 +868,49 @@ Page({
       ...option,
       checked: roles.includes(option.value)
     }));
+    const serverAvatarCatalog = Array.isArray(member.avatarCatalog) ? member.avatarCatalog : [];
+    const serverAvatarIdSet = new Set(
+      serverAvatarCatalog
+        .map((entry) => (entry && typeof entry.id === 'string' ? entry.id.trim().toLowerCase() : ''))
+        .filter(Boolean)
+    );
+    const unlockIdSet = new Set(
+      (Array.isArray(member.avatarUnlocks) ? member.avatarUnlocks : [])
+        .map((id) => (typeof id === 'string' ? id.trim().toLowerCase() : ''))
+        .filter(Boolean)
+    );
+    const previousAvatarEntries = Array.isArray(this.data.avatarManagerEntries)
+      ? this.data.avatarManagerEntries
+      : [];
+    const supplementalAvatarCatalog = previousAvatarEntries
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object') {
+          return null;
+        }
+        const normalizedId = typeof entry.id === 'string' ? entry.id.trim().toLowerCase() : '';
+        if (!normalizedId || serverAvatarIdSet.has(normalizedId)) {
+          return null;
+        }
+        if (!unlockIdSet.has(normalizedId) && !normalizedId.includes('-custom-')) {
+          return null;
+        }
+        return {
+          id: normalizedId,
+          name: entry.name,
+          gender: entry.gender,
+          rarity: entry.rarity,
+          file: entry.file || normalizedId,
+          characterFile: entry.characterFile || entry.file || normalizedId
+        };
+      })
+      .filter(Boolean);
+    const mergedAvatarCatalog = normalizeAvatarCatalog(
+      serverAvatarCatalog.concat(supplementalAvatarCatalog)
+    );
+    member.avatarCatalog = mergedAvatarCatalog;
     const avatarEntries = buildAvatarManagerEntries(member.avatarCatalog);
     const avatarUnlocks = normalizeAvatarUnlocks(member.avatarUnlocks);
+    member.avatarUnlocks = avatarUnlocks;
     const avatarManagerUnlockedEntries = buildAvatarManagerUnlockedEntries(avatarEntries, avatarUnlocks);
     const avatarAttributeBonus = Number.isFinite(Number(member.avatarAttributeBonus))
       ? Math.max(0, Math.floor(Number(member.avatarAttributeBonus)))
