@@ -1,10 +1,12 @@
 import { AdminService, PveService } from '../../../services/api';
 import {
   listAllAvatars,
-  normalizeAvatarUnlocks,
+  normalizeAvatarUnlocks as normalizeAvatarUnlocksStrict,
   registerCustomAvatars,
   normalizeAvatarCatalog,
-  buildAvatarUrlById
+  buildAvatarUrlById,
+  buildAvatarUrlByFile,
+  normalizeAvatarFileName
 } from '../../../utils/avatar-catalog';
 import { sanitizeEquipmentProfile, buildEquipmentIconPaths } from '../../../utils/equipment';
 const {
@@ -64,6 +66,97 @@ const AVATAR_RARITY_INDEX_MAP = RARITY_ORDER.reduce((acc, value, index) => {
   acc[value] = index;
   return acc;
 }, {});
+
+function normalizePotentialAvatarId(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  return value.trim().toLowerCase();
+}
+
+function isLikelyCustomAvatarId(id) {
+  if (!id) {
+    return false;
+  }
+  return id.includes('-custom-') || id.startsWith('custom-');
+}
+
+function normalizeAvatarUnlocks(unlocks = []) {
+  const normalized = normalizeAvatarUnlocksStrict(unlocks);
+  const seen = new Set(normalized);
+  (Array.isArray(unlocks) ? unlocks : []).forEach((value) => {
+    const id = normalizePotentialAvatarId(value);
+    if (!id || seen.has(id)) {
+      return;
+    }
+    if (isLikelyCustomAvatarId(id)) {
+      normalized.push(id);
+      seen.add(id);
+    }
+  });
+  return normalized;
+}
+
+function buildFallbackAvatarUnlockEntry(id) {
+  const normalizedId = normalizePotentialAvatarId(id);
+  if (!normalizedId || !isLikelyCustomAvatarId(normalizedId)) {
+    return null;
+  }
+  const segments = normalizedId.split('-');
+  const gender = segments[0] || '';
+  const rarity = segments[1] || '';
+  const rest = segments.slice(2).join('-');
+  const rarityLabel = RARITY_LABELS[rarity] || rarity.toUpperCase();
+  const nameSegments = [];
+  if (AVATAR_GENDER_LABELS[gender]) {
+    nameSegments.push(AVATAR_GENDER_LABELS[gender]);
+  }
+  if (rarityLabel) {
+    nameSegments.push(rarityLabel);
+  }
+  if (rest) {
+    nameSegments.push(rest.toUpperCase());
+  }
+  let preview = buildAvatarUrlById(normalizedId);
+  let normalizedFile = '';
+  if (!preview) {
+    const fallbackFile = normalizeAvatarFileName(rest);
+    if (fallbackFile) {
+      normalizedFile = fallbackFile;
+      preview = buildAvatarUrlByFile(fallbackFile);
+    }
+  }
+  if (!normalizedFile) {
+    normalizedFile = normalizeAvatarFileName(rest || normalizedId);
+  }
+  const name = nameSegments.length ? nameSegments.join(' · ') : normalizedId;
+  return {
+    id: normalizedId,
+    name,
+    preview,
+    rarity,
+    rarityLabel,
+    gender,
+    genderLabel: AVATAR_GENDER_LABELS[gender] || '',
+    file: normalizedFile,
+    isFallback: true
+  };
+}
+
+function extractAvatarCatalogIds(list = []) {
+  return (Array.isArray(list) ? list : [])
+    .map((entry) => (entry && typeof entry.id === 'string' ? entry.id.trim().toLowerCase() : ''))
+    .filter(Boolean);
+}
+
+function diffRemovedAvatarIds(previous = [], next = []) {
+  const previousIds = extractAvatarCatalogIds(previous);
+  if (!previousIds.length) {
+    return [];
+  }
+  const nextIdSet = new Set(extractAvatarCatalogIds(next));
+  return previousIds.filter((id) => !nextIdSet.has(id));
+}
 
 function formatEquipmentSlots(profile) {
   if (!profile || !profile.equipment || !Array.isArray(profile.equipment.slots)) {
@@ -339,7 +432,9 @@ function buildAvatarManagerUnlockedEntries(entries = [], unlocks = []) {
           id: entry.id,
           name: entry.name,
           preview: buildAvatarUrlById(entry.id),
-          rarityLabel: RARITY_LABELS[entry.rarity] || entry.rarity.toUpperCase()
+          rarityLabel: RARITY_LABELS[entry.rarity] || entry.rarity.toUpperCase(),
+          source: 'customCatalog',
+          isCustom: true
         };
       }
       if (avatarMap.has(id)) {
@@ -348,10 +443,23 @@ function buildAvatarManagerUnlockedEntries(entries = [], unlocks = []) {
           id: avatar.id,
           name: avatar.name,
           preview: avatar.url,
-          rarityLabel: RARITY_LABELS[avatar.rarity] || avatar.rarity.toUpperCase()
+          rarityLabel: RARITY_LABELS[avatar.rarity] || avatar.rarity.toUpperCase(),
+          source: 'builtin',
+          isCustom: false
         };
       }
-      return null;
+      const fallback = buildFallbackAvatarUnlockEntry(id);
+      if (!fallback) {
+        return null;
+      }
+      return {
+        id: fallback.id,
+        name: fallback.name,
+        preview: fallback.preview,
+        rarityLabel: fallback.rarityLabel,
+        source: 'customFallback',
+        isCustom: true
+      };
     })
     .filter(Boolean);
 }
@@ -655,6 +763,7 @@ Page({
     avatarManagerEntries: [],
     avatarManagerUnlocks: [],
     avatarManagerInitialUnlocks: [],
+    avatarManagerInitialCatalog: [],
     avatarManagerUnlockedEntries: [],
     avatarManagerForm: { ...DEFAULT_AVATAR_FORM },
     avatarManagerDirty: false,
@@ -868,8 +977,49 @@ Page({
       ...option,
       checked: roles.includes(option.value)
     }));
+    const serverAvatarCatalog = Array.isArray(member.avatarCatalog) ? member.avatarCatalog : [];
+    const serverAvatarIdSet = new Set(
+      serverAvatarCatalog
+        .map((entry) => (entry && typeof entry.id === 'string' ? entry.id.trim().toLowerCase() : ''))
+        .filter(Boolean)
+    );
+    const unlockIdSet = new Set(
+      (Array.isArray(member.avatarUnlocks) ? member.avatarUnlocks : [])
+        .map((id) => (typeof id === 'string' ? id.trim().toLowerCase() : ''))
+        .filter(Boolean)
+    );
+    const previousAvatarEntries = Array.isArray(this.data.avatarManagerEntries)
+      ? this.data.avatarManagerEntries
+      : [];
+    const supplementalAvatarCatalog = previousAvatarEntries
+      .map((entry) => {
+        if (!entry || typeof entry !== 'object') {
+          return null;
+        }
+        const normalizedId = typeof entry.id === 'string' ? entry.id.trim().toLowerCase() : '';
+        if (!normalizedId || serverAvatarIdSet.has(normalizedId)) {
+          return null;
+        }
+        if (!unlockIdSet.has(normalizedId) && !normalizedId.includes('-custom-')) {
+          return null;
+        }
+        return {
+          id: normalizedId,
+          name: entry.name,
+          gender: entry.gender,
+          rarity: entry.rarity,
+          file: entry.file || normalizedId,
+          characterFile: entry.characterFile || entry.file || normalizedId
+        };
+      })
+      .filter(Boolean);
+    const mergedAvatarCatalog = normalizeAvatarCatalog(
+      serverAvatarCatalog.concat(supplementalAvatarCatalog)
+    );
+    member.avatarCatalog = mergedAvatarCatalog;
     const avatarEntries = buildAvatarManagerEntries(member.avatarCatalog);
     const avatarUnlocks = normalizeAvatarUnlocks(member.avatarUnlocks);
+    member.avatarUnlocks = avatarUnlocks;
     const avatarManagerUnlockedEntries = buildAvatarManagerUnlockedEntries(avatarEntries, avatarUnlocks);
     const avatarAttributeBonus = Number.isFinite(Number(member.avatarAttributeBonus))
       ? Math.max(0, Math.floor(Number(member.avatarAttributeBonus)))
@@ -915,6 +1065,7 @@ Page({
       avatarManagerEntries: avatarEntries,
       avatarManagerUnlocks: avatarUnlocks,
       avatarManagerInitialUnlocks: avatarUnlocks,
+      avatarManagerInitialCatalog: mergedAvatarCatalog,
       avatarManagerUnlockedEntries: avatarManagerUnlockedEntries,
       avatarManagerForm: { ...DEFAULT_AVATAR_FORM },
       avatarManagerSaving: false,
@@ -1469,6 +1620,11 @@ Page({
 
   async handleSubmit() {
     if (this.data.saving) return;
+    const localAvatarCatalog = normalizeAvatarCatalog(this.data.avatarManagerEntries);
+    const localAvatarUnlocks = normalizeAvatarUnlocks(this.data.form.avatarUnlocks);
+    const initialAvatarCatalog = normalizeAvatarCatalog(this.data.avatarManagerInitialCatalog);
+    const removedCatalogIds = diffRemovedAvatarIds(initialAvatarCatalog, localAvatarCatalog);
+    const wasAvatarManagerDirty = !!this.data.avatarManagerDirty;
     this.setData({ saving: true });
     try {
       const payload = {
@@ -1488,10 +1644,32 @@ Page({
           this.data.form.storageUpgradeAvailable
         ),
         storageUpgradeLimit: this.parseStorageUpgradeLimit(this.data.form.storageUpgradeLimit),
-        avatarUnlocks: normalizeAvatarUnlocks(this.data.form.avatarUnlocks)
+        avatarCatalog: localAvatarCatalog,
+        avatarUnlocks: localAvatarUnlocks
       };
+      if (removedCatalogIds.length) {
+        payload.removeAvatarCatalogIds = removedCatalogIds;
+      }
       const detail = await AdminService.updateMember(this.data.memberId, payload);
       this.applyDetail(detail);
+      const updatedMember = (detail && detail.member) || {};
+      const serverCatalog = Array.isArray(updatedMember.avatarCatalog)
+        ? normalizeAvatarCatalog(updatedMember.avatarCatalog)
+        : [];
+      const resolvedCatalog = serverCatalog.length ? serverCatalog : localAvatarCatalog;
+      const serverUnlocks = Array.isArray(updatedMember.avatarUnlocks)
+        ? normalizeAvatarUnlocks(updatedMember.avatarUnlocks)
+        : [];
+      const resolvedUnlocks = serverUnlocks.length ? serverUnlocks : localAvatarUnlocks;
+      this.commitAvatarManagerState({
+        entries: resolvedCatalog,
+        unlocks: resolvedUnlocks,
+        initialUnlocks: resolvedUnlocks,
+        initialCatalog: resolvedCatalog
+      });
+      if (wasAvatarManagerDirty) {
+        this.setData({ avatarManagerDirty: true });
+      }
       wx.showToast({ title: '保存成功', icon: 'success' });
     } catch (error) {
       console.error('[admin:member:update]', error);
@@ -1712,6 +1890,7 @@ Page({
   commitAvatarManagerState(partial = {}) {
     const hasEntries = Object.prototype.hasOwnProperty.call(partial, 'entries');
     const hasUnlocks = Object.prototype.hasOwnProperty.call(partial, 'unlocks');
+    const hasInitialCatalog = Object.prototype.hasOwnProperty.call(partial, 'initialCatalog');
     const baseEntries = hasEntries
       ? (Array.isArray(partial.entries) ? partial.entries : [])
       : Array.isArray(this.data.avatarManagerEntries)
@@ -1748,6 +1927,9 @@ Page({
     }
     if (Object.prototype.hasOwnProperty.call(partial, 'initialUnlocks')) {
       updates.avatarManagerInitialUnlocks = normalizeAvatarUnlocks(partial.initialUnlocks);
+    }
+    if (hasInitialCatalog) {
+      updates.avatarManagerInitialCatalog = normalizeAvatarCatalog(partial.initialCatalog);
     }
     this.setData(updates);
   },
@@ -2020,16 +2202,22 @@ Page({
     }
     const catalog = normalizeAvatarCatalog(this.data.avatarManagerEntries);
     const unlocks = normalizeAvatarUnlocks(this.data.avatarManagerUnlocks);
+    const initialCatalog = normalizeAvatarCatalog(this.data.avatarManagerInitialCatalog);
+    const removedCatalogIds = diffRemovedAvatarIds(initialCatalog, catalog);
     if (!this.data.avatarManagerDirty) {
       this.setData({ avatarPermissionDialogVisible: false, avatarManagerForm: { ...DEFAULT_AVATAR_FORM } });
       return;
     }
     this.setData({ avatarManagerSaving: true });
     try {
-      const detail = await AdminService.updateMember(memberId, {
+      const payload = {
         avatarCatalog: catalog,
         avatarUnlocks: unlocks
-      });
+      };
+      if (removedCatalogIds.length) {
+        payload.removeAvatarCatalogIds = removedCatalogIds;
+      }
+      const detail = await AdminService.updateMember(memberId, payload);
       this.applyDetail(detail);
       const updatedMember = (detail && detail.member) || this.data.member || {};
       const savedCatalog = Array.isArray(updatedMember.avatarCatalog) ? updatedMember.avatarCatalog : catalog;
@@ -2040,7 +2228,8 @@ Page({
         form: { ...DEFAULT_AVATAR_FORM },
         dirty: false,
         saving: false,
-        initialUnlocks: savedUnlocks
+        initialUnlocks: savedUnlocks,
+        initialCatalog: savedCatalog
       });
       this.setData({
         avatarPermissionDialogVisible: false,

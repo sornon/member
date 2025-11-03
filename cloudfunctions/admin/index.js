@@ -6849,10 +6849,24 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
     const filtered = roles.filter((role) => ['member', 'admin', 'developer', 'test'].includes(role));
     memberUpdates.roles = filtered.length ? filtered : ['member'];
   }
+  const removeAvatarCatalogIds = Array.isArray(updates.removeAvatarCatalogIds)
+    ? updates.removeAvatarCatalogIds
+        .map((value) => (typeof value === 'string' ? value.trim().toLowerCase() : ''))
+        .filter(Boolean)
+    : [];
+  const removeAvatarIdSet = removeAvatarCatalogIds.length ? new Set(removeAvatarCatalogIds) : null;
   const currentAvatarCatalog = normalizeAvatarCatalogShared(extras.avatarCatalog);
   let desiredAvatarCatalog = currentAvatarCatalog;
   if (Object.prototype.hasOwnProperty.call(updates, 'avatarCatalog')) {
     desiredAvatarCatalog = normalizeAvatarCatalogShared(updates.avatarCatalog);
+  }
+  if (removeAvatarIdSet) {
+    desiredAvatarCatalog = desiredAvatarCatalog.filter((entry) => !removeAvatarIdSet.has(entry.id));
+  }
+  if (
+    Object.prototype.hasOwnProperty.call(updates, 'avatarCatalog') ||
+    (removeAvatarIdSet && removeAvatarIdSet.size)
+  ) {
     if (!areAvatarCatalogsEqual(currentAvatarCatalog, desiredAvatarCatalog)) {
       extrasUpdates.avatarCatalog = desiredAvatarCatalog;
     }
@@ -6861,6 +6875,9 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
   let desiredAvatarUnlocks = currentAvatarUnlocks;
   if (Object.prototype.hasOwnProperty.call(updates, 'avatarUnlocks')) {
     desiredAvatarUnlocks = normalizeAvatarUnlocksList(updates.avatarUnlocks);
+  }
+  if (removeAvatarIdSet) {
+    desiredAvatarUnlocks = desiredAvatarUnlocks.filter((id) => !removeAvatarIdSet.has(id));
   }
   const catalogForUnlocks = extrasUpdates.avatarCatalog
     ? extrasUpdates.avatarCatalog
