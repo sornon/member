@@ -4,7 +4,9 @@ import {
   normalizeAvatarUnlocks as normalizeAvatarUnlocksStrict,
   registerCustomAvatars,
   normalizeAvatarCatalog,
-  buildAvatarUrlById
+  buildAvatarUrlById,
+  buildAvatarUrlByFile,
+  normalizeAvatarFileName
 } from '../../../utils/avatar-catalog';
 import { sanitizeEquipmentProfile, buildEquipmentIconPaths } from '../../../utils/equipment';
 const {
@@ -115,11 +117,18 @@ function buildFallbackAvatarUnlockEntry(id) {
   if (rest) {
     nameSegments.push(rest.toUpperCase());
   }
+  let preview = buildAvatarUrlById(normalizedId);
+  if (!preview) {
+    const fallbackFile = normalizeAvatarFileName(rest);
+    if (fallbackFile) {
+      preview = buildAvatarUrlByFile(fallbackFile);
+    }
+  }
   const name = nameSegments.length ? nameSegments.join(' · ') : normalizedId;
   return {
     id: normalizedId,
     name,
-    preview: buildAvatarUrlById(normalizedId),
+    preview,
     rarityLabel
   };
 }

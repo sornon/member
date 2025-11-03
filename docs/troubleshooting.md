@@ -111,6 +111,26 @@ Error: TencentCloud API error: {
 
 > 补充：新增头像时仍需按照既定流程更新头像清单（`shared/avatar-catalog.js`），以便头像选择器、解锁逻辑及角色图映射同时感知新资源。
 
+## 管理端自定义头像图片未展示
+
+**现象**
+
+在后台“编辑头像权限”面板中，接口已返回自定义头像解锁 ID（如 `male-b-custom-1`），但头像缩略图依旧为空白。
+
+**原因分析**
+
+部分旧数据在云存储中使用了“自定义文件名 + `.png`”的方式保存资源，例如 `custom-1.png`，而不是按照 `gender-rarity-slug.png` 的命名规范。后台仅返回了解锁 ID，未附带完整的 `avatarCatalog` 元数据时，前端原先会将 ID 直接映射为图片路径 `male-b-custom-1.png`，导致无法命中真实文件名。
+
+**解决方案**
+
+1. 自 2024 年 11 月起，管理端在构建“已拥有头像”列表时，会检测所有疑似自定义 ID，并自动截取 ID 中 `-custom-` 之后的片段作为文件名基准（例如 `custom-1`），再应用与服务端相同的 `normalizeAvatarFileName` 规则生成图片路径。这样即使未返回 `avatarCatalog`，也能显示 `custom-1.png` 等非标准命名的资源。
+2. 若云端资源的命名与 ID 完全不相关（例如 `male-b-custom-1` 对应 `jie-fu-avatar.png`），请务必在 `updateMember` 或后台头像目录中补充 `avatarCatalog` 项，并显式设置 `file`/`characterFile` 字段指向实际文件名。前端会优先注册并使用目录中的文件名，确保显示与角色图都能正确加载。
+
+**操作建议**
+
+- 为新的自定义头像上传资源时，优先遵循 `gender-rarity-slug.png` 规范，可减少额外配置。
+- 如果需要沿用旧文件名，检查接口 payload 中是否包含对应的 `avatarCatalog` 元素（`file: 'custom-1'`）。缺失时可通过管理员后台“自定义头像”功能重新保存一次以生成目录，或在服务端补写该字段。
+
 ## 主包体积超过 1.5M 导致上传失败
 
 **现象**

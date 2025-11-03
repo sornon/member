@@ -4,7 +4,9 @@ const {
   buildAvatarUrl,
   registerCustomAvatars,
   normalizeAvatarCatalog,
-  resolveAvatarMetaById
+  resolveAvatarMetaById,
+  buildAvatarImageUrlByFile,
+  normalizeAvatarFileName: normalizeAvatarFileNameShared
 } = require('../shared/avatar-catalog.js');
 
 const AVATAR_GENDER_LABELS = {
@@ -131,6 +133,14 @@ export function buildAvatarUrlById(id) {
     return '';
   }
   return buildAvatarUrl(id);
+}
+
+export function buildAvatarUrlByFile(file) {
+  return buildAvatarImageUrlByFile(file);
+}
+
+export function normalizeAvatarFileName(value) {
+  return normalizeAvatarFileNameShared(value);
 }
 
 export const AVATAR_DEFAULT_RARITY = DEFAULT_RARITY;
