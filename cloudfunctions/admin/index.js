@@ -6947,6 +6947,7 @@ function buildUpdatePayload(updates, existing = {}, extras = {}, levels = []) {
       const normalizedReset = Math.max(1, Math.floor(rawReset));
       const levelOrderMap = buildLevelOrderMap(levels);
       const currentClaims = normalizeClaimedLevelRewardsList(extras.claimedLevelRewards);
+      const deliveredClaims = normalizeClaimedLevelRewardsList(extras.deliveredLevelRewards);
       if (currentClaims.length) {
         const filteredClaims = filterClaimedLevelRewardsByOrder(
           currentClaims,
@@ -6958,6 +6959,18 @@ function buildUpdatePayload(updates, existing = {}, extras = {}, levels = []) {
         }
       } else if (!Array.isArray(extras.claimedLevelRewards)) {
         extrasUpdates.claimedLevelRewards = [];
+      }
+      if (deliveredClaims.length) {
+        const filteredDeliveredClaims = filterClaimedLevelRewardsByOrder(
+          deliveredClaims,
+          levelOrderMap,
+          normalizedReset
+        );
+        if (!arraysEqual(filteredDeliveredClaims, deliveredClaims)) {
+          extrasUpdates.deliveredLevelRewards = filteredDeliveredClaims;
+        }
+      } else if (!Array.isArray(extras.deliveredLevelRewards)) {
+        extrasUpdates.deliveredLevelRewards = [];
       }
 
       const memberClaims = normalizeClaimedLevelRewardsList(existing.claimedLevelRewards);

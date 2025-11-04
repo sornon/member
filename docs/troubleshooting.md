@@ -149,3 +149,24 @@ Error: TencentCloud API error: {
 
 - 若需要调试弹窗，可使用未授权过的小程序账号（或在微信 → 设置 → 隐私 → 授权管理中找到该小程序，撤销“头像、昵称”授权后重新进入）。
 - 一般业务场景无需强制弹窗，只要 `userInfo` 正常返回即可继续保存会员资料；若前端确实未能拿到 `userInfo`，请检查按钮点击事件是否触发了 `wx.getUserProfile` 调用，或留意接口回调中的错误信息。
+
+## 会员领奖重置后仍从高等级开始领取
+
+**现象**
+
+管理员在后台会员资料页填写“领奖重置等级”（例如输入 5）保存后，会员重新打开修仙等级奖励页面，仍然从原先的较高等级（如 LV12）开始领取，未按设置从第 5 级恢复。
+
+**原因分析**
+
+早期奖励结算会在会员扩展信息 (`memberExtras`) 中记录两个列表：
+
+- `claimedLevelRewards`：会员已手动领取的等级奖励；
+- `deliveredLevelRewards`：系统批量补发的奖励快照，用于合并回会员档案。
+
+后台重置逻辑此前只清理了 `claimedLevelRewards`，但未同步清理 `deliveredLevelRewards`。会员下一次进入修仙页时，云函数会把 `deliveredLevelRewards` 合并回已领取列表，导致高等级奖励再次出现，重置失效。
+
+**解决方案**
+
+自 2025-01-25 起，后台保存会员资料时会同时按照设定的重置等级裁剪 `claimedLevelRewards` 与 `deliveredLevelRewards`，确保下一次发奖从指定等级重新开始。【F:cloudfunctions/admin/index.js†L6953-L6976】
+
+如需排查历史数据，可在云数据库的 `memberExtras` 集合中手动确认两个字段的内容是否都已去除高于重置等级的奖励 ID。
