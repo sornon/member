@@ -622,6 +622,88 @@ function getCurrentAdminId() {
   return '';
 }
 
+function resolveLevelOrderValue(level, fallback) {
+  if (!level || typeof level !== 'object') {
+    return Number.isFinite(fallback) ? fallback : null;
+  }
+  if (typeof level.order === 'number' && Number.isFinite(level.order)) {
+    return level.order;
+  }
+  if (typeof level._id === 'string') {
+    const match = level._id.match(/(\d+)$/);
+    if (match) {
+      const parsed = Number(match[1]);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return Number.isFinite(fallback) ? fallback : null;
+}
+
+function buildLevelRewardState(levels = [], claimedRewards = []) {
+  const normalizedLevels = Array.isArray(levels)
+    ? levels
+        .map((level, index) => {
+          if (!level || typeof level !== 'object') {
+            return null;
+          }
+          const id = typeof level._id === 'string' ? level._id : '';
+          if (!id) {
+            return null;
+          }
+          const order = resolveLevelOrderValue(level, index + 1);
+          if (!Number.isFinite(order)) {
+            return null;
+          }
+          return { id, order };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.order - b.order)
+    : [];
+  const claimedSet = new Set(
+    Array.isArray(claimedRewards)
+      ? claimedRewards
+          .map((value) => (typeof value === 'string' ? value.trim() : ''))
+          .filter(Boolean)
+      : []
+  );
+  let highestClaimedOrder = 0;
+  let firstUnclaimed = null;
+  normalizedLevels.forEach((level) => {
+    if (claimedSet.has(level.id)) {
+      if (level.order > highestClaimedOrder) {
+        highestClaimedOrder = level.order;
+      }
+    } else if (!firstUnclaimed) {
+      firstUnclaimed = level;
+    }
+  });
+  const summaryParts = [];
+  if (highestClaimedOrder > 0) {
+    summaryParts.push(`已领至第${highestClaimedOrder}级`);
+  } else {
+    summaryParts.push('尚未领取奖励');
+  }
+  if (firstUnclaimed) {
+    summaryParts.push(`下次可从第${firstUnclaimed.order}级开始重新领取`);
+  } else if (normalizedLevels.length > 0) {
+    summaryParts.push('全部等级奖励均已领取');
+  }
+  summaryParts.push('未填写则不修改');
+  const placeholder = firstUnclaimed
+    ? `例如：${firstUnclaimed.order}`
+    : normalizedLevels.length
+    ? `例如：${normalizedLevels[normalizedLevels.length - 1].order}`
+    : '请输入等级';
+  return {
+    summary: summaryParts.join('，'),
+    placeholder,
+    highestClaimedOrder,
+    firstUnclaimedOrder: firstUnclaimed ? firstUnclaimed.order : null
+  };
+}
+
 Page({
   data: {
     memberId: '',
@@ -673,8 +755,11 @@ Page({
       roomUsageCount: '',
       storageUpgradeAvailable: '0',
       storageUpgradeLimit: '',
-      avatarUnlocks: []
+      avatarUnlocks: [],
+      levelRewardResetLevel: ''
     },
+    levelRewardSummary: '未填写则不修改',
+    levelRewardPlaceholder: '请输入等级',
     rechargeVisible: false,
     rechargeAmount: '',
     renameHistory: [],
@@ -875,6 +960,7 @@ Page({
       ? Math.max(0, Math.floor(Number(member.avatarAttributeBonus)))
       : calculateAvatarAttributeBonus(avatarUnlocks);
     const previousForm = this.data.form || {};
+    const levelRewardState = buildLevelRewardState(levels, member.claimedLevelRewards);
     this.setData({
       member,
       levels,
@@ -903,7 +989,8 @@ Page({
           typeof previousForm.storageUpgradeLimit === 'string'
             ? previousForm.storageUpgradeLimit
             : '',
-        avatarUnlocks: avatarUnlocks
+        avatarUnlocks: avatarUnlocks,
+        levelRewardResetLevel: ''
       },
       roleOptions,
       renameHistory: formatRenameHistory(member.renameHistory),
@@ -919,6 +1006,8 @@ Page({
       avatarManagerForm: { ...DEFAULT_AVATAR_FORM },
       avatarManagerSaving: false,
       avatarManagerDirty: false,
+      levelRewardSummary: levelRewardState.summary,
+      levelRewardPlaceholder: levelRewardState.placeholder,
       titleSummary,
       backgroundSummary,
       secretRealmSummary: '',
@@ -1218,6 +1307,22 @@ Page({
     this.setData({ [`form.${field}`]: event.detail.value });
   },
 
+  resolveLevelRewardResetLevel(input) {
+    if (typeof input !== 'string') {
+      return { value: null, valid: true };
+    }
+    const trimmed = input.trim();
+    if (!trimmed) {
+      return { value: null, valid: true };
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed)) {
+      return { value: null, valid: false };
+    }
+    const normalized = Math.max(1, Math.floor(parsed));
+    return { value: normalized, valid: true };
+  },
+
   handleLevelChange(event) {
     const index = Number(event.detail.value);
     const level = this.data.levels[index];
@@ -1469,6 +1574,13 @@ Page({
 
   async handleSubmit() {
     if (this.data.saving) return;
+    const resetLevelResult = this.resolveLevelRewardResetLevel(
+      this.data.form.levelRewardResetLevel
+    );
+    if (!resetLevelResult.valid) {
+      wx.showToast({ title: '请输入有效的领奖等级', icon: 'none' });
+      return;
+    }
     this.setData({ saving: true });
     try {
       const payload = {
@@ -1490,6 +1602,9 @@ Page({
         storageUpgradeLimit: this.parseStorageUpgradeLimit(this.data.form.storageUpgradeLimit),
         avatarUnlocks: normalizeAvatarUnlocks(this.data.form.avatarUnlocks)
       };
+      if (resetLevelResult.value !== null) {
+        payload.levelRewardResetLevel = resetLevelResult.value;
+      }
       const detail = await AdminService.updateMember(this.data.memberId, payload);
       this.applyDetail(detail);
       wx.showToast({ title: '保存成功', icon: 'success' });

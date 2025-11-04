@@ -188,6 +188,18 @@
         <view class="form-label">当前境界</view>
         <view class="readonly-value">{{currentLevelName || '—'}}</view>
       </view>
+      <view class="form-item">
+        <view class="form-label">领奖重置等级</view>
+        <input
+          class="form-input"
+          type="number"
+          value="{{form.levelRewardResetLevel}}"
+          placeholder="{{levelRewardPlaceholder}}"
+          data-field="levelRewardResetLevel"
+          bindinput="handleInputChange"
+        />
+        <view class="form-hint">{{levelRewardSummary}}</view>
+      </view>
       <view class="form-item basic-info-grid__full">
         <view class="form-label">角色权限</view>
         <checkbox-group class="role-group" bindchange="handleRolesChange">

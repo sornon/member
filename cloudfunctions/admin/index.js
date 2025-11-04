@@ -2507,8 +2507,21 @@ async function updateMember(openid, memberId, updates, options = {}) {
   if (!memberDoc || !memberDoc.data) {
     throw new Error('会员不存在');
   }
-  const extras = await resolveMemberExtras(memberId);
-  const { memberUpdates, extrasUpdates, renameLog } = buildUpdatePayload(updates, memberDoc.data, extras);
+  const normalizedUpdates = updates && typeof updates === 'object' ? updates : {};
+  const needsLevelRewardReset = Object.prototype.hasOwnProperty.call(
+    normalizedUpdates,
+    'levelRewardResetLevel'
+  );
+  const [extras, levels] = await Promise.all([
+    resolveMemberExtras(memberId),
+    needsLevelRewardReset ? loadLevels() : Promise.resolve([])
+  ]);
+  const { memberUpdates, extrasUpdates, renameLog } = buildUpdatePayload(
+    normalizedUpdates,
+    memberDoc.data,
+    extras,
+    levels
+  );
   if (!Object.keys(memberUpdates).length && !Object.keys(extrasUpdates).length && !renameLog) {
     return fetchMemberDetail(memberId, openid, options);
   }
@@ -4405,6 +4418,77 @@ function buildLevelMap(levels) {
     map[level._id] = level;
   });
   return map;
+}
+
+function resolveLevelOrderFromRecord(level, fallback) {
+  if (!level || typeof level !== 'object') {
+    return Number.isFinite(fallback) ? fallback : null;
+  }
+  if (typeof level.order === 'number' && Number.isFinite(level.order)) {
+    return level.order;
+  }
+  if (typeof level._id === 'string') {
+    const match = level._id.match(/(\d+)$/);
+    if (match) {
+      const parsed = Number(match[1]);
+      if (Number.isFinite(parsed)) {
+        return parsed;
+      }
+    }
+  }
+  return Number.isFinite(fallback) ? fallback : null;
+}
+
+function buildLevelOrderMap(levels = []) {
+  const map = {};
+  (Array.isArray(levels) ? levels : []).forEach((level, index) => {
+    if (!level || typeof level !== 'object') {
+      return;
+    }
+    const id = typeof level._id === 'string' ? level._id.trim() : '';
+    if (!id) {
+      return;
+    }
+    const order = resolveLevelOrderFromRecord(level, index + 1);
+    if (Number.isFinite(order)) {
+      map[id] = order;
+    }
+  });
+  return map;
+}
+
+function normalizeClaimedLevelRewardsList(claims) {
+  if (!Array.isArray(claims)) {
+    return [];
+  }
+  const seen = new Set();
+  const normalized = [];
+  claims.forEach((value) => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      return;
+    }
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  });
+  return normalized;
+}
+
+function filterClaimedLevelRewardsByOrder(claims = [], orderMap = {}, startOrder = null) {
+  if (!Number.isFinite(startOrder)) {
+    return claims.slice();
+  }
+  const threshold = Math.max(1, Math.floor(startOrder));
+  return claims.filter((id) => {
+    const order = orderMap[id];
+    if (!Number.isFinite(order)) {
+      return true;
+    }
+    return order < threshold;
+  });
 }
 
 function decorateMemberRecord(member, levelMap) {
@@ -6755,7 +6839,7 @@ function normalizeReservationBadges(badges) {
   return normalized;
 }
 
-function buildUpdatePayload(updates, existing = {}, extras = {}) {
+function buildUpdatePayload(updates, existing = {}, extras = {}, levels = []) {
   const memberUpdates = {};
   const extrasUpdates = {};
   let renameLog = null;
@@ -6856,6 +6940,26 @@ function buildUpdatePayload(updates, existing = {}, extras = {}) {
     const roles = Array.isArray(updates.roles) ? updates.roles : [];
     const filtered = roles.filter((role) => ['member', 'admin', 'developer', 'test'].includes(role));
     memberUpdates.roles = filtered.length ? filtered : ['member'];
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, 'levelRewardResetLevel')) {
+    const rawReset = Number(updates.levelRewardResetLevel);
+    if (Number.isFinite(rawReset)) {
+      const normalizedReset = Math.max(1, Math.floor(rawReset));
+      const currentClaims = normalizeClaimedLevelRewardsList(extras.claimedLevelRewards);
+      if (currentClaims.length) {
+        const levelOrderMap = buildLevelOrderMap(levels);
+        const filteredClaims = filterClaimedLevelRewardsByOrder(
+          currentClaims,
+          levelOrderMap,
+          normalizedReset
+        );
+        if (filteredClaims.length !== currentClaims.length) {
+          extrasUpdates.claimedLevelRewards = filteredClaims;
+        }
+      } else if (!Array.isArray(extras.claimedLevelRewards)) {
+        extrasUpdates.claimedLevelRewards = [];
+      }
+    }
   }
   const currentAvatarCatalog = normalizeAvatarCatalogShared(extras.avatarCatalog);
   let desiredAvatarCatalog = currentAvatarCatalog;
