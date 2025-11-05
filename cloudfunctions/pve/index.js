@@ -1245,7 +1245,9 @@ const COMBAT_STAT_LABELS = {
   controlStrength: '控制强度',
   shieldPower: '护盾强度',
   summonPower: '召唤物强度',
-  elementalVulnerability: '元素易伤'
+  elementalVulnerability: '元素易伤',
+  allAttributes: '全属性',
+  dodgeChance: '闪避率'
 };
 
 const ATTRIBUTE_CONFIG = [
@@ -1256,6 +1258,13 @@ const ATTRIBUTE_CONFIG = [
   { key: 'agility', label: '敏捷', type: 'number', step: 1 },
   { key: 'insight', label: '悟性', type: 'number', step: 1 }
 ];
+
+const ATTRIBUTE_LABEL_MAP = ATTRIBUTE_CONFIG.reduce((map, item) => {
+  if (item && item.key) {
+    map[item.key] = item.label;
+  }
+  return map;
+}, {});
 
 const BASELINE_ATTRIBUTES = {
   constitution: 20,
@@ -6543,7 +6552,20 @@ function sumEquipmentBonuses(equipment) {
 }
 
 function resolveCombatStatLabel(key) {
-  return COMBAT_STAT_LABELS[key] || key;
+  if (!key) {
+    return '';
+  }
+  if (COMBAT_STAT_LABELS[key]) {
+    return COMBAT_STAT_LABELS[key];
+  }
+  if (key.endsWith('Multiplier')) {
+    const baseKey = key.replace(/Multiplier$/, '');
+    const baseLabel = COMBAT_STAT_LABELS[baseKey] || ATTRIBUTE_LABEL_MAP[baseKey];
+    if (baseLabel) {
+      return `${baseLabel}加成`;
+    }
+  }
+  return key;
 }
 
 function resolveAttributeLabel(key) {
