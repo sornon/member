@@ -753,10 +753,6 @@
                 <view wx:else class="enhancement-modal__icon enhancement-modal__icon--placeholder">{{equipmentEnhancementModal.baseItem && equipmentEnhancementModal.baseItem.slotLabel}}</view>
               </view>
               <view class="enhancement-modal__item-info enhancement-modal__item-info--center">
-                <text
-                  class="enhancement-modal__item-name"
-                  style="color: {{equipmentEnhancementModal.baseItem.qualityColor}};"
-                >{{equipmentEnhancementModal.baseItem.name}}</text>
                 <text class="enhancement-modal__item-meta">{{equipmentEnhancementModal.baseItem.refineLabel}}</text>
               </view>
             </view>
@@ -779,10 +775,6 @@
               </view>
               <view class="enhancement-modal__item-info enhancement-modal__item-info--center">
                 <block wx:if="{{equipmentEnhancementModal.selectedMaterial}}">
-                  <text
-                    class="enhancement-modal__item-name"
-                    style="color: {{equipmentEnhancementModal.selectedMaterial.qualityColor}};"
-                  >{{equipmentEnhancementModal.selectedMaterial.name}}</text>
                   <text class="enhancement-modal__item-meta">{{equipmentEnhancementModal.selectedMaterial.refineLabel}}</text>
                 </block>
                 <block wx:else>
@@ -819,7 +811,6 @@
                 />
                 <view wx:else class="enhancement-modal__icon enhancement-modal__icon--placeholder">{{item.slotLabel}}</view>
               </view>
-              <text class="enhancement-modal__material-name" style="color: {{item.qualityColor}};">{{item.name}}</text>
               <text class="enhancement-modal__material-meta">{{item.refineLabel}}</text>
             </view>
           </view>

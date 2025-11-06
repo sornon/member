@@ -1373,7 +1373,7 @@ button.pill-btn[disabled] {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 28rpx;
+  gap: 0rpx;
   overflow-y: auto;
 }
 
@@ -1504,7 +1504,6 @@ button.pill-btn[disabled] {
   flex-direction: column;
   align-items: center;
   gap: 12rpx;
-  padding: 12rpx 0;
 }
 
 .enhancement-modal__success-rate {
@@ -1554,6 +1553,7 @@ button.pill-btn[disabled] {
 .enhancement-modal__result-arrow {
   display: flex;
   justify-content: center;
+  margin:0rpx 0 -30rpx 0;
 }
 
 .enhancement-modal__arrow-icon {
@@ -1578,7 +1578,7 @@ button.pill-btn[disabled] {
   background: rgba(24, 38, 90, 0.58);
   border: 1rpx solid rgba(94, 126, 228, 0.32);
   border-radius: 24rpx;
-  padding: 28rpx 32rpx;
+  padding: 18rpx 32rpx;
   align-items: stretch;
   flex-wrap: nowrap;
   justify-content: space-between;
@@ -1604,6 +1604,7 @@ button.pill-btn[disabled] {
   display: flex;
   flex-direction: column;
   gap: 16rpx;
+  margin-top:20rpx;
 }
 
 .enhancement-modal__material-list {
@@ -1669,6 +1670,7 @@ button.pill-btn[disabled] {
   font-size: 22rpx;
   color: rgba(194, 206, 255, 0.72);
   text-align: right;
+  margin-top: 16rpx;
 }
 
 .enhancement-modal__error {
