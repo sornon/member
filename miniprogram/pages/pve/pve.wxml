@@ -27,9 +27,9 @@
         </view>
         <view class="enemy-meta">{{item.floorLabel}} · {{item.stageName}}</view>
         <view class="enemy-desc">{{item.description}}</view>
+        <view class="enemy-meta">概率获得：{{item.rewardsText || '暂无掉落'}}</view>
         <view class="enemy-meta">等级 {{item.level}} · 推荐战力 {{item.combatPower}}</view>
         <view class="enemy-status">状态：{{item.statusLabel}}</view>
-        <view class="enemy-reward">{{item.rewardsText}}</view>
         <view
           wx:if="{{profile.metadata.viewerIsAdmin && item.adminEnemyDetails}}"
           class="enemy-admin-section"
