@@ -1412,12 +1412,18 @@ button.pill-btn[disabled] {
   font-size: 24rpx;
   color: rgba(194, 206, 255, 0.78);
   font-weight: 500;
+  text-align: center;
 }
 
 .enhancement-modal__item {
   display: flex;
   align-items: center;
   gap: 18rpx;
+}
+
+.enhancement-modal__item--stacked {
+  flex-direction: column;
+  gap: 20rpx;
 }
 
 .enhancement-modal__icon-frame {
@@ -1460,6 +1466,11 @@ button.pill-btn[disabled] {
   flex-direction: column;
   gap: 6rpx;
   min-width: 0;
+}
+
+.enhancement-modal__item-info--center {
+  align-items: center;
+  text-align: center;
 }
 
 .enhancement-modal__item-name {
@@ -1568,21 +1579,30 @@ button.pill-btn[disabled] {
 
 .enhancement-modal__pair {
   display: flex;
-  gap: 20rpx;
-  flex-wrap: wrap;
-  justify-content: space-between;
-}
-
-.enhancement-modal__pair-item {
-  flex: 1 1 48%;
+  gap: 28rpx;
   background: rgba(24, 38, 90, 0.58);
   border: 1rpx solid rgba(94, 126, 228, 0.32);
   border-radius: 24rpx;
-  padding: 20rpx;
+  padding: 28rpx 32rpx;
+  align-items: stretch;
+  flex-wrap: nowrap;
+  justify-content: space-between;
+}
+
+.enhancement-modal__pair-side {
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
-  min-width: 280rpx;
+  align-items: center;
+  gap: 18rpx;
+  min-width: 0;
+}
+
+.enhancement-modal__pair-divider {
+  width: 2rpx;
+  background: rgba(94, 126, 228, 0.32);
+  border-radius: 2rpx;
+  align-self: stretch;
 }
 
 .enhancement-modal__materials {

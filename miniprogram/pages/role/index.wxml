@@ -738,9 +738,9 @@
           <text class="enhancement-modal__arrow-icon">⬆</text>
         </view>
         <view class="enhancement-modal__pair">
-          <view class="enhancement-modal__pair-item">
+          <view class="enhancement-modal__pair-side">
             <text class="enhancement-modal__item-label">目标装备</text>
-            <view class="enhancement-modal__item">
+            <view class="enhancement-modal__item enhancement-modal__item--stacked">
               <view class="enhancement-modal__icon-frame">
                 <image
                   wx:if="{{equipmentEnhancementModal.baseItem && equipmentEnhancementModal.baseItem.iconUrl}}"
@@ -753,7 +753,7 @@
                 />
                 <view wx:else class="enhancement-modal__icon enhancement-modal__icon--placeholder">{{equipmentEnhancementModal.baseItem && equipmentEnhancementModal.baseItem.slotLabel}}</view>
               </view>
-              <view class="enhancement-modal__item-info">
+              <view class="enhancement-modal__item-info enhancement-modal__item-info--center">
                 <text
                   class="enhancement-modal__item-name"
                   style="color: {{equipmentEnhancementModal.baseItem.qualityColor}};"
@@ -762,9 +762,10 @@
               </view>
             </view>
           </view>
-          <view class="enhancement-modal__pair-item">
+          <view class="enhancement-modal__pair-divider"></view>
+          <view class="enhancement-modal__pair-side">
             <text class="enhancement-modal__item-label">材料装备</text>
-            <view class="enhancement-modal__item">
+            <view class="enhancement-modal__item enhancement-modal__item--stacked">
               <view class="enhancement-modal__icon-frame enhancement-modal__icon-frame--selectable {{equipmentEnhancementModal.selectedMaterial ? 'enhancement-modal__icon-frame--active' : ''}}">
                 <image
                   wx:if="{{equipmentEnhancementModal.selectedMaterial && equipmentEnhancementModal.selectedMaterial.iconUrl}}"
@@ -777,7 +778,7 @@
                 />
                 <view wx:else class="enhancement-modal__icon enhancement-modal__icon--placeholder">待选择</view>
               </view>
-              <view class="enhancement-modal__item-info">
+              <view class="enhancement-modal__item-info enhancement-modal__item-info--center">
                 <block wx:if="{{equipmentEnhancementModal.selectedMaterial}}">
                   <text
                     class="enhancement-modal__item-name"
