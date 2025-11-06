@@ -100,6 +100,45 @@ page {
   margin-bottom: 8rpx;
 }
 
+.enemy-loot-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12rpx;
+}
+
+.enemy-meta-label {
+  flex-shrink: 0;
+  color: rgba(198, 208, 255, 0.82);
+}
+
+.enemy-loot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  flex: 1;
+}
+
+.enemy-loot-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.enemy-loot-name {
+  font-size: 22rpx;
+  font-weight: 600;
+}
+
+.enemy-loot-chance {
+  font-size: 20rpx;
+  color: rgba(198, 208, 255, 0.68);
+}
+
+.enemy-loot-total {
+  color: rgba(255, 236, 188, 0.88);
+  margin-left: 6rpx;
+}
+
 .enemy-status {
   font-size: 22rpx;
   color: rgba(214, 224, 255, 0.82);
