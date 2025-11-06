@@ -7616,7 +7616,7 @@ function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) 
 }
 
 const SECRET_REALM_LOOT_INSIGHT_MULTIPLIER = 0.00015;
-const SECRET_REALM_LOOT_INSIGHT_CAP = 0.02;
+const SECRET_REALM_LOOT_INSIGHT_CAP = 0.1;
 
 function resolveLootBonusChance(attributeSummary) {
   if (!attributeSummary || typeof attributeSummary !== 'object') {
