@@ -1,0 +1,3 @@
+<template name="equipmentEnhanceBadge">
+  <view wx:if="{{value > 0}}" class="equipment-enhance-badge">+{{value}}</view>
+</template>

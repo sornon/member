@@ -1,3 +1,4 @@
+<import src="../../shared/equipment-enhance-badge.wxml" />
 <custom-nav title="交易中心" theme="dark"></custom-nav>
 <view class="trading-container">
   <view class="trading-panel trading-balance-card">
@@ -66,6 +67,7 @@
                       />
                     </block>
                     <view wx:else class="inventory-card__icon-label">{{item.item.shortName || item.item.displayName}}</view>
+                    <template is="equipmentEnhanceBadge" data="{{ value: item.item && item.item.refine }}" />
                   </view>
                 </view>
               </view>
@@ -167,6 +169,7 @@
                       />
                     </block>
                     <view wx:else class="inventory-card__icon-label">{{item.item.shortName || item.item.displayName}}</view>
+                    <template is="equipmentEnhanceBadge" data="{{ value: item.item && item.item.refine }}" />
                   </view>
                 </view>
               </view>
@@ -264,6 +267,7 @@
                       />
                     </block>
                     <view wx:else class="inventory-card__icon-label">{{item.item.shortName || item.item.displayName}}</view>
+                    <template is="equipmentEnhanceBadge" data="{{ value: item.item && item.item.refine }}" />
                   </view>
                 </view>
               </view>
@@ -370,6 +374,7 @@
                       />
                     </block>
                     <view wx:else class="inventory-card__icon-label">{{item.shortName || item.displayName}}</view>
+                    <template is="equipmentEnhanceBadge" data="{{ value: item.refine }}" />
                   </view>
                 </view>
               </view>
@@ -397,6 +402,7 @@
                   />
                 </block>
                 <view wx:else class="inventory-card__icon-label">{{selectedSellableItem.shortName || selectedSellableItem.displayName}}</view>
+                <template is="equipmentEnhanceBadge" data="{{ value: selectedSellableItem.refine }}" />
               </view>
             </view>
           </view>
@@ -526,6 +532,7 @@
                 />
               </block>
               <view wx:else class="inventory-card__icon-label">{{equipmentDetailItem.shortName || equipmentDetailItem.displayName}}</view>
+              <template is="equipmentEnhanceBadge" data="{{ value: equipmentDetailItem.refine }}" />
             </view>
           </view>
         </view>
