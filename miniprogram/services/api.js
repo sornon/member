@@ -428,6 +428,31 @@ export const PveService = {
       category: normalizedCategory
     });
   },
+  async enhanceEquipment({
+    baseInventoryId = '',
+    baseSlot = '',
+    baseItemId = '',
+    materialInventoryId = '',
+    preview = false
+  } = {}) {
+    const payload = { action: 'enhanceEquipment' };
+    if (typeof baseInventoryId === 'string' && baseInventoryId.trim()) {
+      payload.baseInventoryId = baseInventoryId.trim();
+    }
+    if (typeof baseSlot === 'string' && baseSlot.trim()) {
+      payload.baseSlot = baseSlot.trim();
+    }
+    if (typeof baseItemId === 'string' && baseItemId.trim()) {
+      payload.baseItemId = baseItemId.trim();
+    }
+    if (typeof materialInventoryId === 'string' && materialInventoryId.trim()) {
+      payload.materialInventoryId = materialInventoryId.trim();
+    }
+    if (preview) {
+      payload.preview = true;
+    }
+    return callCloud(CLOUD_FUNCTIONS.PVE, payload);
+  },
   async allocatePoints(allocations = {}) {
     return callCloud(CLOUD_FUNCTIONS.PVE, { action: 'allocatePoints', allocations });
   },
@@ -866,6 +891,12 @@ export const AdminService = {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'updateGlobalBackgroundCatalog',
       catalog
+    });
+  },
+  async updateEquipmentEnhancement(config = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'updateEquipmentEnhancement',
+      config
     });
   },
   async bumpCacheVersion(scope) {

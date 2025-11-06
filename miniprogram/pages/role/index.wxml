@@ -559,7 +559,7 @@
       <view class="equipment-tooltip__meta">
         <text wx:if="{{equipmentTooltip.slotLabel}}">槽位：{{equipmentTooltip.slotLabel}}</text>
         <text wx:if="{{equipmentTooltip.item.refineLabel}}">{{equipmentTooltip.item.refineLabel}}</text>
-        <text wx:elif="{{equipmentTooltip.item.refine != null}}">精炼 {{equipmentTooltip.item.refine}}</text>
+        <text wx:elif="{{equipmentTooltip.item.refine != null}}">强化 {{equipmentTooltip.item.refine}}</text>
         <text wx:if="{{equipmentTooltip.item.storageCategoryLabel}}">类别：{{equipmentTooltip.item.storageCategoryLabel}}</text>
         <text wx:if="{{equipmentTooltip.item.obtainedAtText}}">获得于 {{equipmentTooltip.item.obtainedAtText}}</text>
       </view>
@@ -611,6 +611,25 @@
           size="mini"
           bindtap="handleEquipFromTooltip"
         >装备</button>
+        <button
+          class="equipment-tooltip__enhance pill-btn pill-btn--primary"
+          hover-class="pill-btn--primary-hover"
+          size="mini"
+          bindtap="handleOpenEnhancementFromTooltip"
+          data-slot="{{equipmentTooltip.slot || equipmentTooltip.item.slot}}"
+          data-source="{{equipmentTooltip.source}}"
+          data-inventory-id="{{equipmentTooltip.inventoryId || equipmentTooltip.item.inventoryId}}"
+          data-item-id="{{equipmentTooltip.item.itemId}}"
+          disabled="{{!equipmentTooltip.canEnhance}}"
+        >强化</button>
+        <view
+          wx:if="{{!equipmentTooltip.canEnhance && equipmentTooltip.enhanceDisabledReason}}"
+          class="equipment-tooltip__hint"
+        >{{equipmentTooltip.enhanceDisabledReason}}</view>
+        <view
+          wx:elif="{{equipmentTooltip.canEnhance}}"
+          class="equipment-tooltip__hint"
+        >可用材料：{{equipmentTooltip.availableEnhancementMaterials || 0}} 件</view>
       </block>
       <button
         wx:if="{{equipmentTooltip.mode === 'delete'}}"
@@ -641,7 +660,7 @@
         <view class="equipment-tooltip__meta">
           <text wx:if="{{equipmentTooltip.equippedItem.slotLabel}}">槽位：{{equipmentTooltip.equippedItem.slotLabel}}</text>
           <text wx:if="{{equipmentTooltip.equippedItem.refineLabel}}">{{equipmentTooltip.equippedItem.refineLabel}}</text>
-          <text wx:elif="{{equipmentTooltip.equippedItem.refine != null}}">精炼 {{equipmentTooltip.equippedItem.refine}}</text>
+          <text wx:elif="{{equipmentTooltip.equippedItem.refine != null}}">强化 {{equipmentTooltip.equippedItem.refine}}</text>
         </view>
         <view
           class="equipment-tooltip__stats"
@@ -658,6 +677,189 @@
       </view>
     </view>
   </view>
+  <view wx:if="{{equipmentEnhancementModal && equipmentEnhancementModal.visible}}" class="enhancement-modal">
+    <view class="enhancement-modal__mask" catchtouchmove="noop" bindtap="handleCloseEnhancementModal"></view>
+    <view class="enhancement-modal__panel" catchtouchmove="noop">
+      <view class="enhancement-modal__header">
+        <text class="enhancement-modal__title">装备强化</text>
+        <view
+          class="enhancement-modal__close"
+          hover-class="enhancement-modal__close--hover"
+          bindtap="handleCloseEnhancementModal"
+        >✕</view>
+      </view>
+      <block wx:if="{{equipmentEnhancementModal.error}}">
+        <view class="enhancement-modal__error">{{equipmentEnhancementModal.error}}</view>
+      </block>
+      <block wx:elif="{{equipmentEnhancementModal.loading}}">
+        <view class="enhancement-modal__loading">正在加载强化信息...</view>
+      </block>
+      <block wx:else>
+        <view class="enhancement-modal__flow">
+          <view class="enhancement-modal__flow-item">
+            <text class="enhancement-modal__item-label">目标装备</text>
+            <view class="enhancement-modal__item">
+              <view class="enhancement-modal__icon-frame">
+                <image
+                  wx:if="{{equipmentEnhancementModal.baseItem && equipmentEnhancementModal.baseItem.iconUrl}}"
+                  class="enhancement-modal__icon"
+                  src="{{equipmentEnhancementModal.baseItem.iconUrl}}"
+                  mode="aspectFill"
+                  data-fallback="{{equipmentEnhancementModal.baseItem.iconFallbackUrl}}"
+                  data-context="enhancement-base"
+                  binderror="handleEquipmentIconError"
+                />
+                <view wx:else class="enhancement-modal__icon enhancement-modal__icon--placeholder">{{equipmentEnhancementModal.baseItem && equipmentEnhancementModal.baseItem.slotLabel}}</view>
+              </view>
+              <view class="enhancement-modal__item-info">
+                <text
+                  class="enhancement-modal__item-name"
+                  style="color: {{equipmentEnhancementModal.baseItem.qualityColor}};"
+                >{{equipmentEnhancementModal.baseItem.name}}</text>
+                <text class="enhancement-modal__item-meta">{{equipmentEnhancementModal.baseItem.refineLabel}}</text>
+              </view>
+            </view>
+          </view>
+          <text class="enhancement-modal__flow-symbol">+</text>
+          <view class="enhancement-modal__flow-item">
+            <text class="enhancement-modal__item-label">材料装备</text>
+            <view class="enhancement-modal__item">
+              <view class="enhancement-modal__icon-frame enhancement-modal__icon-frame--selectable {{equipmentEnhancementModal.selectedMaterial ? 'enhancement-modal__icon-frame--active' : ''}}">
+                <image
+                  wx:if="{{equipmentEnhancementModal.selectedMaterial && equipmentEnhancementModal.selectedMaterial.iconUrl}}"
+                  class="enhancement-modal__icon"
+                  src="{{equipmentEnhancementModal.selectedMaterial.iconUrl}}"
+                  mode="aspectFill"
+                  data-fallback="{{equipmentEnhancementModal.selectedMaterial.iconFallbackUrl}}"
+                  data-context="enhancement-selected"
+                  binderror="handleEquipmentIconError"
+                />
+                <view wx:else class="enhancement-modal__icon enhancement-modal__icon--placeholder">待选择</view>
+              </view>
+              <view class="enhancement-modal__item-info">
+                <block wx:if="{{equipmentEnhancementModal.selectedMaterial}}">
+                  <text
+                    class="enhancement-modal__item-name"
+                    style="color: {{equipmentEnhancementModal.selectedMaterial.qualityColor}};"
+                  >{{equipmentEnhancementModal.selectedMaterial.name}}</text>
+                  <text class="enhancement-modal__item-meta">{{equipmentEnhancementModal.selectedMaterial.refineLabel}}</text>
+                </block>
+                <block wx:else>
+                  <text class="enhancement-modal__item-placeholder">请选择与目标同名、同等级的材料装备</text>
+                </block>
+              </view>
+            </view>
+          </view>
+          <text class="enhancement-modal__flow-symbol">→</text>
+          <view class="enhancement-modal__flow-item">
+            <text class="enhancement-modal__item-label">强化结果</text>
+            <view class="enhancement-modal__item">
+              <view class="enhancement-modal__icon-frame">
+                <image
+                  wx:if="{{equipmentEnhancementModal.resultItem && equipmentEnhancementModal.resultItem.iconUrl}}"
+                  class="enhancement-modal__icon"
+                  src="{{equipmentEnhancementModal.resultItem.iconUrl}}"
+                  mode="aspectFill"
+                  data-fallback="{{equipmentEnhancementModal.resultItem.iconFallbackUrl}}"
+                  data-context="enhancement-result"
+                  binderror="handleEquipmentIconError"
+                />
+                <view wx:else class="enhancement-modal__icon enhancement-modal__icon--placeholder">+{{equipmentEnhancementModal.nextLevel}}</view>
+              </view>
+              <view class="enhancement-modal__item-info">
+                <text
+                  class="enhancement-modal__item-name"
+                  style="color: {{equipmentEnhancementModal.resultItem ? equipmentEnhancementModal.resultItem.qualityColor : equipmentEnhancementModal.baseItem.qualityColor}};"
+                >{{(equipmentEnhancementModal.resultItem && equipmentEnhancementModal.resultItem.name) || equipmentEnhancementModal.baseItem.name}}</text>
+                <text class="enhancement-modal__item-meta">强化后：+{{equipmentEnhancementModal.nextLevel}}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+        <view class="enhancement-modal__section enhancement-modal__section--summary">
+          <view class="enhancement-modal__summary-line">
+            <text class="enhancement-modal__summary-label">强化成功率</text>
+            <text class="enhancement-modal__summary-value">{{equipmentEnhancementModal.successRateText}}</text>
+          </view>
+          <view class="enhancement-modal__summary-line">
+            <text class="enhancement-modal__summary-label">强化等级</text>
+            <text class="enhancement-modal__summary-value">+{{equipmentEnhancementModal.currentLevel}} → +{{equipmentEnhancementModal.nextLevel}}</text>
+          </view>
+          <view class="enhancement-modal__summary-line" wx:if="{{equipmentEnhancementModal.maxLevel}}">
+            <text class="enhancement-modal__summary-label">强化上限</text>
+            <text class="enhancement-modal__summary-value">+{{equipmentEnhancementModal.maxLevel}}</text>
+          </view>
+        </view>
+        <view class="enhancement-modal__section" wx:if="{{equipmentEnhancementModal.attributeDiffs && equipmentEnhancementModal.attributeDiffs.length}}">
+          <view class="enhancement-modal__section-title">属性提升</view>
+          <view class="enhancement-modal__diff-list">
+            <view class="enhancement-modal__diff-item" wx:for="{{equipmentEnhancementModal.attributeDiffs}}" wx:key="key">
+              <text class="enhancement-modal__diff-label">{{item.label}}</text>
+              <text class="enhancement-modal__diff-value">{{item.before}} → {{item.after}}（{{item.delta}}）</text>
+            </view>
+          </view>
+        </view>
+        <view class="enhancement-modal__section" wx:elif="{{equipmentEnhancementModal.resultItem && equipmentEnhancementModal.resultItem.statsText && equipmentEnhancementModal.resultItem.statsText.length}}">
+          <view class="enhancement-modal__section-title">强化后属性</view>
+          <view class="enhancement-modal__stats">
+            <text wx:for="{{equipmentEnhancementModal.resultItem.statsText}}" wx:key="index" class="enhancement-modal__stat-line">{{item}}</text>
+          </view>
+        </view>
+        <view class="enhancement-modal__section">
+          <view class="enhancement-modal__section-title">可用材料装备</view>
+          <view
+            wx:if="{{equipmentEnhancementModal.materialCandidates && equipmentEnhancementModal.materialCandidates.length}}"
+            class="enhancement-modal__material-grid"
+          >
+            <view
+              wx:for="{{equipmentEnhancementModal.materialCandidates}}"
+              wx:key="inventoryId"
+              class="enhancement-modal__material-item {{equipmentEnhancementModal.selectedMaterialId === item.inventoryId ? 'enhancement-modal__material-item--active' : ''}}"
+              bindtap="handleEnhancementMaterialSelect"
+              data-inventory-id="{{item.inventoryId}}"
+              data-index="{{index}}"
+            >
+              <view class="enhancement-modal__material-icon">
+                <image
+                  wx:if="{{item.iconUrl}}"
+                  class="enhancement-modal__icon"
+                  src="{{item.iconUrl}}"
+                  mode="aspectFill"
+                  data-fallback="{{item.iconFallbackUrl}}"
+                  data-context="enhancement-material"
+                  data-index="{{index}}"
+                  binderror="handleEquipmentIconError"
+                />
+                <view wx:else class="enhancement-modal__icon enhancement-modal__icon--placeholder">{{item.slotLabel}}</view>
+              </view>
+              <text class="enhancement-modal__material-name" style="color: {{item.qualityColor}};">{{item.name}}</text>
+              <text class="enhancement-modal__material-meta">{{item.refineLabel}}</text>
+            </view>
+          </view>
+          <view wx:else class="enhancement-modal__empty">暂无符合条件的材料装备，请先准备同名且强化等级相同的装备。</view>
+        </view>
+        <view class="enhancement-modal__actions">
+          <button
+            class="pill-btn pill-btn--ghost enhancement-modal__action"
+            hover-class="pill-btn--hover"
+            size="mini"
+            bindtap="handleCloseEnhancementModal"
+            disabled="{{equipmentEnhancementModal.submitting}}"
+          >取消</button>
+          <button
+            class="pill-btn pill-btn--primary enhancement-modal__action"
+            hover-class="pill-btn--primary-hover"
+            size="mini"
+            bindtap="handleConfirmEnhancement"
+            loading="{{equipmentEnhancementModal.submitting}}"
+            disabled="{{!equipmentEnhancementModal.selectedMaterialId || equipmentEnhancementModal.submitting}}"
+          >确认强化</button>
+        </view>
+        <view class="enhancement-modal__hint">强化失败时，材料装备会被摧毁，请谨慎操作。</view>
+      </block>
+    </view>
+  </view>
+
   <view wx:if="{{attributeDetailTooltip && attributeDetailTooltip.visible}}" class="attribute-tooltip">
     <view class="attribute-tooltip__mask" catchtouchmove="noop" bindtap="closeAttributeDetailTooltip"></view>
     <view class="attribute-tooltip__container" catchtouchmove="noop">

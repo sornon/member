@@ -252,18 +252,22 @@ PVP 最终伤害为 `DamagePVP = HitRate × Final`。由于守方可同时堆叠
 - `formatBattleResult` 的装备掉落改为输出 `quality`、`qualityLabel`、`qualityColor`，确保战斗日志与新品质体系保持一致。【F:cloudfunctions/pve/index.js†L3738-L3768】
 
 ### 3. 使用指引
-- 小程序「角色」页的“装备”页签以四列紧凑方格展示 12 个槽位与背包装备，所有装备信息均收束在图标方框内，名称采用 18rpx 不换行样式以确保一屏呈现。长按任一图标会弹出浮层查看品质、精炼、词条与特效等详情，并直接提供装备或卸下按钮，方便在不离开面板的情况下整理装备。【F:miniprogram/pages/role/index.wxml†L120-L329】【F:miniprogram/pages/role/index.wxss†L303-L430】【F:miniprogram/pages/role/index.js†L150-L245】
+- 小程序「角色」页的“装备”页签以四列紧凑方格展示 12 个槽位与背包装备，所有装备信息均收束在图标方框内，名称采用 18rpx 不换行样式以确保一屏呈现。长按任一图标会弹出浮层查看品质、强化、词条与特效等详情，并直接提供装备或卸下按钮，方便在不离开面板的情况下整理装备。【F:miniprogram/pages/role/index.wxml†L520-L724】【F:miniprogram/pages/role/index.wxss†L880-L1140】【F:miniprogram/pages/role/index.js†L1390-L1650】
 - “已激活套装”“装备特性”摘要区块继续读取 `bonus.sets`、`bonus.notes`，便于玩家在界面中查看套装效果与特效描述。【F:miniprogram/pages/role/index.wxml†L143-L162】
 - 玩家在背包装备图标上长按并点击弹层内的“装备”或“卸下”按钮即可快速调整当前槽位；装备状态变化会即时写回 `profile` 并触发 `equipmentBonus` 的套装与特性汇总，便于在面板或战斗日志中查看套装详情。【F:miniprogram/pages/role/index.wxml†L284-L329】【F:miniprogram/pages/role/index.js†L150-L245】【F:cloudfunctions/pve/index.js†L1795-L1865】【F:cloudfunctions/pve/index.js†L2580-L2624】
+- 装备浮层右侧新增“强化”按钮。点击后会弹出强化面板，展示目标装备、材料装备、强化结果、成功率、属性提升与可用材料列表，确认后调用云函数完成强化；失败会销毁材料装备。面板使用最新的强化配置，展示的成功率与属性差值与服务器计算保持一致。【F:miniprogram/pages/role/index.wxml†L600-L760】【F:miniprogram/pages/role/index.js†L1670-L1909】【F:cloudfunctions/pve/index.js†L3704-L3997】
+- 所有装备强化均需玩家在该面板中手动发起。秘境挑战等掉落流程不再触发任何自动强化逻辑，重复掉落的同名装备会直接进入背包等待手动选择并消耗，避免后台任务在玩家不知情的情况下改变装备等级。【F:cloudfunctions/pve/index.js†L3704-L3899】【F:miniprogram/pages/role/index.js†L1660-L1772】
 
 ### 4. 扩展与维护
 - **新增装备**：在 `EQUIPMENT_LIBRARY` 追加条目并指定 `slot`、`quality`、`mainAttribute`、`subAttributes`、`uniqueEffects`、`setId` 即可。若引入新的词条或槽位，需同步更新 `EQUIPMENT_ATTRIBUTE_RULES`/`EQUIPMENT_AFFIX_RULES` 或 `EQUIPMENT_SLOTS`。【F:cloudfunctions/pve/index.js†L241-L321】【F:cloudfunctions/pve/index.js†L412-L692】
 - **新增套装**：向 `EQUIPMENT_SET_LIBRARY` 添加配置并在 `EQUIPMENT_LIBRARY` 中让相关装备引用新的 `setId`，即可自动触发 2/4 件加成与提示文字。【F:cloudfunctions/pve/index.js†L323-L373】
 - **调整数值**：主属性、词条成长与品质系数均集中在上述常量中，无需修改核心逻辑函数即可完成平衡性调优。
+- **调整强化配置**：`systemSettings` 文档新增 `equipmentEnhancement` 节点，包含 `maxLevel`、`guaranteedLevel`、`decayPerLevel` 三个字段，云函数会自动拉取并缓存；前端通过 `sanitizeEnhancementConfig` 校验后展示在强化面板中。运营调整参数后，玩家新发起的强化请求会立即生效。【F:cloudfunctions/nodejs-layer/node_modules/system-settings/index.js†L120-L210】【F:cloudfunctions/pve/index.js†L6670-L6740】【F:miniprogram/utils/equipment.js†L32-L76】
 
 ### 5. 部署流程
-- 云函数：在微信开发者工具中打开 `cloudfunctions/pve`，运行上传部署即可将装备结算逻辑同步到云端。
-- 小程序前端：重新编译并上传 `miniprogram` 目录即可获得新的装备展示与操作界面。本次改造未引入额外依赖，不需要额外安装步骤。
+- 云函数：先在微信开发者工具或命令行中部署共享层 `cloudfunctions/nodejs-layer`，随后依次上传 `cloudfunctions/pve` 与 `cloudfunctions/admin`，确保强化配置与前后台接口保持一致。【F:cloudfunctions/nodejs-layer/node_modules/system-settings/index.js†L1-L220】【F:cloudfunctions/pve/index.js†L3704-L3997】
+- 小程序前端：拉取最新代码后执行 `npm install`，使用微信开发者工具重新编译并上传 `miniprogram`。前端新增的强化面板依赖 `services/api` 中的 `PveService.enhanceEquipment` 与样式资源，需要完整发布。 【F:miniprogram/services/api.js†L431-L458】【F:miniprogram/pages/role/index.wxml†L520-L760】
+- 管理端：部署管理员端代码后，登录“系统设置 → 装备强化配置”确认 `maxLevel`、`guaranteedLevel`、`decayPerLevel` 等参数是否符合当前运营策略，再保存同步至云端。【F:miniprogram/pages/admin/system-switches/index.js†L600-L760】【F:cloudfunctions/admin/index.js†L3040-L3240】
 
 ## 十一、凡品装备基线库
 

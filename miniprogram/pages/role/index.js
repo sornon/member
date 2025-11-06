@@ -9,10 +9,154 @@ import {
   syncStorageBadgeStateFromProfile
 } from '../../utils/storage-notifications';
 import { formatStones } from '../../utils/format';
-import { sanitizeEquipmentProfile } from '../../utils/equipment';
+import { sanitizeEquipmentProfile, buildEquipmentIconPaths } from '../../utils/equipment';
 
 const DEFAULT_STORAGE_BASE_CAPACITY = 100;
 const DEFAULT_STORAGE_PER_UPGRADE = 20;
+
+const ENHANCEMENT_PERCENT_STATS = new Set([
+  'finalDamageBonus',
+  'finalDamageReduction',
+  'lifeSteal',
+  'healingBonus',
+  'healingReduction',
+  'critResist',
+  'comboRate',
+  'block',
+  'counterRate',
+  'damageReduction',
+  'healingReceived',
+  'rageGain',
+  'controlStrength',
+  'shieldPower',
+  'summonPower',
+  'elementalVulnerability'
+]);
+
+const COMBAT_STAT_LABELS = {
+  maxHp: '生命值',
+  physicalAttack: '物理攻击',
+  magicAttack: '法术攻击',
+  physicalDefense: '物理防御',
+  magicDefense: '法术防御',
+  speed: '速度',
+  accuracy: '命中',
+  dodge: '闪避值',
+  critRate: '暴击率',
+  critDamage: '暴击伤害',
+  critResist: '抗暴击',
+  finalDamageBonus: '最终增伤',
+  finalDamageReduction: '最终减伤',
+  lifeSteal: '吸血',
+  healingBonus: '治疗强化',
+  healingReduction: '治疗削弱',
+  controlHit: '控制命中',
+  controlResist: '控制抗性',
+  physicalPenetration: '破甲',
+  magicPenetration: '法穿',
+  comboRate: '连击率',
+  block: '格挡',
+  counterRate: '反击率',
+  damageReduction: '减伤',
+  healingReceived: '受疗加成',
+  rageGain: '怒气获取',
+  controlStrength: '控制强度',
+  shield: '护盾值',
+  shieldPower: '护盾强度',
+  summonPower: '召唤物强度',
+  elementalVulnerability: '元素易伤',
+  allAttributes: '全属性',
+  dodgeChance: '闪避率'
+};
+
+function formatEnhancementStatValue(key, value, { signed = false } = {}) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return signed ? '+0' : '0';
+  }
+  const prefix = signed ? (numeric > 0 ? '+' : numeric < 0 ? '-' : '') : '';
+  const abs = signed ? Math.abs(numeric) : numeric;
+  if (key === 'critRate') {
+    return `${prefix}${Math.round(abs * 10000) / 100}%`;
+  }
+  if (key === 'critDamage') {
+    return `${prefix}${Math.round(abs * 100)}%`;
+  }
+  if (ENHANCEMENT_PERCENT_STATS.has(key) || (typeof key === 'string' && key.endsWith('Multiplier'))) {
+    return `${prefix}${Math.round(abs * 10000) / 100}%`;
+  }
+  return `${prefix}${Math.round(abs)}`;
+}
+
+function decorateEnhancementItem(item) {
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+  const cloned = { ...item };
+  const refineNumeric = Number(cloned.refine);
+  if (Number.isFinite(refineNumeric)) {
+    const refineLevel = Math.max(0, Math.floor(refineNumeric));
+    cloned.refine = refineLevel;
+    cloned.refineLabel = refineLevel > 0 ? `强化 +${refineLevel}` : '未强化';
+  } else {
+    cloned.refineLabel = '未强化';
+  }
+  const paths = buildEquipmentIconPaths(cloned);
+  if (paths.iconUrl) {
+    cloned.iconUrl = paths.iconUrl;
+  }
+  if (paths.iconFallbackUrl) {
+    cloned.iconFallbackUrl = paths.iconFallbackUrl;
+  }
+  return cloned;
+}
+
+function buildEnhancementDiff(baseItem, resultItem) {
+  if (!baseItem || !resultItem) {
+    return [];
+  }
+  const baseStats = baseItem.stats && typeof baseItem.stats === 'object' ? baseItem.stats : {};
+  const resultStats = resultItem.stats && typeof resultItem.stats === 'object' ? resultItem.stats : {};
+  const keys = new Set([...Object.keys(baseStats), ...Object.keys(resultStats)]);
+  const diffs = [];
+  keys.forEach((key) => {
+    if (!key) {
+      return;
+    }
+    const before = Number(baseStats[key]) || 0;
+    const after = Number(resultStats[key]) || 0;
+    const delta = after - before;
+    if (Math.abs(delta) < 1e-6) {
+      return;
+    }
+    const label = COMBAT_STAT_LABELS[key] || key;
+    diffs.push({
+      key,
+      label,
+      before: formatEnhancementStatValue(key, before),
+      after: formatEnhancementStatValue(key, after),
+      delta: formatEnhancementStatValue(key, delta, { signed: true }),
+      rawDelta: delta
+    });
+  });
+  diffs.sort((a, b) => {
+    if (b.rawDelta === a.rawDelta) {
+      return (b.after || '').length - (a.after || '').length;
+    }
+    return b.rawDelta - a.rawDelta;
+  });
+  return diffs;
+}
+
+function formatEnhancementSuccessRate(rate) {
+  const numeric = Number(rate);
+  if (!Number.isFinite(numeric)) {
+    return '0%';
+  }
+  const clamped = Math.max(0, Math.min(100, numeric));
+  const display = Number.isInteger(clamped) ? clamped.toFixed(0) : clamped.toFixed(1);
+  return `${display}%`;
+}
 
 function sanitizeCount(value, fallback = 0) {
   const number = Number(value);
@@ -323,6 +467,7 @@ Page({
     stoneBalance: 0,
     formattedStoneBalance: formatStones(0),
     equipmentTooltip: null,
+    equipmentEnhancementModal: null,
     attributeDetailTooltip: null,
     skillModal: null,
     storageCategories: [],
@@ -1189,31 +1334,35 @@ Page({
       return;
     }
     const context = typeof dataset.context === 'string' ? dataset.context : '';
-    const indexValue =
-      typeof dataset.index === 'number' ? dataset.index : Number(dataset.index);
-    if (!Number.isFinite(indexValue) || indexValue < 0) {
-      return;
-    }
+    const rawIndex = Object.prototype.hasOwnProperty.call(dataset, 'index') ? Number(dataset.index) : NaN;
+    const hasIndex = Number.isFinite(rawIndex) && rawIndex >= 0;
     const updates = {};
     if (context === 'slot') {
-      const slots =
-        (((this.data || {}).profile || {}).equipment || {}).slots;
+      if (!hasIndex) {
+        return;
+      }
+      const slots = (((this.data || {}).profile || {}).equipment || {}).slots;
       const list = Array.isArray(slots) ? slots : [];
-      const target = list[indexValue] && list[indexValue].item ? list[indexValue].item : null;
+      const target = list[rawIndex] && list[rawIndex].item ? list[rawIndex].item : null;
       if (!target || target.iconUrl === fallback) {
         return;
       }
-      updates[`profile.equipment.slots[${indexValue}].item.iconUrl`] = fallback;
+      updates[`profile.equipment.slots[${rawIndex}].item.iconUrl`] = fallback;
     } else if (context === 'inventory') {
-      const inventory =
-        (((this.data || {}).profile || {}).equipment || {}).inventory;
+      if (!hasIndex) {
+        return;
+      }
+      const inventory = (((this.data || {}).profile || {}).equipment || {}).inventory;
       const list = Array.isArray(inventory) ? inventory : [];
-      const target = list[indexValue] || null;
+      const target = list[rawIndex] || null;
       if (!target || target.iconUrl === fallback) {
         return;
       }
-      updates[`profile.equipment.inventory[${indexValue}].iconUrl`] = fallback;
+      updates[`profile.equipment.inventory[${rawIndex}].iconUrl`] = fallback;
     } else if (context === 'storage') {
+      if (!hasIndex) {
+        return;
+      }
       const categoryIndexValue =
         typeof dataset.categoryIndex === 'number' ? dataset.categoryIndex : Number(dataset.categoryIndex);
       if (!Number.isFinite(categoryIndexValue) || categoryIndexValue < 0) {
@@ -1224,48 +1373,83 @@ Page({
       const activeCategoryData = this.data.activeStorageCategoryData || null;
       const activeSlots = activeCategoryData && Array.isArray(activeCategoryData.slots) ? activeCategoryData.slots : [];
       const storageSlots = storageCategory && Array.isArray(storageCategory.slots) ? storageCategory.slots : [];
-      if (activeSlots[indexValue] && activeSlots[indexValue].iconUrl !== fallback) {
-        updates[`activeStorageCategoryData.slots[${indexValue}].iconUrl`] = fallback;
+      if (activeSlots[rawIndex] && activeSlots[rawIndex].iconUrl !== fallback) {
+        updates[`activeStorageCategoryData.slots[${rawIndex}].iconUrl`] = fallback;
       }
       if (
         activeCategoryData &&
         Array.isArray(activeCategoryData.items) &&
-        activeCategoryData.items[indexValue] &&
-        activeCategoryData.items[indexValue].iconUrl !== fallback
+        activeCategoryData.items[rawIndex] &&
+        activeCategoryData.items[rawIndex].iconUrl !== fallback
       ) {
-        updates[`activeStorageCategoryData.items[${indexValue}].iconUrl`] = fallback;
+        updates[`activeStorageCategoryData.items[${rawIndex}].iconUrl`] = fallback;
       }
-      if (storageSlots[indexValue] && storageSlots[indexValue].iconUrl !== fallback) {
-        updates[`storageCategories[${categoryIndexValue}].slots[${indexValue}].iconUrl`] = fallback;
+      if (storageSlots[rawIndex] && storageSlots[rawIndex].iconUrl !== fallback) {
+        updates[`storageCategories[${categoryIndexValue}].slots[${rawIndex}].iconUrl`] = fallback;
       }
       if (
         storageCategory &&
         Array.isArray(storageCategory.items) &&
-        storageCategory.items[indexValue] &&
-        storageCategory.items[indexValue].iconUrl !== fallback
+        storageCategory.items[rawIndex] &&
+        storageCategory.items[rawIndex].iconUrl !== fallback
       ) {
-        updates[`storageCategories[${categoryIndexValue}].items[${indexValue}].iconUrl`] = fallback;
+        updates[`storageCategories[${categoryIndexValue}].items[${rawIndex}].iconUrl`] = fallback;
       }
-      const profileStorage =
-        (((this.data || {}).profile || {}).equipment || {}).storage;
+      const profileStorage = (((this.data || {}).profile || {}).equipment || {}).storage;
       const profileCategories =
         profileStorage && Array.isArray(profileStorage.categories) ? profileStorage.categories : [];
       const profileCategory = profileCategories[categoryIndexValue];
       if (
         profileCategory &&
         Array.isArray(profileCategory.items) &&
-        profileCategory.items[indexValue] &&
-        profileCategory.items[indexValue].iconUrl !== fallback
+        profileCategory.items[rawIndex] &&
+        profileCategory.items[rawIndex].iconUrl !== fallback
       ) {
-        updates[`profile.equipment.storage.categories[${categoryIndexValue}].items[${indexValue}].iconUrl`] = fallback;
+        updates[`profile.equipment.storage.categories[${categoryIndexValue}].items[${rawIndex}].iconUrl`] = fallback;
       }
       if (!Object.keys(updates).length) {
         return;
       }
+    } else if (context === 'enhancement-base') {
+      const modal = this.data && this.data.equipmentEnhancementModal;
+      if (!modal || !modal.baseItem || modal.baseItem.iconUrl === fallback) {
+        return;
+      }
+      updates['equipmentEnhancementModal.baseItem.iconUrl'] = fallback;
+    } else if (context === 'enhancement-result') {
+      const modal = this.data && this.data.equipmentEnhancementModal;
+      if (!modal || !modal.resultItem || modal.resultItem.iconUrl === fallback) {
+        return;
+      }
+      updates['equipmentEnhancementModal.resultItem.iconUrl'] = fallback;
+    } else if (context === 'enhancement-selected') {
+      const modal = this.data && this.data.equipmentEnhancementModal;
+      if (!modal || !modal.selectedMaterial || modal.selectedMaterial.iconUrl === fallback) {
+        return;
+      }
+      updates['equipmentEnhancementModal.selectedMaterial.iconUrl'] = fallback;
+    } else if (context === 'enhancement-material') {
+      if (!hasIndex) {
+        return;
+      }
+      const modal = this.data && this.data.equipmentEnhancementModal;
+      if (!modal || !Array.isArray(modal.materialCandidates)) {
+        return;
+      }
+      const candidate = modal.materialCandidates[rawIndex];
+      if (!candidate || candidate.iconUrl === fallback) {
+        return;
+      }
+      updates[`equipmentEnhancementModal.materialCandidates[${rawIndex}].iconUrl`] = fallback;
+      if (modal.selectedMaterial && modal.selectedMaterial.inventoryId === candidate.inventoryId) {
+        updates['equipmentEnhancementModal.selectedMaterial.iconUrl'] = fallback;
+      }
     } else {
       return;
     }
-    this.setData(updates);
+    if (Object.keys(updates).length) {
+      this.setData(updates);
+    }
   },
 
   handleEquipmentTap(event) {
@@ -1413,6 +1597,7 @@ Page({
     const equippedItem = isEquipment
       ? findEquippedItemFromProfile(profile, slot || rawItem.slot || '', rawItem.itemId)
       : null;
+    const enhancementConfig = profile && profile.equipmentEnhancement ? profile.equipmentEnhancement : null;
     const currentTooltip = this.data && this.data.equipmentTooltip;
     if (
       currentTooltip &&
@@ -1441,6 +1626,51 @@ Page({
     const deleteState = resolveTooltipDeleteState(tooltip);
     tooltip.canDelete = deleteState.canDelete;
     tooltip.deleteDisabledReason = deleteState.reason;
+    tooltip.canEnhance = false;
+    tooltip.enhanceDisabledReason = '';
+    tooltip.availableEnhancementMaterials = 0;
+    tooltip.maxEnhancementLevel = 0;
+    if (enhancementConfig && isEquipment) {
+      const maxLevel = Math.max(1, Math.floor(Number(enhancementConfig.maxLevel) || 10));
+      tooltip.maxEnhancementLevel = maxLevel;
+      const currentRefine = Math.max(0, Math.floor(Number(rawItem.refine) || 0));
+      const inventoryList =
+        profile &&
+        profile.equipment &&
+        Array.isArray(profile.equipment.inventory)
+          ? profile.equipment.inventory
+          : [];
+      const baseItemId = rawItem.itemId || '';
+      const baseInventoryId = inventoryId || (rawItem && rawItem.inventoryId) || '';
+      let materialCount = 0;
+      if (baseItemId && Array.isArray(inventoryList)) {
+        materialCount = inventoryList.filter((item) => {
+          if (!item || item.itemId !== baseItemId) {
+            return false;
+          }
+          const refineValue = Math.max(0, Math.floor(Number(item.refine) || 0));
+          if (refineValue !== currentRefine) {
+            return false;
+          }
+          if (baseInventoryId && item.inventoryId === baseInventoryId) {
+            return false;
+          }
+          return true;
+        }).length;
+      }
+      tooltip.availableEnhancementMaterials = materialCount;
+      if (currentRefine >= maxLevel) {
+        tooltip.enhanceDisabledReason = `已达强化 +${maxLevel} 上限`;
+      } else if (materialCount <= 0) {
+        tooltip.enhanceDisabledReason = '缺少同级材料装备';
+      } else {
+        tooltip.canEnhance = true;
+      }
+    } else if (isEquipment) {
+      tooltip.enhanceDisabledReason = '暂未开放强化';
+    } else {
+      tooltip.enhanceDisabledReason = '该物品无法强化';
+    }
     if (equippedItem) {
       tooltip.equippedItem = equippedItem;
     }
@@ -1472,6 +1702,289 @@ Page({
     if (success) {
       this.closeEquipmentTooltip();
     }
+  },
+
+  handleOpenEnhancementFromTooltip(event) {
+    const tooltip = this.data && this.data.equipmentTooltip;
+    if (!tooltip || !tooltip.item) {
+      return;
+    }
+    if (!tooltip.canEnhance) {
+      if (tooltip.enhanceDisabledReason) {
+        wx.showToast({ title: tooltip.enhanceDisabledReason, icon: 'none' });
+      }
+      return;
+    }
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const baseItemId =
+      (typeof dataset.itemId === 'string' && dataset.itemId.trim()) || tooltip.item.itemId || '';
+    if (!baseItemId) {
+      wx.showToast({ title: '缺少装备信息', icon: 'none' });
+      return;
+    }
+    const baseInventoryId =
+      (typeof dataset.inventoryId === 'string' && dataset.inventoryId.trim()) ||
+      tooltip.inventoryId ||
+      (tooltip.item && tooltip.item.inventoryId) ||
+      '';
+    const baseSlot =
+      (typeof dataset.slot === 'string' && dataset.slot.trim()) ||
+      tooltip.slot ||
+      (tooltip.item && tooltip.item.slot) ||
+      '';
+    const source =
+      (typeof dataset.source === 'string' && dataset.source.trim()) || tooltip.source || '';
+    const request = { baseItemId };
+    if (baseInventoryId) {
+      request.baseInventoryId = baseInventoryId;
+    }
+    if (baseSlot && (source === 'slot' || !baseInventoryId)) {
+      request.baseSlot = baseSlot;
+    }
+    const profile = this.data && this.data.profile;
+    const config = profile && profile.equipmentEnhancement ? profile.equipmentEnhancement : null;
+    const maxLevel = config && Number.isFinite(Number(config.maxLevel))
+      ? Math.max(1, Math.floor(Number(config.maxLevel)))
+      : 10;
+    const baseItem = decorateEnhancementItem(tooltip.item);
+    const currentLevel = baseItem ? Math.max(0, Number(baseItem.refine) || 0) : 0;
+    const modal = {
+      visible: true,
+      loading: true,
+      submitting: false,
+      error: '',
+      baseItem,
+      resultItem: null,
+      selectedMaterialId: '',
+      selectedMaterial: null,
+      materialCandidates: [],
+      attributeDiffs: [],
+      successRate: 0,
+      successRateText: '0%',
+      currentLevel,
+      nextLevel: currentLevel + 1,
+      maxLevel,
+      request
+    };
+    this.closeEquipmentTooltip();
+    this.setData({ equipmentEnhancementModal: modal });
+    this.requestEnhancementPreview(request);
+  },
+
+  async requestEnhancementPreview(request = {}) {
+    const modal = this.data && this.data.equipmentEnhancementModal;
+    if (!modal || !modal.visible) {
+      return;
+    }
+    const sanitizedRequest = {
+      baseItemId:
+        typeof request.baseItemId === 'string' && request.baseItemId.trim() ? request.baseItemId.trim() : ''
+    };
+    if (!sanitizedRequest.baseItemId) {
+      this.setData({
+        equipmentEnhancementModal: {
+          ...modal,
+          loading: false,
+          error: '缺少装备信息'
+        }
+      });
+      return;
+    }
+    if (typeof request.baseInventoryId === 'string' && request.baseInventoryId.trim()) {
+      sanitizedRequest.baseInventoryId = request.baseInventoryId.trim();
+    }
+    if (typeof request.baseSlot === 'string' && request.baseSlot.trim()) {
+      sanitizedRequest.baseSlot = request.baseSlot.trim();
+    }
+    this.setData({
+      equipmentEnhancementModal: {
+        ...modal,
+        loading: true,
+        error: '',
+        request: sanitizedRequest
+      }
+    });
+    try {
+      const res = await PveService.enhanceEquipment({
+        ...sanitizedRequest,
+        preview: true
+      });
+      let currentModal = this.data && this.data.equipmentEnhancementModal;
+      if (!currentModal || !currentModal.visible) {
+        return;
+      }
+      const preview = res && res.preview ? res.preview : null;
+      if (!preview) {
+        this.setData({
+          equipmentEnhancementModal: {
+            ...currentModal,
+            loading: false,
+            error: '未能获取强化信息'
+          }
+        });
+        return;
+      }
+      const baseItem = decorateEnhancementItem(preview.baseItem || currentModal.baseItem);
+      const resultItem = decorateEnhancementItem(preview.resultItem || null);
+      const materials = Array.isArray(preview.materialCandidates)
+        ? preview.materialCandidates
+            .map((item) => decorateEnhancementItem(item))
+            .filter((item) => item && item.inventoryId)
+        : [];
+      let selectedMaterialId = currentModal.selectedMaterialId || '';
+      if (!selectedMaterialId || !materials.some((item) => item.inventoryId === selectedMaterialId)) {
+        selectedMaterialId = materials.length ? materials[0].inventoryId || '' : '';
+      }
+      const selectedMaterial = materials.find((item) => item.inventoryId === selectedMaterialId) || null;
+      const successRate = Number(preview.successRate) || 0;
+      const attributeDiffs = buildEnhancementDiff(baseItem, resultItem);
+      const nextLevel = Number.isFinite(Number(preview.nextLevel))
+        ? Math.max(0, Math.floor(Number(preview.nextLevel)))
+        : currentModal.nextLevel;
+      const currentLevel = Number.isFinite(Number(preview.currentLevel))
+        ? Math.max(0, Math.floor(Number(preview.currentLevel)))
+        : currentModal.currentLevel;
+      const maxLevel = Number.isFinite(Number(preview.maxLevel))
+        ? Math.max(1, Math.floor(Number(preview.maxLevel)))
+        : currentModal.maxLevel;
+      currentModal = this.data && this.data.equipmentEnhancementModal;
+      if (!currentModal || !currentModal.visible) {
+        return;
+      }
+      this.setData({
+        equipmentEnhancementModal: {
+          ...currentModal,
+          loading: false,
+          error: '',
+          baseItem,
+          resultItem,
+          materialCandidates: materials,
+          selectedMaterialId,
+          selectedMaterial,
+          attributeDiffs,
+          successRate,
+          successRateText: formatEnhancementSuccessRate(successRate),
+          currentLevel,
+          nextLevel,
+          maxLevel,
+          request: sanitizedRequest
+        }
+      });
+    } catch (error) {
+      console.error('[role] load enhancement preview failed', error);
+      const message = (error && error.errMsg) || '加载强化信息失败';
+      const currentModal = this.data && this.data.equipmentEnhancementModal;
+      if (!currentModal) {
+        return;
+      }
+      this.setData({
+        equipmentEnhancementModal: {
+          ...currentModal,
+          loading: false,
+          error: message
+        }
+      });
+    }
+  },
+
+  handleEnhancementMaterialSelect(event) {
+    const modal = this.data && this.data.equipmentEnhancementModal;
+    if (!modal || !modal.visible || modal.submitting) {
+      return;
+    }
+    const dataset = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const inventoryId = typeof dataset.inventoryId === 'string' ? dataset.inventoryId.trim() : '';
+    if (!inventoryId) {
+      return;
+    }
+    if (inventoryId === modal.selectedMaterialId) {
+      return;
+    }
+    const selected = Array.isArray(modal.materialCandidates)
+      ? modal.materialCandidates.find((item) => item && item.inventoryId === inventoryId)
+      : null;
+    this.setData({
+      equipmentEnhancementModal: {
+        ...modal,
+        selectedMaterialId: inventoryId,
+        selectedMaterial: selected || null
+      }
+    });
+  },
+
+  async handleConfirmEnhancement() {
+    const modal = this.data && this.data.equipmentEnhancementModal;
+    if (!modal || !modal.visible) {
+      return;
+    }
+    if (modal.submitting) {
+      return;
+    }
+    const request = modal.request || {};
+    const baseItemId =
+      (request && request.baseItemId) || (modal.baseItem && modal.baseItem.itemId) || '';
+    if (!baseItemId) {
+      wx.showToast({ title: '缺少装备信息', icon: 'none' });
+      return;
+    }
+    const materialInventoryId = modal.selectedMaterialId || '';
+    if (!materialInventoryId) {
+      wx.showToast({ title: '请选择材料装备', icon: 'none' });
+      return;
+    }
+    const payload = { baseItemId, materialInventoryId };
+    if (request.baseInventoryId) {
+      payload.baseInventoryId = request.baseInventoryId;
+    }
+    if (request.baseSlot) {
+      payload.baseSlot = request.baseSlot;
+    }
+    this.setData({
+      equipmentEnhancementModal: {
+        ...modal,
+        submitting: true
+      }
+    });
+    try {
+      const res = await PveService.enhanceEquipment(payload);
+      const enhancement = res && res.enhancement ? res.enhancement : null;
+      if (res && res.profile) {
+        this.applyProfile(res.profile, { equipmentEnhancementModal: null }, { preserveSkillDrawCredits: true });
+      } else {
+        this.setData({ equipmentEnhancementModal: null });
+      }
+      if (enhancement) {
+        if (enhancement.success) {
+          wx.showToast({ title: `强化成功（+${enhancement.nextLevel}）`, icon: 'success' });
+        } else {
+          const rateText = formatEnhancementSuccessRate(enhancement.successRate || 0);
+          wx.showToast({ title: `强化失败（成功率${rateText}）`, icon: 'none' });
+        }
+      } else {
+        wx.showToast({ title: '强化完成', icon: 'success' });
+      }
+    } catch (error) {
+      console.error('[role] enhance equipment failed', error);
+      const message = (error && error.errMsg) || '强化失败';
+      wx.showToast({ title: message, icon: 'none' });
+      const currentModal = this.data && this.data.equipmentEnhancementModal;
+      if (currentModal) {
+        this.setData({
+          equipmentEnhancementModal: {
+            ...currentModal,
+            submitting: false
+          }
+        });
+      }
+    }
+  },
+
+  handleCloseEnhancementModal() {
+    const modal = this.data && this.data.equipmentEnhancementModal;
+    if (modal && modal.submitting) {
+      return;
+    }
+    this.setData({ equipmentEnhancementModal: null });
   },
 
   async handleUnequipFromTooltip(event) {

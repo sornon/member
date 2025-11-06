@@ -26,6 +26,11 @@
     "pvp": false,
     "trading": false
   },
+  "equipmentEnhancement": {
+    "maxLevel": 10,
+    "guaranteedLevel": 3,
+    "decayPerLevel": 10
+  },
   "globalBackground": {
     "enabled": false,
     "backgroundId": "",
@@ -55,6 +60,10 @@
   - `rights`：会员权益专区入口，默认开启。
   - `pvp`：仙界比武大会入口，默认关闭。
   - `trading`：交易行入口，默认关闭。
+- **equipmentEnhancement**：装备强化参数，供前后台共用。
+  - `maxLevel`：强化等级上限，会员端会将达到上限的装备标记为不可强化。
+  - `guaranteedLevel`：在该等级及以下强化必定成功。
+  - `decayPerLevel`：超过保底等级后，每提升 1 级成功率衰减的百分比（例如 10 表示逐级 -10%）。
 - **globalBackground**：全局背景开关，控制所有会员首页背景是否被统一覆盖。
   - `enabled`：开启后所有会员的背景强制跟随后台选中的素材，关闭时恢复个人自选背景。
   - `backgroundId`：背景素材编号，仅可引用 `globalBackgroundCatalog` 中的自定义素材；后台会在保存时自动校验，若素材缺失会回退到列表首项或禁用全局背景。
@@ -63,6 +72,8 @@
 
 管理员页面的“全局背景”卡片提供启用开关、动态背景切换与背景列表预览。选择新的背景后会立即持久化到云端，
 会员端下次刷新首页时会加载统一的图像/视频资源；管理员关闭开关后，会员将重新使用个人资料中保存的背景。
+
+管理员页面同时新增“装备强化配置”卡片，展示当前的上限、保底等级与衰减系数。管理员调整参数后点击保存，即会调用 `updateEquipmentEnhancement` 接口同步到云端，会员端强化面板会在下一次打开时自动应用最新的配置。【F:miniprogram/pages/admin/system-switches/index.wxml†L160-L220】【F:miniprogram/pages/admin/system-switches/index.js†L600-L820】
 
 ### 全局背景管理操作指南
 

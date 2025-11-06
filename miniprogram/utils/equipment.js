@@ -42,6 +42,26 @@ const DEFAULT_STORAGE_PER_UPGRADE = 20;
 const STORAGE_UPGRADE_AVAILABLE_KEYS = ['upgradeAvailable', 'upgradeRemaining', 'availableUpgrades', 'upgradeTokens'];
 const STORAGE_UPGRADE_LIMIT_KEYS = ['upgradeLimit', 'maxUpgrades', 'limit'];
 
+function sanitizeEnhancementConfig(config) {
+  if (!config || typeof config !== 'object') {
+    return null;
+  }
+  const maxLevel = Math.min(99, Math.max(1, Math.floor(Number(config.maxLevel) || 10)));
+  const guaranteedLevel = Math.min(
+    maxLevel,
+    Math.max(0, Math.floor(Number(config.guaranteedLevel) || 0))
+  );
+  const decayPerLevel = Math.max(
+    0,
+    Math.min(100, Math.floor(Number(config.decayPerLevel) || 0))
+  );
+  return {
+    guaranteedLevel,
+    decayPerLevel,
+    maxLevel
+  };
+}
+
 function toPositiveInt(value) {
   const number = Number(value);
   if (Number.isFinite(number)) {
@@ -487,7 +507,13 @@ export function sanitizeEquipmentProfile(profile) {
     }
   };
 
-  return { ...profile, equipment: sanitizedEquipment };
+  const sanitizedEnhancement = sanitizeEnhancementConfig(profile.equipmentEnhancement);
+
+  return {
+    ...profile,
+    equipment: sanitizedEquipment,
+    equipmentEnhancement: sanitizedEnhancement
+  };
 }
 
 export function getDefaultEquipmentIds() {

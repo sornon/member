@@ -21,6 +21,7 @@ const {
 } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 const {
   DEFAULT_GAME_PARAMETERS,
+  DEFAULT_EQUIPMENT_ENHANCEMENT,
   DEFAULT_RAGE_SETTINGS,
   DEFAULT_CACHE_VERSIONS,
   DEFAULT_HOME_ENTRIES,
@@ -38,6 +39,10 @@ const {
   cloneGlobalBackgroundCatalog,
   normalizeGlobalBackground,
   serializeGlobalBackground,
+  serializeEquipmentEnhancementConfig,
+  cloneEquipmentEnhancementConfig,
+  normalizeEquipmentEnhancementConfig,
+  resolveEquipmentEnhancementFromDocument,
   incrementCacheVersionValue
 } = require('system-settings');
 
@@ -75,7 +80,8 @@ const DEFAULT_FEATURE_TOGGLES = {
   cacheVersions: { ...DEFAULT_CACHE_VERSIONS },
   homeEntries: { ...DEFAULT_HOME_ENTRIES },
   globalBackground: { ...DEFAULT_GLOBAL_BACKGROUND },
-  globalBackgroundCatalog: []
+  globalBackgroundCatalog: [],
+  equipmentEnhancement: { ...DEFAULT_EQUIPMENT_ENHANCEMENT }
 };
 const DEFAULT_TRADING_SETTINGS = Object.freeze({
   feeRate: typeof TRADING_CONFIG.feeRate === 'number' ? TRADING_CONFIG.feeRate : 0.05,
@@ -396,6 +402,7 @@ const ACTIONS = {
   UPDATE_GAME_PARAMETERS: 'updateGameParameters',
   UPDATE_GLOBAL_BACKGROUND: 'updateGlobalBackground',
   UPDATE_GLOBAL_BACKGROUND_CATALOG: 'updateGlobalBackgroundCatalog',
+  UPDATE_EQUIPMENT_ENHANCEMENT: 'updateEquipmentEnhancement',
   BUMP_CACHE_VERSION: 'bumpCacheVersion',
   RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament',
   REFRESH_IMMORTAL_TOURNAMENT_PLAYERS: 'refreshImmortalTournamentPlayers',
@@ -441,6 +448,8 @@ const ACTION_ALIASES = {
   grantequipment: ACTIONS.GRANT_EQUIPMENT,
   removeequipment: ACTIONS.REMOVE_EQUIPMENT,
   updateequipmentattributes: ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES,
+  updateequipmentenhancement: ACTIONS.UPDATE_EQUIPMENT_ENHANCEMENT,
+  equipmentenhancement: ACTIONS.UPDATE_EQUIPMENT_ENHANCEMENT,
   listtradeorders: ACTIONS.LIST_TRADE_ORDERS,
   tradelog: ACTIONS.LIST_TRADE_ORDERS,
   gettradingconfig: ACTIONS.GET_TRADING_CONFIG,
@@ -874,6 +883,8 @@ const ACTION_HANDLERS = {
     updateGlobalBackground(openid, event.config || event),
   [ACTIONS.UPDATE_GLOBAL_BACKGROUND_CATALOG]: (openid, event = {}) =>
     updateGlobalBackgroundCatalog(openid, event.catalog || event),
+  [ACTIONS.UPDATE_EQUIPMENT_ENHANCEMENT]: (openid, event = {}) =>
+    updateEquipmentEnhancementConfig(openid, event.config || event),
   [ACTIONS.BUMP_CACHE_VERSION]: (openid, event) => bumpCacheVersion(openid, event || {}),
   [ACTIONS.RESET_IMMORTAL_TOURNAMENT]: (openid, event) =>
     resetImmortalTournament(openid, event || {}),
@@ -1372,7 +1383,10 @@ function normalizeFeatureToggles(documentData) {
     cacheVersions: cloneCacheVersions(DEFAULT_FEATURE_TOGGLES.cacheVersions),
     homeEntries: cloneHomeEntries(DEFAULT_FEATURE_TOGGLES.homeEntries),
     globalBackground: cloneGlobalBackground(DEFAULT_FEATURE_TOGGLES.globalBackground),
-    globalBackgroundCatalog: resolvedCatalog
+    globalBackgroundCatalog: resolvedCatalog,
+    equipmentEnhancement: cloneEquipmentEnhancementConfig(
+      DEFAULT_FEATURE_TOGGLES.equipmentEnhancement
+    )
   };
   if (documentData && typeof documentData === 'object') {
     if (Object.prototype.hasOwnProperty.call(documentData, 'cashierEnabled')) {
@@ -1389,6 +1403,11 @@ function normalizeFeatureToggles(documentData) {
     }
     if (Object.prototype.hasOwnProperty.call(documentData, 'globalBackground')) {
       toggles.globalBackground = cloneGlobalBackground(documentData.globalBackground);
+    }
+    if (Object.prototype.hasOwnProperty.call(documentData, 'equipmentEnhancement')) {
+      toggles.equipmentEnhancement = cloneEquipmentEnhancementConfig(
+        documentData.equipmentEnhancement
+      );
     }
   }
   return toggles;
@@ -1616,6 +1635,9 @@ async function updateSystemFeature(openid, event = {}) {
       updatedToggles.globalBackgroundCatalog
     ),
     globalBackground: serializeGlobalBackground(updatedToggles.globalBackground),
+    equipmentEnhancement: serializeEquipmentEnhancementConfig(
+      updatedToggles.equipmentEnhancement
+    ),
     gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
@@ -1696,6 +1718,9 @@ async function updateImmortalTournamentSettings(openid, updates = {}) {
       currentToggles.globalBackgroundCatalog
     ),
     globalBackground: serializeGlobalBackground(currentToggles.globalBackground),
+    equipmentEnhancement: serializeEquipmentEnhancementConfig(
+      currentToggles.equipmentEnhancement
+    ),
     gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
@@ -1781,6 +1806,9 @@ async function updateGameParameters(openid, updates = {}) {
       currentToggles.globalBackgroundCatalog
     ),
     globalBackground: serializeGlobalBackground(currentToggles.globalBackground),
+    equipmentEnhancement: serializeEquipmentEnhancementConfig(
+      currentToggles.equipmentEnhancement
+    ),
     gameParameters: serializeGameParameters(nextParameters),
     updatedAt: now
   };
@@ -1905,6 +1933,74 @@ async function updateGlobalBackground(openid, config = {}) {
       updatedToggles.globalBackgroundCatalog
     ),
     globalBackground: serializeGlobalBackground(nextGlobalBackground),
+    equipmentEnhancement: serializeEquipmentEnhancementConfig(
+      updatedToggles.equipmentEnhancement
+    ),
+    gameParameters: serializeGameParameters(currentParameters),
+    updatedAt: now
+  };
+  if (!payload.createdAt) {
+    payload.createdAt = now;
+  }
+
+  await collection.doc(FEATURE_TOGGLE_DOC_ID).set({ data: payload });
+
+  const features = normalizeFeatureToggles(payload);
+  return {
+    success: true,
+    features,
+    updatedAt: now
+  };
+}
+
+async function updateEquipmentEnhancementConfig(openid, updates = {}) {
+  await ensureAdmin(openid);
+
+  const source = updates && typeof updates === 'object' ? updates : {};
+  const normalizedInput = normalizeEquipmentEnhancementConfig(source);
+
+  const existingDocument = await loadSystemFeatureDocument();
+  const currentToggles = normalizeFeatureToggles(existingDocument);
+  const currentParameters = resolveGameParametersFromDocument(existingDocument);
+  const currentCacheVersions = normalizeCacheVersions(
+    existingDocument && existingDocument.cacheVersions
+  );
+  const currentConfig = cloneEquipmentEnhancementConfig(
+    currentToggles.equipmentEnhancement
+  );
+
+  const unchanged =
+    normalizedInput.guaranteedLevel === currentConfig.guaranteedLevel &&
+    normalizedInput.decayPerLevel === currentConfig.decayPerLevel &&
+    normalizedInput.maxLevel === currentConfig.maxLevel;
+
+  if (unchanged && existingDocument) {
+    return {
+      success: true,
+      features: currentToggles,
+      updatedAt: existingDocument.updatedAt || null
+    };
+  }
+
+  const nextConfig = cloneEquipmentEnhancementConfig(normalizedInput);
+
+  const collection = db.collection(COLLECTIONS.SYSTEM_SETTINGS);
+  const now = new Date();
+  const sanitizedExisting = sanitizeFeatureDocument(existingDocument);
+
+  const updatedToggles = { ...currentToggles, equipmentEnhancement: nextConfig };
+
+  const payload = {
+    ...sanitizedExisting,
+    cashierEnabled: updatedToggles.cashierEnabled,
+    immortalTournament: serializeImmortalTournament(updatedToggles.immortalTournament),
+    cacheVersions: cloneCacheVersions(currentCacheVersions),
+    homeEntries: cloneHomeEntries(updatedToggles.homeEntries),
+    globalBackgroundCatalog: cloneGlobalBackgroundCatalog(
+      updatedToggles.globalBackgroundCatalog
+    ),
+    globalBackground: serializeGlobalBackground(updatedToggles.globalBackground),
+    equipmentEnhancement: serializeEquipmentEnhancementConfig(nextConfig),
     gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
@@ -1985,6 +2081,9 @@ async function updateGlobalBackgroundCatalog(openid, updates = {}) {
     homeEntries: cloneHomeEntries(updatedToggles.homeEntries),
     globalBackgroundCatalog: cloneGlobalBackgroundCatalog(desiredCatalog),
     globalBackground: serializeGlobalBackground(nextGlobalBackground),
+    equipmentEnhancement: serializeEquipmentEnhancementConfig(
+      updatedToggles.equipmentEnhancement
+    ),
     gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };
@@ -2042,6 +2141,9 @@ async function bumpCacheVersion(openid, event = {}) {
       currentToggles.globalBackgroundCatalog
     ),
     globalBackground: serializeGlobalBackground(currentToggles.globalBackground),
+    equipmentEnhancement: serializeEquipmentEnhancementConfig(
+      currentToggles.equipmentEnhancement
+    ),
     gameParameters: serializeGameParameters(currentParameters),
     updatedAt: now
   };

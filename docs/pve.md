@@ -47,7 +47,7 @@
 ### 装备体系
 
 - 装备分为 **武器**、**护具**、**饰品** 等槽位，每件装备带有固定属性加成及稀有度标签（常见、稀有、史诗、传说）。【F:cloudfunctions/pve/index.js†L159-L164】
-- 新建角色不会自动配发装备，需要通过副本掉落或运营投放获取；重复获取会提升“精炼等级”，放大装备基础数值。【F:cloudfunctions/pve/index.js†L3867-L3868】【F:cloudfunctions/pve/index.js†L4874-L4907】【F:cloudfunctions/pve/index.js†L5811-L5819】
+- 新建角色不会自动配发装备，需要通过副本掉落或运营投放获取；重复获取会作为强化材料，玩家需在装备页的“强化”面板中手动操作，消耗同名且强化等级一致的装备来提升目标等级，失败会销毁材料装备。【F:cloudfunctions/pve/index.js†L3704-L3997】【F:miniprogram/pages/role/index.js†L1670-L1909】【F:miniprogram/pages/role/index.wxml†L600-L760】
 - 云函数在计算装备词条时支持基础属性、战斗属性与倍率类加成，并统一转化为展示用文本，便于前端直接渲染。【F:cloudfunctions/pve/index.js†L1707-L1745】【F:cloudfunctions/pve/index.js†L2083-L2108】
 
 #### 储物空间与升级限制
