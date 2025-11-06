@@ -1243,6 +1243,7 @@ const COMBAT_STAT_LABELS = {
   healingReceived: '受疗加成',
   rageGain: '怒气获取',
   controlStrength: '控制强度',
+  shield: '护盾值',
   shieldPower: '护盾强度',
   summonPower: '召唤物强度',
   elementalVulnerability: '元素易伤',
@@ -9911,6 +9912,9 @@ function formatStatDisplay(key, value, signed = false) {
       'elementalVulnerability'
     ].includes(key)
   ) {
+    return `${prefix}${Math.round(abs * 10000) / 100}%`;
+  }
+  if (typeof key === 'string' && key.endsWith('Multiplier')) {
     return `${prefix}${Math.round(abs * 10000) / 100}%`;
   }
   return `${prefix}${Math.round(abs)}`;
