@@ -6986,9 +6986,26 @@ function decorateEquipmentInventoryEntry(entry, options = {}) {
   const stats = detail.stats || {};
   const statTexts = formatStatsText({ ...stats });
   const breakdownTexts = [];
+  const normalizedStatTexts = new Set(
+    statTexts.map((text) => normalizeStatDisplay(text)).filter((text) => !!text)
+  );
+  const pushBreakdownText = (text) => {
+    if (!text) {
+      return;
+    }
+    const normalized = normalizeStatDisplay(text);
+    if (!normalized) {
+      return;
+    }
+    if (normalizedStatTexts.has(normalized)) {
+      return;
+    }
+    breakdownTexts.push(text);
+    normalizedStatTexts.add(normalized);
+  };
   const notes = [];
   if (detail.mainAttribute) {
-    breakdownTexts.push(
+    pushBreakdownText(
       `${detail.mainAttribute.label} ${formatStatDisplay(detail.mainAttribute.key, detail.mainAttribute.value, true)}`
     );
   }
@@ -6996,7 +7013,7 @@ function decorateEquipmentInventoryEntry(entry, options = {}) {
     if (!affix.label) {
       return;
     }
-    breakdownTexts.push(`${affix.label} ${formatStatDisplay(affix.key, affix.value, true)}`);
+    pushBreakdownText(`${affix.label} ${formatStatDisplay(affix.key, affix.value, true)}`);
   });
   detail.uniqueEffects.forEach((effect) => {
     if (effect.description) {
@@ -7005,7 +7022,7 @@ function decorateEquipmentInventoryEntry(entry, options = {}) {
   });
   const setDefinition = definition.setId ? EQUIPMENT_SET_LIBRARY[definition.setId] : null;
   if (setDefinition) {
-    breakdownTexts.push(`套装：${setDefinition.name}`);
+    pushBreakdownText(`套装：${setDefinition.name}`);
   }
   const combinedTexts = [...statTexts, ...breakdownTexts];
   const displayTexts = combinedTexts.filter((text, index, list) => text && list.indexOf(text) === index);
@@ -8122,6 +8139,17 @@ function prefixHighlight(text, label) {
     return trimmed;
   }
   return `【${label}】${trimmed}`;
+}
+
+function normalizeStatDisplay(text) {
+  if (typeof text !== 'string') {
+    return '';
+  }
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed.replace(/^【[^】]*】/, '').replace(/\s+/g, ' ');
 }
 
 function buildSkillHighlights(flattened, definition = {}, progression = [], level = 1) {
