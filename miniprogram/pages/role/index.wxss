@@ -211,6 +211,19 @@ page {
   box-shadow: 0 16rpx 36rpx rgba(255, 120, 120, 0.34);
 }
 
+.pill-btn--enhance {
+  background: linear-gradient(120deg, rgba(88, 212, 186, 0.95), rgba(72, 164, 248, 0.95));
+  border-color: rgba(122, 226, 210, 0.72);
+  color: #f6fffb;
+  box-shadow: 0 12rpx 28rpx rgba(74, 198, 192, 0.32);
+}
+
+.pill-btn--enhance-hover {
+  background: linear-gradient(120deg, rgba(104, 224, 198, 0.98), rgba(92, 180, 255, 0.98));
+  border-color: rgba(148, 236, 220, 0.82);
+  box-shadow: 0 16rpx 36rpx rgba(92, 206, 210, 0.38);
+}
+
 button.action-btn[disabled],
 button.pill-btn[disabled] {
   opacity: 0.58;
@@ -1038,9 +1051,19 @@ button.pill-btn[disabled] {
   margin: 0;
 }
 
+.equipment-tooltip__action-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  flex-wrap: wrap;
+}
+
 .equipment-tooltip__equip {
-  align-self: flex-start;
-  margin-top: 4rpx;
+  margin-top: 0;
+}
+
+.equipment-tooltip__enhance {
+  margin-top: 0;
 }
 
 .equipment-tooltip__hint {
@@ -1385,30 +1408,6 @@ button.pill-btn[disabled] {
   color: #f8faff;
 }
 
-.enhancement-modal__flow {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: center;
-  gap: 18rpx;
-}
-
-.enhancement-modal__flow-symbol {
-  text-align: center;
-  font-size: 40rpx;
-  color: rgba(210, 222, 255, 0.85);
-  font-weight: 600;
-}
-
-.enhancement-modal__flow-item {
-  background: rgba(24, 38, 90, 0.58);
-  border: 1rpx solid rgba(94, 126, 228, 0.32);
-  border-radius: 24rpx;
-  padding: 20rpx;
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-}
-
 .enhancement-modal__item-label {
   font-size: 24rpx;
   color: rgba(194, 206, 255, 0.78);
@@ -1489,18 +1488,105 @@ button.pill-btn[disabled] {
   gap: 16rpx;
 }
 
-.enhancement-modal__section--summary {
+.enhancement-modal__summary-top {
   background: rgba(20, 34, 82, 0.6);
   border: 1rpx solid rgba(94, 126, 228, 0.28);
   border-radius: 20rpx;
-  padding: 18rpx 20rpx;
-  gap: 12rpx;
+  padding: 22rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
 }
 
 .enhancement-modal__section-title {
   font-size: 26rpx;
   font-weight: 600;
   color: rgba(214, 224, 255, 0.9);
+}
+
+.enhancement-modal__result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  padding: 12rpx 0;
+}
+
+.enhancement-modal__result-icon-frame {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 28rpx;
+  border: 2rpx solid rgba(118, 146, 250, 0.5);
+  background: rgba(12, 20, 52, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: 0 14rpx 30rpx rgba(32, 52, 120, 0.42);
+}
+
+.enhancement-modal__result-name {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #f1f4ff;
+}
+
+.enhancement-modal__result-meta {
+  font-size: 24rpx;
+  color: rgba(198, 210, 255, 0.82);
+}
+
+.enhancement-modal__result-arrow {
+  display: flex;
+  justify-content: center;
+}
+
+.enhancement-modal__arrow-icon {
+  font-size: 42rpx;
+  color: rgba(118, 212, 232, 0.9);
+  animation: enhancement-modal-arrow-bounce 1.4s ease-in-out infinite;
+}
+
+@keyframes enhancement-modal-arrow-bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(10rpx);
+  }
+}
+
+.enhancement-modal__pair {
+  display: flex;
+  gap: 20rpx;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.enhancement-modal__pair-item {
+  flex: 1 1 48%;
+  background: rgba(24, 38, 90, 0.58);
+  border: 1rpx solid rgba(94, 126, 228, 0.32);
+  border-radius: 24rpx;
+  padding: 20rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  min-width: 280rpx;
+}
+
+.enhancement-modal__materials {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.enhancement-modal__material-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  justify-content: flex-start;
 }
 
 .enhancement-modal__summary-line {
@@ -1544,12 +1630,6 @@ button.pill-btn[disabled] {
   gap: 10rpx;
   font-size: 24rpx;
   color: rgba(203, 214, 255, 0.82);
-}
-
-.enhancement-modal__material-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200rpx, 1fr));
-  gap: 16rpx;
 }
 
 .enhancement-modal__material-item {
