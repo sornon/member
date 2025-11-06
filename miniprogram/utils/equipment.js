@@ -17,23 +17,6 @@ const EQUIPMENT_QUALITY_RANK_MAP = EQUIPMENT_QUALITY_ORDER.reduce((map, key, ind
   return map;
 }, {});
 
-const DEFAULT_EQUIPMENT_IDS = [
-  'novice_sword',
-  'apprentice_helm',
-  'apprentice_robe',
-  'lightstep_boots',
-  'spirit_belt',
-  'initiate_bracers',
-  'initiate_orb',
-  'spirit_ring',
-  'oath_token',
-  'wooden_puppet',
-  'initiate_focus',
-  'initiate_treasure'
-];
-
-const DEFAULT_EQUIPMENT_ID_SET = new Set(DEFAULT_EQUIPMENT_IDS);
-
 const EXCLUDED_SLOT_KEYS = new Set(['accessory', 'armor']);
 
 const DEFAULT_STORAGE_BASE_CAPACITY = 100;
@@ -299,10 +282,6 @@ function extractNotesFromSlots(slots) {
   return notes;
 }
 
-export function isDefaultEquipmentId(itemId) {
-  return typeof itemId === 'string' && DEFAULT_EQUIPMENT_ID_SET.has(itemId);
-}
-
 export function sanitizeEquipmentProfile(profile) {
   if (!profile || typeof profile !== 'object') {
     return null;
@@ -322,9 +301,6 @@ export function sanitizeEquipmentProfile(profile) {
       if (item) {
         if (!item.storageCategory) {
           item.storageCategory = 'equipment';
-        }
-        if (isDefaultEquipmentId(item.itemId)) {
-          item.isDefault = true;
         }
         applyEquipmentIcon(item);
       }
@@ -346,9 +322,6 @@ export function sanitizeEquipmentProfile(profile) {
       }
       if (!cloned.storageCategory) {
         cloned.storageCategory = 'equipment';
-      }
-      if (isDefaultEquipmentId(cloned.itemId)) {
-        cloned.isDefault = true;
       }
       applyEquipmentIcon(cloned);
       return cloned;
@@ -413,9 +386,6 @@ export function sanitizeEquipmentProfile(profile) {
               }
               if (!cloned.storageSerial) {
                 cloned.storageSerial = badgeKeys.serial;
-              }
-              if (isDefaultEquipmentId(cloned.itemId)) {
-                cloned.isDefault = true;
               }
               applyEquipmentIcon(cloned);
               return cloned;
@@ -514,12 +484,4 @@ export function sanitizeEquipmentProfile(profile) {
     equipment: sanitizedEquipment,
     equipmentEnhancement: sanitizedEnhancement
   };
-}
-
-export function getDefaultEquipmentIds() {
-  return DEFAULT_EQUIPMENT_IDS.slice();
-}
-
-export function getDefaultEquipmentIdSet() {
-  return new Set(DEFAULT_EQUIPMENT_IDS);
 }
