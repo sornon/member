@@ -1350,6 +1350,9 @@ page {
   background: rgba(15, 23, 42, 0.75);
   flex-shrink: 0;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
 }
 
 .equipment-admin__slot-icon-image {
@@ -1408,6 +1411,9 @@ page {
   background: rgba(15, 23, 42, 0.7);
   flex-shrink: 0;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
 }
 
 .equipment-admin__inventory-icon-image {

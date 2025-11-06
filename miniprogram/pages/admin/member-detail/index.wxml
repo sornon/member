@@ -1,3 +1,4 @@
+<import src="../../../shared/equipment-enhance-badge.wxml" />
 <custom-nav title="会员资料" theme="dark"></custom-nav>
 <view class="member-detail" wx:if="{{!loading}}">
   <view class="section">
@@ -339,6 +340,7 @@
                   data-fallback="{{item.iconFallbackUrl}}"
                   binderror="handleEquipmentIconError"
                 />
+                <template is="equipmentEnhanceBadge" data="{{ value: item.refine }}" />
               </view>
               <view class="equipment-admin__slot-text">
                 <text class="equipment-admin__slot-label">{{item.slotLabel}}</text>
@@ -375,6 +377,7 @@
                 data-fallback="{{item.iconFallbackUrl}}"
                 binderror="handleEquipmentIconError"
               />
+              <template is="equipmentEnhanceBadge" data="{{ value: item.refine }}" />
             </view>
             <view class="equipment-admin__inventory-info">
               <view class="equipment-admin__inventory-name" style="color: {{item.qualityColor}};">{{item.name}}</view>
