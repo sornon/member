@@ -1243,9 +1243,12 @@ const COMBAT_STAT_LABELS = {
   healingReceived: '受疗加成',
   rageGain: '怒气获取',
   controlStrength: '控制强度',
+  shield: '护盾值',
   shieldPower: '护盾强度',
   summonPower: '召唤物强度',
-  elementalVulnerability: '元素易伤'
+  elementalVulnerability: '元素易伤',
+  allAttributes: '全属性',
+  dodgeChance: '闪避率'
 };
 
 const ATTRIBUTE_CONFIG = [
@@ -1256,6 +1259,13 @@ const ATTRIBUTE_CONFIG = [
   { key: 'agility', label: '敏捷', type: 'number', step: 1 },
   { key: 'insight', label: '悟性', type: 'number', step: 1 }
 ];
+
+const ATTRIBUTE_LABEL_MAP = ATTRIBUTE_CONFIG.reduce((map, item) => {
+  if (item && item.key) {
+    map[item.key] = item.label;
+  }
+  return map;
+}, {});
 
 const BASELINE_ATTRIBUTES = {
   constitution: 20,
@@ -6543,7 +6553,20 @@ function sumEquipmentBonuses(equipment) {
 }
 
 function resolveCombatStatLabel(key) {
-  return COMBAT_STAT_LABELS[key] || key;
+  if (!key) {
+    return '';
+  }
+  if (COMBAT_STAT_LABELS[key]) {
+    return COMBAT_STAT_LABELS[key];
+  }
+  if (key.endsWith('Multiplier')) {
+    const baseKey = key.replace(/Multiplier$/, '');
+    const baseLabel = COMBAT_STAT_LABELS[baseKey] || ATTRIBUTE_LABEL_MAP[baseKey];
+    if (baseLabel) {
+      return `${baseLabel}加成`;
+    }
+  }
+  return key;
 }
 
 function resolveAttributeLabel(key) {
@@ -6964,9 +6987,26 @@ function decorateEquipmentInventoryEntry(entry, options = {}) {
   const stats = detail.stats || {};
   const statTexts = formatStatsText({ ...stats });
   const breakdownTexts = [];
+  const normalizedStatTexts = new Set(
+    statTexts.map((text) => normalizeStatDisplay(text)).filter((text) => !!text)
+  );
+  const pushBreakdownText = (text) => {
+    if (!text) {
+      return;
+    }
+    const normalized = normalizeStatDisplay(text);
+    if (!normalized) {
+      return;
+    }
+    if (normalizedStatTexts.has(normalized)) {
+      return;
+    }
+    breakdownTexts.push(text);
+    normalizedStatTexts.add(normalized);
+  };
   const notes = [];
   if (detail.mainAttribute) {
-    breakdownTexts.push(
+    pushBreakdownText(
       `${detail.mainAttribute.label} ${formatStatDisplay(detail.mainAttribute.key, detail.mainAttribute.value, true)}`
     );
   }
@@ -6974,7 +7014,7 @@ function decorateEquipmentInventoryEntry(entry, options = {}) {
     if (!affix.label) {
       return;
     }
-    breakdownTexts.push(`${affix.label} ${formatStatDisplay(affix.key, affix.value, true)}`);
+    pushBreakdownText(`${affix.label} ${formatStatDisplay(affix.key, affix.value, true)}`);
   });
   detail.uniqueEffects.forEach((effect) => {
     if (effect.description) {
@@ -6983,7 +7023,7 @@ function decorateEquipmentInventoryEntry(entry, options = {}) {
   });
   const setDefinition = definition.setId ? EQUIPMENT_SET_LIBRARY[definition.setId] : null;
   if (setDefinition) {
-    breakdownTexts.push(`套装：${setDefinition.name}`);
+    pushBreakdownText(`套装：${setDefinition.name}`);
   }
   const combinedTexts = [...statTexts, ...breakdownTexts];
   const displayTexts = combinedTexts.filter((text, index, list) => text && list.indexOf(text) === index);
@@ -8100,6 +8140,17 @@ function prefixHighlight(text, label) {
     return trimmed;
   }
   return `【${label}】${trimmed}`;
+}
+
+function normalizeStatDisplay(text) {
+  if (typeof text !== 'string') {
+    return '';
+  }
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed.replace(/^【[^】]*】/, '').replace(/\s+/g, ' ');
 }
 
 function buildSkillHighlights(flattened, definition = {}, progression = [], level = 1) {
@@ -9861,6 +9912,9 @@ function formatStatDisplay(key, value, signed = false) {
       'elementalVulnerability'
     ].includes(key)
   ) {
+    return `${prefix}${Math.round(abs * 10000) / 100}%`;
+  }
+  if (typeof key === 'string' && key.endsWith('Multiplier')) {
     return `${prefix}${Math.round(abs * 10000) / 100}%`;
   }
   return `${prefix}${Math.round(abs)}`;
