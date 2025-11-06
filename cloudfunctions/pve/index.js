@@ -29,8 +29,10 @@ const {
 } = require('skill-engine');
 const {
   DEFAULT_GAME_PARAMETERS,
+  DEFAULT_EQUIPMENT_ENHANCEMENT,
   buildResourceConfigOverrides,
   resolveGameParametersFromDocument,
+  resolveEquipmentEnhancementFromDocument,
   FEATURE_TOGGLE_DOC_ID
 } = require('system-settings');
 const { createBattlePayload } = require('battle-schema');
@@ -202,6 +204,10 @@ let cachedGlobalParameters = null;
 let cachedGlobalOverrides = null;
 let cachedGlobalParametersExpiresAt = 0;
 
+const ENHANCEMENT_CONFIG_TTL_MS = 60 * 1000;
+let cachedEnhancementConfig = null;
+let cachedEnhancementConfigExpiresAt = 0;
+
 async function applyGlobalGameParameters() {
   const now = Date.now();
   if (cachedGlobalParameters && cachedGlobalParametersExpiresAt > now) {
@@ -240,6 +246,84 @@ async function applyGlobalGameParameters() {
     cachedGlobalParametersExpiresAt = Date.now() + GLOBAL_PARAMETERS_TTL_MS;
     return fallback;
   }
+}
+
+function normalizeEnhancementRuntime(config = DEFAULT_EQUIPMENT_ENHANCEMENT) {
+  const base = config && typeof config === 'object' ? config : DEFAULT_EQUIPMENT_ENHANCEMENT;
+  const resolvedMax = Number(base.maxLevel);
+  const maxLevel = Math.min(
+    10,
+    Math.max(1, Number.isFinite(resolvedMax) ? Math.floor(resolvedMax) : DEFAULT_EQUIPMENT_ENHANCEMENT.maxLevel)
+  );
+  const resolvedGuaranteed = Number(base.guaranteedLevel);
+  const guaranteedLevel = Math.min(
+    maxLevel,
+    Math.max(
+      0,
+      Number.isFinite(resolvedGuaranteed)
+        ? Math.floor(resolvedGuaranteed)
+        : DEFAULT_EQUIPMENT_ENHANCEMENT.guaranteedLevel
+    )
+  );
+  const resolvedDecay = Number(base.decayPerLevel);
+  const decayPerLevel = Math.max(
+    0,
+    Math.min(
+      100,
+      Number.isFinite(resolvedDecay)
+        ? Math.floor(resolvedDecay)
+        : DEFAULT_EQUIPMENT_ENHANCEMENT.decayPerLevel
+    )
+  );
+  return {
+    guaranteedLevel,
+    decayPerLevel,
+    maxLevel
+  };
+}
+
+async function loadEquipmentEnhancementConfig() {
+  const now = Date.now();
+  if (cachedEnhancementConfig && cachedEnhancementConfigExpiresAt > now) {
+    return { ...cachedEnhancementConfig };
+  }
+  try {
+    const snapshot = await db
+      .collection(COLLECTIONS.SYSTEM_SETTINGS)
+      .doc(FEATURE_TOGGLE_DOC_ID)
+      .get();
+    const document = snapshot && snapshot.data ? snapshot.data : null;
+    const config = resolveEquipmentEnhancementFromDocument(document);
+    const normalized = normalizeEnhancementRuntime(config);
+    cachedEnhancementConfig = { ...normalized };
+    cachedEnhancementConfigExpiresAt = Date.now() + ENHANCEMENT_CONFIG_TTL_MS;
+    return { ...normalized };
+  } catch (error) {
+    if (!(error && error.errMsg && /not exist|not found/i.test(error.errMsg))) {
+      console.error('[pve] load enhancement config failed', error);
+    }
+    const fallback = normalizeEnhancementRuntime(DEFAULT_EQUIPMENT_ENHANCEMENT);
+    cachedEnhancementConfig = { ...fallback };
+    cachedEnhancementConfigExpiresAt = Date.now() + ENHANCEMENT_CONFIG_TTL_MS;
+    return { ...cachedEnhancementConfig };
+  }
+}
+
+function calculateEnhancementSuccessRate(currentLevel, config) {
+  if (!config || typeof config !== 'object') {
+    return 0;
+  }
+  const current = Math.max(0, Math.floor(Number(currentLevel) || 0));
+  const targetLevel = current + 1;
+  if (targetLevel > config.maxLevel) {
+    return 0;
+  }
+  if (targetLevel <= config.guaranteedLevel) {
+    return 100;
+  }
+  const decaySteps = targetLevel - config.guaranteedLevel;
+  const rate = 100 - decaySteps * config.decayPerLevel;
+  return Math.max(0, Math.min(100, rate));
 }
 
 function isCollectionNotFoundError(error) {
@@ -3206,6 +3290,8 @@ exports.main = async (event = {}) => {
       return removeEquipment(actorId, event);
     case 'updateEquipmentAttributes':
       return updateEquipmentAttributes(actorId, event);
+    case 'enhanceEquipment':
+      return enhanceEquipment(actorId, event);
     case 'adminUpdateSecretRealm':
       return adminUpdateSecretRealmProgress(actorId, event);
     case 'adminResetSecretRealm':
@@ -3231,7 +3317,7 @@ async function getProfile(actorId, options = {}) {
       attributeSummary: profile && profile.attributeSummary ? profile.attributeSummary : null
     };
   }
-  return decorateProfile(member, profile);
+  return decorateProfileWithEnhancement(member, profile);
 }
 
 async function simulateBattle(actorId, enemyId) {
@@ -3328,7 +3414,7 @@ async function drawSkill(actorId, event = {}) {
 
   await savePveProfile(actorId, profile, { now });
 
-  const decoratedProfile = decorateProfile(member, profile);
+  const decoratedProfile = await decorateProfileWithEnhancement(member, profile);
   const acquiredSkills = draws.map((acquired) => {
     const decorated = acquired.decorated || { skillId: acquired.skillId };
     return {
@@ -3465,7 +3551,7 @@ async function equipSkill(actorId, event) {
 
   await savePveProfile(actorId, profile, { now });
 
-  const decorated = decorateProfile(member, profile);
+  const decorated = await decorateProfileWithEnhancement(member, profile);
   return { profile: decorated };
 }
 
@@ -3535,7 +3621,7 @@ async function equipItem(actorId, event) {
 
     await savePveProfile(actorId, profile, { now });
 
-    const decorated = decorateProfile(member, profile);
+    const decorated = await decorateProfileWithEnhancement(member, profile);
     return { profile: decorated };
   }
   const definition = EQUIPMENT_MAP[itemId];
@@ -3597,8 +3683,250 @@ async function equipItem(actorId, event) {
 
   await savePveProfile(actorId, profile, { now });
 
-  const decorated = decorateProfile(member, profile);
+  const decorated = await decorateProfileWithEnhancement(member, profile);
   return { profile: decorated };
+}
+
+function cloneEnhancementEntry(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  return {
+    inventoryId: entry.inventoryId || '',
+    itemId: entry.itemId,
+    level: entry.level,
+    refine: entry.refine,
+    obtainedAt: entry.obtainedAt,
+    favorite: !!entry.favorite
+  };
+}
+
+async function enhanceEquipment(actorId, event = {}) {
+  const previewOnly = !!event.preview;
+  const baseInventoryId =
+    event && typeof event.baseInventoryId === 'string' && event.baseInventoryId.trim()
+      ? event.baseInventoryId.trim()
+      : '';
+  const baseSlot =
+    event && typeof event.baseSlot === 'string' && event.baseSlot.trim() ? event.baseSlot.trim() : '';
+  const baseItemIdCandidate =
+    event && typeof event.baseItemId === 'string' && event.baseItemId.trim() ? event.baseItemId.trim() : '';
+  const materialInventoryId =
+    event && typeof event.materialInventoryId === 'string' && event.materialInventoryId.trim()
+      ? event.materialInventoryId.trim()
+      : '';
+
+  const member = await ensureMember(actorId);
+  const profile = await ensurePveProfile(actorId, member);
+  profile.equipment = profile.equipment || buildDefaultEquipment();
+  const inventory = Array.isArray(profile.equipment.inventory) ? profile.equipment.inventory : [];
+  profile.equipment.inventory = inventory;
+  const slots =
+    profile.equipment && typeof profile.equipment.slots === 'object'
+      ? profile.equipment.slots
+      : createEmptySlotMap();
+
+  let baseEntry = null;
+  let baseEntryIndex = -1;
+  let baseSource = '';
+  let effectiveSlot = '';
+
+  if (baseSlot && slots[baseSlot]) {
+    const slotEntry = slots[baseSlot];
+    if (slotEntry && typeof slotEntry === 'object') {
+      baseEntry = slotEntry;
+      baseSource = 'slot';
+      effectiveSlot = baseSlot;
+    }
+  }
+
+  if (!baseEntry && baseInventoryId) {
+    baseEntryIndex = inventory.findIndex((entry) => entry && entry.inventoryId === baseInventoryId);
+    if (baseEntryIndex >= 0) {
+      baseEntry = inventory[baseEntryIndex];
+      baseSource = 'inventory';
+    }
+  }
+
+  if (!baseEntry && baseItemIdCandidate) {
+    baseEntryIndex = inventory.findIndex((entry) => entry && entry.itemId === baseItemIdCandidate);
+    if (baseEntryIndex >= 0) {
+      baseEntry = inventory[baseEntryIndex];
+      baseSource = 'inventory';
+    } else {
+      const slotKey = Object.keys(slots).find((key) => {
+        const slotEntry = slots[key];
+        return slotEntry && slotEntry.itemId === baseItemIdCandidate;
+      });
+      if (slotKey) {
+        baseEntry = slots[slotKey];
+        baseSource = 'slot';
+        effectiveSlot = slotKey;
+      }
+    }
+  }
+
+  if (!baseEntry || typeof baseEntry !== 'object' || !baseEntry.itemId) {
+    throw createError('BASE_EQUIPMENT_NOT_FOUND', '未找到可强化的装备');
+  }
+
+  const enhancementConfig = await loadEquipmentEnhancementConfig();
+  const maxLevel = enhancementConfig.maxLevel;
+  const baseItemId = baseEntry.itemId || baseItemIdCandidate;
+  const baseRefine = Math.max(0, Math.floor(Number(baseEntry.refine) || 0));
+  if (baseRefine >= maxLevel) {
+    throw createError('ENHANCEMENT_MAX_LEVEL', `该装备已达到强化 +${maxLevel} 上限`);
+  }
+
+  const candidateMaterials = inventory
+    .filter((entry) => {
+      if (!entry || typeof entry !== 'object' || entry.itemId !== baseItemId) {
+        return false;
+      }
+      const refine = Math.max(0, Math.floor(Number(entry.refine) || 0));
+      if (refine !== baseRefine) {
+        return false;
+      }
+      if (baseSource === 'inventory' && entry.inventoryId === baseInventoryId) {
+        return false;
+      }
+      return true;
+    })
+    .map((entry) => decorateEquipmentInventoryEntry(entry, { equipped: false }));
+
+  const baseDecorated = decorateEquipmentInventoryEntry(baseEntry, {
+    equipped: baseSource === 'slot',
+    slotKey: effectiveSlot
+  });
+  const targetRefine = Math.min(maxLevel, baseRefine + 1);
+  const targetEntry = cloneEnhancementEntry(baseEntry);
+  if (targetEntry) {
+    targetEntry.refine = targetRefine;
+  }
+  const resultDecorated =
+    targetEntry && targetRefine <= maxLevel
+      ? decorateEquipmentInventoryEntry(targetEntry, {
+          equipped: baseSource === 'slot',
+          slotKey: effectiveSlot
+        })
+      : null;
+  const successRate = calculateEnhancementSuccessRate(baseRefine, enhancementConfig);
+
+  if (previewOnly) {
+    return {
+      preview: {
+        baseItem: baseDecorated,
+        resultItem: resultDecorated,
+        successRate,
+        maxLevel,
+        materialCandidates: candidateMaterials,
+        currentLevel: baseRefine,
+        nextLevel: targetRefine
+      }
+    };
+  }
+
+  if (!materialInventoryId) {
+    throw createError('MATERIAL_REQUIRED', '请先选择用作材料的装备');
+  }
+
+  const materialIndex = inventory.findIndex((entry) => entry && entry.inventoryId === materialInventoryId);
+  if (materialIndex < 0) {
+    throw createError('MATERIAL_NOT_FOUND', '材料装备不存在或已被使用');
+  }
+  const materialEntry = inventory[materialIndex];
+  if (!materialEntry || materialEntry.itemId !== baseItemId) {
+    throw createError('MATERIAL_INVALID', '请选择与目标相同的材料装备');
+  }
+  const materialRefine = Math.max(0, Math.floor(Number(materialEntry.refine) || 0));
+  if (materialRefine !== baseRefine) {
+    throw createError('MATERIAL_LEVEL_MISMATCH', '材料装备的强化等级需与目标一致');
+  }
+
+  const [consumedMaterial] = inventory.splice(materialIndex, 1);
+
+  const now = new Date();
+  let success = successRate >= 100;
+  if (!success) {
+    const roll = Math.random() * 100;
+    success = roll < successRate;
+  }
+
+  let newRefineLevel = baseRefine;
+  if (success) {
+    newRefineLevel = Math.min(maxLevel, baseRefine + 1);
+    if (baseSource === 'slot' && effectiveSlot) {
+      const slotEntry = slots[effectiveSlot];
+      if (slotEntry && typeof slotEntry === 'object') {
+        slotEntry.refine = newRefineLevel;
+      }
+    } else if (baseSource === 'inventory' && baseInventoryId) {
+      const currentIndex =
+        baseEntryIndex >= 0
+          ? baseEntryIndex
+          : inventory.findIndex((entry) => entry && entry.inventoryId === baseInventoryId);
+      if (currentIndex >= 0 && inventory[currentIndex]) {
+        inventory[currentIndex].refine = newRefineLevel;
+      }
+    }
+    if (baseSource === 'inventory' && baseEntryIndex < 0 && baseInventoryId) {
+      // ensure base entry reference reflects updated value if inventory index changed
+      baseEntryIndex = inventory.findIndex((entry) => entry && entry.inventoryId === baseInventoryId);
+    }
+  }
+
+  profile.equipment.slots = slots;
+  profile.equipment.inventory = inventory;
+
+  profile.battleHistory = appendHistory(
+    profile.battleHistory,
+    {
+      type: 'equipment-enhancement',
+      createdAt: now,
+      detail: {
+        itemId: baseItemId,
+        slot: baseSource === 'slot' ? effectiveSlot : '',
+        fromRefine: baseRefine,
+        toRefine: success ? newRefineLevel : baseRefine,
+        materialInventoryId: consumedMaterial ? consumedMaterial.inventoryId || '' : '',
+        success
+      }
+    },
+    MAX_BATTLE_HISTORY
+  );
+
+  refreshAttributeSummary(profile);
+
+  await savePveProfile(actorId, profile, { now });
+
+  const decoratedProfile = await decorateProfileWithEnhancement(member, profile);
+
+  const updatedBaseEntry =
+    baseSource === 'slot' && effectiveSlot
+      ? slots[effectiveSlot]
+      : baseInventoryId
+      ? inventory.find((entry) => entry && entry.inventoryId === baseInventoryId)
+      : baseEntry;
+  const decoratedBaseAfter = updatedBaseEntry
+    ? decorateEquipmentInventoryEntry(updatedBaseEntry, {
+        equipped: baseSource === 'slot',
+        slotKey: effectiveSlot
+      })
+    : baseDecorated;
+
+  return {
+    profile: decoratedProfile,
+    enhancement: {
+      success,
+      successRate,
+      baseItem: decoratedBaseAfter,
+      resultItem: resultDecorated,
+      maxLevel,
+      currentLevel: baseRefine,
+      nextLevel: targetRefine,
+      consumedMaterialId: consumedMaterial ? consumedMaterial.inventoryId || '' : ''
+    }
+  };
 }
 
 async function discardItem(actorId, event = {}) {
@@ -3718,7 +4046,7 @@ async function discardItem(actorId, event = {}) {
 
   await savePveProfile(actorId, profile, { now });
 
-  const decorated = decorateProfile(member, profile);
+  const decorated = await decorateProfileWithEnhancement(member, profile);
   return { profile: decorated };
 }
 
@@ -4143,7 +4471,7 @@ async function upgradeStorage(actorId, event = {}) {
   refreshAttributeSummary(profile);
 
   await savePveProfile(actorId, profile, { now });
-  const decorated = decorateProfile(member, profile);
+  const decorated = await decorateProfileWithEnhancement(member, profile);
   const capacity = baseCapacity + perUpgrade * nextLevel;
   const upgradesRemaining =
     normalizedLimit !== null ? Math.max(normalizedLimit - Math.min(normalizedLimit, nextLevel), 0) : null;
@@ -4205,7 +4533,7 @@ async function allocatePoints(actorId, allocations) {
 
   await savePveProfile(actorId, profile, { now });
 
-  const decorated = decorateProfile(member, profile);
+  const decorated = await decorateProfileWithEnhancement(member, profile);
   return { profile: decorated };
 }
 
@@ -4259,7 +4587,7 @@ async function resetAttributes(actorId) {
 
   await savePveProfile(actorId, profile, { now });
 
-  const decorated = decorateProfile(member, profile);
+  const decorated = await decorateProfileWithEnhancement(member, profile);
   return { profile: decorated };
 }
 
@@ -6338,6 +6666,18 @@ function decorateProfile(member, profile, options = {}) {
   };
 }
 
+async function decorateProfileWithEnhancement(member, profile, options = {}) {
+  const decorated = decorateProfile(member, profile, options);
+  try {
+    const enhancementConfig = await loadEquipmentEnhancementConfig();
+    decorated.equipmentEnhancement = enhancementConfig;
+  } catch (error) {
+    console.error('[pve] attach enhancement config failed', error);
+    decorated.equipmentEnhancement = normalizeEnhancementRuntime(DEFAULT_EQUIPMENT_ENHANCEMENT);
+  }
+  return decorated;
+}
+
 function refreshAttributeSummary(profile) {
   if (!profile || typeof profile !== 'object') {
     return null;
@@ -7047,7 +7387,7 @@ function decorateEquipmentInventoryEntry(entry, options = {}) {
     uniqueEffects: detail.uniqueEffects,
     level: payload.level || 1,
     refine: payload.refine || 0,
-    refineLabel: payload.refine ? `精炼 +${payload.refine}` : '未精炼',
+    refineLabel: payload.refine ? `强化 +${payload.refine}` : '未强化',
     levelRequirement: definition.levelRequirement || 1,
     tags: definition.tags || [],
     obtainedAt: payload.obtainedAt,
@@ -9595,12 +9935,9 @@ function ensureEquipmentOwned(profile, itemId, now) {
   }
   profile.equipment = profile.equipment || buildDefaultEquipment();
   profile.equipment.inventory = profile.equipment.inventory || [];
-  const existing = profile.equipment.inventory.find((entry) => entry.itemId === itemId);
-  if (existing) {
-    existing.refine = Math.min(10, (existing.refine || 0) + 1);
-    existing.obtainedAt = now;
-  } else {
-    profile.equipment.inventory.push(createEquipmentInventoryEntry(itemId, now));
+  const entry = createEquipmentInventoryEntry(itemId, now);
+  if (entry) {
+    profile.equipment.inventory.push(entry);
   }
 }
 

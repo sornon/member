@@ -112,11 +112,68 @@
       </block>
       <view wx:else class="global-background-empty">暂无自定义背景，请点击“管理背景”添加。</view>
 
-      <view wx:if="{{globalBackgroundError}}" class="error-banner">{{globalBackgroundError}}</view>
+    <view wx:if="{{globalBackgroundError}}" class="error-banner">{{globalBackgroundError}}</view>
+  </view>
+
+  <view class="card enhancement-card">
+    <view class="card-title">装备强化配置</view>
+    <view class="card-desc">配置装备强化的成功率区间与上限，所有修改会立即应用至会员端。</view>
+
+    <view class="form-grid">
+      <view class="form-field">
+        <view class="field-label">100% 成功等级上限</view>
+        <input
+          class="field-input"
+          data-field="guaranteedLevel"
+          value="{{enhancementDraft.guaranteedLevel}}"
+          bindinput="handleEnhancementFieldChange"
+          placeholder="例如：3"
+          disabled="{{enhancementSaving}}"
+        />
+        <view class="field-hint">填写正整数，表示强化至该等级以内必定成功。</view>
+      </view>
+      <view class="form-field">
+        <view class="field-label">每级成功率衰减（%）</view>
+        <input
+          class="field-input"
+          data-field="decayPerLevel"
+          value="{{enhancementDraft.decayPerLevel}}"
+          bindinput="handleEnhancementFieldChange"
+          placeholder="例如：10"
+          disabled="{{enhancementSaving}}"
+        />
+        <view class="field-hint">超过保底等级后，每提升一级成功率下降的百分比。</view>
+      </view>
+      <view class="form-field">
+        <view class="field-label">强化等级上限</view>
+        <input
+          class="field-input"
+          data-field="maxLevel"
+          value="{{enhancementDraft.maxLevel}}"
+          bindinput="handleEnhancementFieldChange"
+          placeholder="例如：10"
+          disabled="{{enhancementSaving}}"
+        />
+        <view class="field-hint">最大可强化等级，当前建议保持在 10 以内。</view>
+      </view>
     </view>
 
-    <view class="card switch-card">
-      <view class="card-title">首页入口</view>
+    <view class="action-row">
+      <button
+        class="primary-button"
+        bindtap="handleEnhancementSubmit"
+        loading="{{enhancementSaving}}"
+        disabled="{{enhancementSaving}}"
+      >保存配置</button>
+      <button class="ghost-button" bindtap="handleEnhancementReset" disabled="{{enhancementSaving}}">恢复默认</button>
+      <view class="action-hint">当前方案：+{{enhancementDraft.guaranteedLevel}} 内必定成功，之后每级减少 {{enhancementDraft.decayPerLevel}}%。</view>
+    </view>
+
+    <view wx:if="{{enhancementError}}" class="error-banner">{{enhancementError}}</view>
+  </view>
+
+  <view class="card switch-card">
+    <view class="card-title">首页入口</view>
       <view class="card-desc">控制会员端首页快捷入口的展示，调整后会实时生效。</view>
       <block wx:for="{{homeEntryList}}" wx:key="fullKey">
         <view class="switch-row">

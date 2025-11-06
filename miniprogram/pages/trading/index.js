@@ -363,7 +363,7 @@ function buildEquipmentDisplayModel(baseItem, detail = null, options = {}) {
     (obtainedAt ? formatDateTime(obtainedAt) : '');
   const refineLabel =
     (detailItem && typeof detailItem.refineLabel === 'string' && detailItem.refineLabel.trim()) ||
-    (refine > 0 ? `精炼 +${refine}` : '未精炼');
+    (refine > 0 ? `强化 +${refine}` : '未强化');
   const setName =
     (detailItem && typeof detailItem.setName === 'string' && detailItem.setName.trim()) || '';
   const statsSource =

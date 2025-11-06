@@ -29,6 +29,12 @@ const DEFAULT_HOME_ENTRIES = {
   trading: false
 };
 
+const DEFAULT_EQUIPMENT_ENHANCEMENT = {
+  guaranteedLevel: 3,
+  decayPerLevel: 10,
+  maxLevel: 10
+};
+
 const DEFAULT_RAGE_SETTINGS = {
   start: 0,
   turnGain: 20,
@@ -225,7 +231,8 @@ const DEFAULT_FEATURES = {
   cacheVersions: { ...DEFAULT_CACHE_VERSIONS },
   homeEntries: { ...DEFAULT_HOME_ENTRIES },
   globalBackground: { ...DEFAULT_GLOBAL_BACKGROUND },
-  globalBackgroundCatalog: []
+  globalBackgroundCatalog: [],
+  equipmentEnhancement: { ...DEFAULT_EQUIPMENT_ENHANCEMENT }
 };
 
 const HOME_ENTRIES_STORAGE_KEY = 'home-entries-visibility';
@@ -367,6 +374,41 @@ function cloneImmortalTournament(config) {
   return { ...normalized };
 }
 
+function toEnhancementInt(value, fallback, min, max) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return Math.max(min, Math.min(max, fallback));
+  }
+  return Math.max(min, Math.min(max, Math.floor(numeric)));
+}
+
+function normalizeEquipmentEnhancement(config) {
+  const base = config && typeof config === 'object' ? config : {};
+  const maxLevel = toEnhancementInt(base.maxLevel, DEFAULT_EQUIPMENT_ENHANCEMENT.maxLevel, 1, 99);
+  const guaranteedLevel = toEnhancementInt(
+    base.guaranteedLevel,
+    Math.min(DEFAULT_EQUIPMENT_ENHANCEMENT.guaranteedLevel, maxLevel),
+    0,
+    maxLevel
+  );
+  const decayPerLevel = toEnhancementInt(
+    base.decayPerLevel,
+    DEFAULT_EQUIPMENT_ENHANCEMENT.decayPerLevel,
+    0,
+    100
+  );
+  return {
+    guaranteedLevel,
+    decayPerLevel,
+    maxLevel
+  };
+}
+
+function cloneEquipmentEnhancement(config) {
+  const normalized = normalizeEquipmentEnhancement(config);
+  return { ...normalized };
+}
+
 const HOME_ENTRY_KEYS = Object.keys(DEFAULT_HOME_ENTRIES);
 
 function normalizeHomeEntries(entries) {
@@ -429,7 +471,8 @@ function normalizeFeatures(features) {
     globalBackground: cloneGlobalBackgroundConfig(DEFAULT_FEATURES.globalBackground),
     globalBackgroundCatalog: cloneGlobalBackgroundCatalog(
       DEFAULT_FEATURES.globalBackgroundCatalog
-    )
+    ),
+    equipmentEnhancement: cloneEquipmentEnhancement(DEFAULT_FEATURES.equipmentEnhancement)
   };
   if (features && typeof features === 'object') {
     if (Object.prototype.hasOwnProperty.call(features, 'cashierEnabled')) {
@@ -454,6 +497,9 @@ function normalizeFeatures(features) {
       normalized.globalBackgroundCatalog = cloneGlobalBackgroundCatalog(
         features.globalBackgroundCatalog
       );
+    }
+    if (Object.prototype.hasOwnProperty.call(features, 'equipmentEnhancement')) {
+      normalized.equipmentEnhancement = cloneEquipmentEnhancement(features.equipmentEnhancement);
     }
   }
   return normalized;
@@ -575,6 +621,10 @@ Page({
     globalBackgroundManagerDirty: false,
     globalBackgroundManagerSaving: false,
     globalBackgroundManagerError: '',
+    enhancementDraft: cloneEquipmentEnhancement(DEFAULT_FEATURES.equipmentEnhancement),
+    enhancementDefaults: cloneEquipmentEnhancement(DEFAULT_EQUIPMENT_ENHANCEMENT),
+    enhancementSaving: false,
+    enhancementError: '',
     homeEntryList: [
       {
         key: 'activities',
@@ -704,7 +754,10 @@ Page({
         globalBackgroundManagerForm: { name: '', file: '' },
         globalBackgroundManagerDirty: false,
         globalBackgroundManagerSaving: false,
-        globalBackgroundManagerError: ''
+        globalBackgroundManagerError: '',
+        enhancementDraft: cloneEquipmentEnhancement(nextFeatures.equipmentEnhancement),
+        enhancementError: '',
+        enhancementSaving: false
       });
       this.syncHomeEntries(features.homeEntries);
     } catch (error) {
@@ -830,7 +883,8 @@ Page({
           globalBackgroundAllowedIds: globalState.allowedIds,
           globalBackgroundManagerEntries: globalState.entries,
           globalBackgroundSaving: false,
-          globalBackgroundError: ''
+          globalBackgroundError: '',
+          enhancementDraft: cloneEquipmentEnhancement(nextFeatures.equipmentEnhancement)
         });
         if (options.toast !== false) {
           const title = options.toastTitle || '已更新';
@@ -1015,7 +1069,8 @@ Page({
           globalBackgroundManagerForm: { name: '', file: '' },
           globalBackgroundManagerDirty: false,
           globalBackgroundManagerSaving: false,
-          globalBackgroundManagerError: ''
+          globalBackgroundManagerError: '',
+          enhancementDraft: cloneEquipmentEnhancement(nextFeatures.equipmentEnhancement)
         });
         wx.showToast({ title: '已保存', icon: 'success' });
       })
@@ -1052,7 +1107,8 @@ Page({
     this.setData({
       features: nextFeatures,
       updating,
-      error: ''
+      error: '',
+      enhancementDraft: cloneEquipmentEnhancement(nextFeatures.equipmentEnhancement)
     });
 
     try {
@@ -1063,7 +1119,8 @@ Page({
       this.setData({
         features,
         updating: nextUpdating,
-        error: ''
+        error: '',
+        enhancementDraft: cloneEquipmentEnhancement(features.equipmentEnhancement)
       });
       if (key.startsWith('homeEntries')) {
         this.syncHomeEntries(features.homeEntries);
@@ -1075,7 +1132,8 @@ Page({
       this.setData({
         features: previousFeatures,
         updating: nextUpdating,
-        error: resolveErrorMessage(error, '保存失败，请稍后重试')
+        error: resolveErrorMessage(error, '保存失败，请稍后重试'),
+        enhancementDraft: cloneEquipmentEnhancement(previousFeatures.equipmentEnhancement)
       });
       wx.showToast({ title: '保存失败', icon: 'none', duration: 1200 });
     }
@@ -1186,10 +1244,12 @@ Page({
       return;
     }
 
+    const nextFeatures = { ...this.data.features, immortalTournament: { ...previous, enabled } };
     this.setData({
       tournamentDraft: { ...this.data.tournamentDraft, enabled },
-      features: { ...this.data.features, immortalTournament: { ...previous, enabled } },
-      tournamentError: ''
+      features: nextFeatures,
+      tournamentError: '',
+      enhancementDraft: cloneEquipmentEnhancement(nextFeatures.equipmentEnhancement)
     });
 
     this.saveTournamentSettings(
@@ -1352,7 +1412,8 @@ Page({
         features,
         tournamentDraft: buildTournamentDraft(features.immortalTournament),
         tournamentSaving: false,
-        tournamentError: ''
+        tournamentError: '',
+        enhancementDraft: cloneEquipmentEnhancement(features.equipmentEnhancement)
       });
       const toastTitle = options.toastTitle === false ? '' : options.toastTitle || '已更新';
       if (typeof toastTitle === 'string' && toastTitle) {
@@ -1361,11 +1422,13 @@ Page({
       return features;
     } catch (error) {
       const fallback = cloneImmortalTournament(previous);
+      const fallbackFeatures = { ...this.data.features, immortalTournament: fallback };
       this.setData({
-        features: { ...this.data.features, immortalTournament: fallback },
+        features: fallbackFeatures,
         tournamentDraft: buildTournamentDraft(fallback),
         tournamentSaving: false,
-        tournamentError: resolveErrorMessage(error, '保存失败，请稍后重试')
+        tournamentError: resolveErrorMessage(error, '保存失败，请稍后重试'),
+        enhancementDraft: cloneEquipmentEnhancement(fallbackFeatures.equipmentEnhancement)
       });
       wx.showToast({ title: '保存失败', icon: 'none', duration: 1200 });
       throw error;

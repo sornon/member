@@ -427,13 +427,13 @@
       </text>
     </view>
     <view class="equipment-edit-dialog__field">
-      <text class="equipment-edit-dialog__label">精炼等级</text>
+      <text class="equipment-edit-dialog__label">强化等级</text>
       <input
         class="equipment-edit-dialog__input"
         type="number"
         value="{{equipmentEditForm.refine}}"
         bindinput="handleEquipmentEditRefineInput"
-        placeholder="请输入精炼等级"
+        placeholder="请输入强化等级"
       />
       <text class="equipment-edit-dialog__hint">请输入不小于 0 的整数</text>
     </view>
