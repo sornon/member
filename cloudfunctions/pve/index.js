@@ -7615,6 +7615,9 @@ function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) 
   };
 }
 
+const SECRET_REALM_LOOT_INSIGHT_MULTIPLIER = 0.00015;
+const SECRET_REALM_LOOT_INSIGHT_CAP = 0.02;
+
 function resolveLootBonusChance(attributeSummary) {
   if (!attributeSummary || typeof attributeSummary !== 'object') {
     return 0;
@@ -7624,8 +7627,8 @@ function resolveLootBonusChance(attributeSummary) {
   if (!Number.isFinite(insight) || insight <= 0) {
     return 0;
   }
-  const bonus = Math.max(0, insight * 0.0015);
-  return Math.min(0.2, bonus);
+  const bonus = Math.max(0, insight * SECRET_REALM_LOOT_INSIGHT_MULTIPLIER);
+  return Math.min(SECRET_REALM_LOOT_INSIGHT_CAP, bonus);
 }
 
 function buildEnemyPreviewDetails(enemy) {
@@ -9479,7 +9482,7 @@ function resolveBattleLoot(loot, insight) {
   const results = [];
   loot.forEach((item, index) => {
     const chance = item.chance || 0;
-    const insightBonus = Math.min(0.2, insight * 0.0015);
+    const insightBonus = Math.min(SECRET_REALM_LOOT_INSIGHT_CAP, insight * SECRET_REALM_LOOT_INSIGHT_MULTIPLIER);
     const roll = Math.random();
     if (roll < chance + insightBonus) {
       const display = buildLootDisplay(item);
