@@ -693,32 +693,9 @@
         <view class="enhancement-modal__loading">正在加载强化信息...</view>
       </block>
       <block wx:else>
-        <view class="enhancement-modal__summary-top">
-          <view class="enhancement-modal__summary-line">
-            <text class="enhancement-modal__summary-label">强化成功率</text>
-            <text class="enhancement-modal__summary-value">{{equipmentEnhancementModal.successRateText}}</text>
-          </view>
-          <view class="enhancement-modal__summary-line">
-            <text class="enhancement-modal__summary-label">强化等级</text>
-            <text class="enhancement-modal__summary-value">+{{equipmentEnhancementModal.currentLevel}} → +{{equipmentEnhancementModal.nextLevel}}</text>
-          </view>
-        </view>
-        <view class="enhancement-modal__section" wx:if="{{equipmentEnhancementModal.attributeDiffs && equipmentEnhancementModal.attributeDiffs.length}}">
-          <view class="enhancement-modal__section-title">属性提升</view>
-          <view class="enhancement-modal__diff-list">
-            <view class="enhancement-modal__diff-item" wx:for="{{equipmentEnhancementModal.attributeDiffs}}" wx:key="key">
-              <text class="enhancement-modal__diff-label">{{item.label}}</text>
-              <text class="enhancement-modal__diff-value">{{item.before}} → {{item.after}}（{{item.delta}}）</text>
-            </view>
-          </view>
-        </view>
-        <view class="enhancement-modal__section" wx:elif="{{equipmentEnhancementModal.resultItem && equipmentEnhancementModal.resultItem.statsText && equipmentEnhancementModal.resultItem.statsText.length}}">
-          <view class="enhancement-modal__section-title">强化后属性</view>
-          <view class="enhancement-modal__stats">
-            <text wx:for="{{equipmentEnhancementModal.resultItem.statsText}}" wx:key="index" class="enhancement-modal__stat-line">{{item}}</text>
-          </view>
-        </view>
         <view class="enhancement-modal__result">
+          <text class="enhancement-modal__success-rate">{{equipmentEnhancementModal.successRateText}}</text>
+          <text class="enhancement-modal__level-change">+{{equipmentEnhancementModal.currentLevel}} → +{{equipmentEnhancementModal.nextLevel}}</text>
           <view class="enhancement-modal__result-icon-frame">
             <image
               wx:if="{{equipmentEnhancementModal.resultItem && equipmentEnhancementModal.resultItem.iconUrl}}"
@@ -736,9 +713,29 @@
             style="color: {{equipmentEnhancementModal.resultItem ? equipmentEnhancementModal.resultItem.qualityColor : equipmentEnhancementModal.baseItem.qualityColor}};"
           >{{(equipmentEnhancementModal.resultItem && equipmentEnhancementModal.resultItem.name) || equipmentEnhancementModal.baseItem.name}}</text>
           <text class="enhancement-modal__result-meta">强化后：+{{equipmentEnhancementModal.nextLevel}}</text>
+          <view
+            wx:if="{{equipmentEnhancementModal.attributeDiffs && equipmentEnhancementModal.attributeDiffs.length}}"
+            class="enhancement-modal__result-attributes"
+          >
+            <text
+              wx:for="{{equipmentEnhancementModal.attributeDiffs}}"
+              wx:key="key"
+              class="enhancement-modal__result-attribute"
+            >{{item.label}}：{{item.before}} → {{item.after}}（{{item.delta}}）</text>
+          </view>
+          <view
+            wx:elif="{{equipmentEnhancementModal.resultItem && equipmentEnhancementModal.resultItem.statsText && equipmentEnhancementModal.resultItem.statsText.length}}"
+            class="enhancement-modal__result-attributes"
+          >
+            <text
+              wx:for="{{equipmentEnhancementModal.resultItem.statsText}}"
+              wx:key="index"
+              class="enhancement-modal__result-attribute"
+            >{{item}}</text>
+          </view>
         </view>
         <view class="enhancement-modal__result-arrow">
-          <text class="enhancement-modal__arrow-icon">⬇</text>
+          <text class="enhancement-modal__arrow-icon">⬆</text>
         </view>
         <view class="enhancement-modal__pair">
           <view class="enhancement-modal__pair-item">

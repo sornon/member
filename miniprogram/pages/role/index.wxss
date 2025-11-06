@@ -1482,22 +1482,6 @@ button.pill-btn[disabled] {
   line-height: 1.5;
 }
 
-.enhancement-modal__section {
-  display: flex;
-  flex-direction: column;
-  gap: 16rpx;
-}
-
-.enhancement-modal__summary-top {
-  background: rgba(20, 34, 82, 0.6);
-  border: 1rpx solid rgba(94, 126, 228, 0.28);
-  border-radius: 20rpx;
-  padding: 22rpx 24rpx;
-  display: flex;
-  flex-direction: column;
-  gap: 14rpx;
-}
-
 .enhancement-modal__section-title {
   font-size: 26rpx;
   font-weight: 600;
@@ -1508,8 +1492,20 @@ button.pill-btn[disabled] {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12rpx;
+  gap: 10rpx;
   padding: 12rpx 0;
+}
+
+.enhancement-modal__success-rate {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #f7d27b;
+  text-shadow: 0 6rpx 18rpx rgba(247, 210, 123, 0.32);
+}
+
+.enhancement-modal__level-change {
+  font-size: 26rpx;
+  color: rgba(214, 224, 255, 0.9);
 }
 
 .enhancement-modal__result-icon-frame {
@@ -1536,6 +1532,19 @@ button.pill-btn[disabled] {
   color: rgba(198, 210, 255, 0.82);
 }
 
+.enhancement-modal__result-attributes {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  align-items: center;
+  text-align: center;
+}
+
+.enhancement-modal__result-attribute {
+  font-size: 24rpx;
+  color: rgba(214, 224, 255, 0.9);
+}
+
 .enhancement-modal__result-arrow {
   display: flex;
   justify-content: center;
@@ -1553,7 +1562,7 @@ button.pill-btn[disabled] {
     transform: translateY(0);
   }
   50% {
-    transform: translateY(10rpx);
+    transform: translateY(-10rpx);
   }
 }
 
@@ -1587,49 +1596,6 @@ button.pill-btn[disabled] {
   flex-wrap: wrap;
   gap: 16rpx;
   justify-content: flex-start;
-}
-
-.enhancement-modal__summary-line {
-  display: flex;
-  justify-content: space-between;
-  font-size: 24rpx;
-  color: rgba(196, 208, 255, 0.84);
-}
-
-.enhancement-modal__summary-value {
-  font-weight: 600;
-  color: #f5f8ff;
-}
-
-.enhancement-modal__diff-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12rpx;
-}
-
-.enhancement-modal__diff-item {
-  display: flex;
-  justify-content: space-between;
-  font-size: 24rpx;
-  color: rgba(198, 210, 255, 0.84);
-  gap: 16rpx;
-}
-
-.enhancement-modal__diff-label {
-  font-weight: 500;
-}
-
-.enhancement-modal__diff-value {
-  color: rgba(245, 248, 255, 0.92);
-  text-align: right;
-}
-
-.enhancement-modal__stats {
-  display: flex;
-  flex-direction: column;
-  gap: 10rpx;
-  font-size: 24rpx;
-  color: rgba(203, 214, 255, 0.82);
 }
 
 .enhancement-modal__material-item {
