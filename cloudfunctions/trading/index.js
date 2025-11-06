@@ -55,22 +55,6 @@ const MAX_LISTING_FETCH = 50;
 const MAX_SELLABLE_ITEMS = 100;
 const MAX_BID_HISTORY = 20;
 
-const DEFAULT_EQUIPMENT_IDS = [
-  'novice_sword',
-  'apprentice_helm',
-  'apprentice_robe',
-  'lightstep_boots',
-  'spirit_belt',
-  'initiate_bracers',
-  'initiate_orb',
-  'spirit_ring',
-  'oath_token',
-  'wooden_puppet',
-  'initiate_focus',
-  'initiate_treasure'
-];
-const DEFAULT_EQUIPMENT_ID_SET = new Set(DEFAULT_EQUIPMENT_IDS);
-
 const ensuredCollections = new Set();
 
 function cloneTradingConfig(config = {}) {
@@ -965,10 +949,6 @@ async function handleCreateListing(memberId, event = {}) {
     if (!sanitizedItem) {
       throw createError('ITEM_INVALID', '该装备数据异常，无法上架');
     }
-    if (DEFAULT_EQUIPMENT_ID_SET.has(sanitizedItem.itemId)) {
-      throw createError('ITEM_LOCKED', '默认赠送装备不可交易');
-    }
-
     const clientDetailSource =
       (event && typeof event.inventoryDetail === 'object' && event.inventoryDetail) ||
       (event && typeof event.detail === 'object' && event.detail) ||
@@ -1322,7 +1302,7 @@ async function handleSellable(memberId) {
       return true;
     }
     const sanitized = sanitizeEquipmentEntry(entry);
-    if (!sanitized || !sanitized.inventoryId || DEFAULT_EQUIPMENT_ID_SET.has(sanitized.itemId)) {
+    if (!sanitized || !sanitized.inventoryId) {
       return false;
     }
     sellable.push(buildEquipmentSummary(sanitized));

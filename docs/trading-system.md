@@ -62,7 +62,7 @@
 
 ### 2. 数据流转
 1. **上架**：
-   - 校验装备合法性（排除新手赠送装备），通过 `_.pull` 从 `members.pveProfile.equipment.inventory` 中移除。
+   - 校验装备合法性，通过 `_.pull` 从 `members.pveProfile.equipment.inventory` 中移除。
    - 写入 `tradeListings`，记录冻结的装备快照。
 2. **出价**：
    - 校验余额与最小加价幅度，扣除灵石并写入 `tradeBids`。
