@@ -694,8 +694,7 @@
       </block>
       <block wx:else>
         <view class="enhancement-modal__result">
-          <text class="enhancement-modal__success-rate">{{equipmentEnhancementModal.successRateText}}</text>
-          <text class="enhancement-modal__level-change">+{{equipmentEnhancementModal.currentLevel}} → +{{equipmentEnhancementModal.nextLevel}}</text>
+          <text class="enhancement-modal__success-rate">成功率：{{equipmentEnhancementModal.successRateText}}</text>
           <view class="enhancement-modal__result-icon-frame">
             <image
               wx:if="{{equipmentEnhancementModal.resultItem && equipmentEnhancementModal.resultItem.iconUrl}}"
