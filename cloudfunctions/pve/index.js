@@ -7504,6 +7504,12 @@ function summarizeSecretRealmFloor(floor) {
     completed: floor.completed,
     statusLabel: floor.statusLabel,
     rewardsText: floor.rewardsText,
+    loot: Array.isArray(floor.loot) ? floor.loot : [],
+    lootBonusChance: Number.isFinite(floor.lootBonusChance) ? floor.lootBonusChance : 0,
+    lootBonusText:
+      typeof floor.lootBonusText === 'string'
+        ? floor.lootBonusText
+        : formatChancePercent(Number.isFinite(floor.lootBonusChance) ? floor.lootBonusChance : 0),
     ...(floor.adminEnemyDetails ? { adminEnemyDetails: floor.adminEnemyDetails } : {})
   };
 }
@@ -7560,6 +7566,8 @@ function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) 
   const playerPower = calculateCombatPower(attributeSummary.finalStats || {}, attributeSummary.skillSummary || {});
   const difficulty = resolveDifficultyLabel(playerPower, combatPower);
   const rewards = normalizeDungeonRewards(enemy.rewards);
+  const lootBonusChance = resolveLootBonusChance(attributeSummary);
+  const loot = decorateEnemyLoot(enemy.loot || [], { bonusChance: lootBonusChance });
   const floors = secretRealmState && secretRealmState.floors ? secretRealmState.floors : {};
   const floorState = floors[enemy.id] || null;
   let highestUnlockedFloor = ENEMY_LIBRARY.length ? ENEMY_LIBRARY[0].floor : 1;
@@ -7584,7 +7592,9 @@ function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) 
     special: enemy.special || {},
     rewards,
     rewardsText: formatRewardText(rewards),
-    loot: decorateEnemyLoot(enemy.loot || []),
+    loot,
+    lootBonusChance,
+    lootBonusText: formatChancePercent(lootBonusChance),
     combatPower,
     difficulty,
     recommendedPower: combatPower,
@@ -7605,6 +7615,22 @@ function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) 
   };
 }
 
+const SECRET_REALM_LOOT_INSIGHT_MULTIPLIER = 0.00015;
+const SECRET_REALM_LOOT_INSIGHT_CAP = 0.1;
+
+function resolveLootBonusChance(attributeSummary) {
+  if (!attributeSummary || typeof attributeSummary !== 'object') {
+    return 0;
+  }
+  const baseTotals = attributeSummary.baseTotals || {};
+  const insight = Number(baseTotals.insight);
+  if (!Number.isFinite(insight) || insight <= 0) {
+    return 0;
+  }
+  const bonus = Math.max(0, insight * SECRET_REALM_LOOT_INSIGHT_MULTIPLIER);
+  return Math.min(SECRET_REALM_LOOT_INSIGHT_CAP, bonus);
+}
+
 function buildEnemyPreviewDetails(enemy) {
   if (!enemy || typeof enemy !== 'object') {
     return null;
@@ -7622,47 +7648,124 @@ function normalizeDungeonRewards(rewards = {}) {
   };
 }
 
-function decorateEnemyLoot(loot) {
+function formatChancePercent(chance) {
+  if (!Number.isFinite(chance) || chance <= 0) {
+    return '0%';
+  }
+  return `${Math.round(Math.min(chance, 1) * 1000) / 10}%`;
+}
+
+function buildLootDisplay(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+  const type = entry.type || 'equipment';
+  if (type === 'equipment') {
+    const itemId = entry.itemId || entry.id || '';
+    const definition = itemId ? EQUIPMENT_MAP[itemId] : null;
+    const quality = (definition && definition.quality) || entry.quality || 'mortal';
+    return {
+      type: 'equipment',
+      itemId,
+      label: entry.label || (definition ? definition.name : itemId || '装备'),
+      quality,
+      qualityLabel: resolveEquipmentQualityLabel(quality),
+      qualityColor: resolveEquipmentQualityColor(quality)
+    };
+  }
+  if (type === 'skill') {
+    const skillId = entry.skillId || entry.id || '';
+    const definition = skillId ? SKILL_MAP[skillId] : null;
+    const quality = (definition && definition.quality) || entry.quality || 'linggan';
+    return {
+      type: 'skill',
+      skillId,
+      label: entry.label || (definition ? definition.name : skillId || '技能'),
+      quality,
+      qualityLabel: resolveSkillQualityLabel(quality),
+      qualityColor: resolveSkillQualityColor(quality)
+    };
+  }
+  if (type === 'consumable') {
+    const consumableId = entry.consumableId || entry.id || '';
+    const definition = consumableId ? CONSUMABLE_MAP[consumableId] : null;
+    return {
+      type: 'consumable',
+      consumableId,
+      label: entry.label || (definition ? definition.name : consumableId || '道具'),
+      description: entry.description || (definition ? definition.description : '')
+    };
+  }
+  return {
+    ...entry
+  };
+}
+
+function decorateEnemyLoot(loot, options = {}) {
   if (!Array.isArray(loot)) {
     return [];
   }
-  return loot.map((item) => {
-    if (item.type === 'equipment') {
-      const definition = EQUIPMENT_MAP[item.itemId];
-      return {
-        type: 'equipment',
-        itemId: item.itemId,
-        chance: item.chance,
-        label: definition ? definition.name : '装备',
-        quality: definition ? definition.quality : 'mortal',
-        qualityLabel: definition ? resolveEquipmentQualityLabel(definition.quality) : resolveEquipmentQualityLabel('mortal'),
-        qualityColor: definition ? resolveEquipmentQualityColor(definition.quality) : resolveEquipmentQualityColor('mortal')
-      };
-    }
-    if (item.type === 'skill') {
-      const definition = SKILL_MAP[item.skillId];
-      const quality = definition ? definition.quality : 'linggan';
-      return {
-        type: 'skill',
-        skillId: item.skillId,
-        chance: item.chance,
-        label: definition ? definition.name : '技能',
-        quality,
-        qualityLabel: resolveSkillQualityLabel(quality)
-      };
-    }
-    if (item.type === 'consumable') {
-      const definition = CONSUMABLE_MAP[item.consumableId];
-      return {
-        type: 'consumable',
-        consumableId: item.consumableId,
-        chance: item.chance,
-        label: definition ? definition.name : '道具',
-        description: definition ? definition.description : ''
-      };
-    }
-    return item;
+  const bonusChance = Number.isFinite(options.bonusChance) ? Math.max(0, options.bonusChance) : 0;
+  return loot.map((item, index) => {
+    const baseChance = Number.isFinite(item.chance) ? Math.max(0, item.chance) : 0;
+    const totalChance = Math.min(1, baseChance + bonusChance);
+    const display = buildLootDisplay(item) || {};
+    const type = display.type || item.type || 'equipment';
+    const identifier =
+      display.itemId ||
+      display.skillId ||
+      display.consumableId ||
+      item.itemId ||
+      item.skillId ||
+      item.consumableId ||
+      display.label ||
+      '';
+    return {
+      type,
+      id: identifier ? `${type}:${identifier}` : `${type}:${index}`,
+      ...display,
+      chance: baseChance,
+      baseChance,
+      bonusChance,
+      totalChance,
+      baseChanceText: formatChancePercent(baseChance),
+      bonusChanceText: formatChancePercent(bonusChance),
+      totalChanceText: formatChancePercent(totalChance)
+    };
   });
+}
+
+function decorateBattleRewards(rewards) {
+  if (!rewards || typeof rewards !== 'object') {
+    return rewards || null;
+  }
+  const decorated = { ...rewards };
+  if (Array.isArray(rewards.loot)) {
+    decorated.loot = rewards.loot
+      .map((item, index) => {
+        const display = buildLootDisplay(item);
+        if (!display) {
+          return null;
+        }
+        const type = display.type || item.type || 'equipment';
+        const identifier =
+          display.itemId ||
+          display.skillId ||
+          display.consumableId ||
+          item.itemId ||
+          item.skillId ||
+          item.consumableId ||
+          display.label ||
+          '';
+        return {
+          type,
+          id: identifier ? `${type}:${identifier}` : `${type}:${index}`,
+          ...display
+        };
+      })
+      .filter(Boolean);
+  }
+  return decorated;
 }
 
 const ADMIN_ENEMY_ATTRIBUTE_ORDER = [...BASE_ATTRIBUTE_KEYS];
@@ -7792,7 +7895,8 @@ function decorateBattleHistory(history, profile, options = {}) {
         metadata.mode = 'pve';
       }
       const outcome = entry.outcome || (battleSource && battleSource.outcome) || null;
-      const rewards = entry.rewards || (battleSource && battleSource.rewards) || null;
+      const rawRewards = entry.rewards || (battleSource && battleSource.rewards) || null;
+      const rewards = decorateBattleRewards(rawRewards);
       const combatPower = entry.combatPower || (battleSource && battleSource.combatPower) || null;
       const remaining = entry.remaining || (battleSource && battleSource.remaining) || null;
       const rounds = entry.rounds || (battleSource && battleSource.rounds) || null;
@@ -7824,9 +7928,9 @@ function decorateBattleHistory(history, profile, options = {}) {
         if (!battlePreview.outcome && outcome) {
           battlePreview.outcome = outcome;
         }
-        if (!battlePreview.rewards && rewards) {
-          battlePreview.rewards = rewards;
-        }
+        battlePreview.rewards = battlePreview.rewards
+          ? decorateBattleRewards(battlePreview.rewards)
+          : rewards;
         if (!battlePreview.combatPower && combatPower) {
           battlePreview.combatPower = combatPower;
         }
@@ -9376,17 +9480,28 @@ function resolveBattleLoot(loot, insight) {
     return [];
   }
   const results = [];
-  loot.forEach((item) => {
+  loot.forEach((item, index) => {
     const chance = item.chance || 0;
-    const insightBonus = Math.min(0.2, insight * 0.0015);
+    const insightBonus = Math.min(SECRET_REALM_LOOT_INSIGHT_CAP, insight * SECRET_REALM_LOOT_INSIGHT_MULTIPLIER);
     const roll = Math.random();
     if (roll < chance + insightBonus) {
-      if (item.type === 'equipment' && EQUIPMENT_MAP[item.itemId]) {
-        results.push({ type: 'equipment', itemId: item.itemId });
-      } else if (item.type === 'skill' && SKILL_MAP[item.skillId]) {
-        results.push({ type: 'skill', skillId: item.skillId });
-      } else if (item.type === 'consumable' && CONSUMABLE_MAP[item.consumableId]) {
-        results.push({ type: 'consumable', consumableId: item.consumableId });
+      const display = buildLootDisplay(item);
+      if (display) {
+        const type = display.type || item.type || 'equipment';
+        const identifier =
+          display.itemId ||
+          display.skillId ||
+          display.consumableId ||
+          item.itemId ||
+          item.skillId ||
+          item.consumableId ||
+          display.label ||
+          '';
+        results.push({
+          type,
+          id: identifier ? `${type}:${identifier}` : `${type}:${index}`,
+          ...display
+        });
       }
     }
   });

@@ -27,9 +27,24 @@
         </view>
         <view class="enemy-meta">{{item.floorLabel}} · {{item.stageName}}</view>
         <view class="enemy-desc">{{item.description}}</view>
+        <view wx:if="{{item.loot && item.loot.length}}" class="enemy-meta enemy-loot-row">
+          <text class="enemy-meta-label">概率获得：</text>
+          <view class="enemy-loot-inline">
+            <block wx:for="{{item.loot}}" wx:key="id">
+              <view class="enemy-loot-segment">
+                <text class="enemy-loot-name" style="color: {{item.qualityColor || '#f1f4ff'}}">{{item.label}}</text>
+                <text class="enemy-loot-total">{{item.totalChanceText}}掉落</text>
+                <text
+                  wx:if="{{index < item.loot.length - 1}}"
+                  class="enemy-loot-separator"
+                >、</text>
+              </view>
+            </block>
+          </view>
+        </view>
+        <view wx:else class="enemy-meta enemy-loot-row">概率获得：暂无掉落</view>
         <view class="enemy-meta">等级 {{item.level}} · 推荐战力 {{item.combatPower}}</view>
         <view class="enemy-status">状态：{{item.statusLabel}}</view>
-        <view class="enemy-reward">{{item.rewardsText}}</view>
         <view
           wx:if="{{profile.metadata.viewerIsAdmin && item.adminEnemyDetails}}"
           class="enemy-admin-section"
