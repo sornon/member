@@ -102,20 +102,22 @@ page {
 
 .enemy-loot-row {
   display: block;
-  color: #42d394;
   line-height: 1.7;
   word-break: break-word;
 }
 
 .enemy-loot-label,
 .enemy-loot-item,
-.enemy-loot-separator {
+.enemy-loot-separator,
+.enemy-loot-name,
+.enemy-loot-chance {
   display: inline;
 }
 
 .enemy-loot-label {
   font-weight: 600;
   margin-right: 6rpx;
+  color: rgba(198, 208, 255, 0.82);
 }
 
 .enemy-loot-item {
@@ -124,6 +126,14 @@ page {
 
 .enemy-loot-separator {
   margin: 0 6rpx;
+}
+
+.enemy-loot-name {
+  font-weight: 600;
+}
+
+.enemy-loot-chance {
+  color: #42d394;
 }
 
 .enemy-status {

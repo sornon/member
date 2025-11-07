@@ -30,7 +30,10 @@
         <view wx:if="{{item.loot && item.loot.length}}" class="enemy-meta enemy-loot-row">
           <text class="enemy-loot-label">概率获得：</text>
           <block wx:for="{{item.loot}}" wx:key="id">
-            <text class="enemy-loot-item">{{item.label}}（{{item.totalChanceText}}掉落）</text>
+            <text class="enemy-loot-item">
+              <text class="enemy-loot-name" style="color: {{item.qualityColor || '#f1f4ff'}}">{{item.label}}</text>
+              <text class="enemy-loot-chance">（{{item.totalChanceText}}掉落）</text>
+            </text>
             <text wx:if="{{index < item.loot.length - 1}}" class="enemy-loot-separator">、</text>
           </block>
         </view>
