@@ -28,21 +28,19 @@
         <view class="enemy-meta">{{item.floorLabel}} · {{item.stageName}}</view>
         <view class="enemy-desc">{{item.description}}</view>
         <view wx:if="{{item.loot && item.loot.length}}" class="enemy-meta enemy-loot-row">
-          <text class="enemy-meta-label">概率获得：</text>
-          <view class="enemy-loot-inline">
-            <block wx:for="{{item.loot}}" wx:key="id">
-              <view class="enemy-loot-segment">
-                <text class="enemy-loot-name" style="color: {{item.qualityColor || '#f1f4ff'}}">{{item.label}}</text>
-                <text class="enemy-loot-total">{{item.totalChanceText}}掉落</text>
-                <text
-                  wx:if="{{index < item.loot.length - 1}}"
-                  class="enemy-loot-separator"
-                >、</text>
-              </view>
-            </block>
-          </view>
+          <text class="enemy-loot-label">概率获得：</text>
+          <block wx:for="{{item.loot}}" wx:key="id">
+            <text class="enemy-loot-item">
+              <text class="enemy-loot-name" style="color: {{item.qualityColor || '#f1f4ff'}}">{{item.label}}</text>
+              <text class="enemy-loot-chance">（{{item.totalChanceText}}掉落）</text>
+            </text>
+            <text wx:if="{{index < item.loot.length - 1}}" class="enemy-loot-separator">、</text>
+          </block>
         </view>
-        <view wx:else class="enemy-meta enemy-loot-row">概率获得：暂无掉落</view>
+        <view wx:else class="enemy-meta enemy-loot-row">
+          <text class="enemy-loot-label">概率获得：</text>
+          <text class="enemy-loot-item">暂无掉落</text>
+        </view>
         <view class="enemy-meta">等级 {{item.level}} · 推荐战力 {{item.combatPower}}</view>
         <view class="enemy-status">状态：{{item.statusLabel}}</view>
         <view
