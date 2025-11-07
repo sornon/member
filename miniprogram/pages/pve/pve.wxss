@@ -101,44 +101,29 @@ page {
 }
 
 .enemy-loot-row {
-  display: flex;
-  align-items: baseline;
-  gap: 12rpx;
+  display: block;
+  color: #42d394;
+  line-height: 1.7;
+  word-break: break-word;
 }
 
-.enemy-meta-label {
-  flex-shrink: 0;
-  color: rgba(198, 208, 255, 0.82);
+.enemy-loot-label,
+.enemy-loot-item,
+.enemy-loot-separator {
+  display: inline;
 }
 
-.enemy-loot-inline {
-  display: flex;
-  flex: 1;
-  flex-wrap: wrap;
-  gap: 6rpx;
-  line-height: 1.6;
-}
-
-.enemy-loot-segment {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4rpx;
-  white-space: nowrap;
-}
-
-.enemy-loot-name {
-  font-size: 22rpx;
+.enemy-loot-label {
   font-weight: 600;
+  margin-right: 6rpx;
 }
 
-.enemy-loot-total {
-  font-size: 20rpx;
-  color: rgba(255, 236, 188, 0.88);
+.enemy-loot-item {
+  font-size: 22rpx;
 }
 
 .enemy-loot-separator {
-  font-size: 22rpx;
-  color: rgba(198, 208, 255, 0.65);
+  margin: 0 6rpx;
 }
 
 .enemy-status {
