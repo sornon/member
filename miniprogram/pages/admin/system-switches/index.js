@@ -409,6 +409,62 @@ function cloneEquipmentEnhancement(config) {
   return { ...normalized };
 }
 
+function buildEnhancementDraft(config = DEFAULT_EQUIPMENT_ENHANCEMENT) {
+  const normalized = cloneEquipmentEnhancement(config);
+  return {
+    guaranteedLevel:
+      typeof normalized.guaranteedLevel === 'number' && Number.isFinite(normalized.guaranteedLevel)
+        ? String(normalized.guaranteedLevel)
+        : '',
+    decayPerLevel:
+      typeof normalized.decayPerLevel === 'number' && Number.isFinite(normalized.decayPerLevel)
+        ? String(normalized.decayPerLevel)
+        : '',
+    maxLevel:
+      typeof normalized.maxLevel === 'number' && Number.isFinite(normalized.maxLevel)
+        ? String(normalized.maxLevel)
+        : ''
+  };
+}
+
+function parseEnhancementDraft(draft = {}) {
+  const fields = [
+    { key: 'guaranteedLevel', label: '100% 成功等级上限', min: 0, max: 99 },
+    { key: 'decayPerLevel', label: '每级成功率衰减（%）', min: 0, max: 100 },
+    { key: 'maxLevel', label: '强化等级上限', min: 1, max: 99 }
+  ];
+  const payload = {};
+
+  for (let i = 0; i < fields.length; i += 1) {
+    const { key, label, min, max } = fields[i];
+    const rawValue = draft && Object.prototype.hasOwnProperty.call(draft, key) ? draft[key] : '';
+    const trimmed = typeof rawValue === 'string' ? rawValue.trim() : String(rawValue || '');
+    if (!trimmed) {
+      return { error: `${label} 不能为空`, payload: null };
+    }
+    const numeric = Number(trimmed);
+    if (!Number.isFinite(numeric) || Math.floor(numeric) !== numeric) {
+      return { error: `${label} 需为整数`, payload: null };
+    }
+    if (numeric < min) {
+      return { error: `${label} 不能小于 ${min}`, payload: null };
+    }
+    if (numeric > max) {
+      return { error: `${label} 不能超过 ${max}`, payload: null };
+    }
+    payload[key] = numeric;
+  }
+
+  if (payload.guaranteedLevel > payload.maxLevel) {
+    return {
+      error: '100% 成功等级上限 不能大于 强化等级上限',
+      payload: null
+    };
+  }
+
+  return { error: '', payload };
+}
+
 const HOME_ENTRY_KEYS = Object.keys(DEFAULT_HOME_ENTRIES);
 
 function normalizeHomeEntries(entries) {
@@ -621,7 +677,7 @@ Page({
     globalBackgroundManagerDirty: false,
     globalBackgroundManagerSaving: false,
     globalBackgroundManagerError: '',
-    enhancementDraft: cloneEquipmentEnhancement(DEFAULT_FEATURES.equipmentEnhancement),
+    enhancementDraft: buildEnhancementDraft(DEFAULT_FEATURES.equipmentEnhancement),
     enhancementDefaults: cloneEquipmentEnhancement(DEFAULT_EQUIPMENT_ENHANCEMENT),
     enhancementSaving: false,
     enhancementError: '',
@@ -755,7 +811,7 @@ Page({
         globalBackgroundManagerDirty: false,
         globalBackgroundManagerSaving: false,
         globalBackgroundManagerError: '',
-        enhancementDraft: cloneEquipmentEnhancement(nextFeatures.equipmentEnhancement),
+        enhancementDraft: buildEnhancementDraft(nextFeatures.equipmentEnhancement),
         enhancementError: '',
         enhancementSaving: false
       });
@@ -884,7 +940,7 @@ Page({
           globalBackgroundManagerEntries: globalState.entries,
           globalBackgroundSaving: false,
           globalBackgroundError: '',
-          enhancementDraft: cloneEquipmentEnhancement(nextFeatures.equipmentEnhancement)
+          enhancementDraft: buildEnhancementDraft(nextFeatures.equipmentEnhancement)
         });
         if (options.toast !== false) {
           const title = options.toastTitle || '已更新';
@@ -1070,7 +1126,7 @@ Page({
           globalBackgroundManagerDirty: false,
           globalBackgroundManagerSaving: false,
           globalBackgroundManagerError: '',
-          enhancementDraft: cloneEquipmentEnhancement(nextFeatures.equipmentEnhancement)
+          enhancementDraft: buildEnhancementDraft(nextFeatures.equipmentEnhancement)
         });
         wx.showToast({ title: '已保存', icon: 'success' });
       })
@@ -1081,6 +1137,87 @@ Page({
           globalBackgroundManagerError: message
         });
       });
+  },
+
+  handleEnhancementFieldChange(event) {
+    const { field } = event.currentTarget.dataset || {};
+    if (!field) {
+      return;
+    }
+    const draft = this.data.enhancementDraft || {};
+    if (!Object.prototype.hasOwnProperty.call(draft, field)) {
+      return;
+    }
+    const value = event && event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
+    this.setData({
+      enhancementDraft: { ...draft, [field]: value },
+      enhancementError: ''
+    });
+  },
+
+  handleEnhancementReset() {
+    if (this.data.enhancementSaving) {
+      return;
+    }
+    const defaults = buildEnhancementDraft(this.data.enhancementDefaults);
+    this.setData({
+      enhancementDraft: defaults,
+      enhancementError: ''
+    });
+  },
+
+  async handleEnhancementSubmit() {
+    if (this.data.enhancementSaving) {
+      return;
+    }
+
+    const { error, payload } = parseEnhancementDraft(this.data.enhancementDraft);
+    if (error) {
+      this.setData({ enhancementError: error });
+      wx.showToast({ title: error, icon: 'none', duration: 1500 });
+      return;
+    }
+
+    const previousFeatures = normalizeFeatures(this.data.features);
+    const currentConfig = cloneEquipmentEnhancement(previousFeatures.equipmentEnhancement);
+    const sanitizedDraft = buildEnhancementDraft(payload);
+
+    const unchanged =
+      payload.guaranteedLevel === currentConfig.guaranteedLevel &&
+      payload.decayPerLevel === currentConfig.decayPerLevel &&
+      payload.maxLevel === currentConfig.maxLevel;
+
+    if (unchanged) {
+      this.setData({ enhancementDraft: sanitizedDraft, enhancementError: '' });
+      wx.showToast({ title: '暂无改动', icon: 'none', duration: 1000 });
+      return;
+    }
+
+    this.setData({
+      enhancementDraft: sanitizedDraft,
+      enhancementSaving: true,
+      enhancementError: ''
+    });
+
+    try {
+      const result = await AdminService.updateEquipmentEnhancement(payload);
+      const features = normalizeFeatures(result && result.features ? result.features : previousFeatures);
+      this.setData({
+        features,
+        enhancementDraft: buildEnhancementDraft(features.equipmentEnhancement),
+        enhancementSaving: false,
+        enhancementError: ''
+      });
+      wx.showToast({ title: '已保存', icon: 'success', duration: 800 });
+    } catch (error) {
+      const message = resolveErrorMessage(error, '保存失败，请稍后重试');
+      this.setData({
+        features: previousFeatures,
+        enhancementSaving: false,
+        enhancementError: message
+      });
+      wx.showToast({ title: '保存失败', icon: 'none', duration: 1200 });
+    }
   },
 
   async handleFeatureToggle(event) {
@@ -1108,7 +1245,7 @@ Page({
       features: nextFeatures,
       updating,
       error: '',
-      enhancementDraft: cloneEquipmentEnhancement(nextFeatures.equipmentEnhancement)
+      enhancementDraft: buildEnhancementDraft(nextFeatures.equipmentEnhancement)
     });
 
     try {
@@ -1120,7 +1257,7 @@ Page({
         features,
         updating: nextUpdating,
         error: '',
-        enhancementDraft: cloneEquipmentEnhancement(features.equipmentEnhancement)
+        enhancementDraft: buildEnhancementDraft(features.equipmentEnhancement)
       });
       if (key.startsWith('homeEntries')) {
         this.syncHomeEntries(features.homeEntries);
@@ -1133,7 +1270,7 @@ Page({
         features: previousFeatures,
         updating: nextUpdating,
         error: resolveErrorMessage(error, '保存失败，请稍后重试'),
-        enhancementDraft: cloneEquipmentEnhancement(previousFeatures.equipmentEnhancement)
+        enhancementDraft: buildEnhancementDraft(previousFeatures.equipmentEnhancement)
       });
       wx.showToast({ title: '保存失败', icon: 'none', duration: 1200 });
     }
@@ -1249,7 +1386,7 @@ Page({
       tournamentDraft: { ...this.data.tournamentDraft, enabled },
       features: nextFeatures,
       tournamentError: '',
-      enhancementDraft: cloneEquipmentEnhancement(nextFeatures.equipmentEnhancement)
+      enhancementDraft: buildEnhancementDraft(nextFeatures.equipmentEnhancement)
     });
 
     this.saveTournamentSettings(
@@ -1413,7 +1550,7 @@ Page({
         tournamentDraft: buildTournamentDraft(features.immortalTournament),
         tournamentSaving: false,
         tournamentError: '',
-        enhancementDraft: cloneEquipmentEnhancement(features.equipmentEnhancement)
+        enhancementDraft: buildEnhancementDraft(features.equipmentEnhancement)
       });
       const toastTitle = options.toastTitle === false ? '' : options.toastTitle || '已更新';
       if (typeof toastTitle === 'string' && toastTitle) {
@@ -1428,7 +1565,7 @@ Page({
         tournamentDraft: buildTournamentDraft(fallback),
         tournamentSaving: false,
         tournamentError: resolveErrorMessage(error, '保存失败，请稍后重试'),
-        enhancementDraft: cloneEquipmentEnhancement(fallbackFeatures.equipmentEnhancement)
+        enhancementDraft: buildEnhancementDraft(fallbackFeatures.equipmentEnhancement)
       });
       wx.showToast({ title: '保存失败', icon: 'none', duration: 1200 });
       throw error;
