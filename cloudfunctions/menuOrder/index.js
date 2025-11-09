@@ -512,18 +512,27 @@ async function confirmMemberOrder(openid, orderId) {
             ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
           }
         });
+        const normalizedChargeOrderId =
+          typeof chargeOrderId === 'string' ? chargeOrderId.trim() : chargeOrderId ? String(chargeOrderId) : '';
+        const walletTransactionData = {
+          memberId: openid,
+          amount: -amount,
+          type: 'spend',
+          status: 'success',
+          source: 'menuOrder',
+          orderId: normalizedChargeOrderId || orderId,
+          remark: '菜单消费',
+          createdAt: now,
+          updatedAt: now
+        };
+        if (orderId) {
+          walletTransactionData.menuOrderId = orderId;
+        }
+        if (normalizedChargeOrderId) {
+          walletTransactionData.chargeOrderId = normalizedChargeOrderId;
+        }
         await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
-          data: {
-            memberId: openid,
-            amount: -amount,
-            type: 'spend',
-            status: 'success',
-            source: 'menuOrder',
-            orderId,
-            remark: '菜单消费',
-            createdAt: now,
-            updatedAt: now
-          }
+          data: walletTransactionData
         });
         await transaction.collection(COLLECTIONS.STONE_TRANSACTIONS).add({
           data: {
