@@ -344,7 +344,7 @@
       <view class="trading-modal__title">{{publishStep === 'select' ? '选择装备' : '上架装备'}}</view>
       <view class="trading-modal__close" bindtap="handlePublishClose">×</view>
     </view>
-    <view class="trading-modal__body">
+    <scroll-view class="trading-modal__body" scroll-y="true">
       <block wx:if="{{publishStep === 'select'}}">
         <view wx:if="{{sellableLoading}}" class="trading-modal__message">纳戒中装备收集中...</view>
         <view wx:elif="{{!sellableItems.length}}" class="trading-modal__message">暂无可上架的装备。</view>
@@ -492,7 +492,7 @@
           <view class="trading-form-item__hint">范围：{{summary.config.minDurationHours}} ~ {{summary.config.maxDurationHours}} 小时</view>
         </view>
       </block>
-    </view>
+    </scroll-view>
     <view class="trading-modal__footer">
       <view class="trading-button trading-button--secondary" bindtap="handlePublishClose">
         <text>取消</text>

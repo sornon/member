@@ -366,7 +366,9 @@ page {
 
 .trading-modal__body {
   max-height: 640rpx;
-  overflow-y: auto;
+  display: block;
+  box-sizing: border-box;
+  padding-right: 8rpx;
 }
 
 .trading-modal__message {
