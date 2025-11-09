@@ -1990,11 +1990,25 @@ async function grantInventoryRewardsForLevel(openid, level) {
       continue;
     }
     if (reward.type === 'equipment' && reward.itemId) {
-      const hasItem = profile.equipment.inventory.some((entry) => entry && entry.itemId === reward.itemId);
-      if (!hasItem) {
-        const equipmentEntry = createEquipmentRewardEntry(reward, now);
+      const rewardRefine = typeof reward.refine === 'number' ? Math.max(0, Math.floor(reward.refine)) : 0;
+      const existingIndex = profile.equipment.inventory.findIndex(
+        (entry) => entry && entry.itemId === reward.itemId
+      );
+      if (existingIndex === -1) {
+        const equipmentEntry = createEquipmentRewardEntry({ ...reward, refine: rewardRefine }, now);
         if (equipmentEntry) {
           profile.equipment.inventory.push(equipmentEntry);
+          profileChanged = true;
+        }
+      } else {
+        const existingEntry = profile.equipment.inventory[existingIndex];
+        const currentRefine = Math.max(0, Math.floor(Number(existingEntry.refine) || 0));
+        if (rewardRefine > currentRefine) {
+          profile.equipment.inventory[existingIndex] = {
+            ...existingEntry,
+            refine: rewardRefine,
+            obtainedAt: existingEntry.obtainedAt || now
+          };
           profileChanged = true;
         }
       }
