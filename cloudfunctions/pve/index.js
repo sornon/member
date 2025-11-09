@@ -508,56 +508,101 @@ const SECRET_REALM_ARCHETYPE_SKILLS = Object.freeze({
 const SECRET_REALM_LOOT_PRESETS = Object.freeze({
   1: {
     normal: {
-      chance: 0.12,
-      items: ['mortal_weapon_staff', 'mortal_bracer_stone', 'mortal_chest_robe']
+      chance: 0.15,
+      items: [
+        'mortal_weapon_staff',
+        'mortal_bracer_stone',
+        'mortal_chest_robe',
+        'mortal_focus_mirror'
+      ]
     }
   },
   2: {
     normal: {
-      chance: 0.12,
-      items: ['mortal_boots_cloth', 'mortal_belt_rope', 'mortal_focus_brush']
+      chance: 0.15,
+      items: [
+        'mortal_boots_cloth',
+        'mortal_belt_rope',
+        'mortal_focus_brush',
+        'mortal_orb_amber'
+      ]
     }
   },
   3: {
     normal: {
-      chance: 0.12,
-      items: ['mortal_helm_headband', 'mortal_treasure_dawn', 'mortal_puppet_wood']
+      chance: 0.15,
+      items: [
+        'mortal_helm_headband',
+        'mortal_treasure_dawn',
+        'mortal_puppet_wood',
+        'mortal_puppet_feather'
+      ]
     }
   },
   4: {
     normal: {
-      chance: 0.13,
-      items: ['mortal_weapon_sabre', 'mortal_bracer_echo', 'mortal_chest_plate']
+      chance: 0.15,
+      items: [
+        'mortal_weapon_sabre',
+        'mortal_bracer_echo',
+        'mortal_chest_plate',
+        'mortal_token_banner'
+      ]
     }
   },
   5: {
     normal: {
-      chance: 0.13,
-      items: ['mortal_boots_lightstep', 'mortal_belt_ring', 'mortal_orb_calm']
+      chance: 0.15,
+      items: [
+        'mortal_boots_lightstep',
+        'mortal_belt_ring',
+        'mortal_orb_calm',
+        'mortal_token_oath'
+      ]
     }
   },
   6: {
     normal: {
-      chance: 0.13,
-      items: ['mortal_helm_veil', 'mortal_necklace_care', 'mortal_treasure_ward']
+      chance: 0.15,
+      items: [
+        'mortal_helm_veil',
+        'mortal_necklace_care',
+        'mortal_treasure_ward',
+        'mortal_necklace_rune'
+      ]
     }
   },
   7: {
     normal: {
-      chance: 0.14,
-      items: ['mortal_weapon_crossbow', 'mortal_bracer_leaf', 'mortal_chest_mantle']
+      chance: 0.15,
+      items: [
+        'mortal_weapon_crossbow',
+        'mortal_bracer_leaf',
+        'mortal_chest_mantle',
+        'mortal_focus_bell'
+      ]
     }
   },
   8: {
     normal: {
-      chance: 0.14,
-      items: ['mortal_boots_balance', 'mortal_belt_wrap', 'mortal_orb_flame']
+      chance: 0.15,
+      items: [
+        'mortal_boots_balance',
+        'mortal_belt_wrap',
+        'mortal_orb_flame',
+        'mortal_token_shield'
+      ]
     }
   },
   9: {
     normal: {
-      chance: 0.14,
-      items: ['mortal_helm_mask', 'mortal_necklace_fang', 'mortal_treasure_flare']
+      chance: 0.15,
+      items: [
+        'mortal_helm_mask',
+        'mortal_necklace_fang',
+        'mortal_treasure_flare',
+        'mortal_puppet_vine'
+      ]
     }
   },
   10: {
