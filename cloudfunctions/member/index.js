@@ -383,23 +383,6 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       slotLabel: '道具'
     },
     {
-      type: 'consumable',
-      storageItemId: 'reward_voucher_qi_drink',
-      storageCategory: 'consumable',
-      usage: {
-        type: 'grantRight',
-        rightId: 'right_realm_qi_drink',
-        amountLimit: 12000,
-        categoryType: 'drinks'
-      },
-      name: '饮品券·任意 120 元内饮品',
-      description: '使用后获得「任意饮品券（120 元内）」权益，点餐时自动抵扣最贵的一件酒水。',
-      slotLabel: '道具',
-      quality: 'epic',
-      qualityLabel: '权益券',
-      qualityColor: '#f2a546'
-    },
-    {
       type: 'background',
       backgroundId: 'reward_foundation',
       name: '背景·筑基背景',
@@ -1766,6 +1749,20 @@ function normalizeConfigRewardEntry(entry) {
   return [];
 }
 
+function normalizeMilestoneInventory(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items
+    .map((item) => {
+      if (!item || typeof item !== 'object') {
+        return null;
+      }
+      return { ...item };
+    })
+    .filter((item) => !!item);
+}
+
 function applyRealmConfigOverrides(levels = []) {
   if (!Array.isArray(levels) || !levels.length) {
     return levels || [];
@@ -1808,6 +1805,9 @@ function applyRealmConfigOverrides(levels = []) {
           quantity: item.quantity || 1,
           description: item.description || ''
         }));
+      }
+      if (Array.isArray(config.milestone.items) && config.milestone.items.length) {
+        overrides.milestoneInventory = normalizeMilestoneInventory(config.milestone.items);
       }
     }
 
@@ -1907,8 +1907,10 @@ async function grantLevelRewards(openid, level, levels) {
 }
 
 async function grantInventoryRewardsForLevel(openid, level) {
-  const rewards = LEVEL_REWARD_CONFIG[level._id];
-  if (!Array.isArray(rewards) || !rewards.length) {
+  const baseRewards = LEVEL_REWARD_CONFIG[level._id] || [];
+  const milestoneRewards = Array.isArray(level.milestoneInventory) ? level.milestoneInventory : [];
+  const rewards = [...baseRewards, ...milestoneRewards];
+  if (!rewards.length) {
     return;
   }
   const extras = await resolveMemberExtras(openid);
