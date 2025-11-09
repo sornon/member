@@ -402,6 +402,33 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       usage: { type: 'unlockTitle', titleId: 'title_foundation_initiate' }
     }
   ],
+  level_012: [
+    { type: 'equipment', itemId: 'novice_sword' }
+  ],
+  level_013: [
+    { type: 'equipment', itemId: 'apprentice_helm' }
+  ],
+  level_014: [
+    { type: 'equipment', itemId: 'apprentice_robe' }
+  ],
+  level_015: [
+    { type: 'equipment', itemId: 'lightstep_boots' }
+  ],
+  level_016: [
+    { type: 'equipment', itemId: 'spirit_belt' }
+  ],
+  level_017: [
+    { type: 'equipment', itemId: 'initiate_bracers' }
+  ],
+  level_018: [
+    { type: 'equipment', itemId: 'initiate_orb' }
+  ],
+  level_019: [
+    { type: 'equipment', itemId: 'spirit_ring' }
+  ],
+  level_020: [
+    { type: 'equipment', itemId: 'oath_token' }
+  ],
   level_021: [
     {
       type: 'title',
