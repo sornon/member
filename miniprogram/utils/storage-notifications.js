@@ -351,7 +351,7 @@ function ensureLatestState(state, items, options = {}) {
         mutated = true;
       }
       const ackValue = Number(acknowledged[entry.key]) || 0;
-      if (ackValue && ackValue < candidate && !entry.isNew) {
+      if (!entry.isNew && candidate && ackValue < candidate) {
         acknowledged[entry.key] = candidate;
         mutated = true;
       }
