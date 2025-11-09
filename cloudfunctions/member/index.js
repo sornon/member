@@ -403,31 +403,31 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
     }
   ],
   level_012: [
-    { type: 'equipment', itemId: 'novice_sword' }
+    { type: 'equipment', itemId: 'mortal_helm_headband', refine: 2 }
   ],
   level_013: [
-    { type: 'equipment', itemId: 'apprentice_helm' }
+    { type: 'equipment', itemId: 'mortal_boots_cloth', refine: 2 }
   ],
   level_014: [
-    { type: 'equipment', itemId: 'apprentice_robe' }
+    { type: 'equipment', itemId: 'mortal_belt_rope', refine: 2 }
   ],
   level_015: [
-    { type: 'equipment', itemId: 'lightstep_boots' }
+    { type: 'equipment', itemId: 'mortal_bracer_stone', refine: 2 }
   ],
   level_016: [
-    { type: 'equipment', itemId: 'spirit_belt' }
+    { type: 'equipment', itemId: 'mortal_orb_amber', refine: 2 }
   ],
   level_017: [
-    { type: 'equipment', itemId: 'initiate_bracers' }
+    { type: 'equipment', itemId: 'mortal_necklace_rune', refine: 2 }
   ],
   level_018: [
-    { type: 'equipment', itemId: 'initiate_orb' }
+    { type: 'equipment', itemId: 'mortal_token_oath', refine: 2 }
   ],
   level_019: [
-    { type: 'equipment', itemId: 'spirit_ring' }
+    { type: 'equipment', itemId: 'mortal_puppet_wood', refine: 2 }
   ],
   level_020: [
-    { type: 'equipment', itemId: 'oath_token' }
+    { type: 'equipment', itemId: 'mortal_treasure_dawn', refine: 2 }
   ],
   level_021: [
     {
@@ -440,6 +440,33 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
       slotLabel: '称号',
       usage: { type: 'unlockTitle', titleId: 'title_core_forming_initiate' }
     }
+  ],
+  level_022: [
+    { type: 'equipment', itemId: 'novice_sword' }
+  ],
+  level_023: [
+    { type: 'equipment', itemId: 'apprentice_helm' }
+  ],
+  level_024: [
+    { type: 'equipment', itemId: 'apprentice_robe' }
+  ],
+  level_025: [
+    { type: 'equipment', itemId: 'lightstep_boots' }
+  ],
+  level_026: [
+    { type: 'equipment', itemId: 'spirit_belt' }
+  ],
+  level_027: [
+    { type: 'equipment', itemId: 'initiate_bracers' }
+  ],
+  level_028: [
+    { type: 'equipment', itemId: 'initiate_orb' }
+  ],
+  level_029: [
+    { type: 'equipment', itemId: 'spirit_ring' }
+  ],
+  level_030: [
+    { type: 'equipment', itemId: 'initiate_treasure' }
   ],
   level_031: [
     {
