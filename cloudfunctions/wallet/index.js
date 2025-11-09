@@ -1307,22 +1307,59 @@ async function payWithBalance(openid, orderId, amount) {
 }
 
 async function loadChargeOrder(openid, orderId) {
-  if (!orderId) {
+  const normalizedOrderId = typeof orderId === 'string' ? orderId.trim() : '';
+  if (!normalizedOrderId) {
     throw new Error('扣费单不存在');
   }
-  const doc = await db
+
+  let chargeOrderId = normalizedOrderId;
+  let doc = await db
     .collection(COLLECTIONS.CHARGE_ORDERS)
-    .doc(orderId)
+    .doc(chargeOrderId)
     .get()
     .catch(() => null);
+
+  let relatedMenuOrder = null;
+
+  if (!doc || !doc.data) {
+    relatedMenuOrder = await db
+      .collection(COLLECTIONS.MENU_ORDERS)
+      .doc(normalizedOrderId)
+      .get()
+      .catch(() => null);
+
+    const fallbackChargeOrderId =
+      relatedMenuOrder && relatedMenuOrder.data
+        ? trimToString(relatedMenuOrder.data.chargeOrderId)
+        : '';
+
+    if (fallbackChargeOrderId) {
+      chargeOrderId = fallbackChargeOrderId;
+      doc = await db
+        .collection(COLLECTIONS.CHARGE_ORDERS)
+        .doc(chargeOrderId)
+        .get()
+        .catch(() => null);
+    }
+  }
+
   if (!doc || !doc.data) {
     throw new Error('扣费单不存在');
   }
-  const order = mapChargeOrder(doc.data, orderId);
+
+  const order = mapChargeOrder(
+    {
+      ...doc.data,
+      menuOrderId:
+        (doc.data && doc.data.menuOrderId) ||
+        (relatedMenuOrder && relatedMenuOrder.data ? relatedMenuOrder.data._id || normalizedOrderId : '')
+    },
+    chargeOrderId
+  );
   if (order.status === 'expired' && doc.data.status !== 'expired') {
     await db
       .collection(COLLECTIONS.CHARGE_ORDERS)
-      .doc(orderId)
+      .doc(chargeOrderId)
       .update({
         data: {
           status: 'expired',
@@ -1477,6 +1514,7 @@ function mapChargeOrder(raw, orderId, now = new Date()) {
     updatedAt: resolveDate(raw.updatedAt),
     expireAt,
     memberId: raw.memberId || '',
+    menuOrderId: trimToString(raw.menuOrderId),
     confirmedAt: resolveDate(raw.confirmedAt),
     adminRemark: typeof raw.adminRemark === 'string' ? raw.adminRemark : '',
     adminPriceAdjustment: normalizeAdminPriceAdjustment(raw.adminPriceAdjustment),
