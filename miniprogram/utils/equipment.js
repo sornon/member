@@ -235,6 +235,25 @@ export function buildEquipmentIconPaths(item) {
   if (!item || typeof item !== 'object') {
     return { iconUrl: '', iconFallbackUrl: '' };
   }
+  const iconFileName = typeof item.iconFileName === 'string' ? item.iconFileName.trim() : '';
+  if (iconFileName) {
+    const normalizedPath = iconFileName.replace(/^[\\/]+/, '');
+    const pathSegments = normalizedPath.split('/').filter(Boolean);
+    const segments = pathSegments.length ? [...pathSegments] : [normalizedPath];
+    if (segments.length && segments[0].toLowerCase() === 'materials') {
+      segments.shift();
+    }
+    let fileName = segments.pop() || '';
+    if (!fileName) {
+      fileName = normalizedPath;
+    }
+    if (!/\.[a-z0-9]+$/i.test(fileName)) {
+      fileName = `${fileName}.png`;
+    }
+    const materialSegments = ['materials', ...segments, fileName];
+    const mediaUrl = buildCloudAssetUrl(...materialSegments);
+    return { iconUrl: mediaUrl, iconFallbackUrl: mediaUrl };
+  }
   const directMediaKey = typeof item.mediaKey === 'string' ? item.mediaKey.trim() : '';
   const inferredMediaKey = directMediaKey || resolveStorageMediaKey(item);
   if (inferredMediaKey) {
