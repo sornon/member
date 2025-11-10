@@ -766,7 +766,8 @@ const SECRET_REALM_FLOOR_ASSIGNMENTS = Object.freeze({
         summary: '玄火尊统御炼气秘境，兼具烈焰爆发与防御。',
         tags: ['首领', '烈焰'],
         visualKey: 'secret_realm_qi_refining_10',
-        scaling: { stat: 1.05, special: 1.1 }
+        scaling: { stat: 1.05, special: 1.1 },
+        difficultyOverride: '困难'
       }
     }
   },
@@ -837,6 +838,27 @@ const SECRET_REALM_FLOOR_ASSIGNMENTS = Object.freeze({
         summary: '心魄缚者神识凌厉，控制命中与精神打击逼近筑基上限。',
         tags: ['控制', '压制'],
         scaling: { stat: 1.19, special: 1.11 }
+      },
+      20: {
+        template: 'qi_refining_overseer',
+        displayName: '玄火尊',
+        summary: '玄火尊镇守筑基圆满，真火烈焰与厚重护盾同步压制挑战者。',
+        tags: ['首领', '烈焰', '压制'],
+        scaling: { stat: 1.22, special: 1.28 },
+        statAdjustments: {
+          multipliers: {
+            maxHp: 1.25,
+            physicalAttack: 1.18,
+            magicAttack: 1.18,
+            physicalDefense: 1.15,
+            magicDefense: 1.15,
+            speed: 1.12
+          }
+        },
+        specialAdjustments: {
+          multipliers: { bonusDamage: 1.3, shield: 1.22, dodgeChance: 1.08 }
+        },
+        difficultyOverride: '困难'
       }
     }
   }
@@ -1023,6 +1045,16 @@ function mergeSecretRealmTemplate(baseTemplate = {}, defaults = {}, overrides = 
   const summary = overrides.summary || baseTemplate.summary || defaults.summary || '';
   const description = overrides.description || baseTemplate.description || defaults.description || '';
   const visualKey = overrides.visualKey || baseTemplate.visualKey || defaults.visualKey || '';
+  const difficultyOverrideCandidate =
+    overrides.difficultyOverride ||
+    overrides.difficulty ||
+    baseTemplate.difficultyOverride ||
+    baseTemplate.difficulty ||
+    defaults.difficultyOverride ||
+    defaults.difficulty ||
+    '';
+  const difficultyOverride =
+    typeof difficultyOverrideCandidate === 'string' ? difficultyOverrideCandidate : '';
   return {
     key: templateKey,
     name,
@@ -1036,7 +1068,8 @@ function mergeSecretRealmTemplate(baseTemplate = {}, defaults = {}, overrides = 
     skillIds,
     scaling,
     statAdjustments,
-    specialAdjustments
+    specialAdjustments,
+    difficultyOverride
   };
 }
 
@@ -1128,6 +1161,15 @@ function sanitizeSecretRealmTemplateMeta(meta) {
   sanitized.summary = typeof sanitized.summary === 'string' ? sanitized.summary.trim() : '';
   sanitized.description = typeof sanitized.description === 'string' ? sanitized.description.trim() : '';
   sanitized.visualKey = typeof sanitized.visualKey === 'string' ? sanitized.visualKey.trim() : '';
+  const difficultyOverrideValue =
+    typeof sanitized.difficultyOverride === 'string'
+      ? sanitized.difficultyOverride
+      : typeof sanitized.difficulty === 'string'
+      ? sanitized.difficulty
+      : '';
+  sanitized.difficultyOverride = typeof difficultyOverrideValue === 'string'
+    ? difficultyOverrideValue.trim()
+    : '';
   sanitized.tags = combineUniqueStrings(sanitized.tags);
   sanitized.statFocus = sanitizeStatFocus(sanitized.statFocus);
   sanitized.skillIds = sanitizeSkillList(sanitized.skillIds || []);
@@ -1172,6 +1214,12 @@ function sanitizeSecretRealmTemplateMeta(meta) {
   }
   if (!sanitized.visualKey) {
     delete sanitized.visualKey;
+  }
+  if (!sanitized.difficultyOverride) {
+    delete sanitized.difficultyOverride;
+  }
+  if (Object.prototype.hasOwnProperty.call(sanitized, 'difficulty')) {
+    delete sanitized.difficulty;
   }
 
   return sanitized;
@@ -1401,7 +1449,8 @@ function buildSecretRealmTemplateMeta(templateConfig, context) {
     type: context.type,
     archetype: context.archetype ? context.archetype.key : '',
     baseScaling,
-    appliedScaling
+    appliedScaling,
+    difficultyOverride: templateConfig.difficultyOverride || ''
   });
 }
 
@@ -1575,15 +1624,9 @@ const SECRET_REALM_LOOT_PRESETS = Object.freeze({
   20: {
     boss: {
       items: [
-        { itemId: 'dragonbone_sabre', chance: 0.2 },
-        { itemId: 'abyssal_focus', chance: 0.2 },
-        { itemId: 'shadow_talisman', chance: 0.2 },
-        { itemId: 'guardian_puppet', chance: 0.2 },
-        { itemId: 'veil_treasure', chance: 0.18 },
-        { itemId: 'aegis_orb', chance: 0.18 },
-        { itemId: 'inferno_orb', chance: 0.07 },
-        { itemId: 'ember_focus', chance: 0.07 },
-        { itemId: 'phoenix_plume', chance: 0.07 }
+        { itemId: 'spirit_blade', chance: 0.18 },
+        { itemId: 'starsea_mail', chance: 0.18 },
+        { itemId: 'void_silk', chance: 0.18 }
       ]
     }
   },
@@ -1804,6 +1847,10 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
     (templateMeta && templateMeta.displayName) ||
     (templateConfig && templateConfig.displayName) ||
     `${archetype.title}`;
+  const difficultyOverride =
+    templateConfig && typeof templateConfig.difficultyOverride === 'string'
+      ? templateConfig.difficultyOverride.trim()
+      : '';
 
   return {
     id,
@@ -1827,6 +1874,7 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
     skills,
     rewards,
     loot,
+    ...(difficultyOverride ? { difficultyOverride } : {}),
     meta: {
       scaling,
       suggestedRewards: rewards && rewards._model ? rewards._model : null,
@@ -8917,7 +8965,9 @@ function decorateEnemy(enemy, attributeSummary = {}, secretRealmState, options =
   const attributeSpecial =
     attributeSummary && attributeSummary.skillSummary ? attributeSummary.skillSummary : {};
   const playerPower = calculateCombatPower(attributeStats, attributeSpecial);
-  const difficulty = resolveDifficultyLabel(playerPower, combatPower);
+  const difficultyOverride = resolveDifficultyOverride(enemy);
+  const computedDifficulty = resolveDifficultyLabel(playerPower, combatPower);
+  const difficulty = difficultyOverride || computedDifficulty;
   const rewards = normalizeDungeonRewards(enemy.rewards);
   const lootBonusChance = resolveLootBonusChance(attributeSummary);
   const loot = decorateEnemyLoot(enemy.loot || [], { bonusChance: lootBonusChance });
@@ -8970,6 +9020,24 @@ function decorateEnemy(enemy, attributeSummary = {}, secretRealmState, options =
     ...(highlights.length ? { highlights } : {}),
     ...(adminEnemyDetails ? { adminEnemyDetails } : {})
   };
+}
+
+function resolveDifficultyOverride(enemy) {
+  if (!enemy || typeof enemy !== 'object') {
+    return '';
+  }
+  const directOverride =
+    typeof enemy.difficultyOverride === 'string' ? enemy.difficultyOverride.trim() : '';
+  if (directOverride) {
+    return directOverride;
+  }
+  const templateOverride =
+    enemy.meta &&
+    enemy.meta.template &&
+    typeof enemy.meta.template.difficultyOverride === 'string'
+      ? enemy.meta.template.difficultyOverride.trim()
+      : '';
+  return templateOverride || '';
 }
 
 const SECRET_REALM_LOOT_INSIGHT_MULTIPLIER = 0.00015;

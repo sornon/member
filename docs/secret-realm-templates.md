@@ -19,6 +19,7 @@
   - `scaling`：对 `resolveSecretRealmScaling` 产出的基础倍数做整体放大/缩小。
   - `statAdjustments`：对生成后的战斗属性支持逐项乘法 (`multipliers`) 与加法 (`additive`) 系数叠加。
   - `specialAdjustments`：对特殊属性（护盾、bonusDamage、dodgeChance 等）提供同样的倍数/加法调整。
+- **难度覆写**：`difficultyOverride` 可直接指定展示难度标签（如「困难」），覆盖基于战力比的自动判断，用于特定 Boss 楼层的文案统一。【F:cloudfunctions/pve/index.js†L1020-L1073】【F:cloudfunctions/pve/index.js†L8961-L9040】
 
 模板字段均为可选，未显式配置时自动回退至 archetype 默认值，保证扩展模板时只需填写差异化信息。
 
@@ -27,11 +28,13 @@
 `SECRET_REALM_FLOOR_ASSIGNMENTS` 负责把模板映射到具体楼层，可为整境界设置 `defaults`，再针对每层覆写
 `displayName`、`summary`、`tags`、`visualKey` 与额外的 `scaling`/`statAdjustments`。炼气期 1~10 层分别绑定到
 上述模板（如“灵木护卫”“破岩武僧”“玄火尊”），并保留原有技能、定位描述与视觉资源，确保模板化后对
-现有数值表现零侵入。【F:cloudfunctions/pve/index.js†L694-L770】
+现有数值表现零侵入；其中第 10 层追加 `difficultyOverride: "困难"`，强制将 Boss 标记为高难度以配合 UI 展示。
+【F:cloudfunctions/pve/index.js†L694-L772】
 
 筑基期 11~19 层沿用炼气期 9 位常规敌人的模板，但重新打乱出场顺序，并通过 `scaling` 逐层提升系数，
 让难度平滑递增。同时设置楼层默认标签（如“筑基试炼”“进阶考核”），便于前端直接展示境界阶段信息。
-【F:cloudfunctions/pve/index.js†L771-L832】
+第 20 层复用“玄火尊”模板并叠加更高的倍数、护盾/爆发增益与难度覆写，强化为筑基圆满 Boss，掉落
+统一改为 3 件上品装备，概率与炼气首领一致，保障阶段奖励的独特性。【F:cloudfunctions/pve/index.js†L842-L862】【F:cloudfunctions/pve/index.js†L1557-L1632】
 
 未来新增楼层时，只需在 `SECRET_REALM_FLOOR_ASSIGNMENTS` 中追加楼层映射，或让其他境界沿用这些模板并按需
 覆写系数即可。
