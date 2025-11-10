@@ -292,13 +292,14 @@ Page({
       let milestoneHintText = '';
       if (currentLevel && currentLevel.milestoneReward && pendingBreakthroughLevelId) {
         upcomingMilestone = currentLevel;
-        const targetName =
-          (breakthroughLevel && (breakthroughLevel.displayName || breakthroughLevel.name)) ||
+        const milestoneLabel =
+          currentLevel.realm ||
           currentLevel.displayName ||
           currentLevel.name ||
+          (breakthroughLevel && (breakthroughLevel.displayName || breakthroughLevel.name)) ||
           '';
-        milestoneHintText = targetName
-          ? `突破至 ${targetName} 可得 ${currentLevel.milestoneReward}`
+        milestoneHintText = milestoneLabel
+          ? `突破${milestoneLabel}可得 ${currentLevel.milestoneReward}`
           : `突破当前境界可得 ${currentLevel.milestoneReward}`;
       } else {
         upcomingMilestone =
@@ -306,9 +307,10 @@ Page({
         if (upcomingMilestone) {
           const milestoneName =
             upcomingMilestone.displayName || upcomingMilestone.name || '';
-          milestoneHintText = milestoneName
-            ? `冲刺至 ${milestoneName} 可得 ${upcomingMilestone.milestoneReward}`
-            : `冲刺当前境界可得 ${upcomingMilestone.milestoneReward}`;
+          const milestoneLabel = upcomingMilestone.realm || milestoneName;
+          milestoneHintText = milestoneLabel
+            ? `突破${milestoneLabel}可得 ${upcomingMilestone.milestoneReward}`
+            : `突破当前境界可得 ${upcomingMilestone.milestoneReward}`;
         }
       }
 

@@ -1404,33 +1404,36 @@ async function getProgress(openid, options = {}, context = {}) {
   const decoratedMember = attachProxySession(decorateMember(member, levels), context.proxySession);
   return {
     member: decoratedMember,
-    levels: levels.map((lvl) => ({
-      _id: lvl._id,
-      name: lvl.displayName || lvl.name,
-      displayName: lvl.displayName || lvl.name,
-      shortName: lvl.name,
-      threshold: lvl.threshold,
-      discount: lvl.discount,
-      order: lvl.order,
-      realm: lvl.realm,
-      realmShort: lvl.realmShort || '',
-      realmId: lvl.realmId || '',
-      realmOrder: lvl.realmOrder || lvl.order,
-      realmDescription: lvl.realmDescription || '',
-      subLevel: lvl.subLevel || 1,
-      subLevelLabel: lvl.subLevelLabel || '',
-      virtualRewards: lvl.virtualRewards || [],
-      milestoneReward: lvl.milestoneReward || '',
-      milestoneType: lvl.milestoneType || '',
-      rewards: (lvl.rewards || []).map((reward) => reward.description || reward.name || ''),
-      hasRewards: hasLevelRewards(lvl),
-      claimed: claimedLevelRewards.includes(lvl._id),
-      reached: experience >= (typeof lvl.threshold === 'number' ? lvl.threshold : 0),
-      claimable:
-        hasLevelRewards(lvl) &&
-        experience >= (typeof lvl.threshold === 'number' ? lvl.threshold : 0) &&
-        !claimedLevelRewards.includes(lvl._id)
-    })),
+    levels: levels.map((lvl) => {
+      const regularRights = resolveRegularLevelRights(lvl);
+      return {
+        _id: lvl._id,
+        name: lvl.displayName || lvl.name,
+        displayName: lvl.displayName || lvl.name,
+        shortName: lvl.name,
+        threshold: lvl.threshold,
+        discount: lvl.discount,
+        order: lvl.order,
+        realm: lvl.realm,
+        realmShort: lvl.realmShort || '',
+        realmId: lvl.realmId || '',
+        realmOrder: lvl.realmOrder || lvl.order,
+        realmDescription: lvl.realmDescription || '',
+        subLevel: lvl.subLevel || 1,
+        subLevelLabel: lvl.subLevelLabel || '',
+        virtualRewards: Array.isArray(lvl.virtualRewards) ? lvl.virtualRewards : [],
+        milestoneReward: lvl.milestoneReward || '',
+        milestoneType: lvl.milestoneType || '',
+        rewards: regularRights.map((reward) => reward.description || reward.name || ''),
+        hasRewards: hasLevelRewards(lvl),
+        claimed: claimedLevelRewards.includes(lvl._id),
+        reached: experience >= (typeof lvl.threshold === 'number' ? lvl.threshold : 0),
+        claimable:
+          hasLevelRewards(lvl) &&
+          experience >= (typeof lvl.threshold === 'number' ? lvl.threshold : 0) &&
+          !claimedLevelRewards.includes(lvl._id)
+      };
+    }),
     claimedLevelRewards,
     percentage,
     nextDiff,
@@ -1908,15 +1911,45 @@ function requiresBreakthrough(currentLevel, nextLevel) {
   return resolveSubLevel(currentLevel) >= 10;
 }
 
+function resolveBreakthroughRightIdSet(level) {
+  if (!level || !Array.isArray(level.breakthroughRewards)) {
+    return new Set();
+  }
+  const ids = new Set();
+  level.breakthroughRewards.forEach((reward) => {
+    if (reward && typeof reward.rightId === 'string') {
+      const trimmed = reward.rightId.trim();
+      if (trimmed) {
+        ids.add(trimmed);
+      }
+    }
+  });
+  return ids;
+}
+
+function resolveRegularLevelRights(level) {
+  if (!level || !Array.isArray(level.rewards)) {
+    return [];
+  }
+  const breakthroughIds = resolveBreakthroughRightIdSet(level);
+  if (!breakthroughIds.size) {
+    return level.rewards.slice();
+  }
+  return level.rewards.filter((reward) => {
+    if (!reward || typeof reward.rightId !== 'string') {
+      return true;
+    }
+    return !breakthroughIds.has(reward.rightId.trim());
+  });
+}
+
 function hasLevelRewards(level) {
   if (!level) return false;
-  if (Array.isArray(level.rewards) && level.rewards.length) {
-    return true;
-  }
   if (Array.isArray(level.virtualRewards) && level.virtualRewards.length) {
     return true;
   }
-  return !!level.milestoneReward;
+  const regularRights = resolveRegularLevelRights(level);
+  return regularRights.length > 0;
 }
 
 async function loadMembershipRightsMap() {
@@ -2142,7 +2175,10 @@ async function grantBreakthroughInventoryRewards(openid, level) {
 }
 
 async function grantLevelRewards(openid, level, levels) {
-  await grantRightsForSourceLevel(openid, level, level.rewards || []);
+  const regularRights = resolveRegularLevelRights(level);
+  if (regularRights.length) {
+    await grantRightsForSourceLevel(openid, level, regularRights);
+  }
   await grantInventoryRewardsForLevel(openid, level);
 }
 

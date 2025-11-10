@@ -58,15 +58,6 @@
               <text class="reward-text" wx:for="{{item.virtualRewards}}" wx:key="index">{{item}}</text>
             </view>
           </view>
-          <view class="level-milestone" wx:if="{{item.milestoneReward}}">
-            <text class="reward-label">境界突破：</text>
-            <text class="reward-text">{{item.milestoneReward}}</text>
-            <text class="reward-type" wx:if="{{item.milestoneType}}">（{{item.milestoneType}}）</text>
-          </view>
-          <view class="level-bonus" wx:if="{{item.rewards && item.rewards.length}}">
-            <text class="reward-label">实体权益：</text>
-            <text class="reward-text" wx:for="{{item.rewards}}" wx:key="index">{{item}}</text>
-          </view>
           <view class="level-actions-row" wx:if="{{item.hasRewards}}">
             <button
               wx:if="{{item.claimable}}"
