@@ -505,6 +505,45 @@ const SECRET_REALM_ARCHETYPE_SKILLS = Object.freeze({
   realm_overseer: ['sword_immortal_domain', 'spell_pyrocataclysm', 'body_furnace_of_ruin']
 });
 
+const SECRET_REALM_ARCHETYPE_MAP = SECRET_REALM_ARCHETYPES.reduce(
+  (acc, archetype) => {
+    if (archetype && archetype.key) {
+      acc[archetype.key] = archetype;
+    }
+    return acc;
+  },
+  { [SECRET_REALM_BOSS_ARCHETYPE.key]: SECRET_REALM_BOSS_ARCHETYPE }
+);
+
+const SECRET_REALM_ARCHETYPE_OVERRIDES = Object.freeze({
+  realm_foundation: [
+    'shadow_runner',
+    'vitality_guardian',
+    'sky_sharpshooter',
+    'golden_defender',
+    'frost_magus',
+    'mind_binder',
+    'stone_monk',
+    'spirit_warden',
+    'phantom_trickster'
+  ]
+});
+
+// Per-floor overrides that pin the final scaling multipliers after the generic
+// growth curve is evaluated. Values here should be strictly increasing to make
+// the difficulty progression explicit.
+const SECRET_REALM_SCALING_ADJUSTMENTS = Object.freeze({
+  11: { statTarget: 2.349, specialTarget: 2.14 },
+  12: { statTarget: 2.4, specialTarget: 2.166 },
+  13: { statTarget: 2.443, specialTarget: 2.185 },
+  14: { statTarget: 2.598, specialTarget: 2.302 },
+  15: { statTarget: 2.798, specialTarget: 2.457 },
+  16: { statTarget: 3.052, specialTarget: 2.655 },
+  17: { statTarget: 3.351, specialTarget: 2.888 },
+  18: { statTarget: 3.699, specialTarget: 3.158 },
+  19: { statTarget: 4.102, specialTarget: 3.469 }
+});
+
 const SECRET_REALM_LOOT_PRESETS = Object.freeze({
   1: {
     normal: {
@@ -620,56 +659,56 @@ const SECRET_REALM_LOOT_PRESETS = Object.freeze({
   },
   11: {
     normal: {
-      chance: 0.11,
-      items: ['starsea_mail', 'stoneheart_belt', 'guardian_token']
+      chance: 0.15,
+      items: ['novice_sword', 'apprentice_helm', 'apprentice_robe', 'lightstep_boots']
     }
   },
   12: {
     normal: {
-      chance: 0.11,
-      items: ['spirit_blade', 'stormwrath_bracers', 'ironwall_puppet']
+      chance: 0.15,
+      items: ['spirit_belt', 'initiate_bracers', 'initiate_orb', 'spirit_ring']
     }
   },
   13: {
     normal: {
-      chance: 0.11,
-      items: ['void_silk', 'chronos_orb', 'skyline_necklace']
+      chance: 0.15,
+      items: ['wooden_puppet', 'novice_sword', 'apprentice_helm', 'apprentice_robe']
     }
   },
   14: {
     normal: {
-      chance: 0.1,
-      items: ['starlit_visor', 'shade_boots', 'umbra_bracers']
+      chance: 0.15,
+      items: ['lightstep_boots', 'spirit_belt', 'initiate_bracers', 'initiate_orb']
     }
   },
   15: {
     normal: {
-      chance: 0.1,
-      items: ['lumina_belt', 'aegis_orb', 'serene_token']
+      chance: 0.15,
+      items: ['spirit_ring', 'wooden_puppet', 'novice_sword', 'apprentice_helm']
     }
   },
   16: {
     normal: {
-      chance: 0.1,
-      items: ['guardian_puppet', 'veil_treasure', 'phantom_focus']
+      chance: 0.15,
+      items: ['apprentice_robe', 'lightstep_boots', 'spirit_belt', 'initiate_bracers']
     }
   },
   17: {
     normal: {
-      chance: 0.09,
-      items: ['abyssal_focus', 'shadow_talisman', 'dragonbone_sabre']
+      chance: 0.15,
+      items: ['initiate_orb', 'spirit_ring', 'wooden_puppet', 'novice_sword']
     }
   },
   18: {
     normal: {
-      chance: 0.09,
-      items: ['void_silk', 'chronos_orb', 'skyline_necklace']
+      chance: 0.15,
+      items: ['apprentice_helm', 'apprentice_robe', 'lightstep_boots', 'spirit_belt']
     }
   },
   19: {
     normal: {
-      chance: 0.09,
-      items: ['lumina_belt', 'aegis_orb', 'guardian_token']
+      chance: 0.15,
+      items: ['initiate_bracers', 'initiate_orb', 'spirit_ring', 'wooden_puppet']
     }
   },
   20: {
@@ -839,14 +878,33 @@ function buildSecretRealmLibrary() {
   const floors = [];
 
   realmConfigs.forEach((realm, realmIndex) => {
+    const normalizedRealmId = realm.id || realm.realmId || `realm_${realmIndex + 1}`;
+    const overrideOrder = SECRET_REALM_ARCHETYPE_OVERRIDES[normalizedRealmId];
+
     labels.forEach((label, subIndex) => {
       const type = subIndex === labels.length - 1 ? 'boss' : 'normal';
-      const archetype =
-        type === 'boss'
-          ? SECRET_REALM_BOSS_ARCHETYPE
-          : SECRET_REALM_ARCHETYPES[subIndex % SECRET_REALM_ARCHETYPES.length];
+      let archetype = SECRET_REALM_BOSS_ARCHETYPE;
+
+      if (type !== 'boss') {
+        const overrideKey = overrideOrder && overrideOrder[subIndex];
+        if (overrideKey && SECRET_REALM_ARCHETYPE_MAP[overrideKey]) {
+          archetype = SECRET_REALM_ARCHETYPE_MAP[overrideKey];
+        } else {
+          archetype = SECRET_REALM_ARCHETYPES[subIndex % SECRET_REALM_ARCHETYPES.length];
+        }
+      }
+
       floors.push(
-        createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, archetype, perRealm })
+        createSecretRealmEnemy({
+          realm,
+          realmId: normalizedRealmId,
+          realmIndex,
+          subIndex,
+          label,
+          type,
+          archetype,
+          perRealm
+        })
       );
     });
   });
@@ -854,17 +912,26 @@ function buildSecretRealmLibrary() {
   return floors;
 }
 
-function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, archetype, perRealm }) {
+function createSecretRealmEnemy({
+  realm,
+  realmId,
+  realmIndex,
+  subIndex,
+  label,
+  type,
+  archetype,
+  perRealm
+}) {
   const floorNumber = realmIndex * perRealm + subIndex + 1;
   const floorCode = subIndex + 1;
   const stageName = `${realm.name} · ${label}`;
-  const scaling = resolveSecretRealmScaling({ realmIndex, subIndex, perRealm, type });
+  const scaling = resolveSecretRealmScaling({ realmIndex, subIndex, perRealm, type, floorNumber });
   const stats = generateSecretRealmStats(archetype, scaling, type);
   const special = generateSecretRealmSpecial(archetype, scaling, type);
   const attributes = deriveEnemyAttributesFromStats(stats, floorNumber);
   const rewards = resolveSecretRealmRewards({ floorNumber, type, scaling });
   const loot = resolveSecretRealmLoot({ floorNumber, type });
-  const normalizedRealmId = realm.id || realm.realmId || `realm_${realmIndex + 1}`;
+  const normalizedRealmId = realmId || realm.id || realm.realmId || `realm_${realmIndex + 1}`;
   const id = `secret_${normalizedRealmId}_${String(floorCode).padStart(2, '0')}`;
   const description = `${archetype.description}（${stageName}）`;
   const skills = resolveSecretRealmSkillSet(archetype.key);
@@ -926,17 +993,50 @@ function resolveSecretRealmSkillSet(archetypeKey) {
   return skills;
 }
 
-function resolveSecretRealmScaling({ realmIndex, subIndex, perRealm, type }) {
+function resolveSecretRealmScaling({ realmIndex, subIndex, perRealm, type, floorNumber }) {
   const floorIndex = realmIndex * perRealm + subIndex;
   const floorMultiplier = Math.pow(1 + SECRET_REALM_TUNING.floorGrowth, floorIndex);
   const realmMultiplier = Math.pow(1 + SECRET_REALM_TUNING.realmGrowth, realmIndex);
   const typeBase = type === 'boss' ? SECRET_REALM_TUNING.boss.base : SECRET_REALM_TUNING.normal.base;
-  const stat = SECRET_REALM_TUNING.baseMultiplier * floorMultiplier * realmMultiplier * typeBase;
-  const special =
+  let stat = SECRET_REALM_TUNING.baseMultiplier * floorMultiplier * realmMultiplier * typeBase;
+  let special =
     SECRET_REALM_TUNING.special.base *
     Math.pow(1 + SECRET_REALM_TUNING.special.growth, floorIndex) *
     realmMultiplier *
     (type === 'boss' ? SECRET_REALM_TUNING.special.boss : 1);
+
+  if (Number.isFinite(floorNumber)) {
+    const adjustments = SECRET_REALM_SCALING_ADJUSTMENTS[floorNumber];
+    if (adjustments) {
+      if (Number.isFinite(adjustments.statTarget)) {
+        stat = adjustments.statTarget;
+      } else if (Number.isFinite(adjustments.statMultiplier)) {
+        stat *= adjustments.statMultiplier;
+      } else if (Number.isFinite(adjustments.stat)) {
+        stat *= adjustments.stat;
+      }
+
+      if (Number.isFinite(adjustments.specialTarget)) {
+        special = adjustments.specialTarget;
+      } else {
+        let specialFactor = NaN;
+        if (Number.isFinite(adjustments.specialMultiplier)) {
+          specialFactor = adjustments.specialMultiplier;
+        } else if (Number.isFinite(adjustments.special)) {
+          specialFactor = adjustments.special;
+        } else if (Number.isFinite(adjustments.statMultiplier)) {
+          specialFactor = adjustments.statMultiplier;
+        } else if (Number.isFinite(adjustments.stat)) {
+          specialFactor = adjustments.stat;
+        }
+
+        if (Number.isFinite(specialFactor)) {
+          special *= specialFactor;
+        }
+      }
+    }
+  }
+
   return { stat, special, floorIndex };
 }
 
