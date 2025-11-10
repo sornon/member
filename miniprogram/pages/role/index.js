@@ -328,6 +328,7 @@ const ATTRIBUTE_DETAIL_MAP = {
       '带来命中、暴击率与暴击伤害，同时提升控制命中。\n\n悟性还会提高灵石收益与装备、技能的掉落概率，是拓展资源获取的核心属性。'
   }
 };
+const STORAGE_ALL_CATEGORY_KEY = 'all';
 const STORAGE_CATEGORY_ORDER = ['equipment', 'quest', 'material', 'consumable'];
 const STORAGE_CATEGORY_LABELS = {
   equipment: '装备',
@@ -472,7 +473,7 @@ Page({
     skillModal: null,
     storageCategories: [],
     storageMeta: null,
-    activeStorageCategory: 'equipment',
+    activeStorageCategory: STORAGE_ALL_CATEGORY_KEY,
     activeStorageCategoryData: null,
     activeStorageCategoryIndex: -1,
     storageUpgrading: false,
@@ -587,8 +588,9 @@ Page({
 
   buildStorageState(profile) {
     const storageMetaBase = extractStorageMetaFromProfile(profile);
-    const storageCategories = this.buildStorageCategories(profile, storageMetaBase);
-    const storageMeta = finalizeStorageMeta(storageMetaBase, storageCategories);
+    const baseCategories = this.buildStorageCategories(profile, storageMetaBase);
+    const storageMeta = finalizeStorageMeta(storageMetaBase, baseCategories);
+    const storageCategories = this.mergeStorageCategoriesWithAll(baseCategories, storageMeta);
     const activeKey = this.resolveActiveStorageCategory(storageCategories);
     const activeCategory = storageCategories.find((category) => category.key === activeKey) || null;
     const activeIndex = storageCategories.findIndex((category) => category.key === activeKey);
@@ -606,6 +608,10 @@ Page({
     const current = this.data && this.data.activeStorageCategory;
     if (current && list.some((category) => category.key === current)) {
       return current;
+    }
+    const allCategory = list.find((category) => category.key === STORAGE_ALL_CATEGORY_KEY);
+    if (allCategory) {
+      return allCategory.key;
     }
     const defaultCategory = list.find((category) => category.key === 'equipment');
     if (defaultCategory) {
@@ -707,9 +713,6 @@ Page({
           storageCategory: key,
           showNewBadge: item.showNewBadge
         }));
-        for (let i = normalizedItems.length; i < slotCount; i += 1) {
-          slots.push({ placeholder: true, storageKey: `${key}-placeholder-${i}`, showNewBadge: false });
-        }
         const used = Math.min(normalizedItems.length, slotCount);
         const remaining = Math.max(capacity - normalizedItems.length, 0);
         const usagePercent = capacity ? Math.min(100, Math.round((normalizedItems.length / capacity) * 100)) : 0;
@@ -731,6 +734,96 @@ Page({
         };
       })
       .filter((category) => !!category);
+  },
+
+  mergeStorageCategoriesWithAll(categories, storageMeta = null) {
+    const list = Array.isArray(categories) ? categories.filter((category) => !!category) : [];
+    const allCategory = this.buildAllStorageCategory(list, storageMeta);
+    if (allCategory) {
+      return [allCategory, ...list];
+    }
+    return list;
+  },
+
+  buildAllStorageCategory(categories, storageMeta = null) {
+    const list = Array.isArray(categories) ? categories : [];
+    const meta = storageMeta && typeof storageMeta === 'object' ? storageMeta : {};
+    const aggregatedItems = [];
+    list.forEach((category) => {
+      if (!category) {
+        return;
+      }
+      const categoryKey = typeof category.key === 'string' ? category.key : '';
+      const categoryLabel = typeof category.label === 'string' ? category.label : '';
+      const items = Array.isArray(category.items) ? category.items : [];
+      items.forEach((item, index) => {
+        if (!item) {
+          return;
+        }
+        const clone = { ...item };
+        if (!clone.storageCategory) {
+          clone.storageCategory = categoryKey;
+        }
+        if (!clone.storageCategoryLabel) {
+          clone.storageCategoryLabel =
+            STORAGE_CATEGORY_LABELS[clone.storageCategory] || categoryLabel || clone.storageCategory || '';
+        }
+        if (typeof clone.storageKey !== 'string' || !clone.storageKey) {
+          const fallbackId =
+            item && item.inventoryId
+              ? item.inventoryId
+              : `${item && item.itemId ? item.itemId : 'item'}-${index}`;
+          clone.storageKey = `${categoryKey || STORAGE_ALL_CATEGORY_KEY}-${fallbackId}`;
+        }
+        aggregatedItems.push(clone);
+      });
+    });
+    const baseCapacity = sanitizeCount(meta.baseCapacity, DEFAULT_STORAGE_BASE_CAPACITY);
+    const perUpgrade = sanitizeCount(meta.perUpgrade, DEFAULT_STORAGE_PER_UPGRADE);
+    const upgrades = sanitizeCount(meta.upgrades, 0);
+    const computedCapacity = sanitizeCount(meta.capacity, baseCapacity + perUpgrade * upgrades);
+    const slotCount = Math.max(computedCapacity, aggregatedItems.length);
+    const nextCapacity = sanitizeCount(meta.nextCapacity, computedCapacity + perUpgrade);
+    const used = Math.min(sanitizeCount(meta.used, aggregatedItems.length), slotCount);
+    const remaining = sanitizeCount(meta.remaining, slotCount ? Math.max(slotCount - used, 0) : 0);
+    const usagePercent =
+      typeof meta.usagePercent === 'number'
+        ? Math.min(100, Math.max(0, Math.round(meta.usagePercent)))
+        : slotCount
+        ? Math.min(100, Math.round((used / slotCount) * 100))
+        : 0;
+    const slots = aggregatedItems.map((item) => ({
+      ...item,
+      placeholder: false,
+      showNewBadge: item.showNewBadge
+    }));
+    for (let i = aggregatedItems.length; i < slotCount; i += 1) {
+      slots.push({ placeholder: true, storageKey: `${STORAGE_ALL_CATEGORY_KEY}-placeholder-${i}`, showNewBadge: false });
+    }
+    const hasNewBadge = aggregatedItems.some((item) => item && item.showNewBadge);
+    const upgradeAvailable =
+      meta.upgradeAvailable === null ? null : sanitizeOptionalCount(meta.upgradeAvailable);
+    const upgradeLimit = meta.upgradeLimit === null ? null : sanitizeOptionalCount(meta.upgradeLimit);
+    const upgradesRemaining =
+      meta.upgradesRemaining === null ? null : sanitizeOptionalCount(meta.upgradesRemaining);
+    return {
+      key: STORAGE_ALL_CATEGORY_KEY,
+      label: '全部',
+      baseCapacity,
+      perUpgrade,
+      upgrades,
+      capacity: slotCount,
+      used,
+      remaining,
+      usagePercent,
+      nextCapacity,
+      items: aggregatedItems,
+      slots,
+      hasNewBadge,
+      upgradeAvailable,
+      upgradeLimit,
+      upgradesRemaining
+    };
   },
 
   refreshStorageNewBadges() {
@@ -2079,10 +2172,11 @@ Page({
   },
 
   async handleUpgradeStorage() {
-    const category = this.data.activeStorageCategory;
-    if (!category || this.data.storageUpgrading) {
+    const activeCategory = this.data.activeStorageCategory;
+    if (!activeCategory || this.data.storageUpgrading) {
       return;
     }
+    const category = activeCategory === STORAGE_ALL_CATEGORY_KEY ? '' : activeCategory;
     const storageMeta = this.data.storageMeta;
     if (storageMeta) {
       const limit =
