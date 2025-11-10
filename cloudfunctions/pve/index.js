@@ -505,6 +505,955 @@ const SECRET_REALM_ARCHETYPE_SKILLS = Object.freeze({
   realm_overseer: ['sword_immortal_domain', 'spell_pyrocataclysm', 'body_furnace_of_ruin']
 });
 
+const SECRET_REALM_ENEMY_TEMPLATE_REGISTRY = Object.freeze({
+  qi_refining_vitality_guardian: {
+    key: 'qi_refining_vitality_guardian',
+    name: '灵木护卫',
+    epithet: '灵根守关者',
+    summary: '灵木护卫守在秘境入口，以厚甲与护盾拖延战线。',
+    description: '借灵木之躯抵挡伤害，考验修士的持续输出。',
+    visualKey: 'secret_realm_qi_refining_01',
+    tags: ['护盾', '续航'],
+    statFocus: { primary: ['maxHp'], secondary: ['physicalDefense', 'lifeSteal'] },
+    skillIds: ['body_rockridge_guard', 'body_bronze_skin', 'sigil_taiyi_barrier'],
+    statAdjustments: {
+      multipliers: { maxHp: 1.08, physicalDefense: 1.05, lifeSteal: 1.1 }
+    },
+    specialAdjustments: {
+      multipliers: { shield: 1.15 }
+    }
+  },
+  qi_refining_stone_monk: {
+    key: 'qi_refining_stone_monk',
+    name: '破岩武僧',
+    epithet: '碎石先锋',
+    summary: '破岩武僧以巨力猛攻，持续压迫修士的物理防线。',
+    description: '以巨力碾碎护体真气，近战压迫极强。',
+    visualKey: 'secret_realm_qi_refining_02',
+    tags: ['物理压制', '破甲'],
+    statFocus: { primary: ['physicalAttack'], secondary: ['physicalPenetration', 'finalDamageBonus'] },
+    skillIds: ['sword_breaking_clouds', 'body_blood_fury', 'sword_flowing_strike'],
+    statAdjustments: {
+      multipliers: { physicalAttack: 1.12, physicalPenetration: 1.15, finalDamageBonus: 1.08 }
+    },
+    specialAdjustments: {
+      multipliers: { bonusDamage: 1.12 }
+    }
+  },
+  qi_refining_frost_magus: {
+    key: 'qi_refining_frost_magus',
+    name: '凝霜术士',
+    epithet: '寒霜引者',
+    summary: '凝霜术士掌握寒冰术法，擅长冻结与远程打击。',
+    description: '汇聚寒霜之力，远程术法尖锐。',
+    visualKey: 'secret_realm_qi_refining_03',
+    tags: ['术法爆发', '冻结'],
+    statFocus: { primary: ['magicAttack'], secondary: ['magicPenetration', 'controlHit'] },
+    skillIds: ['spell_frost_bolt', 'spell_frost_tide', 'spell_frost_prison'],
+    statAdjustments: {
+      multipliers: { magicAttack: 1.12, magicPenetration: 1.08, controlHit: 1.12 }
+    },
+    specialAdjustments: {
+      multipliers: { bonusDamage: 1.08 }
+    }
+  },
+  qi_refining_golden_defender: {
+    key: 'qi_refining_golden_defender',
+    name: '金甲守军',
+    epithet: '铜墙铁壁',
+    summary: '金甲守军披挂重甲，以高防御守住要道。',
+    description: '金甲不坏，重甲推进迫使修士寻找破绽。',
+    visualKey: 'secret_realm_qi_refining_04',
+    tags: ['重甲', '减伤'],
+    statFocus: { primary: ['physicalDefense'], secondary: ['maxHp', 'finalDamageReduction'] },
+    skillIds: ['body_stone_bulwark', 'body_diamond_eternity', 'sigil_focus_talisman'],
+    statAdjustments: {
+      multipliers: { physicalDefense: 1.12, maxHp: 1.06, finalDamageReduction: 1.08 }
+    },
+    specialAdjustments: {
+      multipliers: { shield: 1.12 }
+    }
+  },
+  qi_refining_spirit_warden: {
+    key: 'qi_refining_spirit_warden',
+    name: '灵盾护法',
+    epithet: '灵盾庇护者',
+    summary: '灵盾护法强化法术防御，抗性与护盾让其难以突破。',
+    description: '灵盾庇护术法，擅长抵御元素冲击。',
+    visualKey: 'secret_realm_qi_refining_05',
+    tags: ['法术防御', '护盾'],
+    statFocus: { primary: ['magicDefense'], secondary: ['controlResist', 'finalDamageReduction'] },
+    skillIds: ['sigil_void_respiration', 'sigil_purified_mind', 'spell_searing_comet'],
+    statAdjustments: {
+      multipliers: { magicDefense: 1.12, controlResist: 1.1, finalDamageReduction: 1.06 }
+    },
+    specialAdjustments: {
+      multipliers: { shield: 1.15 }
+    }
+  },
+  qi_refining_shadow_runner: {
+    key: 'qi_refining_shadow_runner',
+    name: '疾影游侠',
+    epithet: '风痕追猎',
+    summary: '疾影游侠凭借高速身法抢占先手，持续削弱对手。',
+    description: '身法如电，抢占先机发动连击。',
+    visualKey: 'secret_realm_qi_refining_06',
+    tags: ['高速', '闪避'],
+    statFocus: { primary: ['speed'], secondary: ['dodge'] },
+    skillIds: ['sword_flame_wings', 'sword_thunder_break', 'spell_thunder_chain'],
+    statAdjustments: {
+      multipliers: { speed: 1.12, dodge: 1.12, physicalAttack: 1.05 }
+    },
+    specialAdjustments: {
+      multipliers: { bonusDamage: 1.06, dodgeChance: 1.25 }
+    }
+  },
+  qi_refining_sky_sharpshooter: {
+    key: 'qi_refining_sky_sharpshooter',
+    name: '天眼射手',
+    epithet: '百步穿杨',
+    summary: '天眼射手洞察弱点，以高命中和暴击远程狙击。',
+    description: '洞察弱点百步穿杨，命中与暴击惊人。',
+    visualKey: 'secret_realm_qi_refining_07',
+    tags: ['远程', '暴击'],
+    statFocus: { primary: ['accuracy'], secondary: ['critRate', 'critDamage'] },
+    skillIds: ['sword_thousand_blades', 'sword_blazing_brand', 'sigil_corroding_mark'],
+    statAdjustments: {
+      multipliers: { accuracy: 1.1, critRate: 1.2, critDamage: 1.08, physicalAttack: 1.05 }
+    },
+    specialAdjustments: {
+      multipliers: { bonusDamage: 1.12 }
+    }
+  },
+  qi_refining_phantom_trickster: {
+    key: 'qi_refining_phantom_trickster',
+    name: '迷踪幻徒',
+    epithet: '虚实游侠',
+    summary: '迷踪幻徒游走虚实，高闪避与吸血拖垮挑战者。',
+    description: '游走于虚实之间，靠高闪避消耗对手。',
+    visualKey: 'secret_realm_qi_refining_08',
+    tags: ['高闪避', '吸血'],
+    statFocus: { primary: ['dodge'], secondary: ['speed', 'lifeSteal'] },
+    skillIds: ['sigil_heart_rot', 'sigil_soul_bind', 'spell_thunder_chain'],
+    statAdjustments: {
+      multipliers: { dodge: 1.18, speed: 1.08, lifeSteal: 1.15 }
+    },
+    specialAdjustments: {
+      multipliers: { dodgeChance: 1.1 }
+    }
+  },
+  qi_refining_mind_binder: {
+    key: 'qi_refining_mind_binder',
+    name: '心魄缚者',
+    epithet: '神识囚笼',
+    summary: '心魄缚者以精神锁链压制敌人，控制命中极高。',
+    description: '以神识压制修士，控制命中惊人。',
+    visualKey: 'secret_realm_qi_refining_09',
+    tags: ['控制', '术法'],
+    statFocus: { primary: ['controlHit'], secondary: ['magicAttack', 'controlResist'] },
+    skillIds: ['sigil_rupture_chain', 'sigil_taiyi_barrier', 'sigil_heart_rot'],
+    statAdjustments: {
+      multipliers: { controlHit: 1.18, magicAttack: 1.08, controlResist: 1.08 }
+    },
+    specialAdjustments: {
+      multipliers: { bonusDamage: 1.1 }
+    }
+  },
+  qi_refining_overseer: {
+    key: 'qi_refining_overseer',
+    name: '玄火尊',
+    displayName: '玄火尊',
+    epithet: '炼气境镇守',
+    summary: '玄火尊统御炼气秘境，烈焰与厚盾并存的镇境首领。',
+    description: '统御本境的强者，同时兼具爆发、守御与先手能力。',
+    visualKey: 'secret_realm_qi_refining_10',
+    tags: ['首领', '烈焰', '双修'],
+    statFocus: {
+      primary: ['maxHp', 'physicalAttack', 'magicAttack'],
+      secondary: ['physicalDefense', 'magicDefense'],
+      tertiary: ['speed']
+    },
+    skillIds: ['sword_immortal_domain', 'spell_pyrocataclysm', 'body_furnace_of_ruin'],
+    scaling: { stat: 1.05, special: 1.08 },
+    statAdjustments: {
+      multipliers: {
+        maxHp: 1.12,
+        physicalAttack: 1.08,
+        magicAttack: 1.08,
+        physicalDefense: 1.08,
+        magicDefense: 1.08,
+        speed: 1.05
+      }
+    },
+    specialAdjustments: {
+      multipliers: { shield: 1.2, bonusDamage: 1.18, dodgeChance: 1.05 }
+    }
+  }
+});
+
+const SECRET_REALM_FLOOR_ASSIGNMENTS = Object.freeze({
+  realm_qi_refining: {
+    defaults: {
+      tags: ['炼气试炼', '入门考核']
+    },
+    floors: {
+      1: {
+        template: 'qi_refining_vitality_guardian',
+        displayName: '灵木护卫',
+        summary: '灵木护卫驻守炼气秘境入口，以护盾消耗挑战者。',
+        tags: ['防御'],
+        visualKey: 'secret_realm_qi_refining_01'
+      },
+      2: {
+        template: 'qi_refining_stone_monk',
+        displayName: '破岩武僧',
+        summary: '破岩武僧凭借重拳与破甲术逼迫修士贴身对抗。',
+        tags: ['物理'],
+        visualKey: 'secret_realm_qi_refining_02'
+      },
+      3: {
+        template: 'qi_refining_frost_magus',
+        displayName: '凝霜术士',
+        summary: '凝霜术士用冰封与远程术法限制对手行动。',
+        tags: ['术法', '控制'],
+        visualKey: 'secret_realm_qi_refining_03'
+      },
+      4: {
+        template: 'qi_refining_golden_defender',
+        displayName: '金甲守军',
+        summary: '金甲守军以厚重防线与护盾稳固前排。',
+        tags: ['防御'],
+        visualKey: 'secret_realm_qi_refining_04'
+      },
+      5: {
+        template: 'qi_refining_spirit_warden',
+        displayName: '灵盾护法',
+        summary: '灵盾护法强化法术防御，是远程术士的克星。',
+        tags: ['抗性'],
+        visualKey: 'secret_realm_qi_refining_05'
+      },
+      6: {
+        template: 'qi_refining_shadow_runner',
+        displayName: '疾影游侠',
+        summary: '疾影游侠高速穿梭，以高闪避与连击打乱节奏。',
+        tags: ['高速'],
+        visualKey: 'secret_realm_qi_refining_06'
+      },
+      7: {
+        template: 'qi_refining_sky_sharpshooter',
+        displayName: '天眼射手',
+        summary: '天眼射手洞察弱点，远程暴击一击即中。',
+        tags: ['远程'],
+        visualKey: 'secret_realm_qi_refining_07'
+      },
+      8: {
+        template: 'qi_refining_phantom_trickster',
+        displayName: '迷踪幻徒',
+        summary: '迷踪幻徒以闪避与吸血慢慢蚕食敌人。',
+        tags: ['闪避'],
+        visualKey: 'secret_realm_qi_refining_08'
+      },
+      9: {
+        template: 'qi_refining_mind_binder',
+        displayName: '心魄缚者',
+        summary: '心魄缚者以精神束缚不断施加控制。',
+        tags: ['控制'],
+        visualKey: 'secret_realm_qi_refining_09'
+      },
+      10: {
+        template: 'qi_refining_overseer',
+        displayName: '玄火尊',
+        summary: '玄火尊统御炼气秘境，兼具烈焰爆发与防御。',
+        tags: ['首领', '烈焰'],
+        visualKey: 'secret_realm_qi_refining_10',
+        scaling: { stat: 1.05, special: 1.1 },
+        difficultyOverride: '困难'
+      }
+    }
+  },
+  realm_foundation: {
+    defaults: {
+      tags: ['筑基试炼', '进阶考核']
+    },
+    floors: {
+      11: {
+        template: 'qi_refining_shadow_runner',
+        displayName: '疾影游侠',
+        summary: '筑基初阶仍需磨炼身法，疾影游侠再度突袭，考验走位与先手。',
+        tags: ['高速', '突袭'],
+        scaling: { stat: 1.08, special: 1.05 }
+      },
+      12: {
+        template: 'qi_refining_vitality_guardian',
+        displayName: '灵木护卫',
+        summary: '强化后的灵木护卫以更厚护盾拖延战线，逼迫挑战者提升输出。',
+        tags: ['护盾', '消耗'],
+        scaling: { stat: 1.09, special: 1.06 }
+      },
+      13: {
+        template: 'qi_refining_phantom_trickster',
+        displayName: '迷踪幻徒',
+        summary: '迷踪幻徒潜伏于暗处，以更深的吸血与闪避拖垮长战线。',
+        tags: ['闪避', '吸血'],
+        scaling: { stat: 1.1, special: 1.06 }
+      },
+      14: {
+        template: 'qi_refining_stone_monk',
+        displayName: '破岩武僧',
+        summary: '破岩武僧体魄更胜往昔，猛攻下压迫筑基修士的防御极限。',
+        tags: ['物理压制', '破甲'],
+        scaling: { stat: 1.11, special: 1.07 }
+      },
+      15: {
+        template: 'qi_refining_spirit_warden',
+        displayName: '灵盾护法',
+        summary: '灵盾护法修复护盾阵式，提高术法防御与抗性，克制远程爆发。',
+        tags: ['抗性', '护盾'],
+        scaling: { stat: 1.12, special: 1.08 }
+      },
+      16: {
+        template: 'qi_refining_sky_sharpshooter',
+        displayName: '天眼射手',
+        summary: '天眼射手洞察更深，暴击与穿透齐升，远程点杀不容失误。',
+        tags: ['远程', '暴击'],
+        scaling: { stat: 1.13, special: 1.08 }
+      },
+      17: {
+        template: 'qi_refining_frost_magus',
+        displayName: '凝霜术士',
+        summary: '凝霜术士凝聚更寒的霜意，控制与法穿加深，冻结威胁升级。',
+        tags: ['术法', '控制'],
+        scaling: { stat: 1.15, special: 1.09 }
+      },
+      18: {
+        template: 'qi_refining_golden_defender',
+        displayName: '金甲守军',
+        summary: '金甲守军以筑基真元淬炼甲胄，双防与减伤再度强化。',
+        tags: ['重甲', '减伤'],
+        scaling: { stat: 1.17, special: 1.1 }
+      },
+      19: {
+        template: 'qi_refining_mind_binder',
+        displayName: '心魄缚者',
+        summary: '心魄缚者神识凌厉，控制命中与精神打击逼近筑基上限。',
+        tags: ['控制', '压制'],
+        scaling: { stat: 1.19, special: 1.11 }
+      },
+      20: {
+        template: 'qi_refining_overseer',
+        displayName: '玄火尊',
+        summary: '玄火尊镇守筑基圆满，真火烈焰与厚重护盾同步压制挑战者。',
+        tags: ['首领', '烈焰', '压制'],
+        scaling: { stat: 1.22, special: 1.28 },
+        statAdjustments: {
+          multipliers: {
+            maxHp: 1.25,
+            physicalAttack: 1.18,
+            magicAttack: 1.18,
+            physicalDefense: 1.15,
+            magicDefense: 1.15,
+            speed: 1.12
+          }
+        },
+        specialAdjustments: {
+          multipliers: { bonusDamage: 1.3, shield: 1.22, dodgeChance: 1.08 }
+        },
+        difficultyOverride: '困难'
+      }
+    }
+  }
+});
+
+function combineUniqueStrings(...sources) {
+  const seen = new Set();
+  const result = [];
+  sources.forEach((source) => {
+    if (!source) {
+      return;
+    }
+    const list = Array.isArray(source) ? source : [source];
+    list.forEach((item) => {
+      if (typeof item !== 'string') {
+        return;
+      }
+      const trimmed = item.trim();
+      if (!trimmed || seen.has(trimmed)) {
+        return;
+      }
+      seen.add(trimmed);
+      result.push(trimmed);
+    });
+  });
+  return result;
+}
+
+function normalizeTemplateStatList(value) {
+  if (value == null) {
+    return [];
+  }
+  const list = Array.isArray(value) ? value : [value];
+  const seen = new Set();
+  const normalized = [];
+  list.forEach((item) => {
+    if (typeof item !== 'string') {
+      return;
+    }
+    const trimmed = item.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      return;
+    }
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  });
+  return normalized;
+}
+
+function mergeStatFocus(...sources) {
+  const keys = ['primary', 'secondary', 'tertiary', 'weak'];
+  const merged = {};
+  sources.forEach((source) => {
+    if (!source || typeof source !== 'object') {
+      return;
+    }
+    keys.forEach((key) => {
+      if (!Object.prototype.hasOwnProperty.call(source, key)) {
+        return;
+      }
+      const normalized = normalizeTemplateStatList(source[key]);
+      if (normalized.length) {
+        merged[key] = normalized;
+      }
+    });
+  });
+  return Object.keys(merged).length ? merged : null;
+}
+
+function mergeSecretRealmAdjustments(...sources) {
+  const multipliers = {};
+  const additive = {};
+  let hasMultiplier = false;
+  let hasAdditive = false;
+  sources.forEach((source) => {
+    if (!source || typeof source !== 'object') {
+      return;
+    }
+    if (source.multipliers && typeof source.multipliers === 'object') {
+      Object.keys(source.multipliers).forEach((key) => {
+        const value = Number(source.multipliers[key]);
+        if (!Number.isFinite(value)) {
+          return;
+        }
+        if (!hasMultiplier || multipliers[key] == null) {
+          multipliers[key] = value;
+        } else {
+          multipliers[key] *= value;
+        }
+        hasMultiplier = true;
+      });
+    }
+    if (source.additive && typeof source.additive === 'object') {
+      Object.keys(source.additive).forEach((key) => {
+        const value = Number(source.additive[key]);
+        if (!Number.isFinite(value)) {
+          return;
+        }
+        additive[key] = (additive[key] || 0) + value;
+        hasAdditive = true;
+      });
+    }
+  });
+  if (!hasMultiplier && !hasAdditive) {
+    return null;
+  }
+  const result = {};
+  if (hasMultiplier) {
+    result.multipliers = multipliers;
+  }
+  if (hasAdditive) {
+    result.additive = additive;
+  }
+  return result;
+}
+
+function mergeSecretRealmSkillLists(...sources) {
+  const seen = new Set();
+  const list = [];
+  sources.forEach((source) => {
+    if (!source) {
+      return;
+    }
+    const values = Array.isArray(source) ? source : [source];
+    values.forEach((value) => {
+      if (typeof value !== 'string') {
+        return;
+      }
+      const trimmed = value.trim();
+      if (!trimmed || seen.has(trimmed)) {
+        return;
+      }
+      seen.add(trimmed);
+      list.push(trimmed);
+    });
+  });
+  return list;
+}
+
+function combineTemplateScaling(...sources) {
+  const result = { stat: 1, special: 1 };
+  let hasValue = false;
+  sources.forEach((source) => {
+    if (!source || typeof source !== 'object') {
+      return;
+    }
+    if (Number.isFinite(source.stat) && source.stat !== 0) {
+      result.stat *= source.stat;
+      hasValue = true;
+    }
+    if (Number.isFinite(source.special) && source.special !== 0) {
+      result.special *= source.special;
+      hasValue = true;
+    }
+  });
+  return hasValue ? result : null;
+}
+
+function mergeSecretRealmTemplate(baseTemplate = {}, defaults = {}, overrides = {}) {
+  const scaling = combineTemplateScaling(defaults.scaling, baseTemplate.scaling, overrides.scaling);
+  const statAdjustments = mergeSecretRealmAdjustments(
+    defaults.statAdjustments,
+    baseTemplate.statAdjustments,
+    overrides.statAdjustments
+  );
+  const specialAdjustments = mergeSecretRealmAdjustments(
+    defaults.specialAdjustments,
+    baseTemplate.specialAdjustments,
+    overrides.specialAdjustments
+  );
+  const statFocus = mergeStatFocus(defaults.statFocus, baseTemplate.statFocus, overrides.statFocus);
+  const tags = combineUniqueStrings(defaults.tags, baseTemplate.tags, overrides.tags);
+  const skillIds = mergeSecretRealmSkillLists(
+    defaults.skillIds,
+    baseTemplate.skillIds,
+    overrides.skillIds,
+    overrides.extraSkills
+  );
+  const templateKey =
+    overrides.template || overrides.key || baseTemplate.key || defaults.template || defaults.key || '';
+  const name = overrides.name || baseTemplate.name || defaults.name || '';
+  const displayName = overrides.displayName || baseTemplate.displayName || defaults.displayName || '';
+  const epithet = overrides.epithet || baseTemplate.epithet || defaults.epithet || '';
+  const summary = overrides.summary || baseTemplate.summary || defaults.summary || '';
+  const description = overrides.description || baseTemplate.description || defaults.description || '';
+  const visualKey = overrides.visualKey || baseTemplate.visualKey || defaults.visualKey || '';
+  const difficultyOverrideCandidate =
+    overrides.difficultyOverride ||
+    overrides.difficulty ||
+    baseTemplate.difficultyOverride ||
+    baseTemplate.difficulty ||
+    defaults.difficultyOverride ||
+    defaults.difficulty ||
+    '';
+  const difficultyOverride =
+    typeof difficultyOverrideCandidate === 'string' ? difficultyOverrideCandidate : '';
+  return {
+    key: templateKey,
+    name,
+    displayName,
+    epithet,
+    summary,
+    description,
+    visualKey,
+    tags,
+    statFocus,
+    skillIds,
+    scaling,
+    statAdjustments,
+    specialAdjustments,
+    difficultyOverride
+  };
+}
+
+function sanitizeTemplateScaling(scaling) {
+  if (!scaling || typeof scaling !== 'object') {
+    return null;
+  }
+  const sanitized = {};
+  if (Number.isFinite(scaling.stat) && scaling.stat !== 0) {
+    sanitized.stat = Number(scaling.stat);
+  }
+  if (Number.isFinite(scaling.special) && scaling.special !== 0) {
+    sanitized.special = Number(scaling.special);
+  }
+  return Object.keys(sanitized).length ? sanitized : null;
+}
+
+function sanitizeTemplateAdjustments(adjustments) {
+  if (!adjustments || typeof adjustments !== 'object') {
+    return null;
+  }
+  const sanitized = {};
+  if (adjustments.multipliers && typeof adjustments.multipliers === 'object') {
+    const multipliers = {};
+    Object.keys(adjustments.multipliers).forEach((key) => {
+      const value = Number(adjustments.multipliers[key]);
+      if (Number.isFinite(value)) {
+        multipliers[key] = value;
+      }
+    });
+    if (Object.keys(multipliers).length) {
+      sanitized.multipliers = multipliers;
+    }
+  }
+  if (adjustments.additive && typeof adjustments.additive === 'object') {
+    const additive = {};
+    Object.keys(adjustments.additive).forEach((key) => {
+      const value = Number(adjustments.additive[key]);
+      if (Number.isFinite(value)) {
+        additive[key] = value;
+      }
+    });
+    if (Object.keys(additive).length) {
+      sanitized.additive = additive;
+    }
+  }
+  return Object.keys(sanitized).length ? sanitized : null;
+}
+
+function sanitizeStatFocus(statFocus) {
+  if (!statFocus || typeof statFocus !== 'object') {
+    return null;
+  }
+  const keys = ['primary', 'secondary', 'tertiary', 'weak'];
+  const sanitized = {};
+  keys.forEach((key) => {
+    if (!Object.prototype.hasOwnProperty.call(statFocus, key)) {
+      return;
+    }
+    const normalized = normalizeTemplateStatList(statFocus[key]);
+    if (normalized.length) {
+      sanitized[key] = normalized;
+    }
+  });
+  return Object.keys(sanitized).length ? sanitized : null;
+}
+
+function deriveStatFocusFromArchetype(archetype = {}) {
+  if (!archetype || typeof archetype !== 'object') {
+    return null;
+  }
+  return sanitizeStatFocus({
+    primary: archetype.primary,
+    secondary: archetype.secondary,
+    tertiary: archetype.tertiary,
+    weak: archetype.weak
+  });
+}
+
+function sanitizeSecretRealmTemplateMeta(meta) {
+  if (!meta || typeof meta !== 'object') {
+    return null;
+  }
+  const sanitized = { ...meta };
+  sanitized.key = typeof sanitized.key === 'string' ? sanitized.key.trim() : '';
+  sanitized.name = typeof sanitized.name === 'string' ? sanitized.name.trim() : '';
+  sanitized.displayName = typeof sanitized.displayName === 'string' ? sanitized.displayName.trim() : '';
+  sanitized.epithet = typeof sanitized.epithet === 'string' ? sanitized.epithet.trim() : '';
+  sanitized.summary = typeof sanitized.summary === 'string' ? sanitized.summary.trim() : '';
+  sanitized.description = typeof sanitized.description === 'string' ? sanitized.description.trim() : '';
+  sanitized.visualKey = typeof sanitized.visualKey === 'string' ? sanitized.visualKey.trim() : '';
+  const difficultyOverrideValue =
+    typeof sanitized.difficultyOverride === 'string'
+      ? sanitized.difficultyOverride
+      : typeof sanitized.difficulty === 'string'
+      ? sanitized.difficulty
+      : '';
+  sanitized.difficultyOverride = typeof difficultyOverrideValue === 'string'
+    ? difficultyOverrideValue.trim()
+    : '';
+  sanitized.tags = combineUniqueStrings(sanitized.tags);
+  sanitized.statFocus = sanitizeStatFocus(sanitized.statFocus);
+  sanitized.skillIds = sanitizeSkillList(sanitized.skillIds || []);
+  sanitized.scaling = sanitizeTemplateScaling(sanitized.scaling);
+  sanitized.statAdjustments = sanitizeTemplateAdjustments(sanitized.statAdjustments);
+  sanitized.specialAdjustments = sanitizeTemplateAdjustments(sanitized.specialAdjustments);
+  sanitized.baseScaling = sanitizeTemplateScaling(sanitized.baseScaling);
+  sanitized.appliedScaling = sanitizeTemplateScaling(sanitized.appliedScaling);
+
+  if (!sanitized.summary && sanitized.description) {
+    sanitized.summary = sanitized.description;
+  }
+  if (!sanitized.description && sanitized.summary) {
+    sanitized.description = sanitized.summary;
+  }
+  if (!sanitized.epithet) {
+    delete sanitized.epithet;
+  }
+  if (!sanitized.tags.length) {
+    delete sanitized.tags;
+  }
+  if (!sanitized.statFocus) {
+    delete sanitized.statFocus;
+  }
+  if (!sanitized.skillIds.length) {
+    delete sanitized.skillIds;
+  }
+  if (!sanitized.scaling) {
+    delete sanitized.scaling;
+  }
+  if (!sanitized.statAdjustments) {
+    delete sanitized.statAdjustments;
+  }
+  if (!sanitized.specialAdjustments) {
+    delete sanitized.specialAdjustments;
+  }
+  if (!sanitized.baseScaling) {
+    delete sanitized.baseScaling;
+  }
+  if (!sanitized.appliedScaling) {
+    delete sanitized.appliedScaling;
+  }
+  if (!sanitized.visualKey) {
+    delete sanitized.visualKey;
+  }
+  if (!sanitized.difficultyOverride) {
+    delete sanitized.difficultyOverride;
+  }
+  if (Object.prototype.hasOwnProperty.call(sanitized, 'difficulty')) {
+    delete sanitized.difficulty;
+  }
+
+  return sanitized;
+}
+
+function resolveSecretRealmTemplateConfig({ realmId, floorNumber, floorCode, type }) {
+  if (!realmId) {
+    return null;
+  }
+  const realmEntry = SECRET_REALM_FLOOR_ASSIGNMENTS[realmId];
+  if (!realmEntry) {
+    return null;
+  }
+  const floors = realmEntry.floors || {};
+  const assignment = floors[floorNumber] || floors[floorCode] || null;
+  const defaults = realmEntry.defaults || {};
+  const baseTemplateKey = assignment && assignment.template ? assignment.template : defaults.template;
+  const baseTemplate = baseTemplateKey ? SECRET_REALM_ENEMY_TEMPLATE_REGISTRY[baseTemplateKey] : null;
+  const merged = mergeSecretRealmTemplate(baseTemplate || {}, defaults, assignment || {});
+  if (!merged.key && baseTemplateKey) {
+    merged.key = baseTemplateKey;
+  }
+  if (!merged.key && merged.name) {
+    merged.key = merged.name;
+  }
+  return {
+    ...merged,
+    type
+  };
+}
+
+function applySecretRealmTemplateScaling(baseScaling, templateConfig) {
+  const scaling = { ...baseScaling };
+  if (!templateConfig || !templateConfig.scaling) {
+    return scaling;
+  }
+  const templateScaling = templateConfig.scaling;
+  if (templateScaling && Number.isFinite(templateScaling.stat) && templateScaling.stat !== 0) {
+    scaling.stat *= templateScaling.stat;
+  }
+  if (templateScaling && Number.isFinite(templateScaling.special) && templateScaling.special !== 0) {
+    scaling.special *= templateScaling.special;
+  }
+  return scaling;
+}
+
+function normalizeSecretRealmStatValue(key, value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  if (key === 'critRate') {
+    const limit = SECRET_REALM_TUNING.limits.critRate || Infinity;
+    return Number(Math.min(limit, Math.max(0, numeric)).toFixed(4));
+  }
+  if (key === 'critDamage') {
+    const limit = SECRET_REALM_TUNING.limits.critDamage || Infinity;
+    return Number(Math.min(limit, Math.max(0, numeric)).toFixed(2));
+  }
+  if (key === 'finalDamageBonus' || key === 'finalDamageReduction' || key === 'lifeSteal') {
+    const limit = SECRET_REALM_TUNING.limits[key];
+    const clamped = limit ? Math.min(limit, numeric) : numeric;
+    return Math.max(0, Math.round(clamped * 10000) / 10000);
+  }
+  if (key === 'accuracy') {
+    const limit = SECRET_REALM_TUNING.limits.accuracy || Infinity;
+    return Math.max(0, Math.min(limit, Math.round(numeric)));
+  }
+  if (key === 'dodge') {
+    const limit = SECRET_REALM_TUNING.limits.dodge || Infinity;
+    return Math.max(0, Math.min(limit, Math.round(numeric)));
+  }
+  return Math.max(0, Math.round(numeric));
+}
+
+function normalizeSecretRealmStatRecord(stats = {}) {
+  const normalized = {};
+  Object.keys(stats || {}).forEach((key) => {
+    normalized[key] = normalizeSecretRealmStatValue(key, stats[key]);
+  });
+  return normalized;
+}
+
+function applySecretRealmStatAdjustments(stats, adjustments) {
+  if (!adjustments || typeof adjustments !== 'object') {
+    return stats;
+  }
+  const result = { ...stats };
+  if (adjustments.multipliers && typeof adjustments.multipliers === 'object') {
+    Object.keys(adjustments.multipliers).forEach((key) => {
+      const multiplier = Number(adjustments.multipliers[key]);
+      if (!Number.isFinite(multiplier)) {
+        return;
+      }
+      if (Number.isFinite(result[key])) {
+        result[key] *= multiplier;
+      } else if (Number.isFinite(SECRET_REALM_BASE_STATS[key])) {
+        result[key] = SECRET_REALM_BASE_STATS[key] * multiplier;
+      } else {
+        result[key] = multiplier;
+      }
+    });
+  }
+  if (adjustments.additive && typeof adjustments.additive === 'object') {
+    Object.keys(adjustments.additive).forEach((key) => {
+      const delta = Number(adjustments.additive[key]);
+      if (!Number.isFinite(delta)) {
+        return;
+      }
+      if (Number.isFinite(result[key])) {
+        result[key] += delta;
+      } else {
+        result[key] = delta;
+      }
+    });
+  }
+  return normalizeSecretRealmStatRecord(result);
+}
+
+function normalizeSecretRealmSpecialValue(key, value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  if (key === 'dodgeChance') {
+    return Math.min(0.4, Math.max(0, Number(numeric.toFixed(4))));
+  }
+  return Math.max(0, Math.round(numeric));
+}
+
+function normalizeSecretRealmSpecialRecord(special = {}) {
+  const normalized = {};
+  Object.keys(special || {}).forEach((key) => {
+    normalized[key] = normalizeSecretRealmSpecialValue(key, special[key]);
+  });
+  return normalized;
+}
+
+function applySecretRealmSpecialAdjustments(special, adjustments) {
+  if (!adjustments || typeof adjustments !== 'object') {
+    return special;
+  }
+  const result = { ...special };
+  if (adjustments.multipliers && typeof adjustments.multipliers === 'object') {
+    Object.keys(adjustments.multipliers).forEach((key) => {
+      const multiplier = Number(adjustments.multipliers[key]);
+      if (!Number.isFinite(multiplier)) {
+        return;
+      }
+      if (Number.isFinite(result[key])) {
+        result[key] *= multiplier;
+      } else {
+        result[key] = multiplier;
+      }
+    });
+  }
+  if (adjustments.additive && typeof adjustments.additive === 'object') {
+    Object.keys(adjustments.additive).forEach((key) => {
+      const delta = Number(adjustments.additive[key]);
+      if (!Number.isFinite(delta)) {
+        return;
+      }
+      if (Number.isFinite(result[key])) {
+        result[key] += delta;
+      } else {
+        result[key] = delta;
+      }
+    });
+  }
+  return normalizeSecretRealmSpecialRecord(result);
+}
+
+function buildSecretRealmTemplateMeta(templateConfig, context) {
+  if (!templateConfig || typeof templateConfig !== 'object') {
+    return null;
+  }
+  const archetypeFocus = deriveStatFocusFromArchetype(context.archetype);
+  const statFocus = templateConfig.statFocus ? sanitizeStatFocus(templateConfig.statFocus) : null;
+  const mergedFocus = statFocus || archetypeFocus || null;
+  const name = templateConfig.name || (context.archetype ? context.archetype.title : '');
+  const displayName =
+    templateConfig.displayName ||
+    (templateConfig.epithet ? `${name}${name ? '·' : ''}${templateConfig.epithet}` : name);
+  const summary =
+    templateConfig.summary ||
+    templateConfig.description ||
+    (context.archetype ? context.archetype.description : '');
+  const description = templateConfig.description || summary;
+  const tagSources = [templateConfig.tags];
+  if (context.realmName) {
+    tagSources.push(context.realmName);
+  }
+  if (context.stageLabel) {
+    tagSources.push(`第${context.floorNumber}层`);
+  }
+  const tags = combineUniqueStrings(...tagSources);
+  const skillIds =
+    templateConfig.skillIds && templateConfig.skillIds.length
+      ? templateConfig.skillIds
+      : context.skills;
+  const baseScaling = context.baseScaling
+    ? { stat: context.baseScaling.stat, special: context.baseScaling.special }
+    : null;
+  const appliedScaling = context.appliedScaling
+    ? { stat: context.appliedScaling.stat, special: context.appliedScaling.special }
+    : null;
+
+  return sanitizeSecretRealmTemplateMeta({
+    key: templateConfig.key || '',
+    name,
+    displayName,
+    epithet: templateConfig.epithet || '',
+    summary,
+    description,
+    visualKey: templateConfig.visualKey || context.enemyId || '',
+    tags,
+    statFocus: mergedFocus,
+    skillIds,
+    scaling: templateConfig.scaling || null,
+    statAdjustments: templateConfig.statAdjustments || null,
+    specialAdjustments: templateConfig.specialAdjustments || null,
+    stageName: context.stageName,
+    stageLabel: context.stageLabel,
+    realmId: context.realmId,
+    realmName: context.realmName,
+    floor: context.floorNumber,
+    type: context.type,
+    archetype: context.archetype ? context.archetype.key : '',
+    baseScaling,
+    appliedScaling,
+    difficultyOverride: templateConfig.difficultyOverride || ''
+  });
+}
+
 const SECRET_REALM_LOOT_PRESETS = Object.freeze({
   1: {
     normal: {
@@ -620,70 +1569,64 @@ const SECRET_REALM_LOOT_PRESETS = Object.freeze({
   },
   11: {
     normal: {
-      chance: 0.11,
-      items: ['starsea_mail', 'stoneheart_belt', 'guardian_token']
+      chance: 0.1,
+      items: ['novice_sword', 'apprentice_helm', 'spirit_belt']
     }
   },
   12: {
     normal: {
-      chance: 0.11,
-      items: ['spirit_blade', 'stormwrath_bracers', 'ironwall_puppet']
+      chance: 0.1,
+      items: ['apprentice_robe', 'lightstep_boots', 'initiate_bracers']
     }
   },
   13: {
     normal: {
-      chance: 0.11,
-      items: ['void_silk', 'chronos_orb', 'skyline_necklace']
+      chance: 0.1,
+      items: ['initiate_orb', 'spirit_ring', 'oath_token']
     }
   },
   14: {
     normal: {
       chance: 0.1,
-      items: ['starlit_visor', 'shade_boots', 'umbra_bracers']
+      items: ['wooden_puppet', 'initiate_focus', 'initiate_treasure']
     }
   },
   15: {
     normal: {
       chance: 0.1,
-      items: ['lumina_belt', 'aegis_orb', 'serene_token']
+      items: ['novice_sword', 'apprentice_robe', 'spirit_ring']
     }
   },
   16: {
     normal: {
       chance: 0.1,
-      items: ['guardian_puppet', 'veil_treasure', 'phantom_focus']
+      items: ['apprentice_helm', 'lightstep_boots', 'wooden_puppet']
     }
   },
   17: {
     normal: {
-      chance: 0.09,
-      items: ['abyssal_focus', 'shadow_talisman', 'dragonbone_sabre']
+      chance: 0.1,
+      items: ['spirit_belt', 'initiate_bracers', 'initiate_focus']
     }
   },
   18: {
     normal: {
-      chance: 0.09,
-      items: ['void_silk', 'chronos_orb', 'skyline_necklace']
+      chance: 0.1,
+      items: ['initiate_orb', 'oath_token', 'initiate_treasure']
     }
   },
   19: {
     normal: {
-      chance: 0.09,
-      items: ['lumina_belt', 'aegis_orb', 'guardian_token']
+      chance: 0.1,
+      items: ['novice_sword', 'apprentice_helm', 'lightstep_boots']
     }
   },
   20: {
     boss: {
       items: [
-        { itemId: 'dragonbone_sabre', chance: 0.2 },
-        { itemId: 'abyssal_focus', chance: 0.2 },
-        { itemId: 'shadow_talisman', chance: 0.2 },
-        { itemId: 'guardian_puppet', chance: 0.2 },
-        { itemId: 'veil_treasure', chance: 0.18 },
-        { itemId: 'aegis_orb', chance: 0.18 },
-        { itemId: 'inferno_orb', chance: 0.07 },
-        { itemId: 'ember_focus', chance: 0.07 },
-        { itemId: 'phoenix_plume', chance: 0.07 }
+        { itemId: 'spirit_blade', chance: 0.18 },
+        { itemId: 'starsea_mail', chance: 0.18 },
+        { itemId: 'void_silk', chance: 0.18 }
       ]
     }
   },
@@ -858,16 +1801,56 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
   const floorNumber = realmIndex * perRealm + subIndex + 1;
   const floorCode = subIndex + 1;
   const stageName = `${realm.name} · ${label}`;
-  const scaling = resolveSecretRealmScaling({ realmIndex, subIndex, perRealm, type });
-  const stats = generateSecretRealmStats(archetype, scaling, type);
-  const special = generateSecretRealmSpecial(archetype, scaling, type);
+  const normalizedRealmId = realm.id || realm.realmId || `realm_${realmIndex + 1}`;
+  const id = `secret_${normalizedRealmId}_${String(floorCode).padStart(2, '0')}`;
+  const templateConfig = resolveSecretRealmTemplateConfig({
+    realmId: normalizedRealmId,
+    floorNumber,
+    floorCode,
+    type
+  });
+  const baseScaling = resolveSecretRealmScaling({ realmIndex, subIndex, perRealm, type });
+  const scaling = applySecretRealmTemplateScaling(baseScaling, templateConfig);
+  const baseStats = generateSecretRealmStats(archetype, scaling, type);
+  const stats = applySecretRealmStatAdjustments(baseStats, templateConfig && templateConfig.statAdjustments);
+  const baseSpecial = generateSecretRealmSpecial(archetype, scaling, type);
+  const special = applySecretRealmSpecialAdjustments(
+    baseSpecial,
+    templateConfig && templateConfig.specialAdjustments
+  );
   const attributes = deriveEnemyAttributesFromStats(stats, floorNumber);
   const rewards = resolveSecretRealmRewards({ floorNumber, type, scaling });
   const loot = resolveSecretRealmLoot({ floorNumber, type });
-  const normalizedRealmId = realm.id || realm.realmId || `realm_${realmIndex + 1}`;
-  const id = `secret_${normalizedRealmId}_${String(floorCode).padStart(2, '0')}`;
-  const description = `${archetype.description}（${stageName}）`;
-  const skills = resolveSecretRealmSkillSet(archetype.key);
+  const skills = sanitizeSkillList(
+    templateConfig && Array.isArray(templateConfig.skillIds) && templateConfig.skillIds.length
+      ? templateConfig.skillIds
+      : resolveSecretRealmSkillSet(archetype.key)
+  );
+  const templateMeta = templateConfig
+    ? buildSecretRealmTemplateMeta(templateConfig, {
+        realmId: normalizedRealmId,
+        realmName: realm.name,
+        stageName,
+        stageLabel: label,
+        floorNumber,
+        type,
+        archetype,
+        enemyId: id,
+        skills,
+        baseScaling,
+        appliedScaling: scaling
+      })
+    : null;
+  const description =
+    (templateMeta && templateMeta.summary) || `${archetype.description}（${stageName}）`;
+  const displayName =
+    (templateMeta && templateMeta.displayName) ||
+    (templateConfig && templateConfig.displayName) ||
+    `${archetype.title}`;
+  const difficultyOverride =
+    templateConfig && typeof templateConfig.difficultyOverride === 'string'
+      ? templateConfig.difficultyOverride.trim()
+      : '';
 
   return {
     id,
@@ -883,7 +1866,7 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
     realmShort: realm.shortName,
     realmOrder: realmIndex + 1,
     level: floorNumber,
-    name: `${archetype.title}`,
+    name: displayName,
     description,
     attributes,
     stats,
@@ -891,9 +1874,11 @@ function createSecretRealmEnemy({ realm, realmIndex, subIndex, label, type, arch
     skills,
     rewards,
     loot,
+    ...(difficultyOverride ? { difficultyOverride } : {}),
     meta: {
       scaling,
-      suggestedRewards: rewards && rewards._model ? rewards._model : null
+      suggestedRewards: rewards && rewards._model ? rewards._model : null,
+      ...(templateMeta ? { template: templateMeta } : {})
     }
   };
 }
@@ -3070,9 +4055,16 @@ function decorateEnemyVisuals(enemy) {
     (typeof decorated.enemyId === 'string' && decorated.enemyId.trim()) ||
     '';
 
-  if (decorated.category === 'secretRealm' && enemyId) {
-    const resolvedAvatarUrl = buildSecretRealmImageUrl(enemyId, 'avatar');
-    const resolvedPortraitUrl = buildSecretRealmImageUrl(enemyId, 'character');
+  let visualKey = enemyId;
+  if (decorated.meta && decorated.meta.template && decorated.meta.template.visualKey) {
+    visualKey = decorated.meta.template.visualKey;
+  } else if (decorated.template && decorated.template.visualKey) {
+    visualKey = decorated.template.visualKey;
+  }
+
+  if (decorated.category === 'secretRealm' && visualKey) {
+    const resolvedAvatarUrl = buildSecretRealmImageUrl(visualKey, 'avatar');
+    const resolvedPortraitUrl = buildSecretRealmImageUrl(visualKey, 'character');
     if (resolvedAvatarUrl && !decorated.avatarUrl) {
       decorated.avatarUrl = resolvedAvatarUrl;
     }
@@ -7914,10 +8906,68 @@ function decorateSkillInventoryEntry(entry, profile) {
       : false
   };
 }
-function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) {
+
+function buildSecretRealmEnemyHighlights(templateMeta, enemy) {
+  if (!templateMeta || typeof templateMeta !== 'object') {
+    return [];
+  }
+  const highlights = [];
+  if (templateMeta.summary) {
+    highlights.push(templateMeta.summary);
+  }
+  if (Array.isArray(templateMeta.tags) && templateMeta.tags.length) {
+    highlights.push(`定位：${templateMeta.tags.join(' / ')}`);
+  }
+  if (templateMeta.statFocus) {
+    const primary = normalizeTemplateStatList(templateMeta.statFocus.primary);
+    const secondary = normalizeTemplateStatList(templateMeta.statFocus.secondary);
+    const focusKeys = [...primary, ...secondary];
+    const labels = focusKeys
+      .map((key) => resolveCombatStatLabel(key))
+      .filter((label) => typeof label === 'string' && label.trim());
+    const uniqueLabels = combineUniqueStrings(labels);
+    if (uniqueLabels.length) {
+      highlights.push(`主属性：${uniqueLabels.join('、')}`);
+    }
+  }
+  const skillCandidates =
+    templateMeta.skillIds && templateMeta.skillIds.length
+      ? templateMeta.skillIds
+      : collectSkillList(enemy);
+  const skillNames = [];
+  if (Array.isArray(skillCandidates)) {
+    skillCandidates.forEach((skillId) => {
+      if (typeof skillId !== 'string') {
+        return;
+      }
+      const trimmed = skillId.trim();
+      if (!trimmed) {
+        return;
+      }
+      const definition = SKILL_MAP[trimmed];
+      if (!definition || !definition.name) {
+        return;
+      }
+      if (!skillNames.includes(definition.name)) {
+        skillNames.push(definition.name);
+      }
+    });
+  }
+  if (skillNames.length) {
+    highlights.push(`携带技能：${skillNames.join(' / ')}`);
+  }
+  return highlights;
+}
+function decorateEnemy(enemy, attributeSummary = {}, secretRealmState, options = {}) {
   const combatPower = calculateCombatPower(enemy.stats, enemy.special || {});
-  const playerPower = calculateCombatPower(attributeSummary.finalStats || {}, attributeSummary.skillSummary || {});
-  const difficulty = resolveDifficultyLabel(playerPower, combatPower);
+  const attributeStats =
+    attributeSummary && attributeSummary.finalStats ? attributeSummary.finalStats : {};
+  const attributeSpecial =
+    attributeSummary && attributeSummary.skillSummary ? attributeSummary.skillSummary : {};
+  const playerPower = calculateCombatPower(attributeStats, attributeSpecial);
+  const difficultyOverride = resolveDifficultyOverride(enemy);
+  const computedDifficulty = resolveDifficultyLabel(playerPower, combatPower);
+  const difficulty = difficultyOverride || computedDifficulty;
   const rewards = normalizeDungeonRewards(enemy.rewards);
   const lootBonusChance = resolveLootBonusChance(attributeSummary);
   const loot = decorateEnemyLoot(enemy.loot || [], { bonusChance: lootBonusChance });
@@ -7936,6 +8986,8 @@ function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) 
   const statusLabel = locked ? '未解锁' : completed ? '已通关' : '可挑战';
   const viewerIsAdmin = !!options.viewerIsAdmin;
   const adminEnemyDetails = viewerIsAdmin ? buildEnemyPreviewDetails(enemy) : null;
+  const templateMeta = enemy.meta && enemy.meta.template ? enemy.meta.template : null;
+  const highlights = buildSecretRealmEnemyHighlights(templateMeta, enemy);
   return {
     id: enemy.id,
     name: enemy.name,
@@ -7964,8 +9016,28 @@ function decorateEnemy(enemy, attributeSummary, secretRealmState, options = {}) 
     bestRounds,
     victories,
     suggestedRewards: enemy.meta && enemy.meta.suggestedRewards ? enemy.meta.suggestedRewards : null,
+    ...(templateMeta ? { template: templateMeta } : {}),
+    ...(highlights.length ? { highlights } : {}),
     ...(adminEnemyDetails ? { adminEnemyDetails } : {})
   };
+}
+
+function resolveDifficultyOverride(enemy) {
+  if (!enemy || typeof enemy !== 'object') {
+    return '';
+  }
+  const directOverride =
+    typeof enemy.difficultyOverride === 'string' ? enemy.difficultyOverride.trim() : '';
+  if (directOverride) {
+    return directOverride;
+  }
+  const templateOverride =
+    enemy.meta &&
+    enemy.meta.template &&
+    typeof enemy.meta.template.difficultyOverride === 'string'
+      ? enemy.meta.template.difficultyOverride.trim()
+      : '';
+  return templateOverride || '';
 }
 
 const SECRET_REALM_LOOT_INSIGHT_MULTIPLIER = 0.00015;
@@ -8471,6 +9543,25 @@ function captureEnemySnapshot(enemy = {}) {
   if (skills.length) {
     snapshot.skills = skills;
   }
+  const templateMeta =
+    (enemy.meta && enemy.meta.template) || (enemy.template && typeof enemy.template === 'object' ? enemy.template : null);
+  if (templateMeta) {
+    const templateSnapshot = {};
+    if (templateMeta.key) {
+      templateSnapshot.key = templateMeta.key;
+    }
+    if (templateMeta.displayName) {
+      templateSnapshot.displayName = templateMeta.displayName;
+    } else if (templateMeta.name) {
+      templateSnapshot.name = templateMeta.name;
+    }
+    if (Array.isArray(templateMeta.tags) && templateMeta.tags.length) {
+      templateSnapshot.tags = [...templateMeta.tags];
+    }
+    if (Object.keys(templateSnapshot).length) {
+      snapshot.template = templateSnapshot;
+    }
+  }
   return Object.keys(snapshot).length ? snapshot : null;
 }
 
@@ -8498,6 +9589,10 @@ function buildBattleEnemyDetails(entry, fallbackEnemy = {}) {
   );
   const archetypeKey = entry.enemyArchetype || snapshot.archetype || fallbackEnemy.archetype || '';
   const archetype = archetypeKey ? SECRET_REALM_ARCHETYPE_LABELS[archetypeKey] || '' : '';
+  const templateMeta =
+    (snapshot && typeof snapshot.template === 'object' && snapshot.template) ||
+    (fallbackEnemy.meta && fallbackEnemy.meta.template) ||
+    null;
 
   if (realmName) {
     meta.push({ label: '秘境', value: realmName });
@@ -8517,6 +9612,13 @@ function buildBattleEnemyDetails(entry, fallbackEnemy = {}) {
   }
   if (archetype) {
     meta.push({ label: '流派', value: archetype });
+  }
+  if (templateMeta) {
+    const templateLabel =
+      templateMeta.displayName || templateMeta.name || templateMeta.key || templateMeta.template || '';
+    if (templateLabel) {
+      meta.push({ label: '模板', value: templateLabel });
+    }
   }
 
   const entries = [];
