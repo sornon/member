@@ -1131,6 +1131,74 @@ const STORAGE_CATEGORY_LABEL_MAP = STORAGE_CATEGORY_DEFINITIONS.reduce((acc, ite
   return acc;
 }, {});
 
+const EQUIPMENT_DISMANTLE_MATERIALS = {
+  mortal: {
+    itemId: 'reforge_scrap_mortal',
+    name: '废铁碎片',
+    shortName: '废铁',
+    description: '分解凡品装备后获得的基础锻料，可在坊市兑换粗制器胚。',
+    iconFileName: 'material-reforge-mortal.png'
+  },
+  inferior: {
+    itemId: 'reforge_ingot_inferior',
+    name: '精铁碎片',
+    shortName: '精铁',
+    description: '分解下品装备所得的精炼铁片，可用于淬炼早期器具。',
+    iconFileName: 'material-reforge-inferior.png'
+  },
+  standard: {
+    itemId: 'reforge_ingot_standard',
+    name: '灵钢小锭',
+    shortName: '灵钢',
+    description: '蕴含灵息的钢锭，是中品装备的通用返还材料。',
+    iconFileName: 'material-reforge-standard.png'
+  },
+  superior: {
+    itemId: 'reforge_crystal_superior',
+    name: '曜金晶砂',
+    shortName: '曜金',
+    description: '经高阶阵火回收的晶砂，可大幅提升上品器胚的稳定性。',
+    iconFileName: 'material-reforge-superior.png'
+  },
+  excellent: {
+    itemId: 'reforge_core_excellent',
+    name: '星辉玄铁',
+    shortName: '星玄',
+    description: '极品装备的精华铸料，蕴含星辉可用于唤醒隐藏铭纹。',
+    iconFileName: 'material-reforge-excellent.png'
+  },
+  immortal: {
+    itemId: 'reforge_core_immortal',
+    name: '霜岚玉锻',
+    shortName: '霜玉',
+    description: '仙品装备析出的寒玉碎锭，可作为顶阶锻造的催化剂。',
+    iconFileName: 'material-reforge-immortal.png'
+  },
+  perfect: {
+    itemId: 'reforge_heart_perfect',
+    name: '璇玑圣辉',
+    shortName: '璇辉',
+    description: '完美装备凝成的璇玑之光，可提升神器的共鸣强度。',
+    iconFileName: 'material-reforge-perfect.png'
+  },
+  primordial: {
+    itemId: 'reforge_essence_primordial',
+    name: '太初神胚',
+    shortName: '神胚',
+    description: '先天装备拆解所得的太初胚体，是重铸古兵的关键基底。',
+    iconFileName: 'material-reforge-primordial.png'
+  },
+  relic: {
+    itemId: 'reforge_relic_core',
+    name: '寰宇古髓',
+    shortName: '古髓',
+    description: '至宝化作的寰宇精髓，传说只有名垂天册的兵器才会留存。',
+    iconFileName: 'material-reforge-relic.png'
+  }
+};
+
+const EQUIPMENT_DISMANTLE_STACK_LIMIT = 99999;
+
 const STORAGE_UPGRADE_AVAILABLE_KEYS = ['upgradeAvailable', 'upgradeRemaining', 'availableUpgrades', 'upgradeTokens'];
 const STORAGE_UPGRADE_LIMIT_KEYS = ['upgradeLimit', 'maxUpgrades', 'limit'];
 
@@ -3321,6 +3389,8 @@ exports.main = async (event = {}) => {
       return equipItem(actorId, event);
     case 'discardItem':
       return discardItem(actorId, event);
+    case 'dismantleEquipment':
+      return dismantleEquipment(actorId, event);
     case 'useStorageItem':
       return useStorageItem(actorId, event);
     case 'upgradeStorage':
@@ -4093,6 +4163,244 @@ async function discardItem(actorId, event = {}) {
 
   const decorated = await decorateProfileWithEnhancement(member, profile);
   return { profile: decorated };
+}
+
+async function dismantleEquipment(actorId, event = {}) {
+  const inventoryId =
+    event && typeof event.inventoryId === 'string' && event.inventoryId.trim() ? event.inventoryId.trim() : '';
+  if (!inventoryId) {
+    throw createError('INVENTORY_ID_REQUIRED', '缺少物品编号');
+  }
+
+  const member = await ensureMember(actorId);
+  const profile = await ensurePveProfile(actorId, member);
+  const equipment = profile.equipment || {};
+  profile.equipment = equipment;
+  const inventory = Array.isArray(equipment.inventory) ? equipment.inventory : [];
+
+  const index = inventory.findIndex((entry) => entry && entry.inventoryId === inventoryId);
+  if (index < 0) {
+    throw createError('ITEM_NOT_FOUND', '未找到对应装备');
+  }
+
+  const removedEntry = inventory[index];
+  if (!removedEntry || !removedEntry.itemId) {
+    throw createError('ITEM_NOT_FOUND', '未找到对应装备');
+  }
+  if (removedEntry.locked) {
+    throw createError('ITEM_LOCKED', '该装备无法分解');
+  }
+
+  const definition = EQUIPMENT_MAP[removedEntry.itemId];
+  if (!definition) {
+    throw createError('ITEM_NOT_FOUND', '未找到对应装备');
+  }
+
+  inventory.splice(index, 1);
+  equipment.inventory = inventory;
+  profile.equipment.inventory = inventory;
+
+  const slots =
+    equipment.slots && typeof equipment.slots === 'object' ? { ...equipment.slots } : createEmptySlotMap();
+  let slotChanged = false;
+  Object.keys(slots).forEach((slotKey) => {
+    const slotEntry = slots[slotKey];
+    if (!slotEntry) {
+      return;
+    }
+    const sameInventory = slotEntry.inventoryId && slotEntry.inventoryId === inventoryId;
+    const sameItem = !slotEntry.inventoryId && removedEntry && slotEntry.itemId === removedEntry.itemId;
+    if (sameInventory || sameItem) {
+      slots[slotKey] = null;
+      slotChanged = true;
+    }
+  });
+  if (slotChanged) {
+    profile.equipment.slots = slots;
+    equipment.slots = slots;
+  }
+
+  const now = new Date();
+  const refineLevel = Math.max(0, Math.floor(Number(removedEntry.refine) || 0));
+  const qualityKey = typeof removedEntry.quality === 'string' && removedEntry.quality ? removedEntry.quality : definition.quality;
+  const materialDefinition = resolveDismantleMaterial(qualityKey);
+  const quantityResult = calculateDismantleQuantity(refineLevel);
+  const rewardResult = applyDismantleRewards(equipment, materialDefinition, quantityResult.totalQuantity, now);
+
+  profile.battleHistory = appendHistory(
+    profile.battleHistory,
+    {
+      type: 'equipment-change',
+      createdAt: now,
+      detail: {
+        action: 'dismantle',
+        itemId: removedEntry.itemId,
+        inventoryId,
+        quality: qualityKey,
+        refine: refineLevel,
+        reward: {
+          materialId: materialDefinition.itemId,
+          quantity: quantityResult.totalQuantity,
+          base: quantityResult.baseQuantity,
+          bonus: quantityResult.bonusQuantity,
+          critical: quantityResult.critical
+        }
+      }
+    },
+    MAX_BATTLE_HISTORY
+  );
+
+  refreshAttributeSummary(profile);
+
+  await savePveProfile(actorId, profile, { now });
+
+  const decorated = await decorateProfileWithEnhancement(member, profile);
+  return {
+    profile: decorated,
+    dismantle: {
+      equipment: {
+        itemId: removedEntry.itemId,
+        name: definition.name,
+        quality: qualityKey,
+        qualityLabel: resolveEquipmentQualityLabel(qualityKey),
+        qualityColor: resolveEquipmentQualityColor(qualityKey),
+        refine: refineLevel
+      },
+      material: {
+        itemId: materialDefinition.itemId,
+        name: materialDefinition.name,
+        shortName: materialDefinition.shortName,
+        quality: materialDefinition.qualityKey,
+        qualityLabel: resolveEquipmentQualityLabel(materialDefinition.qualityKey),
+        qualityColor: resolveEquipmentQualityColor(materialDefinition.qualityKey)
+      },
+      baseQuantity: quantityResult.baseQuantity,
+      bonusQuantity: quantityResult.bonusQuantity,
+      totalQuantity: quantityResult.totalQuantity,
+      critical: quantityResult.critical,
+      stacks: rewardResult.stacks
+    }
+  };
+}
+
+function resolveDismantleMaterial(quality) {
+  const normalized = typeof quality === 'string' && quality.trim() ? quality.trim() : '';
+  const fallback = EQUIPMENT_DISMANTLE_MATERIALS.inferior;
+  const resolved = (normalized && EQUIPMENT_DISMANTLE_MATERIALS[normalized]) || fallback;
+  return { ...resolved, qualityKey: normalized && EQUIPMENT_DISMANTLE_MATERIALS[normalized] ? normalized : 'inferior' };
+}
+
+function calculateDismantleQuantity(refineLevel) {
+  const level = Math.max(0, Math.floor(Number(refineLevel) || 0));
+  const baseQuantity = 1 + Math.floor(level / 2);
+  const critChance = Math.max(0, Math.min(0.6, 0.15 + level * 0.03));
+  const critMultiplier = Math.min(1, 0.5 + level * 0.05);
+  const rolled = Math.random();
+  const critical = rolled < critChance;
+  let bonusQuantity = 0;
+  if (critical) {
+    bonusQuantity = Math.max(1, Math.round(baseQuantity * critMultiplier));
+    bonusQuantity = Math.min(bonusQuantity, baseQuantity);
+  }
+  const totalQuantity = baseQuantity + bonusQuantity;
+  return { baseQuantity, bonusQuantity, totalQuantity, critical };
+}
+
+function applyDismantleRewards(equipment, materialDefinition, quantity, now = new Date()) {
+  const storage = equipment.storage && typeof equipment.storage === 'object' ? { ...equipment.storage } : buildDefaultStorage(0);
+  const categories = Array.isArray(storage.categories)
+    ? storage.categories.map((category) => ({
+        ...category,
+        items: Array.isArray(category.items) ? category.items.map((item) => ({ ...item })) : []
+      }))
+    : [];
+  let materialIndex = categories.findIndex((category) => category && category.key === 'material');
+  if (materialIndex < 0) {
+    categories.push({ key: 'material', label: STORAGE_CATEGORY_LABEL_MAP.material || '材料', items: [] });
+    materialIndex = categories.length - 1;
+  }
+  const materialCategory = categories[materialIndex];
+  const items = Array.isArray(materialCategory.items) ? materialCategory.items : [];
+
+  const baseCapacity = resolveStorageBaseCapacity(storage);
+  const perUpgrade = resolveStoragePerUpgrade(storage);
+  const { level: storageLevel } = resolveStorageUpgradeState(storage);
+  const capacity = baseCapacity + perUpgrade * storageLevel;
+
+  const stacks = [];
+  let remaining = Math.max(0, Math.floor(Number(quantity) || 0));
+  if (remaining <= 0) {
+    storage.categories = categories;
+    equipment.storage = storage;
+    return { storage, stacks };
+  }
+
+  const safeNow = now instanceof Date && !Number.isNaN(now.getTime()) ? now : new Date();
+
+  items.forEach((item) => {
+    if (remaining <= 0) {
+      return;
+    }
+    if (!item || item.itemId !== materialDefinition.itemId) {
+      return;
+    }
+    const current = toPositiveInt(item.quantity);
+    if (current >= EQUIPMENT_DISMANTLE_STACK_LIMIT) {
+      return;
+    }
+    const available = EQUIPMENT_DISMANTLE_STACK_LIMIT - current;
+    const add = Math.min(available, remaining);
+    if (add <= 0) {
+      return;
+    }
+    const nextQuantity = current + add;
+    item.quantity = nextQuantity;
+    if (!item.obtainedAt) {
+      item.obtainedAt = safeNow;
+    }
+    item.updatedAt = safeNow;
+    if (!item.iconFileName && materialDefinition.iconFileName) {
+      item.iconFileName = materialDefinition.iconFileName;
+    }
+    stacks.push({ inventoryId: item.inventoryId || '', quantity: nextQuantity, added: add, isNew: false });
+    remaining -= add;
+  });
+
+  while (remaining > 0) {
+    const usableSlots = items.filter((entry) => entry && entry.inventoryId).length;
+    if (usableSlots >= capacity) {
+      throw createError('STORAGE_FULL', '材料栏位已满，无法分解更多装备');
+    }
+    const add = Math.min(EQUIPMENT_DISMANTLE_STACK_LIMIT, remaining);
+    const inventoryId = generateStorageInventoryId('material', materialDefinition.itemId, safeNow);
+    const stack = {
+      inventoryId,
+      itemId: materialDefinition.itemId,
+      name: materialDefinition.name,
+      shortName: materialDefinition.shortName,
+      description: materialDefinition.description,
+      storageCategory: 'material',
+      storageCategoryLabel: STORAGE_CATEGORY_LABEL_MAP.material || '材料',
+      iconUrl: '',
+      iconFallbackUrl: '',
+      iconFileName: materialDefinition.iconFileName,
+      quality: materialDefinition.qualityKey,
+      qualityLabel: resolveEquipmentQualityLabel(materialDefinition.qualityKey),
+      qualityColor: resolveEquipmentQualityColor(materialDefinition.qualityKey),
+      obtainedAt: safeNow,
+      quantity: add,
+      maxStack: EQUIPMENT_DISMANTLE_STACK_LIMIT,
+      stackable: true
+    };
+    items.push(stack);
+    stacks.push({ inventoryId, quantity: add, added: add, isNew: true });
+    remaining -= add;
+  }
+
+  categories[materialIndex] = { ...materialCategory, items };
+  storage.categories = categories;
+  equipment.storage = storage;
+  return { storage, stacks };
 }
 
 function normalizeSkillDrawCreditValue(value, fallback = 0) {

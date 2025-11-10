@@ -805,6 +805,21 @@ button.pill-btn[disabled] {
   border-radius: 20rpx;
 }
 
+.storage-slot__quantity {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+  background: rgba(8, 14, 34, 0.82);
+  color: #f4f6ff;
+  font-size: 20rpx;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: 0 8rpx 18rpx rgba(6, 10, 32, 0.32);
+  z-index: 3;
+}
+
 .storage-slot__icon-image {
   width: 100%;
   height: 100%;
@@ -1063,6 +1078,18 @@ button.pill-btn[disabled] {
 }
 
 .equipment-tooltip__enhance {
+  margin-top: 0;
+}
+
+.equipment-tooltip__danger-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12rpx;
+}
+
+.equipment-tooltip__danger-action {
+  align-self: flex-start;
   margin-top: 0;
 }
 
