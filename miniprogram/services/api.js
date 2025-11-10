@@ -409,6 +409,14 @@ export const PveService = {
     }
     return callCloud(CLOUD_FUNCTIONS.PVE, payload);
   },
+  async dismantleEquipment({ inventoryId = '' } = {}) {
+    const payload = { action: 'dismantleEquipment' };
+    const normalizedInventoryId = typeof inventoryId === 'string' ? inventoryId.trim() : '';
+    if (normalizedInventoryId) {
+      payload.inventoryId = normalizedInventoryId;
+    }
+    return callCloud(CLOUD_FUNCTIONS.PVE, payload);
+  },
   async useStorageItem({ inventoryId = '', actionKey = 'use' } = {}) {
     const payload = { action: 'useStorageItem' };
     const normalizedInventoryId = typeof inventoryId === 'string' ? inventoryId.trim() : '';

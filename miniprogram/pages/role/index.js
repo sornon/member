@@ -400,6 +400,9 @@ function resolveTooltipDeleteState(tooltip) {
   if ((tooltip.category || '') === 'quest') {
     return { canDelete: false, reason: '任务道具不可删除' };
   }
+  if (tooltip.item && tooltip.item.locked) {
+    return { canDelete: false, reason: '该物品已锁定' };
+  }
   return { canDelete: true, reason: '' };
 }
 
@@ -1714,11 +1717,16 @@ Page({
       inventoryId: inventoryId || '',
       mode,
       category,
-      deleting: false
+      deleting: false,
+      dismantling: false
     };
+    tooltip.isEquipment = !!isEquipment;
     const deleteState = resolveTooltipDeleteState(tooltip);
-    tooltip.canDelete = deleteState.canDelete;
-    tooltip.deleteDisabledReason = deleteState.reason;
+    const shouldUseDismantle = isEquipment && mode === 'delete';
+    tooltip.canDelete = !shouldUseDismantle && deleteState.canDelete;
+    tooltip.deleteDisabledReason = !shouldUseDismantle ? deleteState.reason : '';
+    tooltip.canDismantle = shouldUseDismantle ? deleteState.canDelete : false;
+    tooltip.dismantleDisabledReason = shouldUseDismantle ? deleteState.reason : '';
     tooltip.canEnhance = false;
     tooltip.enhanceDisabledReason = '';
     tooltip.availableEnhancementMaterials = 0;
@@ -2096,9 +2104,84 @@ Page({
     }
   },
 
+  handleDismantleFromTooltip() {
+    const tooltip = this.data && this.data.equipmentTooltip;
+    if (!tooltip || normalizeTooltipMode(tooltip.mode) !== 'delete') {
+      return;
+    }
+    if (!tooltip.isEquipment) {
+      return;
+    }
+    if (tooltip.dismantling) {
+      return;
+    }
+    if (!tooltip.canDismantle) {
+      if (tooltip.dismantleDisabledReason) {
+        wx.showToast({ title: tooltip.dismantleDisabledReason, icon: 'none' });
+      }
+      return;
+    }
+    const inventoryId = tooltip.inventoryId || (tooltip.item && tooltip.item.inventoryId) || '';
+    if (!inventoryId) {
+      wx.showToast({ title: '缺少物品信息', icon: 'none' });
+      return;
+    }
+    const itemName = tooltip.item.name || tooltip.item.shortName || '该装备';
+    wx.showModal({
+      title: '分解装备',
+      content: `确定要分解「${itemName}」吗？分解后将返还锻造材料。`,
+      confirmText: '分解',
+      confirmColor: '#566ed2',
+      cancelText: '保留',
+      success: (res) => {
+        if (res.confirm) {
+          this.performDismantleEquipment({ inventoryId, itemName });
+        }
+      }
+    });
+  },
+
+  async performDismantleEquipment({ inventoryId, itemName }) {
+    const tooltip = this.data && this.data.equipmentTooltip;
+    if (!tooltip || normalizeTooltipMode(tooltip.mode) !== 'delete') {
+      return;
+    }
+    if (tooltip.dismantling) {
+      return;
+    }
+    this.setData({ 'equipmentTooltip.dismantling': true });
+    try {
+      const res = await PveService.dismantleEquipment({ inventoryId });
+      if (res && res.profile) {
+        this.applyProfile(res.profile);
+      }
+      const summary = res && res.dismantle;
+      let message = '分解完成';
+      if (summary && summary.material && summary.totalQuantity) {
+        const materialName = summary.material.name || summary.material.shortName || '材料';
+        const prefix = summary.critical ? '暴击！' : '';
+        message = `${prefix}获得${summary.totalQuantity}个${materialName}`;
+      } else if (itemName) {
+        message = `已分解${itemName}`;
+      }
+      wx.showToast({ title: message, icon: 'success' });
+      this.setData({ 'equipmentTooltip.dismantling': false });
+      this.closeEquipmentTooltip();
+    } catch (error) {
+      console.error('[role] dismantle equipment failed', error);
+      wx.showToast({ title: (error && error.errMsg) || '分解失败', icon: 'none' });
+      this.setData({ 'equipmentTooltip.dismantling': false });
+      return;
+    }
+  },
+
   handleDeleteFromTooltip() {
     const tooltip = this.data && this.data.equipmentTooltip;
     if (!tooltip || normalizeTooltipMode(tooltip.mode) !== 'delete') {
+      return;
+    }
+    if (tooltip.isEquipment) {
+      wx.showToast({ title: '请使用分解来处理装备', icon: 'none' });
       return;
     }
     if (tooltip.deleting) {
