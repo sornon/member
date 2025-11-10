@@ -27,7 +27,11 @@
 `SECRET_REALM_FLOOR_ASSIGNMENTS` 负责把模板映射到具体楼层，可为整境界设置 `defaults`，再针对每层覆写
 `displayName`、`summary`、`tags`、`visualKey` 与额外的 `scaling`/`statAdjustments`。炼气期 1~10 层分别绑定到
 上述模板（如“灵木护卫”“破岩武僧”“玄火尊”），并保留原有技能、定位描述与视觉资源，确保模板化后对
-现有数值表现零侵入。【F:cloudfunctions/pve/index.js†L694-L760】
+现有数值表现零侵入。【F:cloudfunctions/pve/index.js†L694-L770】
+
+筑基期 11~19 层沿用炼气期 9 位常规敌人的模板，但重新打乱出场顺序，并通过 `scaling` 逐层提升系数，
+让难度平滑递增。同时设置楼层默认标签（如“筑基试炼”“进阶考核”），便于前端直接展示境界阶段信息。
+【F:cloudfunctions/pve/index.js†L771-L832】
 
 未来新增楼层时，只需在 `SECRET_REALM_FLOOR_ASSIGNMENTS` 中追加楼层映射，或让其他境界沿用这些模板并按需
 覆写系数即可。

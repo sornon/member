@@ -769,6 +769,76 @@ const SECRET_REALM_FLOOR_ASSIGNMENTS = Object.freeze({
         scaling: { stat: 1.05, special: 1.1 }
       }
     }
+  },
+  realm_foundation: {
+    defaults: {
+      tags: ['筑基试炼', '进阶考核']
+    },
+    floors: {
+      11: {
+        template: 'qi_refining_shadow_runner',
+        displayName: '筑基一层 · 疾影游侠',
+        summary: '筑基初阶仍需磨炼身法，疾影游侠再度突袭，考验走位与先手。',
+        tags: ['高速', '突袭'],
+        scaling: { stat: 1.08, special: 1.05 }
+      },
+      12: {
+        template: 'qi_refining_vitality_guardian',
+        displayName: '筑基二层 · 灵木护卫',
+        summary: '强化后的灵木护卫以更厚护盾拖延战线，逼迫挑战者提升输出。',
+        tags: ['护盾', '消耗'],
+        scaling: { stat: 1.09, special: 1.06 }
+      },
+      13: {
+        template: 'qi_refining_phantom_trickster',
+        displayName: '筑基三层 · 迷踪幻徒',
+        summary: '迷踪幻徒潜伏于暗处，以更深的吸血与闪避拖垮长战线。',
+        tags: ['闪避', '吸血'],
+        scaling: { stat: 1.1, special: 1.06 }
+      },
+      14: {
+        template: 'qi_refining_stone_monk',
+        displayName: '筑基四层 · 破岩武僧',
+        summary: '破岩武僧体魄更胜往昔，猛攻下压迫筑基修士的防御极限。',
+        tags: ['物理压制', '破甲'],
+        scaling: { stat: 1.11, special: 1.07 }
+      },
+      15: {
+        template: 'qi_refining_spirit_warden',
+        displayName: '筑基五层 · 灵盾护法',
+        summary: '灵盾护法修复护盾阵式，提高术法防御与抗性，克制远程爆发。',
+        tags: ['抗性', '护盾'],
+        scaling: { stat: 1.12, special: 1.08 }
+      },
+      16: {
+        template: 'qi_refining_sky_sharpshooter',
+        displayName: '筑基六层 · 天眼射手',
+        summary: '天眼射手洞察更深，暴击与穿透齐升，远程点杀不容失误。',
+        tags: ['远程', '暴击'],
+        scaling: { stat: 1.13, special: 1.08 }
+      },
+      17: {
+        template: 'qi_refining_frost_magus',
+        displayName: '筑基七层 · 凝霜术士',
+        summary: '凝霜术士凝聚更寒的霜意，控制与法穿加深，冻结威胁升级。',
+        tags: ['术法', '控制'],
+        scaling: { stat: 1.15, special: 1.09 }
+      },
+      18: {
+        template: 'qi_refining_golden_defender',
+        displayName: '筑基八层 · 金甲守军',
+        summary: '金甲守军以筑基真元淬炼甲胄，双防与减伤再度强化。',
+        tags: ['重甲', '减伤'],
+        scaling: { stat: 1.17, special: 1.1 }
+      },
+      19: {
+        template: 'qi_refining_mind_binder',
+        displayName: '筑基九层 · 心魄缚者',
+        summary: '心魄缚者神识凌厉，控制命中与精神打击逼近筑基上限。',
+        tags: ['控制', '压制'],
+        scaling: { stat: 1.19, special: 1.11 }
+      }
+    }
   }
 });
 
@@ -1450,56 +1520,56 @@ const SECRET_REALM_LOOT_PRESETS = Object.freeze({
   },
   11: {
     normal: {
-      chance: 0.11,
-      items: ['starsea_mail', 'stoneheart_belt', 'guardian_token']
+      chance: 0.1,
+      items: ['novice_sword', 'apprentice_helm', 'spirit_belt']
     }
   },
   12: {
     normal: {
-      chance: 0.11,
-      items: ['spirit_blade', 'stormwrath_bracers', 'ironwall_puppet']
+      chance: 0.1,
+      items: ['apprentice_robe', 'lightstep_boots', 'initiate_bracers']
     }
   },
   13: {
     normal: {
-      chance: 0.11,
-      items: ['void_silk', 'chronos_orb', 'skyline_necklace']
+      chance: 0.1,
+      items: ['initiate_orb', 'spirit_ring', 'oath_token']
     }
   },
   14: {
     normal: {
       chance: 0.1,
-      items: ['starlit_visor', 'shade_boots', 'umbra_bracers']
+      items: ['wooden_puppet', 'initiate_focus', 'initiate_treasure']
     }
   },
   15: {
     normal: {
       chance: 0.1,
-      items: ['lumina_belt', 'aegis_orb', 'serene_token']
+      items: ['novice_sword', 'apprentice_robe', 'spirit_ring']
     }
   },
   16: {
     normal: {
       chance: 0.1,
-      items: ['guardian_puppet', 'veil_treasure', 'phantom_focus']
+      items: ['apprentice_helm', 'lightstep_boots', 'wooden_puppet']
     }
   },
   17: {
     normal: {
-      chance: 0.09,
-      items: ['abyssal_focus', 'shadow_talisman', 'dragonbone_sabre']
+      chance: 0.1,
+      items: ['spirit_belt', 'initiate_bracers', 'initiate_focus']
     }
   },
   18: {
     normal: {
-      chance: 0.09,
-      items: ['void_silk', 'chronos_orb', 'skyline_necklace']
+      chance: 0.1,
+      items: ['initiate_orb', 'oath_token', 'initiate_treasure']
     }
   },
   19: {
     normal: {
-      chance: 0.09,
-      items: ['lumina_belt', 'aegis_orb', 'guardian_token']
+      chance: 0.1,
+      items: ['novice_sword', 'apprentice_helm', 'lightstep_boots']
     }
   },
   20: {
