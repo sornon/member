@@ -20,7 +20,6 @@
       <view class="progress-text" wx:else>恭喜金仙圆满，尊享终极特权</view>
       <view wx:if="{{breakthroughLevel}}" class="breakthrough-hint">
         <text class="breakthrough-hint__text">修为已圆满，请突破至 {{breakthroughLevel.displayName || breakthroughLevel.name}}。</text>
-        <text class="breakthrough-hint__reward">奖励：{{breakthroughRewardText}}</text>
       </view>
       <button
         wx:if="{{breakthroughLevel}}"

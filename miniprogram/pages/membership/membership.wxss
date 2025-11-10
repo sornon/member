@@ -69,11 +69,6 @@
   color: #fff6cf;
 }
 
-.breakthrough-hint__reward {
-  font-size: 22rpx;
-  color: rgba(255, 248, 220, 0.88);
-}
-
 .breakthrough-button {
   margin-top: 24rpx;
   align-self: flex-start;

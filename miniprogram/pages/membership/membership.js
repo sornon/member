@@ -151,7 +151,6 @@ Page({
     upcomingMilestone: null,
     pendingBreakthroughLevelId: '',
     breakthroughLevel: null,
-    breakthroughRewardText: '',
     breakthroughLoading: false,
     progressWidth: 0,
     progressStyle: buildWidthStyle(0),
@@ -287,11 +286,6 @@ Page({
       const breakthroughLevel = pendingBreakthroughLevelId
         ? rawLevels.find((lvl) => lvl && lvl._id === pendingBreakthroughLevelId) || null
         : null;
-      const breakthroughRewardText = breakthroughLevel && breakthroughLevel.milestoneReward
-        ? breakthroughLevel.milestoneReward
-        : breakthroughLevel
-        ? '筑基背景 + 任意120元内饮品券'
-        : '';
       mergedMember.pendingBreakthroughLevelId = pendingBreakthroughLevelId;
 
       this.setData({
@@ -311,8 +305,7 @@ Page({
         visibleRealms,
         claimedLevelRewards,
         pendingBreakthroughLevelId,
-        breakthroughLevel,
-        breakthroughRewardText
+        breakthroughLevel
       });
     } catch (error) {
       const width = normalizePercentage(this.data.progress);
