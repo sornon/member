@@ -4292,7 +4292,7 @@ function resolveDismantleMaterial(quality) {
 
 function calculateDismantleQuantity(refineLevel) {
   const level = Math.max(0, Math.floor(Number(refineLevel) || 0));
-  const baseQuantity = 1 + Math.floor(level / 2);
+  const baseQuantity = Math.max(1, Math.pow(2, level));
   const critChance = Math.max(0, Math.min(0.6, 0.15 + level * 0.03));
   const critMultiplier = Math.min(1, 0.5 + level * 0.05);
   const rolled = Math.random();
