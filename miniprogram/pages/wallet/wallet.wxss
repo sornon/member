@@ -4,12 +4,6 @@
   color: #f7f9ff;
 }
 
-.meta {
-  margin-top: 12rpx;
-  font-size: 24rpx;
-  color: rgba(198, 208, 255, 0.78);
-}
-
 .wine-total {
   font-size: 28rpx;
   color: #f6f8ff;
