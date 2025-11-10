@@ -518,6 +518,8 @@ const LEVEL_REWARD_CONFIG = Object.freeze({
   ]
 });
 
+const BREAKTHROUGH_DELIVERY_SUFFIX = '::breakthrough';
+
 function resolveTitleDefinition(titleId) {
   if (typeof titleId !== 'string') {
     return null;
@@ -1402,33 +1404,36 @@ async function getProgress(openid, options = {}, context = {}) {
   const decoratedMember = attachProxySession(decorateMember(member, levels), context.proxySession);
   return {
     member: decoratedMember,
-    levels: levels.map((lvl) => ({
-      _id: lvl._id,
-      name: lvl.displayName || lvl.name,
-      displayName: lvl.displayName || lvl.name,
-      shortName: lvl.name,
-      threshold: lvl.threshold,
-      discount: lvl.discount,
-      order: lvl.order,
-      realm: lvl.realm,
-      realmShort: lvl.realmShort || '',
-      realmId: lvl.realmId || '',
-      realmOrder: lvl.realmOrder || lvl.order,
-      realmDescription: lvl.realmDescription || '',
-      subLevel: lvl.subLevel || 1,
-      subLevelLabel: lvl.subLevelLabel || '',
-      virtualRewards: lvl.virtualRewards || [],
-      milestoneReward: lvl.milestoneReward || '',
-      milestoneType: lvl.milestoneType || '',
-      rewards: (lvl.rewards || []).map((reward) => reward.description || reward.name || ''),
-      hasRewards: hasLevelRewards(lvl),
-      claimed: claimedLevelRewards.includes(lvl._id),
-      reached: experience >= (typeof lvl.threshold === 'number' ? lvl.threshold : 0),
-      claimable:
-        hasLevelRewards(lvl) &&
-        experience >= (typeof lvl.threshold === 'number' ? lvl.threshold : 0) &&
-        !claimedLevelRewards.includes(lvl._id)
-    })),
+    levels: levels.map((lvl) => {
+      const regularRights = resolveRegularLevelRights(lvl);
+      return {
+        _id: lvl._id,
+        name: lvl.displayName || lvl.name,
+        displayName: lvl.displayName || lvl.name,
+        shortName: lvl.name,
+        threshold: lvl.threshold,
+        discount: lvl.discount,
+        order: lvl.order,
+        realm: lvl.realm,
+        realmShort: lvl.realmShort || '',
+        realmId: lvl.realmId || '',
+        realmOrder: lvl.realmOrder || lvl.order,
+        realmDescription: lvl.realmDescription || '',
+        subLevel: lvl.subLevel || 1,
+        subLevelLabel: lvl.subLevelLabel || '',
+        virtualRewards: Array.isArray(lvl.virtualRewards) ? lvl.virtualRewards : [],
+        milestoneReward: lvl.milestoneReward || '',
+        milestoneType: lvl.milestoneType || '',
+        rewards: regularRights.map((reward) => reward.description || reward.name || ''),
+        hasRewards: hasLevelRewards(lvl),
+        claimed: claimedLevelRewards.includes(lvl._id),
+        reached: experience >= (typeof lvl.threshold === 'number' ? lvl.threshold : 0),
+        claimable:
+          hasLevelRewards(lvl) &&
+          experience >= (typeof lvl.threshold === 'number' ? lvl.threshold : 0) &&
+          !claimedLevelRewards.includes(lvl._id)
+      };
+    }),
     claimedLevelRewards,
     percentage,
     nextDiff,
@@ -1848,15 +1853,61 @@ function applyRealmConfigOverrides(levels = []) {
     if (isFinalSubLevel && config.milestone) {
       overrides.milestoneReward = config.milestone.summary || level.milestoneReward || '';
       overrides.milestoneType = config.milestone.type || level.milestoneType || '';
-      if (Array.isArray(config.milestone.rights) && config.milestone.rights.length) {
-        overrides.rewards = config.milestone.rights.map((item) => ({
-          rightId: item.rightId,
-          quantity: item.quantity || 1,
-          description: item.description || ''
-        }));
+      const milestoneRightIds = new Set();
+      const milestoneRights = Array.isArray(config.milestone.rights)
+        ? config.milestone.rights.filter((item) => item && item.rightId)
+        : [];
+      if (milestoneRights.length) {
+        overrides.breakthroughRewards = milestoneRights.map((item) => {
+          if (typeof item.rightId === 'string' && item.rightId.trim()) {
+            milestoneRightIds.add(item.rightId.trim());
+          }
+          return {
+            rightId: item.rightId,
+            quantity: item.quantity || 1,
+            description: item.description || ''
+          };
+        });
       }
       if (Array.isArray(config.milestone.items) && config.milestone.items.length) {
-        overrides.milestoneInventory = normalizeMilestoneInventory(config.milestone.items);
+        const milestoneInventory = normalizeMilestoneInventory(config.milestone.items);
+        if (milestoneInventory.length) {
+          overrides.breakthroughInventory = milestoneInventory;
+          milestoneInventory.forEach((item) => {
+            if (!item || typeof item !== 'object') {
+              return;
+            }
+            if (typeof item.rightId === 'string' && item.rightId.trim()) {
+              milestoneRightIds.add(item.rightId.trim());
+              return;
+            }
+            const usage = item.usage && typeof item.usage === 'object' ? item.usage : null;
+            if (!usage) {
+              return;
+            }
+            const usageType = typeof usage.type === 'string' ? usage.type.trim().toLowerCase() : '';
+            if (usageType === 'grantright' || usageType === 'grantcoupon' || usageType === 'coupon') {
+              if (typeof usage.rightId === 'string' && usage.rightId.trim()) {
+                milestoneRightIds.add(usage.rightId.trim());
+              }
+            }
+          });
+        }
+      }
+      if (milestoneRightIds.size && Array.isArray(level.rewards) && level.rewards.length) {
+        const filteredRewards = level.rewards.filter((reward) => {
+          if (!reward || typeof reward.rightId !== 'string') {
+            return true;
+          }
+          const trimmed = reward.rightId.trim();
+          if (!trimmed) {
+            return true;
+          }
+          return !milestoneRightIds.has(trimmed);
+        });
+        if (filteredRewards.length !== level.rewards.length) {
+          overrides.rewards = filteredRewards;
+        }
       }
     }
 
@@ -1892,15 +1943,71 @@ function requiresBreakthrough(currentLevel, nextLevel) {
   return resolveSubLevel(currentLevel) >= 10;
 }
 
+function resolveBreakthroughRightIdSet(level) {
+  const ids = new Set();
+  if (!level) {
+    return ids;
+  }
+  if (Array.isArray(level.breakthroughRewards)) {
+    level.breakthroughRewards.forEach((reward) => {
+      if (reward && typeof reward.rightId === 'string') {
+        const trimmed = reward.rightId.trim();
+        if (trimmed) {
+          ids.add(trimmed);
+        }
+      }
+    });
+  }
+  if (Array.isArray(level.breakthroughInventory)) {
+    level.breakthroughInventory.forEach((item) => {
+      if (!item || typeof item !== 'object') {
+        return;
+      }
+      if (typeof item.rightId === 'string' && item.rightId.trim()) {
+        ids.add(item.rightId.trim());
+        return;
+      }
+      const usage = item.usage && typeof item.usage === 'object' ? item.usage : null;
+      if (!usage) {
+        return;
+      }
+      const usageType = typeof usage.type === 'string' ? usage.type.trim().toLowerCase() : '';
+      if (!usageType) {
+        return;
+      }
+      if (usageType === 'grantright' || usageType === 'grantcoupon' || usageType === 'coupon') {
+        if (typeof usage.rightId === 'string' && usage.rightId.trim()) {
+          ids.add(usage.rightId.trim());
+        }
+      }
+    });
+  }
+  return ids;
+}
+
+function resolveRegularLevelRights(level) {
+  if (!level || !Array.isArray(level.rewards)) {
+    return [];
+  }
+  const breakthroughIds = resolveBreakthroughRightIdSet(level);
+  if (!breakthroughIds.size) {
+    return level.rewards.slice();
+  }
+  return level.rewards.filter((reward) => {
+    if (!reward || typeof reward.rightId !== 'string') {
+      return true;
+    }
+    return !breakthroughIds.has(reward.rightId.trim());
+  });
+}
+
 function hasLevelRewards(level) {
   if (!level) return false;
-  if (Array.isArray(level.rewards) && level.rewards.length) {
-    return true;
-  }
   if (Array.isArray(level.virtualRewards) && level.virtualRewards.length) {
     return true;
   }
-  return !!level.milestoneReward;
+  const regularRights = resolveRegularLevelRights(level);
+  return regularRights.length > 0;
 }
 
 async function loadMembershipRightsMap() {
@@ -1936,70 +2043,81 @@ async function loadMembershipRightsMap() {
   return masterMap;
 }
 
-async function grantLevelRewards(openid, level, levels) {
-  const rewards = level.rewards || [];
-  if (rewards.length) {
-    const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
-    const now = new Date();
-    const masterMap = await loadMembershipRightsMap();
+async function grantRightsForSourceLevel(openid, level, rewards = []) {
+  if (!level || !Array.isArray(rewards) || !rewards.length) {
+    return;
+  }
+  const levelId = typeof level._id === 'string' ? level._id : '';
+  if (!levelId) {
+    return;
+  }
+  const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
+  const now = new Date();
+  const masterMap = await loadMembershipRightsMap();
 
-    for (const reward of rewards) {
-      const right = masterMap[reward.rightId];
-      if (!right) continue;
-      const existing = await rightsCollection
-        .where({
+  for (const reward of rewards) {
+    if (!reward || !reward.rightId) {
+      continue;
+    }
+    const right = masterMap[reward.rightId];
+    if (!right) continue;
+    const existing = await rightsCollection
+      .where({
+        memberId: openid,
+        rightId: reward.rightId,
+        levelId
+      })
+      .get();
+    const numericQuantity = Number(reward.quantity);
+    const needQuantity = Number.isFinite(numericQuantity) ? Math.max(1, Math.floor(numericQuantity)) : 1;
+    const already = existing.data.length;
+    if (already >= needQuantity) {
+      continue;
+    }
+    const diff = needQuantity - already;
+    for (let i = 0; i < diff; i += 1) {
+      const validUntil = right.validDays
+        ? new Date(now.getTime() + right.validDays * 24 * 60 * 60 * 1000)
+        : null;
+      await rightsCollection.add({
+        data: {
           memberId: openid,
           rightId: reward.rightId,
-          levelId: level._id
-        })
-        .get();
-      const needQuantity = reward.quantity || 1;
-      const already = existing.data.length;
-      if (already >= needQuantity) {
-        continue;
-      }
-      const diff = needQuantity - already;
-      for (let i = 0; i < diff; i += 1) {
-        const validUntil = right.validDays
-          ? new Date(now.getTime() + right.validDays * 24 * 60 * 60 * 1000)
-          : null;
-        await rightsCollection.add({
-          data: {
-            memberId: openid,
-            rightId: reward.rightId,
-            levelId: level._id,
-            status: 'active',
-            issuedAt: now,
-            validUntil,
-            meta: {
-              fromLevel: level._id,
-              rewardName: reward.description || right.name
-            }
+          levelId,
+          status: 'active',
+          issuedAt: now,
+          validUntil,
+          meta: {
+            fromLevel: levelId,
+            rewardName: reward.description || right.name
           }
-        });
-      }
+        }
+      });
     }
   }
-
-  await grantInventoryRewardsForLevel(openid, level);
 }
 
-async function grantInventoryRewardsForLevel(openid, level) {
-  const baseRewards = LEVEL_REWARD_CONFIG[level._id] || [];
-  const milestoneRewards = Array.isArray(level.milestoneInventory) ? level.milestoneInventory : [];
-  const rewards = [...baseRewards, ...milestoneRewards];
-  if (!rewards.length) {
+async function applyInventoryRewardsForLevel(openid, level, rewards, deliveryKey) {
+  const normalizedRewards = Array.isArray(rewards)
+    ? rewards.filter((reward) => reward && typeof reward === 'object')
+    : [];
+  if (!normalizedRewards.length) {
     return;
   }
-  const extras = await resolveMemberExtras(openid);
-  const delivered = Array.isArray(extras.deliveredLevelRewards) ? extras.deliveredLevelRewards : [];
-  const backgroundUnlocks = Array.isArray(extras.backgroundUnlocks) ? extras.backgroundUnlocks : [];
-  const backgroundUnlockSet = new Set(backgroundUnlocks);
-  if (delivered.includes(level._id)) {
+  const memberId = typeof openid === 'string' ? openid : '';
+  if (!memberId) {
     return;
   }
 
-  const memberSnapshot = await db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null);
+  const extras = await resolveMemberExtras(memberId);
+  const delivered = Array.isArray(extras.deliveredLevelRewards) ? extras.deliveredLevelRewards : [];
+  if (deliveryKey && delivered.includes(deliveryKey)) {
+    return;
+  }
+  const backgroundUnlocks = Array.isArray(extras.backgroundUnlocks) ? extras.backgroundUnlocks : [];
+  const backgroundUnlockSet = new Set(backgroundUnlocks);
+
+  const memberSnapshot = await db.collection(COLLECTIONS.MEMBERS).doc(memberId).get().catch(() => null);
   if (!memberSnapshot || !memberSnapshot.data) {
     return;
   }
@@ -2009,10 +2127,7 @@ async function grantInventoryRewardsForLevel(openid, level) {
   let profileChanged = false;
   let extrasChanged = false;
 
-  for (const reward of rewards) {
-    if (!reward || typeof reward !== 'object') {
-      continue;
-    }
+  for (const reward of normalizedRewards) {
     if (reward.type === 'equipment' && reward.itemId) {
       const rewardRefine = typeof reward.refine === 'number' ? Math.max(0, Math.floor(reward.refine)) : 0;
       const existingIndex = profile.equipment.inventory.findIndex(
@@ -2071,7 +2186,7 @@ async function grantInventoryRewardsForLevel(openid, level) {
   if (profileChanged) {
     await db
       .collection(COLLECTIONS.MEMBERS)
-      .doc(openid)
+      .doc(memberId)
       .update({
         data: {
           pveProfile: _.set(profile),
@@ -2082,12 +2197,58 @@ async function grantInventoryRewardsForLevel(openid, level) {
   }
 
   const deliveredSet = new Set(delivered);
-  deliveredSet.add(level._id);
+  if (deliveryKey) {
+    deliveredSet.add(deliveryKey);
+  }
   const extrasUpdate = { deliveredLevelRewards: Array.from(deliveredSet) };
   if (extrasChanged) {
     extrasUpdate.backgroundUnlocks = Array.from(backgroundUnlockSet);
   }
-  await updateMemberExtras(openid, extrasUpdate);
+  await updateMemberExtras(memberId, extrasUpdate);
+}
+
+async function grantInventoryRewardsForLevel(openid, level) {
+  if (!level) {
+    return;
+  }
+  const baseRewards = LEVEL_REWARD_CONFIG[level._id] || [];
+  const deliveryKey = typeof level._id === 'string' ? level._id : '';
+  await applyInventoryRewardsForLevel(openid, level, baseRewards, deliveryKey);
+}
+
+async function grantBreakthroughInventoryRewards(openid, level) {
+  if (!level) {
+    return;
+  }
+  const milestoneRewards = Array.isArray(level.breakthroughInventory) ? level.breakthroughInventory : [];
+  if (!milestoneRewards.length) {
+    return;
+  }
+  const levelId = typeof level._id === 'string' ? level._id : '';
+  if (!levelId) {
+    return;
+  }
+  const deliveryKey = `${levelId}${BREAKTHROUGH_DELIVERY_SUFFIX}`;
+  await applyInventoryRewardsForLevel(openid, level, milestoneRewards, deliveryKey);
+}
+
+async function grantLevelRewards(openid, level, levels) {
+  const regularRights = resolveRegularLevelRights(level);
+  if (regularRights.length) {
+    await grantRightsForSourceLevel(openid, level, regularRights);
+  }
+  await grantInventoryRewardsForLevel(openid, level);
+}
+
+async function grantBreakthroughRewardsForLevel(openid, level) {
+  if (!level) {
+    return;
+  }
+  const milestoneRights = Array.isArray(level.breakthroughRewards) ? level.breakthroughRewards : [];
+  if (milestoneRights.length) {
+    await grantRightsForSourceLevel(openid, level, milestoneRights);
+  }
+  await grantBreakthroughInventoryRewards(openid, level);
 }
 
 async function loadLevels() {
@@ -2603,6 +2764,7 @@ async function breakthrough(openid, context = {}) {
   }
 
   const currentLevel = levels.find((lvl) => lvl && lvl._id === member.levelId) || levels[0];
+  const breakthroughSourceLevel = currentLevel;
   if (!requiresBreakthrough(currentLevel, targetLevel)) {
     await db
       .collection(COLLECTIONS.MEMBERS)
@@ -2634,6 +2796,8 @@ async function breakthrough(openid, context = {}) {
       }
     })
     .catch(() => {});
+
+  await grantBreakthroughRewardsForLevel(openid, breakthroughSourceLevel);
 
   member.levelId = targetLevel._id;
   member.pendingBreakthroughLevelId = '';
@@ -2813,7 +2977,14 @@ function normalizeClaimedLevelRewards(claims, levels = []) {
       return;
     }
     if (validIds.size && !validIds.has(trimmed)) {
-      return;
+      if (
+        trimmed.endsWith(BREAKTHROUGH_DELIVERY_SUFFIX) &&
+        validIds.has(trimmed.slice(0, -BREAKTHROUGH_DELIVERY_SUFFIX.length))
+      ) {
+        // allow extended delivery keys for breakthrough rewards
+      } else {
+        return;
+      }
     }
     seen.add(trimmed);
     normalized.push(trimmed);
