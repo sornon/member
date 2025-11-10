@@ -156,7 +156,8 @@ Page({
     progressStyle: buildWidthStyle(0),
     visibleLevels: [],
     claimedLevelRewards: [],
-    visibleRealms: []
+    visibleRealms: [],
+    milestoneHintText: ''
   },
 
   claimingReward: false,
@@ -270,7 +271,6 @@ Page({
       const nextDiff = progress && typeof progress.nextDiff === 'number' ? progress.nextDiff : 0;
       const nextLevelRemainingExperience = formatExperience(nextDiff);
       const currentOrder = currentLevel && currentLevel.order ? currentLevel.order : 0;
-      const upcomingMilestone = levels.find((lvl) => lvl.order > currentOrder && lvl.milestoneReward) || null;
       const width = normalizePercentage(progress);
       const visibilityOptions = {
         currentLevel,
@@ -287,6 +287,30 @@ Page({
         ? rawLevels.find((lvl) => lvl && lvl._id === pendingBreakthroughLevelId) || null
         : null;
       mergedMember.pendingBreakthroughLevelId = pendingBreakthroughLevelId;
+
+      let upcomingMilestone = null;
+      let milestoneHintText = '';
+      if (currentLevel && currentLevel.milestoneReward && pendingBreakthroughLevelId) {
+        upcomingMilestone = currentLevel;
+        const targetName =
+          (breakthroughLevel && (breakthroughLevel.displayName || breakthroughLevel.name)) ||
+          currentLevel.displayName ||
+          currentLevel.name ||
+          '';
+        milestoneHintText = targetName
+          ? `突破至 ${targetName} 可得 ${currentLevel.milestoneReward}`
+          : `突破当前境界可得 ${currentLevel.milestoneReward}`;
+      } else {
+        upcomingMilestone =
+          levels.find((lvl) => lvl && lvl.order > currentOrder && lvl.milestoneReward) || null;
+        if (upcomingMilestone) {
+          const milestoneName =
+            upcomingMilestone.displayName || upcomingMilestone.name || '';
+          milestoneHintText = milestoneName
+            ? `冲刺至 ${milestoneName} 可得 ${upcomingMilestone.milestoneReward}`
+            : `冲刺当前境界可得 ${upcomingMilestone.milestoneReward}`;
+        }
+      }
 
       this.setData({
         loading: false,
@@ -305,7 +329,8 @@ Page({
         visibleRealms,
         claimedLevelRewards,
         pendingBreakthroughLevelId,
-        breakthroughLevel
+        breakthroughLevel,
+        milestoneHintText
       });
     } catch (error) {
       const width = normalizePercentage(this.data.progress);

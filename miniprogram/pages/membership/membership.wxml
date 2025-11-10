@@ -33,9 +33,9 @@
         <text>突破境界</text>
         <view class="badge-dot breakthrough-button__dot"></view>
       </button>
-      <view class="milestone-hint" wx:if="{{upcomingMilestone}}">
+      <view class="milestone-hint" wx:if="{{upcomingMilestone && milestoneHintText}}">
         <text class="milestone-tag">境界大奖</text>
-        <text class="milestone-text">冲刺至 {{upcomingMilestone.displayName}} 可得 {{upcomingMilestone.milestoneReward}}</text>
+        <text class="milestone-text">{{milestoneHintText}}</text>
       </view>
     </view>
 
