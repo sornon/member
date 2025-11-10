@@ -68,6 +68,13 @@
               bindtap="onClaimReward"
             >领取奖励</button>
             <button
+              wx:elif="{{item.breakthroughLocked}}"
+              class="claim-button claim-button--disabled"
+              type="default"
+              size="mini"
+              disabled
+            >突破后可领</button>
+            <button
               wx:elif="{{!item.claimed}}"
               class="claim-button claim-button--disabled"
               type="default"
