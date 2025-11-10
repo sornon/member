@@ -5373,6 +5373,8 @@ async function summarizePvpLeaderboardForMembers(memberIds) {
 async function cleanupMemberData(memberId) {
   const summary = { removed: {}, errors: [] };
 
+  const memberRightIds = await collectMemberRightIds(memberId, summary);
+
   const removalResults = await Promise.all([
     removeCollectionByMemberId(COLLECTIONS.MEMBER_TIMELINE, memberId, summary),
     removeMemberExtrasDocument(memberId, summary),
@@ -5403,12 +5405,284 @@ async function cleanupMemberData(memberId) {
     removeDocumentById(COLLECTIONS.MEMBERS, memberId, summary)
   ]);
 
+  const rightsReferenceCleanup = await cleanupMemberRightReferences(memberRightIds, summary);
+
   const reservationsRemoved = Number(removalResults[3]) || 0;
-  if (reservationsRemoved > 0) {
+  const reservationLinksRemoved = rightsReferenceCleanup
+    ? Number(rightsReferenceCleanup.reservations) || 0
+    : 0;
+  if (reservationsRemoved + reservationLinksRemoved > 0) {
     await updateAdminReservationBadges({ incrementVersion: true });
   }
 
   return summary;
+}
+
+async function collectMemberRightIds(memberId, summary) {
+  const targetId = normalizeMemberIdValue(memberId);
+  if (!targetId) {
+    return [];
+  }
+
+  const collection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
+  const limit = 100;
+  const collected = [];
+  let skip = 0;
+
+  while (true) {
+    let snapshot;
+    try {
+      snapshot = await collection
+        .where({ memberId: targetId })
+        .orderBy('_id', 'asc')
+        .skip(skip)
+        .limit(limit)
+        .field({ _id: true })
+        .get();
+    } catch (error) {
+      if (isNotFoundError(error)) {
+        break;
+      }
+      pushCleanupError(summary, COLLECTIONS.MEMBER_RIGHTS, error, targetId);
+      break;
+    }
+
+    const docs = snapshot && Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+
+    docs.forEach((doc) => {
+      const rightId = normalizeMemberIdValue(doc && doc._id);
+      if (rightId) {
+        collected.push(rightId);
+      }
+    });
+
+    if (docs.length < limit) {
+      break;
+    }
+
+    skip += limit;
+  }
+
+  return collected;
+}
+
+async function cleanupMemberRightReferences(memberRightIds, summary) {
+  const normalized = Array.from(
+    new Set(
+      (Array.isArray(memberRightIds) ? memberRightIds : [])
+        .map((id) => normalizeMemberIdValue(id))
+        .filter(Boolean)
+    )
+  );
+
+  if (!normalized.length) {
+    return {
+      reservations: 0,
+      menuOrdersAppliedRights: 0,
+      chargeOrdersAppliedRights: 0,
+      walletTransactionsAppliedRights: 0
+    };
+  }
+
+  const [reservationCount, menuCount, chargeCount, walletCount] = await Promise.all([
+    cleanupReservationRightLinks(normalized, summary),
+    cleanupAppliedRightsFromCollection(COLLECTIONS.MENU_ORDERS, normalized, summary, {
+      summaryKey: 'menuOrdersAppliedRights'
+    }),
+    cleanupAppliedRightsFromCollection(COLLECTIONS.CHARGE_ORDERS, normalized, summary, {
+      summaryKey: 'chargeOrdersAppliedRights'
+    }),
+    cleanupAppliedRightsFromCollection(COLLECTIONS.WALLET_TRANSACTIONS, normalized, summary, {
+      summaryKey: 'walletTransactionsAppliedRights'
+    })
+  ]);
+
+  return {
+    reservations: reservationCount,
+    menuOrdersAppliedRights: menuCount,
+    chargeOrdersAppliedRights: chargeCount,
+    walletTransactionsAppliedRights: walletCount
+  };
+}
+
+async function cleanupReservationRightLinks(rightIds, summary) {
+  const collection = db.collection(COLLECTIONS.RESERVATIONS);
+  const limit = 50;
+  let cleaned = 0;
+
+  while (true) {
+    const snapshot = await collection
+      .where({ rightId: _.in(rightIds) })
+      .limit(limit)
+      .get()
+      .catch((error) => {
+        if (!isNotFoundError(error)) {
+          pushCleanupError(summary, COLLECTIONS.RESERVATIONS, error);
+        }
+        return { data: [] };
+      });
+
+    const docs = snapshot && Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+
+    await Promise.all(
+      docs.map((doc) =>
+        collection
+          .doc(doc._id)
+          .update({
+            data: {
+              rightId: _.remove(),
+              updatedAt: new Date()
+            }
+          })
+          .then(() => {
+            cleaned += 1;
+          })
+          .catch((error) => {
+            if (!isNotFoundError(error)) {
+              pushCleanupError(summary, COLLECTIONS.RESERVATIONS, error, doc._id);
+            }
+          })
+      )
+    );
+
+    if (docs.length < limit) {
+      break;
+    }
+  }
+
+  if (cleaned > 0) {
+    appendRemovalCount(summary, 'reservationRightLinks', cleaned);
+  }
+
+  return cleaned;
+}
+
+async function cleanupAppliedRightsFromCollection(collectionName, rightIds, summary, options = {}) {
+  const normalized = Array.from(
+    new Set((Array.isArray(rightIds) ? rightIds : []).map((id) => normalizeMemberIdValue(id)).filter(Boolean))
+  );
+
+  if (!normalized.length) {
+    return 0;
+  }
+
+  const collection = db.collection(collectionName);
+  const limit =
+    Number.isFinite(options.batchSize) && options.batchSize > 0
+      ? Math.min(100, Math.floor(options.batchSize))
+      : 50;
+  const discountField =
+    options && typeof options.discountField === 'string' && options.discountField.trim()
+      ? options.discountField.trim()
+      : 'discountTotal';
+  const includeUpdatedAt = options && options.includeUpdatedAt === false ? false : true;
+
+  const idSet = new Set(normalized);
+  let removedEntries = 0;
+
+  while (true) {
+    const snapshot = await collection
+      .where({ 'appliedRights.memberRightId': _.in(normalized) })
+      .limit(limit)
+      .get()
+      .catch((error) => {
+        if (!isNotFoundError(error)) {
+          pushCleanupError(summary, collectionName, error);
+        }
+        return { data: [] };
+      });
+
+    const docs = snapshot && Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+
+    await Promise.all(
+      docs.map((doc) => {
+        const docIdRaw = doc && doc._id;
+        const docId = normalizeMemberIdValue(docIdRaw) || docIdRaw;
+        if (!docId) {
+          return null;
+        }
+        const appliedRights = Array.isArray(doc && doc.appliedRights) ? doc.appliedRights : [];
+        const remaining = [];
+        let removedCount = 0;
+        let removedAmount = 0;
+
+        appliedRights.forEach((entry) => {
+          const entryId = normalizeMemberIdValue(entry && entry.memberRightId);
+          if (entryId && idSet.has(entryId)) {
+            removedCount += 1;
+            const amount = Number(entry && entry.amount);
+            if (Number.isFinite(amount)) {
+              removedAmount += amount;
+            }
+          } else {
+            remaining.push(entry);
+          }
+        });
+
+        if (!removedCount) {
+          return null;
+        }
+
+        const updates = {};
+        if (remaining.length) {
+          updates.appliedRights = remaining;
+        } else {
+          updates.appliedRights = _.remove();
+        }
+
+        if (discountField) {
+          const currentDiscount = Number(doc && doc[discountField]);
+          if (Number.isFinite(currentDiscount) && removedAmount) {
+            const nextDiscount = currentDiscount - removedAmount;
+            if (nextDiscount > 0) {
+              updates[discountField] = nextDiscount;
+            } else {
+              updates[discountField] = _.remove();
+            }
+          }
+        }
+
+        if (includeUpdatedAt) {
+          updates.updatedAt = new Date();
+        }
+
+        return collection
+          .doc(docId)
+          .update({ data: updates })
+          .then(() => {
+            removedEntries += removedCount;
+          })
+          .catch((error) => {
+            if (!isNotFoundError(error)) {
+              pushCleanupError(summary, collectionName, error, docId);
+            }
+          });
+      })
+    );
+
+    if (docs.length < limit) {
+      break;
+    }
+  }
+
+  if (removedEntries > 0) {
+    const summaryKey =
+      options && typeof options.summaryKey === 'string' && options.summaryKey.trim()
+        ? options.summaryKey.trim()
+        : `${collectionName}AppliedRights`;
+    appendRemovalCount(summary, summaryKey, removedEntries);
+  }
+
+  return removedEntries;
 }
 
 function appendRemovalCount(summary, key, amount) {
