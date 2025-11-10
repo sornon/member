@@ -699,70 +699,70 @@ const SECRET_REALM_FLOOR_ASSIGNMENTS = Object.freeze({
     floors: {
       1: {
         template: 'qi_refining_vitality_guardian',
-        displayName: '炼气一层 · 灵木护卫',
+        displayName: '灵木护卫',
         summary: '灵木护卫驻守炼气秘境入口，以护盾消耗挑战者。',
         tags: ['防御'],
         visualKey: 'secret_realm_qi_refining_01'
       },
       2: {
         template: 'qi_refining_stone_monk',
-        displayName: '炼气二层 · 破岩武僧',
+        displayName: '破岩武僧',
         summary: '破岩武僧凭借重拳与破甲术逼迫修士贴身对抗。',
         tags: ['物理'],
         visualKey: 'secret_realm_qi_refining_02'
       },
       3: {
         template: 'qi_refining_frost_magus',
-        displayName: '炼气三层 · 凝霜术士',
+        displayName: '凝霜术士',
         summary: '凝霜术士用冰封与远程术法限制对手行动。',
         tags: ['术法', '控制'],
         visualKey: 'secret_realm_qi_refining_03'
       },
       4: {
         template: 'qi_refining_golden_defender',
-        displayName: '炼气四层 · 金甲守军',
+        displayName: '金甲守军',
         summary: '金甲守军以厚重防线与护盾稳固前排。',
         tags: ['防御'],
         visualKey: 'secret_realm_qi_refining_04'
       },
       5: {
         template: 'qi_refining_spirit_warden',
-        displayName: '炼气五层 · 灵盾护法',
+        displayName: '灵盾护法',
         summary: '灵盾护法强化法术防御，是远程术士的克星。',
         tags: ['抗性'],
         visualKey: 'secret_realm_qi_refining_05'
       },
       6: {
         template: 'qi_refining_shadow_runner',
-        displayName: '炼气六层 · 疾影游侠',
+        displayName: '疾影游侠',
         summary: '疾影游侠高速穿梭，以高闪避与连击打乱节奏。',
         tags: ['高速'],
         visualKey: 'secret_realm_qi_refining_06'
       },
       7: {
         template: 'qi_refining_sky_sharpshooter',
-        displayName: '炼气七层 · 天眼射手',
+        displayName: '天眼射手',
         summary: '天眼射手洞察弱点，远程暴击一击即中。',
         tags: ['远程'],
         visualKey: 'secret_realm_qi_refining_07'
       },
       8: {
         template: 'qi_refining_phantom_trickster',
-        displayName: '炼气八层 · 迷踪幻徒',
+        displayName: '迷踪幻徒',
         summary: '迷踪幻徒以闪避与吸血慢慢蚕食敌人。',
         tags: ['闪避'],
         visualKey: 'secret_realm_qi_refining_08'
       },
       9: {
         template: 'qi_refining_mind_binder',
-        displayName: '炼气九层 · 心魄缚者',
+        displayName: '心魄缚者',
         summary: '心魄缚者以精神束缚不断施加控制。',
         tags: ['控制'],
         visualKey: 'secret_realm_qi_refining_09'
       },
       10: {
         template: 'qi_refining_overseer',
-        displayName: '炼气圆满 · 玄火尊',
+        displayName: '玄火尊',
         summary: '玄火尊统御炼气秘境，兼具烈焰爆发与防御。',
         tags: ['首领', '烈焰'],
         visualKey: 'secret_realm_qi_refining_10',
@@ -777,63 +777,63 @@ const SECRET_REALM_FLOOR_ASSIGNMENTS = Object.freeze({
     floors: {
       11: {
         template: 'qi_refining_shadow_runner',
-        displayName: '筑基一层 · 疾影游侠',
+        displayName: '疾影游侠',
         summary: '筑基初阶仍需磨炼身法，疾影游侠再度突袭，考验走位与先手。',
         tags: ['高速', '突袭'],
         scaling: { stat: 1.08, special: 1.05 }
       },
       12: {
         template: 'qi_refining_vitality_guardian',
-        displayName: '筑基二层 · 灵木护卫',
+        displayName: '灵木护卫',
         summary: '强化后的灵木护卫以更厚护盾拖延战线，逼迫挑战者提升输出。',
         tags: ['护盾', '消耗'],
         scaling: { stat: 1.09, special: 1.06 }
       },
       13: {
         template: 'qi_refining_phantom_trickster',
-        displayName: '筑基三层 · 迷踪幻徒',
+        displayName: '迷踪幻徒',
         summary: '迷踪幻徒潜伏于暗处，以更深的吸血与闪避拖垮长战线。',
         tags: ['闪避', '吸血'],
         scaling: { stat: 1.1, special: 1.06 }
       },
       14: {
         template: 'qi_refining_stone_monk',
-        displayName: '筑基四层 · 破岩武僧',
+        displayName: '破岩武僧',
         summary: '破岩武僧体魄更胜往昔，猛攻下压迫筑基修士的防御极限。',
         tags: ['物理压制', '破甲'],
         scaling: { stat: 1.11, special: 1.07 }
       },
       15: {
         template: 'qi_refining_spirit_warden',
-        displayName: '筑基五层 · 灵盾护法',
+        displayName: '灵盾护法',
         summary: '灵盾护法修复护盾阵式，提高术法防御与抗性，克制远程爆发。',
         tags: ['抗性', '护盾'],
         scaling: { stat: 1.12, special: 1.08 }
       },
       16: {
         template: 'qi_refining_sky_sharpshooter',
-        displayName: '筑基六层 · 天眼射手',
+        displayName: '天眼射手',
         summary: '天眼射手洞察更深，暴击与穿透齐升，远程点杀不容失误。',
         tags: ['远程', '暴击'],
         scaling: { stat: 1.13, special: 1.08 }
       },
       17: {
         template: 'qi_refining_frost_magus',
-        displayName: '筑基七层 · 凝霜术士',
+        displayName: '凝霜术士',
         summary: '凝霜术士凝聚更寒的霜意，控制与法穿加深，冻结威胁升级。',
         tags: ['术法', '控制'],
         scaling: { stat: 1.15, special: 1.09 }
       },
       18: {
         template: 'qi_refining_golden_defender',
-        displayName: '筑基八层 · 金甲守军',
+        displayName: '金甲守军',
         summary: '金甲守军以筑基真元淬炼甲胄，双防与减伤再度强化。',
         tags: ['重甲', '减伤'],
         scaling: { stat: 1.17, special: 1.1 }
       },
       19: {
         template: 'qi_refining_mind_binder',
-        displayName: '筑基九层 · 心魄缚者',
+        displayName: '心魄缚者',
         summary: '心魄缚者神识凌厉，控制命中与精神打击逼近筑基上限。',
         tags: ['控制', '压制'],
         scaling: { stat: 1.19, special: 1.11 }
