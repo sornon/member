@@ -290,13 +290,12 @@ Page({
 
       let upcomingMilestone = null;
       let milestoneHintText = '';
-      if (currentLevel && currentLevel.milestoneReward && pendingBreakthroughLevelId) {
+      if (currentLevel && currentLevel.milestoneReward) {
         upcomingMilestone = currentLevel;
         const milestoneLabel =
           currentLevel.realm ||
           currentLevel.displayName ||
           currentLevel.name ||
-          (breakthroughLevel && (breakthroughLevel.displayName || breakthroughLevel.name)) ||
           '';
         milestoneHintText = milestoneLabel
           ? `突破${milestoneLabel}可得 ${currentLevel.milestoneReward}`
