@@ -132,6 +132,46 @@ function normalizeResourceStateMap(state = {}) {
   };
 }
 
+function normalizeEquipmentLootEntries(lootList = []) {
+  if (!Array.isArray(lootList) || !lootList.length) {
+    return [];
+  }
+  const result = [];
+  for (let i = 0; i < lootList.length; i += 1) {
+    const entry = lootList[i];
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+    const type = entry.type || 'equipment';
+    if (type !== 'equipment') {
+      continue;
+    }
+    const identifier =
+      entry.id || entry.itemId || entry.label || entry.name || entry.itemName || `equipment-${i}`;
+    const label = entry.label || entry.name || entry.itemName || '装备';
+    const qualityColor =
+      (typeof entry.qualityColor === 'string' && entry.qualityColor) ||
+      (typeof entry.color === 'string' && entry.color) ||
+      (typeof entry.rarityColor === 'string' && entry.rarityColor) ||
+      '#f1f4ff';
+    result.push({
+      ...entry,
+      id: identifier,
+      label,
+      qualityColor
+    });
+  }
+  return result;
+}
+
+function extractEquipmentLootFromRewards(rewards) {
+  if (!rewards || typeof rewards !== 'object') {
+    return [];
+  }
+  const lootList = Array.isArray(rewards.loot) ? rewards.loot : [];
+  return normalizeEquipmentLootEntries(lootList);
+}
+
 function toTrimmedString(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
@@ -587,6 +627,7 @@ function createBattleStageState(overrides = {}) {
     resultTitle: '',
     resultSubtitle: '',
     resultClass: '',
+    resultLoot: [],
     resultRounds: 0,
     currentRound: 1,
     attackPhase: '',
@@ -1484,6 +1525,7 @@ Page({
       resultTitle: '',
       resultSubtitle: '',
       resultClass: '',
+      resultLoot: [],
       resultRounds: viewModel.result.rounds || viewModel.actions.length,
       currentRound: 1
     });
@@ -2291,11 +2333,20 @@ Page({
     const victory = !!result.victory;
     const draw = !!result.draw;
     const resultTitle = draw ? '势均力敌' : victory ? '战斗胜利' : '战斗惜败';
+    const parentRewards =
+      this.parentPayload &&
+      this.parentPayload.battle &&
+      typeof this.parentPayload.battle === 'object' &&
+      typeof this.parentPayload.battle.rewards === 'object'
+        ? this.parentPayload.battle.rewards
+        : null;
+    const rewards = result && typeof result.rewards === 'object' ? result.rewards : parentRewards;
+    const equipmentLoot = victory ? extractEquipmentLootFromRewards(rewards || {}) : [];
     let resultSubtitle = '';
     if (this.mode === 'pve') {
-      if (victory && result.rewards) {
-        const stones = result.rewards.stones || 0;
-        const attributePoints = result.rewards.attributePoints || 0;
+      if (victory && rewards) {
+        const stones = rewards.stones || 0;
+        const attributePoints = rewards.attributePoints || 0;
         const segments = [];
         if (stones) segments.push(`${stones} 灵石`);
         if (attributePoints) segments.push(`${attributePoints} 属性点`);
@@ -2334,12 +2385,37 @@ Page({
       resultTitle,
       resultSubtitle,
       resultClass,
+      resultLoot: equipmentLoot,
       resultRounds: result.rounds || this.timelineIndex + 1,
       skipLocked: false,
       skipButtonText: '重播战斗',
       controlledState: { player: false, opponent: false }
     });
     this.setData({ battleState: 'finished' });
+    if (this.parentPayload && typeof this.parentPayload === 'object') {
+      const previousBattle =
+        this.parentPayload.battle && typeof this.parentPayload.battle === 'object'
+          ? this.parentPayload.battle
+          : {};
+      const nextBattle = { ...previousBattle };
+      nextBattle.victory = victory;
+      nextBattle.draw = draw;
+      nextBattle.rounds = result.rounds || nextBattle.rounds;
+      if (Array.isArray(result.log)) {
+        nextBattle.log = result.log;
+      }
+      if (rewards) {
+        nextBattle.rewards = rewards;
+      }
+      if (typeof result.rewardsText === 'string' && result.rewardsText) {
+        nextBattle.rewardsText = result.rewardsText;
+      }
+      nextBattle.equipmentLoot = equipmentLoot;
+      this.parentPayload = {
+        ...this.parentPayload,
+        battle: nextBattle
+      };
+    }
     this.notifyParent();
   },
 
