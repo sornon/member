@@ -67,6 +67,20 @@ Error: TencentCloud API error: {
 
 > 如果你决定临时删除 `common` 或 `shared`，请同步调整 CI/CD 或开发者工具的部署列表，避免脚本在上传阶段再次访问已删除的函数。
 
+## 储物栏材料图标显示为装备占位图
+
+**现象**
+
+储物栏内通过分解获得的锻造材料（如“废铁碎片”）在前端展示时，会加载 `equip-1.png`、`equip-2.png` 等装备占位图标，而非美术交付的 `material-reforge-*.png` 系列图标。
+
+**原因分析**
+
+前端在构建物品图标路径时，仅判断 `mediaKey` 或自动推断的装备图标编号，最终回退到 `equip-{quality}.png`。虽然 PVE 接口在 `EQUIPMENT_DISMANTLE_MATERIALS` 中提供了 `iconFileName` 字段，并在分解、入库时写入到材料栈，但小程序未读取该字段，导致始终使用装备图标。【F:miniprogram/utils/equipment.js†L238-L261】【F:cloudfunctions/pve/index.js†L4338-L4374】
+
+**修复方案**
+
+在 `buildEquipmentIconPaths` 中优先读取 `iconFileName`，并拼接云存储 `item/` 目录下的 PNG 路径；一旦该字段存在，即使用它作为主图标与回退图标，避免回落到 `equip-*.png`。部署前端后，材料图标会正确展示为对应的锻造素材图。【F:miniprogram/utils/equipment.js†L238-L261】
+
 ## 秘境战斗速度判定导致的先手异常
 
 **现象**
