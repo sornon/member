@@ -18,6 +18,10 @@ const ADMIN_ROLES = [...new Set([...DEFAULT_ADMIN_ROLES, 'superadmin'])];
 const CATEGORY_TYPES = ['drinks', 'dining'];
 const DRINK_VOUCHER_RIGHT_ID = 'right_realm_qi_drink';
 const DRINK_VOUCHER_AMOUNT_LIMIT = 12000;
+const CUBANEY_VOUCHER_RIGHT_ID = 'right_realm_core_cubaney_voucher';
+const CUBANEY_VOUCHER_AMOUNT = 98000;
+const CUBANEY_MENU_IDS = ['drinks_rum_cubaney-10'];
+const CUBANEY_TITLE_KEYWORDS = ['古巴邑 10 年'];
 const ensuredCollections = new Set();
 
 const ERROR_CODES = {
@@ -140,34 +144,90 @@ async function createOrder(openid, itemsInput, remarkInput, categoryTotalsInput 
 
   await db.runTransaction(async (transaction) => {
     let discountAmount = 0;
-    let appliedRight = null;
     const updatedItems = items.map((item) => ({ ...item }));
     const updatedCategoryTotals = { ...categoryTotals };
+    const appliedRights = [];
+    const lockedRights = [];
 
     const allowDrinkVoucher =
       options && Object.prototype.hasOwnProperty.call(options, 'useDrinkVoucher')
         ? !!options.useDrinkVoucher
         : true;
 
-    const voucherCandidate = allowDrinkVoucher ? resolveDrinkVoucherCandidate(updatedItems) : null;
-    if (voucherCandidate && allowDrinkVoucher) {
+    const drinkVoucherCandidate = allowDrinkVoucher ? resolveDrinkVoucherCandidate(updatedItems) : null;
+    if (drinkVoucherCandidate && allowDrinkVoucher) {
       const lockedRight = await lockDrinkVoucherRight(transaction, openid, now);
       if (lockedRight) {
-        discountAmount = voucherCandidate.discount;
-        if (discountAmount > 0) {
-          const target = updatedItems[voucherCandidate.index];
+        const discount = drinkVoucherCandidate.discount;
+        if (discount > 0) {
+          const target = updatedItems[drinkVoucherCandidate.index];
           const currentAmount = Number(target.amount || target.price * target.quantity);
-          const nextAmount = Math.max(0, currentAmount - discountAmount);
-          updatedItems[voucherCandidate.index] = {
+          const nextAmount = Math.max(0, currentAmount - discount);
+          updatedItems[drinkVoucherCandidate.index] = {
             ...target,
             amount: nextAmount,
-            discount: (Number(target.discount || 0) || 0) + discountAmount
+            discount: (Number(target.discount || 0) || 0) + discount
           };
           updatedCategoryTotals.drinks = Math.max(
             0,
-            Math.round(Number(updatedCategoryTotals.drinks || 0)) - discountAmount
+            Math.round(Number(updatedCategoryTotals.drinks || 0)) - discount
           );
-          appliedRight = lockedRight;
+          discountAmount += discount;
+          appliedRights.push({
+            memberRightId: lockedRight._id,
+            rightId: lockedRight.rightId,
+            amount: discount,
+            type: 'drinkVoucher',
+            title: lockedRight.title || '任意饮品券（120 元内）'
+          });
+          lockedRights.push({
+            id: lockedRight._id,
+            type: 'drinkVoucher',
+            discount,
+            meta: lockedRight.meta || {}
+          });
+        }
+      }
+    }
+
+    const allowCubaneyVoucher =
+      options && Object.prototype.hasOwnProperty.call(options, 'useCubaneyVoucher')
+        ? !!options.useCubaneyVoucher
+        : true;
+    const cubaneyVoucherCandidate = allowCubaneyVoucher
+      ? resolveCubaneyVoucherCandidate(updatedItems)
+      : null;
+    if (cubaneyVoucherCandidate && allowCubaneyVoucher) {
+      const lockedRight = await lockCubaneyVoucherRight(transaction, openid, now);
+      if (lockedRight) {
+        const discount = cubaneyVoucherCandidate.discount;
+        if (discount > 0) {
+          const target = updatedItems[cubaneyVoucherCandidate.index];
+          const currentAmount = Number(target.amount || target.price * target.quantity);
+          const nextAmount = Math.max(0, currentAmount - discount);
+          updatedItems[cubaneyVoucherCandidate.index] = {
+            ...target,
+            amount: nextAmount,
+            discount: (Number(target.discount || 0) || 0) + discount
+          };
+          updatedCategoryTotals.drinks = Math.max(
+            0,
+            Math.round(Number(updatedCategoryTotals.drinks || 0)) - discount
+          );
+          discountAmount += discount;
+          appliedRights.push({
+            memberRightId: lockedRight._id,
+            rightId: lockedRight.rightId,
+            amount: discount,
+            type: 'cubaneyVoucher',
+            title: lockedRight.title || '古巴邑 10 年兑换券'
+          });
+          lockedRights.push({
+            id: lockedRight._id,
+            type: 'cubaneyVoucher',
+            discount,
+            meta: lockedRight.meta || {}
+          });
         }
       }
     }
@@ -190,38 +250,37 @@ async function createOrder(openid, itemsInput, remarkInput, categoryTotalsInput 
       updatedAt: now
     };
 
-    if (discountAmount > 0 && appliedRight && appliedRight._id) {
-      orderData.appliedRights = [
-        {
-          memberRightId: appliedRight._id,
-          rightId: appliedRight.rightId,
-          amount: discountAmount,
-          type: 'drinkVoucher',
-          title: appliedRight.title || '任意饮品券（120 元内）'
-        }
-      ];
+    if (appliedRights.length) {
+      orderData.appliedRights = appliedRights;
       orderData.discountTotal = discountAmount;
+      orderData.drinkVoucherApplied = appliedRights.some((entry) => entry.type === 'drinkVoucher');
+      orderData.cubaneyVoucherApplied = appliedRights.some((entry) => entry.type === 'cubaneyVoucher');
     }
 
     const result = await transaction.collection(COLLECTIONS.MENU_ORDERS).add({ data: orderData });
     orderRecord = { _id: result._id, ...orderData };
 
-    if (discountAmount > 0 && appliedRight && appliedRight._id) {
-      await transaction.collection(COLLECTIONS.MEMBER_RIGHTS).doc(appliedRight._id).update({
-        data: {
-          status: 'locked',
-          orderId: result._id,
-          lockedAt: now,
-          updatedAt: now,
-          meta: {
-            ...(appliedRight.meta || {}),
-            lockedFor: 'drinkVoucher',
-            lockedDiscountAmount: discountAmount,
-            lockedOrderId: result._id
-          }
-        }
-      });
-    }
+    await Promise.all(
+      lockedRights.map((entry) =>
+        transaction
+          .collection(COLLECTIONS.MEMBER_RIGHTS)
+          .doc(entry.id)
+          .update({
+            data: {
+              status: 'locked',
+              orderId: result._id,
+              lockedAt: now,
+              updatedAt: now,
+              meta: {
+                ...(entry.meta || {}),
+                lockedFor: entry.type,
+                lockedDiscountAmount: entry.discount,
+                lockedOrderId: result._id
+              }
+            }
+          })
+      )
+    );
   });
 
   return { order: mapOrder(orderRecord) };
@@ -585,6 +644,13 @@ async function confirmMemberOrder(openid, orderId) {
           continue;
         }
         const previousMeta = rightSnapshot.data.meta || {};
+        const redemptionType =
+          applied.type ||
+          (applied.rightId === DRINK_VOUCHER_RIGHT_ID
+            ? 'drinkVoucher'
+            : applied.rightId === CUBANEY_VOUCHER_RIGHT_ID
+            ? 'cubaneyVoucher'
+            : 'voucher');
         await rightRef.update({
           data: {
             status: 'used',
@@ -593,7 +659,7 @@ async function confirmMemberOrder(openid, orderId) {
             orderId,
             meta: {
               ...previousMeta,
-              redeemedFor: 'drinkVoucher',
+              redeemedFor: redemptionType,
               redeemedAmount: Number(applied.amount || 0),
               redeemedOrderId: orderId
             }
@@ -805,6 +871,54 @@ function resolveDrinkVoucherCandidate(items, limit = DRINK_VOUCHER_AMOUNT_LIMIT,
   return { index: targetIndex, discount, price, quantity, categoryType: normalizeCategoryType(target.categoryType) };
 }
 
+function resolveCubaneyVoucherCandidate(items, voucherAmount = CUBANEY_VOUCHER_AMOUNT) {
+  if (!Array.isArray(items) || !items.length) {
+    return null;
+  }
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    if (!item) {
+      continue;
+    }
+    const category = normalizeCategoryType(item.categoryType);
+    if (category !== 'drinks') {
+      continue;
+    }
+    const menuId = typeof item.menuId === 'string' ? item.menuId.trim().toLowerCase() : '';
+    const itemId = typeof item.itemId === 'string' ? item.itemId.trim().toLowerCase() : '';
+    const title = typeof item.title === 'string' ? item.title : '';
+    const spec = typeof item.spec === 'string' ? item.spec.trim() : '';
+    const matchedMenu = CUBANEY_MENU_IDS.some((id) =>
+      id === menuId ||
+      id === itemId ||
+      (menuId && menuId.endsWith(id)) ||
+      (itemId && itemId.endsWith(id))
+    );
+    const matchedTitle = CUBANEY_TITLE_KEYWORDS.some((keyword) => title.includes(keyword));
+    if (!matchedMenu && !matchedTitle) {
+      continue;
+    }
+    if (spec && !/瓶/.test(spec)) {
+      continue;
+    }
+    const price = Number(item.price || 0);
+    const quantity = Math.max(1, Math.floor(Number(item.quantity || 0)));
+    const amount = Number(item.amount || price * quantity);
+    if (!Number.isFinite(price) || !Number.isFinite(amount) || price <= 0 || amount <= 0) {
+      continue;
+    }
+    if (price < voucherAmount && amount < voucherAmount) {
+      continue;
+    }
+    const discount = Math.min(voucherAmount, amount);
+    if (discount <= 0) {
+      continue;
+    }
+    return { index, discount, price, quantity, amount, categoryType: category };
+  }
+  return null;
+}
+
 async function lockDrinkVoucherRight(transaction, memberId, now = new Date()) {
   if (!memberId) {
     return null;
@@ -833,6 +947,50 @@ async function lockDrinkVoucherRight(transaction, memberId, now = new Date()) {
     const masterSnapshot = await transaction
       .collection(COLLECTIONS.MEMBERSHIP_RIGHTS)
       .doc(DRINK_VOUCHER_RIGHT_ID)
+      .get();
+    if (masterSnapshot && masterSnapshot.data && masterSnapshot.data.name) {
+      title = masterSnapshot.data.name;
+    }
+  } catch (error) {
+    if (!isCollectionNotFoundError(error)) {
+      throw error;
+    }
+  }
+  const docId = typeof usable._id === 'string' ? usable._id : typeof usable.id === 'string' ? usable.id : '';
+  if (!docId) {
+    return null;
+  }
+  return { ...usable, _id: docId, title };
+}
+
+async function lockCubaneyVoucherRight(transaction, memberId, now = new Date()) {
+  if (!memberId) {
+    return null;
+  }
+  let snapshot;
+  try {
+    snapshot = await transaction
+      .collection(COLLECTIONS.MEMBER_RIGHTS)
+      .where({ memberId, rightId: CUBANEY_VOUCHER_RIGHT_ID, status: 'active' })
+      .orderBy('issuedAt', 'asc')
+      .limit(5)
+      .get();
+  } catch (error) {
+    if (isCollectionNotFoundError(error)) {
+      return null;
+    }
+    throw error;
+  }
+  const candidates = Array.isArray(snapshot.data) ? snapshot.data : [];
+  const usable = candidates.find((entry) => !isMemberRightExpired(entry, now));
+  if (!usable) {
+    return null;
+  }
+  let title = '古巴邑 10 年兑换券';
+  try {
+    const masterSnapshot = await transaction
+      .collection(COLLECTIONS.MEMBERSHIP_RIGHTS)
+      .doc(CUBANEY_VOUCHER_RIGHT_ID)
       .get();
     if (masterSnapshot && masterSnapshot.data && masterSnapshot.data.name) {
       title = masterSnapshot.data.name;
@@ -973,6 +1131,15 @@ function mapOrder(doc) {
         categoryType: normalizeCategoryType(item.categoryType)
       }))
     : [];
+  const appliedRights = Array.isArray(doc.appliedRights)
+    ? doc.appliedRights.map((entry) => ({
+        memberRightId: entry.memberRightId || '',
+        rightId: entry.rightId || '',
+        amount: Number(entry.amount || 0),
+        type: entry.type || '',
+        title: entry.title || entry.name || ''
+      }))
+    : [];
   return {
     _id: doc._id || doc.id || '',
     status: doc.status || 'submitted',
@@ -980,15 +1147,15 @@ function mapOrder(doc) {
     totalAmount: Number(doc.totalAmount || 0),
     originalTotalAmount: Number(doc.originalTotalAmount || 0),
     discountTotal: Number(doc.discountTotal || 0),
-    appliedRights: Array.isArray(doc.appliedRights)
-      ? doc.appliedRights.map((entry) => ({
-          memberRightId: entry.memberRightId || '',
-          rightId: entry.rightId || '',
-          amount: Number(entry.amount || 0),
-          type: entry.type || '',
-          title: entry.title || entry.name || ''
-        }))
-      : [],
+    appliedRights,
+    drinkVoucherApplied:
+      doc.drinkVoucherApplied === true ||
+      appliedRights.some((entry) => entry.type === 'drinkVoucher' || entry.rightId === DRINK_VOUCHER_RIGHT_ID),
+    cubaneyVoucherApplied:
+      doc.cubaneyVoucherApplied === true ||
+      appliedRights.some(
+        (entry) => entry.type === 'cubaneyVoucher' || entry.rightId === CUBANEY_VOUCHER_RIGHT_ID
+      ),
     categoryTotals: normalizeCategoryTotals(doc.categoryTotals),
     remark: doc.remark || '',
     adminRemark: doc.adminRemark || '',

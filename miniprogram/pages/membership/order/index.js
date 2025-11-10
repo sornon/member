@@ -51,6 +51,10 @@ const DRINKS_NIGHT_ORDER = [
 
 const DRINK_VOUCHER_RIGHT_ID = 'right_realm_qi_drink';
 const DRINK_VOUCHER_AMOUNT_LIMIT = 12000;
+const CUBANEY_VOUCHER_RIGHT_ID = 'right_realm_core_cubaney_voucher';
+const CUBANEY_VOUCHER_AMOUNT = 98000;
+const CUBANEY_MENU_IDS = ['drinks_rum_cubaney-10'];
+const CUBANEY_TITLE_KEYWORDS = ['古巴邑 10 年'];
 
 function normalizeSection(value) {
   if (typeof value === 'string') {
@@ -921,6 +925,16 @@ function decorateOrder(order) {
   const drinkVoucherApplied = appliedRights.some(
     (entry) => entry.type === 'drinkVoucher' || entry.rightId === 'right_realm_qi_drink'
   );
+  const cubaneyVoucherApplied = appliedRights.some(
+    (entry) => entry.type === 'cubaneyVoucher' || entry.rightId === CUBANEY_VOUCHER_RIGHT_ID
+  );
+  const voucherBadges = [];
+  if (drinkVoucherApplied) {
+    voucherBadges.push('饮品券已使用');
+  }
+  if (cubaneyVoucherApplied) {
+    voucherBadges.push('古巴邑券已使用');
+  }
   const cancelRemark = typeof order.cancelRemark === 'string' ? order.cancelRemark : '';
   const cancelledAtLabel = formatDateTime(order.cancelledAt);
   const cancelledByRole = typeof order.cancelledByRole === 'string' ? order.cancelledByRole : '';
@@ -954,6 +968,8 @@ function decorateOrder(order) {
     discountTotal,
     discountTotalLabel,
     drinkVoucherApplied,
+    cubaneyVoucherApplied,
+    voucherBadges,
     stoneReward,
     stoneRewardLabel: formatStones(stoneReward),
     statusLabel: STATUS_LABELS[order.status] || '处理中',
@@ -1085,6 +1101,76 @@ function buildDrinkVoucherPreview({ cart = [], total = 0, useVoucher = false, av
         }
       : null,
     canApply,
+    shouldApply,
+    discountTotal,
+    discountLabel: discountTotal > 0 ? formatCurrency(discountTotal) : '',
+    payableTotal
+  };
+}
+
+function resolveCubaneyVoucherCandidateForCart(cart, voucherAmount = CUBANEY_VOUCHER_AMOUNT) {
+  if (!Array.isArray(cart) || !cart.length) {
+    return null;
+  }
+  for (let index = 0; index < cart.length; index += 1) {
+    const line = cart[index];
+    if (!line) {
+      continue;
+    }
+    const section = normalizeSection(line.section);
+    if (section !== 'drinks') {
+      continue;
+    }
+    const itemId = typeof line.itemId === 'string' ? line.itemId.trim().toLowerCase() : '';
+    const title = typeof line.title === 'string' ? line.title : '';
+    const spec = typeof line.spec === 'string' ? line.spec.trim() : '';
+    const matchedMenu = CUBANEY_MENU_IDS.some((id) => id === itemId || (itemId && itemId.endsWith(id)));
+    const matchedTitle = CUBANEY_TITLE_KEYWORDS.some((keyword) => title.includes(keyword));
+    if (!matchedMenu && !matchedTitle) {
+      continue;
+    }
+    if (spec && !/瓶/.test(spec)) {
+      continue;
+    }
+    const price = Number(line.price || 0);
+    const quantity = Math.max(1, Math.floor(Number(line.quantity || 0)));
+    const amount = Number(line.amount || price * quantity);
+    if (!Number.isFinite(price) || !Number.isFinite(amount) || price <= 0 || amount <= 0) {
+      continue;
+    }
+    if (price < voucherAmount && amount < voucherAmount) {
+      continue;
+    }
+    const discount = Math.min(voucherAmount, amount);
+    if (discount <= 0) {
+      continue;
+    }
+    return { index, line, price, quantity, amount, discount };
+  }
+  return null;
+}
+
+function buildCubaneyVoucherPreview({ cart = [], total = 0, useVoucher = false, available = false } = {}) {
+  const candidate = resolveCubaneyVoucherCandidateForCart(cart, CUBANEY_VOUCHER_AMOUNT);
+  const canApply = available && !!candidate;
+  const shouldApply = canApply && useVoucher;
+  const discountTotal = shouldApply && candidate ? candidate.discount : 0;
+  const payableTotal = Math.max(0, total - discountTotal);
+  return {
+    candidate: candidate
+      ? {
+          key: candidate.line.key || '',
+          title: candidate.line.title || '',
+          spec: candidate.line.spec || '',
+          unit: candidate.line.unit || '',
+          price: candidate.price,
+          priceLabel: formatCurrency(candidate.price),
+          discount: candidate.discount,
+          discountLabel: formatCurrency(candidate.discount)
+        }
+      : null,
+    canApply,
+    shouldApply,
     discountTotal,
     discountLabel: discountTotal > 0 ? formatCurrency(discountTotal) : '',
     payableTotal
@@ -1155,7 +1241,14 @@ Page({
     drinkVoucherCandidate: null,
     drinkVoucherDiscount: 0,
     drinkVoucherDiscountLabel: '',
-    useDrinkVoucher: true
+    useDrinkVoucher: true,
+    cubaneyVoucherAvailable: false,
+    cubaneyVoucherLoading: false,
+    cubaneyVoucherCanApply: false,
+    cubaneyVoucherCandidate: null,
+    cubaneyVoucherDiscount: 0,
+    cubaneyVoucherDiscountLabel: '',
+    useCubaneyVoucher: true
   },
 
   async syncMenuCacheVersion() {
@@ -1194,7 +1287,8 @@ Page({
     this._catalogHydrated = false;
     this._cartHydrated = false;
     this._manualDrinkVoucherPreference = null;
-    this._loadingDrinkVoucher = null;
+    this._manualCubaneyVoucherPreference = null;
+    this._loadingVoucher = null;
     const cachePromise = this.syncMenuCacheVersion();
     cachePromise
       .then((result) => {
@@ -1216,14 +1310,14 @@ Page({
         this.loadCatalog();
       });
     this.loadOrders();
-    this.loadDrinkVoucherStatus();
+    this.loadVoucherStatus();
   },
 
   onShow() {
     if (this._cartHydrated) {
-      this.refreshDrinkVoucherPreview();
+      this.refreshVoucherPreview();
     }
-    this.loadDrinkVoucherStatus();
+    this.loadVoucherStatus();
   },
 
   applyCatalogState(catalog, options = {}) {
@@ -1391,14 +1485,39 @@ Page({
     const total = computeCartTotal(decorated);
     const sectionTotals = calculateSectionTotals(decorated);
     const drinkVoucherAvailable = !!this.data.drinkVoucherAvailable;
-    const useVoucher = drinkVoucherAvailable ? !!this.data.useDrinkVoucher : false;
-    const preview = buildDrinkVoucherPreview({
-      cart: decorated,
+    const cubaneyVoucherAvailable = !!this.data.cubaneyVoucherAvailable;
+    const useDrink = drinkVoucherAvailable ? !!this.data.useDrinkVoucher : false;
+    const useCubaney = cubaneyVoucherAvailable ? !!this.data.useCubaneyVoucher : false;
+    const voucherCart = decorated.map((line) => ({ ...line }));
+    const drinkPreview = buildDrinkVoucherPreview({
+      cart: voucherCart,
       total,
-      useVoucher,
+      useVoucher: useDrink,
       available: drinkVoucherAvailable
     });
-    const payableTotal = preview.payableTotal;
+    if (drinkPreview.shouldApply && drinkPreview.discountTotal > 0 && drinkPreview.candidate) {
+      const targetIndex = voucherCart.findIndex((line) => line && line.key === drinkPreview.candidate.key);
+      if (targetIndex >= 0) {
+        const target = voucherCart[targetIndex];
+        const currentAmount = Number(target.amount || target.price * target.quantity || 0);
+        const discount = Number(drinkPreview.discountTotal || 0);
+        const nextAmount = Math.max(0, currentAmount - discount);
+        voucherCart[targetIndex] = {
+          ...target,
+          amount: nextAmount,
+          discount: (Number(target.discount || 0) || 0) + discount
+        };
+      }
+    }
+    const totalAfterDrink = Math.max(0, total - drinkPreview.discountTotal);
+    const cubaneyPreview = buildCubaneyVoucherPreview({
+      cart: voucherCart,
+      total: totalAfterDrink,
+      useVoucher: useCubaney,
+      available: cubaneyVoucherAvailable
+    });
+    const totalDiscount = drinkPreview.discountTotal + cubaneyPreview.discountTotal;
+    const payableTotal = Math.max(0, total - totalDiscount);
     const stoneReward = Math.max(0, Math.floor(payableTotal));
     this.setData({
       cart: decorated,
@@ -1406,66 +1525,83 @@ Page({
       cartSectionTotals: sectionTotals,
       cartTotal: total,
       cartTotalLabel: formatCurrency(total),
-      cartDiscountTotal: preview.discountTotal,
-      cartDiscountLabel: preview.discountLabel,
+      cartDiscountTotal: totalDiscount,
+      cartDiscountLabel: totalDiscount > 0 ? formatCurrency(totalDiscount) : '',
       cartPayableTotal: payableTotal,
       cartPayableLabel: formatCurrency(payableTotal),
       cartStoneReward: stoneReward,
       cartStoneRewardLabel: formatStones(stoneReward),
-      drinkVoucherCanApply: preview.canApply,
-      drinkVoucherCandidate: preview.candidate,
-      drinkVoucherDiscount: preview.discountTotal,
-      drinkVoucherDiscountLabel: preview.discountLabel
+      drinkVoucherCanApply: drinkPreview.canApply,
+      drinkVoucherCandidate: drinkPreview.candidate,
+      drinkVoucherDiscount: drinkPreview.discountTotal,
+      drinkVoucherDiscountLabel: drinkPreview.discountLabel,
+      cubaneyVoucherCanApply: cubaneyPreview.canApply,
+      cubaneyVoucherCandidate: cubaneyPreview.candidate,
+      cubaneyVoucherDiscount: cubaneyPreview.discountTotal,
+      cubaneyVoucherDiscountLabel: cubaneyPreview.discountLabel
     });
     if (!skipCache) {
       writeCartCache(decorated);
     }
   },
 
-  refreshDrinkVoucherPreview() {
+  refreshVoucherPreview() {
     const currentCart = Array.isArray(this.data.cart) ? this.data.cart.map((line) => ({ ...line })) : [];
     this.updateCartState(currentCart, { skipCache: true });
   },
 
-  async loadDrinkVoucherStatus() {
-    if (this._loadingDrinkVoucher) {
-      return this._loadingDrinkVoucher;
+  async loadVoucherStatus() {
+    if (this._loadingVoucher) {
+      return this._loadingVoucher;
     }
-    this._loadingDrinkVoucher = (async () => {
-      this.setData({ drinkVoucherLoading: true });
+    this._loadingVoucher = (async () => {
+      this.setData({ drinkVoucherLoading: true, cubaneyVoucherLoading: true });
       try {
         const rights = await MemberService.getRights();
-        const available = Array.isArray(rights)
+        const drinkAvailable = Array.isArray(rights)
           ? rights.some(
               (right) =>
                 right &&
                 right.status === 'active' &&
-                (right.rightId === DRINK_VOUCHER_RIGHT_ID ||
-                  (typeof right.name === 'string' && right.name.includes('饮品券')))
+                (right.type === 'drinkVoucher' || right.rightId === DRINK_VOUCHER_RIGHT_ID)
             )
           : false;
-        const manualPreference =
+        const cubaneyAvailable = Array.isArray(rights)
+          ? rights.some(
+              (right) =>
+                right &&
+                right.status === 'active' &&
+                (right.type === 'cubaneyVoucher' || right.rightId === CUBANEY_VOUCHER_RIGHT_ID)
+            )
+          : false;
+        const drinkPreference =
           typeof this._manualDrinkVoucherPreference === 'boolean'
             ? this._manualDrinkVoucherPreference
             : null;
-        const nextUseDrinkVoucher = available
-          ? manualPreference === null
-            ? true
-            : manualPreference
-          : false;
+        const cubaneyPreference =
+          typeof this._manualCubaneyVoucherPreference === 'boolean'
+            ? this._manualCubaneyVoucherPreference
+            : null;
         this.setData({
-          drinkVoucherAvailable: available,
-          useDrinkVoucher: nextUseDrinkVoucher,
-          drinkVoucherLoading: false
+          drinkVoucherAvailable: drinkAvailable,
+          useDrinkVoucher: drinkAvailable ? (drinkPreference === null ? true : drinkPreference) : false,
+          drinkVoucherLoading: false,
+          cubaneyVoucherAvailable: cubaneyAvailable,
+          useCubaneyVoucher: cubaneyAvailable
+            ? cubaneyPreference === null
+              ? true
+              : cubaneyPreference
+            : false,
+          cubaneyVoucherLoading: false
         });
       } catch (error) {
-        this.setData({ drinkVoucherLoading: false });
+        this.setData({ drinkVoucherLoading: false, cubaneyVoucherLoading: false });
       } finally {
-        this._loadingDrinkVoucher = null;
-        this.refreshDrinkVoucherPreview();
+        this._loadingVoucher = null;
+        this.refreshVoucherPreview();
       }
     })();
-    return this._loadingDrinkVoucher;
+    return this._loadingVoucher;
   },
 
   handleAddToCart(event) {
@@ -1514,7 +1650,17 @@ Page({
     const useVoucher = !!(event && event.detail && event.detail.value);
     this._manualDrinkVoucherPreference = useVoucher;
     this.setData({ useDrinkVoucher: useVoucher });
-    this.refreshDrinkVoucherPreview();
+    this.refreshVoucherPreview();
+  },
+
+  handleToggleCubaneyVoucher(event) {
+    if (!this.data.cubaneyVoucherAvailable) {
+      return;
+    }
+    const useVoucher = !!(event && event.detail && event.detail.value);
+    this._manualCubaneyVoucherPreference = useVoucher;
+    this.setData({ useCubaneyVoucher: useVoucher });
+    this.refreshVoucherPreview();
   },
 
   handleAdjustQuantity(event) {
@@ -1576,12 +1722,17 @@ Page({
     }));
     const useDrinkVoucher =
       this.data.drinkVoucherAvailable && this.data.useDrinkVoucher && this.data.drinkVoucherCanApply;
+    const useCubaneyVoucher =
+      this.data.cubaneyVoucherAvailable &&
+      this.data.useCubaneyVoucher &&
+      this.data.cubaneyVoucherCanApply;
     try {
       await MenuOrderService.createOrder({
         items,
         remark: this.data.remark,
         categoryTotals: this.data.cartSectionTotals,
-        useDrinkVoucher
+        useDrinkVoucher,
+        useCubaneyVoucher
       });
       wx.showToast({ title: '订单已提交', icon: 'success' });
       this.updateCartState([]);

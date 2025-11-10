@@ -15,6 +15,7 @@ const STATUS_LABELS = {
 };
 
 const DRINK_VOUCHER_RIGHT_ID = 'right_realm_qi_drink';
+const CUBANEY_VOUCHER_RIGHT_ID = 'right_realm_core_cubaney_voucher';
 
 function formatDateTime(value) {
   if (!value) return '';
@@ -100,6 +101,19 @@ function decorateOrder(order) {
     discountTotal = appliedRights.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
   }
   const discountTotalLabel = discountTotal > 0 ? formatCurrency(discountTotal) : '';
+  const drinkVoucherApplied = appliedRights.some(
+    (entry) => entry.type === 'drinkVoucher' || entry.rightId === DRINK_VOUCHER_RIGHT_ID
+  );
+  const cubaneyVoucherApplied = appliedRights.some(
+    (entry) => entry.type === 'cubaneyVoucher' || entry.rightId === CUBANEY_VOUCHER_RIGHT_ID
+  );
+  const voucherBadges = [];
+  if (drinkVoucherApplied) {
+    voucherBadges.push('饮品券已使用');
+  }
+  if (cubaneyVoucherApplied) {
+    voucherBadges.push('古巴邑券已使用');
+  }
   const totalAmount = Number(order.totalAmount || 0);
   const shortId = id ? id.slice(-6).toUpperCase() : '';
   const adminRemark = typeof order.adminRemark === 'string' ? order.adminRemark : '';
@@ -163,9 +177,9 @@ function decorateOrder(order) {
     appliedRights,
     discountTotal,
     discountTotalLabel,
-    drinkVoucherApplied: appliedRights.some(
-      (entry) => entry.type === 'drinkVoucher' || entry.rightId === DRINK_VOUCHER_RIGHT_ID
-    )
+    drinkVoucherApplied,
+    cubaneyVoucherApplied,
+    voucherBadges
   };
 }
 

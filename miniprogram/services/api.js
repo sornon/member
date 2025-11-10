@@ -1084,13 +1084,20 @@ export const AdminMenuCatalogService = {
 };
 
 export const MenuOrderService = {
-  async createOrder({ items = [], remark = '', categoryTotals = {}, useDrinkVoucher = true } = {}) {
+  async createOrder({
+    items = [],
+    remark = '',
+    categoryTotals = {},
+    useDrinkVoucher = true,
+    useCubaneyVoucher = true
+  } = {}) {
     return callCloud(CLOUD_FUNCTIONS.MENU_ORDER, {
       action: 'createOrder',
       items,
       remark,
       categoryTotals,
-      useDrinkVoucher
+      useDrinkVoucher,
+      useCubaneyVoucher
     });
   },
   async listOrders() {

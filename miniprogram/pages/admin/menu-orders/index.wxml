@@ -49,7 +49,9 @@
     <view class="order-rights" wx:if="{{order.appliedRights.length}}">
       <view class="order-rights-header">
         <text class="order-rights-title">已用权益</text>
-        <text class="order-rights-badge" wx:if="{{order.drinkVoucherApplied}}">饮品券</text>
+        <block wx:for="{{order.voucherBadges}}" wx:key="index" wx:for-item="badge">
+          <text class="order-rights-badge">{{badge}}</text>
+        </block>
       </view>
       <view class="order-rights-line" wx:for="{{order.appliedRights}}" wx:key="index" wx:for-item="right">
         <text class="order-rights-name">{{right.title}}</text>
