@@ -2797,8 +2797,6 @@ async function breakthrough(openid, context = {}) {
     })
     .catch(() => {});
 
-  await grantBreakthroughRewardsForLevel(openid, breakthroughSourceLevel);
-
   member.levelId = targetLevel._id;
   member.pendingBreakthroughLevelId = '';
   await ensureLevelSync(member, levels);
@@ -2870,6 +2868,7 @@ async function claimLevelReward(openid, levelId, context = {}) {
       }
     });
 
+  await grantBreakthroughRewardsForLevel(openid, level);
   await grantLevelRewards(openid, level, levels);
 
   return getProgress(openid, {}, context);
