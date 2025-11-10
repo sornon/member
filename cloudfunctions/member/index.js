@@ -1853,29 +1853,61 @@ function applyRealmConfigOverrides(levels = []) {
     if (isFinalSubLevel && config.milestone) {
       overrides.milestoneReward = config.milestone.summary || level.milestoneReward || '';
       overrides.milestoneType = config.milestone.type || level.milestoneType || '';
+      const milestoneRightIds = new Set();
       const milestoneRights = Array.isArray(config.milestone.rights)
         ? config.milestone.rights.filter((item) => item && item.rightId)
         : [];
       if (milestoneRights.length) {
-        overrides.breakthroughRewards = milestoneRights.map((item) => ({
-          rightId: item.rightId,
-          quantity: item.quantity || 1,
-          description: item.description || ''
-        }));
-        if (Array.isArray(level.rewards) && level.rewards.length) {
-          const filteredRewards = level.rewards.filter((reward) => {
-            if (!reward || !reward.rightId) {
-              return true;
-            }
-            return !milestoneRights.some((milestone) => milestone.rightId === reward.rightId);
-          });
-          if (filteredRewards.length !== level.rewards.length) {
-            overrides.rewards = filteredRewards;
+        overrides.breakthroughRewards = milestoneRights.map((item) => {
+          if (typeof item.rightId === 'string' && item.rightId.trim()) {
+            milestoneRightIds.add(item.rightId.trim());
           }
-        }
+          return {
+            rightId: item.rightId,
+            quantity: item.quantity || 1,
+            description: item.description || ''
+          };
+        });
       }
       if (Array.isArray(config.milestone.items) && config.milestone.items.length) {
-        overrides.breakthroughInventory = normalizeMilestoneInventory(config.milestone.items);
+        const milestoneInventory = normalizeMilestoneInventory(config.milestone.items);
+        if (milestoneInventory.length) {
+          overrides.breakthroughInventory = milestoneInventory;
+          milestoneInventory.forEach((item) => {
+            if (!item || typeof item !== 'object') {
+              return;
+            }
+            if (typeof item.rightId === 'string' && item.rightId.trim()) {
+              milestoneRightIds.add(item.rightId.trim());
+              return;
+            }
+            const usage = item.usage && typeof item.usage === 'object' ? item.usage : null;
+            if (!usage) {
+              return;
+            }
+            const usageType = typeof usage.type === 'string' ? usage.type.trim().toLowerCase() : '';
+            if (usageType === 'grantright' || usageType === 'grantcoupon' || usageType === 'coupon') {
+              if (typeof usage.rightId === 'string' && usage.rightId.trim()) {
+                milestoneRightIds.add(usage.rightId.trim());
+              }
+            }
+          });
+        }
+      }
+      if (milestoneRightIds.size && Array.isArray(level.rewards) && level.rewards.length) {
+        const filteredRewards = level.rewards.filter((reward) => {
+          if (!reward || typeof reward.rightId !== 'string') {
+            return true;
+          }
+          const trimmed = reward.rightId.trim();
+          if (!trimmed) {
+            return true;
+          }
+          return !milestoneRightIds.has(trimmed);
+        });
+        if (filteredRewards.length !== level.rewards.length) {
+          overrides.rewards = filteredRewards;
+        }
       }
     }
 
@@ -1912,18 +1944,44 @@ function requiresBreakthrough(currentLevel, nextLevel) {
 }
 
 function resolveBreakthroughRightIdSet(level) {
-  if (!level || !Array.isArray(level.breakthroughRewards)) {
-    return new Set();
-  }
   const ids = new Set();
-  level.breakthroughRewards.forEach((reward) => {
-    if (reward && typeof reward.rightId === 'string') {
-      const trimmed = reward.rightId.trim();
-      if (trimmed) {
-        ids.add(trimmed);
+  if (!level) {
+    return ids;
+  }
+  if (Array.isArray(level.breakthroughRewards)) {
+    level.breakthroughRewards.forEach((reward) => {
+      if (reward && typeof reward.rightId === 'string') {
+        const trimmed = reward.rightId.trim();
+        if (trimmed) {
+          ids.add(trimmed);
+        }
       }
-    }
-  });
+    });
+  }
+  if (Array.isArray(level.breakthroughInventory)) {
+    level.breakthroughInventory.forEach((item) => {
+      if (!item || typeof item !== 'object') {
+        return;
+      }
+      if (typeof item.rightId === 'string' && item.rightId.trim()) {
+        ids.add(item.rightId.trim());
+        return;
+      }
+      const usage = item.usage && typeof item.usage === 'object' ? item.usage : null;
+      if (!usage) {
+        return;
+      }
+      const usageType = typeof usage.type === 'string' ? usage.type.trim().toLowerCase() : '';
+      if (!usageType) {
+        return;
+      }
+      if (usageType === 'grantright' || usageType === 'grantcoupon' || usageType === 'coupon') {
+        if (typeof usage.rightId === 'string' && usage.rightId.trim()) {
+          ids.add(usage.rightId.trim());
+        }
+      }
+    });
+  }
   return ids;
 }
 
