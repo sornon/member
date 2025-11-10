@@ -926,6 +926,39 @@ page {
   color: rgba(226, 235, 255, 0.85);
 }
 
+.result-loot {
+  font-size: 24rpx;
+  margin-bottom: 12rpx;
+  color: rgba(226, 235, 255, 0.85);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  gap: 4rpx;
+}
+
+.result-loot__label {
+  font-weight: 600;
+  margin-right: 4rpx;
+}
+
+.result-loot__items {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.result-loot__item {
+  font-weight: 600;
+}
+
+.result-loot__separator {
+  margin: 0 4rpx;
+  color: rgba(226, 235, 255, 0.6);
+}
+
 .result-summary {
   font-size: 24rpx;
   color: rgba(226, 235, 255, 0.7);

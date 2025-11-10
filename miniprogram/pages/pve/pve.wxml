@@ -115,6 +115,29 @@
       <view class="battle-summary {{battleResult.victory ? 'battle-win' : battleResult.draw ? 'battle-draw' : 'battle-lose'}}">
         {{battleResult.victory ? '胜利' : battleResult.draw ? '势均力敌' : '惜败'}} · 回合 {{battleResult.rounds || 0}}
       </view>
+      <view
+        wx:if="{{battleResult.equipmentLoot && battleResult.equipmentLoot.length}}"
+        class="battle-result-loot"
+      >
+        <text class="battle-result-loot__label">恭喜您获得：</text>
+        <view class="battle-result-loot__items">
+          <block
+            wx:for="{{battleResult.equipmentLoot}}"
+            wx:for-item="loot"
+            wx:for-index="lootIndex"
+            wx:key="id"
+          >
+            <text
+              class="battle-result-loot__item"
+              style="color: {{loot.qualityColor || '#f1f4ff'}}"
+            >{{loot.label}}</text>
+            <text
+              wx:if="{{lootIndex < battleResult.equipmentLoot.length - 1}}"
+              class="battle-result-loot__separator"
+            >、</text>
+          </block>
+        </view>
+      </view>
       <view class="battle-reward">{{battleResult.rewardsText}}</view>
       <view class="battle-log">
         <text wx:for="{{battleResult.log || []}}" wx:key="index">{{item}}</text>
@@ -135,6 +158,15 @@
       >
         <view class="history-title">{{item.createdAtText}}</view>
         <view class="history-desc">{{item.summary || item.resultLabel}}</view>
+        <view wx:if="{{item.equipmentLoot && item.equipmentLoot.length}}" class="history-loot">
+          <text class="history-loot__label">装备：</text>
+          <view class="history-loot__items">
+            <block wx:for="{{item.equipmentLoot}}" wx:for-item="loot" wx:for-index="lootIndex" wx:key="id">
+              <text class="history-loot__item" style="color: {{loot.qualityColor || '#f1f4ff'}}">{{loot.label}}</text>
+              <text wx:if="{{lootIndex < item.equipmentLoot.length - 1}}" class="history-loot__separator">、</text>
+            </block>
+          </view>
+        </view>
       </view>
       <view wx:if="{{!(profile.battleHistory && profile.battleHistory.length)}}" class="empty-tip">暂无战斗记录</view>
     </view>

@@ -245,6 +245,23 @@
       <view class="result-card {{resultClass}}">
         <view class="result-title">{{resultTitle}}</view>
         <view class="result-subtitle">{{resultSubtitle}}</view>
+        <view wx:if="{{resultLoot && resultLoot.length}}" class="result-loot">
+          <text class="result-loot__label">恭喜您获得：</text>
+          <view class="result-loot__items">
+            <block
+              wx:for="{{resultLoot}}"
+              wx:for-item="loot"
+              wx:for-index="lootIndex"
+              wx:key="id"
+            >
+              <text class="result-loot__item" style="color: {{loot.qualityColor || '#f1f4ff'}}">{{loot.label}}</text>
+              <text
+                wx:if="{{lootIndex < resultLoot.length - 1}}"
+                class="result-loot__separator"
+              >、</text>
+            </block>
+          </view>
+        </view>
         <view class="result-summary">耗时 {{resultRounds}} 回合</view>
       </view>
     </view>

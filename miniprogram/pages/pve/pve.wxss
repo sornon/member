@@ -266,6 +266,36 @@ page {
   color: #ffc0c0;
 }
 
+.battle-result-loot {
+  font-size: 24rpx;
+  color: rgba(210, 220, 255, 0.85);
+  margin-bottom: 12rpx;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4rpx;
+}
+
+.battle-result-loot__label {
+  font-weight: 600;
+  margin-right: 4rpx;
+}
+
+.battle-result-loot__items {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.battle-result-loot__item {
+  font-weight: 600;
+}
+
+.battle-result-loot__separator {
+  margin: 0 4rpx;
+  color: rgba(210, 220, 255, 0.6);
+}
+
 .battle-reward {
   font-size: 24rpx;
   color: rgba(210, 220, 255, 0.75);
@@ -298,6 +328,36 @@ page {
   font-size: 22rpx;
   color: rgba(198, 208, 255, 0.68);
   margin-top: 6rpx;
+}
+
+.history-loot {
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: rgba(198, 208, 255, 0.75);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4rpx;
+}
+
+.history-loot__label {
+  font-weight: 600;
+  margin-right: 4rpx;
+}
+
+.history-loot__items {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.history-loot__item {
+  font-weight: 600;
+}
+
+.history-loot__separator {
+  margin: 0 4rpx;
+  color: rgba(198, 208, 255, 0.6);
 }
 
 .empty-card {
