@@ -83,6 +83,8 @@ const DEFAULT_FEATURE_TOGGLES = {
   globalBackgroundCatalog: [],
   equipmentEnhancement: { ...DEFAULT_EQUIPMENT_ENHANCEMENT }
 };
+const DRINK_VOUCHER_RIGHT_ID = 'right_realm_qi_drink';
+const CUBANEY_VOUCHER_RIGHT_ID = 'right_realm_core_cubaney_voucher';
 const DEFAULT_TRADING_SETTINGS = Object.freeze({
   feeRate: typeof TRADING_CONFIG.feeRate === 'number' ? TRADING_CONFIG.feeRate : 0.05,
   minDurationHours: Math.max(1, TRADING_CONFIG.minDurationHours || 24),
@@ -7606,6 +7608,19 @@ function decorateChargeOrderRecord(order, member) {
     discountTotal = appliedRights.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
   }
   const normalizedDiscountTotal = Number.isFinite(discountTotal) && discountTotal > 0 ? discountTotal : 0;
+  const drinkVoucherApplied = appliedRights.some(
+    (entry) => entry.type === 'drinkVoucher' || entry.rightId === DRINK_VOUCHER_RIGHT_ID
+  );
+  const cubaneyVoucherApplied = appliedRights.some(
+    (entry) => entry.type === 'cubaneyVoucher' || entry.rightId === CUBANEY_VOUCHER_RIGHT_ID
+  );
+  const voucherBadges = [];
+  if (drinkVoucherApplied) {
+    voucherBadges.push('饮品券已使用');
+  }
+  if (cubaneyVoucherApplied) {
+    voucherBadges.push('古巴邑券已使用');
+  }
   return {
     ...order,
     totalAmountLabel: `¥${formatFenToYuan(order.totalAmount)}`,
@@ -7632,9 +7647,9 @@ function decorateChargeOrderRecord(order, member) {
     appliedRights,
     discountTotal: normalizedDiscountTotal,
     discountTotalLabel: normalizedDiscountTotal ? `¥${formatFenToYuan(normalizedDiscountTotal)}` : '',
-    drinkVoucherApplied: appliedRights.some(
-      (entry) => entry.type === 'drinkVoucher' || entry.rightId === 'right_realm_qi_drink'
-    )
+    drinkVoucherApplied,
+    cubaneyVoucherApplied,
+    voucherBadges
   };
 }
 

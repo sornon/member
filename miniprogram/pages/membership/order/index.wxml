@@ -134,10 +134,41 @@
       </view>
       <view class="voucher-status" wx:else>当前购物车暂无可抵扣饮品</view>
     </view>
+    <view class="voucher-card">
+      <view class="voucher-header">
+        <text class="voucher-title">古巴邑 10 年兑换券</text>
+        <switch
+          class="voucher-switch"
+          checked="{{cubaneyVoucherAvailable && useCubaneyVoucher}}"
+          disabled="{{!cubaneyVoucherAvailable}}"
+          color="#6A4DF5"
+          bindchange="handleToggleCubaneyVoucher"
+        ></switch>
+      </view>
+      <view class="voucher-status" wx:if="{{cubaneyVoucherLoading}}">查询兑换券可用情况...</view>
+      <view class="voucher-status" wx:elif="{{!cubaneyVoucherAvailable}}">暂无可用古巴邑兑换券</view>
+      <view class="voucher-status" wx:elif="{{cubaneyVoucherCandidate}}">
+        <block wx:if="{{useCubaneyVoucher && cubaneyVoucherCanApply}}">
+          <text>已为「{{cubaneyVoucherCandidate.title}}</text>
+          <text wx:if="{{cubaneyVoucherCandidate.spec}}">（{{cubaneyVoucherCandidate.spec}}）</text>
+          <text>」抵扣 {{cubaneyVoucherDiscountLabel || cubaneyVoucherCandidate.priceLabel}}</text>
+        </block>
+        <block wx:elif="{{cubaneyVoucherCanApply}}">
+          <text>可为「{{cubaneyVoucherCandidate.title}}</text>
+          <text wx:if="{{cubaneyVoucherCandidate.spec}}">（{{cubaneyVoucherCandidate.spec}}）</text>
+          <text>」抵扣 {{cubaneyVoucherCandidate.priceLabel}}，当前未使用</text>
+        </block>
+        <block wx:else>
+          <text>当前购物车暂无符合抵扣条件的古巴邑 10 年酒款</text>
+        </block>
+      </view>
+      <view class="voucher-status" wx:else>当前购物车暂无可抵扣的古巴邑 10 年酒款</view>
+    </view>
     <view class="cart-summary">
       <view class="summary-info">
         <view class="summary-amount">商品合计 {{cartTotalLabel}}</view>
-        <view class="summary-discount" wx:if="{{cartDiscountTotal > 0}}">饮品券抵扣 -{{cartDiscountLabel}}</view>
+        <view class="summary-discount" wx:if="{{drinkVoucherDiscount > 0}}">饮品券抵扣 -{{drinkVoucherDiscountLabel}}</view>
+        <view class="summary-discount" wx:if="{{cubaneyVoucherDiscount > 0}}">古巴邑券抵扣 -{{cubaneyVoucherDiscountLabel}}</view>
         <view class="summary-payable">应付 {{cartPayableLabel}}</view>
         <view class="summary-stones">送 {{cartStoneRewardLabel}} 灵石</view>
       </view>
@@ -174,7 +205,9 @@
       <view class="order-rights" wx:if="{{order.appliedRights.length}}">
         <view class="order-rights-header">
           <text class="order-rights-title">已用权益</text>
-          <text class="order-rights-badge" wx:if="{{order.drinkVoucherApplied}}">饮品券已使用</text>
+          <block wx:for="{{order.voucherBadges}}" wx:key="index" wx:for-item="badge">
+            <text class="order-rights-badge">{{badge}}</text>
+          </block>
         </view>
         <view class="order-rights-line" wx:for="{{order.appliedRights}}" wx:key="index" wx:for-item="right">
           <text class="order-rights-name">{{right.title}}</text>
