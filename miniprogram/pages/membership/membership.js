@@ -48,12 +48,33 @@ function buildRealmKey(level = {}) {
   return `${realm}_${order}`;
 }
 
+function resolveRealmOrder(level = {}) {
+  if (!level) {
+    return 1;
+  }
+  const { realmOrder, order } = level;
+  if (typeof realmOrder === 'number' && Number.isFinite(realmOrder)) {
+    return Math.max(1, Math.floor(realmOrder));
+  }
+  if (typeof order === 'number' && Number.isFinite(order)) {
+    const normalizedOrder = Math.max(0, Math.floor(order) - 1);
+    return Math.max(1, Math.floor(normalizedOrder / 10) + 1);
+  }
+  return 1;
+}
+
 function decorateLevels(levels = [], options = {}) {
   const claimedLevelRewards = Array.isArray(options.claimedLevelRewards)
     ? options.claimedLevelRewards
     : [];
   const claimsSet = new Set(claimedLevelRewards);
   const experience = Number(options.memberExperience || 0);
+  const pendingBreakthroughLevelId =
+    typeof options.pendingBreakthroughLevelId === 'string'
+      ? options.pendingBreakthroughLevelId
+      : '';
+  const currentRealmOrder = resolveRealmOrder(options.currentLevel || null);
+  const shouldLockByBreakthrough = !!pendingBreakthroughLevelId;
   return levels
     .filter(Boolean)
     .map((level) => {
@@ -74,10 +95,13 @@ function decorateLevels(levels = [], options = {}) {
           ? level.reached
           : experience >= (typeof level.threshold === 'number' ? level.threshold : 0);
       const claimed = typeof level.claimed === 'boolean' ? level.claimed : claimsSet.has(level._id);
-      const claimable =
-        typeof level.claimable === 'boolean'
-          ? level.claimable
-          : hasRewards && reached && !claimed;
+      const realmOrder = resolveRealmOrder(level);
+      const lockedByBreakthrough = shouldLockByBreakthrough && realmOrder > currentRealmOrder;
+      const claimable = lockedByBreakthrough
+        ? false
+        : typeof level.claimable === 'boolean'
+        ? level.claimable
+        : hasRewards && reached && !claimed;
       return {
         ...level,
         badgeColor: color,
@@ -86,7 +110,8 @@ function decorateLevels(levels = [], options = {}) {
         hasRewards,
         reached,
         claimed,
-        claimable
+        claimable,
+        breakthroughLocked: lockedByBreakthrough
       };
     });
 }
@@ -218,6 +243,12 @@ Page({
       const rawLevels = Array.isArray(progress.levels) ? progress.levels : [];
       const progressMember = progress && progress.member ? progress.member : {};
       const mergedMember = { ...member, ...progressMember };
+      const currentLevel = progress.currentLevel || null;
+      const nextLevel = progress.nextLevel || null;
+      const pendingBreakthroughLevelId =
+        typeof mergedMember.pendingBreakthroughLevelId === 'string'
+          ? mergedMember.pendingBreakthroughLevelId
+          : '';
       const claimedLevelRewards = Array.isArray(progress.claimedLevelRewards)
         ? progress.claimedLevelRewards
         : Array.isArray(mergedMember.claimedLevelRewards)
@@ -225,7 +256,9 @@ Page({
         : [];
       const levels = decorateLevels(rawLevels, {
         claimedLevelRewards,
-        memberExperience: mergedMember.experience || progressMember.experience || 0
+        memberExperience: mergedMember.experience || progressMember.experience || 0,
+        currentLevel,
+        pendingBreakthroughLevelId
       });
       const realmMap = {};
       levels.forEach((lvl) => {
@@ -266,8 +299,6 @@ Page({
       });
 
       const realms = Object.values(realmMap).sort((a, b) => a.order - b.order);
-      const currentLevel = progress.currentLevel || null;
-      const nextLevel = progress.nextLevel || null;
       const nextDiff = progress && typeof progress.nextDiff === 'number' ? progress.nextDiff : 0;
       const nextLevelRemainingExperience = formatExperience(nextDiff);
       const currentOrder = currentLevel && currentLevel.order ? currentLevel.order : 0;
@@ -279,10 +310,6 @@ Page({
       const visibleLevels = resolveVisibleLevels(levels, visibilityOptions);
       const visibleRealms = resolveVisibleRealms(realms, visibilityOptions);
       mergedMember.claimedLevelRewards = claimedLevelRewards;
-      const pendingBreakthroughLevelId =
-        typeof mergedMember.pendingBreakthroughLevelId === 'string'
-          ? mergedMember.pendingBreakthroughLevelId
-          : '';
       const breakthroughLevel = pendingBreakthroughLevelId
         ? rawLevels.find((lvl) => lvl && lvl._id === pendingBreakthroughLevelId) || null
         : null;
