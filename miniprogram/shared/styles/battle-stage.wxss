@@ -933,6 +933,9 @@ page {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
   gap: 4rpx;
 }
 
