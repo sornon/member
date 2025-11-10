@@ -240,7 +240,7 @@ export function buildEquipmentIconPaths(item) {
     const normalizedPath = iconFileName.replace(/^[\\/]+/, '');
     const pathSegments = normalizedPath.split('/').filter(Boolean);
     const segments = pathSegments.length ? [...pathSegments] : [normalizedPath];
-    if (segments.length && segments[0].toLowerCase() === 'materials') {
+    if (segments.length && segments[0].toLowerCase() === 'item') {
       segments.shift();
     }
     let fileName = segments.pop() || '';
@@ -250,8 +250,8 @@ export function buildEquipmentIconPaths(item) {
     if (!/\.[a-z0-9]+$/i.test(fileName)) {
       fileName = `${fileName}.png`;
     }
-    const materialSegments = ['materials', ...segments, fileName];
-    const mediaUrl = buildCloudAssetUrl(...materialSegments);
+    const assetSegments = ['item', ...segments, fileName];
+    const mediaUrl = buildCloudAssetUrl(...assetSegments);
     return { iconUrl: mediaUrl, iconFallbackUrl: mediaUrl };
   }
   const directMediaKey = typeof item.mediaKey === 'string' ? item.mediaKey.trim() : '';

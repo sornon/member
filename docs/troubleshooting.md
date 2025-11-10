@@ -79,7 +79,7 @@ Error: TencentCloud API error: {
 
 **修复方案**
 
-在 `buildEquipmentIconPaths` 中优先读取 `iconFileName`，并拼接云存储 `materials/` 目录下的 PNG 路径；一旦该字段存在，即使用它作为主图标与回退图标，避免回落到 `equip-*.png`。部署前端后，材料图标会正确展示为对应的锻造素材图。【F:miniprogram/utils/equipment.js†L238-L261】
+在 `buildEquipmentIconPaths` 中优先读取 `iconFileName`，并拼接云存储 `item/` 目录下的 PNG 路径；一旦该字段存在，即使用它作为主图标与回退图标，避免回落到 `equip-*.png`。部署前端后，材料图标会正确展示为对应的锻造素材图。【F:miniprogram/utils/equipment.js†L238-L261】
 
 ## 秘境战斗速度判定导致的先手异常
 
