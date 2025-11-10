@@ -1439,18 +1439,13 @@ async function getProgress(openid, options = {}, context = {}) {
 
 async function getRights(openid) {
   const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
-  const [rightsSnapshot, rightsMasterSnapshot] = await Promise.all([
+  const [rightsSnapshot, masterMap] = await Promise.all([
     rightsCollection
       .where({ memberId: openid })
       .orderBy('issuedAt', 'desc')
       .get(),
-    db.collection(COLLECTIONS.RIGHTS_MASTER).get()
+    loadMembershipRightsMap()
   ]);
-
-  const masterMap = {};
-  rightsMasterSnapshot.data.forEach((item) => {
-    masterMap[item._id] = item;
-  });
 
   const now = Date.now();
   return rightsSnapshot.data.map((item) => {
@@ -1908,16 +1903,45 @@ function hasLevelRewards(level) {
   return !!level.milestoneReward;
 }
 
+async function loadMembershipRightsMap() {
+  const collection = db.collection(COLLECTIONS.RIGHTS_MASTER);
+  const PAGE_SIZE = 100;
+  const masterMap = {};
+  let fetched = 0;
+  while (true) {
+    const snapshot = await collection
+      .skip(fetched)
+      .limit(PAGE_SIZE)
+      .get()
+      .catch(() => ({ data: [] }));
+    const items = Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!items.length) {
+      break;
+    }
+    items.forEach((item) => {
+      if (!item || typeof item._id !== 'string') {
+        return;
+      }
+      const id = item._id.trim();
+      if (!id) {
+        return;
+      }
+      masterMap[id] = item;
+    });
+    fetched += items.length;
+    if (items.length < PAGE_SIZE) {
+      break;
+    }
+  }
+  return masterMap;
+}
+
 async function grantLevelRewards(openid, level, levels) {
   const rewards = level.rewards || [];
   if (rewards.length) {
     const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
     const now = new Date();
-    const masterSnapshot = await db.collection(COLLECTIONS.RIGHTS_MASTER).get();
-    const masterMap = {};
-    masterSnapshot.data.forEach((item) => {
-      masterMap[item._id] = item;
-    });
+    const masterMap = await loadMembershipRightsMap();
 
     for (const reward of rewards) {
       const right = masterMap[reward.rightId];
