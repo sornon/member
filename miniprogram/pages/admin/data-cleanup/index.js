@@ -264,6 +264,97 @@ function normalizeCleanupResult(response = {}) {
   };
 }
 
+function formatExperience(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return '0';
+  }
+  return Math.max(0, Math.floor(numeric)).toLocaleString('zh-CN');
+}
+
+function formatAmountFen(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return '0.00';
+  }
+  return (numeric / 100).toFixed(2);
+}
+
+function normalizeSpendMember(entry = {}) {
+  const transactionCount = Math.max(0, Number(entry.transactionCount) || 0);
+  const totalAmount = Math.max(0, Number(entry.totalAmount) || 0);
+  const experienceToRevert = Math.max(0, Number(entry.experienceToRevert) || 0);
+  const experienceDeducted = Math.max(0, Number(entry.experienceDeducted) || 0);
+  const experienceBefore = Math.max(0, Number(entry.experienceBefore) || 0);
+  const experienceAfter = Math.max(0, Number(entry.experienceAfter) || 0);
+  const displayName = entry.displayName || entry.realName || entry.nickName || entry.memberId || '';
+  return {
+    memberId: entry.memberId || '',
+    displayName,
+    nickName: entry.nickName || '',
+    realName: entry.realName || '',
+    transactionCount,
+    totalAmount,
+    totalAmountLabel: `¥${formatAmountFen(totalAmount)}`,
+    experienceToRevert,
+    experienceToRevertLabel: formatExperience(experienceToRevert),
+    experienceDeducted,
+    experienceDeductedLabel: formatExperience(experienceDeducted),
+    experienceBefore,
+    experienceBeforeLabel: formatExperience(experienceBefore),
+    experienceAfter,
+    experienceAfterLabel: formatExperience(experienceAfter),
+    lastTransactionAt: entry.lastTransactionAt || '',
+    lastTransactionAtLabel: entry.lastTransactionAtLabel || ''
+  };
+}
+
+function normalizeSpendPreview(response = {}) {
+  const members = Array.isArray(response.members) ? response.members.map(normalizeSpendMember) : [];
+  const memberCount = Math.max(0, Number(response.memberCount) || members.length || 0);
+  const totalTransactions = Math.max(0, Number(response.totalTransactions) || 0);
+  const totalAmount = Math.max(0, Number(response.totalAmount) || 0);
+  const totalExperience = Math.max(0, Number(response.totalExperience) || 0);
+  const totalExperienceDeducted = Math.max(
+    0,
+    Number(response.totalExperienceDeducted || response.totalExperienceExpectedDeduction || 0)
+  );
+  return {
+    members,
+    memberCount,
+    totalTransactions,
+    totalAmount,
+    totalAmountLabel: `¥${formatAmountFen(totalAmount)}`,
+    totalExperience,
+    totalExperienceLabel: formatExperience(totalExperience),
+    totalExperienceDeducted,
+    totalExperienceDeductedLabel: formatExperience(totalExperienceDeducted)
+  };
+}
+
+function normalizeSpendResult(response = {}) {
+  const members = Array.isArray(response.members) ? response.members.map(normalizeSpendMember) : [];
+  const memberCount = Math.max(0, Number(response.memberCount) || members.length || 0);
+  const totalTransactions = Math.max(0, Number(response.totalTransactions) || 0);
+  const totalAmount = Math.max(0, Number(response.totalAmount) || 0);
+  const totalExperience = Math.max(0, Number(response.totalExperience) || 0);
+  const totalExperienceDeducted = Math.max(0, Number(response.totalExperienceDeducted) || 0);
+  const summary = response.summary && typeof response.summary === 'object' ? response.summary : {};
+  const errors = formatErrorMessages(summary.errors || []);
+  return {
+    members,
+    memberCount,
+    totalTransactions,
+    totalAmount,
+    totalAmountLabel: `¥${formatAmountFen(totalAmount)}`,
+    totalExperience,
+    totalExperienceLabel: formatExperience(totalExperience),
+    totalExperienceDeducted,
+    totalExperienceDeductedLabel: formatExperience(totalExperienceDeducted),
+    errors
+  };
+}
+
 Page({
   data: {
     loading: false,
@@ -272,6 +363,10 @@ Page({
     previewAt: '',
     preview: null,
     result: null,
+    spendPreviewAt: '',
+    spendFinishedAt: '',
+    spendPreview: null,
+    spendResult: null,
     testPreviewAt: '',
     testFinishedAt: '',
     testPreview: null,
@@ -294,6 +389,35 @@ Page({
       return;
     }
     this.runTestScan();
+  },
+
+  handleSpendScanTap() {
+    if (this.data.loading) {
+      return;
+    }
+    this.runSpendScan();
+  },
+
+  handleSpendCleanupTap() {
+    if (this.data.loading) {
+      return;
+    }
+    const spendPreview = this.data.spendPreview;
+    if (!spendPreview || !Array.isArray(spendPreview.members) || !spendPreview.members.length) {
+      wx.showToast({ title: '请先扫描异常修为', icon: 'none' });
+      return;
+    }
+    wx.showModal({
+      title: '确认回滚消费修为？',
+      content: '系统将回滚历史消费产生的修为并重新计算境界，该操作不可撤销。',
+      confirmText: '确认修正',
+      cancelText: '再考虑下',
+      success: (res) => {
+        if (res.confirm) {
+          this.runSpendCleanup();
+        }
+      }
+    });
   },
 
   async runScan() {
@@ -420,6 +544,66 @@ Page({
       this.setData({ loading: false, loadingAction: '' });
       wx.showToast({
         title: error && (error.errMsg || error.message) ? error.errMsg || error.message : '清理失败，请稍后再试',
+        icon: 'none'
+      });
+    }
+  },
+
+  async runSpendScan() {
+    this.setData({ loading: true, loadingAction: 'scanSpend' });
+    try {
+      const response = await AdminService.previewFixSpendExperience();
+      const spendPreview = normalizeSpendPreview(response || {});
+      this.setData({
+        loading: false,
+        loadingAction: '',
+        spendPreview,
+        spendPreviewAt: formatTimestamp(new Date()),
+        spendResult: null,
+        spendFinishedAt: ''
+      });
+      wx.showToast({
+        title:
+          spendPreview.memberCount > 0
+            ? '扫描完成'
+            : '未发现异常修为',
+        icon: spendPreview.memberCount > 0 ? 'success' : 'none'
+      });
+    } catch (error) {
+      console.error('[admin:data-cleanup:spend-scan]', error);
+      this.setData({ loading: false, loadingAction: '' });
+      wx.showToast({
+        title:
+          error && (error.errMsg || error.message)
+            ? error.errMsg || error.message
+            : '扫描失败，请稍后再试',
+        icon: 'none'
+      });
+    }
+  },
+
+  async runSpendCleanup() {
+    this.setData({ loading: true, loadingAction: 'cleanupSpend' });
+    try {
+      const response = await AdminService.fixSpendExperience();
+      const spendResult = normalizeSpendResult(response || {});
+      this.setData({
+        loading: false,
+        loadingAction: '',
+        spendResult,
+        spendFinishedAt: formatTimestamp(new Date()),
+        spendPreview: null,
+        spendPreviewAt: ''
+      });
+      wx.showToast({ title: '修正完成', icon: 'success' });
+    } catch (error) {
+      console.error('[admin:data-cleanup:spend-cleanup]', error);
+      this.setData({ loading: false, loadingAction: '' });
+      wx.showToast({
+        title:
+          error && (error.errMsg || error.message)
+            ? error.errMsg || error.message
+            : '修正失败，请稍后再试',
         icon: 'none'
       });
     }

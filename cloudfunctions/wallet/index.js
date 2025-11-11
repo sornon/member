@@ -1263,19 +1263,18 @@ async function payWithBalance(openid, orderId, amount) {
   }
   let experienceGain = 0;
   await db.runTransaction(async (transaction) => {
+    const now = new Date();
     const memberDoc = await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).get();
     const member = memberDoc.data;
     const currentBalance = resolveCashBalance(member);
     if (!member || currentBalance < normalizedAmount) {
       throw new Error('余额不足');
     }
-    experienceGain = calculateExperienceGain(normalizedAmount);
     await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).update({
       data: {
         cashBalance: _.inc(-normalizedAmount),
         totalSpend: _.inc(normalizedAmount),
-        updatedAt: new Date(),
-        ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
+        updatedAt: now
       }
     });
     await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
@@ -1285,23 +1284,22 @@ async function payWithBalance(openid, orderId, amount) {
         type: 'spend',
         status: 'success',
         orderId: orderId || null,
-        createdAt: new Date(),
-        remark: '余额支付订单'
+        createdAt: now,
+        remark: '余额支付订单',
+        spendExperienceFixed: true,
+        spendExperienceFixedAt: now,
+        spendExperienceFixedBy: openid
       }
     });
     if (orderId) {
       await transaction.collection(COLLECTIONS.RESERVATIONS).doc(orderId).update({
         data: {
           status: 'confirmed',
-          paidAt: new Date()
+          paidAt: now
         }
       });
     }
   });
-
-  if (experienceGain > 0) {
-    await syncMemberLevel(openid);
-  }
 
   return { success: true, message: '支付成功', experienceGain };
 }
@@ -1431,7 +1429,10 @@ async function confirmChargeOrder(openid, orderId) {
         source: 'chargeOrder',
         orderId,
         createdAt: now,
-        remark: '扫码扣费'
+        remark: '扫码扣费',
+        spendExperienceFixed: true,
+        spendExperienceFixedAt: now,
+        spendExperienceFixedBy: openid
       }
     });
     await transaction.collection(COLLECTIONS.STONE_TRANSACTIONS).add({

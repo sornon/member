@@ -4237,6 +4237,60 @@ function getAttributePointRewardForLevel() {
   return 5;
 }
 
+function removeAttributePointsForLevelDrop(attributes, pointsToRemove) {
+  if (!attributes) {
+    return 0;
+  }
+  let remaining = Math.max(0, Math.floor(Number(pointsToRemove) || 0));
+  if (remaining <= 0) {
+    return 0;
+  }
+
+  const available = Math.max(0, Math.floor(Number(attributes.attributePoints) || 0));
+  if (available > 0) {
+    const deduction = Math.min(available, remaining);
+    attributes.attributePoints = available - deduction;
+    remaining -= deduction;
+  }
+
+  if (remaining <= 0) {
+    return pointsToRemove;
+  }
+
+  const trained = attributes.trained && typeof attributes.trained === 'object' ? attributes.trained : {};
+  const attributeKeys = ATTRIBUTE_CONFIG.map((config) => config.key);
+
+  while (remaining > 0) {
+    let removedInCycle = false;
+    for (let i = 0; i < attributeKeys.length && remaining > 0; i += 1) {
+      const key = attributeKeys[i];
+      const step = findAttributeStep(key) || 1;
+      const currentValue = Math.max(0, Math.floor(Number(trained[key]) || 0));
+      if (currentValue < step) {
+        if (currentValue !== trained[key]) {
+          trained[key] = currentValue;
+        }
+        continue;
+      }
+      trained[key] = currentValue - step;
+      remaining -= 1;
+      removedInCycle = true;
+    }
+    if (!removedInCycle) {
+      break;
+    }
+  }
+
+  attributeKeys.forEach((key) => {
+    if (!Number.isFinite(trained[key]) || trained[key] <= 0) {
+      trained[key] = 0;
+    }
+  });
+  attributes.trained = trained;
+
+  return pointsToRemove - remaining;
+}
+
 function syncAttributesWithMemberLevel(attributes, member, levels) {
   if (!attributes) {
     return false;
@@ -4273,6 +4327,13 @@ function syncAttributesWithMemberLevel(attributes, member, levels) {
   }
 
   const lastSyncedLevel = Math.max(1, Math.floor(Number(attributes.lastSyncedLevel || attributes.level || 1)));
+  if (levelOrder < lastSyncedLevel) {
+    const pointsToRemove = (lastSyncedLevel - levelOrder) * getAttributePointRewardForLevel();
+    const removed = removeAttributePointsForLevelDrop(attributes, pointsToRemove);
+    if (removed > 0) {
+      changed = true;
+    }
+  }
   if (levelOrder > lastSyncedLevel) {
     let bonusPoints = 0;
     for (let lvl = lastSyncedLevel + 1; lvl <= levelOrder; lvl += 1) {

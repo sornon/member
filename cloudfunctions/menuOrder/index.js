@@ -1,10 +1,5 @@
 const cloud = require('wx-server-sdk');
-const {
-  EXPERIENCE_PER_YUAN,
-  COLLECTIONS,
-  DEFAULT_ADMIN_ROLES,
-  analyzeMemberLevelProgress
-} = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
+const { COLLECTIONS, DEFAULT_ADMIN_ROLES } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 const { createProxyHelpers } = require('admin-proxy');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
@@ -561,14 +556,13 @@ async function confirmMemberOrder(openid, orderId) {
           throw createCustomError(ERROR_CODES.INSUFFICIENT_FUNDS, '余额不足，请先充值');
         }
         stoneReward = resolveChargeStoneReward(chargeOrderDoc, amount);
-        experienceGain = calculateExperienceGain(amount);
+        experienceGain = 0;
         await memberRef.update({
           data: {
             cashBalance: _.inc(-amount),
             totalSpend: _.inc(amount),
             stoneBalance: _.inc(stoneReward),
-            updatedAt: now,
-            ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
+            updatedAt: now
           }
         });
         const normalizedChargeOrderId =
@@ -582,7 +576,10 @@ async function confirmMemberOrder(openid, orderId) {
           orderId: normalizedChargeOrderId || orderId,
           remark: '菜单消费',
           createdAt: now,
-          updatedAt: now
+          updatedAt: now,
+          spendExperienceFixed: true,
+          spendExperienceFixedAt: now,
+          spendExperienceFixedBy: actorId
         };
         if (orderId) {
           walletTransactionData.menuOrderId = orderId;
@@ -684,9 +681,6 @@ async function confirmMemberOrder(openid, orderId) {
       };
     }
     throw error;
-  }
-  if (experienceGain > 0) {
-    await syncMemberLevel(openid);
   }
   return { order: orderSnapshot, experienceGain, stoneReward };
 }
@@ -1180,13 +1174,6 @@ function mapOrder(doc) {
   };
 }
 
-function calculateExperienceGain(amountFen) {
-  if (!amountFen || amountFen <= 0) {
-    return 0;
-  }
-  return Math.max(0, Math.round((amountFen * EXPERIENCE_PER_YUAN) / 100));
-}
-
 function buildChargeItemsFromMenuOrder(order) {
   const adjustment = normalizeAdminPriceAdjustment(order && order.adminPriceAdjustment);
   if (adjustment) {
@@ -1337,109 +1324,3 @@ function resolveAmountNumber(value) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
-async function syncMemberLevel(openid) {
-  const memberPromise = db.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null);
-  const levelsPromise = db
-    .collection(COLLECTIONS.MEMBERSHIP_LEVELS)
-    .orderBy('order', 'asc')
-    .get()
-    .catch((error) => {
-      if (isCollectionNotFoundError(error)) {
-        return { data: [] };
-      }
-      throw error;
-    });
-  const [memberDoc, levelsSnapshot] = await Promise.all([memberPromise, levelsPromise]);
-  if (!memberDoc || !memberDoc.data) return;
-  const member = memberDoc.data;
-  const levels = levelsSnapshot.data || [];
-  if (!levels.length) return;
-
-  const {
-    levelId: resolvedLevelId,
-    pendingBreakthroughLevelId,
-    levelsToGrant
-  } = analyzeMemberLevelProgress(member, levels);
-
-  const updates = {};
-  const normalizedPending = pendingBreakthroughLevelId || '';
-  const existingPending =
-    typeof member.pendingBreakthroughLevelId === 'string' ? member.pendingBreakthroughLevelId : '';
-
-  if (resolvedLevelId && resolvedLevelId !== member.levelId) {
-    updates.levelId = resolvedLevelId;
-  }
-
-  if (normalizedPending !== existingPending) {
-    updates.pendingBreakthroughLevelId = normalizedPending;
-  }
-
-  if (Object.keys(updates).length) {
-    updates.updatedAt = new Date();
-    await db
-      .collection(COLLECTIONS.MEMBERS)
-      .doc(openid)
-      .update({
-        data: updates
-      })
-      .catch(() => null);
-  }
-
-  for (const level of levelsToGrant) {
-    await grantLevelRewards(openid, level);
-  }
-}
-
-async function grantLevelRewards(openid, level) {
-  const rewards = level.rewards || [];
-  if (!rewards.length) return;
-  const masterSnapshot = await db
-    .collection(COLLECTIONS.MEMBERSHIP_RIGHTS)
-    .get()
-    .catch((error) => {
-      if (isCollectionNotFoundError(error)) {
-        return { data: [] };
-      }
-      throw error;
-    });
-  const masterMap = {};
-  (masterSnapshot.data || []).forEach((item) => {
-    masterMap[item._id] = item;
-  });
-  const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
-  const now = new Date();
-  for (const reward of rewards) {
-    const right = masterMap[reward.rightId];
-    if (!right) continue;
-    const existing = await rightsCollection
-      .where({ memberId: openid, rightId: reward.rightId, levelId: level._id })
-      .count()
-      .catch((error) => {
-        if (isCollectionNotFoundError(error)) {
-          return { total: 0 };
-        }
-        throw error;
-      });
-    const quantity = reward.quantity || 1;
-    if (existing.total >= quantity) continue;
-    const validUntil = right.validDays
-      ? new Date(now.getTime() + right.validDays * 24 * 60 * 60 * 1000)
-      : null;
-    for (let i = existing.total; i < quantity; i += 1) {
-      await rightsCollection.add({
-        data: {
-          memberId: openid,
-          rightId: reward.rightId,
-          levelId: level._id,
-          status: 'active',
-          issuedAt: now,
-          validUntil,
-          meta: {
-            fromLevel: level._id,
-            rewardName: reward.description || right.name
-          }
-        }
-      });
-    }
-  }
-}

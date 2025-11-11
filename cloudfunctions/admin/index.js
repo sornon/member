@@ -106,6 +106,7 @@ const ACTIVE_RESERVATION_STATUSES = [
 const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
 const CLEANUP_TASK_CONCURRENCY = 3;
+const SPEND_FIX_TRANSACTION_BATCH_LIMIT = 200;
 const ORPHAN_QUERY_BATCH_LIMIT = 200;
 const PLAYER_REFRESH_BATCH_SIZE = 1;
 const PLAYER_REFRESH_MAX_DURATION_MS = 2400;
@@ -398,6 +399,8 @@ const ACTIONS = {
   PREVIEW_CLEANUP_BATTLE_RECORDS: 'previewCleanupBattleRecords',
   CLEANUP_TEST_MEMBERS: 'cleanupTestMembers',
   PREVIEW_CLEANUP_TEST_MEMBERS: 'previewCleanupTestMembers',
+  FIX_SPEND_EXPERIENCE: 'fixSpendExperience',
+  PREVIEW_FIX_SPEND_EXPERIENCE: 'previewFixSpendExperience',
   GET_SYSTEM_FEATURES: 'getSystemFeatures',
   UPDATE_SYSTEM_FEATURE: 'updateSystemFeature',
   UPDATE_IMMORTAL_TOURNAMENT_SETTINGS: 'updateImmortalTournamentSettings',
@@ -476,6 +479,12 @@ const ACTION_ALIASES = {
   previewcleanupbattlerecords: ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS,
   scanbattlerecords: ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS,
   previewbattlerecords: ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS,
+  fixspendexperience: ACTIONS.FIX_SPEND_EXPERIENCE,
+  spendexperiencecleanup: ACTIONS.FIX_SPEND_EXPERIENCE,
+  cleanspendexperience: ACTIONS.FIX_SPEND_EXPERIENCE,
+  previewfixspendexperience: ACTIONS.PREVIEW_FIX_SPEND_EXPERIENCE,
+  scanspendexperience: ACTIONS.PREVIEW_FIX_SPEND_EXPERIENCE,
+  previewspendexperiencecleanup: ACTIONS.PREVIEW_FIX_SPEND_EXPERIENCE,
   cleantestmembers: ACTIONS.CLEANUP_TEST_MEMBERS,
   cleantestaccounts: ACTIONS.CLEANUP_TEST_MEMBERS,
   cleanupTestMembers: ACTIONS.CLEANUP_TEST_MEMBERS,
@@ -875,6 +884,8 @@ const ACTION_HANDLERS = {
   [ACTIONS.PREVIEW_CLEANUP_BATTLE_RECORDS]: (openid) => previewCleanupBattleRecords(openid),
   [ACTIONS.CLEANUP_TEST_MEMBERS]: (openid) => cleanupTestMembers(openid),
   [ACTIONS.PREVIEW_CLEANUP_TEST_MEMBERS]: (openid) => previewCleanupTestMembers(openid),
+  [ACTIONS.PREVIEW_FIX_SPEND_EXPERIENCE]: (openid) => previewFixSpendExperience(openid),
+  [ACTIONS.FIX_SPEND_EXPERIENCE]: (openid) => fixSpendExperience(openid),
   [ACTIONS.GET_SYSTEM_FEATURES]: (openid) => getSystemFeatures(openid),
   [ACTIONS.UPDATE_SYSTEM_FEATURE]: (openid, event) => updateSystemFeature(openid, event),
   [ACTIONS.UPDATE_IMMORTAL_TOURNAMENT_SETTINGS]: (openid, event = {}) =>
@@ -919,6 +930,9 @@ async function resolveMemberExtras(memberId) {
     if (!Array.isArray(extras.claimedLevelRewards)) {
       extras.claimedLevelRewards = [];
     }
+    if (!Array.isArray(extras.deliveredLevelRewards)) {
+      extras.deliveredLevelRewards = [];
+    }
     if (!Array.isArray(extras.wineStorage)) {
       extras.wineStorage = [];
     }
@@ -946,6 +960,7 @@ async function resolveMemberExtras(memberId) {
   const data = {
     avatarUnlocks: [],
     claimedLevelRewards: [],
+    deliveredLevelRewards: [],
     wineStorage: [],
     titleUnlocks: [],
     titleCatalog: [],
@@ -984,6 +999,7 @@ async function updateMemberExtras(memberId, updates = {}) {
               titleCatalog: [],
               backgroundUnlocks: [],
               backgroundCatalog: [],
+              deliveredLevelRewards: [],
               wineStorage: [],
               createdAt: new Date()
             }
@@ -2751,9 +2767,9 @@ async function deleteMember(openid, memberId) {
   };
 }
 
-function resolveMemberDisplayName(member) {
+function resolveMemberDisplayName(member, fallbackId = '') {
   if (!member || typeof member !== 'object') {
-    return '';
+    return fallbackId || '';
   }
   if (typeof member.realName === 'string' && member.realName.trim()) {
     return member.realName.trim();
@@ -2761,10 +2777,13 @@ function resolveMemberDisplayName(member) {
   if (typeof member.nickName === 'string' && member.nickName.trim()) {
     return member.nickName.trim();
   }
+  if (typeof member.mobile === 'string' && member.mobile.trim()) {
+    return member.mobile.trim();
+  }
   if (typeof member._id === 'string' && member._id.trim()) {
     return member._id.trim();
   }
-  return '';
+  return fallbackId || '';
 }
 
 function generateProxySessionId() {
@@ -3605,14 +3624,13 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '', a
     if (!stoneReward || stoneReward <= 0) {
       stoneReward = amount;
     }
-    experienceGain = calculateExperienceGain(amount);
+    experienceGain = 0;
     await memberRef.update({
       data: {
         cashBalance: _.inc(-amount),
         totalSpend: _.inc(amount),
         stoneBalance: _.inc(stoneReward),
-        updatedAt: now,
-        ...(experienceGain > 0 ? { experience: _.inc(experienceGain) } : {})
+        updatedAt: now
       }
     });
     const walletRemark = normalizedRemark ? `管理员扣款(${normalizedRemark})` : '管理员扣款';
@@ -3630,7 +3648,10 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '', a
         balanceBefore,
         balanceAfter,
         allowNegativeBalance: allowNegativeApplied,
-        debtIncurred
+        debtIncurred,
+        spendExperienceFixed: true,
+        spendExperienceFixedAt: now,
+        spendExperienceFixedBy: openid
       }
     });
     await transaction.collection(COLLECTIONS.STONE_TRANSACTIONS).add({
@@ -3658,7 +3679,10 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '', a
         balanceBefore,
         balanceAfter,
         allowNegativeBalance: allowNegativeApplied,
-        debtIncurred
+        debtIncurred,
+        spendExperienceFixed: true,
+        spendExperienceFixedAt: now,
+        spendExperienceFixedBy: openid
       }
     });
     if (order.menuOrderId) {
@@ -3684,9 +3708,6 @@ async function forceChargeOrder(openid, orderId, { memberId = '', remark = '', a
       }
     }
   });
-  if (experienceGain > 0 && targetMemberId) {
-    await syncMemberLevel(targetMemberId);
-  }
   return {
     success: true,
     stoneReward,
@@ -5075,6 +5096,543 @@ async function cleanupResidualMemberData(openid, options = {}) {
     summary,
     previewOnly
   };
+}
+
+async function previewFixSpendExperience(openid) {
+  return resolveSpendExperienceFix(openid, { previewOnly: true });
+}
+
+async function fixSpendExperience(openid) {
+  return resolveSpendExperienceFix(openid, { previewOnly: false });
+}
+
+async function resolveSpendExperienceFix(openid, options = {}) {
+  await ensureAdmin(openid);
+
+  const previewOnly = Boolean(options && options.previewOnly);
+  const anomalies = await aggregateSpendExperienceAnomalies();
+  const summary = previewOnly ? { preview: {}, errors: [] } : { removed: {}, errors: [] };
+
+  if (!anomalies.length) {
+    return {
+      previewOnly,
+      memberCount: 0,
+      totalTransactions: 0,
+      totalAmount: 0,
+      totalExperience: 0,
+      totalExperienceDeducted: 0,
+      members: [],
+      summary
+    };
+  }
+
+  const memberIds = anomalies
+    .map((entry) => normalizeMemberIdValue(entry.memberId))
+    .filter(Boolean);
+  const memberMap = await loadMembersMap(memberIds);
+
+  let levels = [];
+  let levelOrderMap = {};
+  try {
+    levels = await loadLevels();
+    levelOrderMap = buildLevelOrderMap(levels);
+  } catch (error) {
+    console.error('[admin] load levels for spend fix failed', error);
+    levels = [];
+    levelOrderMap = {};
+  }
+
+  let totalTransactions = 0;
+  let totalAmount = 0;
+  let totalExperience = 0;
+  let totalExperienceDeducted = 0;
+  const members = [];
+
+  if (previewOnly) {
+    anomalies.forEach((entry) => {
+      const memberId = normalizeMemberIdValue(entry.memberId);
+      if (!memberId) {
+        return;
+      }
+      const memberDoc = memberMap[memberId];
+      const experienceBefore = Math.max(
+        0,
+        Math.floor(Number((memberDoc && memberDoc.experience) || 0))
+      );
+      const experienceToRevert = calculateExperienceGain(entry.totalAmount);
+      const experienceDeducted = Math.min(experienceBefore, experienceToRevert);
+      members.push(
+        buildSpendExperienceMemberEntry(memberId, memberDoc, {
+          transactionCount: entry.transactionCount,
+          totalAmount: entry.totalAmount,
+          experienceToRevert,
+          experienceDeducted,
+          experienceBefore,
+          experienceAfter: Math.max(0, experienceBefore - experienceDeducted),
+          lastTransactionAt: entry.lastTransactionAt
+        })
+      );
+      totalTransactions += entry.transactionCount;
+      totalAmount += entry.totalAmount;
+      totalExperience += experienceToRevert;
+      totalExperienceDeducted += experienceDeducted;
+    });
+
+    summary.preview = {
+      walletTransactions: totalTransactions,
+      spendExperienceToRevert: totalExperience,
+      spendExperienceExpectedDeduction: totalExperienceDeducted
+    };
+
+    return {
+      previewOnly: true,
+      memberCount: members.length,
+      totalTransactions,
+      totalAmount,
+      totalExperience,
+      totalExperienceDeducted,
+      members,
+      summary
+    };
+  }
+
+  for (const entry of anomalies) {
+    const memberId = normalizeMemberIdValue(entry.memberId);
+    if (!memberId) {
+      continue;
+    }
+    const adjustment = await adjustMemberSpendExperience(memberId, {
+      adminId: openid,
+      lastTransactionAt: entry.lastTransactionAt,
+      levels,
+      levelOrderMap
+    });
+    if (!adjustment) {
+      continue;
+    }
+    if (Array.isArray(adjustment.errors) && adjustment.errors.length) {
+      summary.errors.push(...adjustment.errors);
+    }
+    const memberDoc = memberMap[memberId];
+    members.push(buildSpendExperienceMemberEntry(memberId, memberDoc, adjustment));
+    totalTransactions += adjustment.transactionCount;
+    totalAmount += adjustment.totalAmount;
+    totalExperience += adjustment.experienceToRevert;
+    totalExperienceDeducted += adjustment.experienceDeducted;
+  }
+
+  summary.removed = summary.removed || {};
+  summary.removed.walletTransactions = totalTransactions;
+  summary.removed.spendExperienceToRevert = totalExperience;
+  summary.removed.spendExperienceDeducted = totalExperienceDeducted;
+
+  return {
+    previewOnly: false,
+    memberCount: members.length,
+    totalTransactions,
+    totalAmount,
+    totalExperience,
+    totalExperienceDeducted,
+    members,
+    summary
+  };
+}
+
+async function aggregateSpendExperienceAnomalies() {
+  const matchConditions = [
+    { type: 'spend' },
+    { spendExperienceFixed: _.neq(true) },
+    { memberId: _.neq('') }
+  ];
+
+  try {
+    const positiveAmount = $.cond({
+      if: $.lt(['$amount', 0]),
+      then: $.multiply(['$amount', -1]),
+      else: '$amount'
+    });
+    const result = await db
+      .collection(COLLECTIONS.WALLET_TRANSACTIONS)
+      .aggregate()
+      .match(_.and(matchConditions))
+      .group({
+        _id: '$memberId',
+        totalAmount: $.sum(positiveAmount),
+        transactionCount: $.sum(1),
+        lastTransactionAt: $.max('$createdAt')
+      })
+      .sort({ totalAmount: -1 })
+      .end();
+
+    const list = Array.isArray(result.list) ? result.list : [];
+    return list
+      .map((item) => {
+        const memberId = normalizeMemberIdValue(item && item._id);
+        const totalAmount = Math.max(0, Math.floor(Number(item && item.totalAmount) || 0));
+        const transactionCount = Math.max(
+          0,
+          Math.floor(Number(item && item.transactionCount) || 0)
+        );
+        return {
+          memberId,
+          totalAmount,
+          transactionCount,
+          lastTransactionAt: item ? item.lastTransactionAt : null
+        };
+      })
+      .filter((entry) => entry.memberId && entry.totalAmount > 0 && entry.transactionCount > 0);
+  } catch (error) {
+    console.error('[admin] aggregate spend experience anomalies failed', error);
+    return [];
+  }
+}
+
+async function adjustMemberSpendExperience(memberId, options = {}) {
+  const normalizedMemberId = normalizeMemberIdValue(memberId);
+  if (!normalizedMemberId) {
+    return null;
+  }
+
+  const previewOnly = Boolean(options && options.previewOnly);
+  const adminId = normalizeMemberIdValue(options && options.adminId);
+  const levels = Array.isArray(options && options.levels) ? options.levels : null;
+  const levelOrderMap =
+    options && options.levelOrderMap && typeof options.levelOrderMap === 'object'
+      ? options.levelOrderMap
+      : null;
+  const now = new Date();
+  const limit = SPEND_FIX_TRANSACTION_BATCH_LIMIT;
+  let lastCreatedAt = null;
+  let lastDocId = '';
+  let totalAmount = 0;
+  let transactionCount = 0;
+  let lastTransactionAt = options && options.lastTransactionAt ? options.lastTransactionAt : null;
+  const transactionIds = [];
+
+  while (true) {
+    const baseCondition = _.and([
+      { memberId: normalizedMemberId },
+      { type: 'spend' },
+      { spendExperienceFixed: _.neq(true) }
+    ]);
+    const condition =
+      lastCreatedAt && lastDocId
+        ? _.and([
+            baseCondition,
+            _.or([
+              { createdAt: _.gt(lastCreatedAt) },
+              _.and([{ createdAt: lastCreatedAt }, { _id: _.gt(lastDocId) }])
+            ])
+          ])
+        : baseCondition;
+
+    const snapshot = await db
+      .collection(COLLECTIONS.WALLET_TRANSACTIONS)
+      .where(condition)
+      .orderBy('createdAt', 'asc')
+      .orderBy('_id', 'asc')
+      .limit(limit)
+      .get()
+      .catch((error) => {
+        console.error('[admin] load spend transactions failed', normalizedMemberId, error);
+        return { data: [] };
+      });
+
+    const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!docs.length) {
+      break;
+    }
+
+    docs.forEach((doc) => {
+      const amount = Math.abs(Number(doc && doc.amount));
+      if (!Number.isFinite(amount) || amount <= 0) {
+        return;
+      }
+      totalAmount += Math.floor(amount);
+      transactionCount += 1;
+      const createdAt = doc && doc.createdAt ? doc.createdAt : null;
+      if (createdAt) {
+        const createdDate = createdAt instanceof Date ? createdAt : new Date(createdAt);
+        if (!lastTransactionAt || createdDate > new Date(lastTransactionAt)) {
+          lastTransactionAt = createdDate;
+        }
+      }
+      if (!previewOnly && doc && doc._id) {
+        transactionIds.push(doc._id);
+      }
+    });
+
+    const lastDoc = docs[docs.length - 1];
+    lastCreatedAt = lastDoc && lastDoc.createdAt ? lastDoc.createdAt : null;
+    lastDocId = lastDoc && lastDoc._id ? lastDoc._id : '';
+
+    if (docs.length < limit) {
+      break;
+    }
+  }
+
+  if (!transactionCount || totalAmount <= 0) {
+    return {
+      memberId: normalizedMemberId,
+      transactionCount: 0,
+      totalAmount: 0,
+      experienceToRevert: 0,
+      experienceDeducted: 0,
+      experienceBefore: 0,
+      experienceAfter: 0,
+      lastTransactionAt,
+      errors: []
+    };
+  }
+
+  const experienceToRevert = calculateExperienceGain(totalAmount);
+  let experienceBefore = 0;
+  let experienceAfter = 0;
+  let experienceDeducted = 0;
+  const errors = [];
+
+  if (!previewOnly) {
+    await db
+      .runTransaction(async (transaction) => {
+        const memberRef = transaction.collection(COLLECTIONS.MEMBERS).doc(normalizedMemberId);
+        const memberDoc = await memberRef.get().catch(() => null);
+        if (!memberDoc || !memberDoc.data) {
+          throw new Error('会员不存在');
+        }
+        experienceBefore = Math.max(0, Math.floor(Number(memberDoc.data.experience || 0)));
+        const deduction = Math.min(experienceBefore, experienceToRevert);
+        experienceDeducted = deduction;
+        experienceAfter = Math.max(0, experienceBefore - deduction);
+        const updates = { updatedAt: now };
+        if (deduction > 0) {
+          updates.experience = _.inc(-deduction);
+        }
+        await memberRef.update({ data: updates });
+      })
+      .catch((error) => {
+        errors.push({
+          collection: COLLECTIONS.MEMBERS,
+          id: normalizedMemberId,
+          message: error && (error.errMsg || error.message) ? error.errMsg || error.message : '修为回滚失败'
+        });
+      });
+
+    if (!errors.length && transactionIds.length) {
+      const updatePayload = {
+        spendExperienceFixed: true,
+        spendExperienceFixedAt: now,
+        spendExperienceFixedBy: adminId || normalizedMemberId,
+        updatedAt: now
+      };
+      const updateTasks = transactionIds.map((docId) => async () => {
+        try {
+          await db
+            .collection(COLLECTIONS.WALLET_TRANSACTIONS)
+            .doc(docId)
+            .update({ data: updatePayload });
+          return null;
+        } catch (error) {
+          if (isNotFoundError(error)) {
+            return null;
+          }
+          return { error, docId };
+        }
+      });
+      const updateResults = await runTasksWithConcurrency(updateTasks, CLEANUP_TASK_CONCURRENCY);
+      updateResults.forEach((result) => {
+        if (result && result.error) {
+          errors.push({
+            collection: COLLECTIONS.WALLET_TRANSACTIONS,
+            id: result.docId,
+            message:
+              result.error && (result.error.errMsg || result.error.message)
+                ? result.error.errMsg || result.error.message
+                : '交易打标失败'
+          });
+        }
+      });
+    }
+
+    if (!errors.length && experienceDeducted > 0) {
+      try {
+        await syncMemberLevel(normalizedMemberId);
+      } catch (error) {
+        console.error(
+          '[admin] syncMemberLevel after spend fix failed',
+          normalizedMemberId,
+          error
+        );
+      }
+      try {
+        await reconcileMemberLevelRewardsAfterExperienceRollback(
+          normalizedMemberId,
+          levels,
+          levelOrderMap
+        );
+      } catch (error) {
+        console.error(
+          '[admin] reconcile level rewards after spend fix failed',
+          normalizedMemberId,
+          error
+        );
+      }
+    }
+  } else {
+    const memberDoc = await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(normalizedMemberId)
+      .get()
+      .catch(() => null);
+    experienceBefore = Math.max(
+      0,
+      Math.floor(Number((memberDoc && memberDoc.data && memberDoc.data.experience) || 0))
+    );
+    const deduction = Math.min(experienceBefore, experienceToRevert);
+    experienceDeducted = deduction;
+    experienceAfter = Math.max(0, experienceBefore - deduction);
+  }
+
+  if (!experienceBefore && !experienceAfter) {
+    const memberDoc = await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(normalizedMemberId)
+      .get()
+      .catch(() => null);
+    if (memberDoc && memberDoc.data) {
+      experienceBefore = Math.max(0, Math.floor(Number(memberDoc.data.experience || 0)));
+      experienceAfter = Math.max(0, experienceBefore - Math.min(experienceBefore, experienceDeducted));
+    }
+  }
+
+  return {
+    memberId: normalizedMemberId,
+    transactionCount,
+    totalAmount,
+    experienceToRevert,
+    experienceDeducted,
+    experienceBefore,
+    experienceAfter,
+    lastTransactionAt,
+    errors
+  };
+}
+
+async function reconcileMemberLevelRewardsAfterExperienceRollback(memberId, levels, levelOrderMap) {
+  const normalizedMemberId = normalizeMemberIdValue(memberId);
+  if (!normalizedMemberId) {
+    return;
+  }
+
+  let resolvedLevels = Array.isArray(levels) ? levels : null;
+  if (!resolvedLevels || !resolvedLevels.length) {
+    try {
+      resolvedLevels = await loadLevels();
+    } catch (error) {
+      console.error('[admin] reload levels for reward reconciliation failed', error);
+      resolvedLevels = [];
+    }
+  }
+  if (!resolvedLevels || !resolvedLevels.length) {
+    return;
+  }
+
+  const resolvedOrderMap =
+    levelOrderMap && typeof levelOrderMap === 'object' && Object.keys(levelOrderMap).length
+      ? levelOrderMap
+      : buildLevelOrderMap(resolvedLevels);
+
+  let memberDoc;
+  try {
+    const snapshot = await db.collection(COLLECTIONS.MEMBERS).doc(normalizedMemberId).get();
+    memberDoc = snapshot && snapshot.data ? snapshot.data : null;
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      console.error('[admin] reload member after spend fix failed', normalizedMemberId, error);
+    }
+    return;
+  }
+  if (!memberDoc) {
+    return;
+  }
+
+  const progress = analyzeMemberLevelProgress(memberDoc, resolvedLevels);
+  let currentOrder = 1;
+  if (progress && progress.currentLevel) {
+    const currentLevel = progress.currentLevel;
+    if (Number.isFinite(currentLevel.order)) {
+      currentOrder = currentLevel.order;
+    } else if (currentLevel._id && Number.isFinite(resolvedOrderMap[currentLevel._id])) {
+      currentOrder = resolvedOrderMap[currentLevel._id];
+    }
+  } else if (memberDoc.levelId && Number.isFinite(resolvedOrderMap[memberDoc.levelId])) {
+    currentOrder = resolvedOrderMap[memberDoc.levelId];
+  } else if (Number.isFinite(memberDoc.level)) {
+    currentOrder = Math.max(1, Math.floor(memberDoc.level));
+  }
+  if (!Number.isFinite(currentOrder) || currentOrder <= 0) {
+    currentOrder = 1;
+  }
+
+  const thresholdOrder = currentOrder + 1;
+  if (!Number.isFinite(thresholdOrder) || thresholdOrder <= 1) {
+    return;
+  }
+
+  const extras = await resolveMemberExtras(normalizedMemberId);
+  const extrasUpdates = {};
+  const extrasClaims = normalizeClaimedLevelRewardsList(extras.claimedLevelRewards);
+  const filteredExtrasClaims = filterClaimedLevelRewardsByOrder(
+    extrasClaims,
+    resolvedOrderMap,
+    thresholdOrder
+  );
+  if (!arraysEqual(filteredExtrasClaims, extrasClaims)) {
+    extrasUpdates.claimedLevelRewards = filteredExtrasClaims;
+  }
+  const extrasDelivered = normalizeClaimedLevelRewardsList(extras.deliveredLevelRewards);
+  const filteredExtrasDelivered = filterClaimedLevelRewardsByOrder(
+    extrasDelivered,
+    resolvedOrderMap,
+    thresholdOrder
+  );
+  if (!arraysEqual(filteredExtrasDelivered, extrasDelivered)) {
+    extrasUpdates.deliveredLevelRewards = filteredExtrasDelivered;
+  }
+  if (Object.keys(extrasUpdates).length) {
+    await updateMemberExtras(normalizedMemberId, extrasUpdates);
+  }
+
+  const memberClaims = normalizeClaimedLevelRewardsList(memberDoc.claimedLevelRewards);
+  if (memberClaims.length) {
+    const filteredMemberClaims = filterClaimedLevelRewardsByOrder(
+      memberClaims,
+      resolvedOrderMap,
+      thresholdOrder
+    );
+    if (!arraysEqual(filteredMemberClaims, memberClaims)) {
+      await db
+        .collection(COLLECTIONS.MEMBERS)
+        .doc(normalizedMemberId)
+        .update({
+          data: { claimedLevelRewards: filteredMemberClaims, updatedAt: new Date() }
+        })
+        .catch((error) => {
+          if (!isNotFoundError(error)) {
+            console.error(
+              '[admin] trim member claimed level rewards after spend fix failed',
+              normalizedMemberId,
+              error
+            );
+          }
+        });
+    }
+  }
+
+  try {
+    await callPveFunction('profile', { actorId: normalizedMemberId, refreshOnly: true });
+  } catch (error) {
+    console.error('[admin] refresh member profile after spend fix failed', normalizedMemberId, error);
+  }
 }
 
 async function listTestMembers() {
@@ -6690,6 +7248,48 @@ function mergeCleanupSummary(target, source) {
   }
 }
 
+function buildSpendExperienceMemberEntry(memberId, memberDoc, stats = {}) {
+  const member = memberDoc || {};
+  const nickName = typeof member.nickName === 'string' ? member.nickName : '';
+  const realName = typeof member.realName === 'string' ? member.realName : '';
+  const avatarUrl = typeof member.avatarUrl === 'string' ? member.avatarUrl : '';
+  const displayName = resolveMemberDisplayName(member, memberId);
+  const transactionCount = Math.max(0, Math.floor(Number(stats.transactionCount) || 0));
+  const totalAmount = Math.max(0, Math.floor(Number(stats.totalAmount) || 0));
+  const experienceToRevert = Math.max(0, Math.floor(Number(stats.experienceToRevert) || 0));
+  const experienceBefore = Math.max(0, Math.floor(Number(stats.experienceBefore) || 0));
+  const rawDeducted = Object.prototype.hasOwnProperty.call(stats, 'experienceDeducted')
+    ? Number(stats.experienceDeducted)
+    : Math.min(experienceBefore, experienceToRevert);
+  const experienceDeducted = Math.max(0, Math.floor(Number.isFinite(rawDeducted) ? rawDeducted : 0));
+  const rawAfter = Object.prototype.hasOwnProperty.call(stats, 'experienceAfter')
+    ? Number(stats.experienceAfter)
+    : experienceBefore - experienceDeducted;
+  const experienceAfter = Math.max(0, Math.floor(Number.isFinite(rawAfter) ? rawAfter : 0));
+  const lastTransactionAt = stats.lastTransactionAt || null;
+
+  return {
+    memberId,
+    displayName,
+    nickName,
+    realName,
+    avatarUrl,
+    transactionCount,
+    totalAmount,
+    totalAmountLabel: totalAmount ? `¥${formatFenToYuan(totalAmount)}` : '¥0.00',
+    experienceToRevert,
+    experienceToRevertLabel: formatExperienceLabel(experienceToRevert),
+    experienceDeducted,
+    experienceDeductedLabel: formatExperienceLabel(experienceDeducted),
+    experienceBefore,
+    experienceBeforeLabel: formatExperienceLabel(experienceBefore),
+    experienceAfter,
+    experienceAfterLabel: formatExperienceLabel(experienceAfter),
+    lastTransactionAt,
+    lastTransactionAtLabel: formatDate(lastTransactionAt)
+  };
+}
+
 async function runTasksWithConcurrency(taskFactories, concurrency = 3) {
   if (!Array.isArray(taskFactories) || taskFactories.length === 0) {
     return [];
@@ -7765,6 +8365,14 @@ function formatFenToYuan(value) {
     return '0.00';
   }
   return (numeric / 100).toFixed(2);
+}
+
+function formatExperienceLabel(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return '0';
+  }
+  return Math.max(0, Math.floor(numeric)).toLocaleString('zh-CN');
 }
 
 function formatStoneLabel(value) {
