@@ -930,6 +930,9 @@ async function resolveMemberExtras(memberId) {
     if (!Array.isArray(extras.claimedLevelRewards)) {
       extras.claimedLevelRewards = [];
     }
+    if (!Array.isArray(extras.deliveredLevelRewards)) {
+      extras.deliveredLevelRewards = [];
+    }
     if (!Array.isArray(extras.wineStorage)) {
       extras.wineStorage = [];
     }
@@ -957,6 +960,7 @@ async function resolveMemberExtras(memberId) {
   const data = {
     avatarUnlocks: [],
     claimedLevelRewards: [],
+    deliveredLevelRewards: [],
     wineStorage: [],
     titleUnlocks: [],
     titleCatalog: [],
@@ -995,6 +999,7 @@ async function updateMemberExtras(memberId, updates = {}) {
               titleCatalog: [],
               backgroundUnlocks: [],
               backgroundCatalog: [],
+              deliveredLevelRewards: [],
               wineStorage: [],
               createdAt: new Date()
             }
@@ -5126,6 +5131,17 @@ async function resolveSpendExperienceFix(openid, options = {}) {
     .filter(Boolean);
   const memberMap = await loadMembersMap(memberIds);
 
+  let levels = [];
+  let levelOrderMap = {};
+  try {
+    levels = await loadLevels();
+    levelOrderMap = buildLevelOrderMap(levels);
+  } catch (error) {
+    console.error('[admin] load levels for spend fix failed', error);
+    levels = [];
+    levelOrderMap = {};
+  }
+
   let totalTransactions = 0;
   let totalAmount = 0;
   let totalExperience = 0;
@@ -5187,7 +5203,9 @@ async function resolveSpendExperienceFix(openid, options = {}) {
     }
     const adjustment = await adjustMemberSpendExperience(memberId, {
       adminId: openid,
-      lastTransactionAt: entry.lastTransactionAt
+      lastTransactionAt: entry.lastTransactionAt,
+      levels,
+      levelOrderMap
     });
     if (!adjustment) {
       continue;
@@ -5277,6 +5295,11 @@ async function adjustMemberSpendExperience(memberId, options = {}) {
 
   const previewOnly = Boolean(options && options.previewOnly);
   const adminId = normalizeMemberIdValue(options && options.adminId);
+  const levels = Array.isArray(options && options.levels) ? options.levels : null;
+  const levelOrderMap =
+    options && options.levelOrderMap && typeof options.levelOrderMap === 'object'
+      ? options.levelOrderMap
+      : null;
   const now = new Date();
   const limit = SPEND_FIX_TRANSACTION_BATCH_LIMIT;
   let lastCreatedAt = null;
@@ -5440,6 +5463,19 @@ async function adjustMemberSpendExperience(memberId, options = {}) {
           error
         );
       }
+      try {
+        await reconcileMemberLevelRewardsAfterExperienceRollback(
+          normalizedMemberId,
+          levels,
+          levelOrderMap
+        );
+      } catch (error) {
+        console.error(
+          '[admin] reconcile level rewards after spend fix failed',
+          normalizedMemberId,
+          error
+        );
+      }
     }
   } else {
     const memberDoc = await db
@@ -5479,6 +5515,124 @@ async function adjustMemberSpendExperience(memberId, options = {}) {
     lastTransactionAt,
     errors
   };
+}
+
+async function reconcileMemberLevelRewardsAfterExperienceRollback(memberId, levels, levelOrderMap) {
+  const normalizedMemberId = normalizeMemberIdValue(memberId);
+  if (!normalizedMemberId) {
+    return;
+  }
+
+  let resolvedLevels = Array.isArray(levels) ? levels : null;
+  if (!resolvedLevels || !resolvedLevels.length) {
+    try {
+      resolvedLevels = await loadLevels();
+    } catch (error) {
+      console.error('[admin] reload levels for reward reconciliation failed', error);
+      resolvedLevels = [];
+    }
+  }
+  if (!resolvedLevels || !resolvedLevels.length) {
+    return;
+  }
+
+  const resolvedOrderMap =
+    levelOrderMap && typeof levelOrderMap === 'object' && Object.keys(levelOrderMap).length
+      ? levelOrderMap
+      : buildLevelOrderMap(resolvedLevels);
+
+  let memberDoc;
+  try {
+    const snapshot = await db.collection(COLLECTIONS.MEMBERS).doc(normalizedMemberId).get();
+    memberDoc = snapshot && snapshot.data ? snapshot.data : null;
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      console.error('[admin] reload member after spend fix failed', normalizedMemberId, error);
+    }
+    return;
+  }
+  if (!memberDoc) {
+    return;
+  }
+
+  const progress = analyzeMemberLevelProgress(memberDoc, resolvedLevels);
+  let currentOrder = 1;
+  if (progress && progress.currentLevel) {
+    const currentLevel = progress.currentLevel;
+    if (Number.isFinite(currentLevel.order)) {
+      currentOrder = currentLevel.order;
+    } else if (currentLevel._id && Number.isFinite(resolvedOrderMap[currentLevel._id])) {
+      currentOrder = resolvedOrderMap[currentLevel._id];
+    }
+  } else if (memberDoc.levelId && Number.isFinite(resolvedOrderMap[memberDoc.levelId])) {
+    currentOrder = resolvedOrderMap[memberDoc.levelId];
+  } else if (Number.isFinite(memberDoc.level)) {
+    currentOrder = Math.max(1, Math.floor(memberDoc.level));
+  }
+  if (!Number.isFinite(currentOrder) || currentOrder <= 0) {
+    currentOrder = 1;
+  }
+
+  const thresholdOrder = currentOrder + 1;
+  if (!Number.isFinite(thresholdOrder) || thresholdOrder <= 1) {
+    return;
+  }
+
+  const extras = await resolveMemberExtras(normalizedMemberId);
+  const extrasUpdates = {};
+  const extrasClaims = normalizeClaimedLevelRewardsList(extras.claimedLevelRewards);
+  const filteredExtrasClaims = filterClaimedLevelRewardsByOrder(
+    extrasClaims,
+    resolvedOrderMap,
+    thresholdOrder
+  );
+  if (!arraysEqual(filteredExtrasClaims, extrasClaims)) {
+    extrasUpdates.claimedLevelRewards = filteredExtrasClaims;
+  }
+  const extrasDelivered = normalizeClaimedLevelRewardsList(extras.deliveredLevelRewards);
+  const filteredExtrasDelivered = filterClaimedLevelRewardsByOrder(
+    extrasDelivered,
+    resolvedOrderMap,
+    thresholdOrder
+  );
+  if (!arraysEqual(filteredExtrasDelivered, extrasDelivered)) {
+    extrasUpdates.deliveredLevelRewards = filteredExtrasDelivered;
+  }
+  if (Object.keys(extrasUpdates).length) {
+    await updateMemberExtras(normalizedMemberId, extrasUpdates);
+  }
+
+  const memberClaims = normalizeClaimedLevelRewardsList(memberDoc.claimedLevelRewards);
+  if (memberClaims.length) {
+    const filteredMemberClaims = filterClaimedLevelRewardsByOrder(
+      memberClaims,
+      resolvedOrderMap,
+      thresholdOrder
+    );
+    if (!arraysEqual(filteredMemberClaims, memberClaims)) {
+      await db
+        .collection(COLLECTIONS.MEMBERS)
+        .doc(normalizedMemberId)
+        .update({
+          data: { claimedLevelRewards: filteredMemberClaims, updatedAt: new Date() }
+        })
+        .catch((error) => {
+          if (!isNotFoundError(error)) {
+            console.error(
+              '[admin] trim member claimed level rewards after spend fix failed',
+              normalizedMemberId,
+              error
+            );
+          }
+        });
+    }
+  }
+
+  try {
+    await callPveFunction('profile', { actorId: normalizedMemberId, refreshOnly: true });
+  } catch (error) {
+    console.error('[admin] refresh member profile after spend fix failed', normalizedMemberId, error);
+  }
 }
 
 async function listTestMembers() {
