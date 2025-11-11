@@ -6789,6 +6789,7 @@ function buildDefaultAttributes() {
     level: 1,
     experience: 0,
     attributePoints: 0,
+    avatarBonusPoints: 0,
     lastSyncedLevel: 1,
     levelId: '',
     levelLabel: '',
@@ -7309,6 +7310,16 @@ function normalizeAttributes(attributes) {
     level: Math.max(1, Math.min(MAX_LEVEL, Math.floor(Number(payload.level) || defaults.level || 1))),
     experience: Math.max(0, Math.floor(Number(payload.experience) || 0)),
     attributePoints: Math.max(0, Math.floor(Number(payload.attributePoints) || 0)),
+    avatarBonusPoints: Math.max(
+      0,
+      Math.floor(
+        Number(
+          Object.prototype.hasOwnProperty.call(payload, 'avatarBonusPoints')
+            ? payload.avatarBonusPoints
+            : defaults.avatarBonusPoints
+        ) || 0
+      )
+    ),
     respecAvailable,
     lastSyncedLevel: Math.max(
       1,
@@ -8164,6 +8175,7 @@ function calculateAttributes(attributes, equipment, skills) {
     realmShort,
     experience,
     attributePoints: Math.max(0, Math.floor(Number(attributes.attributePoints) || 0)),
+    avatarBonusPoints: Math.max(0, Math.floor(Number(attributes.avatarBonusPoints) || 0)),
     respecAvailable,
     nextLevel,
     nextLevelId: attributes.nextLevelId || '',
