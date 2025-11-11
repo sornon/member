@@ -235,6 +235,12 @@ export function buildEquipmentIconPaths(item) {
   if (!item || typeof item !== 'object') {
     return { iconUrl: '', iconFallbackUrl: '' };
   }
+  const directIconUrl = typeof item.iconUrl === 'string' ? item.iconUrl.trim() : '';
+  const directFallbackUrl =
+    typeof item.iconFallbackUrl === 'string' ? item.iconFallbackUrl.trim() : '';
+  if (directIconUrl) {
+    return { iconUrl: directIconUrl, iconFallbackUrl: directFallbackUrl || directIconUrl };
+  }
   const iconFileName = typeof item.iconFileName === 'string' ? item.iconFileName.trim() : '';
   if (iconFileName) {
     const normalizedPath = iconFileName.replace(/^[\\/]+/, '');
