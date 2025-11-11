@@ -369,6 +369,12 @@ page {
   display: block;
   box-sizing: border-box;
   padding-right: 8rpx;
+  /* 共享的弹窗正文需要保持自身滚动，避免影响装备详情等其他弹窗 */
+  overflow-y: auto;
+}
+
+.trading-modal__body--scroll {
+  overflow: visible;
 }
 
 .trading-modal__message {
