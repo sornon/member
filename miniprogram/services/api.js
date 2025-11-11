@@ -858,6 +858,16 @@ export const AdminService = {
       action: 'cleanupBattleRecords'
     });
   },
+  async previewFixSpendExperience() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'previewFixSpendExperience'
+    });
+  },
+  async fixSpendExperience() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'fixSpendExperience'
+    });
+  },
   async previewCleanupTestMembers() {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'previewCleanupTestMembers'

@@ -65,6 +65,79 @@
   </view>
 
   <view class="intro-card">
+    <view class="intro-title">消费修为纠正</view>
+    <view class="intro-desc">扫描历史消费产生的修为并集中回滚，确保只有充值行为能够提升修为。</view>
+    <view class="intro-note">建议先执行扫描评估影响范围，确认后再进行回滚操作。</view>
+    <button
+      class="cleanup-button primary"
+      bindtap="handleSpendScanTap"
+      loading="{{loading && loadingAction === 'scanSpend'}}"
+      disabled="{{loading}}"
+    >
+      {{loading && loadingAction === 'scanSpend' ? '扫描中…' : '扫描异常修为'}}
+    </button>
+    <button
+      wx:if="{{spendPreview && spendPreview.members.length}}"
+      class="cleanup-button danger"
+      bindtap="handleSpendCleanupTap"
+      loading="{{loading && loadingAction === 'cleanupSpend'}}"
+      disabled="{{loading}}"
+    >
+      {{loading && loadingAction === 'cleanupSpend' ? '修正中…' : '执行修正'}}
+    </button>
+  </view>
+
+  <view wx:if="{{spendPreview}}" class="preview-card">
+    <view class="preview-header">
+      <view class="preview-title">异常修为扫描结果</view>
+      <view wx:if="{{spendPreviewAt}}" class="preview-time">{{spendPreviewAt}}</view>
+    </view>
+    <view wx:if="{{spendPreview.memberCount > 0}}" class="preview-summary">
+      发现 {{spendPreview.memberCount}} 位会员，涉及 {{spendPreview.totalTransactions}} 笔交易，累计消费 {{spendPreview.totalAmountLabel}}，应回滚修为 {{spendPreview.totalExperienceLabel}}，预计实际回滚 {{spendPreview.totalExperienceDeductedLabel}}
+    </view>
+    <view wx:else class="preview-summary muted">未发现消费修为异常</view>
+    <view wx:if="{{spendPreview.members.length}}" class="preview-list">
+      <view wx:for="{{spendPreview.members}}" wx:key="memberId" class="preview-item">
+        <view class="preview-name">
+          <text class="preview-label">{{item.displayName}}</text>
+          <text class="preview-collection">{{item.memberId}}</text>
+        </view>
+        <view class="preview-field">交易：{{item.transactionCount}} 笔 · 消费 {{item.totalAmountLabel}}</view>
+        <view class="preview-field">回滚修为：{{item.experienceToRevertLabel}} · 预计实际回滚 {{item.experienceDeductedLabel}}</view>
+        <view class="preview-field">当前修为：{{item.experienceBeforeLabel}} → 修正后 {{item.experienceAfterLabel}}</view>
+        <view wx:if="{{item.lastTransactionAtLabel}}" class="preview-field">最近异常消费：{{item.lastTransactionAtLabel}}</view>
+      </view>
+    </view>
+    <view wx:else class="preview-empty">暂无会员需要处理。</view>
+  </view>
+
+  <view wx:if="{{spendResult}}" class="result-card">
+    <view class="result-header">
+      <view class="result-title">消费修为修正结果</view>
+      <view wx:if="{{spendFinishedAt}}" class="result-time">{{spendFinishedAt}}</view>
+    </view>
+    <view class="result-summary">实际回滚修为 {{spendResult.totalExperienceDeductedLabel}}，涉及 {{spendResult.memberCount}} 位会员，处理 {{spendResult.totalTransactions}} 笔交易</view>
+    <view class="result-members">累计消费金额：{{spendResult.totalAmountLabel}}</view>
+    <view wx:if="{{spendResult.members.length}}" class="preview-list">
+      <view wx:for="{{spendResult.members}}" wx:key="memberId" class="preview-item">
+        <view class="preview-name">
+          <text class="preview-label">{{item.displayName}}</text>
+          <text class="preview-collection">{{item.memberId}}</text>
+        </view>
+        <view class="preview-field">交易：{{item.transactionCount}} 笔 · 消费 {{item.totalAmountLabel}}</view>
+        <view class="preview-field">应回滚：{{item.experienceToRevertLabel}} · 实际回滚 {{item.experienceDeductedLabel}}</view>
+        <view class="preview-field">修为：{{item.experienceBeforeLabel}} → {{item.experienceAfterLabel}}</view>
+        <view wx:if="{{item.lastTransactionAtLabel}}" class="preview-field">最近异常消费：{{item.lastTransactionAtLabel}}</view>
+      </view>
+    </view>
+    <view wx:else class="detail-empty">未处理任何会员，可能已无异常修为。</view>
+    <view wx:if="{{spendResult.errors.length}}" class="error-block">
+      <view class="error-title">部分数据未能成功修正：</view>
+      <view wx:for="{{spendResult.errors}}" wx:key="index" class="error-item">{{item}}</view>
+    </view>
+  </view>
+
+  <view class="intro-card">
     <view class="intro-title">清理测试账号</view>
     <view class="intro-desc">扫描带有“测试”标签的账号，并在确认后批量删除账号及关联数据，便于定期清理体验版或开发版产生的记录。</view>
     <view class="intro-note">删除操作不可恢复，请确认这些测试账号不再需要保留。</view>
