@@ -7,7 +7,8 @@ const {
   EXPERIENCE_PER_YUAN,
   COLLECTIONS,
   EXCLUDED_TRANSACTION_STATUSES,
-  analyzeMemberLevelProgress
+  analyzeMemberLevelProgress,
+  resolveRegularLevelRights
 } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 const { createProxyHelpers } = require('admin-proxy');
 
@@ -1729,7 +1730,7 @@ async function syncMemberLevel(openid) {
 exports.syncMemberLevel = syncMemberLevel;
 
 async function grantLevelRewards(openid, level) {
-  const rewards = level.rewards || [];
+  const rewards = resolveRegularLevelRights(level);
   if (!rewards.length) return;
   const masterSnapshot = await db.collection(COLLECTIONS.MEMBERSHIP_RIGHTS).get();
   const masterMap = {};
