@@ -183,6 +183,11 @@ function buildMembershipLevels() {
         thresholdYuan = cumulativeRecharge;
       }
 
+      let thresholdExperience = Math.round(thresholdYuan * EXPERIENCE_PER_YUAN);
+      if (thresholdExperience >= 2000000) {
+        thresholdExperience *= 2;
+      }
+
       const level = {
         _id: `level_${String(order).padStart(3, '0')}`,
         name: `${realm.shortName}${label}`,
@@ -194,7 +199,7 @@ function buildMembershipLevels() {
         realmDescription: realm.description,
         subLevel,
         subLevelLabel: label,
-        threshold: Math.round(thresholdYuan * EXPERIENCE_PER_YUAN),
+        threshold: thresholdExperience,
         discount,
         order,
         virtualRewards: [],
