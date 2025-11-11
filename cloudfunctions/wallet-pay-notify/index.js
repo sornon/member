@@ -1,6 +1,11 @@
 const cloud = require('wx-server-sdk');
 const crypto = require('crypto');
-const { COLLECTIONS, EXPERIENCE_PER_YUAN, analyzeMemberLevelProgress } = require('common-config');
+const {
+  COLLECTIONS,
+  EXPERIENCE_PER_YUAN,
+  analyzeMemberLevelProgress,
+  resolveRegularLevelRights
+} = require('common-config');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -272,7 +277,7 @@ async function syncMemberLevel(memberId) {
 }
 
 async function grantLevelRewards(memberId, level) {
-  const rewards = level.rewards || [];
+  const rewards = resolveRegularLevelRights(level);
   if (!rewards.length) {
     return;
   }

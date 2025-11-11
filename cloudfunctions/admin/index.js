@@ -17,7 +17,8 @@ const {
   normalizeBackgroundId,
   normalizeBackgroundCatalog,
   areBackgroundCatalogsEqual,
-  registerCustomBackgrounds
+  registerCustomBackgrounds,
+  resolveRegularLevelRights
 } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 const {
   DEFAULT_GAME_PARAMETERS,
@@ -4484,7 +4485,7 @@ async function syncMemberLevel(memberId) {
 }
 
 async function grantLevelRewards(memberId, level) {
-  const rewards = level.rewards || [];
+  const rewards = resolveRegularLevelRights(level);
   if (!rewards.length) return;
 
   const masterSnapshot = await db

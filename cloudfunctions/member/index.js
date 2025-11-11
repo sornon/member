@@ -17,7 +17,8 @@ const {
   realmConfigs,
   subLevelLabels,
   listAvatarIds,
-  normalizeAvatarFrameValue
+  normalizeAvatarFrameValue,
+  resolveRegularLevelRights
 } = commonConfig;
 const {
   FEATURE_TOGGLE_DOC_ID,
@@ -1941,64 +1942,6 @@ function requiresBreakthrough(currentLevel, nextLevel) {
     return false;
   }
   return resolveSubLevel(currentLevel) >= 10;
-}
-
-function resolveBreakthroughRightIdSet(level) {
-  const ids = new Set();
-  if (!level) {
-    return ids;
-  }
-  if (Array.isArray(level.breakthroughRewards)) {
-    level.breakthroughRewards.forEach((reward) => {
-      if (reward && typeof reward.rightId === 'string') {
-        const trimmed = reward.rightId.trim();
-        if (trimmed) {
-          ids.add(trimmed);
-        }
-      }
-    });
-  }
-  if (Array.isArray(level.breakthroughInventory)) {
-    level.breakthroughInventory.forEach((item) => {
-      if (!item || typeof item !== 'object') {
-        return;
-      }
-      if (typeof item.rightId === 'string' && item.rightId.trim()) {
-        ids.add(item.rightId.trim());
-        return;
-      }
-      const usage = item.usage && typeof item.usage === 'object' ? item.usage : null;
-      if (!usage) {
-        return;
-      }
-      const usageType = typeof usage.type === 'string' ? usage.type.trim().toLowerCase() : '';
-      if (!usageType) {
-        return;
-      }
-      if (usageType === 'grantright' || usageType === 'grantcoupon' || usageType === 'coupon') {
-        if (typeof usage.rightId === 'string' && usage.rightId.trim()) {
-          ids.add(usage.rightId.trim());
-        }
-      }
-    });
-  }
-  return ids;
-}
-
-function resolveRegularLevelRights(level) {
-  if (!level || !Array.isArray(level.rewards)) {
-    return [];
-  }
-  const breakthroughIds = resolveBreakthroughRightIdSet(level);
-  if (!breakthroughIds.size) {
-    return level.rewards.slice();
-  }
-  return level.rewards.filter((reward) => {
-    if (!reward || typeof reward.rightId !== 'string') {
-      return true;
-    }
-    return !breakthroughIds.has(reward.rightId.trim());
-  });
 }
 
 function hasLevelRewards(level) {
