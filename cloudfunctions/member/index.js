@@ -732,24 +732,10 @@ function createStorageRewardItem(reward, now = new Date()) {
   const iconUrlCandidate = typeof reward.iconUrl === 'string' ? reward.iconUrl.trim() : '';
   const iconFallbackCandidate =
     typeof reward.iconFallbackUrl === 'string' ? reward.iconFallbackUrl.trim() : '';
-  const iconFileNameCandidate =
-    typeof reward.iconFileName === 'string' ? reward.iconFileName.trim() : '';
   const legacyIconCandidate = typeof reward.icon === 'string' ? reward.icon.trim() : '';
 
-  let iconUrl = iconUrlCandidate || legacyIconCandidate;
-  let iconFallbackUrl = iconFallbackCandidate || iconUrl;
-  let iconFileName = iconFileNameCandidate;
-
-  if (!iconFileName) {
-    const pathSource = iconUrl || legacyIconCandidate;
-    if (pathSource) {
-      const segments = pathSource.split('?')[0].split('#')[0].split('/');
-      const fileCandidate = segments[segments.length - 1];
-      if (fileCandidate && /\.[a-z0-9]+$/i.test(fileCandidate)) {
-        iconFileName = fileCandidate;
-      }
-    }
-  }
+  const iconUrl = iconUrlCandidate || legacyIconCandidate;
+  const iconFallbackUrl = iconFallbackCandidate || iconUrl;
 
   const item = {
     inventoryId: generateStorageInventoryId(reward.storageItemId || reward.itemId || 'item', now),
@@ -759,7 +745,6 @@ function createStorageRewardItem(reward, now = new Date()) {
     description: reward.description || '',
     iconUrl,
     iconFallbackUrl,
-    iconFileName,
     quality: reward.quality || '',
     qualityLabel: reward.qualityLabel || '',
     qualityColor: reward.qualityColor || '',
