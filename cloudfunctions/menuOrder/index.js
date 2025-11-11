@@ -107,7 +107,11 @@ exports.main = async (event) => {
         event.items || [],
         event.remark || '',
         event.categoryTotals || {},
-        { useDrinkVoucher: event.useDrinkVoucher }
+        {
+          // 将 UI 端选择保留下来，避免在成员关闭古巴邑券时仍被强制使用
+          useDrinkVoucher: event.useDrinkVoucher,
+          useCubaneyVoucher: event.useCubaneyVoucher
+        }
       );
     case 'listMemberOrders':
       return listMemberOrders(targetMemberId);
