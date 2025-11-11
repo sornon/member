@@ -729,14 +729,22 @@ function createStorageRewardItem(reward, now = new Date()) {
     }
     return 'consumable';
   })();
+  const iconUrlCandidate = typeof reward.iconUrl === 'string' ? reward.iconUrl.trim() : '';
+  const iconFallbackCandidate =
+    typeof reward.iconFallbackUrl === 'string' ? reward.iconFallbackUrl.trim() : '';
+  const legacyIconCandidate = typeof reward.icon === 'string' ? reward.icon.trim() : '';
+
+  const iconUrl = iconUrlCandidate || legacyIconCandidate;
+  const iconFallbackUrl = iconFallbackCandidate || iconUrl;
+
   const item = {
     inventoryId: generateStorageInventoryId(reward.storageItemId || reward.itemId || 'item', now),
     itemId: reward.storageItemId || reward.itemId || '',
     name: reward.name || '道具',
     shortName: reward.shortName || reward.name || '道具',
     description: reward.description || '',
-    iconUrl: reward.iconUrl || '',
-    iconFallbackUrl: reward.iconFallbackUrl || '',
+    iconUrl,
+    iconFallbackUrl,
     quality: reward.quality || '',
     qualityLabel: reward.qualityLabel || '',
     qualityColor: reward.qualityColor || '',
