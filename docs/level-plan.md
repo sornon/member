@@ -124,6 +124,7 @@
 
 ## 系统实现要点
 - `cloudfunctions/bootstrap/level-config.js` 中集中维护 `realmConfigs`、`membershipRights`、`EXPERIENCE_PER_YUAN` 等纯数据，`index.js` 通过 `buildMembershipLevels()` 自动生成等级并注入云端集合，运营人员调整配置后重新执行引导脚本即可生效。
+- 自新版配置起，境界等级的修为阈值仅依赖 `realmConfigs.thresholds`，原先的 `increment` 字段已移除。请确保为每个境界按顺序填写完整的 10 个阈值，否则引导脚本会在构建等级时抛出错误提示，方便及时纠正配置。
 
 ### 等级配置更新与部署注意事项
 0. **公共模块**：[等级相关的配置信息都维护在公共模块level-config](https://tcb.cloud.tencent.com/dev?envId=cloud1-8gyoxq651fcc92c2#/scf?tab=layer)，`bootstrap`、`admin`、`menuOrder`、`wallet`这4个云函数需要绑定该层，引用该公共模块的方法为：`require('level-config')`。
