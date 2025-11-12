@@ -160,28 +160,41 @@ async function seedActivities() {
 
 const membershipLevels = buildMembershipLevels();
 
+function normalizeRealmThresholds(realm, realmIndex) {
+  const perRealm = subLevelLabels.length;
+  const rawThresholds = Array.isArray(realm.thresholds) ? realm.thresholds : [];
+  const normalized = subLevelLabels.map((_, index) => {
+    const numeric = Number(rawThresholds[index]);
+    return Number.isFinite(numeric) ? numeric : null;
+  });
+  const realmLabel = realm.name || realm.shortName || realm.id || `#${realmIndex + 1}`;
+  const missingIndex = normalized.findIndex((value) => value === null);
+  if (missingIndex >= 0) {
+    throw new Error(
+      `realmConfigs 中 ${realmLabel} 的 thresholds 配置不完整（索引 ${missingIndex}）。`
+    );
+  }
+  for (let i = 1; i < perRealm; i += 1) {
+    if (normalized[i] < normalized[i - 1]) {
+      throw new Error(
+        `realmConfigs 中 ${realmLabel} 的 thresholds 必须按非递减顺序配置。`
+      );
+    }
+  }
+  return normalized;
+}
+
 function buildMembershipLevels() {
   const levels = [];
-  let cumulativeRecharge = 0;
   let order = 1;
 
   realmConfigs.forEach((realm, realmIndex) => {
-    const { increment, discount, virtualRewards, milestone, thresholds } = realm;
-    const hasCustomThresholds =
-      Array.isArray(thresholds) && thresholds.length === subLevelLabels.length;
+    const { discount, virtualRewards, milestone } = realm;
+    const normalizedThresholds = normalizeRealmThresholds(realm, realmIndex);
 
     subLevelLabels.forEach((label, subIndex) => {
       const subLevel = subIndex + 1;
-      let thresholdYuan;
-      if (hasCustomThresholds) {
-        thresholdYuan = thresholds[subIndex];
-        cumulativeRecharge = thresholdYuan;
-      } else if (realmIndex === 0 && subLevel === 1) {
-        thresholdYuan = 0;
-      } else {
-        cumulativeRecharge += increment;
-        thresholdYuan = cumulativeRecharge;
-      }
+      const thresholdYuan = normalizedThresholds[subIndex];
 
       const level = {
         _id: `level_${String(order).padStart(3, '0')}`,
