@@ -4233,8 +4233,60 @@ function deepEqual(a, b) {
   return true;
 }
 
-function getAttributePointRewardForLevel() {
-  return 5;
+const ATTRIBUTE_POINT_REWARD_TIERS = [
+  { maxLevel: 10, reward: 5 },
+  { maxLevel: 20, reward: 5 },
+  { maxLevel: 30, reward: 5 },
+  { maxLevel: 40, reward: 10 },
+  { maxLevel: 50, reward: 20 },
+  { maxLevel: 60, reward: 30 },
+  { maxLevel: 70, reward: 40 },
+  { maxLevel: 80, reward: 50 },
+  { maxLevel: 90, reward: 60 },
+  { maxLevel: 100, reward: 70 }
+];
+
+function getAttributePointRewardForLevel(level) {
+  const normalizedLevel = Math.max(1, Math.floor(Number(level) || 0));
+  for (let i = 0; i < ATTRIBUTE_POINT_REWARD_TIERS.length; i += 1) {
+    const tier = ATTRIBUTE_POINT_REWARD_TIERS[i];
+    if (normalizedLevel <= tier.maxLevel) {
+      return tier.reward;
+    }
+  }
+  return ATTRIBUTE_POINT_REWARD_TIERS[ATTRIBUTE_POINT_REWARD_TIERS.length - 1].reward;
+}
+
+function calculateTotalAttributePointsForLevel(level) {
+  return calculateAttributePointRewardsBetween(1, level);
+}
+
+function calculateAttributePointRewardsBetween(startLevel, endLevel) {
+  const from = Math.max(0, Math.floor(Number(startLevel) || 0));
+  const to = Math.max(0, Math.floor(Number(endLevel) || 0));
+  if (to <= from) {
+    return 0;
+  }
+  let total = 0;
+  for (let level = from + 1; level <= to; level += 1) {
+    total += getAttributePointRewardForLevel(level);
+  }
+  return total;
+}
+
+function countAllocatedAttributePoints(trained = {}) {
+  if (!trained || typeof trained !== 'object') {
+    return 0;
+  }
+  return ATTRIBUTE_CONFIG.reduce((total, config) => {
+    const key = config.key;
+    const step = config.step || 1;
+    if (!step || step <= 0) {
+      return total;
+    }
+    const value = Math.max(0, Math.floor(Number(trained[key]) || 0));
+    return total + Math.floor(value / step);
+  }, 0);
 }
 
 function removeAttributePointsForLevelDrop(attributes, pointsToRemove) {
@@ -4303,6 +4355,48 @@ function syncAttributesWithMemberLevel(attributes, member, levels) {
   const realmBonus = resolveRealmBonus(levelOrder);
   let changed = false;
 
+  const sanitizedAttributePoints = Math.max(0, Math.floor(Number(attributes.attributePoints) || 0));
+  if (sanitizedAttributePoints !== attributes.attributePoints) {
+    attributes.attributePoints = sanitizedAttributePoints;
+    changed = true;
+  }
+
+  let availablePoints = sanitizedAttributePoints;
+  const trainedPoints = countAllocatedAttributePoints(attributes.trained);
+  const avatarBonusPoints = Math.max(0, Math.floor(Number(attributes.avatarBonusPoints) || 0));
+  const maxLevelPointsFromState = Math.max(0, availablePoints + trainedPoints - avatarBonusPoints);
+  const desiredLevelPoints = calculateTotalAttributePointsForLevel(levelOrder);
+  let currentLevelPoints = Math.max(0, Math.floor(Number(attributes.levelAttributePoints) || 0));
+
+  if (currentLevelPoints > maxLevelPointsFromState) {
+    currentLevelPoints = maxLevelPointsFromState;
+    attributes.levelAttributePoints = currentLevelPoints;
+    changed = true;
+  }
+
+  if (currentLevelPoints > desiredLevelPoints) {
+    const removed = removeAttributePointsForLevelDrop(attributes, currentLevelPoints - desiredLevelPoints);
+    if (removed > 0) {
+      availablePoints = Math.max(0, Math.floor(Number(attributes.attributePoints) || 0));
+      currentLevelPoints -= removed;
+      changed = true;
+    }
+  }
+
+  if (currentLevelPoints < desiredLevelPoints) {
+    const bonusPoints = desiredLevelPoints - currentLevelPoints;
+    if (bonusPoints > 0) {
+      attributes.attributePoints = availablePoints + bonusPoints;
+      currentLevelPoints += bonusPoints;
+      changed = true;
+    }
+  }
+
+  if (attributes.levelAttributePoints !== currentLevelPoints) {
+    attributes.levelAttributePoints = currentLevelPoints;
+    changed = true;
+  }
+
   const maxLevel = Math.min(MAX_LEVEL, sorted.length || MAX_LEVEL);
   if (attributes.maxLevel !== maxLevel) {
     attributes.maxLevel = maxLevel;
@@ -4327,23 +4421,6 @@ function syncAttributesWithMemberLevel(attributes, member, levels) {
   }
 
   const lastSyncedLevel = Math.max(1, Math.floor(Number(attributes.lastSyncedLevel || attributes.level || 1)));
-  if (levelOrder < lastSyncedLevel) {
-    const pointsToRemove = (lastSyncedLevel - levelOrder) * getAttributePointRewardForLevel();
-    const removed = removeAttributePointsForLevelDrop(attributes, pointsToRemove);
-    if (removed > 0) {
-      changed = true;
-    }
-  }
-  if (levelOrder > lastSyncedLevel) {
-    let bonusPoints = 0;
-    for (let lvl = lastSyncedLevel + 1; lvl <= levelOrder; lvl += 1) {
-      bonusPoints += getAttributePointRewardForLevel();
-    }
-    if (bonusPoints > 0) {
-      attributes.attributePoints = (attributes.attributePoints || 0) + bonusPoints;
-      changed = true;
-    }
-  }
   if (attributes.lastSyncedLevel !== levelOrder) {
     attributes.lastSyncedLevel = levelOrder;
     changed = true;
@@ -6789,6 +6866,7 @@ function buildDefaultAttributes() {
     level: 1,
     experience: 0,
     attributePoints: 0,
+    levelAttributePoints: 0,
     avatarBonusPoints: 0,
     lastSyncedLevel: 1,
     levelId: '',
@@ -7306,28 +7384,50 @@ function normalizeAttributes(attributes) {
   } else {
     respecAvailable = Math.max(0, Math.floor(Number(defaults.respecAvailable || 0)));
   }
+  const normalizedLevel = Math.max(1, Math.min(MAX_LEVEL, Math.floor(Number(payload.level) || defaults.level || 1)));
+  const normalizedLastSynced = Math.max(
+    1,
+    Math.min(
+      MAX_LEVEL,
+      Math.floor(Number(payload.lastSyncedLevel || payload.level || defaults.lastSyncedLevel || 1))
+    )
+  );
+  const normalizedTrained = mergeStats(payload.trained, defaults.trained);
+  const attributePoints = Math.max(0, Math.floor(Number(payload.attributePoints) || 0));
+  const normalizedAvatarBonus = Math.max(
+    0,
+    Math.floor(
+      Number(
+        Object.prototype.hasOwnProperty.call(payload, 'avatarBonusPoints')
+          ? payload.avatarBonusPoints
+          : defaults.avatarBonusPoints
+      ) || 0
+    )
+  );
+  const maxLevelPointsForSync = calculateTotalAttributePointsForLevel(normalizedLastSynced);
+  const totalAllocatedPoints = attributePoints + countAllocatedAttributePoints(normalizedTrained);
+  const estimatedLevelPoints = Math.max(
+    0,
+    Math.min(maxLevelPointsForSync, totalAllocatedPoints - normalizedAvatarBonus)
+  );
+  let levelAttributePoints = Number(payload.levelAttributePoints);
+  if (!Number.isFinite(levelAttributePoints)) {
+    levelAttributePoints = estimatedLevelPoints;
+  } else {
+    levelAttributePoints = Math.max(0, Math.floor(levelAttributePoints));
+  }
+  if (levelAttributePoints > maxLevelPointsForSync) {
+    levelAttributePoints = maxLevelPointsForSync;
+  }
+
   return {
-    level: Math.max(1, Math.min(MAX_LEVEL, Math.floor(Number(payload.level) || defaults.level || 1))),
+    level: normalizedLevel,
     experience: Math.max(0, Math.floor(Number(payload.experience) || 0)),
-    attributePoints: Math.max(0, Math.floor(Number(payload.attributePoints) || 0)),
-    avatarBonusPoints: Math.max(
-      0,
-      Math.floor(
-        Number(
-          Object.prototype.hasOwnProperty.call(payload, 'avatarBonusPoints')
-            ? payload.avatarBonusPoints
-            : defaults.avatarBonusPoints
-        ) || 0
-      )
-    ),
+    attributePoints,
+    levelAttributePoints,
+    avatarBonusPoints: normalizedAvatarBonus,
     respecAvailable,
-    lastSyncedLevel: Math.max(
-      1,
-      Math.min(
-        MAX_LEVEL,
-        Math.floor(Number(payload.lastSyncedLevel || payload.level || defaults.lastSyncedLevel || 1))
-      )
-    ),
+    lastSyncedLevel: normalizedLastSynced,
     levelId: typeof payload.levelId === 'string' ? payload.levelId : defaults.levelId,
     levelLabel: typeof payload.levelLabel === 'string' ? payload.levelLabel : defaults.levelLabel,
     levelName: typeof payload.levelName === 'string' ? payload.levelName : defaults.levelName,
@@ -7347,7 +7447,7 @@ function normalizeAttributes(attributes) {
       Math.min(MAX_LEVEL, Math.floor(Number(payload.maxLevel || defaults.maxLevel || MAX_LEVEL)))
     ),
     base: mergeStats(payload.base, defaults.base),
-    trained: mergeStats(payload.trained, defaults.trained),
+    trained: normalizedTrained,
     realmBonus: mergeStats(payload.realmBonus, defaults.realmBonus)
   };
 }
