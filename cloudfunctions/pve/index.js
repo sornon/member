@@ -7405,11 +7405,11 @@ function normalizeAttributes(attributes) {
     )
   );
   const maxLevelPointsForSync = calculateTotalAttributePointsForLevel(normalizedLastSynced);
-  const totalAllocatedPoints = attributePoints + countAllocatedAttributePoints(normalizedTrained);
-  const estimatedLevelPoints = Math.max(
+  const theoreticalLevelPoints = Math.max(
     0,
-    Math.min(maxLevelPointsForSync, totalAllocatedPoints - normalizedAvatarBonus)
+    Math.floor(calculateTotalAttributePointsForLevel(normalizedLevel))
   );
+  const estimatedLevelPoints = Math.min(maxLevelPointsForSync, theoreticalLevelPoints);
   let levelAttributePoints = Number(payload.levelAttributePoints);
   if (!Number.isFinite(levelAttributePoints)) {
     levelAttributePoints = estimatedLevelPoints;
@@ -7418,6 +7418,9 @@ function normalizeAttributes(attributes) {
   }
   if (levelAttributePoints > maxLevelPointsForSync) {
     levelAttributePoints = maxLevelPointsForSync;
+  }
+  if (levelAttributePoints > theoreticalLevelPoints) {
+    levelAttributePoints = theoreticalLevelPoints;
   }
 
   return {
