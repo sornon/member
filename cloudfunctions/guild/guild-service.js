@@ -62,6 +62,22 @@ function createGuildService(options = {}) {
     settings: normalizeGuildSettings(DEFAULT_GUILD_SETTINGS)
   };
 
+  const bossUpdateLocks = new Map();
+
+  function withBossUpdateLock(key, handler) {
+    const previous = bossUpdateLocks.get(key) || Promise.resolve();
+    const run = previous.catch(() => {}).then(() => handler());
+    const completion = run
+      .catch(() => {})
+      .finally(() => {
+        if (bossUpdateLocks.get(key) === completion) {
+          bossUpdateLocks.delete(key);
+        }
+      });
+    bossUpdateLocks.set(key, completion);
+    return run;
+  }
+
   function now() {
     return Date.now();
   }
@@ -2678,6 +2694,13 @@ function createGuildService(options = {}) {
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
     const settings = await loadSettings();
     const bossSettings = resolveBossSettings(settings.boss || DEFAULT_GUILD_BOSS_SETTINGS);
+    if (!bossSettings.enabled) {
+      throw createError('BOSS_DISABLED', '宗门 Boss 系统已关闭');
+    }
+    const membership = await loadMemberGuild(memberId);
+    if (!membership || !membership.guild) {
+      throw createError('NOT_IN_GUILD', '请先加入宗门');
+    }
     const rotationBossId = Array.isArray(bossSettings.rotation) && bossSettings.rotation.length
       ? bossSettings.rotation[0].bossId
       : null;
@@ -2790,17 +2813,71 @@ function createGuildService(options = {}) {
         lastChallengeAt: challengeTimestamp
       };
     });
-    await bossCollection.doc(bossDocId).update({ data: updateData });
+    const applyBossUpdates = async (getSnapshot, applyUpdate) => {
+      const snapshot = await getSnapshot();
+      if (!snapshot || !snapshot.data) {
+        throw createError('BOSS_NOT_FOUND', '未找到 Boss 状态');
+      }
+      const docData = snapshot.data || {};
+      const currentAttempts =
+        docData.memberAttempts && typeof docData.memberAttempts === 'object'
+          ? { ...docData.memberAttempts }
+          : {};
+      const attemptUpdates = {};
+      Object.keys(attemptState).forEach((id) => {
+        const record = currentAttempts[id];
+        const sameDay = record && record.dateKey === todayKey;
+        const used = sameDay ? Math.max(0, Math.round(Number(record.count || 0))) : 0;
+        if (used >= attemptLimit) {
+          throw createError('BOSS_ATTEMPTS_EXHAUSTED', '今日挑战次数已用尽');
+        }
+        const nextCount = used + 1;
+        attemptUpdates[id] = {
+          dateKey: todayKey,
+          count: nextCount,
+          lastChallengeAt: challengeTimestamp
+        };
+        currentAttempts[id] = attemptUpdates[id];
+      });
+      const dataToApply = { ...updateData };
+      Object.keys(attemptUpdates).forEach((id) => {
+        dataToApply[`memberAttempts.${id}`] = attemptUpdates[id];
+      });
+      await applyUpdate(dataToApply);
+      return { memberAttempts: currentAttempts };
+    };
+
+    let transactionResult;
+    if (typeof db.runTransaction === 'function') {
+      transactionResult = await db.runTransaction(async (transaction) => {
+        const bossDocRef = transaction.collection(COLLECTIONS.GUILD_BOSS).doc(bossDocId);
+        return applyBossUpdates(
+          () => bossDocRef.get().catch(() => null),
+          (data) => bossDocRef.update({ data })
+        );
+      });
+    } else {
+      transactionResult = await withBossUpdateLock(bossDocId, () =>
+        applyBossUpdates(
+          () => bossCollection.doc(bossDocId).get().catch(() => null),
+          (data) => bossCollection.doc(bossDocId).update({ data })
+        )
+      );
+    }
     if (simulation.victory) {
       await bossCollection.doc(bossDocId).update({ data: { hpLeft: 0 } }).catch(() => {});
     }
+    const memberAttemptsSnapshot =
+      transactionResult && transactionResult.memberAttempts
+        ? transactionResult.memberAttempts
+        : bossState.memberAttempts;
     const updatedState = {
       ...bossState,
       hpLeft: Math.max(0, bossState.hpLeft - Math.round(totalDamage)),
       totalDamage: (bossState.totalDamage || 0) + Math.round(totalDamage),
       status: simulation.victory ? 'ended' : bossState.status,
       damageByMember: { ...bossState.damageByMember },
-      memberAttempts: { ...bossState.memberAttempts }
+      memberAttempts: { ...memberAttemptsSnapshot }
     };
     Object.keys(simulation.damageByMember).forEach((id) => {
       const previous = Math.max(0, Math.round(Number(updatedState.damageByMember[id]) || 0));
@@ -2808,10 +2885,16 @@ function createGuildService(options = {}) {
       updatedState.damageByMember[id] = previous + increment;
     });
     Object.keys(attemptState).forEach((id) => {
-      const info = attemptState[id];
+      const info = updatedState.memberAttempts[id];
+      const fallback = attemptState[id];
+      const count = info && Number.isFinite(Number(info.count))
+        ? Math.max(0, Math.round(Number(info.count)))
+        : fallback
+          ? Math.max(0, Math.round(Number(fallback.used || 0))) + 1
+          : 1;
       updatedState.memberAttempts[id] = {
         dateKey: todayKey,
-        count: info.used + 1,
+        count,
         lastChallengeAt: new Date().toISOString()
       };
     });
