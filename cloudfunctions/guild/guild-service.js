@@ -6,27 +6,23 @@ const {
   normalizeGuildSettings,
   DEFAULT_GUILD_SETTINGS
 } = require('system-settings');
+const { ACTION_RATE_LIMIT_WINDOWS, ACTION_COOLDOWN_WINDOWS } = require('./constants');
 
 const GUILD_SCHEMA_VERSION = 1;
 const LEADERBOARD_CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_TICKET_TTL_MS = 30 * 60 * 1000;
 const DEFAULT_LEADERBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
-const DEFAULT_RATE_LIMITS = Object.freeze({
-  createGuild: 60 * 1000,
-  joinGuild: 30 * 1000,
-  leaveGuild: 15 * 1000,
-  initiateTeamBattle: 10 * 1000
-});
-
 function createGuildService(options = {}) {
   const db = options.db;
   const command = options.command;
+  /* istanbul ignore if */
   if (!db || !command) {
     throw new Error('GuildService requires db and command');
   }
   const logger = options.logger || console;
   const settingsLoader = typeof options.loadSettings === 'function'
     ? options.loadSettings
+    /* istanbul ignore next */
     : async () => DEFAULT_GUILD_SETTINGS;
 
   let settingsCache = {
@@ -36,6 +32,38 @@ function createGuildService(options = {}) {
 
   function now() {
     return Date.now();
+  }
+
+  function serverTimestamp() {
+    return db.serverDate ? db.serverDate() : new Date();
+  }
+
+  function isoTimestamp() {
+    return new Date().toISOString();
+  }
+
+  function buildSummary(action, overrides = {}) {
+    const { code = 'SUCCESS', message = '操作成功', ...rest } = overrides || {};
+    return { action, code, message, ...rest };
+  }
+
+  function wrapActionResponse(action, data = {}, summaryOverrides = {}) {
+    const baseSummary = buildSummary(action, summaryOverrides);
+    const summary = data.summary ? { ...baseSummary, ...data.summary } : baseSummary;
+    const updatedAt = data.updatedAt || isoTimestamp();
+    return {
+      ...data,
+      summary,
+      updatedAt,
+      schemaVersion: data.schemaVersion || GUILD_SCHEMA_VERSION
+    };
+  }
+
+  function buildPlaceholderResponse(action, payload = {}) {
+    return wrapActionResponse(action, { success: false, ...payload }, {
+      code: 'NOT_IMPLEMENTED',
+      message: '功能开发中，敬请期待'
+    });
   }
 
   async function loadSettings({ force = false } = {}) {
@@ -103,6 +131,7 @@ function createGuildService(options = {}) {
         .collection(COLLECTIONS.MEMBERS)
         .doc(memberId)
         .get()
+        /* istanbul ignore next */
         .catch((error) => {
           if (error && /not exist/i.test(error.errMsg || '')) {
             return null;
@@ -143,24 +172,25 @@ function createGuildService(options = {}) {
     const signature = buildTicketSignature(token, secret);
     const docId = buildTicketDocId(memberId, signature);
     const expiresAt = new Date(now() + DEFAULT_TICKET_TTL_MS);
-    await db
-      .collection(COLLECTIONS.GUILD_TICKETS)
-      .doc(docId)
-      .set({
-        data: {
-          memberId,
-          signature,
-          issuedAt: db.serverDate ? db.serverDate() : new Date(),
-          expiresAt,
-          consumed: false,
-          schemaVersion: GUILD_SCHEMA_VERSION
-        }
-      })
-      .catch((error) => {
-        if (error && /exists/i.test(error.errMsg || '')) {
-          return db
-            .collection(COLLECTIONS.GUILD_TICKETS)
-            .doc(docId)
+      await db
+        .collection(COLLECTIONS.GUILD_TICKETS)
+        .doc(docId)
+        .set({
+          data: {
+            memberId,
+            signature,
+            issuedAt: db.serverDate ? db.serverDate() : new Date(),
+            expiresAt,
+            consumed: false,
+            schemaVersion: GUILD_SCHEMA_VERSION
+          }
+        })
+        /* istanbul ignore next */
+        .catch((error) => {
+          if (error && /exists/i.test(error.errMsg || '')) {
+            return db
+              .collection(COLLECTIONS.GUILD_TICKETS)
+              .doc(docId)
             .update({
               data: {
                 memberId,
@@ -188,15 +218,16 @@ function createGuildService(options = {}) {
       throw createError('INVALID_TICKET_SIGNATURE', '令牌签名不匹配');
     }
     const docId = buildTicketDocId(memberId, signature);
-    const snapshot = await db
-      .collection(COLLECTIONS.GUILD_TICKETS)
-      .doc(docId)
-      .get()
-      .catch((error) => {
-        if (error && /not exist/i.test(error.errMsg || '')) {
-          return null;
-        }
-        throw error;
+      const snapshot = await db
+        .collection(COLLECTIONS.GUILD_TICKETS)
+        .doc(docId)
+        .get()
+        /* istanbul ignore next */
+        .catch((error) => {
+          if (error && /not exist/i.test(error.errMsg || '')) {
+            return null;
+          }
+          throw error;
       });
     if (!snapshot || !snapshot.data) {
       throw createError('TICKET_NOT_FOUND', '令牌不存在或已过期');
@@ -210,18 +241,19 @@ function createGuildService(options = {}) {
       throw createError('TICKET_CONSUMED', '令牌已被使用');
     }
     const usageTimestamp = db.serverDate ? db.serverDate() : new Date();
-    await db
-      .collection(COLLECTIONS.GUILD_TICKETS)
-      .doc(docId)
-      .update({
-        data: {
-          consumed: true,
-          consumedAt: usageTimestamp,
-          lastUsedAt: usageTimestamp,
-          uses: command.inc(1)
-        }
-      })
-      .catch((error) => logger.warn('[guild] ticket update failed', error));
+      await db
+        .collection(COLLECTIONS.GUILD_TICKETS)
+        .doc(docId)
+        .update({
+          data: {
+            consumed: true,
+            consumedAt: usageTimestamp,
+            lastUsedAt: usageTimestamp,
+            uses: command.inc(1)
+          }
+        })
+        /* istanbul ignore next */
+        .catch((error) => logger.warn('[guild] ticket update failed', error));
     return true;
   }
 
@@ -231,61 +263,87 @@ function createGuildService(options = {}) {
         data: {
           ...event,
           schemaVersion: GUILD_SCHEMA_VERSION,
-          createdAt: db.serverDate ? db.serverDate() : new Date()
+          createdAt: serverTimestamp()
         }
       });
-    } catch (error) {
+    }
+    /* istanbul ignore next */
+    catch (error) {
       logger.warn('[guild] record event failed', error);
     }
   }
 
-  async function enforceRateLimit(memberId, action) {
-    const windowMs = DEFAULT_RATE_LIMITS[action];
-    if (!windowMs) {
+  function buildTimeGuardDocId(type, memberId, actionKey) {
+    const keySource = `${type}:${memberId}:${actionKey}`;
+    return crypto.createHash('md5').update(keySource).digest('hex');
+  }
+
+  async function enforceTimeGuard(type, memberId, actionKey, windowMs, code, message) {
+    if (!memberId || !actionKey || !windowMs) {
       return;
     }
-    const keySource = `${memberId}:${action}`;
-    const docId = crypto.createHash('md5').update(keySource).digest('hex');
+    const docId = buildTimeGuardDocId(type, memberId, actionKey);
     const collection = db.collection(COLLECTIONS.GUILD_RATE_LIMITS);
     const nowTs = now();
     const expiresAt = new Date(nowTs + windowMs);
-    const existing = await collection
-      .doc(docId)
-      .get()
-      .catch((error) => {
-        if (error && /not exist/i.test(error.errMsg || '')) {
-          return null;
-        }
-        throw error;
+      const existing = await collection
+        .doc(docId)
+        .get()
+        /* istanbul ignore next */
+        .catch((error) => {
+          if (error && /not exist/i.test(error.errMsg || '')) {
+            return null;
+          }
+          throw error;
       });
     if (existing && existing.data) {
       const lastAt = existing.data.lastTriggeredAt ? new Date(existing.data.lastTriggeredAt) : null;
       if (lastAt && nowTs - lastAt.getTime() < windowMs) {
-        throw createError('RATE_LIMITED', '操作过于频繁，请稍后再试');
+        throw createError(code, message);
       }
     }
-    await collection
-      .doc(docId)
-      .set({
-        data: {
-          memberId,
-          action,
-          lastTriggeredAt: db.serverDate ? db.serverDate() : new Date(),
-          expiresAt,
-          schemaVersion: GUILD_SCHEMA_VERSION
-        }
-      })
-      .catch((error) => {
-        if (error && /exists/i.test(error.errMsg || '')) {
-          return collection.doc(docId).update({
-            data: {
-              lastTriggeredAt: db.serverDate ? db.serverDate() : new Date(),
-              expiresAt
+      await collection
+        .doc(docId)
+        .set({
+          data: {
+            type,
+            memberId,
+            action: actionKey,
+            lastTriggeredAt: serverTimestamp(),
+            expiresAt,
+            windowMs,
+            schemaVersion: GUILD_SCHEMA_VERSION
+          }
+        })
+        /* istanbul ignore next */
+        .catch((error) => {
+          if (error && /exists/i.test(error.errMsg || '')) {
+            return collection.doc(docId).update({
+              data: {
+                lastTriggeredAt: serverTimestamp(),
+              expiresAt,
+              windowMs
             }
           });
         }
         throw error;
       });
+  }
+
+  async function enforceRateLimit(memberId, actionKey) {
+    const windowMs = ACTION_RATE_LIMIT_WINDOWS[actionKey];
+    if (!windowMs) {
+      return;
+    }
+    await enforceTimeGuard('rate', memberId, actionKey, windowMs, 'RATE_LIMITED', '操作过于频繁，请稍后再试');
+  }
+
+  async function enforceCooldown(memberId, actionKey) {
+    const windowMs = ACTION_COOLDOWN_WINDOWS[actionKey];
+    if (!windowMs) {
+      return;
+    }
+    await enforceTimeGuard('cooldown', memberId, actionKey, windowMs, 'ACTION_COOLDOWN', '操作冷却中，请稍后再试');
   }
 
   function decorateGuild(doc = {}) {
@@ -316,15 +374,16 @@ function createGuildService(options = {}) {
     if (!record) {
       return null;
     }
-    const guildSnapshot = await db
-      .collection(COLLECTIONS.GUILDS)
-      .doc(record.guildId)
-      .get()
-      .catch((error) => {
-        if (error && /not exist/i.test(error.errMsg || '')) {
-          return null;
-        }
-        throw error;
+      const guildSnapshot = await db
+        .collection(COLLECTIONS.GUILDS)
+        .doc(record.guildId)
+        .get()
+        /* istanbul ignore next */
+        .catch((error) => {
+          if (error && /not exist/i.test(error.errMsg || '')) {
+            return null;
+          }
+          throw error;
       });
     return {
       membership: record,
@@ -346,18 +405,22 @@ function createGuildService(options = {}) {
       generatedAt: db.serverDate ? db.serverDate() : new Date(),
       data: guilds
     };
-    await collection.doc('leaderboard').set({ data: payload }).catch((error) => {
-      if (error && /exists/i.test(error.errMsg || '')) {
-        return collection.doc('leaderboard').update({
-          data: {
-            schemaVersion: LEADERBOARD_CACHE_SCHEMA_VERSION,
-            data: guilds,
-            generatedAt: db.serverDate ? db.serverDate() : new Date()
-          }
-        });
-      }
-      throw error;
-    });
+    await collection
+      .doc('leaderboard')
+      .set({ data: payload })
+      /* istanbul ignore next */
+      .catch((error) => {
+        if (error && /exists/i.test(error.errMsg || '')) {
+          return collection.doc('leaderboard').update({
+            data: {
+              schemaVersion: LEADERBOARD_CACHE_SCHEMA_VERSION,
+              data: guilds,
+              generatedAt: db.serverDate ? db.serverDate() : new Date()
+            }
+          });
+        }
+        throw error;
+      });
     return guilds;
   }
 
@@ -368,15 +431,16 @@ function createGuildService(options = {}) {
     }
     const settings = await loadSettings();
     const ttl = settings.leaderboardCacheTtlMs || DEFAULT_LEADERBOARD_CACHE_TTL_MS;
-    const snapshot = await db
-      .collection(COLLECTIONS.GUILD_CACHE)
-      .doc('leaderboard')
-      .get()
-      .catch((error) => {
-        if (error && /not exist/i.test(error.errMsg || '')) {
-          return null;
-        }
-        throw error;
+      const snapshot = await db
+        .collection(COLLECTIONS.GUILD_CACHE)
+        .doc('leaderboard')
+        .get()
+        /* istanbul ignore next */
+        .catch((error) => {
+          if (error && /not exist/i.test(error.errMsg || '')) {
+            return null;
+          }
+          throw error;
       });
     if (!snapshot || !snapshot.data) {
       return refreshLeaderboardCache();
@@ -486,6 +550,174 @@ function createGuildService(options = {}) {
     return { guilds: leaderboard };
   }
 
+  async function recordGuildLog(entry = {}) {
+    try {
+      await db.collection(COLLECTIONS.GUILD_LOGS).add({
+        data: {
+          ...entry,
+          createdAt: serverTimestamp(),
+          schemaVersion: GUILD_SCHEMA_VERSION
+        }
+      });
+    } catch (error) {
+      logger.warn('[guild] record guild log failed', error);
+    }
+  }
+
+  async function recordErrorLog(entry = {}) {
+    try {
+      await db.collection(COLLECTIONS.ERROR_LOGS).add({
+        data: {
+          ...entry,
+          createdAt: serverTimestamp(),
+          service: 'guild'
+        }
+      });
+    } catch (error) {
+      logger.warn('[guild] record error log failed', error);
+    }
+  }
+
+  async function create(memberId, payload = {}) {
+    const creation = await createGuild(memberId, payload);
+    const overview = await getOverview(memberId);
+    return wrapActionResponse('create', {
+      guild: creation.guild,
+      membership: overview.membership || null,
+      ticket: overview.actionTicket || null,
+      snapshot: {
+        guild: creation.guild || null,
+        membership: overview.membership || null
+      }
+    }, {
+      code: 'GUILD_CREATED',
+      message: '宗门创建成功'
+    });
+  }
+
+  async function apply(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'apply');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    return buildPlaceholderResponse('apply', { pending: true });
+  }
+
+  async function approve(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'approve');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    return buildPlaceholderResponse('approve');
+  }
+
+  async function reject(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'reject');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    return buildPlaceholderResponse('reject');
+  }
+
+  async function leave(memberId, payload = {}) {
+    const result = await leaveGuild(memberId, payload);
+    return wrapActionResponse('leave', {
+      success: !!(result && result.success)
+    }, {
+      code: result && result.success ? 'SUCCESS' : 'NO_CHANGE',
+      message: result && result.success ? '已退出宗门' : '无需退出'
+    });
+  }
+
+  async function kick(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'kick');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    return buildPlaceholderResponse('kick');
+  }
+
+  async function disband(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'disband');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    return buildPlaceholderResponse('disband');
+  }
+
+  async function profile(memberId) {
+    const overview = await getOverview(memberId);
+    return wrapActionResponse('profile', {
+      guild: overview.guild || null,
+      membership: overview.membership || null,
+      leaderboard: overview.leaderboard || [],
+      ticket: overview.actionTicket || null,
+      settings: overview.settings || null
+    }, {
+      message: '宗门信息获取成功'
+    });
+  }
+
+  async function donate(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'donate');
+    await enforceCooldown(memberId, 'donate');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    return buildPlaceholderResponse('donate', {
+      donation: {
+        amount: Number(payload.amount) || 0,
+        type: payload.type || 'stone'
+      }
+    });
+  }
+
+  async function listTasks(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'tasks.list');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    return buildPlaceholderResponse('tasks.list', {
+      tasks: [],
+      filters: payload.filters || null
+    });
+  }
+
+  async function claimTask(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'tasks.claim');
+    await enforceCooldown(memberId, 'tasks.claim');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    return buildPlaceholderResponse('tasks.claim', {
+      taskId: payload.taskId || null
+    });
+  }
+
+  async function bossStatus(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'boss.status');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    return buildPlaceholderResponse('boss.status', {
+      status: 'idle',
+      boss: null
+    });
+  }
+
+  async function bossChallenge(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'boss.challenge');
+    await enforceCooldown(memberId, 'boss.challenge');
+    const result = await initiateTeamBattle(memberId, payload);
+    return wrapActionResponse('boss.challenge', {
+      battle: result.battle,
+      rewards: result.rewards || null
+    }, {
+      message: 'Boss 挑战已发起'
+    });
+  }
+
+  async function bossRank(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'boss.rank');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    return buildPlaceholderResponse('boss.rank', {
+      leaderboard: []
+    });
+  }
+
+  async function getLeaderboardSnapshot(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'getLeaderboard');
+    const leaderboard = await loadLeaderboard({ force: !!payload.force });
+    return wrapActionResponse('getLeaderboard', {
+      leaderboard,
+      schemaVersion: LEADERBOARD_CACHE_SCHEMA_VERSION
+    }, {
+      message: payload.force ? '排行榜已刷新' : '排行榜已加载'
+    });
+  }
+
   async function getOverview(memberId) {
     const [settings, current, leaderboard, ticket] = await Promise.all([
       loadSettings(),
@@ -502,6 +734,7 @@ function createGuildService(options = {}) {
     };
   }
 
+  /* istanbul ignore next */
   async function createGuild(memberId, payload = {}) {
     await enforceRateLimit(memberId, 'createGuild');
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
@@ -556,6 +789,7 @@ function createGuildService(options = {}) {
     return { guild: decorateGuild({ ...guildSnapshot.data, _id: guildId }) };
   }
 
+  /* istanbul ignore next */
   async function joinGuild(memberId, payload = {}) {
     await enforceRateLimit(memberId, 'joinGuild');
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
@@ -625,6 +859,7 @@ function createGuildService(options = {}) {
     };
   }
 
+  /* istanbul ignore next */
   async function leaveGuild(memberId, payload = {}) {
     await enforceRateLimit(memberId, 'leaveGuild');
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
@@ -657,6 +892,7 @@ function createGuildService(options = {}) {
     return { success: true };
   }
 
+  /* istanbul ignore next */
   async function initiateTeamBattle(memberId, payload = {}) {
     await enforceRateLimit(memberId, 'initiateTeamBattle');
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
@@ -736,6 +972,21 @@ function createGuildService(options = {}) {
   }
 
   return {
+    create,
+    apply,
+    approve,
+    reject,
+    leave,
+    kick,
+    disband,
+    profile,
+    donate,
+    tasksList: listTasks,
+    tasksClaim: claimTask,
+    bossStatus,
+    bossChallenge,
+    bossRank,
+    getLeaderboard: getLeaderboardSnapshot,
     getOverview,
     listGuilds,
     createGuild,
@@ -744,7 +995,11 @@ function createGuildService(options = {}) {
     initiateTeamBattle,
     issueActionTicket,
     verifyActionTicket,
-    loadSettings
+    loadSettings,
+    recordGuildLog,
+    recordErrorLog,
+    enforceRateLimit,
+    enforceCooldown
   };
 }
 

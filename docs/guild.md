@@ -128,3 +128,29 @@
 - 缓存排行榜 `season_demo_2025` 与一条系统日志，方便验证读写权限。
 
 运行迁移后，可通过 `wx-server-sdk` 直接读取这些集合，验证索引和数据是否创建成功。回滚脚本会按顺序删除（或清空）相关集合，确保可以安全回退。
+
+## 错误码与风控
+
+云函数 `guild` 通过 `createError(code, message)` 返回标准错误码，便于前端与监控对齐。当前骨架阶段约定的错误码如下：
+
+| 错误码 | 说明 |
+| ------ | ---- |
+| `UNAUTHENTICATED` | 缺少身份信息，需要重新登录。|
+| `UNKNOWN_ACTION` | 未知操作，通常表示前端未同步最新版本。|
+| `RATE_LIMITED` | 操作频率过高，触发速率限制。|
+| `ACTION_COOLDOWN` | 操作处于冷却中，需要等待。|
+| `INVALID_SIGNATURE` | 签名校验失败。|
+| `INVALID_MEMBER` | 身份信息不合法。|
+| `INVALID_GUILD` | 目标宗门不存在或无效。|
+| `PERMISSION_DENIED` | 当前身份无权执行该操作。|
+| `NOT_IMPLEMENTED` | 功能占位符，后续迭代将补全逻辑。|
+| `GUILD_ACTION_FAILED` | 未分类的服务器内部错误。|
+
+### 冷却与限流配置
+
+速率限制与操作冷却统一集中在 `cloudfunctions/guild/constants.js`：
+
+- `ACTION_RATE_LIMIT_WINDOWS`：针对 `create`、`donate`、`boss.challenge` 等动作的最小间隔（毫秒）。
+- `ACTION_COOLDOWN_WINDOWS`：用于 `donate`、`tasks.claim`、`boss.challenge` 等需要防重入的冷却时间。
+
+如需调整风控策略，只需更新该文件并同步部署即可。

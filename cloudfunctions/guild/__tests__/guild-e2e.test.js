@@ -158,5 +158,8 @@ describe('GuildService E2E', () => {
     expect(battle.rewards).toHaveProperty('stones');
     const guilds = await service.listGuilds();
     expect(guilds.guilds.length).toBeGreaterThan(0);
+    const profile = await service.profile('alpha');
+    expect(profile.summary.action).toBe('profile');
+    expect(profile.guild.id).toBe(created.guild.id);
   });
 });
