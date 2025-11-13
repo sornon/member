@@ -59,11 +59,10 @@
    - `pvpInvites`
    - `guilds`
    - `guildMembers`
-   - `guildBattles`
-   - `guildCache`
-   - `guildEventLogs`
-   - `guildTickets`
-   - `guildRateLimits`
+   - `guildTasks`
+   - `guildBoss`
+   - `guildLeaderboard`
+   - `guildLogs`
    - `avatars`
    - `errorlogs`
 3. 在“云函数”面板中右键部署以下函数（需先安装依赖）：
@@ -89,7 +88,7 @@ cd cloudfunctions/member && npm install && cd -
 # 也可在微信开发者工具中右键「安装依赖」
 ```
 
-> 新增的宗门系统上线前，请先执行 `node scripts/guild-migrate.js --envId=<envId>` 创建所需集合与索引；如需回滚可运行 `node scripts/guild-rollback.js --envId=<envId> --force` 清理宗门相关数据。
+> 新增的宗门系统上线前，请在微信云函数控制台执行一次 `bootstrap` 云函数，并传入 `{ "action": "runMigration", "migration": "guild-init" }` 以创建集合、索引与示例数据；如需回滚可传入 `{ "action": "runMigration", "migration": "guild-rollback", "force": true }` 清理宗门相关集合。
 
 部署完成后，先执行一次 `bootstrap` 云函数，它会向数据库写入示例数据（等级、房间、任务等），便于演示及二次开发。
 
