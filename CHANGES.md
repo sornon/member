@@ -15,4 +15,5 @@
 - 完成公会 Boss 挑战的服务端模拟、阶段机制与战报持久化，新增 `cloudfunctions/guild/boss-definitions.js`、扩展 `guild-service` 及 `system-settings`，并补充确定性种子与并发写入单测。
 - 更新 `README.md` 与 `docs/guild.md`，补充 Boss 战斗流程、集合结构与部署说明。
 - 重构 `guildLeaderboard` 缓存：引入 `power`/`contribution`/`activity`/`boss` 多榜单缓存，合并宗主头像框与称号目录，返回 `myRank` 并在 schema 变更或 TTL 过期时自动重建；完善单元测试覆盖刷新逻辑。
+- 新增 `__tests__/guild/` 测试套件覆盖宗门创建、审批、捐献、任务领取、Boss 挑战、排行榜的成功/失败/边界场景，补充种子一致性、并发写入与端到端流程用例，并提供 `scripts/benchmarks/guild-boss-benchmark.js` 性能基准脚本。
 

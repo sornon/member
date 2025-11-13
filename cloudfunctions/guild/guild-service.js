@@ -2683,7 +2683,7 @@ function createGuildService(options = {}) {
   }
 
   async function bossChallenge(memberId, payload = {}) {
-    const membership = await loadMemberGuild(memberId);
+    let membership = await loadMemberGuild(memberId);
     if (!membership || !membership.guild) {
       throw createError('NOT_IN_GUILD', '请先加入宗门');
     }
@@ -2697,7 +2697,7 @@ function createGuildService(options = {}) {
     if (!bossSettings.enabled) {
       throw createError('BOSS_DISABLED', '宗门 Boss 系统已关闭');
     }
-    const membership = await loadMemberGuild(memberId);
+    membership = await loadMemberGuild(memberId);
     if (!membership || !membership.guild) {
       throw createError('NOT_IN_GUILD', '请先加入宗门');
     }
