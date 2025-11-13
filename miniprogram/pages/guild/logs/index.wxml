@@ -1,0 +1,29 @@
+<view class="logs-page">
+  <view wx:if="{{loading}}" class="state">宗门事件加载中...</view>
+  <view wx:elif="{{error}}" class="state state--error">{{error}}</view>
+  <scroll-view wx:else scroll-y class="logs-scroll" enable-flex="true">
+    <view wx:if="{{guild}}" class="logs-header">
+      <view class="logs-header__title">{{guild.name || '未命名宗门'}}</view>
+      <button class="btn btn--ghost" size="mini" bindtap="handleRefreshTicket">刷新令牌</button>
+    </view>
+
+    <view class="logs-list">
+      <view wx:if="{{logs.length === 0}}" class="empty">暂无宗门事件</view>
+      <block wx:else wx:for="{{logs}}" wx:key="_id">
+        <view class="log-item">
+          <view class="log-item__header">
+            <view class="log-item__type">{{item.type || '未知事件'}}</view>
+            <view class="log-item__time">{{item.createdAtText}}</view>
+          </view>
+          <view wx:if="{{item.actorName || item.actorId}}" class="log-item__actor">
+            触发者：{{item.actorName || item.actorId}}
+          </view>
+          <view wx:if="{{item.payloadText}}" class="log-item__payload">{{item.payloadText}}</view>
+        </view>
+      </block>
+      <view wx:if="{{pagination.hasMore}}" class="load-more">
+        <button class="btn btn--ghost" loading="{{fetching}}" disabled="{{fetching}}" bindtap="handleLoadMore">加载更多</button>
+      </view>
+    </view>
+  </scroll-view>
+</view>

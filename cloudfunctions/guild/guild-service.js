@@ -2123,6 +2123,30 @@ function createGuildService(options = {}) {
     });
   }
 
+  async function membersList(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'members.list');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    return buildPlaceholderResponse('members.list', {
+      members: [],
+      pagination: {
+        hasMore: false,
+        next: null
+      }
+    });
+  }
+
+  async function logsList(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'logs.list');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    return buildPlaceholderResponse('logs.list', {
+      logs: [],
+      pagination: {
+        hasMore: false,
+        next: null
+      }
+    });
+  }
+
   async function listTasks(memberId, payload = {}) {
     await enforceRateLimit(memberId, 'tasks.list');
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
@@ -2759,6 +2783,8 @@ function createGuildService(options = {}) {
     disband,
     profile,
     donate,
+    membersList,
+    logsList,
     tasksList: listTasks,
     tasksClaim: claimTask,
     bossStatus,

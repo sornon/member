@@ -1,0 +1,140 @@
+.members-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
+  color: #e2e8f0;
+}
+
+.members-scroll {
+  height: 100vh;
+  padding: 32rpx 32rpx 64rpx;
+  box-sizing: border-box;
+}
+
+.state {
+  text-align: center;
+  padding: 160rpx 40rpx;
+  font-size: 30rpx;
+  color: #cbd5f5;
+}
+
+.state--error {
+  color: #fca5a5;
+}
+
+.guild-summary {
+  background: rgba(15, 23, 42, 0.7);
+  border-radius: 28rpx;
+  padding: 32rpx;
+  margin-bottom: 32rpx;
+  box-shadow: 0 24rpx 36rpx rgba(2, 6, 23, 0.45);
+}
+
+.guild-summary__title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.guild-summary__meta {
+  margin-top: 16rpx;
+  display: flex;
+  gap: 24rpx;
+  font-size: 24rpx;
+  color: #94a3b8;
+}
+
+.guild-summary__role {
+  margin-top: 20rpx;
+  font-size: 26rpx;
+  color: #cbd5f5;
+}
+
+.members-list {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 28rpx;
+  padding: 12rpx 0;
+  box-shadow: 0 28rpx 36rpx rgba(2, 6, 23, 0.4);
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+  padding: 24rpx 32rpx;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.member-item:last-child {
+  border-bottom: none;
+}
+
+.member-avatar {
+  position: relative;
+  width: 104rpx;
+  height: 104rpx;
+}
+
+.member-avatar__image {
+  width: 104rpx;
+  height: 104rpx;
+  border-radius: 24rpx;
+}
+
+.member-avatar__frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 104rpx;
+  height: 104rpx;
+  pointer-events: none;
+}
+
+.member-body {
+  flex: 1;
+}
+
+.member-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.member-meta {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #a5b4fc;
+}
+
+.btn {
+  border: none;
+  border-radius: 999rpx;
+  background: rgba(59, 130, 246, 0.2);
+  color: #bfdbfe;
+  padding: 0 32rpx;
+  height: 68rpx;
+  line-height: 68rpx;
+  font-size: 24rpx;
+}
+
+.btn--ghost {
+  background: rgba(59, 130, 246, 0.18);
+  color: #cbd5f5;
+}
+
+.btn--small {
+  height: 60rpx;
+  line-height: 60rpx;
+  padding: 0 24rpx;
+}
+
+.empty {
+  padding: 48rpx 24rpx;
+  text-align: center;
+  font-size: 26rpx;
+  color: #94a3b8;
+}
+
+.load-more {
+  padding: 24rpx 32rpx 40rpx;
+  text-align: center;
+}
