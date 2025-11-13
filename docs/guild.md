@@ -1,88 +1,130 @@
-# 宗门系统与团队玩法设计说明
+# 宗门系统数据结构与迁移指南
 
-> 适用于仓库 `sornon/member` 的新增宗门玩法，覆盖云函数、数据库、前端页面、部署脚本、监控与回滚能力。所有接口均遵循 `cloudfunctions/pvp/index.js` 的返回结构与错误处理风格。
+本节梳理宗门（公会）系统的基础数据模型、索引、示例数据，以及如何通过 `bootstrap` 云函数完成迁移与回滚。
 
-## 功能概览
+## 数据结构
 
-- **宗门大厅**：成员可查看当前宗门、热门宗门排行榜与入门引导，界面位于 `miniprogram/pages/guild/index`。
-- **宗门创建与加入**：通过 `guild` 云函数的 `createGuild`、`joinGuild` 动作完成，需持有一次性令牌（MD5 签名），并带有速率限制防止刷库。
-- **团队讨伐玩法**：`initiateTeamBattle` 将根据宗门成员战力生成固定随机种子的战斗回放（`battle-schema`），所有结算在服务端完成，返回 MD5 签名的战斗结果与奖励。
-- **前后台打通**：管理员可沿用既有 `admin-proxy` 能力审计操作，事件流水写入 `guildEventLogs` 便于运维排查。
+所有集合均位于 CloudBase，集合名称统一维护在 `common-config` 的 `COLLECTIONS` 常量内。
 
-## 数据库设计
+### `guilds`
 
-所有集合均位于 CloudBase，首次部署请执行 `scripts/guild-migrate.js --envId=<envId>` 自动创建集合与索引，集合结构如下：
-
-| 集合 | 说明 | 主要索引 |
+| 字段 | 类型 | 说明 |
 | ---- | ---- | ---- |
-| `guilds` | 宗门档案，含名称、宣言、图标、成员数、战力等 | `power:-1`、`memberCount:-1` |
-| `guildMembers` | 宗门成员与角色、战力、加入状态 | `guildId:1,status:1`、`memberId:1` |
-| `guildBattles` | 团队讨伐战斗记录及签名 | `guildId:1,createdAt:-1` |
-| `guildCache` | 高频读取缓存（排行榜等），含 `schemaVersion` | `schemaVersion:1` |
-| `guildEventLogs` | 行为审计与监控日志 | `guildId:1,createdAt:-1` |
-| `guildTickets` | 一次性操作令牌，含 MD5 签名与过期时间 | `signature:1 (unique)`、`memberId:1` |
-| `guildRateLimits` | 速率限制窗口，避免刷操作 | `action:1,memberId:1` |
+| `_id` | `string` | 宗门唯一 ID。示例：`guild_demo_crane` |
+| `name` | `string` | 宗门名称，建立唯一索引与文本索引用于模糊搜索。|
+| `badge` | `string` | 云存储徽章资源标识。|
+| `level` | `number` | 宗门等级。|
+| `notice` | `string` | 宣言 / 公告。|
+| `leaderId` | `string` | 宗主成员 ID。|
+| `officerIds` | `string[]` | 长老 / 副宗主 ID 列表。|
+| `memberCount` | `number` | 当前成员数。|
+| `capacity` | `number` | 成员上限。|
+| `exp` | `number` | 宗门经验。|
+| `tech` | `object` | 科研/加成配置，结构由服务端自定义。|
+| `createdAt` | `Date` | 创建时间。|
+| `updatedAt` | `Date` | 最近更新时间。|
 
-> **回滚提示**：如需彻底清理宗门数据，可执行 `scripts/guild-rollback.js --envId=<envId> --force` 将上述集合清空。
+**索引**：`name`（唯一）、`name`（文本检索）、`leaderId`。
 
-## 云函数接口
+### `guildMembers`
 
-`cloudfunctions/guild/index.js` 暴露以下动作，所有返回都包含结构化错误码：
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | `string` | 文档 ID，推荐拼接 `guildId` 与 `memberId`。|
+| `guildId` | `string` | 归属宗门。|
+| `memberId` | `string` | 会员 ID。|
+| `role` | `'leader' / 'officer' / 'member'` | 成员角色。|
+| `contributionTotal` | `number` | 历史贡献。|
+| `contributionWeek` | `number` | 本周贡献（降序索引）。|
+| `activity` | `number` | 活跃度评分。|
+| `joinedAt` | `Date` | 加入时间。|
+| `updatedAt` | `Date` | 最近更新时间。|
 
-| 动作 | 描述 |
-| ---- | ---- |
-| `overview` | 返回当前宗门、成员信息、排行榜、操作令牌与配置（含 `teamBattle` 参数）。|
-| `listGuilds` | 读取缓存化的排行榜列表，若缓存失效则自动刷新。|
-| `createGuild` | 校验令牌与速率后创建宗门并写入成员记录，仅允许单宗门。|
-| `joinGuild` | 复用令牌机制加入宗门，支持重复加入恢复。|
-| `leaveGuild` | 成员退出宗门，自动扣减人数（宗主需走后台转让）。|
-| `initiateTeamBattle` | 依据队伍成员战力生成固定随机种子的战斗回放，并写入战斗历史、刷新排行榜。|
-| `refreshTicket` | 手动刷新一次性令牌，前端用于二次提交。|
+**索引**：`guildId + role`、`memberId`、`contributionWeek`（降序）。
 
-### 安全策略
+### `guildTasks`
 
-- **令牌与签名**：`overview` 返回随机令牌，经服务器以 `md5(ticket:secret)` 签名后落库。所有敏感操作需携带令牌 + 签名，服务器校验并记录使用次数。
-- **速率限制**：`guildRateLimits` 记录操作时间窗口，超限触发 `RATE_LIMITED` 错误码。
-- **战斗签名**：团队讨伐生成的 `battle` 结果通过 `signBattlePayload` (MD5) 标记，前端只展示不可篡改的回放。
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | `string` | 任务文档 ID。|
+| `guildId` | `string` | 任务所属宗门。|
+| `taskId` | `string` | 模板/任务编号。|
+| `type` | `string` | 任务类型（试炼、捐献等）。|
+| `title` | `string` | 任务标题。|
+| `goal` | `object` | 目标描述，示例 `{ type: 'defeat', target: 15 }`。|
+| `progress` | `object` | 当前进度，示例 `{ current: 12, target: 15 }`。|
+| `reward` | `object` | 奖励结算数据。|
+| `status` | `'open' / 'closed'` | 状态。|
+| `startAt` | `Date` | 开始时间。|
+| `endAt` | `Date` | 结束时间。|
+| `updatedAt` | `Date` | 最近更新时间。|
 
-## 前端改动
+**索引**：`guildId + status`、`endAt`。
 
-- `miniprogram/services/api.js` 新增 `GuildService`，所有小程序调用统一走 `wx.cloud.callFunction('guild')`。
-- `app.json` 注册宗门相关页面：
-  - `pages/guild/index/index`：宗门大厅与排行榜
-  - `pages/guild/create/index`：创建宗门表单
-  - `pages/guild/detail/index`：宗门详情与加入
-  - `pages/guild/team/index`：团队讨伐入口
-- 页面样式采用与 PVP 相同的深色渐变风格，按钮遵循现有配色与圆角规范。
+### `guildBoss`
 
-## 运维与监控
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | `string` | 活动文档 ID。|
+| `guildId` | `string` | 宗门 ID。|
+| `bossId` | `string` | Boss 模板 ID。|
+| `level` | `number` | Boss 等级。|
+| `hpMax` | `number` | Boss 总血量。|
+| `hpLeft` | `number` | 剩余血量。|
+| `phase` | `number` | 阶段。|
+| `refreshedAt` | `Date` | 刷新时间。|
+| `endsAt` | `Date` | 结束时间。|
+| `status` | `'idle' / 'open' / 'ended'` | 战斗状态。|
+| `leaderboard` | `{ memberId: string, damage: number }[]` | 伤害榜。|
 
-- `guildEventLogs` 存储所有关键行为，字段包括 `type`、`guildId`、`actorId`、`details`、`createdAt`，便于快速检索。
-- 每次战斗、创建、加入操作均落地日志，同时刷新排行榜缓存，满足可观测需求。
-- 错误与告警沿用通用 `errorlogs` 机制，前端调用失败会自动写入。
+**索引**：`guildId`、`status`、`endsAt`。
 
-## 部署步骤
+### `guildLeaderboard`
 
-1. **安装依赖**：在仓库根目录执行 `npm install`（安装 Jest 依赖）。
-2. **初始化数据库**：运行 `node scripts/guild-migrate.js --envId=<envId>` 创建集合及索引。
-3. **部署云函数**：微信开发者工具或 CI 执行 `cloudfunctions/guild` 目录的依赖安装与上传。
-4. **更新前端**：上传 `miniprogram` 目录，确保新页面已列入 `app.json`。
-5. **配置系统参数**：在 `systemSettings` 集合 `feature_toggles` 文档新增/更新 `guildSettings`（可修改 `maxMembers`、`secret`、`teamBattle` 等）。
+缓存集合，结构与 `pvpLeaderboard` 对齐。
 
-## 测试
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | `string` | 赛季 / 缓存键。|
+| `entries` | `object[]` | 排行条目，内容由服务端定义。|
+| `updatedAt` | `Date` | 缓存更新时间。|
+| `schemaVersion` | `number` | 缓存结构版本号。|
 
-- 单元测试：`npm test` 将执行 `cloudfunctions/guild/__tests__` 下的用例，覆盖率约 80%（>70% 要求）。
-- 关键路径 E2E：`guild-e2e.test.js` 模拟从建宗到讨伐的完整流程，验证令牌、战斗签名、奖励计算。
+**索引**：`schemaVersion`（额外保证结构变更可快速查询）。
 
-## 回滚方案
+### `guildLogs`
 
-- 前端回滚：重新发布旧版本小程序代码。
-- 后端回滚：使用 Git 回退版本并重新部署云函数；如需清理数据，运行 `scripts/guild-rollback.js --envId=<envId> --force`。
-- 设置回滚后，重新运行 `scripts/guild-migrate.js` 可恢复空集合结构。
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | `string` | 日志文档 ID。|
+| `guildId` | `string` | 宗门 ID。|
+| `type` | `string` | 日志类型，例如 `system`、`activity`。|
+| `actorId` | `string` | 触发人 ID。|
+| `payload` | `object` | 详情 JSON。|
+| `createdAt` | `Date` | 记录时间。|
 
-## 自检清单
+**索引**：`guildId + createdAt(desc)`。
 
-- [x] 云函数单元测试与 E2E 用例通过（`npm test`）。
-- [x] 新增集合具备索引与迁移、回滚脚本。
-- [x] 前端页面接入统一服务层，UI 与 PVP 风格一致。
-- [x] 文档覆盖部署、监控、回滚、测试说明。
+## 迁移与回滚
+
+迁移脚本位于 `cloudfunctions/bootstrap/migrations/`：
+
+- `2025-01-guild-init.js`：创建集合与索引，并写入示例宗门、成员、任务、Boss、排行榜与日志。
+- `2025-01-guild-rollback.js`：支持 `dry-run`（默认）或强制删除，移除上述集合。
+
+运行方式：
+
+1. 在微信云函数控制台或 CI 中执行 `bootstrap` 云函数。
+2. 传入 `{ "action": "runMigration", "migration": "guild-init" }` 触发初始化迁移。
+3. 若需回滚，传入 `{ "action": "runMigration", "migration": "guild-rollback", "force": true }`；不传 `force` 时默认为 dry-run，仅输出计划。
+
+## 示例数据
+
+迁移会生成以下示例：
+
+- 宗门 **云鹤仙宗**（`guild_demo_crane`），含 1 名宗主、1 名长老与 1 名成员。
+- 两个任务模板：灵木守护试炼、灵石捐献周任务。
+- 当前 Boss `ancient_spirit_tree`，带有示例伤害榜。
+- 缓存排行榜 `season_demo_2025` 与一条系统日志，方便验证读写权限。
+
+运行迁移后，可通过 `wx-server-sdk` 直接读取这些集合，验证索引和数据是否创建成功。回滚脚本会按顺序删除（或清空）相关集合，确保可以安全回退。
