@@ -1,0 +1,60 @@
+.team-page {
+  padding: 40rpx;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #020617 0%, #1e3a8a 100%);
+  color: #f8fafc;
+}
+.selector {
+  background: rgba(30, 64, 175, 0.4);
+  border-radius: 24rpx;
+  padding: 24rpx;
+  margin-bottom: 32rpx;
+}
+.label {
+  font-size: 28rpx;
+  color: #bfdbfe;
+}
+.picker-value {
+  margin-top: 12rpx;
+  font-size: 32rpx;
+}
+.start {
+  background: linear-gradient(90deg, #f97316 0%, #ef4444 100%);
+  color: #0f172a;
+  border-radius: 999rpx;
+}
+.battle-result {
+  margin-top: 40rpx;
+  background: rgba(15, 23, 42, 0.7);
+  border-radius: 24rpx;
+  padding: 28rpx;
+  box-shadow: 0 24rpx 40rpx rgba(15, 23, 42, 0.3);
+}
+.result-title {
+  font-size: 34rpx;
+  font-weight: 600;
+}
+.result-meta {
+  display: block;
+  margin-top: 8rpx;
+  color: #94a3b8;
+  font-size: 24rpx;
+}
+.timeline {
+  margin-top: 24rpx;
+}
+.round {
+  font-weight: 500;
+  margin-bottom: 12rpx;
+  color: #facc15;
+}
+.action {
+  font-size: 26rpx;
+  margin-bottom: 8rpx;
+  color: #e0f2fe;
+}
+.rewards {
+  margin-top: 24rpx;
+  font-size: 28rpx;
+  color: #bbf7d0;
+}

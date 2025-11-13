@@ -1,0 +1,40 @@
+<view class="guild-page">
+  <view wx:if="{{loading}}" class="loading">正在加载宗门数据...</view>
+  <view wx:elif="{{error}}" class="error">{{error}}</view>
+  <view wx:else>
+    <view class="current-guild" wx:if="{{guild}}">
+      <view class="guild-header">
+        <image wx:if="{{guild.icon}}" class="guild-icon" src="{{guild.icon}}" mode="aspectFill" />
+        <view class="guild-info">
+          <text class="guild-name">{{guild.name}}</text>
+          <text class="guild-manifesto">{{guild.manifesto || '暂无宗门宣言'}}</text>
+          <text class="guild-meta">成员：{{guild.memberCount}} | 战力：{{guild.power}}</text>
+        </view>
+      </view>
+      <view class="guild-actions">
+        <button class="primary" bindtap="handleTeamBattle">发起团队讨伐</button>
+        <button class="secondary" bindtap="handleManageGuild">宗门管理</button>
+      </view>
+    </view>
+    <view class="empty-guild" wx:else>
+      <text class="empty-text">尚未加入任何宗门，立即创建或加入吧！</text>
+      <view class="guild-actions">
+        <button class="primary" bindtap="handleCreateGuild">创建宗门</button>
+      </view>
+    </view>
+    <view class="leaderboard">
+      <view class="section-title">热门宗门排行榜</view>
+      <view wx:if="{{leaderboard.length === 0}}" class="empty-text">暂无宗门，成为第一位宗主吧！</view>
+      <block wx:for="{{leaderboard}}" wx:key="id">
+        <view class="leaderboard-item">
+          <view class="leaderboard-rank">{{index + 1}}</view>
+          <view class="leaderboard-body">
+            <text class="leaderboard-name">{{item.name}}</text>
+            <text class="leaderboard-meta">成员：{{item.memberCount}} 战力：{{item.power}}</text>
+          </view>
+          <button class="join" data-id="{{item.id}}" bindtap="handleViewGuild">查看</button>
+        </view>
+      </block>
+    </view>
+  </view>
+</view>

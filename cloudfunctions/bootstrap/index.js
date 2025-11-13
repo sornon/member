@@ -12,8 +12,45 @@ const {
   membershipRights
 } = require('common-config'); //云函数公共模块，维护在目录cloudfunctions/nodejs-layer/node_modules/common-config
 const { DEFAULT_HOME_ENTRIES } = require('system-settings');
+const runGuildInitMigration = require('./migrations/2025-01-guild-init');
+const runGuildRollbackMigration = require('./migrations/2025-01-guild-rollback');
 
-exports.main = async () => {
+function createLogger() {
+  return {
+    info: (...args) => console.log('[bootstrap]', ...args),
+    warn: (...args) => console.warn('[bootstrap]', ...args),
+    error: (...args) => console.error('[bootstrap]', ...args)
+  };
+}
+
+function resolveDryRunFlag(event = {}) {
+  if (typeof event.dryRun === 'boolean') {
+    return event.dryRun;
+  }
+  if (event.force === true) {
+    return false;
+  }
+  return true;
+}
+
+exports.main = async (event = {}) => {
+  const logger = createLogger();
+  const context = { db, logger };
+
+  if (event && event.action === 'runMigration') {
+    if (event.migration === 'guild-init') {
+      const result = await runGuildInitMigration(context);
+      return { success: true, migration: result };
+    }
+    if (event.migration === 'guild-rollback') {
+      const dryRun = resolveDryRunFlag(event);
+      const result = await runGuildRollbackMigration({ ...context, dryRun });
+      return { success: true, migration: result };
+    }
+  }
+
+  const guildMigrationResult = await runGuildInitMigration(context);
+
   await Promise.all([
     ensureCollection(COLLECTIONS.CHARGE_ORDERS),
     ensureCollection(COLLECTIONS.ERROR_LOGS),
@@ -36,7 +73,7 @@ exports.main = async () => {
   await seedSystemSettings();
   await seedActivities();
 
-  return { success: true };
+  return { success: true, migrations: { guild: guildMigrationResult } };
 };
 
 async function ensureCollection(name) {

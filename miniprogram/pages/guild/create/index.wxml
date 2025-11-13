@@ -1,0 +1,15 @@
+<view class="create-page">
+  <view class="form-item">
+    <text class="label">宗门名称</text>
+    <input class="input" placeholder="请输入宗门名称" value="{{name}}" bindinput="handleNameInput" />
+  </view>
+  <view class="form-item">
+    <text class="label">宗门宣言</text>
+    <textarea class="textarea" placeholder="请输入宗门宣言" value="{{manifesto}}" bindinput="handleManifestoInput" />
+  </view>
+  <view class="form-item">
+    <text class="label">徽章链接（可选）</text>
+    <input class="input" placeholder="请输入图片链接" value="{{icon}}" bindinput="handleIconInput" />
+  </view>
+  <button class="submit" loading="{{submitting}}" bindtap="handleSubmit">创建宗门</button>
+</view>

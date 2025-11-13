@@ -1,0 +1,32 @@
+.create-page {
+  padding: 40rpx;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #020617 0%, #111827 100%);
+  color: #e2e8f0;
+}
+.form-item {
+  margin-bottom: 32rpx;
+}
+.label {
+  display: block;
+  font-size: 28rpx;
+  margin-bottom: 12rpx;
+}
+.input,
+.textarea {
+  width: 100%;
+  background: rgba(30, 41, 59, 0.6);
+  border-radius: 16rpx;
+  padding: 20rpx;
+  color: #f8fafc;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+.textarea {
+  min-height: 160rpx;
+}
+.submit {
+  margin-top: 40rpx;
+  background: linear-gradient(90deg, #34d399 0%, #10b981 100%);
+  color: #022c22;
+  border-radius: 999rpx;
+}
