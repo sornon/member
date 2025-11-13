@@ -13,6 +13,7 @@
 - **虚拟形象（Avatar）**：QQ 秀风格的装扮系统，等级与任务可解锁服饰并分享展示。
 - **秘境 PVE 玩法**：构建属性、装备、技能抽卡与副本战斗体系，提供持续的成长与掉落激励。
 - **竞技 PVP 玩法**：天梯积分、好友对战、邀战分享、赛季结算奖励与排行榜，帮助会员展开实时竞争并形成社交传播（详见 [PVP 说明](docs/pvp.md)）。
+- **宗门社交与团队讨伐**：新增宗门（公会）系统，支持创建/加入宗门、排行榜缓存与团队讨伐玩法，详情见 [宗门系统](docs/guild.md)。
 - **仙缘档案编辑**：会员可自助修改道号、性别与头像，支持改名次数管控及改名卡补充次数。
 
 ## 技术栈
@@ -56,6 +57,13 @@
    - `pvpMatches`
    - `pvpLeaderboard`
    - `pvpInvites`
+   - `guilds`
+   - `guildMembers`
+   - `guildBattles`
+   - `guildCache`
+   - `guildEventLogs`
+   - `guildTickets`
+   - `guildRateLimits`
    - `avatars`
    - `errorlogs`
 3. 在“云函数”面板中右键部署以下函数（需先安装依赖）：
@@ -65,6 +73,7 @@
    - `reservation`
    - `wallet`
    - `avatar`
+   - `guild`
    - `activities`
    - `admin`（若已部署请重新上传以获取最新活动管理接口）
 
@@ -79,6 +88,8 @@ npm install -g miniprogram-ci # 可选，用于 CI/CD
 cd cloudfunctions/member && npm install && cd -
 # 也可在微信开发者工具中右键「安装依赖」
 ```
+
+> 新增的宗门系统上线前，请先执行 `node scripts/guild-migrate.js --envId=<envId>` 创建所需集合与索引；如需回滚可运行 `node scripts/guild-rollback.js --envId=<envId> --force` 清理宗门相关数据。
 
 部署完成后，先执行一次 `bootstrap` 云函数，它会向数据库写入示例数据（等级、房间、任务等），便于演示及二次开发。
 

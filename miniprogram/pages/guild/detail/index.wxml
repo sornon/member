@@ -1,0 +1,17 @@
+<view class="detail-page">
+  <view wx:if="{{loading}}" class="loading">加载中...</view>
+  <view wx:elif="{{error}}" class="error">{{error}}</view>
+  <view wx:else>
+    <view class="card">
+      <view class="card-header">
+        <image wx:if="{{guild.icon}}" class="icon" src="{{guild.icon}}" mode="aspectFill" />
+        <view class="info">
+          <text class="name">{{guild.name}}</text>
+          <text class="meta">成员：{{guild.memberCount}} | 战力：{{guild.power}}</text>
+        </view>
+      </view>
+      <view class="manifesto">{{guild.manifesto || '这位宗主还没有留下宣言。'}}</view>
+    </view>
+    <button class="join" loading="{{joining}}" bindtap="handleJoin">加入宗门</button>
+  </view>
+</view>
