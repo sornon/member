@@ -19,14 +19,39 @@ function createMemoryDb() {
       return { __op: 'in', values };
     }
   };
+  function resolvePath(container, path, { create = false } = {}) {
+    const segments = path.split('.');
+    let current = container;
+    for (let i = 0; i < segments.length - 1; i += 1) {
+      const segment = segments[i];
+      if (current[segment] === undefined) {
+        if (!create) {
+          return { parent: current, key: segments[segments.length - 1], exists: false };
+        }
+        current[segment] = {};
+      }
+      if (typeof current[segment] !== 'object' || current[segment] === null) {
+        if (!create) {
+          return { parent: current, key: segments[segments.length - 1], exists: false };
+        }
+        current[segment] = {};
+      }
+      current = current[segment];
+    }
+    const key = segments[segments.length - 1];
+    const exists = Object.prototype.hasOwnProperty.call(current, key);
+    return { parent: current, key, exists };
+  }
+
   function applyUpdate(target, updates) {
-    Object.keys(updates).forEach((key) => {
-      const value = updates[key];
+    Object.keys(updates).forEach((path) => {
+      const value = updates[path];
+      const { parent, key } = resolvePath(target, path, { create: true });
       if (value && typeof value === 'object' && value.__op === 'inc') {
-        const base = Number(target[key]) || 0;
-        target[key] = base + Number(value.value || 0);
+        const baseValue = Number(parent[key]) || 0;
+        parent[key] = baseValue + Number(value.value || 0);
       } else {
-        target[key] = value;
+        parent[key] = value;
       }
     });
   }
@@ -127,6 +152,39 @@ function createMemoryDb() {
   };
 }
 
+function createSampleMember(memberId, overrides = {}) {
+  return {
+    _id: memberId,
+    nickName: overrides.nickName || `成员-${memberId}`,
+    pveProfile: {
+      attributeSummary: {
+        combatPower: overrides.combatPower || 3200,
+        finalStats: {
+          maxHp: 6800,
+          physicalAttack: 420,
+          magicAttack: 360,
+          physicalDefense: 280,
+          magicDefense: 260,
+          speed: 185,
+          accuracy: 160,
+          dodge: 90,
+          critRate: 0.18,
+          critDamage: 1.62,
+          finalDamageBonus: 0.12,
+          finalDamageReduction: 0.08
+        }
+      },
+      skills: {
+        equipped: overrides.skills || [
+          { id: 'sword_breaking_clouds', level: 24 },
+          { id: 'spell_burning_burst', level: 22 },
+          { id: 'spell_frost_bolt', level: 20 }
+        ]
+      }
+    }
+  };
+}
+
 describe('GuildService', () => {
   let db;
   let service;
@@ -139,7 +197,14 @@ describe('GuildService', () => {
         enabled: true,
         maxMembers: 30,
         secret: 'test-secret',
-        teamBattle: { baseEnemyPower: 150 }
+        teamBattle: { baseEnemyPower: 150 },
+        boss: {
+          enabled: true,
+          dailyAttempts: 5,
+          cooldownMs: 500,
+          maxRounds: 12,
+          rotation: [{ bossId: 'ancient_spirit_tree', level: 60 }]
+        }
       })
     });
   });
@@ -325,6 +390,10 @@ describe('GuildService', () => {
   });
 
   test('boss.challenge action enforces cooldown and wraps battle result', async () => {
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc('leader-boss')
+      .set({ data: createSampleMember('leader-boss') });
     const ticket = await service.issueActionTicket('leader-boss');
     const createResult = await service.createGuild('leader-boss', {
       name: '凌霄殿',
@@ -341,6 +410,10 @@ describe('GuildService', () => {
     });
     expect(challenge.summary.action).toBe('boss.challenge');
     expect(challenge.battle).toBeTruthy();
+    expect(challenge.battle.signature).toBeTruthy();
+    expect(challenge.boss).toBeTruthy();
+    expect(Array.isArray(challenge.damage)).toBe(true);
+    expect(challenge.damage[0].memberId).toBe('leader-boss');
     const secondTicket = await service.issueActionTicket('leader-boss');
     await expect(
       service.bossChallenge('leader-boss', {
@@ -349,8 +422,105 @@ describe('GuildService', () => {
         members: ['leader-boss'],
         difficulty: 1
       })
-    ).rejects.toMatchObject({ code: expect.stringMatching(/ACTION_COOLDOWN|RATE_LIMITED/) });
+    ).rejects.toMatchObject({ code: expect.stringMatching(/ACTION_COOLDOWN|BOSS_COOLDOWN|RATE_LIMITED/) });
     expect(createResult.guild.id).toBeTruthy();
+  });
+
+  test('boss challenge with identical seed produces deterministic timeline', async () => {
+    async function runWithSeed(seed) {
+      const localDb = createMemoryDb();
+      const localService = createGuildService({
+        db: localDb,
+        command: localDb.command,
+        loadSettings: async () => ({
+          enabled: true,
+          maxMembers: 30,
+          secret: 'test-secret',
+          teamBattle: { baseEnemyPower: 150 },
+          boss: {
+            enabled: true,
+            dailyAttempts: 5,
+            cooldownMs: 0,
+            maxRounds: 12,
+            rotation: [{ bossId: 'ancient_spirit_tree', level: 60 }]
+          }
+        })
+      });
+      await localDb
+        .collection(COLLECTIONS.MEMBERS)
+        .doc('deterministic')
+        .set({ data: createSampleMember('deterministic') });
+      const ticket = await localService.issueActionTicket('deterministic');
+      await localService.createGuild('deterministic', {
+        name: '定序宗',
+        ticket: ticket.ticket,
+        signature: ticket.signature,
+        powerRating: 3000
+      });
+      const challengeTicket = await localService.issueActionTicket('deterministic');
+      return localService.bossChallenge('deterministic', {
+        ticket: challengeTicket.ticket,
+        signature: challengeTicket.signature,
+        party: ['deterministic'],
+        seed
+      });
+    }
+    const first = await runWithSeed('fixed-seed');
+    const second = await runWithSeed('fixed-seed');
+    expect(second.battle.signature).toBe(first.battle.signature);
+    expect(second.battle.timeline).toEqual(first.battle.timeline);
+  });
+
+  test('concurrent boss challenges aggregate damage safely', async () => {
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc('leader-alpha')
+      .set({ data: createSampleMember('leader-alpha') });
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc('ally-beta')
+      .set({ data: createSampleMember('ally-beta', { nickName: 'Beta' }) });
+    const leaderTicket = await service.issueActionTicket('leader-alpha');
+    const createResult = await service.createGuild('leader-alpha', {
+      name: '星辉宗',
+      ticket: leaderTicket.ticket,
+      signature: leaderTicket.signature,
+      powerRating: 3200
+    });
+    const joinTicket = await service.issueActionTicket('ally-beta');
+    await service.joinGuild('ally-beta', {
+      guildId: createResult.guild.id,
+      ticket: joinTicket.ticket,
+      signature: joinTicket.signature,
+      powerRating: 2800
+    });
+    const [alphaTicket, betaTicket] = await Promise.all([
+      service.issueActionTicket('leader-alpha'),
+      service.issueActionTicket('ally-beta')
+    ]);
+    const [alphaResult, betaResult] = await Promise.all([
+      service.bossChallenge('leader-alpha', {
+        ticket: alphaTicket.ticket,
+        signature: alphaTicket.signature,
+        party: ['leader-alpha'],
+        seed: 'seed-alpha'
+      }),
+      service.bossChallenge('ally-beta', {
+        ticket: betaTicket.ticket,
+        signature: betaTicket.signature,
+        party: ['ally-beta'],
+        seed: 'seed-beta'
+      })
+    ]);
+    const totalDamage = alphaResult.damage.reduce((acc, entry) => acc + entry.damage, 0) +
+      betaResult.damage.reduce((acc, entry) => acc + entry.damage, 0);
+    const statusTicket = await service.issueActionTicket('leader-alpha');
+    const status = await service.bossStatus('leader-alpha', {
+      ticket: statusTicket.ticket,
+      signature: statusTicket.signature
+    });
+    expect(status.boss.totalDamage).toBeGreaterThanOrEqual(totalDamage);
+    expect(status.boss.leaderboard.length).toBeGreaterThanOrEqual(2);
   });
 
   test('placeholder actions return NOT_IMPLEMENTED summary', async () => {
