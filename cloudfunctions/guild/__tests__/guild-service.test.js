@@ -1,5 +1,7 @@
 const { COLLECTIONS } = require('common-config');
+const crypto = require('crypto');
 const { createGuildService } = require('../guild-service');
+const { ERROR_CODES } = require('../error-codes');
 
 function createMemoryDb() {
   const collections = new Map();
@@ -136,9 +138,15 @@ describe('GuildService', () => {
       loadSettings: async () => ({
         enabled: true,
         maxMembers: 30,
-        secret: 'test-secret'
+        secret: 'test-secret',
+        teamBattle: { baseEnemyPower: 150 }
       })
     });
+  });
+
+  test('error code table exposes canonical identifiers', () => {
+    expect(ERROR_CODES.UNKNOWN_ACTION).toBe('UNKNOWN_ACTION');
+    expect(ERROR_CODES.NOT_IMPLEMENTED).toBe('NOT_IMPLEMENTED');
   });
 
   test('issues action ticket and creates guild', async () => {
@@ -194,6 +202,55 @@ describe('GuildService', () => {
     ).rejects.toHaveProperty('code', 'TICKET_CONSUMED');
   });
 
+  test('ticket issuance handles duplicate document gracefully', async () => {
+    const spy = jest
+      .spyOn(crypto, 'randomBytes')
+      .mockReturnValue(Buffer.from('1234567890abcdef1234567890abcdef', 'hex'));
+    const first = await service.issueActionTicket('member-dup');
+    const second = await service.issueActionTicket('member-dup');
+    expect(second.signature).toBe(first.signature);
+    spy.mockRestore();
+  });
+
+  test('verifyActionTicket validates payload combinations', async () => {
+    await expect(service.verifyActionTicket('member-x', '', '')).rejects.toHaveProperty('code', 'INVALID_TICKET');
+    const ticket = await service.issueActionTicket('member-y');
+    await expect(
+      service.verifyActionTicket('member-y', ticket.ticket, 'wrong-signature')
+    ).rejects.toHaveProperty('code', 'INVALID_TICKET_SIGNATURE');
+    const secretSignature = crypto
+      .createHash('md5')
+      .update(`ghost:test-secret`)
+      .digest('hex');
+    await expect(
+      service.verifyActionTicket('member-y', 'ghost', secretSignature)
+    ).rejects.toHaveProperty('code', 'TICKET_NOT_FOUND');
+    const expirySignature = crypto
+      .createHash('md5')
+      .update(`member-expired:test-secret`)
+      .digest('hex');
+    const expiresAt = new Date(Date.now() - 60 * 1000);
+    const docId = `ticket_${crypto
+      .createHash('md5')
+      .update(`member-expired:${expirySignature}`)
+      .digest('hex')}`;
+    await db
+      .collection(COLLECTIONS.GUILD_TICKETS)
+      .doc(docId)
+      .set({
+        data: {
+          memberId: 'member-expired',
+          signature: expirySignature,
+          expiresAt,
+          consumed: false,
+          schemaVersion: 1
+        }
+      });
+    await expect(
+      service.verifyActionTicket('member-expired', 'member-expired', expirySignature)
+    ).rejects.toHaveProperty('code', 'TICKET_EXPIRED');
+  });
+
   test('join guild derives member power from stored profile', async () => {
     const leaderTicket = await service.issueActionTicket('leader');
     const guildResult = await service.createGuild('leader', {
@@ -241,5 +298,137 @@ describe('GuildService', () => {
         signature: ticket.signature
       })
     ).rejects.toHaveProperty('code', 'RATE_LIMITED');
+  });
+
+  test('createGuild rejects invalid names', async () => {
+    const ticket = await service.issueActionTicket('invalid-name');
+    await expect(
+      service.createGuild('invalid-name', {
+        name: 123,
+        ticket: ticket.ticket,
+        signature: ticket.signature
+      })
+    ).rejects.toHaveProperty('code', 'INVALID_NAME');
+  });
+
+  test('create action wrapper returns summary payload', async () => {
+    const ticket = await service.issueActionTicket('wrapper-1');
+    const result = await service.create('wrapper-1', {
+      name: '幻星宗',
+      ticket: ticket.ticket,
+      signature: ticket.signature
+    });
+    expect(result.summary.action).toBe('create');
+    expect(result.summary.code).toBe('GUILD_CREATED');
+    expect(result.guild).toBeTruthy();
+    expect(result.snapshot.guild).toBeTruthy();
+  });
+
+  test('boss.challenge action enforces cooldown and wraps battle result', async () => {
+    const ticket = await service.issueActionTicket('leader-boss');
+    const createResult = await service.createGuild('leader-boss', {
+      name: '凌霄殿',
+      ticket: ticket.ticket,
+      signature: ticket.signature,
+      powerRating: 2600
+    });
+    const challengeTicket = await service.issueActionTicket('leader-boss');
+    const challenge = await service.bossChallenge('leader-boss', {
+      ticket: challengeTicket.ticket,
+      signature: challengeTicket.signature,
+      members: ['leader-boss'],
+      difficulty: 1
+    });
+    expect(challenge.summary.action).toBe('boss.challenge');
+    expect(challenge.battle).toBeTruthy();
+    const secondTicket = await service.issueActionTicket('leader-boss');
+    await expect(
+      service.bossChallenge('leader-boss', {
+        ticket: secondTicket.ticket,
+        signature: secondTicket.signature,
+        members: ['leader-boss'],
+        difficulty: 1
+      })
+    ).rejects.toMatchObject({ code: expect.stringMatching(/ACTION_COOLDOWN|RATE_LIMITED/) });
+    expect(createResult.guild.id).toBeTruthy();
+  });
+
+  test('placeholder actions return NOT_IMPLEMENTED summary', async () => {
+    const ticket = await service.issueActionTicket('placeholder');
+    const donateResult = await service.donate('placeholder', {
+      ticket: ticket.ticket,
+      signature: ticket.signature,
+      amount: 10
+    });
+    expect(donateResult.summary.code).toBe('NOT_IMPLEMENTED');
+    const tasksTicket = await service.issueActionTicket('placeholder');
+    const taskResult = await service.tasksClaim('placeholder', {
+      ticket: tasksTicket.ticket,
+      signature: tasksTicket.signature,
+      taskId: 'task_demo'
+    });
+    expect(taskResult.summary.code).toBe('NOT_IMPLEMENTED');
+  });
+
+  test('management placeholder actions reuse ticket guards', async () => {
+    const applyTicket = await service.issueActionTicket('manager');
+    const applyResult = await service.apply('manager', {
+      ticket: applyTicket.ticket,
+      signature: applyTicket.signature
+    });
+    expect(applyResult.summary.code).toBe('NOT_IMPLEMENTED');
+    const approveTicket = await service.issueActionTicket('manager');
+    const approveResult = await service.approve('manager', {
+      ticket: approveTicket.ticket,
+      signature: approveTicket.signature
+    });
+    expect(approveResult.summary.code).toBe('NOT_IMPLEMENTED');
+    const rejectTicket = await service.issueActionTicket('manager');
+    const rejectResult = await service.reject('manager', {
+      ticket: rejectTicket.ticket,
+      signature: rejectTicket.signature
+    });
+    expect(rejectResult.summary.code).toBe('NOT_IMPLEMENTED');
+    const kickTicket = await service.issueActionTicket('manager');
+    const kickResult = await service.kick('manager', {
+      ticket: kickTicket.ticket,
+      signature: kickTicket.signature
+    });
+    expect(kickResult.summary.code).toBe('NOT_IMPLEMENTED');
+    const disbandTicket = await service.issueActionTicket('manager');
+    const disbandResult = await service.disband('manager', {
+      ticket: disbandTicket.ticket,
+      signature: disbandTicket.signature
+    });
+    expect(disbandResult.summary.code).toBe('NOT_IMPLEMENTED');
+  });
+
+  test('status and leaderboard helpers return structured responses', async () => {
+    const leaderTicket = await service.issueActionTicket('leader-status');
+    await service.createGuild('leader-status', {
+      name: '星罗阁',
+      ticket: leaderTicket.ticket,
+      signature: leaderTicket.signature,
+      powerRating: 1800
+    });
+    const statusTicket = await service.issueActionTicket('leader-status');
+    const status = await service.bossStatus('leader-status', {
+      ticket: statusTicket.ticket,
+      signature: statusTicket.signature
+    });
+    expect(status.summary.action).toBe('boss.status');
+    const leaderboard = await service.getLeaderboard('leader-status', { force: true });
+    expect(leaderboard.summary.action).toBe('getLeaderboard');
+    expect(Array.isArray(leaderboard.leaderboard)).toBe(true);
+  });
+
+  test('logging helpers write without throwing', async () => {
+    await expect(
+      service.recordGuildLog({ action: 'unit.test', actorId: 'alpha', summary: { action: 'unit.test' } })
+    ).resolves.toBeUndefined();
+    await expect(
+      service.recordErrorLog({ action: 'unit.test', actorId: 'alpha', code: 'TEST', message: 'demo' })
+    ).resolves.toBeUndefined();
+    await expect(service.enforceCooldown('cooldown-test', 'boss.challenge')).resolves.toBeUndefined();
   });
 });

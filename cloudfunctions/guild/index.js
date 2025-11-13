@@ -1,4 +1,5 @@
 const cloud = require('wx-server-sdk');
+const crypto = require('crypto');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -14,6 +15,7 @@ const {
   createError,
   GUILD_SCHEMA_VERSION
 } = require('./guild-service');
+const { ERROR_CODES } = require('./error-codes');
 
 const db = cloud.database();
 const _ = db.command;
@@ -23,12 +25,47 @@ const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'guild' });
 const REQUIRED_GUILD_COLLECTIONS = [
   COLLECTIONS.GUILDS,
   COLLECTIONS.GUILD_MEMBERS,
+  COLLECTIONS.GUILD_TASKS,
+  COLLECTIONS.GUILD_BOSS,
+  COLLECTIONS.GUILD_LEADERBOARD,
+  COLLECTIONS.GUILD_LOGS,
   COLLECTIONS.GUILD_BATTLES,
   COLLECTIONS.GUILD_CACHE,
   COLLECTIONS.GUILD_EVENT_LOGS,
   COLLECTIONS.GUILD_TICKETS,
-  COLLECTIONS.GUILD_RATE_LIMITS
+  COLLECTIONS.GUILD_RATE_LIMITS,
+  COLLECTIONS.ERROR_LOGS
 ];
+
+const ACTION_HANDLER_MAP = Object.freeze({
+  create: 'create',
+  apply: 'apply',
+  approve: 'approve',
+  reject: 'reject',
+  leave: 'leave',
+  kick: 'kick',
+  disband: 'disband',
+  profile: 'profile',
+  donate: 'donate',
+  'tasks.list': 'tasksList',
+  'tasks.claim': 'tasksClaim',
+  'boss.status': 'bossStatus',
+  'boss.challenge': 'bossChallenge',
+  'boss.rank': 'bossRank',
+  getLeaderboard: 'getLeaderboard',
+  overview: 'profile',
+  listGuilds: 'listGuilds',
+  createGuild: 'createGuild',
+  joinGuild: 'joinGuild',
+  leaveGuild: 'leaveGuild',
+  initiateTeamBattle: 'initiateTeamBattle'
+});
+
+const CUSTOM_ACTIONS = Object.freeze({
+  refreshTicket: async (service, actorId) => ({
+    actionTicket: await service.issueActionTicket(actorId)
+  })
+});
 
 let collectionsReady = false;
 let ensuringCollectionsPromise = null;
@@ -144,42 +181,150 @@ function normalizeMemberId(value) {
   return value.trim();
 }
 
+function resolveOptionalActorId(defaultMemberId, event = {}) {
+  const fromEvent = normalizeMemberId(event.actorId || event.memberId);
+  const fromContext = normalizeMemberId(defaultMemberId);
+  return fromEvent || fromContext || null;
+}
+
+function resolveActorId(defaultMemberId, event = {}) {
+  const resolved = resolveOptionalActorId(defaultMemberId, event);
+  if (!resolved) {
+    throw createError(ERROR_CODES.UNAUTHENTICATED, '缺少身份信息，请重新登录');
+  }
+  return resolved;
+}
+
+function normalizeActionName(value) {
+  if (typeof value !== 'string') {
+    return 'profile';
+  }
+  const trimmed = value.trim();
+  return trimmed || 'profile';
+}
+
+function buildSummary(action, overrides = {}) {
+  const { code = 'SUCCESS', message = '操作成功', ...rest } = overrides || {};
+  return { action, code, message, ...rest };
+}
+
+function ensureResponseShape(action, result) {
+  const payload = result && typeof result === 'object' ? { ...result } : {};
+  const summary = payload.summary
+    ? { ...buildSummary(action), ...payload.summary }
+    : buildSummary(action);
+  const updatedAt = payload.updatedAt || new Date().toISOString();
+  if (!payload.schemaVersion) {
+    payload.schemaVersion = GUILD_SCHEMA_VERSION;
+  }
+  return { ...payload, summary, updatedAt };
+}
+
+function sanitizeEventForLog(event = {}) {
+  const clone = { ...event };
+  if (typeof clone.ticket === 'string') {
+    clone.ticket = `ticket:${crypto.createHash('md5').update(clone.ticket).digest('hex').slice(0, 6)}`;
+  }
+  if (typeof clone.signature === 'string') {
+    clone.signature = `${clone.signature.slice(0, 6)}...`;
+  }
+  return clone;
+}
+
+function sanitizeResultForLog(result = {}) {
+  if (!result || typeof result !== 'object') {
+    return {};
+  }
+  const { summary, updatedAt, guild, membership } = result;
+  return {
+    summary,
+    updatedAt,
+    guild: guild ? { id: guild.id, name: guild.name } : null,
+    membership: membership ? { guildId: membership.guildId, role: membership.role } : null
+  };
+}
+
+function resolveGuildIdFromResult(result, event = {}) {
+  if (result && result.guild && result.guild.id) {
+    return result.guild.id;
+  }
+  if (result && result.membership && result.membership.guildId) {
+    return result.membership.guildId;
+  }
+  if (event && event.guildId) {
+    return event.guildId;
+  }
+  return null;
+}
+
+async function recordSuccessLog(service, action, actorId, event, result) {
+  const guildId = resolveGuildIdFromResult(result, event);
+  const entry = {
+    action,
+    actorId,
+    guildId,
+    summary: result.summary || buildSummary(action),
+    result: sanitizeResultForLog(result),
+    event: sanitizeEventForLog(event)
+  };
+  await service.recordGuildLog(entry);
+}
+
+async function recordErrorLog(service, action, actorId, event, error, openid) {
+  const entry = {
+    action,
+    actorId,
+    openid,
+    code: error && (error.errCode || error.code) ? error.errCode || error.code : ERROR_CODES.INTERNAL_ERROR,
+    message: error && error.message ? error.message : '未知错误',
+    stack: error && error.stack ? error.stack : '',
+    event: sanitizeEventForLog(event)
+  };
+  await service.recordErrorLog(entry);
+}
+
+function resolveActionHandler(service, action) {
+  if (CUSTOM_ACTIONS[action]) {
+    return async (actorId, event, context) => CUSTOM_ACTIONS[action](service, actorId, event, context);
+  }
+  const method = ACTION_HANDLER_MAP[action];
+  if (!method) {
+    return null;
+  }
+  if (typeof service[method] !== 'function') {
+    return null;
+  }
+  return async (actorId, event, context) => service[method](actorId, event, context);
+}
+
 exports.main = async (event = {}, context = {}) => {
   const service = getGuildService();
   const { OPENID } = cloud.getWXContext();
-  const action = typeof event.action === 'string' ? event.action.trim() : 'overview';
+  const normalizedAction = normalizeActionName(event.action);
   const { memberId: proxyMemberId, proxySession } = await proxyHelpers.resolveProxyContext(OPENID);
-  const actorId = normalizeMemberId(event.memberId || event.actorId || proxyMemberId || OPENID);
-  if (!actorId) {
-    throw createError('UNAUTHENTICATED', '缺少身份信息，请重新登录');
-  }
+  const actorId = resolveActorId(proxyMemberId || OPENID, event);
   if (proxySession) {
-    await proxyHelpers.recordProxyAction(proxySession, OPENID, action, event || {});
+    await proxyHelpers.recordProxyAction(proxySession, OPENID, normalizedAction, event || {});
   }
   await ensureGuildCollections();
   try {
-    switch (action) {
-      case 'overview':
-        return service.getOverview(actorId, event);
-      case 'listGuilds':
-        return service.listGuilds(actorId, event);
-      case 'createGuild':
-        return service.createGuild(actorId, event);
-      case 'joinGuild':
-        return service.joinGuild(actorId, event);
-      case 'leaveGuild':
-        return service.leaveGuild(actorId, event);
-      case 'initiateTeamBattle':
-        return service.initiateTeamBattle(actorId, event);
-      case 'refreshTicket':
-        return { actionTicket: await service.issueActionTicket(actorId) };
-      default:
-        throw createError('UNKNOWN_ACTION', `未知操作：${action}`);
+    const handler = resolveActionHandler(service, normalizedAction);
+    if (!handler) {
+      throw createError(ERROR_CODES.UNKNOWN_ACTION, `未知操作：${normalizedAction}`);
     }
+    const rawResult = await handler(actorId, event, { context, openid: OPENID });
+    const result = ensureResponseShape(normalizedAction, rawResult);
+    await recordSuccessLog(service, normalizedAction, actorId, event, result);
+    return result;
   } catch (error) {
-    console.error('[guild] action failed', action, error);
+    console.error('[guild] action failed', normalizedAction, error);
+    try {
+      await recordErrorLog(service, normalizedAction, actorId, event, error, OPENID);
+    } catch (logError) {
+      console.warn('[guild] error log failed', logError);
+    }
     if (!error || !error.errCode) {
-      throw createError('GUILD_ACTION_FAILED', error && error.message ? error.message : '宗门系统异常');
+      throw createError(ERROR_CODES.INTERNAL_ERROR, error && error.message ? error.message : '宗门系统异常');
     }
     throw error;
   }
