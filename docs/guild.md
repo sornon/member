@@ -117,6 +117,8 @@
 | `updatedAt` | `Date` | 缓存更新时间。|
 | `schemaVersion` | `number` | 缓存结构版本号。|
 
+`_id` 与榜单类型一一对应，当前支持 `power`、`contribution`、`activity` 与 `boss` 四种榜单。`entries` 中的每条记录都包含宗门标识 (`guildId`/`id`)、名称、成员数、战力、活跃度、累计贡献、Boss 总伤害，以及 `metricType`/`metricValue` 描述的排名指标，同时合并了宗主的头像框、称号 (`titleId`、`titleName`、`titleCatalog`) 与头像地址，便于前端直接展示。缓存在 `schemaVersion` 变更或超过 TTL 时会自动重建，刷新失败会回退至最近一次成功快照。
+
 **索引**：`schemaVersion`（额外保证结构变更可快速查询）。
 
 ### `guildLogs`

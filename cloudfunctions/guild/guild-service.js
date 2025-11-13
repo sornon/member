@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { COLLECTIONS } = require('common-config');
+const { COLLECTIONS, normalizeAvatarFrameValue, pickPortraitUrl } = require('common-config');
 const {
   clamp,
   resolveCombatStats,
@@ -36,6 +36,10 @@ const GUILD_SCHEMA_VERSION = 1;
 const LEADERBOARD_CACHE_SCHEMA_VERSION = 1;
 const DEFAULT_TICKET_TTL_MS = 30 * 60 * 1000;
 const DEFAULT_LEADERBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
+const GUILD_LEADERBOARD_CACHE_SIZE = 200;
+const DEFAULT_LEADERBOARD_LIMIT = 50;
+const DEFAULT_LEADERBOARD_TYPE = 'power';
+const GUILD_LEADERBOARD_TYPES = Object.freeze(['power', 'contribution', 'activity', 'boss']);
 function createGuildService(options = {}) {
   const db = options.db;
   const command = options.command;
@@ -415,66 +419,32 @@ function createGuildService(options = {}) {
     };
   }
 
-  async function refreshLeaderboardCache() {
-    const collection = db.collection(COLLECTIONS.GUILD_CACHE);
-    const leaderboardSnapshot = await db
-      .collection(COLLECTIONS.GUILDS)
-      .orderBy('power', 'desc')
-      .limit(20)
-      .get();
-    const guilds = (leaderboardSnapshot.data || []).map((item) => decorateGuild(item));
-    const payload = {
-      _id: 'leaderboard',
-      schemaVersion: LEADERBOARD_CACHE_SCHEMA_VERSION,
-      generatedAt: db.serverDate ? db.serverDate() : new Date(),
-      data: guilds
-    };
-    await collection
-      .doc('leaderboard')
-      .set({ data: payload })
-      /* istanbul ignore next */
-      .catch((error) => {
-        if (error && /exists/i.test(error.errMsg || '')) {
-          return collection.doc('leaderboard').update({
-            data: {
-              schemaVersion: LEADERBOARD_CACHE_SCHEMA_VERSION,
-              data: guilds,
-              generatedAt: db.serverDate ? db.serverDate() : new Date()
-            }
-          });
+  async function refreshLeaderboardCache(types = GUILD_LEADERBOARD_TYPES) {
+    const targetTypes = Array.isArray(types) && types.length ? types.map(resolveLeaderboardType) : GUILD_LEADERBOARD_TYPES;
+    let fallbackEntries = [];
+    for (let i = 0; i < targetTypes.length; i += 1) {
+      const type = targetTypes[i];
+      try {
+        const snapshot = await updateGuildLeaderboardCache(type, { limit: GUILD_LEADERBOARD_CACHE_SIZE });
+        if (!fallbackEntries.length && snapshot && Array.isArray(snapshot.entries)) {
+          fallbackEntries = snapshot.entries.slice(0, DEFAULT_LEADERBOARD_LIMIT);
         }
-        throw error;
-      });
-    return guilds;
+      } catch (error) {
+        logger.warn('[guild] refresh leaderboard cache failed', { type, error });
+      }
+    }
+    return fallbackEntries;
   }
 
   async function loadLeaderboard(options = {}) {
-    const { force = false } = options;
-    if (force) {
-      return refreshLeaderboardCache();
-    }
-    const settings = await loadSettings();
-    const ttl = settings.leaderboardCacheTtlMs || DEFAULT_LEADERBOARD_CACHE_TTL_MS;
-      const snapshot = await db
-        .collection(COLLECTIONS.GUILD_CACHE)
-        .doc('leaderboard')
-        .get()
-        /* istanbul ignore next */
-        .catch((error) => {
-          if (error && /not exist/i.test(error.errMsg || '')) {
-            return null;
-          }
-          throw error;
-      });
-    if (!snapshot || !snapshot.data) {
-      return refreshLeaderboardCache();
-    }
-    const doc = snapshot.data;
-    const generatedAt = doc.generatedAt ? new Date(doc.generatedAt) : null;
-    if (doc.schemaVersion !== LEADERBOARD_CACHE_SCHEMA_VERSION || (generatedAt && now() - generatedAt.getTime() > ttl)) {
-      return refreshLeaderboardCache();
-    }
-    return Array.isArray(doc.data) ? doc.data : [];
+    const { force = false, type = DEFAULT_LEADERBOARD_TYPE, limit = 20 } = options;
+    const effectiveLimit = clampLeaderboardLimit(limit);
+    const snapshot = await loadLeaderboardSnapshot({
+      type,
+      limit: GUILD_LEADERBOARD_CACHE_SIZE,
+      forceRefresh: force
+    });
+    return snapshot.entries.slice(0, effectiveLimit);
   }
 
   function resolveBattleSeed(guildId, difficulty, timestamp = now()) {
@@ -578,6 +548,563 @@ function createGuildService(options = {}) {
       return '';
     }
     return value.trim();
+  }
+
+  function looksLikeUrl(value) {
+    const trimmed = toTrimmedString(value);
+    if (!trimmed) {
+      return false;
+    }
+    return (
+      /^https?:\/\//.test(trimmed) ||
+      trimmed.startsWith('cloud://') ||
+      trimmed.startsWith('/') ||
+      trimmed.startsWith('wxfile://')
+    );
+  }
+
+  function resolveAvatarFrameValue(...candidates) {
+    for (let i = 0; i < candidates.length; i += 1) {
+      const candidate = toTrimmedString(candidates[i]);
+      if (!candidate) {
+        continue;
+      }
+      const normalized = normalizeAvatarFrameValue(candidate);
+      if (normalized) {
+        return normalized;
+      }
+      if (looksLikeUrl(candidate)) {
+        return candidate;
+      }
+    }
+    return '';
+  }
+
+  function normalizeTitleId(value) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+    const trimmed = value.trim();
+    return trimmed;
+  }
+
+  function normalizeTitleCatalogEntry(entry) {
+    if (!entry || typeof entry !== 'object') {
+      return null;
+    }
+    const id = normalizeTitleId(entry.id);
+    if (!id) {
+      return null;
+    }
+    const name = typeof entry.name === 'string' && entry.name.trim() ? entry.name.trim() : id;
+    const imageFile =
+      typeof entry.imageFile === 'string' && entry.imageFile.trim()
+        ? entry.imageFile.trim()
+        : id;
+    return { id, name, imageFile };
+  }
+
+  function normalizeTitleCatalog(list = []) {
+    const seen = new Set();
+    const normalizedList = [];
+    (Array.isArray(list) ? list : []).forEach((item) => {
+      const normalized = normalizeTitleCatalogEntry(item);
+      if (!normalized || seen.has(normalized.id)) {
+        return;
+      }
+      seen.add(normalized.id);
+      normalizedList.push(normalized);
+    });
+    return normalizedList;
+  }
+
+  function normalizeMemberId(memberId) {
+    if (typeof memberId === 'string' && memberId.trim()) {
+      return memberId.trim();
+    }
+    return '';
+  }
+
+  function normalizeId(value) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+    return '';
+  }
+
+  function clampLeaderboardLimit(limit) {
+    if (!Number.isFinite(Number(limit))) {
+      return DEFAULT_LEADERBOARD_LIMIT;
+    }
+    const numeric = Math.floor(Number(limit));
+    if (!Number.isFinite(numeric)) {
+      return DEFAULT_LEADERBOARD_LIMIT;
+    }
+    const bounded = Math.max(1, numeric);
+    return Math.min(bounded, GUILD_LEADERBOARD_CACHE_SIZE);
+  }
+
+  function resolveLeaderboardType(type) {
+    const value = typeof type === 'string' && type.trim() ? type.trim().toLowerCase() : DEFAULT_LEADERBOARD_TYPE;
+    if (GUILD_LEADERBOARD_TYPES.includes(value)) {
+      return value;
+    }
+    return DEFAULT_LEADERBOARD_TYPE;
+  }
+
+  async function loadDocumentsByIds(collectionName, ids = []) {
+    const normalizedIds = Array.from(
+      new Set(
+        (Array.isArray(ids) ? ids : [])
+          .map((id) => normalizeId(id))
+          .filter(Boolean)
+      )
+    );
+    if (!normalizedIds.length) {
+      return new Map();
+    }
+    const batchSize = 20;
+    const tasks = [];
+    for (let i = 0; i < normalizedIds.length; i += batchSize) {
+      const chunk = normalizedIds.slice(i, i + batchSize);
+      tasks.push(
+        db
+          .collection(collectionName)
+          .where({ _id: command.in(chunk) })
+          .limit(chunk.length)
+          .get()
+          .then((snapshot) => (snapshot && snapshot.data ? snapshot.data : []))
+          .catch((error) => {
+            logger.warn(`[guild] load ${collectionName} failed`, error);
+            return [];
+          })
+      );
+    }
+    const documents = (await Promise.all(tasks)).flat();
+    const map = new Map();
+    documents.forEach((doc) => {
+      const id = normalizeId(doc._id || doc.id);
+      if (id) {
+        map.set(id, doc);
+      }
+    });
+    return map;
+  }
+
+  function guildLeaderboardSnapshotNeedsRefresh(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') {
+      return true;
+    }
+    if (snapshot.schemaVersion !== LEADERBOARD_CACHE_SCHEMA_VERSION) {
+      return true;
+    }
+    if (!Array.isArray(snapshot.entries)) {
+      return true;
+    }
+    return snapshot.entries.some((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return true;
+      }
+      if (!('titleCatalog' in entry) || !Array.isArray(entry.titleCatalog)) {
+        return true;
+      }
+      if (!('avatarFrame' in entry)) {
+        return true;
+      }
+      if (!('guildId' in entry) || !entry.guildId) {
+        return true;
+      }
+      if (!('metricType' in entry)) {
+        return true;
+      }
+      return false;
+    });
+  }
+
+  function extractMemberContribution(doc = {}) {
+    const direct = Number(doc.contribution);
+    if (Number.isFinite(direct)) {
+      return Math.max(0, Math.round(direct));
+    }
+    const total = Number(doc.contributionTotal);
+    if (Number.isFinite(total)) {
+      return Math.max(0, Math.round(total));
+    }
+    const weekly = Number(doc.contributionWeek);
+    if (Number.isFinite(weekly)) {
+      return Math.max(0, Math.round(weekly));
+    }
+    return 0;
+  }
+
+  async function loadGuildContributionTotals() {
+    const snapshot = await db
+      .collection(COLLECTIONS.GUILD_MEMBERS)
+      .where({ status: 'active' })
+      .get()
+      .catch(() => ({ data: [] }));
+    const totals = new Map();
+    const docs = snapshot && snapshot.data ? snapshot.data : [];
+    docs.forEach((doc) => {
+      const guildId = normalizeId(doc.guildId);
+      if (!guildId) {
+        return;
+      }
+      const contribution = extractMemberContribution(doc);
+      if (!Number.isFinite(contribution)) {
+        return;
+      }
+      const current = totals.get(guildId) || 0;
+      totals.set(guildId, current + contribution);
+    });
+    return totals;
+  }
+
+  async function loadGuildBossTotals() {
+    const snapshot = await db
+      .collection(COLLECTIONS.GUILD_BOSS)
+      .get()
+      .catch(() => ({ data: [] }));
+    const docs = snapshot && snapshot.data ? snapshot.data : [];
+    const map = new Map();
+    docs.forEach((doc) => {
+      const guildId = normalizeId(doc.guildId);
+      if (!guildId) {
+        return;
+      }
+      const totalDamage = Math.max(0, Math.round(Number(doc.totalDamage || 0)));
+      const bossId = toTrimmedString(doc.bossId);
+      const existing = map.get(guildId);
+      if (!existing || totalDamage > existing.totalDamage) {
+        map.set(guildId, { totalDamage, bossId });
+      }
+    });
+    return map;
+  }
+
+  async function loadGuildLeaderRecords(guildIds = []) {
+    const normalizedIds = Array.from(
+      new Set((Array.isArray(guildIds) ? guildIds : []).map((id) => normalizeId(id)).filter(Boolean))
+    );
+    if (!normalizedIds.length) {
+      return new Map();
+    }
+    const snapshot = await db
+      .collection(COLLECTIONS.GUILD_MEMBERS)
+      .where({ guildId: command.in(normalizedIds), role: 'leader', status: 'active' })
+      .limit(normalizedIds.length)
+      .get()
+      .catch(() => ({ data: [] }));
+    const docs = snapshot && snapshot.data ? snapshot.data : [];
+    const map = new Map();
+    docs.forEach((doc) => {
+      const guildId = normalizeId(doc.guildId);
+      if (!guildId || map.has(guildId)) {
+        return;
+      }
+      map.set(guildId, {
+        guildId,
+        memberId: normalizeMemberId(doc.memberId),
+        displayName: toTrimmedString(doc.displayName || doc.nickName || ''),
+        avatarUrl: toTrimmedString(doc.avatarUrl || ''),
+        avatarFrame: toTrimmedString(doc.avatarFrame || doc.appearanceFrame || ''),
+        titleCatalog: Array.isArray(doc.titleCatalog) ? doc.titleCatalog : [],
+        titleId: normalizeTitleId(doc.titleId || doc.appearanceTitle || ''),
+        titleName: toTrimmedString(doc.titleName || doc.appearanceTitleName || '')
+      });
+    });
+    return map;
+  }
+
+  async function buildGuildLeaderboardEntries(type, limit) {
+    const normalizedType = resolveLeaderboardType(type);
+    const effectiveLimit = clampLeaderboardLimit(limit);
+    const [contributionTotals, bossTotals] = await Promise.all([
+      loadGuildContributionTotals().catch(() => new Map()),
+      loadGuildBossTotals().catch(() => new Map())
+    ]);
+    let baseEntries = [];
+    if (normalizedType === 'power' || normalizedType === 'activity') {
+      const orderField = normalizedType === 'power' ? 'power' : 'activityScore';
+      const snapshot = await db
+        .collection(COLLECTIONS.GUILDS)
+        .orderBy(orderField, 'desc')
+        .limit(effectiveLimit)
+        .get()
+        .catch(() => ({ data: [] }));
+      const docs = snapshot && snapshot.data ? snapshot.data : [];
+      baseEntries = docs.map((doc) => ({
+        guild: doc,
+        metricValue: Math.max(0, Math.round(Number(doc[orderField] || 0))),
+        bossInfo: bossTotals.get(normalizeId(doc._id || doc.id)) || { totalDamage: 0, bossId: '' }
+      }));
+    } else if (normalizedType === 'contribution') {
+      const snapshot = await db
+        .collection(COLLECTIONS.GUILDS)
+        .get()
+        .catch(() => ({ data: [] }));
+      const docs = snapshot && snapshot.data ? snapshot.data : [];
+      baseEntries = docs
+        .map((doc) => {
+          const guildId = normalizeId(doc._id || doc.id);
+          if (!guildId) {
+            return null;
+          }
+          return {
+            guild: doc,
+            metricValue: contributionTotals.get(guildId) || 0,
+            bossInfo: bossTotals.get(guildId) || { totalDamage: 0, bossId: '' }
+          };
+        })
+        .filter(Boolean)
+        .sort((left, right) => right.metricValue - left.metricValue)
+        .slice(0, effectiveLimit);
+    } else if (normalizedType === 'boss') {
+      const snapshot = await db
+        .collection(COLLECTIONS.GUILDS)
+        .get()
+        .catch(() => ({ data: [] }));
+      const docs = snapshot && snapshot.data ? snapshot.data : [];
+      const guildMap = new Map(docs.map((doc) => [normalizeId(doc._id || doc.id), doc]));
+      const entries = [];
+      bossTotals.forEach((info, guildId) => {
+        const guildDoc = guildMap.get(guildId);
+        if (!guildDoc) {
+          return;
+        }
+        entries.push({ guild: guildDoc, metricValue: info.totalDamage, bossInfo: info });
+      });
+      baseEntries = entries
+        .filter((entry) => Number.isFinite(entry.metricValue) && entry.metricValue > 0)
+        .sort((left, right) => right.metricValue - left.metricValue)
+        .slice(0, effectiveLimit);
+    } else {
+      baseEntries = [];
+    }
+    const guildIds = baseEntries
+      .map((entry) => normalizeId(entry.guild && (entry.guild._id || entry.guild.id)))
+      .filter(Boolean);
+    const leaderMap = await loadGuildLeaderRecords(guildIds);
+    const leaderIds = Array.from(
+      new Set(
+        baseEntries
+          .map((entry) => {
+            const guildId = normalizeId(entry.guild && (entry.guild._id || entry.guild.id));
+            if (!guildId) {
+              return '';
+            }
+            const leaderRecord = leaderMap.get(guildId);
+            const fallbackLeaderId =
+              (leaderRecord && leaderRecord.memberId) ||
+              entry.guild.leaderId ||
+              entry.guild.founderId ||
+              '';
+            return normalizeMemberId(fallbackLeaderId);
+          })
+          .filter(Boolean)
+      )
+    );
+    const [memberMap, extrasMap] = await Promise.all([
+      loadDocumentsByIds(COLLECTIONS.MEMBERS, leaderIds),
+      loadDocumentsByIds(COLLECTIONS.MEMBER_EXTRAS, leaderIds)
+    ]);
+    return baseEntries.map((entry) => {
+      const guildDoc = entry.guild || {};
+      const guildId = normalizeId(guildDoc._id || guildDoc.id);
+      const leaderRecord = leaderMap.get(guildId) || null;
+      const fallbackLeaderId =
+        (leaderRecord && leaderRecord.memberId) ||
+        guildDoc.leaderId ||
+        guildDoc.founderId ||
+        '';
+      const leaderId = normalizeMemberId(fallbackLeaderId);
+      const memberDoc = leaderId ? memberMap.get(leaderId) || null : null;
+      const extrasDoc = leaderId ? extrasMap.get(leaderId) || null : null;
+      const name = guildDoc.name || '未命名宗门';
+      const memberCount = Math.max(0, Math.round(Number(guildDoc.memberCount || 0)));
+      const power = Math.max(0, Math.round(Number(guildDoc.power || 0)));
+      const activityScore = Math.max(0, Math.round(Number(guildDoc.activityScore || 0)));
+      const contribution = contributionTotals.get(guildId) || 0;
+      const bossInfo = entry.bossInfo || bossTotals.get(guildId) || { totalDamage: 0, bossId: '' };
+      const avatarUrl =
+        pickPortraitUrl(
+          leaderRecord && leaderRecord.avatarUrl,
+          memberDoc && memberDoc.avatarUrl,
+          memberDoc && memberDoc.portrait,
+          extrasDoc && extrasDoc.avatarUrl,
+          extrasDoc && extrasDoc.portrait
+        ) || '';
+      const avatarFrame =
+        resolveAvatarFrameValue(
+          leaderRecord && leaderRecord.avatarFrame,
+          memberDoc && memberDoc.avatarFrame,
+          memberDoc && memberDoc.appearanceFrame,
+          memberDoc && memberDoc.appearance && memberDoc.appearance.avatarFrame,
+          extrasDoc && extrasDoc.avatarFrame
+        ) || '';
+      const titleCatalogEntries = [];
+      if (leaderRecord && Array.isArray(leaderRecord.titleCatalog)) {
+        titleCatalogEntries.push(...leaderRecord.titleCatalog);
+      }
+      if (memberDoc && Array.isArray(memberDoc.titleCatalog)) {
+        titleCatalogEntries.push(...memberDoc.titleCatalog);
+      }
+      if (memberDoc && memberDoc.appearance && Array.isArray(memberDoc.appearance.titleCatalog)) {
+        titleCatalogEntries.push(...memberDoc.appearance.titleCatalog);
+      }
+      if (extrasDoc && Array.isArray(extrasDoc.titleCatalog)) {
+        titleCatalogEntries.push(...extrasDoc.titleCatalog);
+      }
+      if (extrasDoc && extrasDoc.appearance && Array.isArray(extrasDoc.appearance.titleCatalog)) {
+        titleCatalogEntries.push(...extrasDoc.appearance.titleCatalog);
+      }
+      const titleCatalog = normalizeTitleCatalog(titleCatalogEntries);
+      let titleId =
+        (leaderRecord && leaderRecord.titleId) ||
+        (memberDoc && memberDoc.appearanceTitle) ||
+        (memberDoc && memberDoc.appearance && memberDoc.appearance.titleId) ||
+        (extrasDoc && extrasDoc.appearanceTitle) ||
+        (extrasDoc && extrasDoc.appearance && extrasDoc.appearance.titleId) ||
+        '';
+      let titleName =
+        (leaderRecord && leaderRecord.titleName) ||
+        (memberDoc && memberDoc.appearanceTitleName) ||
+        (memberDoc && memberDoc.appearance && memberDoc.appearance.titleName) ||
+        (extrasDoc && extrasDoc.appearanceTitleName) ||
+        (extrasDoc && extrasDoc.appearance && extrasDoc.appearance.titleName) ||
+        '';
+      titleId = normalizeTitleId(titleId);
+      titleName = toTrimmedString(titleName);
+      if (!titleId && titleCatalog.length) {
+        titleId = titleCatalog[0].id;
+        titleName = titleName || titleCatalog[0].name;
+      }
+      const leaderName =
+        (leaderRecord && leaderRecord.displayName) ||
+        (memberDoc && (memberDoc.nickName || memberDoc.nickname || memberDoc.name)) ||
+        `宗主-${guildId || ''}`;
+      return {
+        guildId,
+        id: guildId,
+        name,
+        icon: toTrimmedString(guildDoc.icon),
+        manifesto: toTrimmedString(guildDoc.manifesto),
+        memberCount,
+        power,
+        activityScore,
+        contribution,
+        bossId: bossInfo && bossInfo.bossId ? bossInfo.bossId : '',
+        bossTotalDamage: bossInfo && Number.isFinite(bossInfo.totalDamage) ? bossInfo.totalDamage : 0,
+        metricType: normalizedType,
+        metricValue: Math.max(0, Math.round(Number(entry.metricValue || 0))),
+        leaderId,
+        leaderName,
+        memberId: leaderId,
+        avatarUrl,
+        avatarFrame,
+        titleId,
+        titleName,
+        titleCatalog
+      };
+    });
+  }
+
+  async function updateGuildLeaderboardCache(type, { limit = GUILD_LEADERBOARD_CACHE_SIZE } = {}) {
+    const normalizedType = resolveLeaderboardType(type);
+    const effectiveLimit = clampLeaderboardLimit(limit);
+    const entries = await buildGuildLeaderboardEntries(normalizedType, effectiveLimit).catch((error) => {
+      logger.warn('[guild] build leaderboard entries failed', error);
+      return [];
+    });
+    const updatedAt = serverTimestamp();
+    const payload = {
+      _id: normalizedType,
+      type: normalizedType,
+      entries,
+      updatedAt,
+      schemaVersion: LEADERBOARD_CACHE_SCHEMA_VERSION
+    };
+    await db
+      .collection(COLLECTIONS.GUILD_LEADERBOARD)
+      .doc(normalizedType)
+      .set({ data: payload })
+      .catch(async (error) => {
+        if (error && /exists/i.test(error.errMsg || error.message || '')) {
+          await db
+            .collection(COLLECTIONS.GUILD_LEADERBOARD)
+            .doc(normalizedType)
+            .update({
+              data: {
+                entries,
+                updatedAt,
+                schemaVersion: LEADERBOARD_CACHE_SCHEMA_VERSION,
+                type: normalizedType
+              }
+            })
+            .catch((updateError) => {
+              logger.warn('[guild] update leaderboard cache failed', updateError);
+            });
+        } else {
+          throw error;
+        }
+      });
+    return payload;
+  }
+
+  async function loadLeaderboardSnapshot({
+    type = DEFAULT_LEADERBOARD_TYPE,
+    limit = GUILD_LEADERBOARD_CACHE_SIZE,
+    forceRefresh = false
+  } = {}) {
+    const normalizedType = resolveLeaderboardType(type);
+    const docId = normalizedType;
+    const effectiveLimit = clampLeaderboardLimit(limit);
+    if (!forceRefresh) {
+      const snapshot = await db
+        .collection(COLLECTIONS.GUILD_LEADERBOARD)
+        .doc(docId)
+        .get()
+        .catch(() => null);
+      if (snapshot && snapshot.data && !guildLeaderboardSnapshotNeedsRefresh(snapshot.data)) {
+        const doc = snapshot.data;
+        const updatedAtDate = doc.updatedAt ? new Date(doc.updatedAt) : null;
+        if (!updatedAtDate || Number.isNaN(updatedAtDate.getTime())) {
+          return {
+            ...doc,
+            entries: Array.isArray(doc.entries) ? doc.entries.slice(0, effectiveLimit) : []
+          };
+        }
+        const settings = await loadSettings();
+        const ttl = settings.leaderboardCacheTtlMs || DEFAULT_LEADERBOARD_CACHE_TTL_MS;
+        if (now() - updatedAtDate.getTime() <= ttl) {
+          return {
+            ...doc,
+            entries: Array.isArray(doc.entries) ? doc.entries.slice(0, effectiveLimit) : []
+          };
+        }
+      }
+    }
+    await updateGuildLeaderboardCache(normalizedType, { limit: GUILD_LEADERBOARD_CACHE_SIZE });
+    const refreshed = await db
+      .collection(COLLECTIONS.GUILD_LEADERBOARD)
+      .doc(docId)
+      .get()
+      .catch(() => null);
+    if (refreshed && refreshed.data) {
+      return {
+        ...refreshed.data,
+        entries: Array.isArray(refreshed.data.entries)
+          ? refreshed.data.entries.slice(0, effectiveLimit)
+          : []
+      };
+    }
+    return {
+      _id: docId,
+      type: normalizedType,
+      entries: [],
+      updatedAt: null,
+      schemaVersion: LEADERBOARD_CACHE_SCHEMA_VERSION
+    };
   }
 
   function hashSeed(seed) {
@@ -1927,12 +2454,40 @@ function createGuildService(options = {}) {
 
   async function getLeaderboardSnapshot(memberId, payload = {}) {
     await enforceRateLimit(memberId, 'getLeaderboard');
-    const leaderboard = await loadLeaderboard({ force: !!payload.force });
+    const requestedLimit = Number(payload.limit);
+    const limit = clampLeaderboardLimit(Number.isFinite(requestedLimit) ? requestedLimit : DEFAULT_LEADERBOARD_LIMIT);
+    const type = resolveLeaderboardType(payload.type);
+    const forceRefresh = !!(payload.force || payload.refresh || payload.forceRefresh);
+    const [membership, snapshot] = await Promise.all([
+      loadMemberGuild(memberId),
+      loadLeaderboardSnapshot({ type, limit, forceRefresh })
+    ]);
+    const responseType = resolveLeaderboardType(snapshot.type || type);
+    const entries = Array.isArray(snapshot.entries) ? snapshot.entries.slice(0, limit) : [];
+    const guildId = membership && membership.guild ? membership.guild.id : null;
+    let myRank = null;
+    if (guildId) {
+      const rankIndex = entries.findIndex((entry) => entry && entry.guildId === guildId);
+      if (rankIndex >= 0) {
+        myRank = rankIndex + 1;
+      }
+    }
+    let updatedAtIso = null;
+    if (snapshot.updatedAt) {
+      const updatedDate = new Date(snapshot.updatedAt);
+      if (!Number.isNaN(updatedDate.getTime())) {
+        updatedAtIso = updatedDate.toISOString();
+      }
+    }
     return wrapActionResponse('getLeaderboard', {
-      leaderboard,
+      type: responseType,
+      entries,
+      updatedAt: updatedAtIso,
+      myRank,
+      memberId,
       schemaVersion: LEADERBOARD_CACHE_SCHEMA_VERSION
     }, {
-      message: payload.force ? '排行榜已刷新' : '排行榜已加载'
+      message: forceRefresh ? '排行榜已刷新' : '排行榜已加载'
     });
   }
 

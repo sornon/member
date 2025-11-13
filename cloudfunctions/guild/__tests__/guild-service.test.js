@@ -1,6 +1,6 @@
 const { COLLECTIONS } = require('common-config');
 const crypto = require('crypto');
-const { createGuildService } = require('../guild-service');
+const { createGuildService, LEADERBOARD_CACHE_SCHEMA_VERSION } = require('../guild-service');
 const { ERROR_CODES } = require('../error-codes');
 
 function createMemoryDb() {
@@ -587,9 +587,115 @@ describe('GuildService', () => {
       signature: statusTicket.signature
     });
     expect(status.summary.action).toBe('boss.status');
-    const leaderboard = await service.getLeaderboard('leader-status', { force: true });
+    const leaderboard = await service.getLeaderboard('leader-status', { force: true, limit: 5 });
     expect(leaderboard.summary.action).toBe('getLeaderboard');
-    expect(Array.isArray(leaderboard.leaderboard)).toBe(true);
+    expect(leaderboard.type).toBe('power');
+    expect(Array.isArray(leaderboard.entries)).toBe(true);
+    expect(leaderboard.entries.length).toBeGreaterThan(0);
+    expect(Array.isArray(leaderboard.entries[0].titleCatalog)).toBe(true);
+    expect(typeof leaderboard.entries[0].avatarFrame).toBe('string');
+    expect(leaderboard.myRank).toBe(1);
+  });
+
+  test('getLeaderboard returns normalized appearance and contribution data', async () => {
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc('leader-appearance')
+      .set({
+        data: {
+          _id: 'leader-appearance',
+          nickName: '云起',
+          avatarUrl: 'https://cdn.example/avatar.png',
+          avatarFrame: 'https://cdn.example/frame.png',
+          appearance: {
+            titleCatalog: [
+              { id: 'champion', name: '霸主', imageFile: 'champion.png' }
+            ],
+            titleId: 'champion',
+            titleName: '霸主',
+            avatarFrame: 'https://cdn.example/frame.png'
+          }
+        }
+      });
+    await db
+      .collection(COLLECTIONS.MEMBER_EXTRAS)
+      .doc('leader-appearance')
+      .set({
+        data: {
+          _id: 'leader-appearance',
+          titleCatalog: [
+            { id: 'champion', name: '霸主', imageFile: 'champion.png' },
+            { id: 'sage', name: '太上', imageFile: 'sage.png' }
+          ]
+        }
+      });
+    const ticket = await service.issueActionTicket('leader-appearance');
+    await service.createGuild('leader-appearance', {
+      name: '辉月宗',
+      ticket: ticket.ticket,
+      signature: ticket.signature,
+      powerRating: 2200
+    });
+    const guildSnapshot = await db.collection(COLLECTIONS.GUILDS).get();
+    const guildId = guildSnapshot.data[0]._id;
+    const membershipSnapshot = await db
+      .collection(COLLECTIONS.GUILD_MEMBERS)
+      .where({ guildId, memberId: 'leader-appearance' })
+      .limit(1)
+      .get();
+    await db
+      .collection(COLLECTIONS.GUILD_MEMBERS)
+      .doc(membershipSnapshot.data[0]._id)
+      .update({ data: { contribution: 512 } });
+    const leaderboard = await service.getLeaderboard('leader-appearance', {
+      type: 'contribution',
+      limit: 10,
+      force: true
+    });
+    expect(leaderboard.type).toBe('contribution');
+    const entry = leaderboard.entries.find((item) => item.guildId === guildId);
+    expect(entry).toBeTruthy();
+    expect(entry.contribution).toBeGreaterThanOrEqual(512);
+    expect(entry.avatarUrl).toBe('https://cdn.example/avatar.png');
+    expect(entry.avatarFrame).toBe('https://cdn.example/frame.png');
+    expect(entry.memberId).toBe('leader-appearance');
+    expect(entry.titleCatalog.length).toBe(2);
+    expect(entry.titleCatalog[0].id).toBe('champion');
+    expect(entry.titleCatalog[1].id).toBe('sage');
+    expect(leaderboard.myRank).toBe(1);
+  });
+
+  test('leaderboard cache rebuilds when schema version changes', async () => {
+    const ticket = await service.issueActionTicket('schema-leader');
+    await service.createGuild('schema-leader', {
+      name: '霜寒宫',
+      ticket: ticket.ticket,
+      signature: ticket.signature
+    });
+    const outdatedPayload = {
+      _id: 'power',
+      schemaVersion: 0,
+      entries: [{ guildId: 'legacy', titleCatalog: [], avatarFrame: '' }],
+      updatedAt: new Date().toISOString(),
+      type: 'power'
+    };
+    await db
+      .collection(COLLECTIONS.GUILD_LEADERBOARD)
+      .doc('power')
+      .set({ data: outdatedPayload })
+      .catch(async () => {
+        await db
+          .collection(COLLECTIONS.GUILD_LEADERBOARD)
+          .doc('power')
+          .update({ data: outdatedPayload });
+      });
+    const result = await service.getLeaderboard('schema-leader', { type: 'power' });
+    expect(result.summary.action).toBe('getLeaderboard');
+    expect(result.schemaVersion).toBe(LEADERBOARD_CACHE_SCHEMA_VERSION);
+    expect(Array.isArray(result.entries)).toBe(true);
+    const snapshot = await db.collection(COLLECTIONS.GUILD_LEADERBOARD).doc('power').get();
+    expect(snapshot.data.schemaVersion).toBe(LEADERBOARD_CACHE_SCHEMA_VERSION);
+    expect(Array.isArray(snapshot.data.entries)).toBe(true);
   });
 
   test('logging helpers write without throwing', async () => {
