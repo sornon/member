@@ -16,4 +16,5 @@
 - 更新 `README.md` 与 `docs/guild.md`，补充 Boss 战斗流程、集合结构与部署说明。
 - 重构 `guildLeaderboard` 缓存：引入 `power`/`contribution`/`activity`/`boss` 多榜单缓存，合并宗主头像框与称号目录，返回 `myRank` 并在 schema 变更或 TTL 过期时自动重建；完善单元测试覆盖刷新逻辑。
 - 新增 `__tests__/guild/` 测试套件覆盖宗门创建、审批、捐献、任务领取、Boss 挑战、排行榜的成功/失败/边界场景，补充种子一致性、并发写入与端到端流程用例，并提供 `scripts/benchmarks/guild-boss-benchmark.js` 性能基准脚本。
+- 新增宗门运维手册 `docs/guild.md`，补充接口对照表、部署步骤、管理员刷新排行榜示例与 FAQ；更新 `README.md` 集合清单及 `guild` 云函数绑定 `nodejs-layer` 的部署提醒。
 
