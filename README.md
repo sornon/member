@@ -57,12 +57,12 @@
    - `pvpMatches`
    - `pvpLeaderboard`
    - `pvpInvites`
-   - `guilds`
-   - `guildMembers`
-   - `guildTasks`
-   - `guildBoss`
-   - `guildBattles`
-   - `guildLeaderboard`
+   - `guilds`（宗门档案，**新增**）
+   - `guildMembers`（宗门成员，**新增**）
+   - `guildTasks`（宗门任务，**新增**）
+   - `guildBoss`（宗门 Boss 状态，**新增**）
+   - `guildBattles`（宗门战报，**新增**）
+   - `guildLeaderboard`（宗门排行榜缓存，**新增**）
    - `guildLogs`
    - `guildCache`
    - `guildEventLogs`
@@ -77,7 +77,7 @@
    - `reservation`
    - `wallet`
    - `avatar`
-   - `guild`
+   - `guild`（部署后请在函数配置中绑定统一的 `nodejs-layer`，复用公共模块）
    - `activities`
    - `admin`（若已部署请重新上传以获取最新活动管理接口）
 
