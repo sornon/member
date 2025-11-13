@@ -583,7 +583,7 @@ async function confirmMemberOrder(openid, orderId) {
           updatedAt: now,
           spendExperienceFixed: true,
           spendExperienceFixedAt: now,
-          spendExperienceFixedBy: actorId
+          spendExperienceFixedBy: openid
         };
         if (orderId) {
           walletTransactionData.menuOrderId = orderId;
