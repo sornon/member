@@ -1,12 +1,36 @@
 const crypto = require('crypto');
 const { COLLECTIONS } = require('common-config');
-const { clamp } = require('combat-system');
-const { createBattlePayload } = require('battle-schema');
+const {
+  clamp,
+  resolveCombatStats,
+  resolveSpecialStats,
+  extractCombatProfile,
+  calculateCombatPower,
+  DEFAULT_COMBAT_STATS,
+  DEFAULT_SPECIAL_STATS
+} = require('combat-system');
+const { createBattlePayload, decorateBattleReplay } = require('battle-schema');
 const {
   normalizeGuildSettings,
-  DEFAULT_GUILD_SETTINGS
+  DEFAULT_GUILD_SETTINGS,
+  DEFAULT_GUILD_BOSS_SETTINGS
 } = require('system-settings');
-const { ACTION_RATE_LIMIT_WINDOWS, ACTION_COOLDOWN_WINDOWS } = require('./constants');
+const {
+  buildSkillLoadout: buildRuntimeSkillLoadout,
+  createActorRuntime,
+  takeTurn: executeSkillTurn
+} = require('skill-engine');
+const {
+  ACTION_RATE_LIMIT_WINDOWS,
+  ACTION_COOLDOWN_WINDOWS,
+  DEFAULT_BOSS_ID,
+  BOSS_SCHEMA_VERSION,
+  BOSS_DAILY_ATTEMPT_LIMIT,
+  BOSS_MEMBER_COOLDOWN_MS,
+  BOSS_MAX_ROUNDS,
+  BOSS_RANK_LIMIT
+} = require('./constants');
+const { getBossDefinition } = require('./boss-definitions');
 
 const GUILD_SCHEMA_VERSION = 1;
 const LEADERBOARD_CACHE_SCHEMA_VERSION = 1;
@@ -458,7 +482,7 @@ function createGuildService(options = {}) {
     return crypto.createHash('md5').update(base).digest('hex').slice(0, 16);
   }
 
-  function createBattleTimeline(teamMembers, enemyPower, seed) {
+  function createTeamBattleTimeline(teamMembers, enemyPower, seed) {
     const timeline = [];
     const totalPower = teamMembers.reduce((acc, member) => acc + (member.power || 0), 0);
     const victory = totalPower >= enemyPower;
@@ -495,10 +519,14 @@ function createGuildService(options = {}) {
     return crypto.createHash('md5').update(serialized).digest('hex');
   }
 
-  function buildBattlePayload({ guild, teamMembers, difficulty, seed }) {
+  function buildTeamBattlePayload({ guild, teamMembers, difficulty, seed }) {
     const enemyBase = 1000 + difficulty * 250;
     const enemyPower = clamp(enemyBase, 1000, 100000);
-    const { timeline, rounds, victory, remainingEnemy } = createBattleTimeline(teamMembers, enemyPower, seed);
+    const { timeline, rounds, victory, remainingEnemy } = createTeamBattleTimeline(
+      teamMembers,
+      enemyPower,
+      seed
+    );
     const participants = {
       player: {
         id: guild.id,
@@ -544,6 +572,914 @@ function createGuildService(options = {}) {
     payload.signature = signBattlePayload(payload);
     return { payload, enemyPower, victory };
   }
+
+  function toTrimmedString(value) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+    return value.trim();
+  }
+
+  function hashSeed(seed) {
+    let h = 2166136261;
+    for (let i = 0; i < seed.length; i += 1) {
+      h ^= seed.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  function createRandomGenerator(seed) {
+    const hashedSeed = hashSeed(String(seed || now()));
+    let state = hashedSeed;
+    const generator = () => {
+      state |= 0;
+      state = (state + 0x6d2b79f5) | 0;
+      let t = Math.imul(state ^ (state >>> 15), 1 | state);
+      t ^= t + Math.imul(t ^ (t >>> 7), 61 | t);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    generator.seedValue = hashedSeed;
+    return generator;
+  }
+
+  function buildBossSeed(bossId, memberId, timestamp = now()) {
+    const key = `${bossId}:${memberId}`;
+    return `${key}:${timestamp}`;
+  }
+
+  function deriveBossBattleIdentity(guildId, bossId, seed) {
+    const guildKey = toTrimmedString(guildId) || 'guild';
+    const bossKey = toTrimmedString(bossId) || 'boss';
+    const seedKey = typeof seed === 'string' && seed ? seed : String(seed || 'seed');
+    const basis = `${guildKey}:${bossKey}:${seedKey}`;
+    const hash = crypto.createHash('md5').update(basis).digest('hex');
+    const suffix = hash.slice(0, 12);
+    const timeSlice = hash.slice(12, 24);
+    const baseEpoch = Date.UTC(2024, 0, 1);
+    const offset = Number.parseInt(timeSlice, 16) % (365 * 24 * 60 * 60 * 1000);
+    const startedAt = new Date(baseEpoch + offset).toISOString();
+    const battleId = `${guildKey}:${bossKey}:${suffix}`;
+    return { battleId, startedAt };
+  }
+
+  function buildCombatAttributesSnapshot(stats = {}) {
+    const keys = [
+      'maxHp',
+      'physicalAttack',
+      'magicAttack',
+      'physicalDefense',
+      'magicDefense',
+      'speed',
+      'accuracy',
+      'dodge',
+      'critRate',
+      'critDamage',
+      'critResist',
+      'finalDamageBonus',
+      'finalDamageReduction',
+      'lifeSteal',
+      'healingBonus',
+      'healingReduction',
+      'controlHit',
+      'controlResist',
+      'physicalPenetration',
+      'magicPenetration',
+      'comboRate',
+      'block',
+      'counterRate',
+      'damageReduction',
+      'healingReceived',
+      'rageGain',
+      'controlStrength',
+      'shieldPower',
+      'summonPower',
+      'elementalVulnerability'
+    ];
+    const snapshot = {};
+    keys.forEach((key) => {
+      if (typeof stats[key] === 'number' && !Number.isNaN(stats[key])) {
+        snapshot[key] = Number(stats[key]);
+      }
+    });
+    return snapshot;
+  }
+
+  function normalizeControlRuntimeSnapshot(runtime) {
+    const base = {
+      effects: [],
+      skip: false,
+      disableBasic: false,
+      disableActive: false,
+      disableDodge: false,
+      remainingTurns: 0,
+      remainingByEffect: {},
+      summaries: {},
+      active: false
+    };
+    if (!runtime || typeof runtime !== 'object') {
+      return base;
+    }
+    const effects = Array.isArray(runtime.effects)
+      ? runtime.effects.map((effect) => (typeof effect === 'string' ? effect.trim().toLowerCase() : '')).filter(Boolean)
+      : [];
+    const sourceRemaining = runtime.remainingByEffect && typeof runtime.remainingByEffect === 'object'
+      ? runtime.remainingByEffect
+      : {};
+    const sourceSummaries = runtime.summaries && typeof runtime.summaries === 'object' ? runtime.summaries : {};
+    const remainingByEffect = effects.reduce((acc, effect) => {
+      const value = Number(sourceRemaining[effect]);
+      if (Number.isFinite(value)) {
+        acc[effect] = Math.max(0, Math.round(value));
+      }
+      return acc;
+    }, {});
+    const summaries = effects.reduce((acc, effect) => {
+      const summary = sourceSummaries[effect];
+      if (typeof summary === 'string' && summary.trim()) {
+        acc[effect] = summary.trim();
+      }
+      return acc;
+    }, {});
+    const remainingTurns = Number.isFinite(Number(runtime.remainingTurns))
+      ? Math.max(0, Math.round(Number(runtime.remainingTurns)))
+      : 0;
+    const active =
+      typeof runtime.active === 'boolean'
+        ? runtime.active
+        : effects.length > 0 || runtime.skip || runtime.disableBasic || runtime.disableActive || runtime.disableDodge || remainingTurns > 0;
+    return {
+      effects,
+      skip: !!runtime.skip,
+      disableBasic: !!runtime.disableBasic,
+      disableActive: !!runtime.disableActive,
+      disableDodge: !!runtime.disableDodge,
+      remainingTurns,
+      remainingByEffect,
+      summaries,
+      active
+    };
+  }
+
+  function cloneControlSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') {
+      return {
+        effects: [],
+        skip: false,
+        disableBasic: false,
+        disableActive: false,
+        disableDodge: false,
+        remainingTurns: 0,
+        remainingByEffect: {},
+        summaries: {},
+        active: false
+      };
+    }
+    return {
+      effects: Array.isArray(snapshot.effects) ? snapshot.effects.slice() : [],
+      skip: !!snapshot.skip,
+      disableBasic: !!snapshot.disableBasic,
+      disableActive: !!snapshot.disableActive,
+      disableDodge: !!snapshot.disableDodge,
+      remainingTurns: Number(snapshot.remainingTurns) || 0,
+      remainingByEffect: { ...(snapshot.remainingByEffect || {}) },
+      summaries: { ...(snapshot.summaries || {}) },
+      active: !!snapshot.active
+    };
+  }
+
+  function captureControlSnapshot(actor) {
+    if (!actor || !actor.controlRuntime) {
+      return normalizeControlRuntimeSnapshot();
+    }
+    return normalizeControlRuntimeSnapshot(actor.controlRuntime);
+  }
+
+  function extractChangedAttributes(current, previous) {
+    if (!current || typeof current !== 'object') {
+      return {};
+    }
+    const previousAttributes = previous && typeof previous === 'object' ? previous : null;
+    const changed = {};
+    const keys = Object.keys(current);
+    for (let i = 0; i < keys.length; i += 1) {
+      const key = keys[i];
+      const value = current[key];
+      const previousValue = previousAttributes ? previousAttributes[key] : undefined;
+      if (typeof value === 'number') {
+        if (!Number.isFinite(previousValue) || Number(value) !== Number(previousValue)) {
+          changed[key] = Number(value);
+        }
+      } else if (value !== undefined && value !== previousValue) {
+        changed[key] = value;
+      }
+    }
+    return changed;
+  }
+
+  function buildTimelineStateSide({ before, after, maxHp, attributes, previousAttributes, controlBefore, controlAfter }) {
+    const max = Math.max(1, Math.round(maxHp || 1));
+    const beforeValue = Number.isFinite(before) ? before : max;
+    const afterValue = Number.isFinite(after) ? after : Math.min(beforeValue, max);
+    const beforeHp = Math.max(0, Math.round(Math.min(beforeValue, max)));
+    const afterHp = Math.max(0, Math.round(Math.min(afterValue, max)));
+    const shieldBefore = Math.max(0, Math.round(beforeValue - max));
+    const shieldAfter = Math.max(0, Math.round(afterValue - max));
+    const changedAttributes = extractChangedAttributes(attributes, previousAttributes);
+    const state = {
+      hp: {
+        before: beforeHp,
+        after: afterHp,
+        max
+      },
+      attributes: changedAttributes
+    };
+    if (shieldBefore > 0 || shieldAfter > 0) {
+      state.shield = {
+        before: shieldBefore,
+        after: shieldAfter
+      };
+    }
+    const hasControlBefore = controlBefore && (controlBefore.active || (controlBefore.effects || []).length);
+    const hasControlAfter = controlAfter && (controlAfter.active || (controlAfter.effects || []).length);
+    if (hasControlBefore || hasControlAfter) {
+      state.control = {
+        before: cloneControlSnapshot(controlBefore),
+        after: cloneControlSnapshot(controlAfter)
+      };
+    }
+    return state;
+  }
+
+  function buildTimelineSkillPayload(skill) {
+    const fallback = { id: 'basic_attack', name: '普攻', type: 'basic' };
+    if (!skill || typeof skill !== 'object') {
+      return { ...fallback };
+    }
+    const id = toTrimmedString(skill.id) || fallback.id;
+    const name = toTrimmedString(skill.name) || fallback.name;
+    const type = toTrimmedString(skill.type) || fallback.type;
+    const payload = { id, name, type };
+    const animation = toTrimmedString(skill.animation);
+    if (animation) {
+      payload.animation = animation;
+    }
+    if (skill.resource && typeof skill.resource === 'object') {
+      const resource = {};
+      const resourceType = toTrimmedString(skill.resource.type);
+      if (resourceType) {
+        resource.type = resourceType;
+      }
+      const cost = Number(skill.resource.cost);
+      if (Number.isFinite(cost)) {
+        resource.cost = Math.max(0, Math.round(cost));
+      }
+      if (Object.keys(resource).length) {
+        payload.resource = resource;
+      }
+    }
+    if (skill.quality || skill.skillQuality || skill.rarity) {
+      const quality = toTrimmedString(skill.quality || skill.skillQuality || skill.rarity);
+      if (quality) {
+        payload.quality = quality;
+        payload.skillQuality = quality;
+        payload.rarity = quality;
+      }
+    }
+    if (skill.qualityLabel || skill.rarityLabel) {
+      const label = toTrimmedString(skill.qualityLabel || skill.rarityLabel);
+      if (label) {
+        payload.qualityLabel = label;
+        payload.rarityLabel = label;
+      }
+    }
+    if (skill.qualityColor || skill.rarityColor) {
+      const color = toTrimmedString(skill.qualityColor || skill.rarityColor);
+      if (color) {
+        payload.qualityColor = color;
+        payload.rarityColor = color;
+      }
+    }
+    return payload;
+  }
+
+  function buildBossTimelineEntry({
+    round,
+    sequence,
+    actorId,
+    actorName,
+    actorSide,
+    targetId,
+    targetName,
+    events,
+    skill,
+    before,
+    after,
+    actorMaxHp,
+    targetMaxHp,
+    actorAttributes,
+    targetAttributes,
+    previousAttributes,
+    controlBefore,
+    controlAfter,
+    summaryText
+  }) {
+    const isGuildActor = actorSide === 'guild';
+    const entry = {
+      id: `round-${round}-action-${sequence}`,
+      round,
+      sequence,
+      actorId,
+      actorSide: isGuildActor ? 'player' : 'opponent',
+      actor: { id: actorId, side: isGuildActor ? 'player' : 'opponent', displayName: actorName },
+      target: { id: targetId, side: isGuildActor ? 'opponent' : 'player', displayName: targetName },
+      skill: buildTimelineSkillPayload(skill),
+      events: Array.isArray(events) ? events.filter(Boolean) : [],
+      state: {
+        player: buildTimelineStateSide({
+          before: isGuildActor ? before.actor : before.target,
+          after: isGuildActor ? after.actor : after.target,
+          maxHp: isGuildActor ? actorMaxHp : targetMaxHp,
+          attributes: isGuildActor ? actorAttributes : targetAttributes,
+          previousAttributes: previousAttributes ? previousAttributes.actor : null,
+          controlBefore: controlBefore ? controlBefore.actor : null,
+          controlAfter: controlAfter ? controlAfter.actor : null
+        }),
+        opponent: buildTimelineStateSide({
+          before: isGuildActor ? before.target : before.actor,
+          after: isGuildActor ? after.target : after.actor,
+          maxHp: isGuildActor ? targetMaxHp : actorMaxHp,
+          attributes: isGuildActor ? targetAttributes : actorAttributes,
+          previousAttributes: previousAttributes ? previousAttributes.target : null,
+          controlBefore: controlBefore ? controlBefore.target : null,
+          controlAfter: controlAfter ? controlAfter.target : null
+        })
+      }
+    };
+    if (summaryText) {
+      entry.summary = {
+        title: `第${round}回合`,
+        text: summaryText
+      };
+    }
+    return entry;
+  }
+
+  function computeDateKey(date = new Date()) {
+    return date.toISOString().slice(0, 10);
+  }
+
+  function normalizeBossDefinition(definition = {}) {
+    const id = toTrimmedString(definition.id) || DEFAULT_BOSS_ID;
+    const name = toTrimmedString(definition.name) || '宗门试炼';
+    const level = Number.isFinite(Number(definition.level)) ? Math.max(1, Math.round(Number(definition.level))) : 1;
+    const baseHp = Number.isFinite(Number(definition.hp))
+      ? Math.max(1000, Math.round(Number(definition.hp)))
+      : Number.isFinite(Number(definition.stats && definition.stats.maxHp))
+      ? Math.max(1000, Math.round(Number(definition.stats.maxHp)))
+      : 50000;
+    const stats = resolveCombatStats(definition.stats || {}, {
+      defaults: DEFAULT_COMBAT_STATS,
+      convertLegacyPercentages: true
+    });
+    const special = resolveSpecialStats(definition.special || {}, {
+      defaults: DEFAULT_SPECIAL_STATS,
+      convertLegacyPercentages: true
+    });
+    const skills = Array.isArray(definition.skills)
+      ? definition.skills
+          .map((skill) => {
+            if (!skill || typeof skill !== 'object') {
+              return null;
+            }
+            const skillId = toTrimmedString(skill.id);
+            if (!skillId) {
+              return null;
+            }
+            const levelValue = Number.isFinite(Number(skill.level))
+              ? Math.max(1, Math.round(Number(skill.level)))
+              : 1;
+            return { id: skillId, level: levelValue };
+          })
+          .filter(Boolean)
+      : [];
+    const phases = Array.isArray(definition.phases)
+      ? definition.phases
+          .map((phase, index) => {
+            if (!phase || typeof phase !== 'object') {
+              return null;
+            }
+            const threshold = Number(phase.threshold);
+            if (!Number.isFinite(threshold)) {
+              return null;
+            }
+            const effect = phase.effect && typeof phase.effect === 'object' ? { ...phase.effect } : {};
+            const summary = toTrimmedString(effect.summary) || `阶段${index + 1}`;
+            return {
+              threshold: Math.min(0.99, Math.max(0, threshold)),
+              effect,
+              summary
+            };
+          })
+          .filter(Boolean)
+          .sort((a, b) => b.threshold - a.threshold)
+      : [];
+    const enraged = definition.enraged && typeof definition.enraged === 'object'
+      ? {
+          threshold: Math.min(0.99, Math.max(0, Number(definition.enraged.threshold || 0.15))),
+          bonus: { ...(definition.enraged.bonus || {}) },
+          summary: toTrimmedString(definition.enraged.summary) || 'Boss进入暴怒状态'
+        }
+      : null;
+    return {
+      id,
+      name,
+      level,
+      element: toTrimmedString(definition.element) || '',
+      description: toTrimmedString(definition.description) || '',
+      hp: baseHp,
+      stats,
+      special,
+      skills,
+      phases,
+      enraged
+    };
+  }
+
+  function resolveBossSettings(settings = {}) {
+    const source = settings && typeof settings === 'object' ? settings : {};
+    const fallback = DEFAULT_GUILD_BOSS_SETTINGS;
+    return {
+      enabled: source.enabled !== undefined ? !!source.enabled : fallback.enabled,
+      dailyAttempts: Number.isFinite(Number(source.dailyAttempts))
+        ? Math.max(1, Math.round(Number(source.dailyAttempts)))
+        : fallback.dailyAttempts,
+      cooldownMs: Number.isFinite(Number(source.cooldownMs))
+        ? Math.max(10 * 1000, Math.round(Number(source.cooldownMs)))
+        : fallback.cooldownMs,
+      maxRounds: Number.isFinite(Number(source.maxRounds))
+        ? Math.max(5, Math.round(Number(source.maxRounds)))
+        : fallback.maxRounds,
+      rotation: Array.isArray(source.rotation) && source.rotation.length ? source.rotation.slice() : fallback.rotation.slice()
+    };
+  }
+
+  function buildBossActor(definition, bossState) {
+    const skillState = { equipped: Array.isArray(definition.skills) ? definition.skills : [] };
+    const bossActor = createActorRuntime({
+      id: definition.id,
+      name: definition.name,
+      side: 'opponent',
+      combatant: { stats: definition.stats, special: definition.special },
+      skills: buildRuntimeSkillLoadout(skillState, { includeBasic: true }),
+      mode: 'pve'
+    });
+    bossActor.displayName = definition.name;
+    bossActor.attributesSnapshot = buildCombatAttributesSnapshot(bossActor.stats);
+    bossActor.maxHp = Math.max(bossActor.maxHp || 1, definition.hp);
+    const storedHp = Number.isFinite(Number(bossState.hpLeft)) ? Math.max(0, Math.round(Number(bossState.hpLeft))) : bossActor.maxHp;
+    bossActor.hp = Math.min(bossActor.maxHp, storedHp);
+    return bossActor;
+  }
+
+  function buildPartyActor(memberDoc, membershipDoc) {
+    const profile = memberDoc && memberDoc.pveProfile && typeof memberDoc.pveProfile === 'object' ? memberDoc.pveProfile : {};
+    const attributeSummary = profile.attributeSummary && typeof profile.attributeSummary === 'object' ? profile.attributeSummary : {};
+    const enrichedProfile = { ...profile, attributeSummary };
+    const combatProfile = extractCombatProfile(enrichedProfile, {
+      defaults: DEFAULT_COMBAT_STATS,
+      convertLegacyPercentages: true
+    });
+    const skillLoadout = buildRuntimeSkillLoadout(profile.skills || {}, { includeBasic: true });
+    const memberId = toTrimmedString(membershipDoc.memberId) || toTrimmedString(memberDoc._id) || toTrimmedString(memberDoc.id);
+    const actor = createActorRuntime({
+      id: memberId || `member_${Date.now()}`,
+      name:
+        toTrimmedString(memberDoc.nickName) ||
+        toTrimmedString(memberDoc.nickname) ||
+        toTrimmedString(profile.displayName) ||
+        '宗门弟子',
+      side: 'player',
+      combatant: { stats: combatProfile.stats, special: combatProfile.special },
+      skills: skillLoadout,
+      mode: 'pve'
+    });
+    actor.memberId = memberId;
+    actor.displayName = actor.name;
+    actor.guildRole = membershipDoc.role || 'member';
+    actor.combatPower = Number.isFinite(combatProfile.combatPower)
+      ? Math.max(0, Math.round(combatProfile.combatPower))
+      : Math.max(0, Math.round(calculateCombatPower(actor.stats, actor.special)));
+    actor.attributesSnapshot = buildCombatAttributesSnapshot(actor.stats);
+    actor.originHp = Math.max(0, Math.round(actor.hp));
+    return actor;
+  }
+
+  function determineBossRoundOrder(partyActors, bossActor, rng) {
+    const random = typeof rng === 'function' ? rng : Math.random;
+    const participants = [];
+    partyActors.forEach((actor) => {
+      if (actor && actor.hp > 0) {
+        participants.push(actor);
+      }
+    });
+    if (bossActor && bossActor.hp > 0) {
+      participants.push(bossActor);
+    }
+    return participants.sort((left, right) => {
+      const leftSpeed = Number(left.stats && left.stats.speed) + Number(left.special && left.special.speedBonus || 0);
+      const rightSpeed = Number(right.stats && right.stats.speed) + Number(right.special && right.special.speedBonus || 0);
+      if (leftSpeed === rightSpeed) {
+        return random() - 0.5;
+      }
+      return rightSpeed - leftSpeed;
+    });
+  }
+
+  function selectBossTarget(partyActors, rng) {
+    const random = typeof rng === 'function' ? rng : Math.random;
+    const living = partyActors.filter((actor) => actor && actor.hp > 0);
+    if (!living.length) {
+      return null;
+    }
+    const index = Math.min(living.length - 1, Math.floor(random() * living.length));
+    return living[index];
+  }
+
+  function applyBossPhaseEffects({ bossActor, definition, phaseState, events }) {
+    if (!bossActor || bossActor.maxHp <= 0) {
+      return;
+    }
+    const hpRatio = bossActor.hp <= 0 ? 0 : bossActor.hp / bossActor.maxHp;
+    const phases = Array.isArray(definition.phases) ? definition.phases : [];
+    if (!phaseState.triggered) {
+      phaseState.triggered = new Set();
+    }
+    if (!phaseState.events) {
+      phaseState.events = [];
+    }
+    phases.forEach((phase, index) => {
+      if (phaseState.triggered.has(index)) {
+        return;
+      }
+      if (hpRatio > phase.threshold) {
+        return;
+      }
+      phaseState.triggered.add(index);
+      const effect = phase.effect || {};
+      const summary = toTrimmedString(effect.summary) || `阶段${index + 1}`;
+      const eventPayload = { phase: index + 1, summary, threshold: phase.threshold };
+      if (effect.type === 'shield') {
+        const amountPercent = Number.isFinite(Number(effect.amountPercent)) ? Math.max(0, Number(effect.amountPercent)) : 0.12;
+        const shieldValue = Math.max(0, Math.round(bossActor.maxHp * amountPercent));
+        bossActor.hp = Math.min(bossActor.maxHp, bossActor.hp + shieldValue);
+        eventPayload.shield = shieldValue;
+      }
+      if (effect.bonus && typeof effect.bonus === 'object') {
+        const bonus = effect.bonus;
+        if (Number.isFinite(Number(bonus.finalDamageBonus))) {
+          bossActor.stats.finalDamageBonus = clamp(
+            (bossActor.stats.finalDamageBonus || 0) + Number(bonus.finalDamageBonus),
+            -0.9,
+            2
+          );
+        }
+        if (Number.isFinite(Number(bonus.finalDamageReduction))) {
+          bossActor.stats.finalDamageReduction = clamp(
+            (bossActor.stats.finalDamageReduction || 0) + Number(bonus.finalDamageReduction),
+            0,
+            0.9
+          );
+        }
+        if (Number.isFinite(Number(bonus.speed))) {
+          bossActor.stats.speed = (bossActor.stats.speed || 0) + Number(bonus.speed);
+        }
+        if (Number.isFinite(Number(bonus.accuracy))) {
+          bossActor.stats.accuracy = (bossActor.stats.accuracy || 0) + Number(bonus.accuracy);
+        }
+        if (Number.isFinite(Number(bonus.healingBonus))) {
+          bossActor.stats.healingBonus = (bossActor.stats.healingBonus || 0) + Number(bonus.healingBonus);
+        }
+      }
+      bossActor.attributesSnapshot = buildCombatAttributesSnapshot(bossActor.stats);
+      phaseState.events.push(eventPayload);
+      if (Array.isArray(events)) {
+        events.push({ type: 'phase', summary });
+      }
+    });
+    if (definition.enraged && !phaseState.enraged) {
+      const threshold = Number.isFinite(Number(definition.enraged.threshold))
+        ? Math.max(0, Number(definition.enraged.threshold))
+        : 0.1;
+      if (hpRatio <= threshold) {
+        const bonus = definition.enraged.bonus || {};
+        if (Number.isFinite(Number(bonus.finalDamageBonus))) {
+          bossActor.stats.finalDamageBonus = clamp(
+            (bossActor.stats.finalDamageBonus || 0) + Number(bonus.finalDamageBonus),
+            -0.9,
+            2
+          );
+        }
+        if (Number.isFinite(Number(bonus.finalDamageReduction))) {
+          bossActor.stats.finalDamageReduction = clamp(
+            (bossActor.stats.finalDamageReduction || 0) + Number(bonus.finalDamageReduction),
+            0,
+            0.9
+          );
+        }
+        if (Number.isFinite(Number(bonus.speed))) {
+          bossActor.stats.speed = (bossActor.stats.speed || 0) + Number(bonus.speed);
+        }
+        if (Number.isFinite(Number(bonus.accuracy))) {
+          bossActor.stats.accuracy = (bossActor.stats.accuracy || 0) + Number(bonus.accuracy);
+        }
+        bossActor.attributesSnapshot = buildCombatAttributesSnapshot(bossActor.stats);
+        phaseState.enraged = true;
+        const summary = toTrimmedString(definition.enraged.summary) || 'Boss进入暴怒状态';
+        phaseState.events.push({ phase: 'enrage', summary, threshold });
+        if (Array.isArray(events)) {
+          events.push({ type: 'phase', summary });
+        }
+      }
+    }
+  }
+
+  function simulateBossBattle({ guild, bossDefinition, bossState, partyMembers, seed, maxRounds }) {
+    const definition = normalizeBossDefinition(bossDefinition);
+    const bossActor = buildBossActor(definition, bossState);
+    const partyActors = partyMembers.map((entry) => buildPartyActor(entry.member, entry.membership));
+    const rng = createRandomGenerator(seed);
+    const timeline = [];
+    const phaseState = { triggered: new Set(), events: [], enraged: false };
+    const damageByMember = {};
+    const maxRoundLimit = Number.isFinite(Number(maxRounds)) ? Math.max(5, Math.round(Number(maxRounds))) : BOSS_MAX_ROUNDS;
+    let round = 1;
+    while (round <= maxRoundLimit && bossActor.hp > 0 && partyActors.some((actor) => actor.hp > 0)) {
+      const order = determineBossRoundOrder(partyActors, bossActor, rng);
+      let sequence = 1;
+      for (let i = 0; i < order.length; i += 1) {
+        const actor = order[i];
+        if (!actor || actor.hp <= 0) {
+          continue;
+        }
+        if (bossActor.hp <= 0) {
+          break;
+        }
+        const isBoss = actor === bossActor;
+        const target = isBoss ? selectBossTarget(partyActors, rng) : bossActor;
+        if (!target || target.hp <= 0) {
+          continue;
+        }
+        const before = { actor: actor.hp, target: target.hp };
+        const controlBefore = { actor: captureControlSnapshot(actor), target: captureControlSnapshot(target) };
+        const turnResult = executeSkillTurn({ actor, opponent: target, rng });
+        const after = { actor: actor.hp, target: target.hp };
+        const controlAfter = { actor: captureControlSnapshot(actor), target: captureControlSnapshot(target) };
+        const events = [];
+        if (Array.isArray(turnResult.preEvents)) {
+          events.push(...turnResult.preEvents);
+        }
+        if (Array.isArray(turnResult.events)) {
+          events.push(...turnResult.events);
+        }
+        const summaryParts = Array.isArray(turnResult.summary) ? turnResult.summary : [];
+        const summaryText = summaryParts.length ? summaryParts.join('；') : `${actor.name || '战斗者'}发动了攻势`;
+        const entry = buildBossTimelineEntry({
+          round,
+          sequence,
+          actorId: actor.id,
+          actorName: actor.name,
+          actorSide: isBoss ? 'boss' : 'guild',
+          targetId: target.id,
+          targetName: target.name,
+          events,
+          skill: turnResult.skill,
+          before,
+          after,
+          actorMaxHp: actor.maxHp,
+          targetMaxHp: target.maxHp,
+          actorAttributes: actor.attributesSnapshot || buildCombatAttributesSnapshot(actor.stats),
+          targetAttributes: target.attributesSnapshot || buildCombatAttributesSnapshot(target.stats),
+          previousAttributes: {
+            actor: actor.previousAttributes || null,
+            target: target.previousAttributes || null
+          },
+          controlBefore,
+          controlAfter,
+          summaryText
+        });
+        timeline.push(entry);
+        actor.previousAttributes = actor.attributesSnapshot;
+        target.previousAttributes = target.attributesSnapshot;
+        if (!isBoss) {
+          const damage = Math.max(0, Math.round(turnResult.totalDamage || 0));
+          damageByMember[actor.memberId] = (damageByMember[actor.memberId] || 0) + damage;
+          applyBossPhaseEffects({ bossActor, definition, phaseState, events });
+          if (bossActor.hp <= 0) {
+            break;
+          }
+        }
+        sequence += 1;
+      }
+      round += 1;
+    }
+    const victory = bossActor.hp <= 0;
+    const roundsCompleted = timeline.length ? timeline[timeline.length - 1].round || timeline.length : 0;
+    const winnerId = victory ? guild.id : definition.id;
+    const loserId = victory ? definition.id : guild.id;
+    const outcome = {
+      result: victory ? 'victory' : 'defeat',
+      winnerId,
+      loserId,
+      draw: false,
+      rounds: roundsCompleted,
+      remaining: {
+        bossHp: Math.max(0, Math.round(bossActor.hp)),
+        guildHp: partyActors.reduce(
+          (acc, actor) => acc + Math.max(0, Math.round(Math.min(actor.hp, actor.maxHp))),
+          0
+        )
+      }
+    };
+    const participants = {
+      player: {
+        id: guild.id,
+        name: guild.name,
+        members: partyActors.map((actor) => ({
+          id: actor.memberId,
+          memberId: actor.memberId,
+          name: actor.displayName,
+          role: actor.guildRole,
+          hp: {
+            current: Math.max(0, Math.round(Math.min(actor.hp, actor.maxHp))),
+            max: Math.round(actor.maxHp)
+          },
+          combatPower: actor.combatPower,
+          attributes: actor.attributesSnapshot
+        }))
+      },
+      opponent: {
+        id: definition.id,
+        name: definition.name,
+        level: definition.level,
+        element: definition.element || '',
+        hp: {
+          current: Math.max(0, Math.round(Math.min(bossActor.hp, bossActor.maxHp))),
+          max: Math.round(bossActor.maxHp)
+        },
+        attributes: bossActor.attributesSnapshot
+      }
+    };
+    const identity = deriveBossBattleIdentity(guild.id, definition.id, seed);
+    const metadata = {
+      guildId: guild.id,
+      bossId: definition.id,
+      bossLevel: definition.level,
+      seed,
+      phaseEvents: phaseState.events,
+      party: partyActors.map((actor) => ({ memberId: actor.memberId, name: actor.displayName, role: actor.guildRole })),
+      startedAt: identity.startedAt,
+      maxRounds: maxRoundLimit
+    };
+    const battleId = identity.battleId;
+    const payload = createBattlePayload({
+      battleId,
+      mode: 'guildBoss',
+      seed,
+      rounds: outcome.rounds,
+      timeline,
+      participants,
+      outcome,
+      metadata,
+      result: { winnerId, loserId, draw: false }
+    });
+    payload.signature = signBattlePayload(payload);
+    const replay = decorateBattleReplay(payload, { defaultMode: 'guildBoss' });
+    payload.replay = replay;
+    return {
+      payload,
+      replay,
+      victory,
+      bossActor,
+      partyActors,
+      damageByMember,
+      phaseEvents: phaseState.events,
+      rounds: roundsCompleted
+    };
+  }
+
+  function normalizeBossState(doc, definition) {
+    const hpMax = Math.max(1, Math.round(Number(doc && doc.hpMax ? doc.hpMax : definition.hp)));
+    const hpLeft = Math.max(0, Math.min(hpMax, Math.round(Number(doc && doc.hpLeft ? doc.hpLeft : hpMax))));
+    const damageByMember = doc && doc.damageByMember && typeof doc.damageByMember === 'object' ? { ...doc.damageByMember } : {};
+    const memberAttempts = doc && doc.memberAttempts && typeof doc.memberAttempts === 'object' ? { ...doc.memberAttempts } : {};
+    return {
+      id: doc && (doc._id || doc.id) ? doc._id || doc.id : null,
+      guildId: doc && doc.guildId ? doc.guildId : null,
+      bossId: doc && doc.bossId ? doc.bossId : definition.id,
+      level: Number.isFinite(Number(doc && doc.level)) ? Math.max(1, Math.round(Number(doc.level))) : definition.level,
+      status: doc && doc.status ? doc.status : 'open',
+      phase: Number.isFinite(Number(doc && doc.phase)) ? Math.max(1, Math.round(Number(doc.phase))) : 1,
+      totalDamage: Number.isFinite(Number(doc && doc.totalDamage)) ? Math.max(0, Math.round(Number(doc.totalDamage))) : 0,
+      hpMax,
+      hpLeft,
+      damageByMember,
+      memberAttempts,
+      schemaVersion: Number.isFinite(Number(doc && doc.schemaVersion)) ? Math.round(Number(doc.schemaVersion)) : BOSS_SCHEMA_VERSION,
+      updatedAt: doc && doc.updatedAt ? new Date(doc.updatedAt) : null,
+      createdAt: doc && doc.createdAt ? new Date(doc.createdAt) : null
+    };
+  }
+
+  async function ensureBossState(guildId, definition) {
+    const docId = `${guildId}_${definition.id}`;
+    const collection = db.collection(COLLECTIONS.GUILD_BOSS);
+    const snapshot = await collection
+      .doc(docId)
+      .get()
+      .catch((error) => {
+        if (error && /not exist/i.test(error.errMsg || '')) {
+          return null;
+        }
+        throw error;
+      });
+    if (!snapshot || !snapshot.data) {
+      const nowDate = serverTimestamp();
+      const baseDoc = {
+        _id: docId,
+        guildId,
+        bossId: definition.id,
+        level: definition.level,
+        hpMax: definition.hp,
+        hpLeft: definition.hp,
+        status: 'open',
+        phase: 1,
+        totalDamage: 0,
+        damageByMember: {},
+        memberAttempts: {},
+        createdAt: nowDate,
+        updatedAt: nowDate,
+        schemaVersion: BOSS_SCHEMA_VERSION
+      };
+      await collection
+        .doc(docId)
+        .set({ data: baseDoc })
+        .catch((error) => {
+          if (error && /exists/i.test(error.errMsg || '')) {
+            return null;
+          }
+          throw error;
+        });
+      return { id: docId, state: normalizeBossState(baseDoc, definition) };
+    }
+    return { id: docId, state: normalizeBossState(snapshot.data, definition) };
+  }
+
+  function buildBossLeaderboard(damageMap = {}, limit = BOSS_RANK_LIMIT) {
+    const entries = Object.keys(damageMap).map((memberId) => ({
+      memberId,
+      damage: Math.max(0, Math.round(Number(damageMap[memberId]) || 0))
+    }));
+    entries.sort((left, right) => right.damage - left.damage);
+    return entries.slice(0, limit);
+  }
+
+  function buildBossStatusPayload({ state, definition, settings, memberId, now }) {
+    const hpMax = Math.max(1, state.hpMax || definition.hp);
+    const hpLeft = Math.max(0, Math.min(hpMax, state.hpLeft));
+    const progress = hpMax > 0 ? Math.max(0, Math.min(1, 1 - hpLeft / hpMax)) : 0;
+    const attemptLimit = Number(settings.dailyAttempts || BOSS_DAILY_ATTEMPT_LIMIT);
+    const cooldownMs = Number(settings.cooldownMs || BOSS_MEMBER_COOLDOWN_MS);
+    const todayKey = computeDateKey(now);
+    const attemptEntry = state.memberAttempts && state.memberAttempts[memberId] ? state.memberAttempts[memberId] : null;
+    const attemptsUsed = attemptEntry && attemptEntry.dateKey === todayKey ? Math.max(0, Math.round(Number(attemptEntry.count || 0))) : 0;
+    const lastAt = attemptEntry && attemptEntry.lastChallengeAt ? new Date(attemptEntry.lastChallengeAt) : null;
+    const cooldownRemaining = lastAt ? Math.max(0, cooldownMs - (now.getTime() - lastAt.getTime())) : 0;
+    return {
+      bossId: state.bossId || definition.id,
+      name: definition.name,
+      level: state.level || definition.level,
+      element: definition.element || '',
+      status: state.status || 'open',
+      hp: {
+        max: hpMax,
+        current: hpLeft,
+        progress
+      },
+      schemaVersion: state.schemaVersion || BOSS_SCHEMA_VERSION,
+      totalDamage: state.totalDamage || 0,
+      attempts: {
+        limit: attemptLimit,
+        used: attemptsUsed,
+        remaining: Math.max(0, attemptLimit - attemptsUsed),
+        cooldownMs,
+        cooldownRemaining
+      },
+      leaderboard: buildBossLeaderboard(state.damageByMember, 10)
+    };
+  }
+
+
 
   async function listGuilds() {
     const leaderboard = await loadLeaderboard();
@@ -681,30 +1617,312 @@ function createGuildService(options = {}) {
   async function bossStatus(memberId, payload = {}) {
     await enforceRateLimit(memberId, 'boss.status');
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
-    return buildPlaceholderResponse('boss.status', {
-      status: 'idle',
-      boss: null
+    const settings = await loadSettings();
+    const bossSettings = resolveBossSettings(settings.boss || DEFAULT_GUILD_BOSS_SETTINGS);
+    const membership = await loadMemberGuild(memberId);
+    if (!membership || !membership.guild) {
+      throw createError('NOT_IN_GUILD', '请先加入宗门');
+    }
+    const rotationBossId = Array.isArray(bossSettings.rotation) && bossSettings.rotation.length
+      ? bossSettings.rotation[0].bossId
+      : null;
+    const requestedBossId = toTrimmedString(payload.bossId);
+    const bossId = requestedBossId || rotationBossId || DEFAULT_BOSS_ID;
+    const baseDefinition = getBossDefinition(bossId);
+    if (!baseDefinition) {
+      throw createError('BOSS_NOT_FOUND', '未找到指定 Boss');
+    }
+    const definition = normalizeBossDefinition(baseDefinition);
+    const { state } = await ensureBossState(membership.guild.id, definition);
+    const nowDate = new Date();
+    const bossPayload = buildBossStatusPayload({
+      state,
+      definition,
+      settings: bossSettings,
+      memberId,
+      now: nowDate
     });
+    const canChallenge =
+      bossSettings.enabled &&
+      (bossPayload.status !== 'ended' || bossPayload.hp.current > 0) &&
+      bossPayload.attempts.remaining > 0 &&
+      bossPayload.attempts.cooldownRemaining === 0;
+    return wrapActionResponse(
+      'boss.status',
+      {
+        boss: bossPayload,
+        canChallenge,
+        settings: {
+          dailyAttempts: bossSettings.dailyAttempts,
+          cooldownMs: bossSettings.cooldownMs,
+          maxRounds: bossSettings.maxRounds
+        }
+      },
+      {
+        message: 'Boss 状态已加载'
+      }
+    );
   }
 
   async function bossChallenge(memberId, payload = {}) {
     await enforceRateLimit(memberId, 'boss.challenge');
     await enforceCooldown(memberId, 'boss.challenge');
-    const result = await initiateTeamBattle(memberId, payload);
-    return wrapActionResponse('boss.challenge', {
-      battle: result.battle,
-      rewards: result.rewards || null
-    }, {
-      message: 'Boss 挑战已发起'
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    const settings = await loadSettings();
+    const bossSettings = resolveBossSettings(settings.boss || DEFAULT_GUILD_BOSS_SETTINGS);
+    const membership = await loadMemberGuild(memberId);
+    if (!membership || !membership.guild) {
+      throw createError('NOT_IN_GUILD', '请先加入宗门');
+    }
+    const rotationBossId = Array.isArray(bossSettings.rotation) && bossSettings.rotation.length
+      ? bossSettings.rotation[0].bossId
+      : null;
+    const requestedBossId = toTrimmedString(payload.bossId);
+    const bossId = requestedBossId || rotationBossId || DEFAULT_BOSS_ID;
+    const baseDefinition = getBossDefinition(bossId);
+    if (!baseDefinition) {
+      throw createError('BOSS_NOT_FOUND', '未找到指定 Boss');
+    }
+    const definition = normalizeBossDefinition(baseDefinition);
+    const partySource = Array.isArray(payload.party) ? payload.party : Array.isArray(payload.members) ? payload.members : [];
+    const normalizedParty = partySource
+      .map((id) => toTrimmedString(id))
+      .filter(Boolean);
+    if (!normalizedParty.includes(memberId)) {
+      normalizedParty.unshift(memberId);
+    }
+    const uniqueParty = Array.from(new Set(normalizedParty)).slice(0, 5);
+    if (!uniqueParty.length) {
+      uniqueParty.push(memberId);
+    }
+    const membershipSnapshot = await db
+      .collection(COLLECTIONS.GUILD_MEMBERS)
+      .where({ guildId: membership.guild.id, status: 'active', memberId: command.in(uniqueParty) })
+      .get();
+    const membershipDocs = membershipSnapshot.data || [];
+    if (membershipDocs.length !== uniqueParty.length) {
+      throw createError('INVALID_MEMBER', '队伍成员存在异常或未在宗门内');
+    }
+    const memberSnapshot = await db
+      .collection(COLLECTIONS.MEMBERS)
+      .where({ _id: command.in(uniqueParty) })
+      .get();
+    const memberDocs = memberSnapshot.data || [];
+    if (memberDocs.length !== uniqueParty.length) {
+      throw createError('INVALID_MEMBER', '未找到全部队伍成员档案');
+    }
+    const memberDocMap = new Map();
+    memberDocs.forEach((doc) => {
+      const key = toTrimmedString(doc._id || doc.id || doc.memberId);
+      if (key) {
+        memberDocMap.set(key, doc);
+      }
     });
+    const partyMembers = uniqueParty.map((id) => {
+      const membershipDoc = membershipDocs.find((doc) => doc.memberId === id);
+      const memberDoc = memberDocMap.get(id);
+      if (!membershipDoc || !memberDoc) {
+        throw createError('INVALID_MEMBER', '队伍成员信息缺失');
+      }
+      return { memberId: id, membership: membershipDoc, member: memberDoc };
+    });
+    const { id: bossDocId, state: bossState } = await ensureBossState(membership.guild.id, definition);
+    const todayKey = computeDateKey(new Date());
+    const attemptLimit = bossSettings.dailyAttempts || BOSS_DAILY_ATTEMPT_LIMIT;
+    const cooldownMs = bossSettings.cooldownMs || BOSS_MEMBER_COOLDOWN_MS;
+    const attemptState = {};
+    partyMembers.forEach((entry) => {
+      const record = bossState.memberAttempts[entry.memberId];
+      const sameDay = record && record.dateKey === todayKey;
+      const used = sameDay ? Math.max(0, Math.round(Number(record.count || 0))) : 0;
+      if (used >= attemptLimit) {
+        throw createError('BOSS_ATTEMPTS_EXHAUSTED', '今日挑战次数已用尽');
+      }
+      const lastAt = record && record.lastChallengeAt ? new Date(record.lastChallengeAt) : null;
+      if (lastAt && Date.now() - lastAt.getTime() < cooldownMs) {
+        throw createError('BOSS_COOLDOWN', 'Boss 挑战冷却中，请稍后再试');
+      }
+      attemptState[entry.memberId] = { used, record };
+    });
+    const seed = toTrimmedString(payload.seed) || buildBossSeed(definition.id, memberId);
+    const simulation = simulateBossBattle({
+      guild: membership.guild,
+      bossDefinition: definition,
+      bossState,
+      partyMembers,
+      seed,
+      maxRounds: bossSettings.maxRounds
+    });
+    const totalDamage = Object.values(simulation.damageByMember).reduce((acc, value) => acc + Math.max(0, Math.round(Number(value) || 0)), 0);
+    const challengeTimestamp = serverTimestamp();
+    const bossCollection = db.collection(COLLECTIONS.GUILD_BOSS);
+    const updateData = {
+      totalDamage: command.inc(Math.round(totalDamage)),
+      hpLeft: command.inc(-Math.round(totalDamage)),
+      updatedAt: challengeTimestamp
+    };
+    if (simulation.victory) {
+      updateData.status = 'ended';
+      updateData.defeatedAt = challengeTimestamp;
+    }
+    Object.keys(simulation.damageByMember).forEach((id) => {
+      const damageValue = Math.max(0, Math.round(Number(simulation.damageByMember[id]) || 0));
+      updateData[`damageByMember.${id}`] = command.inc(damageValue);
+    });
+    Object.keys(attemptState).forEach((id) => {
+      const info = attemptState[id];
+      updateData[`memberAttempts.${id}`] = {
+        dateKey: todayKey,
+        count: info.used + 1,
+        lastChallengeAt: challengeTimestamp
+      };
+    });
+    await bossCollection.doc(bossDocId).update({ data: updateData });
+    if (simulation.victory) {
+      await bossCollection.doc(bossDocId).update({ data: { hpLeft: 0 } }).catch(() => {});
+    }
+    const updatedState = {
+      ...bossState,
+      hpLeft: Math.max(0, bossState.hpLeft - Math.round(totalDamage)),
+      totalDamage: (bossState.totalDamage || 0) + Math.round(totalDamage),
+      status: simulation.victory ? 'ended' : bossState.status,
+      damageByMember: { ...bossState.damageByMember },
+      memberAttempts: { ...bossState.memberAttempts }
+    };
+    Object.keys(simulation.damageByMember).forEach((id) => {
+      const previous = Math.max(0, Math.round(Number(updatedState.damageByMember[id]) || 0));
+      const increment = Math.max(0, Math.round(Number(simulation.damageByMember[id]) || 0));
+      updatedState.damageByMember[id] = previous + increment;
+    });
+    Object.keys(attemptState).forEach((id) => {
+      const info = attemptState[id];
+      updatedState.memberAttempts[id] = {
+        dateKey: todayKey,
+        count: info.used + 1,
+        lastChallengeAt: new Date().toISOString()
+      };
+    });
+    const partySummary = simulation.partyActors.map((actor) => ({
+      memberId: actor.memberId,
+      name: actor.displayName,
+      role: actor.guildRole,
+      damage: Math.max(0, Math.round(Number(simulation.damageByMember[actor.memberId]) || 0))
+    }));
+    await db.collection(COLLECTIONS.GUILD_BATTLES).add({
+      data: {
+        guildId: membership.guild.id,
+        initiatorId: memberId,
+        bossId: definition.id,
+        bossName: definition.name,
+        type: 'boss',
+        party: partySummary,
+        payload: simulation.payload,
+        signature: simulation.payload.signature,
+        seed,
+        victory: simulation.victory,
+        totalDamage: Math.round(totalDamage),
+        rounds: simulation.rounds,
+        createdAt: challengeTimestamp,
+        schemaVersion: GUILD_SCHEMA_VERSION
+      }
+    });
+    await recordEvent({
+      type: 'bossChallenge',
+      guildId: membership.guild.id,
+      actorId: memberId,
+      details: {
+        bossId: definition.id,
+        victory: simulation.victory,
+        seed,
+        totalDamage: Math.round(totalDamage),
+        participants: partySummary
+      }
+    });
+    await recordGuildLog({
+      guildId: membership.guild.id,
+      type: 'bossChallenge',
+      actorId: memberId,
+      payload: {
+        bossId: definition.id,
+        bossName: definition.name,
+        victory: simulation.victory,
+        damage: partySummary,
+        seed
+      }
+    });
+    const nowDate = new Date();
+    const bossPayload = buildBossStatusPayload({
+      state: updatedState,
+      definition,
+      settings: bossSettings,
+      memberId,
+      now: nowDate
+    });
+    const rewards = simulation.victory
+      ? {
+          stones: Math.max(0, Math.round(totalDamage / 1500)),
+          contribution: Math.max(1, Math.round(totalDamage / 2000))
+        }
+      : {
+          stones: Math.max(0, Math.round(totalDamage / 3000)),
+          contribution: Math.max(0, Math.round(totalDamage / 4000))
+        };
+    return wrapActionResponse(
+      'boss.challenge',
+      {
+        battle: simulation.payload,
+        victory: simulation.victory,
+        damage: partySummary,
+        rewards,
+        boss: bossPayload,
+        leaderboard: buildBossLeaderboard(updatedState.damageByMember, 10),
+        schemaVersion: BOSS_SCHEMA_VERSION
+      },
+      {
+        message: simulation.victory ? 'Boss 已被击败' : 'Boss 挑战完成'
+      }
+    );
   }
 
   async function bossRank(memberId, payload = {}) {
     await enforceRateLimit(memberId, 'boss.rank');
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
-    return buildPlaceholderResponse('boss.rank', {
-      leaderboard: []
-    });
+    const settings = await loadSettings();
+    const bossSettings = resolveBossSettings(settings.boss || DEFAULT_GUILD_BOSS_SETTINGS);
+    const membership = await loadMemberGuild(memberId);
+    if (!membership || !membership.guild) {
+      throw createError('NOT_IN_GUILD', '请先加入宗门');
+    }
+    const rotationBossId = Array.isArray(bossSettings.rotation) && bossSettings.rotation.length
+      ? bossSettings.rotation[0].bossId
+      : null;
+    const requestedBossId = toTrimmedString(payload.bossId);
+    const bossId = requestedBossId || rotationBossId || DEFAULT_BOSS_ID;
+    const baseDefinition = getBossDefinition(bossId);
+    if (!baseDefinition) {
+      throw createError('BOSS_NOT_FOUND', '未找到指定 Boss');
+    }
+    const definition = normalizeBossDefinition(baseDefinition);
+    const { state } = await ensureBossState(membership.guild.id, definition);
+    const leaderboard = buildBossLeaderboard(state.damageByMember, BOSS_RANK_LIMIT);
+    const selfDamage = leaderboard.find((entry) => entry.memberId === memberId) || {
+      memberId,
+      damage: Math.max(0, Math.round(Number(state.damageByMember[memberId]) || 0))
+    };
+    return wrapActionResponse(
+      'boss.rank',
+      {
+        bossId: definition.id,
+        bossName: definition.name,
+        leaderboard,
+        self: selfDamage,
+        schemaVersion: BOSS_SCHEMA_VERSION,
+        updatedAt: new Date().toISOString()
+      },
+      {
+        message: 'Boss 榜单已加载'
+      }
+    );
   }
 
   async function getLeaderboardSnapshot(memberId, payload = {}) {
@@ -918,7 +2136,12 @@ function createGuildService(options = {}) {
       throw createError('TEAM_NOT_FOUND', '缺少队伍成员');
     }
     const seed = resolveBattleSeed(guild.id, difficulty, now());
-    const { payload: battlePayload, victory } = buildBattlePayload({ guild, teamMembers, difficulty, seed });
+    const { payload: battlePayload, victory } = buildTeamBattlePayload({
+      guild,
+      teamMembers,
+      difficulty,
+      seed
+    });
     const battleCollection = db.collection(COLLECTIONS.GUILD_BATTLES);
     const createdAt = db.serverDate ? db.serverDate() : new Date();
     await battleCollection.add({

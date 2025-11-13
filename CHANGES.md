@@ -11,3 +11,6 @@
 - 重构 `cloudfunctions/guild/index.js`，统一动作路由、代理上下文与日志写入；新增 `constants.js` 管理限流冷却、`error-codes.js` 汇总错误码。
 - 扩展 `cloudfunctions/guild/guild-service.js` 提供 `create`、`profile`、`boss.challenge` 等动作骨架与成功/失败日志接口，并更新单元测试覆盖防刷逻辑。
 - 将单测覆盖阈值的分支指标暂调至 55%，在功能占位阶段兼顾骨架可测性与后续实现空间。
+- 完成公会 Boss 挑战的服务端模拟、阶段机制与战报持久化，新增 `cloudfunctions/guild/boss-definitions.js`、扩展 `guild-service` 及 `system-settings`，并补充确定性种子与并发写入单测。
+- 更新 `README.md` 与 `docs/guild.md`，补充 Boss 战斗流程、集合结构与部署说明。
+
