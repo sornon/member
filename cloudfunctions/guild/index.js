@@ -47,6 +47,8 @@ const ACTION_HANDLER_MAP = Object.freeze({
   disband: 'disband',
   profile: 'profile',
   donate: 'donate',
+  'members.list': 'membersList',
+  'logs.list': 'logsList',
   'tasks.list': 'tasksList',
   'tasks.claim': 'tasksClaim',
   'boss.status': 'bossStatus',

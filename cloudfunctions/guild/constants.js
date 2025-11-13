@@ -14,6 +14,8 @@ const ACTION_RATE_LIMIT_WINDOWS = Object.freeze({
   kick: 15 * 1000,
   disband: 5 * 60 * 1000,
   donate: 30 * 1000,
+  'members.list': 5 * 1000,
+  'logs.list': 5 * 1000,
   'tasks.list': 10 * 1000,
   'tasks.claim': 30 * 1000,
   'boss.status': 15 * 1000,

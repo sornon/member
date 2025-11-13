@@ -1,120 +1,332 @@
 .guild-page {
-  padding: 32rpx;
-  color: #f8fafc;
-  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
   min-height: 100vh;
+  background: radial-gradient(circle at top, #1e293b 0%, #0f172a 50%, #020617 100%);
+  color: #e2e8f0;
 }
-.loading,
-.error,
-.empty-text {
+
+.guild-scroll {
+  height: 100vh;
+  box-sizing: border-box;
+  padding: 32rpx 32rpx 64rpx;
+}
+
+.state {
   text-align: center;
+  padding: 160rpx 48rpx 80rpx;
+  font-size: 30rpx;
   color: #cbd5f5;
-  margin-top: 48rpx;
 }
-.current-guild {
-  background: rgba(30, 41, 59, 0.6);
-  border-radius: 24rpx;
-  padding: 24rpx;
-  margin-bottom: 48rpx;
-  box-shadow: 0 16rpx 32rpx rgba(15, 23, 42, 0.4);
+
+.state--error {
+  color: #fca5a5;
 }
-.guild-header {
+
+.guild-card {
+  background: rgba(15, 23, 42, 0.75);
+  border-radius: 32rpx;
+  padding: 32rpx;
+  box-shadow: 0 32rpx 48rpx rgba(2, 6, 23, 0.45);
+  margin-bottom: 32rpx;
+}
+
+.guild-card__header {
   display: flex;
   flex-direction: row;
   align-items: center;
-}
-.guild-icon {
-  width: 120rpx;
-  height: 120rpx;
-  border-radius: 20rpx;
-  margin-right: 24rpx;
-}
-.guild-info {
-  flex: 1;
-}
-.guild-name {
-  font-size: 36rpx;
-  font-weight: 600;
-  color: #e0f2fe;
-}
-.guild-manifesto {
-  display: block;
-  margin-top: 8rpx;
-  font-size: 26rpx;
-  color: #bae6fd;
-}
-.guild-meta {
-  display: block;
-  margin-top: 8rpx;
-  color: #94a3b8;
-  font-size: 24rpx;
-}
-.guild-actions {
-  display: flex;
-  flex-direction: row;
-  margin-top: 24rpx;
   gap: 24rpx;
 }
-.guild-actions .primary {
+
+.guild-avatar {
+  width: 136rpx;
+  height: 136rpx;
+  border-radius: 28rpx;
+  background: rgba(30, 41, 59, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  box-shadow: inset 0 0 12rpx rgba(148, 163, 184, 0.3);
+}
+
+.guild-avatar__image {
+  width: 100%;
+  height: 100%;
+}
+
+.guild-avatar__placeholder {
+  font-size: 60rpx;
+}
+
+.guild-card__info {
   flex: 1;
+}
+
+.guild-card__title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.guild-card__meta {
+  font-size: 26rpx;
+  color: #cbd5f5;
+  margin-top: 8rpx;
+}
+
+.guild-card__stats {
+  display: flex;
+  gap: 24rpx;
+  font-size: 24rpx;
+  margin-top: 16rpx;
+  color: #94a3b8;
+}
+
+.guild-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.btn {
+  border: none;
+  border-radius: 999rpx;
+  padding: 0 32rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  font-size: 26rpx;
+}
+
+.btn--primary {
   background: linear-gradient(90deg, #38bdf8 0%, #0ea5e9 100%);
   color: #0f172a;
-  border-radius: 999rpx;
+  font-weight: 600;
 }
-.guild-actions .secondary {
-  flex: 1;
-  background: rgba(148, 163, 184, 0.2);
-  color: #f8fafc;
-  border-radius: 999rpx;
+
+.btn--ghost {
+  background: rgba(148, 163, 184, 0.15);
+  color: #e2e8f0;
 }
-.leaderboard {
-  background: rgba(15, 23, 42, 0.6);
+
+.btn--link {
+  background: transparent;
+  color: #38bdf8;
+  padding: 0 16rpx;
+}
+
+.guild-notice {
+  margin-top: 32rpx;
+  background: rgba(30, 41, 59, 0.8);
   border-radius: 24rpx;
   padding: 24rpx;
-  box-shadow: 0 20rpx 30rpx rgba(15, 23, 42, 0.3);
 }
-.section-title {
-  font-size: 30rpx;
+
+.guild-notice__title {
+  font-size: 28rpx;
   font-weight: 500;
-  margin-bottom: 24rpx;
+  color: #bae6fd;
+}
+
+.guild-notice__content {
+  margin-top: 12rpx;
+  font-size: 26rpx;
+  color: #f1f5f9;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.guild-notice__summary {
+  margin-top: 16rpx;
+  font-size: 24rpx;
+  color: #94a3b8;
+}
+
+.guild-shortcuts {
+  margin-top: 32rpx;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24rpx;
+}
+
+.shortcut {
+  background: rgba(15, 23, 42, 0.8);
+  border-radius: 24rpx;
+  padding: 24rpx 12rpx;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  box-shadow: inset 0 0 20rpx rgba(59, 130, 246, 0.15);
+}
+
+.shortcut__icon {
+  font-size: 40rpx;
+}
+
+.shortcut__label {
+  font-size: 24rpx;
+  color: #cbd5f5;
+}
+
+.guild-empty {
+  margin-bottom: 32rpx;
+  padding: 48rpx 32rpx;
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 32rpx;
+  text-align: center;
+  color: #cbd5f5;
+  box-shadow: 0 24rpx 40rpx rgba(2, 6, 23, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.guild-empty__title {
+  font-size: 32rpx;
+  font-weight: 600;
   color: #f8fafc;
 }
+
+.guild-empty__desc {
+  font-size: 26rpx;
+  color: #a5b4fc;
+  line-height: 1.6;
+}
+
+.ticket-card {
+  background: rgba(15, 23, 42, 0.7);
+  border-radius: 28rpx;
+  padding: 28rpx;
+  margin-bottom: 32rpx;
+  box-shadow: 0 24rpx 36rpx rgba(2, 6, 23, 0.35);
+}
+
+.ticket-card__title {
+  font-size: 28rpx;
+  color: #bae6fd;
+  font-weight: 500;
+}
+
+.ticket-card__code {
+  margin-top: 16rpx;
+  font-size: 32rpx;
+  font-family: 'DIN Alternate', 'Courier New', monospace;
+  letter-spacing: 4rpx;
+  color: #f8fafc;
+}
+
+.ticket-card__meta {
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #94a3b8;
+}
+
+.guild-leaderboard {
+  background: rgba(15, 23, 42, 0.7);
+  border-radius: 32rpx;
+  padding: 32rpx 24rpx;
+  box-shadow: 0 32rpx 48rpx rgba(2, 6, 23, 0.4);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24rpx;
+}
+
+.section-header__title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.section-header__refresh {
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0 24rpx;
+  font-size: 24rpx;
+  border: none;
+  border-radius: 999rpx;
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+}
+
+.empty {
+  text-align: center;
+  color: #94a3b8;
+  padding: 32rpx 0;
+}
+
 .leaderboard-item {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  padding: 16rpx 0;
+  padding: 20rpx 0;
   border-bottom: 1px solid rgba(148, 163, 184, 0.2);
 }
+
 .leaderboard-item:last-child {
   border-bottom: none;
 }
+
 .leaderboard-rank {
-  width: 60rpx;
+  width: 72rpx;
   font-size: 32rpx;
-  font-weight: bold;
   color: #38bdf8;
+  font-weight: 600;
+  text-align: center;
 }
+
+.leaderboard-avatar {
+  position: relative;
+  width: 92rpx;
+  height: 92rpx;
+  margin-right: 24rpx;
+}
+
+.leaderboard-avatar__image {
+  width: 92rpx;
+  height: 92rpx;
+  border-radius: 20rpx;
+}
+
+.leaderboard-avatar__frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 92rpx;
+  height: 92rpx;
+  pointer-events: none;
+}
+
 .leaderboard-body {
   flex: 1;
-}
-.leaderboard-name {
-  display: block;
   color: #f1f5f9;
+}
+
+.leaderboard-name {
   font-size: 28rpx;
+  font-weight: 500;
 }
+
 .leaderboard-meta {
-  display: block;
+  font-size: 24rpx;
   color: #94a3b8;
-  font-size: 24rpx;
-  margin-top: 4rpx;
+  margin-top: 8rpx;
 }
-button.join {
-  font-size: 24rpx;
-  padding: 0 24rpx;
-  height: 64rpx;
-  line-height: 64rpx;
-  border-radius: 999rpx;
-  background: rgba(59, 130, 246, 0.2);
-  color: #e0f2fe;
+
+.leaderboard-title {
+  margin-top: 12rpx;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.leaderboard-title__image {
+  height: 32rpx;
+}
+
+.leaderboard-title__text {
+  font-size: 22rpx;
+  color: #bae6fd;
 }
