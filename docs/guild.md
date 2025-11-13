@@ -16,17 +16,38 @@
 
 ## 接口对照表
 
-| 云函数入口 (`cloudfunctions/guild/index.js`) | `GuildService` 调用方法 | 请求示例 | 说明 |
+`guild` 云函数通过 `event.action` 分发到内部的 `ACTION_HANDLER_MAP`。下表列出了所有面向前台或运营工具开放的 action 及其对应的 `GuildService` 方法，保证字段与实现一致。
+
+### 玩家侧 action
+
+| `event.action` | `GuildService` 方法 | 请求示例 | 说明 |
 | --- | --- | --- | --- |
-| `createGuild` | `GuildService.createGuild(data)` | `{ name: '太虚观', badge: 'cloud://.../crest.png' }` | 创建宗门，触发创建者成为宗主。|
-| `getGuildDetail` | `GuildService.getDetail(id)` | `{ guildId: 'guild_demo_crane' }` | 读取宗门详情、公告、职位与成员数量。|
-| `applyGuild` | `GuildService.apply({ guildId })` | `{ guildId: 'guild_demo_crane' }` | 申请加入宗门，写入待审批列表。|
-| `reviewApplication` | `GuildService.review({ applicationId, action })` | `{ applicationId: 'guild_demo_crane_user_x', action: 'approve' }` | 宗主/长老审批入帮。|
-| `updateNotice` | `GuildService.updateNotice({ guildId, notice })` | `{ guildId: 'guild_demo_crane', notice: '今晚八点团本' }` | 编辑公告。|
-| `dispatchTask` | `GuildService.dispatchTask({ templateId })` | `{ guildId: 'guild_demo_crane', templateId: 'donate-spirit-stone' }` | 下发宗门任务并初始化进度。|
-| `challengeBoss` | `GuildService.challengeBoss(params)` | `{ guildId: 'guild_demo_crane', bossId: 'boss_fire_01' }` | 发起 Boss 团队战，返回战斗结果与签名。|
-| `getLeaderboard` | `GuildService.getLeaderboard({ type })` | `{ type: 'contribution' }` | 获取宗门排行榜，可使用 `forceRefresh` 强制刷新缓存。|
-| `getGuildLogs` | `GuildService.getLogs({ guildId, cursor })` | `{ guildId: 'guild_demo_crane', pageSize: 20 }` | 查看宗门事件日志与贡献结算。
+| `create` | `GuildService.create(payload)` | `{ "name": "太虚观" }` | 玩家创建宗门，默认成为宗主。|
+| `profile` | `GuildService.profile()` | `{}` | 获取当前成员所在宗门、职位、公告与统计。|
+| `apply` | `GuildService.apply({ guildId })` | `{ "guildId": "guild_demo_crane" }` | 申请加入宗门，写入待审批列表。|
+| `approve` / `reject` | `GuildService.approve(payload)` / `GuildService.reject(payload)` | `{ "applicationId": "guild_demo_crane_user_x" }` | 宗主或长老审批入帮。|
+| `leave` / `kick` | `GuildService.leave(payload)` / `GuildService.kick(payload)` | `{ "memberId": "member_foo" }` | 成员主动退出或管理员移除成员。|
+| `disband` | `GuildService.disband()` | `{}` | 解散宗门并归档成员数据。|
+| `donate` | `GuildService.donate({ templateId })` | `{ "templateId": "donate-spirit-stone" }` | 上交宗门捐献并结算贡献。|
+| `members.list` | `GuildService.membersList({ guildId })` | `{ "guildId": "guild_demo_crane" }` | 分页读取成员清单。|
+| `logs.list` | `GuildService.logsList({ guildId })` | `{ "guildId": "guild_demo_crane" }` | 查看宗门事件日志与贡献结算。|
+| `tasks.list` | `GuildService.tasksList({ guildId })` | `{ "guildId": "guild_demo_crane" }` | 查询当前宗门任务及进度。|
+| `tasks.claim` | `GuildService.tasksClaim({ taskId })` | `{ "taskId": "task_guild_help" }` | 领取任务奖励并写入贡献。|
+| `boss.status` | `GuildService.bossStatus({ guildId })` | `{ "guildId": "guild_demo_crane" }` | 查询宗门 Boss 当前进度、血量与成员尝试次数。|
+| `boss.challenge` | `GuildService.bossChallenge(params)` | `{ "guildId": "guild_demo_crane", "bossId": "boss_fire_01" }` | 发起 Boss 战斗并返回战报。|
+| `boss.rank` | `GuildService.bossRank({ guildId })` | `{ "guildId": "guild_demo_crane" }` | 查看 Boss 赛季排行榜。|
+| `getLeaderboard` | `GuildService.getLeaderboard({ type })` | `{ "type": "contribution", "forceRefresh": true }` | 获取宗门排行榜，允许强制刷新缓存。|
+| `overview` | `GuildService.getOverview()` | `{}` | 组合返回 `profile`、`members.list`、`tasks.list` 等概要信息。|
+
+### 运营/管理 action
+
+| `event.action` | `GuildService` 方法 | 请求示例 | 说明 |
+| --- | --- | --- | --- |
+| `listGuilds` | `GuildService.listGuilds()` | `{}` | 运营工具使用的宗门列表（含分页与过滤）。|
+| `createGuild` / `joinGuild` / `leaveGuild` | `GuildService.createGuild(payload)` 等 | `{ "guildName": "太虚观" }` | 管理员代玩家处理宗门建制/入帮/退帮。|
+| `initiateTeamBattle` | `GuildService.initiateTeamBattle({ members, difficulty })` | `{ "members": ["member_a"], "difficulty": 2 }` | 发起演练战斗并生成战报。|
+| `refreshTicket` | `GuildService.issueActionTicket()` | `{}` | 申请操作票据，用于敏感操作签名。|
+| `admin.riskAlerts` | `GuildService.listRiskAlerts({ guildId, limit })` | `{ "guildId": "guild_demo_crane", "limit": 50 }` | 仅管理员可调用，返回风控预警。|
 
 > 以上接口均会通过 `createError(code, message)` 统一抛错；前端需捕获 `errCode` 进行提示。所有读写请求默认带入 `wxContext.OPENID` 识别玩家身份。
 
@@ -154,8 +175,9 @@
     "forceRefresh": true
   }
   ```
-- **重置 Boss 状态**：调用 `{ "action": "resetBoss", "guildId": "xxx", "bossId": "boss_fire_01" }` 可重新开放挑战。
-- **导出战报**：使用 `{ "action": "getBattle", "battleId": "..." }` 获取战报与签名，便于线下校验。
+- **查看 Boss 状态**：使用 `{ "action": "boss.status", "guildId": "xxx" }` 读取当前 Boss 阶段与血量，若需重新开启请参考下方故障排查中的手动回滚流程。
+- **导出战斗记录**：通过 `{ "action": "boss.rank", "guildId": "xxx" }` 获取赛季内全部成员伤害排行；如需单场战报，可在云开发 `guildBattles` 集合中按 `battleId` 导出存档。
+- **审计风控预警**：管理员可调用 `{ "action": "admin.riskAlerts", "guildId": "xxx", "limit": 100 }` 查看最近触发的高风险操作。
 
 ## 故障排查
 
