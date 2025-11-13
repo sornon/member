@@ -28,10 +28,17 @@ const ACTION_RATE_LIMIT_WINDOWS = Object.freeze({
 });
 
 const ACTION_COOLDOWN_WINDOWS = Object.freeze({
-  donate: 60 * 1000,
-  'tasks.claim': 45 * 1000,
-  'boss.challenge': 90 * 1000,
-  bossChallenge: 90 * 1000
+  donate: 10 * 1000,
+  'tasks.claim': 10 * 1000,
+  'boss.challenge': 10 * 1000,
+  bossChallenge: 10 * 1000
+});
+
+const ACTION_DAILY_LIMITS = Object.freeze({
+  donate: 20,
+  'tasks.claim': 10,
+  'boss.challenge': 6,
+  bossChallenge: 6
 });
 
 const DEFAULT_BOSS_ID = 'ancient_spirit_tree';
@@ -44,6 +51,7 @@ const BOSS_RANK_LIMIT = 100;
 module.exports = {
   ACTION_RATE_LIMIT_WINDOWS,
   ACTION_COOLDOWN_WINDOWS,
+  ACTION_DAILY_LIMITS,
   DEFAULT_BOSS_ID,
   BOSS_SCHEMA_VERSION,
   BOSS_DAILY_ATTEMPT_LIMIT,

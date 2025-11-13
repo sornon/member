@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - 新增 `guild` 云函数与 `guild-service`，实现宗门创建、加入、团队讨伐、排行榜缓存及安全校验。
+- 增强宗门安全风控：统一施加 10 秒冷却与日上限，记录异常到 `guildRateLimits`/`errorlogs`/`guildLogs`，支持后台 `admin.riskAlerts` 查询与新增风控单元测试。
 - 扩展 `common-config` / `system-settings` 增加宗门相关常量与配置归一化方法。
 - 新增小程序宗门页面（大厅、成员、任务、Boss、事件、详情、创建、团队讨伐）与 `GuildService` 调用层。
 - 在 `cloudfunctions/bootstrap/migrations/` 中编写宗门初始化与回滚脚本，支持集合创建、示例数据写入与安全回退。

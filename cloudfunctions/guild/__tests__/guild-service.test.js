@@ -471,6 +471,134 @@ describe('GuildService', () => {
     expect(second.battle.timeline).toEqual(first.battle.timeline);
   });
 
+  describe('risk control guards', () => {
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    test('donate enforces cooldown and daily limit via risk control', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2025-01-01T00:00:00Z'));
+      const guardedService = createGuildService({
+        db,
+        command: db.command,
+        loadSettings: async () => ({
+          enabled: true,
+          maxMembers: 30,
+          secret: 'test-secret',
+          teamBattle: { baseEnemyPower: 150 },
+          boss: {
+            enabled: true,
+            dailyAttempts: 5,
+            cooldownMs: 500,
+            maxRounds: 12,
+            rotation: [{ bossId: 'ancient_spirit_tree', level: 60 }]
+          },
+          riskControl: {
+            enabled: true,
+            actions: {
+              donate: { cooldownMs: 10 * 1000, dailyLimit: 2 },
+              'tasks.claim': { cooldownMs: 10 * 1000, dailyLimit: 2 },
+              'boss.challenge': { cooldownMs: 10 * 1000, dailyLimit: 3 },
+              bossChallenge: { cooldownMs: 10 * 1000, dailyLimit: 3 }
+            },
+            abuseDetection: { enabled: false }
+          }
+        })
+      });
+
+      const firstTicket = await guardedService.issueActionTicket('risk-user');
+      await expect(
+        guardedService.donate('risk-user', {
+          ticket: firstTicket.ticket,
+          signature: firstTicket.signature,
+          amount: 10
+        })
+      ).resolves.toMatchObject({ summary: { code: 'NOT_IMPLEMENTED' } });
+
+      const cooldownTicket = await guardedService.issueActionTicket('risk-user');
+      await expect(
+        guardedService.donate('risk-user', {
+          ticket: cooldownTicket.ticket,
+          signature: cooldownTicket.signature,
+          amount: 5
+        })
+      ).rejects.toMatchObject({ code: expect.stringMatching(/ACTION_COOLDOWN|RATE_LIMITED/) });
+
+      jest.advanceTimersByTime(30 * 1000);
+      const secondTicket = await guardedService.issueActionTicket('risk-user');
+      await guardedService.donate('risk-user', {
+        ticket: secondTicket.ticket,
+        signature: secondTicket.signature,
+        amount: 8
+      });
+
+      jest.advanceTimersByTime(30 * 1000);
+      const thirdTicket = await guardedService.issueActionTicket('risk-user');
+      await expect(
+        guardedService.donate('risk-user', {
+          ticket: thirdTicket.ticket,
+          signature: thirdTicket.signature,
+          amount: 12
+        })
+      ).rejects.toHaveProperty('code', ERROR_CODES.ACTION_DAILY_LIMIT);
+    });
+
+    test('abuse detection records security alerts for repeated donations', async () => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2025-01-01T00:00:00Z'));
+      const detectionService = createGuildService({
+        db,
+        command: db.command,
+        loadSettings: async () => ({
+          enabled: true,
+          maxMembers: 30,
+          secret: 'test-secret',
+          teamBattle: { baseEnemyPower: 150 },
+          boss: {
+            enabled: true,
+            dailyAttempts: 5,
+            cooldownMs: 500,
+            maxRounds: 12,
+            rotation: [{ bossId: 'ancient_spirit_tree', level: 60 }]
+          },
+          riskControl: {
+            enabled: true,
+            actions: {
+              donate: { cooldownMs: 10 * 1000, dailyLimit: 5 },
+              'tasks.claim': { cooldownMs: 10 * 1000, dailyLimit: 5 },
+              'boss.challenge': { cooldownMs: 10 * 1000, dailyLimit: 5 },
+              bossChallenge: { cooldownMs: 10 * 1000, dailyLimit: 5 }
+            },
+            abuseDetection: { enabled: true, windowMs: 60 * 1000, threshold: 2 }
+          }
+        })
+      });
+
+      const firstTicket = await detectionService.issueActionTicket('alert-user');
+      await detectionService.donate('alert-user', {
+        ticket: firstTicket.ticket,
+        signature: firstTicket.signature,
+        amount: 6
+      });
+      jest.advanceTimersByTime(30 * 1000);
+      const secondTicket = await detectionService.issueActionTicket('alert-user');
+      await detectionService.donate('alert-user', {
+        ticket: secondTicket.ticket,
+        signature: secondTicket.signature,
+        amount: 7
+      });
+
+      const logs = await db.collection(COLLECTIONS.GUILD_LOGS).where({ type: 'security' }).get();
+      expect(Array.isArray(logs.data)).toBe(true);
+      expect(logs.data.some((entry) => entry.action === 'riskControl')).toBe(true);
+
+      const alerts = await detectionService.listRiskAlerts('admin-user', { limit: 5 });
+      expect(Array.isArray(alerts.alerts)).toBe(true);
+      expect(alerts.alerts.length).toBeGreaterThan(0);
+    });
+  });
+
   test('concurrent boss challenges aggregate damage safely', async () => {
     await db
       .collection(COLLECTIONS.MEMBERS)

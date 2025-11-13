@@ -129,10 +129,42 @@
 | `guildId` | `string` | 宗门 ID。|
 | `type` | `string` | 日志类型，例如 `system`、`activity`。|
 | `actorId` | `string` | 触发人 ID。|
+| `severity` | `string` | 可选，风险日志标记 `info`/`warning`/`critical`。|
 | `payload` | `object` | 详情 JSON。|
 | `createdAt` | `Date` | 记录时间。|
 
 **索引**：`guildId + createdAt(desc)`。
+
+### `guildRateLimits`
+
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | `string` | 文档 ID，由 `memberId`、`guildId`、`action` 与窗口哈希生成。|
+| `type` | `'rate' / 'cooldown' / 'daily' / 'abuse'` | 控制类型，用于区分速率限制、冷却、日上限与风控窗口。|
+| `guildId` | `string` | 关联宗门 ID，公共行为写入 `null`。|
+| `memberId` | `string` | 会员 ID。|
+| `action` | `string` | 行为键，例如 `donate`、`tasks.claim`、`boss.challenge`。|
+| `count` | `number` | 当前窗口内累计调用次数。|
+| `limit` | `number` | 日上限配置（`type=daily` 时存在）。|
+| `windowMs` | `number` | 监控窗口长度（毫秒）。|
+| `windowStartedAt` | `Date` | 窗口起始时间，用于风控统计。|
+| `lastTriggeredAt` | `Date` | 最近一次命中时间。|
+| `dateKey` | `string` | `YYYY-MM-DD` 形式的日期键，便于日维度聚合。|
+| `expiresAt` | `Date` | 文档失效时间，自动清理过期窗口。|
+| `flaggedAt` | `Date` | 可选，异常高频触发时间。|
+| `schemaVersion` | `number` | 结构版本号。|
+
+**索引建议**：`memberId + action`、`guildId + action`、`type + windowStartedAt`，确保速率限制与风控查询高效。
+
+## 安全风控与监控
+
+- 核心宗门行为（`donate`、`tasks.claim`、`boss.challenge`）统一施加 **10 秒冷却** 与 **按成员的日上限**。冷却、日上限与开关均来自 `system_settings.feature_toggles.guildSettings.riskControl`。默认值位于 `system-settings` 模块，可按需下发：
+  - `riskControl.actions.<action>.cooldownMs`：冷却时间（毫秒），最低 10 秒。
+  - `riskControl.actions.<action>.dailyLimit`：单日最大次数，设为 `0` 可关闭日上限。
+  - `riskControl.abuseDetection`：开启高频检测的窗口长度与阈值。
+- 风控命中会写入 `guildRateLimits`（行为窗口）与 `errorlogs`，同时在 `guildLogs` 追加一条 `type: 'security'`、`severity: 'warning'` 的记录，便于审计。
+- 当 `abuseDetection` 统计到同一 `guildId`/`memberId`/`action` 在窗口内高频触发时，会自动创建 `riskControl` 日志，可通过后台云函数调用 `admin.riskAlerts`（仅管理员代理会话可用）或服务端调用 `GuildService.listRiskAlerts` 查询，字段包含行为摘要、阈值与命中的上下文。
+- 所有安全事件都通过统一的 `recordSecurityEvent` 逻辑记录，携带 `loggerTag: 'guild'`，便于日志平台或告警系统筛选。
 
 ## 迁移与回滚
 
