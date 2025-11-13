@@ -128,6 +128,13 @@ cd cloudfunctions/member && npm install && cd -
 - 小程序在调用云函数出现异常时会自动写入 `errorlogs` 集合，记录接口名称、会员 ID、时间以及完整的错误信息，便于排查线上问题。
 - 首次部署或升级到包含该功能的版本时，请确保已经创建 `errorlogs` 集合，可通过重新执行 `bootstrap` 云函数自动创建。
 
+## 测试与性能基准
+
+- 使用 `npm test -- --runInBand` 运行 Jest 测试。新增的 `__tests__/guild/` 目录补齐宗门创建、申请审批、捐献、任务领取、Boss 挑战、排行榜
+  等路径的成功、失败与边界用例，并包含端到端旅程脚本。
+- 通过 `node scripts/benchmarks/guild-boss-benchmark.js` 构造 5k 成员与 100 场挑战数据，输出各阶段耗时与索引/批量读/字段裁剪等优化建议。
+- 若在 CI 中运行，请确保 `node_modules` 安装完成并允许脚本执行自带的内存数据库替身，无需真实 CloudBase 连接。
+
 ## 常见问题
 
 - **云函数 `common` 上传报错 `CreateFailed`**：通常是首次创建云函数时目录为空导致。请先在云开发控制台删除状态为“创建失败”的 `common` 函数，再重新上传仓库内的 `cloudfunctions/common` 目录；若删除后提示 `ResourceNotFound.Function`，需要先在控制台重新创建同名函数实例。详见 [常见问题排查](docs/troubleshooting.md#云函数-common-上传失败createfailed)。

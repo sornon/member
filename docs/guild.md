@@ -275,3 +275,12 @@
 - `ACTION_COOLDOWN_WINDOWS`：用于 `donate`、`tasks.claim`、`boss.challenge` 等需要防重入的冷却时间。
 
 如需调整风控策略，只需更新该文件并同步部署即可。
+
+## 测试与基准
+
+- **单元 / 集成测试**：根目录新增 `__tests__/guild/`，覆盖 `create`、`apply`、`approve`、`donate`、`tasks.claim`、
+  `boss.challenge`、`getLeaderboard` 等关键路径的成功、失败与边界场景，并验证 Boss 回放的随机种子一致性与并发写入。
+- **端到端流程**：`guild-lifecycle.e2e.spec.js` 复刻 “入会 → 捐献 → 领任务 → Boss → 榜单 → 领奖” 的玩家旅程，可通过
+  `npm test -- --runInBand` 在 CI 中执行。
+- **性能基准**：`scripts/benchmarks/guild-boss-benchmark.js` 使用内存双写入 5k 成员与 100 场挑战，统计读写耗时并输出索引、
+  批量查询与字段裁剪等优化建议，执行方式：`node scripts/benchmarks/guild-boss-benchmark.js`。
