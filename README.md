@@ -64,6 +64,10 @@
    - `guildBattles`
    - `guildLeaderboard`
    - `guildLogs`
+   - `guildCache`
+   - `guildEventLogs`
+   - `guildTickets`
+   - `guildRateLimits`
    - `avatars`
    - `errorlogs`
 3. 在“云函数”面板中右键部署以下函数（需先安装依赖）：

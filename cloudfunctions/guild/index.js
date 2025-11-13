@@ -66,7 +66,16 @@ const ACTION_HANDLER_MAP = Object.freeze({
 const CUSTOM_ACTIONS = Object.freeze({
   refreshTicket: async (service, actorId) => ({
     actionTicket: await service.issueActionTicket(actorId)
-  })
+  }),
+  'admin.riskAlerts': async (service, actorId, event = {}, context = {}) => {
+    if (!context || !context.proxySession) {
+      throw createError(ERROR_CODES.PERMISSION_DENIED, '仅限管理员操作');
+    }
+    return service.listRiskAlerts(actorId, {
+      limit: event.limit,
+      guildId: event.guildId
+    });
+  }
 });
 
 let collectionsReady = false;
@@ -184,13 +193,40 @@ function normalizeMemberId(value) {
 }
 
 function resolveOptionalActorId(defaultMemberId, event = {}) {
-  const fromEvent = normalizeMemberId(event.actorId || event.memberId);
   const fromContext = normalizeMemberId(defaultMemberId);
-  return fromEvent || fromContext || null;
+  const fromActor = normalizeMemberId(event.actorId);
+  if (fromActor && fromActor === fromContext) {
+    return fromActor;
+  }
+  return fromContext || null;
 }
 
 function resolveActorId(defaultMemberId, event = {}) {
   const resolved = resolveOptionalActorId(defaultMemberId, event);
+  const providedMemberId = normalizeMemberId(event.memberId);
+  if (providedMemberId && providedMemberId !== resolved) {
+    try {
+      const service = getGuildService();
+      service
+        .recordSecurityEvent({
+          action: 'member.override',
+          actorId: resolved || '',
+          code: ERROR_CODES.PERMISSION_DENIED,
+          message: '检测到非法 memberId 参数',
+          context: {
+            providedMemberId,
+            action: normalizeActionName(event.action)
+          }
+        })
+        .catch(() => {});
+    } catch (error) {
+      console.warn('[guild] failed to record member override', error);
+    }
+    console.warn('[guild] suspicious memberId override', {
+      providedMemberId,
+      resolved
+    });
+  }
   if (!resolved) {
     throw createError(ERROR_CODES.UNAUTHENTICATED, '缺少身份信息，请重新登录');
   }
@@ -314,7 +350,7 @@ exports.main = async (event = {}, context = {}) => {
     if (!handler) {
       throw createError(ERROR_CODES.UNKNOWN_ACTION, `未知操作：${normalizedAction}`);
     }
-    const rawResult = await handler(actorId, event, { context, openid: OPENID });
+    const rawResult = await handler(actorId, event, { context, openid: OPENID, proxySession });
     const result = ensureResponseShape(normalizedAction, rawResult);
     await recordSuccessLog(service, normalizedAction, actorId, event, result);
     return result;

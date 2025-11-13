@@ -23,6 +23,7 @@ const {
 const {
   ACTION_RATE_LIMIT_WINDOWS,
   ACTION_COOLDOWN_WINDOWS,
+  ACTION_DAILY_LIMITS,
   DEFAULT_BOSS_ID,
   BOSS_SCHEMA_VERSION,
   BOSS_DAILY_ATTEMPT_LIMIT,
@@ -31,6 +32,7 @@ const {
   BOSS_RANK_LIMIT
 } = require('./constants');
 const { getBossDefinition } = require('./boss-definitions');
+const { ERROR_CODES } = require('./error-codes');
 
 const GUILD_SCHEMA_VERSION = 1;
 const LEADERBOARD_CACHE_SCHEMA_VERSION = 1;
@@ -40,6 +42,8 @@ const GUILD_LEADERBOARD_CACHE_SIZE = 200;
 const DEFAULT_LEADERBOARD_LIMIT = 50;
 const DEFAULT_LEADERBOARD_TYPE = 'power';
 const GUILD_LEADERBOARD_TYPES = Object.freeze(['power', 'contribution', 'activity', 'boss']);
+const ACTION_LIMIT_MESSAGE = '操作次数已达上限，请稍后再试';
+const RISK_ALERT_MESSAGE = '检测到异常高频操作';
 function createGuildService(options = {}) {
   const db = options.db;
   const command = options.command;
@@ -367,11 +371,246 @@ function createGuildService(options = {}) {
   }
 
   async function enforceCooldown(memberId, actionKey) {
-    const windowMs = ACTION_COOLDOWN_WINDOWS[actionKey];
+    const windowMs = await resolveActionCooldownWindow(actionKey);
     if (!windowMs) {
       return;
     }
     await enforceTimeGuard('cooldown', memberId, actionKey, windowMs, 'ACTION_COOLDOWN', '操作冷却中，请稍后再试');
+  }
+
+  function resolveRiskControlSettingsSnapshot(settings = {}) {
+    const fallback = DEFAULT_GUILD_SETTINGS.riskControl || {};
+    const riskControl = settings && typeof settings === 'object' && settings.riskControl
+      ? settings.riskControl
+      : fallback;
+    const actions = {
+      ...(fallback.actions || {}),
+      ...((riskControl && riskControl.actions) || {})
+    };
+    const abuseDetection = {
+      ...(fallback.abuseDetection || {}),
+      ...((riskControl && riskControl.abuseDetection) || {})
+    };
+    return {
+      enabled: riskControl && typeof riskControl.enabled === 'boolean' ? riskControl.enabled : fallback.enabled !== false,
+      loggerTag: riskControl && riskControl.loggerTag ? riskControl.loggerTag : fallback.loggerTag || 'guild',
+      actions,
+      abuseDetection
+    };
+  }
+
+  function resolveActionKeyCandidates(actionKey) {
+    const normalized = typeof actionKey === 'string' ? actionKey : '';
+    switch (normalized) {
+      case 'boss.challenge':
+      case 'bossChallenge':
+        return ['boss.challenge', 'bossChallenge'];
+      case 'tasks.claim':
+      case 'tasksClaim':
+        return ['tasks.claim', 'tasksClaim'];
+      default:
+        return [normalized];
+    }
+  }
+
+  async function resolveActionCooldownWindow(actionKey) {
+    const candidates = resolveActionKeyCandidates(actionKey);
+    const fallbackWindow = candidates.reduce((acc, key) => acc || ACTION_COOLDOWN_WINDOWS[key], 0);
+    const settings = await loadSettings();
+    const riskControl = resolveRiskControlSettingsSnapshot(settings);
+    if (!riskControl.enabled) {
+      return fallbackWindow;
+    }
+    const override = candidates.reduce((acc, key) => {
+      if (acc) {
+        return acc;
+      }
+      const config = riskControl.actions && riskControl.actions[key];
+      if (config && Number.isFinite(Number(config.cooldownMs)) && Number(config.cooldownMs) > 0) {
+        return Math.max(1000, Math.round(Number(config.cooldownMs)));
+      }
+      return acc;
+    }, null);
+    return override || fallbackWindow;
+  }
+
+  async function resolveActionDailyLimit(actionKey) {
+    const candidates = resolveActionKeyCandidates(actionKey);
+    const fallbackLimit = candidates.reduce((acc, key) => acc || ACTION_DAILY_LIMITS[key], 0);
+    const settings = await loadSettings();
+    const riskControl = resolveRiskControlSettingsSnapshot(settings);
+    if (!riskControl.enabled) {
+      return fallbackLimit || 0;
+    }
+    const override = candidates.reduce((acc, key) => {
+      if (acc != null) {
+        return acc;
+      }
+      const config = riskControl.actions && riskControl.actions[key];
+      if (config && Number.isFinite(Number(config.dailyLimit))) {
+        return Math.max(0, Math.round(Number(config.dailyLimit)));
+      }
+      return acc;
+    }, null);
+    return override != null ? override : fallbackLimit || 0;
+  }
+
+  function normalizeGuildIdForKey(guildId) {
+    if (typeof guildId !== 'string') {
+      return 'global';
+    }
+    const trimmed = guildId.trim();
+    return trimmed || 'global';
+  }
+
+  function buildDailyLimitDocId(memberId, actionKey, dateKey, guildId) {
+    const memberKey = sanitizeString(memberId, { maxLength: 64 }) || 'unknown';
+    const action = sanitizeString(actionKey, { maxLength: 64 }) || 'action';
+    const normalizedGuild = normalizeGuildIdForKey(guildId);
+    const keySource = `daily:${memberKey}:${normalizedGuild}:${action}:${dateKey}`;
+    return crypto.createHash('md5').update(keySource).digest('hex');
+  }
+
+  function buildAbuseDocId(memberId, guildId, actionKey) {
+    const memberKey = sanitizeString(memberId, { maxLength: 64 }) || 'unknown';
+    const action = sanitizeString(actionKey, { maxLength: 64 }) || 'action';
+    const normalizedGuild = normalizeGuildIdForKey(guildId);
+    const keySource = `abuse:${memberKey}:${normalizedGuild}:${action}`;
+    return crypto.createHash('md5').update(keySource).digest('hex');
+  }
+
+  function computeDailyLimitExpiresAt(dateKey) {
+    if (!dateKey || typeof dateKey !== 'string') {
+      return new Date(Date.now() + 48 * 60 * 60 * 1000);
+    }
+    const base = new Date(`${dateKey}T00:00:00.000Z`);
+    if (Number.isNaN(base.getTime())) {
+      return new Date(Date.now() + 48 * 60 * 60 * 1000);
+    }
+    return new Date(base.getTime() + 48 * 60 * 60 * 1000);
+  }
+
+  async function assertDailyLimit(memberId, actionKey, options = {}) {
+    const limit = await resolveActionDailyLimit(actionKey);
+    if (!limit) {
+      return null;
+    }
+    const normalizedMemberId = sanitizeString(memberId, { maxLength: 64 });
+    if (!normalizedMemberId) {
+      return null;
+    }
+    const normalizedGuild = normalizeGuildIdForKey(options.guildId);
+    const todayKey = computeDateKey(new Date());
+    const docId = buildDailyLimitDocId(normalizedMemberId, actionKey, todayKey, normalizedGuild);
+    const collection = db.collection(COLLECTIONS.GUILD_RATE_LIMITS);
+    const existing = await collection
+      .doc(docId)
+      .get()
+      .catch((error) => {
+        if (error && /not exist/i.test(error.errMsg || '')) {
+          return null;
+        }
+        throw error;
+      });
+    let used = 0;
+    if (existing && existing.data && existing.data.dateKey === todayKey) {
+      used = Math.max(0, Math.round(Number(existing.data.count || 0)));
+      if (used >= limit) {
+        await recordSecurityEvent({
+          action: `${actionKey}.dailyLimit`,
+          actorId: memberId,
+          guildId: normalizedGuild === 'global' ? null : normalizedGuild,
+          code: ERROR_CODES.ACTION_DAILY_LIMIT,
+          message: ACTION_LIMIT_MESSAGE,
+          context: { limit, used, action: actionKey }
+        });
+        throw createError(ERROR_CODES.ACTION_DAILY_LIMIT, ACTION_LIMIT_MESSAGE);
+      }
+    }
+    return {
+      docId,
+      dateKey: todayKey,
+      limit,
+      used,
+      guildId: normalizedGuild === 'global' ? null : normalizedGuild,
+      actionKey,
+      memberId
+    };
+  }
+
+  async function reserveDailyQuota(limitContext) {
+    if (!limitContext || !limitContext.docId || !limitContext.limit) {
+      return null;
+    }
+    const { docId, limit, dateKey, guildId, actionKey, memberId } = limitContext;
+    const collection = db.collection(COLLECTIONS.GUILD_RATE_LIMITS);
+    const docRef = collection.doc(docId);
+    const snapshot = await docRef
+      .get()
+      .catch((error) => {
+        if (error && /not exist/i.test(error.errMsg || '')) {
+          return null;
+        }
+        throw error;
+      });
+    const expiresAt = computeDailyLimitExpiresAt(dateKey);
+    let used = 1;
+    const basePayload = {
+      limit,
+      lastTriggeredAt: serverTimestamp(),
+      expiresAt,
+      schemaVersion: GUILD_SCHEMA_VERSION
+    };
+    if (guildId) {
+      basePayload.guildId = guildId;
+    }
+
+    if (!snapshot || !snapshot.data || snapshot.data.dateKey !== dateKey) {
+      const payload = {
+        ...basePayload,
+        type: 'daily',
+        memberId,
+        action: actionKey,
+        dateKey,
+        count: 1
+      };
+      try {
+        await docRef.set({ data: payload });
+      } catch (error) {
+        if (error && /exists/i.test(error.errMsg || '')) {
+          return reserveDailyQuota(limitContext);
+        }
+        throw error;
+      }
+    } else {
+      const previousCount = Math.max(0, Math.round(Number(snapshot.data.count || 0)));
+      used = previousCount + 1;
+      if (used > limit) {
+        await recordSecurityEvent({
+          action: `${actionKey}.dailyLimit`,
+          actorId: memberId,
+          guildId,
+          code: ERROR_CODES.ACTION_DAILY_LIMIT,
+          message: ACTION_LIMIT_MESSAGE,
+          context: { limit, used: previousCount, action: actionKey }
+        });
+        throw createError(ERROR_CODES.ACTION_DAILY_LIMIT, ACTION_LIMIT_MESSAGE);
+      }
+      const updatePayload = {
+        ...basePayload
+      };
+      if (command && typeof command.inc === 'function') {
+        updatePayload.count = command.inc(1);
+      } else {
+        updatePayload.count = used;
+      }
+      await docRef.update({ data: updatePayload });
+    }
+    return {
+      ...limitContext,
+      used,
+      remaining: Math.max(0, limit - used)
+    };
   }
 
   function decorateGuild(doc = {}) {
@@ -2013,6 +2252,35 @@ function createGuildService(options = {}) {
     return { guilds: leaderboard };
   }
 
+  async function listRiskAlertsForAdmin(memberId, payload = {}) {
+    const requestedLimit = Number(payload.limit);
+    const limit = clamp(Number.isFinite(requestedLimit) ? Math.round(requestedLimit) : 20, 1, 100);
+    const normalizedGuildId = sanitizeString(payload.guildId, { maxLength: 64 });
+    const snapshot = await db
+      .collection(COLLECTIONS.GUILD_LOGS)
+      .where({ type: 'security' })
+      .get();
+    const rawAlerts = snapshot && snapshot.data ? snapshot.data : [];
+    rawAlerts.sort((left, right) => {
+      const leftTime = left && left.createdAt ? new Date(left.createdAt).getTime() : 0;
+      const rightTime = right && right.createdAt ? new Date(right.createdAt).getTime() : 0;
+      return rightTime - leftTime;
+    });
+    const filtered = normalizedGuildId
+      ? rawAlerts.filter((doc) => (doc.guildId || '') === normalizedGuildId)
+      : rawAlerts;
+    const alerts = filtered.slice(0, limit).map((doc) => ({
+      id: doc._id || doc.id || '',
+      action: doc.action || '',
+      actorId: doc.actorId || '',
+      guildId: doc.guildId || null,
+      summary: doc.summary || null,
+      payload: doc.payload || {},
+      createdAt: doc.createdAt || null
+    }));
+    return { alerts };
+  }
+
   async function recordGuildLog(entry = {}) {
     try {
       await db.collection(COLLECTIONS.GUILD_LOGS).add({
@@ -2025,6 +2293,160 @@ function createGuildService(options = {}) {
     } catch (error) {
       logger.warn('[guild] record guild log failed', error);
     }
+  }
+
+  async function recordSecurityEvent(event = {}) {
+    const action = event.action || 'security';
+    const actorId = event.actorId || '';
+    const guildId = event.guildId || null;
+    const code = event.code || ERROR_CODES.SECURITY_ALERT;
+    const message = event.message || '安全事件已记录';
+    const context = event.context || {};
+    try {
+      await recordErrorLog({
+        action,
+        actorId,
+        guildId,
+        code,
+        message,
+        event: context
+      });
+    } catch (error) {
+      logger.warn('[guild] record security event error log failed', error);
+    }
+    try {
+      await recordGuildLog({
+        action,
+        actorId,
+        guildId,
+        type: 'security',
+        severity: 'warning',
+        summary: buildSummary(action, { code, message }),
+        payload: { ...context, code }
+      });
+    } catch (error) {
+      logger.warn('[guild] record security event guild log failed', error);
+    }
+  }
+
+  async function recordRiskAlert(entry = {}) {
+    const guildId = entry.guildId || null;
+    const actorId = entry.memberId || entry.actorId || '';
+    const type = entry.type || 'unknown';
+    const count = Number(entry.count) || 0;
+    const threshold = Number(entry.threshold) || 0;
+    const windowMs = Number(entry.windowMs) || 0;
+    const metadata = entry.metadata || {};
+    const message = `${RISK_ALERT_MESSAGE}(${type})`;
+    await recordSecurityEvent({
+      action: 'riskControl',
+      actorId,
+      guildId,
+      code: ERROR_CODES.SECURITY_ALERT,
+      message,
+      context: { type, count, threshold, windowMs, metadata }
+    });
+  }
+
+  async function monitorActionFrequency({ guildId = null, memberId, type, metadata = {} } = {}) {
+    if (!memberId || !type) {
+      return null;
+    }
+    const settings = await loadSettings();
+    const riskControl = resolveRiskControlSettingsSnapshot(settings);
+    const detection = riskControl.abuseDetection || {};
+    if (!riskControl.enabled || detection.enabled === false) {
+      return null;
+    }
+    const windowMs = Math.max(1000, Math.round(Number(detection.windowMs) || 60000));
+    const threshold = Math.max(1, Math.round(Number(detection.threshold) || 1));
+    const docId = buildAbuseDocId(memberId, guildId, type);
+    const collection = db.collection(COLLECTIONS.GUILD_RATE_LIMITS);
+    const docRef = collection.doc(docId);
+    const nowDate = new Date();
+    const nowTs = nowDate.getTime();
+    const snapshot = await docRef
+      .get()
+      .catch((error) => {
+        if (error && /not exist/i.test(error.errMsg || '')) {
+          return null;
+        }
+        throw error;
+      });
+    let count = 1;
+    let windowStartedAt = nowDate;
+    let flaggedRecently = false;
+    if (snapshot && snapshot.data) {
+      const startedAt = snapshot.data.windowStartedAt ? new Date(snapshot.data.windowStartedAt) : null;
+      if (startedAt && !Number.isNaN(startedAt.getTime()) && nowTs - startedAt.getTime() < windowMs) {
+        const previousCount = Math.max(0, Math.round(Number(snapshot.data.count || 0)));
+        count = previousCount + 1;
+        windowStartedAt = startedAt;
+      }
+      const flaggedAt = snapshot.data.flaggedAt ? new Date(snapshot.data.flaggedAt) : null;
+      if (flaggedAt && !Number.isNaN(flaggedAt.getTime()) && nowTs - flaggedAt.getTime() < windowMs) {
+        flaggedRecently = true;
+      }
+    }
+
+    const payloadBase = {
+      type: 'abuse',
+      guildId,
+      memberId,
+      action: type,
+      windowMs,
+      windowStartedAt,
+      lastTriggeredAt: serverTimestamp(),
+      schemaVersion: GUILD_SCHEMA_VERSION
+    };
+
+    if (!snapshot || !snapshot.data || (snapshot.data.windowStartedAt && new Date(snapshot.data.windowStartedAt).getTime() !== windowStartedAt.getTime())) {
+      try {
+        await docRef.set({
+          data: {
+            ...payloadBase,
+            count,
+            flaggedAt: null
+          }
+        });
+      } catch (error) {
+        if (error && /exists/i.test(error.errMsg || '')) {
+          return monitorActionFrequency({ guildId, memberId, type, metadata });
+        }
+        throw error;
+      }
+    } else {
+      const updatePayload = {
+        lastTriggeredAt: serverTimestamp(),
+        windowStartedAt,
+        windowMs
+      };
+      if (command && typeof command.inc === 'function') {
+        updatePayload.count = command.inc(1);
+      } else {
+        updatePayload.count = count;
+      }
+      await docRef.update({ data: updatePayload });
+    }
+
+    if (count >= threshold && !flaggedRecently) {
+      try {
+        await docRef.update({ data: { flaggedAt: serverTimestamp() } });
+      } catch (error) {
+        logger.warn('[guild] failed to update risk flag timestamp', error);
+      }
+      await recordRiskAlert({
+        guildId,
+        memberId,
+        type,
+        count,
+        threshold,
+        windowMs,
+        metadata
+      });
+    }
+
+    return { count, threshold, windowMs };
   }
 
   async function recordErrorLog(entry = {}) {
@@ -2112,9 +2534,24 @@ function createGuildService(options = {}) {
   }
 
   async function donate(memberId, payload = {}) {
+    const membership = await loadMemberGuild(memberId);
+    const guildId = membership && membership.guild ? membership.guild.id : null;
+    const limitContext = await assertDailyLimit(memberId, 'donate', { guildId });
     await enforceRateLimit(memberId, 'donate');
     await enforceCooldown(memberId, 'donate');
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    if (limitContext) {
+      await reserveDailyQuota(limitContext);
+    }
+    await monitorActionFrequency({
+      guildId,
+      memberId,
+      type: 'donate',
+      metadata: {
+        amount: Number(payload.amount) || 0,
+        donationType: payload.type || 'stone'
+      }
+    });
     return buildPlaceholderResponse('donate', {
       donation: {
         amount: Number(payload.amount) || 0,
@@ -2157,9 +2594,23 @@ function createGuildService(options = {}) {
   }
 
   async function claimTask(memberId, payload = {}) {
+    const membership = await loadMemberGuild(memberId);
+    const guildId = membership && membership.guild ? membership.guild.id : null;
+    const limitContext = await assertDailyLimit(memberId, 'tasks.claim', { guildId });
     await enforceRateLimit(memberId, 'tasks.claim');
     await enforceCooldown(memberId, 'tasks.claim');
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    if (limitContext) {
+      await reserveDailyQuota(limitContext);
+    }
+    await monitorActionFrequency({
+      guildId,
+      memberId,
+      type: 'tasks.claim',
+      metadata: {
+        taskId: payload.taskId || null
+      }
+    });
     return buildPlaceholderResponse('tasks.claim', {
       taskId: payload.taskId || null
     });
@@ -2216,15 +2667,17 @@ function createGuildService(options = {}) {
   }
 
   async function bossChallenge(memberId, payload = {}) {
+    const membership = await loadMemberGuild(memberId);
+    if (!membership || !membership.guild) {
+      throw createError('NOT_IN_GUILD', '请先加入宗门');
+    }
+    const guildId = membership.guild.id;
+    const limitContext = await assertDailyLimit(memberId, 'boss.challenge', { guildId });
     await enforceRateLimit(memberId, 'boss.challenge');
     await enforceCooldown(memberId, 'boss.challenge');
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
     const settings = await loadSettings();
     const bossSettings = resolveBossSettings(settings.boss || DEFAULT_GUILD_BOSS_SETTINGS);
-    const membership = await loadMemberGuild(memberId);
-    if (!membership || !membership.guild) {
-      throw createError('NOT_IN_GUILD', '请先加入宗门');
-    }
     const rotationBossId = Array.isArray(bossSettings.rotation) && bossSettings.rotation.length
       ? bossSettings.rotation[0].bossId
       : null;
@@ -2248,7 +2701,7 @@ function createGuildService(options = {}) {
     }
     const membershipSnapshot = await db
       .collection(COLLECTIONS.GUILD_MEMBERS)
-      .where({ guildId: membership.guild.id, status: 'active', memberId: command.in(uniqueParty) })
+      .where({ guildId, status: 'active', memberId: command.in(uniqueParty) })
       .get();
     const membershipDocs = membershipSnapshot.data || [];
     if (membershipDocs.length !== uniqueParty.length) {
@@ -2277,7 +2730,7 @@ function createGuildService(options = {}) {
       }
       return { memberId: id, membership: membershipDoc, member: memberDoc };
     });
-    const { id: bossDocId, state: bossState } = await ensureBossState(membership.guild.id, definition);
+    const { id: bossDocId, state: bossState } = await ensureBossState(guildId, definition);
     const todayKey = computeDateKey(new Date());
     const attemptLimit = bossSettings.dailyAttempts || BOSS_DAILY_ATTEMPT_LIMIT;
     const cooldownMs = bossSettings.cooldownMs || BOSS_MEMBER_COOLDOWN_MS;
@@ -2294,6 +2747,15 @@ function createGuildService(options = {}) {
         throw createError('BOSS_COOLDOWN', 'Boss 挑战冷却中，请稍后再试');
       }
       attemptState[entry.memberId] = { used, record };
+    });
+    if (limitContext) {
+      await reserveDailyQuota(limitContext);
+    }
+    await monitorActionFrequency({
+      guildId,
+      memberId,
+      type: 'boss.challenge',
+      metadata: { bossId, partySize: uniqueParty.length }
     });
     const seed = toTrimmedString(payload.seed) || buildBossSeed(definition.id, memberId);
     const simulation = simulateBossBattle({
@@ -2793,6 +3255,7 @@ function createGuildService(options = {}) {
     getLeaderboard: getLeaderboardSnapshot,
     getOverview,
     listGuilds,
+    listRiskAlerts: listRiskAlertsForAdmin,
     createGuild,
     joinGuild,
     leaveGuild,
@@ -2802,6 +3265,7 @@ function createGuildService(options = {}) {
     loadSettings,
     recordGuildLog,
     recordErrorLog,
+    recordSecurityEvent,
     enforceRateLimit,
     enforceCooldown
   };
