@@ -1,3 +1,4 @@
+const { COLLECTIONS } = require('common-config');
 const { createGuildService } = require('../guild-service');
 
 function createMemoryDb() {
@@ -183,6 +184,49 @@ describe('GuildService', () => {
     expect(typeof battle.battle.signature).toBe('string');
   });
 
+  test('action ticket cannot be reused after verification', async () => {
+    const ticket = await service.issueActionTicket('member-3');
+    await expect(
+      service.verifyActionTicket('member-3', ticket.ticket, ticket.signature)
+    ).resolves.toBe(true);
+    await expect(
+      service.verifyActionTicket('member-3', ticket.ticket, ticket.signature)
+    ).rejects.toHaveProperty('code', 'TICKET_CONSUMED');
+  });
+
+  test('join guild derives member power from stored profile', async () => {
+    const leaderTicket = await service.issueActionTicket('leader');
+    const guildResult = await service.createGuild('leader', {
+      name: '流光阁',
+      ticket: leaderTicket.ticket,
+      signature: leaderTicket.signature,
+      powerRating: 1500
+    });
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc('member-4')
+      .set({
+        data: {
+          _id: 'member-4',
+          combatPower: 4321,
+          attributeSummary: { combatPower: 4321 }
+        }
+      });
+    const joinTicket = await service.issueActionTicket('member-4');
+    await service.joinGuild('member-4', {
+      guildId: guildResult.guild.id,
+      ticket: joinTicket.ticket,
+      signature: joinTicket.signature,
+      powerRating: 9999999
+    });
+    const snapshot = await db
+      .collection(COLLECTIONS.GUILD_MEMBERS)
+      .where({ guildId: guildResult.guild.id, memberId: 'member-4' })
+      .limit(1)
+      .get();
+    expect(snapshot.data[0].power).toBe(4321);
+  });
+
   test('rate limiting prevents rapid guild creation', async () => {
     const ticket = await service.issueActionTicket('rate-test');
     await service.createGuild('rate-test', {
@@ -196,6 +240,6 @@ describe('GuildService', () => {
         ticket: ticket.ticket,
         signature: ticket.signature
       })
-    ).rejects.toHaveProperty('code', 'ALREADY_IN_GUILD');
+    ).rejects.toHaveProperty('code', 'RATE_LIMITED');
   });
 });

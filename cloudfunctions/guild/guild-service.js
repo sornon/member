@@ -63,6 +63,67 @@ function createGuildService(options = {}) {
     return trimmed;
   }
 
+  function resolveMaxMemberPower(settings = {}) {
+    const baseEnemyPower = Number(settings.teamBattle && settings.teamBattle.baseEnemyPower);
+    if (Number.isFinite(baseEnemyPower) && baseEnemyPower > 0) {
+      return Math.max(1000, Math.round(baseEnemyPower * 10));
+    }
+    return 50000;
+  }
+
+  function extractMemberPowerFromDoc(doc = {}) {
+    const candidates = [
+      doc.combatPower,
+      doc.power,
+      doc.powerRating,
+      doc.powerScore,
+      doc.totalPower,
+      doc.strength,
+      doc.rating,
+      doc.attributeSummary && doc.attributeSummary.combatPower,
+      doc.attributeSummary && doc.attributeSummary.powerScore,
+      doc.attributes && doc.attributes.combatPower,
+      doc.attributes && doc.attributes.powerScore,
+      doc.profile && doc.profile.combatPower,
+      doc.profile && doc.profile.powerRating
+    ];
+    return candidates.reduce((acc, value) => {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > acc) {
+        return numeric;
+      }
+      return acc;
+    }, 0);
+  }
+
+  async function resolveMemberPower(memberId, fallbackPower = 0, settings = {}) {
+    let derivedPower = 0;
+    if (memberId) {
+      const snapshot = await db
+        .collection(COLLECTIONS.MEMBERS)
+        .doc(memberId)
+        .get()
+        .catch((error) => {
+          if (error && /not exist/i.test(error.errMsg || '')) {
+            return null;
+          }
+          throw error;
+        });
+      if (snapshot && snapshot.data) {
+        derivedPower = extractMemberPowerFromDoc(snapshot.data);
+      }
+    }
+    if (!derivedPower) {
+      const fallbackNumeric = Number(fallbackPower);
+      if (Number.isFinite(fallbackNumeric) && fallbackNumeric > 0) {
+        derivedPower = fallbackNumeric;
+      }
+    }
+    const maxPower = resolveMaxMemberPower(settings);
+    const normalized = Math.max(0, Math.round(derivedPower));
+    return clamp(normalized, 0, maxPower);
+  }
+
   function buildTicketSignature(ticket, secret) {
     return crypto.createHash('md5').update(`${ticket}:${secret}`).digest('hex');
   }
@@ -145,13 +206,18 @@ function createGuildService(options = {}) {
     if (expiresAt && expiresAt.getTime() < now()) {
       throw createError('TICKET_EXPIRED', '令牌已过期');
     }
+    if (doc.consumed) {
+      throw createError('TICKET_CONSUMED', '令牌已被使用');
+    }
+    const usageTimestamp = db.serverDate ? db.serverDate() : new Date();
     await db
       .collection(COLLECTIONS.GUILD_TICKETS)
       .doc(docId)
       .update({
         data: {
-          consumed: false,
-          lastUsedAt: db.serverDate ? db.serverDate() : new Date(),
+          consumed: true,
+          consumedAt: usageTimestamp,
+          lastUsedAt: usageTimestamp,
           uses: command.inc(1)
         }
       })
@@ -453,6 +519,7 @@ function createGuildService(options = {}) {
     const guildsCollection = db.collection(COLLECTIONS.GUILDS);
     const memberCollection = db.collection(COLLECTIONS.GUILD_MEMBERS);
     const createdAt = db.serverDate ? db.serverDate() : new Date();
+    const memberPower = await resolveMemberPower(memberId, payload.powerRating, settings);
     const guildDoc = {
       name,
       manifesto,
@@ -474,7 +541,7 @@ function createGuildService(options = {}) {
         status: 'active',
         joinedAt: createdAt,
         contribution: 0,
-        power: Number(payload.powerRating) || 0,
+        power: memberPower,
         schemaVersion: GUILD_SCHEMA_VERSION
       }
     });
@@ -497,7 +564,7 @@ function createGuildService(options = {}) {
     if (!guildId) {
       throw createError('INVALID_GUILD', '宗门不存在');
     }
-    const memberPower = Number(payload.powerRating) || 0;
+    const memberPower = await resolveMemberPower(memberId, payload.powerRating, settings);
     const current = await loadMemberGuild(memberId);
     if (current && current.guild) {
       throw createError('ALREADY_IN_GUILD', '请先退出当前宗门');
