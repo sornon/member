@@ -70,6 +70,9 @@ function bootstrapDb() {
         store.push(record);
         return { id };
       },
+      async get() {
+        return { data: store.map(clone) };
+      },
       doc(id) {
         return {
           async get() {

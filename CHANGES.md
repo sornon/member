@@ -13,4 +13,5 @@
 - 将单测覆盖阈值的分支指标暂调至 55%，在功能占位阶段兼顾骨架可测性与后续实现空间。
 - 完成公会 Boss 挑战的服务端模拟、阶段机制与战报持久化，新增 `cloudfunctions/guild/boss-definitions.js`、扩展 `guild-service` 及 `system-settings`，并补充确定性种子与并发写入单测。
 - 更新 `README.md` 与 `docs/guild.md`，补充 Boss 战斗流程、集合结构与部署说明。
+- 重构 `guildLeaderboard` 缓存：引入 `power`/`contribution`/`activity`/`boss` 多榜单缓存，合并宗主头像框与称号目录，返回 `myRank` 并在 schema 变更或 TTL 过期时自动重建；完善单元测试覆盖刷新逻辑。
 
