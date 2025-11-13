@@ -246,6 +246,54 @@ export const MemberService = {
   }
 };
 
+export const GuildService = {
+  async getOverview() {
+    return callCloud(CLOUD_FUNCTIONS.GUILD, attachClientEnv({ action: 'overview' }));
+  },
+  async listGuilds() {
+    return callCloud(CLOUD_FUNCTIONS.GUILD, attachClientEnv({ action: 'listGuilds' }));
+  },
+  async refreshTicket() {
+    return callCloud(CLOUD_FUNCTIONS.GUILD, attachClientEnv({ action: 'refreshTicket' }));
+  },
+  async createGuild(payload) {
+    return callCloud(
+      CLOUD_FUNCTIONS.GUILD,
+      attachClientEnv({
+        action: 'createGuild',
+        ...payload
+      })
+    );
+  },
+  async joinGuild(payload) {
+    return callCloud(
+      CLOUD_FUNCTIONS.GUILD,
+      attachClientEnv({
+        action: 'joinGuild',
+        ...payload
+      })
+    );
+  },
+  async leaveGuild(payload) {
+    return callCloud(
+      CLOUD_FUNCTIONS.GUILD,
+      attachClientEnv({
+        action: 'leaveGuild',
+        ...payload
+      })
+    );
+  },
+  async initiateTeamBattle(payload) {
+    return callCloud(
+      CLOUD_FUNCTIONS.GUILD,
+      attachClientEnv({
+        action: 'initiateTeamBattle',
+        ...payload
+      })
+    );
+  }
+};
+
 export const TaskService = {
   async list() {
     return callCloud(CLOUD_FUNCTIONS.TASKS, { action: 'list' });
