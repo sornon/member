@@ -18,30 +18,35 @@ const GUILD_COLLECTIONS = [
     ]
   },
   {
-    name: COLLECTIONS.GUILD_TASKS,
+    name: COLLECTIONS.GUILD_BATTLES,
     indexes: [
-      { key: { guildId: 1, status: 1 }, options: { name: 'idx_guild_task_status' } },
-      { key: { endAt: 1 }, options: { name: 'idx_guild_task_end' } }
+      { key: { guildId: 1, createdAt: -1 }, options: { name: 'idx_guild_battles_recent' } },
+      { key: { signature: 1 }, options: { name: 'idx_guild_battle_signature' } }
     ]
   },
   {
-    name: COLLECTIONS.GUILD_BOSS,
+    name: COLLECTIONS.GUILD_CACHE,
+    indexes: []
+  },
+  {
+    name: COLLECTIONS.GUILD_EVENT_LOGS,
     indexes: [
-      { key: { guildId: 1 }, options: { name: 'idx_guild_boss_guild' } },
-      { key: { status: 1 }, options: { name: 'idx_guild_boss_status' } },
-      { key: { endsAt: 1 }, options: { name: 'idx_guild_boss_ends' } }
+      { key: { guildId: 1, createdAt: -1 }, options: { name: 'idx_guild_event_logs_recent' } }
     ]
   },
   {
-    name: COLLECTIONS.GUILD_LEADERBOARD,
+    name: COLLECTIONS.GUILD_TICKETS,
     indexes: [
-      { key: { schemaVersion: 1 }, options: { name: 'idx_guild_leaderboard_schema' } }
+      { key: { signature: 1 }, options: { name: 'idx_guild_ticket_signature_unique', unique: true } },
+      { key: { memberId: 1, consumed: 1 }, options: { name: 'idx_guild_ticket_member_consumed' } },
+      { key: { expiresAt: 1 }, options: { name: 'idx_guild_ticket_expires' } }
     ]
   },
   {
-    name: COLLECTIONS.GUILD_LOGS,
+    name: COLLECTIONS.GUILD_RATE_LIMITS,
     indexes: [
-      { key: { guildId: 1, createdAt: -1 }, options: { name: 'idx_guild_logs_recent' } }
+      { key: { memberId: 1, action: 1 }, options: { name: 'idx_guild_rate_limit_member_action', unique: true } },
+      { key: { expiresAt: 1 }, options: { name: 'idx_guild_rate_limit_expires' } }
     ]
   }
 ];
@@ -50,7 +55,6 @@ const SAMPLE_GUILD_ID = 'guild_demo_crane';
 const SAMPLE_LEADER_ID = 'member_demo_leader';
 const SAMPLE_OFFICER_ID = 'member_demo_officer';
 const SAMPLE_MEMBER_ID = 'member_demo_disciple';
-const SAMPLE_LEADERBOARD_ID = 'season_demo_2025';
 
 function getLogger(context = {}) {
   const fallback = () => {};
@@ -196,99 +200,90 @@ async function seedSampleData(db, logger) {
     );
   }
 
-  const tasksCollection = db.collection(COLLECTIONS.GUILD_TASKS);
+  const battlesCollection = db.collection(COLLECTIONS.GUILD_BATTLES);
   await ensureDocument(
-    tasksCollection,
-    COLLECTIONS.GUILD_TASKS,
-    `${SAMPLE_GUILD_ID}_trial_01`,
+    battlesCollection,
+    COLLECTIONS.GUILD_BATTLES,
+    `${SAMPLE_GUILD_ID}_battle_01`,
     {
       guildId: SAMPLE_GUILD_ID,
-      taskId: 'guild_trial_elite',
-      type: 'trial',
-      title: '云海试炼：灵木守护',
-      goal: { type: 'defeat', target: 15 },
-      progress: { current: 12, target: 15 },
-      reward: { stones: 120, contribution: 60 },
-      status: 'open',
-      startAt: now,
-      endAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
-      updatedAt: now
-    },
-    logger
-  );
-  await ensureDocument(
-    tasksCollection,
-    COLLECTIONS.GUILD_TASKS,
-    `${SAMPLE_GUILD_ID}_donation_01`,
-    {
-      guildId: SAMPLE_GUILD_ID,
-      taskId: 'guild_donation_weekly',
-      type: 'donation',
-      title: '灵石捐献',
-      goal: { type: 'donate', target: 3000 },
-      progress: { current: 1450, target: 3000 },
-      reward: { contribution: 40 },
-      status: 'open',
-      startAt: now,
-      endAt: new Date(now.getTime() + 6 * 24 * 60 * 60 * 1000),
-      updatedAt: now
-    },
-    logger
-  );
-
-  const bossCollection = db.collection(COLLECTIONS.GUILD_BOSS);
-  await ensureDocument(
-    bossCollection,
-    COLLECTIONS.GUILD_BOSS,
-    `${SAMPLE_GUILD_ID}_boss_current`,
-    {
-      guildId: SAMPLE_GUILD_ID,
-      bossId: 'ancient_spirit_tree',
-      level: 5,
-      hpMax: 500000,
-      hpLeft: 312000,
-      phase: 2,
-      refreshedAt: now,
-      endsAt: new Date(now.getTime() + 2 * 60 * 60 * 1000),
-      status: 'open',
-      leaderboard: [
-        { memberId: SAMPLE_LEADER_ID, damage: 82000 },
-        { memberId: SAMPLE_OFFICER_ID, damage: 65500 },
-        { memberId: SAMPLE_MEMBER_ID, damage: 28750 }
-      ]
-    },
-    logger
-  );
-
-  const leaderboardCollection = db.collection(COLLECTIONS.GUILD_LEADERBOARD);
-  await ensureDocument(
-    leaderboardCollection,
-    COLLECTIONS.GUILD_LEADERBOARD,
-    SAMPLE_LEADERBOARD_ID,
-    {
-      entries: [
-        { guildId: SAMPLE_GUILD_ID, score: 12800, rank: 1 },
-        { guildId: 'guild_demo_phoenix', score: 9870, rank: 2 }
+      initiatorId: SAMPLE_LEADER_ID,
+      team: [
+        { memberId: SAMPLE_LEADER_ID, power: 520 },
+        { memberId: SAMPLE_OFFICER_ID, power: 430 }
       ],
-      updatedAt: now,
+      difficulty: 3,
+      payload: {
+        signature: 'sample_battle_signature',
+        seed: 'demo_seed_2025'
+      },
+      signature: 'sample_battle_signature',
+      victory: true,
+      createdAt: now,
       schemaVersion: 1
     },
     logger
   );
 
-  const logsCollection = db.collection(COLLECTIONS.GUILD_LOGS);
+  const cacheCollection = db.collection(COLLECTIONS.GUILD_CACHE);
   await ensureDocument(
-    logsCollection,
-    COLLECTIONS.GUILD_LOGS,
-    `${SAMPLE_GUILD_ID}_log_01`,
+    cacheCollection,
+    COLLECTIONS.GUILD_CACHE,
+    'leaderboard',
+    {
+      schemaVersion: 1,
+      generatedAt: now,
+      data: [
+        { guildId: SAMPLE_GUILD_ID, power: 12800, rank: 1 },
+        { guildId: 'guild_demo_phoenix', power: 9870, rank: 2 }
+      ]
+    },
+    logger
+  );
+
+  const eventLogsCollection = db.collection(COLLECTIONS.GUILD_EVENT_LOGS);
+  await ensureDocument(
+    eventLogsCollection,
+    COLLECTIONS.GUILD_EVENT_LOGS,
+    `${SAMPLE_GUILD_ID}_event_01`,
     {
       guildId: SAMPLE_GUILD_ID,
-      type: 'system',
+      type: 'teamBattle',
       actorId: SAMPLE_LEADER_ID,
-      payload: {
-        message: '宗门建立成功，宗主云鹤真人发出入门邀请。'
-      },
-      createdAt: now
+      details: { difficulty: 3, teamSize: 2 },
+      createdAt: now,
+      schemaVersion: 1
+    },
+    logger
+  );
+
+  const ticketsCollection = db.collection(COLLECTIONS.GUILD_TICKETS);
+  await ensureDocument(
+    ticketsCollection,
+    COLLECTIONS.GUILD_TICKETS,
+    `${SAMPLE_MEMBER_ID}_ticket_demo`,
+    {
+      memberId: SAMPLE_MEMBER_ID,
+      signature: 'sample_ticket_signature',
+      issuedAt: now,
+      expiresAt: new Date(now.getTime() + 30 * 60 * 1000),
+      consumed: false,
+      schemaVersion: 1
+    },
+    logger
+  );
+
+  const rateLimitCollection = db.collection(COLLECTIONS.GUILD_RATE_LIMITS);
+  await ensureDocument(
+    rateLimitCollection,
+    COLLECTIONS.GUILD_RATE_LIMITS,
+    `${SAMPLE_MEMBER_ID}_initiateTeamBattle`,
+    {
+      memberId: SAMPLE_MEMBER_ID,
+      action: 'initiateTeamBattle',
+      lastTriggeredAt: now,
+      expiresAt: new Date(now.getTime() + 5 * 60 * 1000),
+      schemaVersion: 1
     },
     logger
   );
