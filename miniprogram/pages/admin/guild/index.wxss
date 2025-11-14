@@ -143,7 +143,6 @@
   top: 50%;
   transform: translateY(-50%);
 }
-}
 
 .setting-info {
   display: flex;
