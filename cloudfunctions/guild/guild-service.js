@@ -2260,6 +2260,744 @@ function createGuildService(options = {}) {
   }
 
 
+  function toIsoString(value) {
+    if (!value) {
+      return null;
+    }
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return null;
+    }
+    return date.toISOString();
+  }
+
+  function sanitizePageNumber(value, { min = 1, max = 1000 } = {}) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return Math.max(1, min);
+    }
+    const rounded = Math.floor(numeric);
+    if (rounded < min) {
+      return min;
+    }
+    if (typeof max === 'number' && rounded > max) {
+      return max;
+    }
+    return rounded;
+  }
+
+  function sanitizePageSize(value, { min = 1, max = 50, defaultSize = 10 } = {}) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) {
+      return defaultSize;
+    }
+    const rounded = Math.floor(numeric);
+    if (rounded < min) {
+      return min;
+    }
+    if (rounded > max) {
+      return max;
+    }
+    return rounded;
+  }
+
+  function buildFuzzyRegExp(keyword) {
+    if (!keyword || typeof keyword !== 'string' || !keyword.trim()) {
+      return null;
+    }
+    const trimmed = keyword.trim();
+    const escaped = trimmed.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+    if (!escaped) {
+      return null;
+    }
+    try {
+      return new RegExp(escaped, 'i');
+    } catch (error) {
+      logger.warn('[guild] build regex failed', error);
+    }
+    return null;
+  }
+
+  function matchesKeyword(value, matcher) {
+    if (!matcher) {
+      return true;
+    }
+    if (matcher instanceof RegExp) {
+      const text = typeof value === 'string' ? value : '';
+      return matcher.test(text);
+    }
+    if (typeof matcher === 'object' && matcher && typeof matcher.regexp === 'string') {
+      try {
+        const regex = new RegExp(matcher.regexp, matcher.options || '');
+        const text = typeof value === 'string' ? value : '';
+        return regex.test(text);
+      } catch (error) {
+        return false;
+      }
+    }
+    const text = typeof value === 'string' ? value : '';
+    return text.includes(String(matcher || ''));
+  }
+
+  function extractMemberPowerValue(doc = {}) {
+    const candidates = [
+      doc.power,
+      doc.powerScore,
+      doc.combatPower,
+      doc.totalPower,
+      doc.powerRating,
+      doc.attributeSummary && doc.attributeSummary.powerScore,
+      doc.attributes && doc.attributes.powerScore,
+      doc.profile && doc.profile.combatPower
+    ];
+    return candidates.reduce((acc, value) => {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > acc) {
+        return Math.max(0, Math.round(numeric));
+      }
+      return acc;
+    }, 0);
+  }
+
+  function buildAdminMemberSummary(doc = {}) {
+    if (!doc || typeof doc !== 'object') {
+      return null;
+    }
+    const memberId = normalizeMemberId(doc.memberId || doc._id || doc.id);
+    if (!memberId) {
+      return null;
+    }
+    const name =
+      toTrimmedString(doc.displayName) ||
+      toTrimmedString(doc.nickName) ||
+      toTrimmedString(doc.nickname) ||
+      toTrimmedString(doc.name) ||
+      memberId;
+    const role = typeof doc.role === 'string' && doc.role.trim() ? doc.role.trim() : 'member';
+    const status = typeof doc.status === 'string' && doc.status.trim() ? doc.status.trim() : 'active';
+    const contribution = extractMemberContribution(doc);
+    const power = extractMemberPowerValue(doc);
+    const activityScore = Number.isFinite(Number(doc.activity))
+      ? Math.max(0, Math.round(Number(doc.activity)))
+      : Number.isFinite(Number(doc.activityScore))
+      ? Math.max(0, Math.round(Number(doc.activityScore)))
+      : 0;
+    const joinedAtIso = toIsoString(doc.joinedAt || doc.createdAt || doc.updatedAt || null);
+    const joinedAtTimestamp = joinedAtIso ? new Date(joinedAtIso).getTime() : 0;
+    return {
+      memberId,
+      name,
+      role,
+      status,
+      contribution,
+      power,
+      activity: activityScore,
+      joinedAt: joinedAtIso,
+      joinedAtTimestamp
+    };
+  }
+
+  function buildAdminMemberSummaryCollection(docs = []) {
+    const entries = [];
+    const lookup = new Map();
+    (Array.isArray(docs) ? docs : []).forEach((doc) => {
+      const summary = buildAdminMemberSummary(doc);
+      if (!summary) {
+        return;
+      }
+      entries.push(summary);
+      lookup.set(summary.memberId, summary);
+    });
+    return { entries, lookup };
+  }
+
+  async function loadGuildMembersForAdmin(guildIds = []) {
+    const normalized = Array.from(
+      new Set((Array.isArray(guildIds) ? guildIds : []).map((id) => normalizeId(id)).filter(Boolean))
+    );
+    if (!normalized.length) {
+      return new Map();
+    }
+    const snapshot = await db
+      .collection(COLLECTIONS.GUILD_MEMBERS)
+      .where({ guildId: command.in(normalized) })
+      .limit(Math.min(1000, normalized.length * 200))
+      .get()
+      .catch(() => ({ data: [] }));
+    const docs = snapshot && snapshot.data ? snapshot.data : [];
+    const grouped = new Map();
+    docs.forEach((doc) => {
+      const guildId = normalizeId(doc.guildId);
+      if (!guildId) {
+        return;
+      }
+      if (!grouped.has(guildId)) {
+        grouped.set(guildId, []);
+      }
+      grouped.get(guildId).push(doc);
+    });
+    return grouped;
+  }
+
+  async function loadGuildSecuritySummaries(guildIds = []) {
+    const normalized = Array.from(
+      new Set((Array.isArray(guildIds) ? guildIds : []).map((id) => normalizeId(id)).filter(Boolean))
+    );
+    if (!normalized.length) {
+      return new Map();
+    }
+    const snapshot = await db
+      .collection(COLLECTIONS.GUILD_LOGS)
+      .where({ guildId: command.in(normalized), type: 'security' })
+      .limit(Math.min(500, normalized.length * 20))
+      .get()
+      .catch(() => ({ data: [] }));
+    const docs = snapshot && snapshot.data ? snapshot.data : [];
+    const summaries = new Map();
+    docs.forEach((doc) => {
+      const guildId = normalizeId(doc.guildId);
+      if (!guildId) {
+        return;
+      }
+      const createdAt = toIsoString(doc.createdAt || doc.updatedAt || null);
+      const existing = summaries.get(guildId) || { count: 0, lastAlertAt: null };
+      existing.count += 1;
+      if (createdAt) {
+        const createdAtTime = new Date(createdAt).getTime();
+        const lastTime = existing.lastAlertAt ? new Date(existing.lastAlertAt).getTime() : 0;
+        if (createdAtTime > lastTime) {
+          existing.lastAlertAt = createdAt;
+        }
+      }
+      summaries.set(guildId, existing);
+    });
+    return summaries;
+  }
+
+  async function loadBossStatesForGuilds(guildIds = []) {
+    const normalized = Array.from(
+      new Set((Array.isArray(guildIds) ? guildIds : []).map((id) => normalizeId(id)).filter(Boolean))
+    );
+    if (!normalized.length) {
+      return new Map();
+    }
+    const snapshot = await db
+      .collection(COLLECTIONS.GUILD_BOSS)
+      .where({ guildId: command.in(normalized) })
+      .limit(Math.min(200, normalized.length * 5))
+      .get()
+      .catch(() => ({ data: [] }));
+    const docs = snapshot && snapshot.data ? snapshot.data : [];
+    const map = new Map();
+    docs.forEach((doc) => {
+      const guildId = normalizeId(doc.guildId);
+      if (!guildId) {
+        return;
+      }
+      const existing = map.get(guildId);
+      if (!existing) {
+        map.set(guildId, doc);
+        return;
+      }
+      const existingUpdated = existing && existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+      const docUpdated = doc && doc.updatedAt ? new Date(doc.updatedAt).getTime() : 0;
+      if (docUpdated >= existingUpdated) {
+        map.set(guildId, doc);
+      }
+    });
+    return map;
+  }
+
+  function buildAdminGuildListEntry(doc = {}, { memberSummaries = [], leaderMap = null, securityMap = null, bossMap = null } = {}) {
+    if (!doc || typeof doc !== 'object') {
+      return null;
+    }
+    const guildId = normalizeId(doc._id || doc.id);
+    if (!guildId) {
+      return null;
+    }
+    const leaderRecord = (leaderMap && leaderMap.get(guildId)) || null;
+    const activeMembers = memberSummaries.filter((entry) => entry.status !== 'inactive');
+    const contributionTotal = activeMembers.reduce((acc, entry) => acc + (Number(entry.contribution) || 0), 0);
+    const totalPower = activeMembers.reduce((acc, entry) => acc + (Number(entry.power) || 0), 0);
+    const averagePower = activeMembers.length ? Math.round(totalPower / activeMembers.length) : 0;
+    const officerCount = activeMembers.filter((entry) => entry.role === 'officer').length;
+    const securitySummary = securityMap && securityMap.get(guildId);
+    const bossState = bossMap && bossMap.get(guildId);
+    const topMembers = [...memberSummaries]
+      .filter((entry) => entry.status !== 'inactive')
+      .sort((left, right) => {
+        if (right.contribution !== left.contribution) {
+          return right.contribution - left.contribution;
+        }
+        return right.power - left.power;
+      })
+      .slice(0, 3);
+    let bossSummary = null;
+    if (bossState) {
+      const definition = normalizeBossDefinition(getBossDefinition(bossState.bossId || DEFAULT_BOSS_ID) || {});
+      const hpMax = Math.max(1, Math.round(Number(bossState.hpMax || definition.hp || 1)));
+      const hpLeft = Math.max(0, Math.round(Number(bossState.hpLeft || hpMax)));
+      bossSummary = {
+        bossId: bossState.bossId || definition.id,
+        status: bossState.status || 'open',
+        totalDamage: Math.max(0, Math.round(Number(bossState.totalDamage || 0))),
+        hpMax,
+        hpLeft,
+        updatedAt: toIsoString(bossState.updatedAt || null)
+      };
+    }
+    return {
+      id: guildId,
+      name: toTrimmedString(doc.name) || '未命名宗门',
+      icon: toTrimmedString(doc.icon || ''),
+      manifesto: toTrimmedString(doc.manifesto || ''),
+      notice: toTrimmedString(doc.notice || ''),
+      badge: toTrimmedString(doc.badge || ''),
+      level: Number.isFinite(Number(doc.level)) ? Math.max(1, Math.round(Number(doc.level))) : 1,
+      capacity: Number.isFinite(Number(doc.capacity)) ? Math.max(0, Math.round(Number(doc.capacity))) : 0,
+      memberCount: Number.isFinite(Number(doc.memberCount)) ? Math.max(0, Math.round(Number(doc.memberCount))) : activeMembers.length,
+      activeMemberCount: activeMembers.length,
+      power: Number.isFinite(Number(doc.power)) ? Math.max(0, Math.round(Number(doc.power))) : 0,
+      activityScore: Number.isFinite(Number(doc.activityScore))
+        ? Math.max(0, Math.round(Number(doc.activityScore)))
+        : 0,
+      contributionTotal,
+      averagePower,
+      leader: leaderRecord
+        ? { id: leaderRecord.memberId, name: leaderRecord.displayName || leaderRecord.memberId }
+        : null,
+      officerCount,
+      topMembers,
+      alertCount: securitySummary ? securitySummary.count : 0,
+      lastAlertAt: securitySummary && securitySummary.lastAlertAt ? securitySummary.lastAlertAt : null,
+      boss: bossSummary,
+      createdAt: toIsoString(doc.createdAt || null),
+      updatedAt: toIsoString(doc.updatedAt || null)
+    };
+  }
+
+  function buildTaskProgressSummary(doc = {}) {
+    const progress = doc && typeof doc === 'object' ? doc : {};
+    const currentCandidates = [progress.value, progress.current, progress.count];
+    const current = currentCandidates.reduce((acc, value) => {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > acc) {
+        return Math.max(0, Math.round(numeric));
+      }
+      return acc;
+    }, 0);
+    return current;
+  }
+
+  function buildTaskSummary(doc = {}) {
+    if (!doc || typeof doc !== 'object') {
+      return null;
+    }
+    const taskId = toTrimmedString(doc._id || doc.id || doc.taskId || '');
+    const goal = doc.goal && typeof doc.goal === 'object' ? doc.goal : {};
+    const progress = doc.progress && typeof doc.progress === 'object' ? doc.progress : {};
+    const goalCandidates = [goal.value, goal.target, goal.count, goal.total];
+    const goalValue = goalCandidates.reduce((acc, value) => {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > acc) {
+        return Math.max(0, Math.round(numeric));
+      }
+      return acc;
+    }, 0);
+    const progressValue = buildTaskProgressSummary(progress);
+    const percent = goalValue > 0 ? Math.max(0, Math.min(1, progressValue / goalValue)) : 0;
+    return {
+      id: taskId,
+      taskId: toTrimmedString(doc.taskId || taskId),
+      title: toTrimmedString(doc.title || doc.taskId || '宗门任务'),
+      type: toTrimmedString(doc.type || ''),
+      status: toTrimmedString(doc.status || 'open'),
+      progress: {
+        current: progressValue,
+        target: goalValue,
+        percent
+      },
+      reward: doc.reward || {},
+      startAt: toIsoString(doc.startAt || null),
+      endAt: toIsoString(doc.endAt || null),
+      updatedAt: toIsoString(doc.updatedAt || null)
+    };
+  }
+
+  async function assertAdminContext(memberId, context = {}, action = 'admin') {
+    if (context && context.proxySession) {
+      return;
+    }
+    await recordSecurityEvent({
+      action: `${action}.denied`,
+      actorId: memberId || '',
+      code: ERROR_CODES.PERMISSION_DENIED,
+      message: '检测到未授权的管理员访问',
+      context: { action }
+    }).catch(() => {});
+    throw createError(ERROR_CODES.PERMISSION_DENIED, '仅限管理员操作');
+  }
+
+  function resolveAdminGuildSortField(sortBy) {
+    const allowed = ['updatedAt', 'memberCount', 'power', 'activityScore', 'createdAt'];
+    const normalized = typeof sortBy === 'string' ? sortBy.trim() : '';
+    if (normalized && allowed.includes(normalized)) {
+      return normalized;
+    }
+    return 'updatedAt';
+  }
+
+  function resolveAdminGuildSortOrder(order) {
+    if (typeof order === 'string') {
+      const normalized = order.trim().toLowerCase();
+      if (normalized === 'asc' || normalized === 'desc') {
+        return normalized;
+      }
+    }
+    return 'desc';
+  }
+
+  function decorateGuildDetailPayload(summary = {}, { members = [], memberLookup = new Map(), securitySummary = null, bossDoc = null } = {}) {
+    const activeMembers = members.filter((entry) => entry.status !== 'inactive');
+    const inactiveMembers = members.filter((entry) => entry.status === 'inactive');
+    const totalContribution = activeMembers.reduce((acc, entry) => acc + (Number(entry.contribution) || 0), 0);
+    const totalPower = activeMembers.reduce((acc, entry) => acc + (Number(entry.power) || 0), 0);
+    const averagePower = activeMembers.length ? Math.round(totalPower / activeMembers.length) : 0;
+    const topContributors = [...activeMembers]
+      .sort((left, right) => {
+        if (right.contribution !== left.contribution) {
+          return right.contribution - left.contribution;
+        }
+        return right.power - left.power;
+      })
+      .slice(0, 5);
+    const topPower = [...activeMembers]
+      .sort((left, right) => {
+        if (right.power !== left.power) {
+          return right.power - left.power;
+        }
+        return right.contribution - left.contribution;
+      })
+      .slice(0, 5);
+    const recentJoins = [...members]
+      .filter((entry) => entry.joinedAt)
+      .sort((left, right) => right.joinedAtTimestamp - left.joinedAtTimestamp)
+      .slice(0, 5);
+    let bossSummary = null;
+    if (bossDoc) {
+      const definition = normalizeBossDefinition(getBossDefinition(bossDoc.bossId || DEFAULT_BOSS_ID) || {});
+      const hpMax = Math.max(1, Math.round(Number(bossDoc.hpMax || definition.hp || 1)));
+      const hpLeft = Math.max(0, Math.round(Number(bossDoc.hpLeft || hpMax)));
+      const leaderboard = buildBossLeaderboard(bossDoc.damageByMember || {}, 5).map((entry) => ({
+        memberId: entry.memberId,
+        damage: entry.damage,
+        name: memberLookup.has(entry.memberId) ? memberLookup.get(entry.memberId).name : entry.memberId
+      }));
+      bossSummary = {
+        bossId: bossDoc.bossId || definition.id,
+        name: definition.name,
+        level: Number.isFinite(Number(bossDoc.level)) ? Math.max(1, Math.round(Number(bossDoc.level))) : definition.level,
+        status: bossDoc.status || 'open',
+        totalDamage: Math.max(0, Math.round(Number(bossDoc.totalDamage || 0))),
+        hpMax,
+        hpLeft,
+        progress: hpMax ? Math.max(0, Math.min(1, 1 - hpLeft / hpMax)) : 0,
+        updatedAt: toIsoString(bossDoc.updatedAt || null),
+        leaderboard
+      };
+    }
+    const leader = summary.leader || null;
+    return {
+      guild: {
+        ...summary,
+        contributionTotal: totalContribution,
+        averagePower,
+        leader,
+        alertCount: securitySummary ? securitySummary.count : summary.alertCount || 0,
+        lastAlertAt: securitySummary && securitySummary.lastAlertAt ? securitySummary.lastAlertAt : summary.lastAlertAt || null
+      },
+      members: {
+        total: members.length,
+        active: activeMembers.length,
+        inactive: inactiveMembers.length,
+        officerCount: activeMembers.filter((entry) => entry.role === 'officer').length,
+        topContributors,
+        topPower,
+        recentJoins
+      },
+      boss: bossSummary
+    };
+  }
+
+  async function listGuildsForAdmin(memberId, payload = {}, context = {}) {
+    await assertAdminContext(memberId, context, 'admin.listGuilds');
+    const pageSize = sanitizePageSize(payload.pageSize, { defaultSize: 10, max: 50 });
+    const page = sanitizePageNumber(payload.page, { min: 1, max: 200 });
+    const keyword = sanitizeString(payload.keyword || '', { maxLength: 40 });
+    const sortField = resolveAdminGuildSortField(payload.sortBy);
+    const sortOrder = resolveAdminGuildSortOrder(payload.sortOrder);
+    const offset = (page - 1) * pageSize;
+    let docs = [];
+    let total = 0;
+    if (keyword) {
+      const keywordMatcher = buildFuzzyRegExp(keyword);
+      const collection = db.collection(COLLECTIONS.GUILDS);
+      const canUseRegex =
+        keywordMatcher instanceof RegExp &&
+        db &&
+        typeof db.RegExp === 'function' &&
+        command &&
+        typeof command.or === 'function';
+      if (canUseRegex) {
+        const regexOptions = keywordMatcher.flags || 'i';
+        const regexSource = keywordMatcher.source || keyword;
+        const regex = db.RegExp({ regexp: regexSource, options: regexOptions });
+        const conditions = [
+          { name: regex },
+          { _id: regex },
+          { id: regex },
+          { founderId: regex }
+        ];
+        const baseQuery = collection.where(command.or(conditions));
+        const snapshot = await baseQuery
+          .orderBy(sortField, sortOrder)
+          .skip(offset)
+          .limit(pageSize)
+          .get()
+          .catch(() => ({ data: [] }));
+        docs = snapshot && snapshot.data ? snapshot.data : [];
+        const countResult = await baseQuery.count().catch(() => ({ total: docs.length }));
+        total = Number(countResult && countResult.total) || docs.length;
+      } else {
+        const snapshot = await collection
+          .get()
+          .catch(() => ({ data: [] }));
+        const allDocs = snapshot && snapshot.data ? snapshot.data : [];
+        const filtered = allDocs.filter((doc) => {
+          if (!doc) {
+            return false;
+          }
+          return (
+            matchesKeyword(doc.name || '', keywordMatcher) ||
+            matchesKeyword(doc._id || doc.id || '', keywordMatcher) ||
+            matchesKeyword(doc.founderId || '', keywordMatcher)
+          );
+        });
+        filtered.sort((left, right) => {
+          if (sortField === 'createdAt' || sortField === 'updatedAt') {
+            const leftTime = left && left[sortField] ? new Date(left[sortField]).getTime() : 0;
+            const rightTime = right && right[sortField] ? new Date(right[sortField]).getTime() : 0;
+            return sortOrder === 'asc' ? leftTime - rightTime : rightTime - leftTime;
+          }
+          const leftNumeric = Number(left && left[sortField]);
+          const rightNumeric = Number(right && right[sortField]);
+          if (Number.isFinite(leftNumeric) && Number.isFinite(rightNumeric)) {
+            return sortOrder === 'asc' ? leftNumeric - rightNumeric : rightNumeric - leftNumeric;
+          }
+          return 0;
+        });
+        total = filtered.length;
+        docs = filtered.slice(offset, offset + pageSize);
+      }
+    } else {
+      const collection = db.collection(COLLECTIONS.GUILDS);
+      const snapshot = await collection
+        .orderBy(sortField, sortOrder)
+        .skip(offset)
+        .limit(pageSize)
+        .get()
+        .catch(() => ({ data: [] }));
+      docs = snapshot && snapshot.data ? snapshot.data : [];
+      const countResult = await collection.count().catch(() => ({ total: docs.length }));
+      total = Number(countResult && countResult.total) || docs.length;
+    }
+    const guildIds = docs.map((doc) => normalizeId(doc._id || doc.id)).filter(Boolean);
+    const [memberDocsMap, leaderMap, securityMap, bossMap] = await Promise.all([
+      loadGuildMembersForAdmin(guildIds),
+      loadGuildLeaderRecords(guildIds),
+      loadGuildSecuritySummaries(guildIds),
+      loadBossStatesForGuilds(guildIds)
+    ]);
+    const guilds = docs
+      .map((doc) => {
+        const guildId = normalizeId(doc._id || doc.id);
+        const members = memberDocsMap.get(guildId) || [];
+        const { entries } = buildAdminMemberSummaryCollection(members);
+        return buildAdminGuildListEntry(doc, {
+          memberSummaries: entries,
+          leaderMap,
+          securityMap,
+          bossMap
+        });
+      })
+      .filter(Boolean);
+    return wrapActionResponse(
+      'admin.listGuilds',
+      {
+        page,
+        pageSize,
+        total,
+        guilds
+      },
+      {
+        message: '宗门列表已加载'
+      }
+    );
+  }
+
+  async function getGuildDetailForAdmin(memberId, payload = {}, context = {}) {
+    await assertAdminContext(memberId, context, 'admin.guildDetail');
+    const guildId = sanitizeString(payload.guildId, { maxLength: 64 });
+    if (!guildId) {
+      throw createError('INVALID_GUILD', '缺少宗门 ID');
+    }
+    const snapshot = await db
+      .collection(COLLECTIONS.GUILDS)
+      .doc(guildId)
+      .get()
+      .catch(() => null);
+    if (!snapshot || !snapshot.data) {
+      throw createError('GUILD_NOT_FOUND', '未找到指定宗门');
+    }
+    const guildDoc = snapshot.data;
+    const [memberDocsMap, leaderMap, securityMap, bossMap, tasksSnapshot, alertsPayload] = await Promise.all([
+      loadGuildMembersForAdmin([guildId]),
+      loadGuildLeaderRecords([guildId]),
+      loadGuildSecuritySummaries([guildId]),
+      loadBossStatesForGuilds([guildId]),
+      db
+        .collection(COLLECTIONS.GUILD_TASKS)
+        .where({ guildId })
+        .orderBy('updatedAt', 'desc')
+        .limit(10)
+        .get()
+        .catch(() => ({ data: [] })),
+      listRiskAlertsForAdmin(memberId, { guildId, limit: 10 })
+    ]);
+    const memberDocs = memberDocsMap.get(guildId) || [];
+    const { entries, lookup } = buildAdminMemberSummaryCollection(memberDocs);
+    const summary = buildAdminGuildListEntry(guildDoc, {
+      memberSummaries: entries,
+      leaderMap,
+      securityMap,
+      bossMap
+    });
+    const detailPayload = decorateGuildDetailPayload(summary || {}, {
+      members: entries,
+      memberLookup: lookup,
+      securitySummary: securityMap.get(guildId) || null,
+      bossDoc: bossMap.get(guildId) || null
+    });
+    const tasks = (tasksSnapshot && tasksSnapshot.data ? tasksSnapshot.data : [])
+      .map((doc) => buildTaskSummary(doc))
+      .filter(Boolean);
+    const alerts = alertsPayload && Array.isArray(alertsPayload.alerts) ? alertsPayload.alerts : [];
+    return wrapActionResponse(
+      'admin.guildDetail',
+      {
+        guild: detailPayload.guild,
+        members: detailPayload.members,
+        boss: detailPayload.boss,
+        tasks,
+        alerts
+      },
+      {
+        message: '宗门详情已加载'
+      }
+    );
+  }
+
+  function resolveMemberOrder(order) {
+    if (typeof order === 'string') {
+      const normalized = order.trim().toLowerCase();
+      if (['contribution', 'power', 'joinedat'].includes(normalized)) {
+        return normalized;
+      }
+    }
+    return 'contribution';
+  }
+
+  async function listGuildMembersForAdmin(memberId, payload = {}, context = {}) {
+    await assertAdminContext(memberId, context, 'admin.guildMembers');
+    const guildId = sanitizeString(payload.guildId, { maxLength: 64 });
+    if (!guildId) {
+      throw createError('INVALID_GUILD', '缺少宗门 ID');
+    }
+    const includeInactive = !!payload.includeInactive;
+    const keyword = sanitizeString(payload.keyword || '', { maxLength: 40 });
+    const order = resolveMemberOrder(payload.order);
+    const pageSize = sanitizePageSize(payload.pageSize, { defaultSize: 20, max: 100 });
+    const page = sanitizePageNumber(payload.page, { min: 1, max: 500 });
+    const snapshot = await db
+      .collection(COLLECTIONS.GUILD_MEMBERS)
+      .where({ guildId })
+      .limit(1000)
+      .get()
+      .catch(() => ({ data: [] }));
+    const docs = snapshot && snapshot.data ? snapshot.data : [];
+    const { entries } = buildAdminMemberSummaryCollection(docs);
+    const keywordMatcher = buildFuzzyRegExp(keyword);
+    const filtered = entries.filter((entry) => {
+      if (!includeInactive && entry.status === 'inactive') {
+        return false;
+      }
+      if (!keyword) {
+        return true;
+      }
+      return matchesKeyword(entry.name, keywordMatcher) || matchesKeyword(entry.memberId, keywordMatcher);
+    });
+    const inactiveCount = entries.filter((entry) => entry.status === 'inactive').length;
+    const roleCounts = {
+      leader: filtered.filter((entry) => entry.role === 'leader').length,
+      officer: filtered.filter((entry) => entry.role === 'officer').length,
+      member: filtered.filter((entry) => entry.role === 'member').length,
+      inactive: inactiveCount
+    };
+    filtered.sort((left, right) => {
+      if (order === 'power') {
+        if (right.power !== left.power) {
+          return right.power - left.power;
+        }
+        return right.contribution - left.contribution;
+      }
+      if (order === 'joinedat') {
+        return right.joinedAtTimestamp - left.joinedAtTimestamp;
+      }
+      if (right.contribution !== left.contribution) {
+        return right.contribution - left.contribution;
+      }
+      return right.power - left.power;
+    });
+    const total = filtered.length;
+    const offset = (page - 1) * pageSize;
+    const pageEntries = filtered.slice(offset, offset + pageSize);
+    const contributionTotal = filtered.reduce((acc, entry) => acc + (Number(entry.contribution) || 0), 0);
+    const powerTotal = filtered.reduce((acc, entry) => acc + (Number(entry.power) || 0), 0);
+    const averageContribution = filtered.length ? Math.round(contributionTotal / filtered.length) : 0;
+    const averagePower = filtered.length ? Math.round(powerTotal / filtered.length) : 0;
+    return wrapActionResponse(
+      'admin.guildMembers',
+      {
+        guildId,
+        page,
+        pageSize,
+        total,
+        members: pageEntries,
+        roles: roleCounts,
+        stats: {
+          contributionTotal,
+          averageContribution,
+          averagePower
+        }
+      },
+      {
+        message: '宗门成员列表已加载'
+      }
+    );
+  }
+
+
 
   async function listGuilds() {
     const leaderboard = await loadLeaderboard();
@@ -3345,6 +4083,9 @@ function createGuildService(options = {}) {
     getOverview,
     listGuilds,
     listRiskAlerts: listRiskAlertsForAdmin,
+    adminListGuilds: listGuildsForAdmin,
+    adminGetGuildDetail: getGuildDetailForAdmin,
+    adminGetGuildMembers: listGuildMembersForAdmin,
     createGuild,
     joinGuild,
     leaveGuild,

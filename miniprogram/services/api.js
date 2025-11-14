@@ -253,8 +253,61 @@ export const GuildService = {
   async listGuilds() {
     return callCloud(CLOUD_FUNCTIONS.GUILD, attachClientEnv({ action: 'listGuilds' }));
   },
+  async adminListGuilds(options = {}) {
+    const page = Number(options && options.page);
+    const pageSize = Number(options && options.pageSize);
+    const payload = attachClientEnv({
+      action: 'admin.listGuilds',
+      page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
+      pageSize: Number.isFinite(pageSize) && pageSize > 0 ? Math.floor(pageSize) : 10
+    });
+    if (options && typeof options.keyword === 'string' && options.keyword.trim()) {
+      payload.keyword = options.keyword.trim();
+    }
+    if (options && typeof options.sortBy === 'string' && options.sortBy.trim()) {
+      payload.sortBy = options.sortBy.trim();
+    }
+    if (options && typeof options.sortOrder === 'string' && options.sortOrder.trim()) {
+      payload.sortOrder = options.sortOrder.trim();
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, payload);
+  },
   async refreshTicket() {
     return callCloud(CLOUD_FUNCTIONS.GUILD, attachClientEnv({ action: 'refreshTicket' }));
+  },
+  async adminGetGuildDetail(options = {}) {
+    const payload = attachClientEnv({ action: 'admin.guildDetail' });
+    if (options && typeof options.guildId === 'string' && options.guildId.trim()) {
+      payload.guildId = options.guildId.trim();
+    } else if (options && typeof options.id === 'string' && options.id.trim()) {
+      payload.guildId = options.id.trim();
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, payload);
+  },
+  async adminGetGuildMembers(options = {}) {
+    const page = Number(options && options.page);
+    const pageSize = Number(options && options.pageSize);
+    const payload = attachClientEnv({
+      action: 'admin.guildMembers',
+      guildId:
+        options && typeof options.guildId === 'string' && options.guildId.trim()
+          ? options.guildId.trim()
+          : typeof options.id === 'string' && options.id.trim()
+          ? options.id.trim()
+          : '' ,
+      page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
+      pageSize: Number.isFinite(pageSize) && pageSize > 0 ? Math.floor(pageSize) : 20
+    });
+    if (options && typeof options.keyword === 'string' && options.keyword.trim()) {
+      payload.keyword = options.keyword.trim();
+    }
+    if (options && options.includeInactive) {
+      payload.includeInactive = true;
+    }
+    if (options && typeof options.order === 'string' && options.order.trim()) {
+      payload.order = options.order.trim();
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, payload);
   },
   async getLeaderboard(options = {}) {
     const payload = attachClientEnv({
