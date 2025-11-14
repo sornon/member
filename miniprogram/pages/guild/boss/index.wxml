@@ -34,15 +34,19 @@
         <view class="rank-card__title">伤害排行榜</view>
         <view wx:if="{{rankLoading}}" class="rank-card__loading">刷新中...</view>
       </view>
-      <view wx:if="{{rankEntries.length === 0}}" class="empty">暂无伤害数据</view>
-      <block wx:else wx:for="{{rankEntries}}" wx:key="memberId">
-        <view class="rank-item">
-          <view class="rank-item__rank">{{item.rank}}</view>
-          <view class="rank-item__body">
-            <view class="rank-item__name">{{item.memberName || item.name || '匿名侠士'}}</view>
-            <view class="rank-item__damage">伤害 {{item.damageText}}</view>
+      <block wx:if="{{rankEntries.length === 0}}">
+        <view class="empty">暂无伤害数据</view>
+      </block>
+      <block wx:else>
+        <block wx:for="{{rankEntries}}" wx:key="memberId">
+          <view class="rank-item">
+            <view class="rank-item__rank">{{item.rank}}</view>
+            <view class="rank-item__body">
+              <view class="rank-item__name">{{item.memberName || item.name || '匿名侠士'}}</view>
+              <view class="rank-item__damage">伤害 {{item.damageText}}</view>
+            </view>
           </view>
-        </view>
+        </block>
       </block>
     </view>
   </scroll-view>
