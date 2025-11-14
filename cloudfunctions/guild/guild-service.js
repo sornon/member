@@ -2996,28 +2996,38 @@ function createGuildService(options = {}) {
       schemaVersion: GUILD_SCHEMA_VERSION,
       updatedAt: serverTimestamp()
     };
-    await db
-      .collection(COLLECTIONS.SYSTEM_SETTINGS)
-      .doc(FEATURE_TOGGLE_DOC_ID)
-      .set({
-        data: {
-          guildSettings: settingsPayload
-        }
-      })
-      .catch((error) => {
-        if (error && /exists/i.test(error.errMsg || '')) {
-          return db
-            .collection(COLLECTIONS.SYSTEM_SETTINGS)
-            .doc(FEATURE_TOGGLE_DOC_ID)
-            .update({
-              data: {
-                guildSettings: settingsPayload
-              }
-            });
-        }
-        logger.error('[guild] reset guild settings failed', error);
-        throw createError(ERROR_CODES.INTERNAL_ERROR, '重置宗门配置失败');
-      });
+    const settingsDocRef = db.collection(COLLECTIONS.SYSTEM_SETTINGS).doc(FEATURE_TOGGLE_DOC_ID);
+    const settingsSnapshot = await settingsDocRef.get().catch((error) => {
+      logger.error('[guild] load guild settings failed during reset', error);
+      throw createError(ERROR_CODES.INTERNAL_ERROR, '重置宗门配置失败');
+    });
+    const writePromise = settingsSnapshot && settingsSnapshot.data
+      ? settingsDocRef.update({
+          data: {
+            guildSettings: settingsPayload
+          }
+        })
+      : settingsDocRef.set({
+          data: {
+            guildSettings: settingsPayload
+          }
+        });
+    await writePromise.catch((error) => {
+      if (
+        settingsSnapshot &&
+        settingsSnapshot.data &&
+        error &&
+        /not[\s_-]*exist/i.test(error.errMsg || '')
+      ) {
+        return settingsDocRef.set({
+          data: {
+            guildSettings: settingsPayload
+          }
+        });
+      }
+      logger.error('[guild] reset guild settings failed', error);
+      throw createError(ERROR_CODES.INTERNAL_ERROR, '重置宗门配置失败');
+    });
     settingsCache = { loadedAt: now(), settings: normalizeGuildSettings(DEFAULT_GUILD_SETTINGS) };
     await recordSecurityEvent({
       action: 'admin.resetGuildSystem',
