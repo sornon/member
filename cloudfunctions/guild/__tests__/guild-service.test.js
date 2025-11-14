@@ -1,4 +1,5 @@
 const { COLLECTIONS } = require('common-config');
+const { FEATURE_TOGGLE_DOC_ID } = require('system-settings');
 const crypto = require('crypto');
 const { createGuildService, LEADERBOARD_CACHE_SCHEMA_VERSION } = require('../guild-service');
 const { ERROR_CODES } = require('../error-codes');
@@ -596,6 +597,64 @@ describe('GuildService', () => {
       const alerts = await detectionService.listRiskAlerts('admin-user', { limit: 5 });
       expect(Array.isArray(alerts.alerts)).toBe(true);
       expect(alerts.alerts.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('admin.updateGuildSettings', () => {
+    it('persists validated updates and records audit logs', async () => {
+      const result = await service.adminUpdateGuildSettings(
+        'admin-user',
+        {
+          updates: {
+            enabled: false,
+            maxMembers: 3,
+            leaderboardCacheTtlMs: 1000,
+            teamBattleEnabled: false,
+            bossEnabled: false,
+            bossDailyAttempts: 50,
+            riskControlEnabled: false
+          }
+        },
+        { proxySession: { adminId: 'admin-user' } }
+      );
+
+      expect(result.summary.action).toBe('admin.updateGuildSettings');
+      expect(result.settings.enabled).toBe(false);
+      expect(result.settings.maxMembers).toBe(5);
+      expect(result.settings.leaderboardCacheTtlMs).toBe(30 * 1000);
+      const stored = await db
+        .collection(COLLECTIONS.SYSTEM_SETTINGS)
+        .doc(FEATURE_TOGGLE_DOC_ID)
+        .get();
+      expect(stored.data.guildSettings.enabled).toBe(false);
+      expect(stored.data.guildSettings.maxMembers).toBe(5);
+      expect(stored.data.guildSettings.teamBattle.enabled).toBe(false);
+      expect(stored.data.guildSettings.boss.enabled).toBe(false);
+      expect(stored.data.guildSettings.boss.dailyAttempts).toBe(20);
+      expect(stored.data.guildSettings.riskControl.enabled).toBe(false);
+
+      const logs = await db.collection(COLLECTIONS.GUILD_LOGS).get();
+      expect(logs.data.some((entry) => entry.action === 'admin.updateGuildSettings')).toBe(true);
+    });
+
+    it('rejects empty update payload', async () => {
+      await expect(
+        service.adminUpdateGuildSettings(
+          'admin-user',
+          { updates: {} },
+          { proxySession: { adminId: 'admin-user' } }
+        )
+      ).rejects.toMatchObject({ message: '缺少配置更新项' });
+    });
+
+    it('rejects invalid numeric inputs', async () => {
+      await expect(
+        service.adminUpdateGuildSettings(
+          'admin-user',
+          { updates: { maxMembers: 'invalid' } },
+          { proxySession: { adminId: 'admin-user' } }
+        )
+      ).rejects.toMatchObject({ message: '宗门人数上限需为数字' });
     });
   });
 

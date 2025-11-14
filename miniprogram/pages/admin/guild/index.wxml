@@ -16,7 +16,13 @@
     </view>
     <view wx:if="{{systemLoading && !systemOverview.statsEntries.length}}" class="loading">正在加载系统概览...</view>
     <view wx:elif="{{systemOverview.statsEntries.length}}" class="system-stats">
-      <view wx:for="{{systemOverview.statsEntries}}" wx:key="key" class="system-stat {{item.tone}}">
+      <view
+        wx:for="{{systemOverview.statsEntries}}"
+        wx:key="key"
+        class="system-stat {{item.tone}} clickable"
+        data-key="{{item.key}}"
+        bindtap="handleStatTap"
+      >
         <view class="stat-label">{{item.label}}</view>
         <view class="stat-value">{{item.value}}</view>
       </view>
@@ -26,8 +32,24 @@
       <view class="system-card">
         <view class="system-card__title">全局设置</view>
         <view wx:if="{{systemOverview.settingsEntries.length}}" class="system-settings">
-          <view wx:for="{{systemOverview.settingsEntries}}" wx:key="key" class="setting-row {{item.tone}}">
-            <view class="setting-label">{{item.label}}</view>
+          <view
+            wx:for="{{systemOverview.settingsEntries}}"
+            wx:key="key"
+            class="setting-row {{item.tone}} {{item.editable !== false ? 'clickable' : ''}}"
+            data-key="{{item.key}}"
+            data-type="{{item.type}}"
+            data-label="{{item.label}}"
+            data-helper="{{item.helper}}"
+            data-unit="{{item.inputUnit}}"
+            data-value="{{item.editValue}}"
+            data-boolean="{{item.rawValue ? 'true' : 'false'}}"
+            data-editable="{{item.editable === false ? 'false' : 'true'}}"
+            bindtap="handleSettingTap"
+          >
+            <view class="setting-info">
+              <view class="setting-label">{{item.label}}</view>
+              <view wx:if="{{item.helper}}" class="setting-helper">{{item.helper}}</view>
+            </view>
             <view class="setting-value">{{item.value}}</view>
           </view>
         </view>
@@ -62,7 +84,7 @@
   <view wx:if="{{loading && !guilds.length}}" class="loading">正在加载宗门数据...</view>
   <view wx:elif="{{!loading && !guilds.length}}" class="empty">暂无宗门数据</view>
 
-  <view wx:if="{{guilds.length}}" class="guild-list">
+  <view wx:if="{{guilds.length}}" class="guild-list" id="guildList">
     <view
       wx:for="{{guilds}}"
       wx:key="id"
@@ -70,22 +92,13 @@
       data-id="{{item.id}}"
       bindtap="handleGuildTap"
     >
-      <view class="guild-card-header">
+      <view class="guild-card-body">
         <view class="guild-name">{{item.name}}</view>
-        <view class="guild-id">宗门编号：{{item.id}}</view>
+        <view class="guild-meta-line">
+          <text class="guild-meta-text">宗主：{{item.leaderLabel || '—'}}</text>
+          <text class="guild-meta-text">成员：{{item.memberLabel}}</text>
+        </view>
       </view>
-      <view class="guild-meta">
-        <text>宗主：{{item.leaderLabel || '—'}}</text>
-        <text>成员：{{item.memberLabel}}</text>
-      </view>
-      <view class="guild-metrics">
-        <view class="metric"><text class="label">战力</text><text class="value">{{item.powerLabel}}</text></view>
-        <view class="metric"><text class="label">活跃</text><text class="value">{{item.activityLabel}}</text></view>
-        <view class="metric"><text class="label">贡献</text><text class="value">{{item.contributionLabel}}</text></view>
-        <view class="metric"><text class="label">预警</text><text class="value {{item.alertType}}">{{item.alertLabel}}</text></view>
-      </view>
-      <view wx:if="{{item.topMembersText}}" class="guild-top">核心成员：{{item.topMembersText}}</view>
-      <view class="guild-updated">更新：{{item.updatedAtLabel || '—'}}</view>
     </view>
     <view wx:if="{{!finished}}" class="load-more">
       <button class="load-more-button" bindtap="handleLoadMoreGuilds" loading="{{loading}}" disabled="{{loading}}">加载更多</button>
@@ -124,7 +137,7 @@
       </view>
     </view>
 
-    <view wx:if="{{boss}}" class="section">
+    <view wx:if="{{boss}}" class="section" id="guildBossSection">
       <view class="section-title">宗门试炼</view>
       <view class="boss-summary">
         <view class="boss-name">{{boss.name}} · {{boss.levelLabel}}</view>
@@ -145,7 +158,7 @@
       </view>
     </view>
 
-    <view wx:if="{{tasks.length}}" class="section">
+    <view wx:if="{{tasks.length}}" class="section" id="guildTaskSection">
       <view class="section-title">活跃任务</view>
       <view wx:for="{{tasks}}" wx:key="id" class="task-item">
         <view class="task-title">{{item.title}}</view>
@@ -153,7 +166,7 @@
       </view>
     </view>
 
-    <view wx:if="{{alerts.length}}" class="section">
+    <view wx:if="{{alerts.length}}" class="section" id="guildAlertSection">
       <view class="section-title">风险预警</view>
       <view wx:for="{{alerts}}" wx:key="id" class="alert-item">
         <view class="alert-message">{{item.message}}</view>
@@ -194,10 +207,10 @@
           </view>
           <view wx:else class="summary-empty">暂无数据</view>
         </view>
-      </view>
     </view>
+  </view>
 
-    <view class="section">
+  <view class="section">
       <view class="section-title">成员列表</view>
       <view class="member-toolbar">
         <input
@@ -261,6 +274,82 @@
       <view wx:if="{{!memberFinished && memberList.length}}" class="load-more">
         <button class="load-more-button" bindtap="handleMemberLoadMore" loading="{{memberLoading}}" disabled="{{memberLoading}}">加载更多成员</button>
       </view>
+    </view>
+  </view>
+</view>
+
+<view
+  wx:if="{{statDetailVisible}}"
+  class="modal-backdrop"
+  bindtap="closeStatDetail"
+  catchtouchmove="preventTouchMove"
+>
+  <view class="modal-card" catchtap="stopPropagation">
+    <view class="modal-title">{{statDetail.title}}</view>
+    <view class="modal-value">{{statDetail.value}}</view>
+    <view wx:if="{{statDetail.note}}" class="modal-note">{{statDetail.note}}</view>
+    <view wx:if="{{statDetail.items.length}}" class="modal-list">
+      <block wx:for="{{statDetail.items}}" wx:key="index">
+        <view wx:if="{{item.type === 'list'}}" class="modal-list-item">
+          <view class="modal-list-primary">{{item.primary}}</view>
+          <view class="modal-list-secondary">{{item.secondary}}</view>
+        </view>
+        <view wx:elif="{{item.type === 'metric'}}" class="modal-metric-item">
+          <view class="modal-metric-label">{{item.label}}</view>
+          <view class="modal-metric-value">{{item.value}}</view>
+        </view>
+      </block>
+    </view>
+    <view wx:else class="modal-empty">暂无相关数据</view>
+    <view class="modal-actions">
+      <button class="ghost-button" bindtap="closeStatDetail">关闭</button>
+      <button wx:if="{{statDetail.action}}" class="primary-button" bindtap="handleStatAction">{{statDetail.action.label}}</button>
+    </view>
+  </view>
+</view>
+
+<view
+  wx:if="{{settingEditor.visible}}"
+  class="modal-backdrop"
+  bindtap="handleSettingCancel"
+  catchtouchmove="preventTouchMove"
+>
+  <view class="modal-card" catchtap="stopPropagation">
+    <view class="modal-title">{{settingEditor.label}}</view>
+    <view wx:if="{{settingEditor.helper}}" class="modal-note">{{settingEditor.helper}}</view>
+    <view wx:if="{{settingEditor.type === 'boolean'}}" class="modal-boolean">
+      <button
+        class="modal-option {{settingEditor.value === true ? 'active' : ''}}"
+        data-value="true"
+        bindtap="handleSettingSelect"
+        disabled="{{settingSaving}}"
+      >开启</button>
+      <button
+        class="modal-option {{settingEditor.value === false ? 'active' : ''}}"
+        data-value="false"
+        bindtap="handleSettingSelect"
+        disabled="{{settingSaving}}"
+      >关闭</button>
+    </view>
+    <view wx:elif="{{settingEditor.type === 'number' || settingEditor.type === 'duration'}}" class="modal-input-wrapper">
+      <input
+        class="modal-input"
+        type="number"
+        value="{{settingEditor.inputValue}}"
+        bindinput="handleSettingInput"
+        placeholder="请输入数值"
+      />
+      <view wx:if="{{settingEditor.unit}}" class="modal-unit">单位：{{settingEditor.unit}}</view>
+    </view>
+    <view wx:if="{{settingEditor.error}}" class="modal-error">{{settingEditor.error}}</view>
+    <view class="modal-actions">
+      <button class="ghost-button" bindtap="handleSettingCancel" disabled="{{settingSaving}}">取消</button>
+      <button
+        class="primary-button"
+        bindtap="handleSettingConfirm"
+        loading="{{settingSaving}}"
+        disabled="{{settingSaving}}"
+      >保存</button>
     </view>
   </view>
 </view>
