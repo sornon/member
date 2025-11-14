@@ -244,36 +244,6 @@ button[size='mini'].btn {
   line-height: 1.6;
 }
 
-.ticket-card {
-  display: flex;
-  flex-direction: column;
-  gap: 20rpx;
-}
-
-.ticket-card__title {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #cdd8ff;
-  letter-spacing: 2rpx;
-}
-
-.ticket-card__code {
-  font-size: 32rpx;
-  font-family: 'DIN Alternate', 'Courier New', monospace;
-  letter-spacing: 4rpx;
-  color: #f8f9ff;
-  background: rgba(20, 32, 76, 0.7);
-  border-radius: 20rpx;
-  padding: 20rpx 24rpx;
-  text-align: center;
-}
-
-.ticket-card__meta {
-  font-size: 24rpx;
-  color: rgba(199, 209, 255, 0.7);
-  line-height: 1.5;
-}
-
 .guild-leaderboard {
   display: flex;
   flex-direction: column;

@@ -218,9 +218,6 @@ Page({
       this.setData({ donating: false });
     }
   },
-  async handleRefreshTicket() {
-    await this.ensureActionTicket({ refresh: true });
-  },
   resolveRoleLabel,
   formatNumber
 });

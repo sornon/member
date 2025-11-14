@@ -92,16 +92,6 @@
         <text class="guild-empty__title">尚未加入宗门</text>
         <text class="guild-empty__desc">创建或加入宗门，解锁团队讨伐、宗门任务等高级玩法。</text>
         <button class="btn btn--primary" bindtap="handleCreateGuild">创建宗门</button>
-        <button class="btn btn--ghost" bindtap="handleRefreshTicket">刷新令牌</button>
-      </view>
-
-      <view class="card ticket-card">
-        <view class="ticket-card__title">操作令牌</view>
-        <view class="ticket-card__code">{{actionTicket ? actionTicket.ticket : '尚未生成'}}</view>
-        <view class="ticket-card__meta">
-          {{actionTicket && actionTicket.expiresAt ? '有效期至 ' + actionTicket.expiresAt : '用于发起捐献、任务和挑战等操作'}}
-        </view>
-        <button class="btn btn--ghost" size="mini" bindtap="handleRefreshTicket">重新生成</button>
       </view>
 
       <view class="card guild-leaderboard">
