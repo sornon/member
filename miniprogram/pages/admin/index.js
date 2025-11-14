@@ -8,12 +8,6 @@ const BASE_ACTIONS = [
     url: '/pages/admin/members/index'
   },
   {
-    icon: '🏯',
-    label: '宗门管理',
-    description: '查看宗门概况与成员',
-    url: '/pages/admin/guild/index'
-  },
-  {
     icon: '🍷',
     label: '存酒管理',
     description: '为会员登记和管理存酒',
@@ -72,6 +66,12 @@ const BASE_ACTIONS = [
     label: '数据清理',
     description: '清理删除会员遗留数据',
     url: '/pages/admin/data-cleanup/index'
+  },
+  {
+    icon: '🏯',
+    label: '宗门管理',
+    description: '查看宗门概况与成员',
+    url: '/pages/admin/guild/index'
   },
   {
     icon: '⚙️',
