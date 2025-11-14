@@ -2694,6 +2694,45 @@ function createGuildService(options = {}) {
     return '';
   }
 
+  function toBooleanFlag(value, fallback = false) {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) {
+        return fallback;
+      }
+      return value !== 0;
+    }
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (!normalized) {
+        return fallback;
+      }
+      if (['true', '1', 'on', 'yes', '开启', '启用', 'enable', 'enabled'].includes(normalized)) {
+        return true;
+      }
+      if (['false', '0', 'off', 'no', '关闭', '禁用', '停用', 'disabled'].includes(normalized)) {
+        return false;
+      }
+      return fallback;
+    }
+    if (value == null) {
+      return fallback;
+    }
+    if (typeof value.valueOf === 'function') {
+      try {
+        const primitive = value.valueOf();
+        if (primitive !== value) {
+          return toBooleanFlag(primitive, fallback);
+        }
+      } catch (error) {
+        return fallback;
+      }
+    }
+    return Boolean(value);
+  }
+
   async function hasAdminPermission(memberId) {
     const cacheKey = memberId;
     if (!cacheKey) {
@@ -3048,6 +3087,112 @@ function createGuildService(options = {}) {
       {
         message: '宗门系统数据已清空'
       }
+    );
+  }
+
+  async function updateGuildSettingsForAdmin(memberId, payload = {}, context = {}) {
+    await assertAdminContext(memberId, context, 'admin.updateGuildSettings');
+    const updates = payload && payload.updates && typeof payload.updates === 'object' ? payload.updates : {};
+    const updateKeys = Object.keys(updates);
+    if (!updateKeys.length) {
+      throw createError(ERROR_CODES.INTERNAL_ERROR, '缺少配置更新项');
+    }
+    const current = await loadSettings();
+    const next = {
+      ...current,
+      teamBattle: { ...(current.teamBattle || {}) },
+      boss: { ...(current.boss || {}) },
+      riskControl: { ...(current.riskControl || {}) }
+    };
+    const applied = {};
+    if (Object.prototype.hasOwnProperty.call(updates, 'enabled')) {
+      const value = toBooleanFlag(updates.enabled, current.enabled !== false);
+      next.enabled = value;
+      applied.enabled = value;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'maxMembers')) {
+      const numeric = Number(updates.maxMembers);
+      if (!Number.isFinite(numeric)) {
+        throw createError(ERROR_CODES.INTERNAL_ERROR, '宗门人数上限需为数字');
+      }
+      const clamped = Math.min(500, Math.max(5, Math.floor(numeric)));
+      next.maxMembers = clamped;
+      applied.maxMembers = clamped;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'leaderboardCacheTtlMs')) {
+      const numeric = Number(updates.leaderboardCacheTtlMs);
+      if (!Number.isFinite(numeric) || numeric <= 0) {
+        throw createError(ERROR_CODES.INTERNAL_ERROR, '排行榜缓存时长需为正数');
+      }
+      const clamped = Math.min(24 * 60 * 60 * 1000, Math.max(30 * 1000, Math.floor(numeric)));
+      next.leaderboardCacheTtlMs = clamped;
+      applied.leaderboardCacheTtlMs = clamped;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'teamBattleEnabled')) {
+      const enabled = toBooleanFlag(updates.teamBattleEnabled, next.teamBattle.enabled !== false);
+      next.teamBattle = { ...(next.teamBattle || {}), enabled };
+      applied.teamBattleEnabled = enabled;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'bossEnabled')) {
+      const enabled = toBooleanFlag(updates.bossEnabled, next.boss.enabled !== false);
+      next.boss = { ...(next.boss || {}), enabled };
+      applied.bossEnabled = enabled;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'bossDailyAttempts')) {
+      const numeric = Number(updates.bossDailyAttempts);
+      if (!Number.isFinite(numeric) || numeric <= 0) {
+        throw createError(ERROR_CODES.INTERNAL_ERROR, '试炼次数需为正数');
+      }
+      const clamped = Math.min(20, Math.max(1, Math.floor(numeric)));
+      next.boss = { ...(next.boss || {}), dailyAttempts: clamped };
+      applied.bossDailyAttempts = clamped;
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'riskControlEnabled')) {
+      const enabled = toBooleanFlag(updates.riskControlEnabled, next.riskControl.enabled !== false);
+      next.riskControl = { ...(next.riskControl || {}), enabled };
+      applied.riskControlEnabled = enabled;
+    }
+    if (!Object.keys(applied).length) {
+      return wrapActionResponse(
+        'admin.updateGuildSettings',
+        { settings: current, updates: {} },
+        { message: '未检测到有效的配置更新' }
+      );
+    }
+    const normalized = normalizeGuildSettings(next);
+    if (Object.prototype.hasOwnProperty.call(applied, 'teamBattleEnabled')) {
+      normalized.teamBattle = { ...(normalized.teamBattle || {}), enabled: applied.teamBattleEnabled };
+    }
+    const payloadToWrite = {
+      ...normalized,
+      schemaVersion: GUILD_SCHEMA_VERSION,
+      updatedAt: serverTimestamp()
+    };
+    const docRef = db.collection(COLLECTIONS.SYSTEM_SETTINGS).doc(FEATURE_TOGGLE_DOC_ID);
+    await docRef
+      .update({ data: { guildSettings: payloadToWrite } })
+      .catch((error) => {
+        if (error && /not exist/i.test(error.errMsg || '')) {
+          return docRef.set({ data: { guildSettings: payloadToWrite } });
+        }
+        throw error;
+      })
+      .catch((error) => {
+        logger.error('[guild] update guild settings failed', error);
+        throw createError(ERROR_CODES.INTERNAL_ERROR, '更新宗门配置失败');
+      });
+    settingsCache = { loadedAt: now(), settings: normalized };
+    const actorId = normalizeAdminMemberId(memberId, context);
+    await recordSecurityEvent({
+      action: 'admin.updateGuildSettings',
+      actorId: actorId || memberId || '',
+      message: '管理员更新宗门全局配置',
+      context: { updates: applied }
+    }).catch(() => {});
+    return wrapActionResponse(
+      'admin.updateGuildSettings',
+      { settings: normalized, updates: applied },
+      { message: '宗门配置已更新' }
     );
   }
 
@@ -4453,6 +4598,7 @@ function createGuildService(options = {}) {
     listRiskAlerts: listRiskAlertsForAdmin,
     adminGetSystemOverview: getGuildSystemOverviewForAdmin,
     adminResetGuildSystem: resetGuildSystemForAdmin,
+    adminUpdateGuildSettings: updateGuildSettingsForAdmin,
     adminListGuilds: listGuildsForAdmin,
     adminGetGuildDetail: getGuildDetailForAdmin,
     adminGetGuildMembers: listGuildMembersForAdmin,

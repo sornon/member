@@ -285,6 +285,16 @@ export const GuildService = {
     }
     return callCloud(CLOUD_FUNCTIONS.GUILD, payload);
   },
+  async adminUpdateSystemSettings(options = {}) {
+    const payload = attachClientEnv({ action: 'admin.updateGuildSettings' });
+    if (options && options.updates && typeof options.updates === 'object') {
+      const keys = Object.keys(options.updates);
+      if (keys.length) {
+        payload.updates = options.updates;
+      }
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, payload);
+  },
   async refreshTicket() {
     return callCloud(CLOUD_FUNCTIONS.GUILD, attachClientEnv({ action: 'refreshTicket' }));
   },
