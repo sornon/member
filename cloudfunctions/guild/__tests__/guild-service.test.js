@@ -79,6 +79,22 @@ function createMemoryDb() {
       },
       async get() {
         return { data: data.map(clone) };
+      },
+      async remove() {
+        const ids = new Set(data.map((item) => item._id || item.id));
+        if (!ids.size) {
+          return { deleted: 0, stats: { removed: 0 } };
+        }
+        const before = data.length;
+        for (let i = data.length - 1; i >= 0; i -= 1) {
+          const record = data[i];
+          const id = record && (record._id || record.id);
+          if (ids.has(id)) {
+            data.splice(i, 1);
+          }
+        }
+        const removed = before - data.length;
+        return { deleted: removed, stats: { removed } };
       }
     };
   }
@@ -115,6 +131,14 @@ function createMemoryDb() {
             }
             applyUpdate(record, clone(updates));
             return { updated: 1 };
+          },
+          async remove() {
+            const index = data.findIndex((item) => (item._id || item.id) === id);
+            if (index === -1) {
+              throw { errMsg: 'document not exist' };
+            }
+            data.splice(index, 1);
+            return { deleted: 1, stats: { removed: 1 } };
           }
         };
       },
@@ -123,7 +147,25 @@ function createMemoryDb() {
       },
       where(criteria) {
         const filtered = data.filter((item) => matches(item, criteria));
-        return createQuery(filtered);
+        return {
+          ...createQuery(filtered),
+          async remove() {
+            const ids = new Set(filtered.map((item) => item._id || item.id));
+            if (!ids.size) {
+              return { deleted: 0, stats: { removed: 0 } };
+            }
+            const before = data.length;
+            for (let i = data.length - 1; i >= 0; i -= 1) {
+              const record = data[i];
+              const id = record && (record._id || record.id);
+              if (ids.has(id)) {
+                data.splice(i, 1);
+              }
+            }
+            const removed = before - data.length;
+            return { deleted: removed, stats: { removed } };
+          }
+        };
       },
       limit(size) {
         return createQuery(data).limit(size);
@@ -655,6 +697,96 @@ describe('GuildService', () => {
           { proxySession: { adminId: 'admin-user' } }
         )
       ).rejects.toMatchObject({ message: '宗门人数上限需为数字' });
+    });
+  });
+
+  describe('admin.resetGuildSystem', () => {
+    it('clears guild collections in batches and restores defaults', async () => {
+      await db
+        .collection(COLLECTIONS.SYSTEM_SETTINGS)
+        .doc(FEATURE_TOGGLE_DOC_ID)
+        .set({
+          data: {
+            guildSettings: {
+              enabled: false,
+              schemaVersion: 0,
+              updatedAt: new Date()
+            }
+          }
+        });
+      await db.collection(COLLECTIONS.GUILDS).add({
+        data: {
+          _id: 'guild_temp_reset',
+          name: '霜华宫'
+        }
+      });
+      await db.collection(COLLECTIONS.GUILD_MEMBERS).add({
+        data: {
+          _id: 'guild_temp_reset_leader',
+          guildId: 'guild_temp_reset',
+          memberId: 'admin-user',
+          role: 'leader'
+        }
+      });
+      await db.collection(COLLECTIONS.GUILD_TASKS).add({
+        data: {
+          _id: 'guild_temp_reset_task',
+          guildId: 'guild_temp_reset',
+          title: '重置演练'
+        }
+      });
+
+      const result = await service.adminResetGuildSystem(
+        'admin-user',
+        { confirm: true, requestId: 'reset-case' },
+        { proxySession: { adminId: 'admin-user' } }
+      );
+
+      const expectedCollections = [
+        COLLECTIONS.GUILDS,
+        COLLECTIONS.GUILD_MEMBERS,
+        COLLECTIONS.GUILD_TASKS,
+        COLLECTIONS.GUILD_BOSS,
+        COLLECTIONS.GUILD_BATTLES,
+        COLLECTIONS.GUILD_LEADERBOARD,
+        COLLECTIONS.GUILD_LOGS,
+        COLLECTIONS.GUILD_CACHE,
+        COLLECTIONS.GUILD_EVENT_LOGS,
+        COLLECTIONS.GUILD_TICKETS,
+        COLLECTIONS.GUILD_RATE_LIMITS
+      ];
+
+      expect(result.success).toBe(true);
+      expect(result.summary.action).toBe('admin.resetGuildSystem');
+      expect(result.cleared).toHaveLength(expectedCollections.length);
+      expectedCollections.forEach((name) => {
+        expect(result.cleared).toEqual(
+          expect.arrayContaining([expect.objectContaining({ name })])
+        );
+      });
+      const guildEntry = result.cleared.find((entry) => entry.name === COLLECTIONS.GUILDS);
+      const memberEntry = result.cleared.find((entry) => entry.name === COLLECTIONS.GUILD_MEMBERS);
+      expect(guildEntry.deleted).toBeGreaterThanOrEqual(1);
+      expect(memberEntry.deleted).toBeGreaterThanOrEqual(1);
+
+      for (const name of expectedCollections) {
+        const snapshot = await db.collection(name).get();
+        const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
+        if (name === COLLECTIONS.GUILD_LOGS) {
+          expect(docs.length).toBeLessThanOrEqual(1);
+          if (docs.length === 1) {
+            expect(docs[0].action).toBe('admin.resetGuildSystem');
+          }
+          continue;
+        }
+        expect(docs.length).toBe(0);
+      }
+      const settingsDoc = await db
+        .collection(COLLECTIONS.SYSTEM_SETTINGS)
+        .doc(FEATURE_TOGGLE_DOC_ID)
+        .get();
+      expect(settingsDoc.data.guildSettings.enabled).toBe(true);
+      expect(settingsDoc.data.guildSettings.schemaVersion).toBe(1);
     });
   });
 
