@@ -218,8 +218,120 @@ function decorateMemberListEntry(member = {}) {
   };
 }
 
+function formatDurationLabel(milliseconds) {
+  const numeric = Number(milliseconds);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return '—';
+  }
+  if (numeric < 1000) {
+    return `${numeric} 毫秒`;
+  }
+  const seconds = Math.round(numeric / 1000);
+  if (seconds < 60) {
+    return `${seconds} 秒`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainSeconds = seconds % 60;
+  if (minutes < 60) {
+    return remainSeconds ? `${minutes} 分 ${remainSeconds} 秒` : `${minutes} 分钟`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainMinutes = minutes % 60;
+  return remainMinutes ? `${hours} 小时 ${remainMinutes} 分` : `${hours} 小时`;
+}
+
+function decorateSystemOverview(payload = {}) {
+  const stats = payload.stats || {};
+  const settings = payload.settings || {};
+  const alertCount = Number(stats.securityAlertCount || 0);
+  const statsEntries = [
+    { key: 'guildCount', label: '宗门总数', value: formatNumber(stats.guildCount || 0) },
+    { key: 'memberCount', label: '成员总数', value: formatNumber(stats.memberCount || 0) },
+    { key: 'activeMembers', label: '活跃成员', value: formatNumber(stats.activeMembers || 0) },
+    { key: 'inactiveMembers', label: '退出成员', value: formatNumber(stats.inactiveMembers || 0) },
+    { key: 'bossCount', label: 'Boss 档案', value: formatNumber(stats.bossCount || 0) },
+    { key: 'activeBossCount', label: '进行中试炼', value: formatNumber(stats.activeBossCount || 0) },
+    { key: 'openTaskCount', label: '进行中任务', value: formatNumber(stats.openTaskCount || 0) },
+    { key: 'completedTaskCount', label: '已完成任务', value: formatNumber(stats.completedTaskCount || 0) },
+    {
+      key: 'securityAlertCount',
+      label: '安全预警',
+      value: formatNumber(alertCount),
+      tone: alertCount > 0 ? 'warning' : 'default'
+    }
+  ];
+  const leaderboardTtl = Number(settings.leaderboardCacheTtlMs || 0);
+  const bossDailyAttempts = Number(settings.bossDailyAttempts || 0);
+  const settingsEntries = [
+    {
+      key: 'enabled',
+      label: '系统开关',
+      value: settings.enabled === false ? '已关闭' : '已开启',
+      tone: settings.enabled === false ? 'danger' : 'success'
+    },
+    {
+      key: 'maxMembers',
+      label: '宗门人数上限',
+      value: formatNumber(settings.maxMembers || 0)
+    },
+    {
+      key: 'leaderboardCacheTtlMs',
+      label: '排行榜缓存',
+      value: formatDurationLabel(leaderboardTtl)
+    },
+    {
+      key: 'teamBattleEnabled',
+      label: '团队讨伐',
+      value: settings.teamBattleEnabled === false ? '未启用' : '已启用',
+      tone: settings.teamBattleEnabled === false ? 'muted' : 'success'
+    },
+    {
+      key: 'bossEnabled',
+      label: '宗门试炼',
+      value:
+        settings.bossEnabled === false
+          ? '已关闭'
+          : bossDailyAttempts > 0
+          ? `已开启 · ${formatNumber(bossDailyAttempts)} 次/日`
+          : '已开启',
+      tone: settings.bossEnabled === false ? 'muted' : 'success'
+    },
+    {
+      key: 'riskControlEnabled',
+      label: '风控监控',
+      value: settings.riskControlEnabled === false ? '已停用' : '监控中',
+      tone: settings.riskControlEnabled === false ? 'muted' : 'warning'
+    }
+  ];
+  const recentGuilds = Array.isArray(payload.recentGuilds)
+    ? payload.recentGuilds
+        .map((entry) => ({
+          id: entry.id || '',
+          name: entry.name || entry.id || '未命名宗门',
+          memberLabel: formatNumber(entry.memberCount || 0),
+          updatedAtLabel: formatDateTime(entry.updatedAt || '')
+        }))
+        .filter((entry) => entry.id)
+    : [];
+  const updatedAt = formatDateTime(payload.updatedAt || (payload.summary && payload.summary.updatedAt) || '');
+  return {
+    statsEntries,
+    settingsEntries,
+    recentGuilds,
+    updatedAtLabel: updatedAt
+  };
+}
+
 Page({
   data: {
+    systemLoading: false,
+    systemOverview: {
+      statsEntries: [],
+      settingsEntries: [],
+      recentGuilds: [],
+      updatedAtLabel: ''
+    },
+    systemResetting: false,
     keyword: '',
     loading: false,
     guilds: [],
@@ -258,7 +370,7 @@ Page({
 
   async onLoad() {
     try {
-      await this.fetchGuilds({ reset: true });
+      await Promise.all([this.fetchSystemOverview(), this.fetchGuilds({ reset: true })]);
       const { selectedGuildId, guilds } = this.data;
       if (!selectedGuildId && guilds && guilds.length) {
         await this.loadGuildDetail(guilds[0].id);
@@ -277,11 +389,106 @@ Page({
   },
 
   async refreshAll() {
+    await this.fetchSystemOverview();
     await this.fetchGuilds({ reset: true });
     if (this.data.selectedGuildId) {
       await this.loadGuildDetail(this.data.selectedGuildId);
     } else if (this.data.guilds.length) {
       await this.loadGuildDetail(this.data.guilds[0].id);
+    }
+  },
+
+  async fetchSystemOverview() {
+    if (this.data.systemLoading) {
+      return Promise.resolve();
+    }
+    this.setData({ systemLoading: true });
+    try {
+      const response = await GuildService.adminGetSystemOverview();
+      const overview = decorateSystemOverview(response || {});
+      this.setData({ systemOverview: overview });
+    } catch (error) {
+      console.error('[admin:guild] fetch system overview failed', error);
+      wx.showToast({
+        title: (error && error.message) || '加载系统概览失败',
+        icon: 'none'
+      });
+    } finally {
+      this.setData({ systemLoading: false });
+    }
+  },
+
+  handleRefreshSystem() {
+    this.fetchSystemOverview();
+  },
+
+  handleResetSystem() {
+    if (this.data.systemResetting) {
+      return;
+    }
+    wx.showModal({
+      title: '清空宗门数据',
+      content: '此操作将删除所有宗门、成员、任务、Boss、日志等数据，不可恢复，请确认已做好备份。',
+      confirmText: '立即清空',
+      confirmColor: '#e64b4b',
+      success: (result) => {
+        if (result && result.confirm) {
+          this.performSystemReset();
+        }
+      }
+    });
+  },
+
+  async performSystemReset() {
+    if (this.data.systemResetting) {
+      return;
+    }
+    this.setData({ systemResetting: true });
+    try {
+      const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      await GuildService.adminResetGuildSystem({ requestId });
+      wx.showToast({ title: '已清空宗门数据', icon: 'success' });
+      this.setData({
+        guilds: [],
+        page: 1,
+        total: 0,
+        finished: true,
+        selectedGuildId: '',
+        selectedGuild: null,
+        membersOverview: {
+          total: 0,
+          active: 0,
+          inactive: 0,
+          officerCount: 0,
+          topContributors: [],
+          topPower: [],
+          recentJoins: []
+        },
+        boss: null,
+        tasks: [],
+        alerts: [],
+        memberKeyword: '',
+        includeInactive: false,
+        memberOrder: 'contribution',
+        memberList: [],
+        memberPage: 1,
+        memberTotal: 0,
+        memberFinished: true,
+        memberLoading: false,
+        memberLoadingGuildId: '',
+        memberRoles: {},
+        memberStats: {}
+      });
+      await this.fetchSystemOverview();
+      await this.fetchGuilds({ reset: true });
+    } catch (error) {
+      console.error('[admin:guild] reset system failed', error);
+      wx.showToast({
+        title: (error && error.message) || '清空失败',
+        icon: 'none'
+      });
+    } finally {
+      this.setData({ systemResetting: false });
     }
   },
 

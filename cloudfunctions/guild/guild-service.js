@@ -13,7 +13,8 @@ const { createBattlePayload, decorateBattleReplay } = require('battle-schema');
 const {
   normalizeGuildSettings,
   DEFAULT_GUILD_SETTINGS,
-  DEFAULT_GUILD_BOSS_SETTINGS
+  DEFAULT_GUILD_BOSS_SETTINGS,
+  FEATURE_TOGGLE_DOC_ID
 } = require('system-settings');
 const {
   buildSkillLoadout: buildRuntimeSkillLoadout,
@@ -116,6 +117,57 @@ function createGuildService(options = {}) {
       code: 'NOT_IMPLEMENTED',
       message: '功能开发中，敬请期待'
     });
+  }
+
+  async function truncateCollection(name) {
+    if (!name || typeof name !== 'string') {
+      return 0;
+    }
+    const collection = db.collection(name);
+    try {
+      const result = await collection.where({}).remove();
+      if (result && typeof result.deleted === 'number') {
+        return Math.max(0, result.deleted);
+      }
+      if (result && result.stats && typeof result.stats.removed === 'number') {
+        return Math.max(0, result.stats.removed);
+      }
+      return 0;
+    } catch (error) {
+      logger.warn(`[guild] bulk remove failed for ${name}, fallback to batch`, error);
+      let removed = 0;
+      const limit = 100;
+      let hasMore = true;
+      while (hasMore) {
+        const snapshot = await collection
+          .limit(limit)
+          .get()
+          .catch(() => ({ data: [] }));
+        const docs = (snapshot && snapshot.data) || [];
+        if (!docs.length) {
+          break;
+        }
+        for (const doc of docs) {
+          const docId = doc && (doc._id || doc.id);
+          if (!docId) {
+            continue;
+          }
+          /* eslint-disable no-await-in-loop */
+          await collection
+            .doc(docId)
+            .remove()
+            .then(() => {
+              removed += 1;
+            })
+            .catch((removeError) => {
+              logger.error(`[guild] failed to remove document ${docId} from ${name}`, removeError);
+            });
+          /* eslint-enable no-await-in-loop */
+        }
+        hasMore = docs.length >= limit;
+      }
+      return removed;
+    }
   }
 
   async function loadSettings({ force = false } = {}) {
@@ -2800,6 +2852,205 @@ function createGuildService(options = {}) {
     };
   }
 
+  async function getGuildSystemOverviewForAdmin(memberId, payload = {}, context = {}) {
+    await assertAdminContext(memberId, context, 'admin.systemOverview');
+    const [
+      guildCountResult,
+      memberCountResult,
+      inactiveMemberCountResult,
+      bossCountResult,
+      activeBossCountResult,
+      openTaskCountResult,
+      completedTaskCountResult,
+      alertCountResult,
+      latestGuildSnapshot,
+      settings
+    ] = await Promise.all([
+      db
+        .collection(COLLECTIONS.GUILDS)
+        .count()
+        .catch(() => ({ total: 0 })),
+      db
+        .collection(COLLECTIONS.GUILD_MEMBERS)
+        .count()
+        .catch(() => ({ total: 0 })),
+      db
+        .collection(COLLECTIONS.GUILD_MEMBERS)
+        .where({ status: 'inactive' })
+        .count()
+        .catch(() => ({ total: 0 })),
+      db
+        .collection(COLLECTIONS.GUILD_BOSS)
+        .count()
+        .catch(() => ({ total: 0 })),
+      db
+        .collection(COLLECTIONS.GUILD_BOSS)
+        .where({ status: command.neq('archived') })
+        .count()
+        .catch(() => ({ total: 0 })),
+      db
+        .collection(COLLECTIONS.GUILD_TASKS)
+        .where({ status: command.neq('closed') })
+        .count()
+        .catch(() => ({ total: 0 })),
+      db
+        .collection(COLLECTIONS.GUILD_TASKS)
+        .where({ status: 'completed' })
+        .count()
+        .catch(() => ({ total: 0 })),
+      db
+        .collection(COLLECTIONS.GUILD_LOGS)
+        .where({ type: 'security' })
+        .count()
+        .catch(() => ({ total: 0 })),
+      db
+        .collection(COLLECTIONS.GUILDS)
+        .orderBy('updatedAt', 'desc')
+        .limit(5)
+        .get()
+        .catch(() => ({ data: [] })),
+      loadSettings().catch(() => DEFAULT_GUILD_SETTINGS)
+    ]);
+    const guildCount = Number(guildCountResult && guildCountResult.total) || 0;
+    const memberCount = Number(memberCountResult && memberCountResult.total) || 0;
+    const inactiveMembers = Number(inactiveMemberCountResult && inactiveMemberCountResult.total) || 0;
+    const activeMembers = Math.max(0, memberCount - inactiveMembers);
+    const bossCount = Number(bossCountResult && bossCountResult.total) || 0;
+    const activeBossCount = Number(activeBossCountResult && activeBossCountResult.total) || 0;
+    const openTaskCount = Number(openTaskCountResult && openTaskCountResult.total) || 0;
+    const completedTaskCount = Number(completedTaskCountResult && completedTaskCountResult.total) || 0;
+    const alertCount = Number(alertCountResult && alertCountResult.total) || 0;
+    const recentGuildsRaw = (latestGuildSnapshot && latestGuildSnapshot.data) || [];
+    const recentGuilds = recentGuildsRaw
+      .map((doc) => ({
+        id: normalizeId(doc._id || doc.id),
+        name: toTrimmedString(doc.name || '未命名宗门'),
+        updatedAt: toIsoString(doc.updatedAt || doc.lastAlertAt || doc.createdAt || null),
+        memberCount: Number(doc.memberCount || doc.activeMemberCount || 0)
+      }))
+      .filter((entry) => entry && entry.id);
+    const settingsSummary = {
+      enabled: settings && settings.enabled !== false,
+      maxMembers: Number(settings && settings.maxMembers) || DEFAULT_GUILD_SETTINGS.maxMembers,
+      leaderboardCacheTtlMs: Number(settings && settings.leaderboardCacheTtlMs) || DEFAULT_GUILD_SETTINGS.leaderboardCacheTtlMs,
+      teamBattleEnabled: !!(settings && settings.teamBattle && settings.teamBattle.enabled !== false),
+      bossEnabled: !!(settings && settings.boss && settings.boss.enabled !== false),
+      bossDailyAttempts:
+        Number(settings && settings.boss && settings.boss.dailyAttempts) || DEFAULT_GUILD_BOSS_SETTINGS.dailyAttempts,
+      riskControlEnabled: !!(settings && settings.riskControl && settings.riskControl.enabled !== false)
+    };
+    return wrapActionResponse(
+      'admin.systemOverview',
+      {
+        stats: {
+          guildCount,
+          memberCount,
+          activeMembers,
+          inactiveMembers,
+          bossCount,
+          activeBossCount,
+          openTaskCount,
+          completedTaskCount,
+          securityAlertCount: alertCount
+        },
+        recentGuilds,
+        settings: settingsSummary
+      },
+      {
+        message: '宗门系统总览已加载'
+      }
+    );
+  }
+
+  async function resetGuildSystemForAdmin(memberId, payload = {}, context = {}) {
+    await assertAdminContext(memberId, context, 'admin.resetGuildSystem');
+    if (!payload || payload.confirm !== true) {
+      throw createError(ERROR_CODES.PERMISSION_DENIED, '请在确认后执行清空操作');
+    }
+    const actorId = normalizeAdminMemberId(memberId, context);
+    const collections = [
+      COLLECTIONS.GUILDS,
+      COLLECTIONS.GUILD_MEMBERS,
+      COLLECTIONS.GUILD_TASKS,
+      COLLECTIONS.GUILD_BOSS,
+      COLLECTIONS.GUILD_BATTLES,
+      COLLECTIONS.GUILD_LEADERBOARD,
+      COLLECTIONS.GUILD_LOGS,
+      COLLECTIONS.GUILD_CACHE,
+      COLLECTIONS.GUILD_EVENT_LOGS,
+      COLLECTIONS.GUILD_TICKETS,
+      COLLECTIONS.GUILD_RATE_LIMITS
+    ];
+    const cleared = [];
+    for (const name of collections) {
+      /* eslint-disable no-await-in-loop */
+      const deleted = await truncateCollection(name).catch((error) => {
+        logger.error(`[guild] failed to truncate collection ${name}`, error);
+        throw createError(ERROR_CODES.INTERNAL_ERROR, `清空 ${name} 失败`);
+      });
+      cleared.push({ name, deleted });
+      /* eslint-enable no-await-in-loop */
+    }
+    const settingsPayload = {
+      ...DEFAULT_GUILD_SETTINGS,
+      schemaVersion: GUILD_SCHEMA_VERSION,
+      updatedAt: serverTimestamp()
+    };
+    const settingsDocRef = db.collection(COLLECTIONS.SYSTEM_SETTINGS).doc(FEATURE_TOGGLE_DOC_ID);
+    const settingsSnapshot = await settingsDocRef.get().catch((error) => {
+      logger.error('[guild] load guild settings failed during reset', error);
+      throw createError(ERROR_CODES.INTERNAL_ERROR, '重置宗门配置失败');
+    });
+    const writePromise = settingsSnapshot && settingsSnapshot.data
+      ? settingsDocRef.update({
+          data: {
+            guildSettings: settingsPayload
+          }
+        })
+      : settingsDocRef.set({
+          data: {
+            guildSettings: settingsPayload
+          }
+        });
+    await writePromise.catch((error) => {
+      if (
+        settingsSnapshot &&
+        settingsSnapshot.data &&
+        error &&
+        /not[\s_-]*exist/i.test(error.errMsg || '')
+      ) {
+        return settingsDocRef.set({
+          data: {
+            guildSettings: settingsPayload
+          }
+        });
+      }
+      logger.error('[guild] reset guild settings failed', error);
+      throw createError(ERROR_CODES.INTERNAL_ERROR, '重置宗门配置失败');
+    });
+    settingsCache = { loadedAt: now(), settings: normalizeGuildSettings(DEFAULT_GUILD_SETTINGS) };
+    await recordSecurityEvent({
+      action: 'admin.resetGuildSystem',
+      actorId: actorId || memberId || '',
+      message: '管理员清空宗门系统数据',
+      context: {
+        collections,
+        requestId: payload && payload.requestId ? String(payload.requestId) : undefined
+      }
+    }).catch(() => {});
+    adminPermissionCache.clear();
+    return wrapActionResponse(
+      'admin.resetGuildSystem',
+      {
+        success: true,
+        cleared
+      },
+      {
+        message: '宗门系统数据已清空'
+      }
+    );
+  }
+
   async function listGuildsForAdmin(memberId, payload = {}, context = {}) {
     await assertAdminContext(memberId, context, 'admin.listGuilds');
     const pageSize = sanitizePageSize(payload.pageSize, { defaultSize: 10, max: 50 });
@@ -4200,6 +4451,8 @@ function createGuildService(options = {}) {
     getOverview,
     listGuilds,
     listRiskAlerts: listRiskAlertsForAdmin,
+    adminGetSystemOverview: getGuildSystemOverviewForAdmin,
+    adminResetGuildSystem: resetGuildSystemForAdmin,
     adminListGuilds: listGuildsForAdmin,
     adminGetGuildDetail: getGuildDetailForAdmin,
     adminGetGuildMembers: listGuildMembersForAdmin,
