@@ -170,6 +170,44 @@ function createGuildService(options = {}) {
     }
   }
 
+  async function truncateCollections(names, { concurrency = 3 } = {}) {
+    if (!Array.isArray(names) || !names.length) {
+      return [];
+    }
+    const tasks = names.map((name, index) => ({ name, index }));
+    const workerCount = Math.max(1, Math.min(concurrency, tasks.length));
+    const results = new Array(names.length);
+    let cursor = 0;
+
+    async function worker() {
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        const index = cursor;
+        if (index >= tasks.length) {
+          break;
+        }
+        cursor += 1;
+        const task = tasks[index];
+        const { name, index: resultIndex } = task;
+        if (!name || typeof name !== 'string') {
+          results[resultIndex] = { name, deleted: 0 };
+          continue;
+        }
+        /* eslint-disable no-await-in-loop */
+        const deleted = await truncateCollection(name).catch((error) => {
+          logger.error(`[guild] failed to truncate collection ${name}`, error);
+          throw createError(ERROR_CODES.INTERNAL_ERROR, `清空 ${name} 失败`);
+        });
+        /* eslint-enable no-await-in-loop */
+        results[resultIndex] = { name, deleted };
+      }
+    }
+
+    const workers = Array.from({ length: workerCount }, () => worker());
+    await Promise.all(workers);
+    return results;
+  }
+
   async function loadSettings({ force = false } = {}) {
     const ttl = 60 * 1000;
     if (!force && settingsCache.settings && now() - settingsCache.loadedAt < ttl) {
@@ -3020,16 +3058,7 @@ function createGuildService(options = {}) {
       COLLECTIONS.GUILD_TICKETS,
       COLLECTIONS.GUILD_RATE_LIMITS
     ];
-    const cleared = [];
-    for (const name of collections) {
-      /* eslint-disable no-await-in-loop */
-      const deleted = await truncateCollection(name).catch((error) => {
-        logger.error(`[guild] failed to truncate collection ${name}`, error);
-        throw createError(ERROR_CODES.INTERNAL_ERROR, `清空 ${name} 失败`);
-      });
-      cleared.push({ name, deleted });
-      /* eslint-enable no-await-in-loop */
-    }
+    const cleared = await truncateCollections(collections, { concurrency: 4 });
     const settingsPayload = {
       ...DEFAULT_GUILD_SETTINGS,
       schemaVersion: GUILD_SCHEMA_VERSION,
