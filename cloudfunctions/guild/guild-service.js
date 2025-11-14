@@ -3100,7 +3100,54 @@ function createGuildService(options = {}) {
       payload: doc.payload || {},
       createdAt: doc.createdAt || null
     }));
-    return { alerts };
+    if (!alerts.length) {
+      return { alerts };
+    }
+    const actorIds = Array.from(
+      new Set(alerts.map((alert) => normalizeMemberId(alert.actorId)).filter(Boolean))
+    );
+    let memberMap = new Map();
+    let extrasMap = new Map();
+    if (actorIds.length) {
+      [memberMap, extrasMap] = await Promise.all([
+        loadDocumentsByIds(COLLECTIONS.MEMBERS, actorIds),
+        loadDocumentsByIds(COLLECTIONS.MEMBER_EXTRAS, actorIds)
+      ]);
+    }
+    const decoratedAlerts = alerts.map((alert) => {
+      const actorId = normalizeMemberId(alert.actorId);
+      const memberDoc = actorId ? memberMap.get(actorId) || null : null;
+      const extrasDoc = actorId ? extrasMap.get(actorId) || null : null;
+      const actorName =
+        toTrimmedString(alert.summary && alert.summary.actorName) ||
+        toTrimmedString(alert.summary && alert.summary.memberName) ||
+        toTrimmedString(alert.payload && alert.payload.actorName) ||
+        toTrimmedString(alert.payload && alert.payload.memberName) ||
+        (memberDoc
+          ? toTrimmedString(
+              memberDoc.displayName ||
+                memberDoc.nickName ||
+                memberDoc.nickname ||
+                memberDoc.name
+            )
+          : '') ||
+        (extrasDoc
+          ? toTrimmedString(
+              extrasDoc.displayName ||
+                extrasDoc.nickName ||
+                extrasDoc.nickname ||
+                extrasDoc.name
+            )
+          : '');
+      const actorDisplay = actorName || actorId || '';
+      return {
+        ...alert,
+        actorId,
+        actorName,
+        actorDisplay
+      };
+    });
+    return { alerts: decoratedAlerts };
   }
 
   async function recordGuildLog(entry = {}) {
