@@ -108,39 +108,43 @@
         <view class="section-header__title">宗门排行榜</view>
         <button class="section-header__refresh" size="mini" bindtap="loadOverview">刷新</button>
       </view>
-      <view wx:if="{{leaderboard.length === 0}}" class="empty">暂无排行数据</view>
-      <block wx:else wx:for="{{leaderboard}}" wx:key="id">
-        <view class="leaderboard-item">
-          <view class="leaderboard-rank">{{index + 1}}</view>
-          <view class="leaderboard-avatar">
-            <image class="leaderboard-avatar__image" src="{{item.avatarUrl}}" mode="cover"></image>
-            <image
-              wx:if="{{item.avatarFrame}}"
-              class="leaderboard-avatar__frame"
-              src="{{item.avatarFrame}}"
-              mode="scaleToFill"
-            ></image>
-          </view>
-          <view class="leaderboard-body">
-            <view class="leaderboard-name">{{item.name}}</view>
-            <view class="leaderboard-meta">成员 {{item.memberCount || 0}} · 战力 {{formatNumber(item.power || 0)}} · 活跃 {{formatNumber(item.activityScore || 0)}}</view>
-            <view wx:if="{{item.titleImage || item.titleName}}" class="leaderboard-title">
+      <block wx:if="{{leaderboard.length === 0}}">
+        <view class="empty">暂无排行数据</view>
+      </block>
+      <block wx:else>
+        <block wx:for="{{leaderboard}}" wx:key="id">
+          <view class="leaderboard-item">
+            <view class="leaderboard-rank">{{index + 1}}</view>
+            <view class="leaderboard-avatar">
+              <image class="leaderboard-avatar__image" src="{{item.avatarUrl}}" mode="cover"></image>
               <image
-                wx:if="{{item.titleImage}}"
-                class="leaderboard-title__image"
-                src="{{item.titleImage}}"
-                mode="heightFix"
+                wx:if="{{item.avatarFrame}}"
+                class="leaderboard-avatar__frame"
+                src="{{item.avatarFrame}}"
+                mode="scaleToFill"
               ></image>
-              <text wx:if="{{item.titleName}}" class="leaderboard-title__text">{{item.titleName}}</text>
             </view>
+            <view class="leaderboard-body">
+              <view class="leaderboard-name">{{item.name}}</view>
+              <view class="leaderboard-meta">成员 {{item.memberCount || 0}} · 战力 {{formatNumber(item.power || 0)}} · 活跃 {{formatNumber(item.activityScore || 0)}}</view>
+              <view wx:if="{{item.titleImage || item.titleName}}" class="leaderboard-title">
+                <image
+                  wx:if="{{item.titleImage}}"
+                  class="leaderboard-title__image"
+                  src="{{item.titleImage}}"
+                  mode="heightFix"
+                ></image>
+                <text wx:if="{{item.titleName}}" class="leaderboard-title__text">{{item.titleName}}</text>
+              </view>
+            </view>
+            <button
+              class="btn btn--link"
+              size="mini"
+              data-id="{{item.id}}"
+              bindtap="handleViewGuild"
+            >详情</button>
           </view>
-          <button
-            class="btn btn--link"
-            size="mini"
-            data-id="{{item.id}}"
-            bindtap="handleViewGuild"
-          >详情</button>
-        </view>
+        </block>
       </block>
     </view>
   </scroll-view>
