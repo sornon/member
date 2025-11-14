@@ -1,62 +1,64 @@
-<view class="members-page">
-  <view wx:if="{{loading}}" class="state">成员列表加载中...</view>
-  <view wx:elif="{{error}}" class="state state--error">{{error}}</view>
-  <scroll-view
-    wx:else
-    scroll-y
-    class="members-scroll"
-    enable-flex="true"
-  >
-    <view wx:if="{{guild}}" class="guild-summary">
-      <view class="guild-summary__title">{{guild.name || '未命名宗门'}}</view>
-      <view class="guild-summary__meta">
-        <text>成员 {{guild.memberCount || 0}}</text>
-        <text>战力 {{guild.power || 0}}</text>
-        <text>活跃 {{guild.activityScore || 0}}</text>
+<custom-nav title="宗门成员" theme="dark"></custom-nav>
+<view class="guild-page guild-page--members">
+  <scroll-view scroll-y class="guild-scroll" enable-flex="true">
+    <block wx:if="{{loading}}">
+      <view class="state state--loading">成员列表加载中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="state state--error">{{error}}</view>
+    </block>
+    <view wx:else class="guild-content">
+      <view wx:if="{{guild}}" class="guild-section guild-summary">
+        <view class="guild-section__title">{{guild.name || '未命名宗门'}}</view>
+        <view class="guild-summary__meta">
+          <text>成员 {{guild.memberCount || 0}}</text>
+          <text>战力 {{formatNumber(guild.power || 0)}}</text>
+          <text>活跃 {{formatNumber(guild.activityScore || 0)}}</text>
+        </view>
+        <view class="guild-summary__role">我的职位：{{membership ? resolveRoleLabel(membership.role) : '成员'}}</view>
+        <button class="btn btn--ghost" size="mini" bindtap="handleRefreshTicket">刷新令牌</button>
       </view>
-      <view class="guild-summary__role">我的职位：{{membership ? resolveRoleLabel(membership.role) : '成员'}}</view>
-      <button class="btn btn--ghost" size="mini" bindtap="handleRefreshTicket">刷新令牌</button>
-    </view>
 
-    <view class="members-list">
-      <block wx:if="{{members.length === 0}}">
-        <view class="empty">暂无成员数据</view>
-      </block>
-      <block wx:else>
-        <block wx:for="{{members}}" wx:key="memberId">
-          <view class="member-item">
-            <view class="member-avatar">
-              <image class="member-avatar__image" src="{{item.avatarUrl || defaultAvatar}}" mode="cover"></image>
-              <image
-                wx:if="{{item.avatarFrame}}"
-                class="member-avatar__frame"
-                src="{{item.avatarFrame}}"
-                mode="scaleToFill"
-              ></image>
-            </view>
-            <view class="member-body">
-              <view class="member-name">{{item.displayName || item.name || item.memberName || '无名修士'}}</view>
-              <view class="member-meta">职位：{{item.roleLabel}} · 战力 {{item.powerScore || 0}}</view>
-              <view class="member-meta">总贡献 {{item.contributionTotal || 0}} · 本周 {{item.contributionWeek || 0}}</view>
-              <view class="member-meta">加入：{{item.joinedAtText}} · 最近：{{item.lastActiveText}}</view>
-            </view>
-            <button
-              class="btn btn--ghost btn--small"
-              size="mini"
-              data-id="{{item.memberId || item.id || item._id}}"
-              data-name="{{item.displayName || item.name || ''}}"
-              bindtap="handleManageMember"
-            >管理</button>
-          </view>
+      <view class="guild-section guild-section--compact members-list">
+        <block wx:if="{{members.length === 0}}">
+          <view class="empty">暂无成员数据</view>
         </block>
-      </block>
-      <view wx:if="{{pagination.hasMore}}" class="load-more">
-        <button
-          class="btn btn--ghost"
-          loading="{{fetching}}"
-          disabled="{{fetching}}"
-          bindtap="handleLoadMore"
-        >加载更多</button>
+        <block wx:else>
+          <block wx:for="{{members}}" wx:key="memberId">
+            <view class="member-item">
+              <view class="member-avatar">
+                <image class="member-avatar__image" src="{{item.avatarUrl || defaultAvatar}}" mode="cover"></image>
+                <image
+                  wx:if="{{item.avatarFrame}}"
+                  class="member-avatar__frame"
+                  src="{{item.avatarFrame}}"
+                  mode="scaleToFill"
+                ></image>
+              </view>
+              <view class="member-body">
+                <view class="member-name">{{item.displayName || item.name || item.memberName || '无名修士'}}</view>
+                <view class="member-meta">职位：{{item.roleLabel}} · 战力 {{formatNumber(item.powerScore || 0)}}</view>
+                <view class="member-meta">总贡献 {{formatNumber(item.contributionTotal || 0)}} · 本周 {{formatNumber(item.contributionWeek || 0)}}</view>
+                <view class="member-meta">加入：{{item.joinedAtText}} · 最近：{{item.lastActiveText}}</view>
+              </view>
+              <button
+                class="btn btn--ghost btn--small"
+                size="mini"
+                data-id="{{item.memberId || item.id || item._id}}"
+                data-name="{{item.displayName || item.name || ''}}"
+                bindtap="handleManageMember"
+              >管理</button>
+            </view>
+          </block>
+        </block>
+        <view wx:if="{{pagination.hasMore}}" class="load-more">
+          <button
+            class="btn btn--ghost"
+            loading="{{fetching}}"
+            disabled="{{fetching}}"
+            bindtap="handleLoadMore"
+          >加载更多</button>
+        </view>
       </view>
     </view>
   </scroll-view>

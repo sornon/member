@@ -1,5 +1,17 @@
 import { GuildService } from '../../../services/api';
 
+function formatNumber(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+  if (numeric >= 10000) {
+    const rounded = (numeric / 10000).toFixed(1);
+    return `${rounded.replace(/\.0$/, '')}万`;
+  }
+  return `${numeric}`;
+}
+
 Page({
   data: {
     guildId: '',
@@ -60,5 +72,6 @@ Page({
     } finally {
       this.setData({ joining: false });
     }
-  }
+  },
+  formatNumber
 });

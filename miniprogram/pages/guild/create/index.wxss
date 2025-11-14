@@ -1,32 +1,38 @@
-.create-page {
-  padding: 40rpx;
-  min-height: 100vh;
-  background: linear-gradient(180deg, #020617 0%, #111827 100%);
-  color: #e2e8f0;
+@import "../../../shared/styles/guild-theme.wxss";
+
+.create-form {
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
 }
+
 .form-item {
-  margin-bottom: 32rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
 }
+
 .label {
-  display: block;
-  font-size: 28rpx;
-  margin-bottom: 12rpx;
+  font-size: 26rpx;
+  color: rgba(199, 209, 255, 0.78);
 }
+
 .input,
 .textarea {
-  width: 100%;
-  background: rgba(30, 41, 59, 0.6);
-  border-radius: 16rpx;
-  padding: 20rpx;
-  color: #f8fafc;
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: rgba(10, 18, 46, 0.6);
+  border: 1rpx solid rgba(118, 142, 255, 0.3);
+  border-radius: 20rpx;
+  padding: 24rpx 28rpx;
+  font-size: 28rpx;
+  color: #f8f9ff;
 }
+
+.input::placeholder,
+.textarea::placeholder {
+  color: rgba(153, 174, 255, 0.6);
+}
+
 .textarea {
-  min-height: 160rpx;
-}
-.submit {
-  margin-top: 40rpx;
-  background: linear-gradient(90deg, #34d399 0%, #10b981 100%);
-  color: #022c22;
-  border-radius: 999rpx;
+  min-height: 180rpx;
+  line-height: 1.6;
 }

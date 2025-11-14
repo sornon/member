@@ -1,68 +1,31 @@
-.logs-page {
-  min-height: 100vh;
-  background: linear-gradient(180deg, #111827 0%, #020617 100%);
-  color: #e2e8f0;
-}
+@import "../../../shared/styles/guild-theme.wxss";
 
-.logs-scroll {
-  height: 100vh;
-  padding: 32rpx 32rpx 64rpx;
-  box-sizing: border-box;
-}
-
-.state {
-  text-align: center;
-  padding: 160rpx 40rpx;
-  font-size: 30rpx;
-  color: #cbd5f5;
-}
-
-.state--error {
-  color: #fca5a5;
+.guild-page--logs .guild-content {
+  gap: 28rpx;
 }
 
 .logs-header {
-  background: rgba(15, 23, 42, 0.7);
-  border-radius: 28rpx;
-  padding: 28rpx;
-  margin-bottom: 32rpx;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 24rpx 36rpx rgba(2, 6, 23, 0.45);
+  gap: 16rpx;
 }
 
-.logs-header__title {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #f8fafc;
-}
-
-.btn {
-  border: none;
-  border-radius: 999rpx;
-  background: rgba(59, 130, 246, 0.2);
-  color: #cbd5f5;
-  padding: 0 32rpx;
-  height: 64rpx;
-  line-height: 64rpx;
-  font-size: 24rpx;
-}
-
-.btn--ghost {
-  background: rgba(59, 130, 246, 0.15);
+.logs-header__actions {
+  display: flex;
+  gap: 16rpx;
 }
 
 .logs-list {
-  background: rgba(15, 23, 42, 0.6);
-  border-radius: 28rpx;
-  padding: 12rpx 0;
-  box-shadow: 0 28rpx 40rpx rgba(2, 6, 23, 0.4);
+  padding: 0;
 }
 
 .log-item {
   padding: 24rpx 32rpx;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  border-bottom: 1rpx solid rgba(130, 154, 255, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
 }
 
 .log-item:last-child {
@@ -73,38 +36,25 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 16rpx;
 }
 
 .log-item__type {
   font-size: 28rpx;
   font-weight: 600;
-  color: #f1f5f9;
+  color: #f4f6ff;
 }
 
 .log-item__time {
-  font-size: 22rpx;
-  color: #94a3b8;
-}
-
-.log-item__actor {
-  margin-top: 12rpx;
   font-size: 24rpx;
-  color: #cbd5f5;
+  color: rgba(188, 212, 255, 0.7);
 }
 
+.log-item__actor,
 .log-item__payload {
-  margin-top: 12rpx;
   font-size: 24rpx;
-  color: #a5b4fc;
-  word-break: break-all;
+  color: rgba(199, 209, 255, 0.78);
   line-height: 1.6;
-}
-
-.empty {
-  text-align: center;
-  padding: 48rpx 24rpx;
-  font-size: 26rpx;
-  color: #94a3b8;
 }
 
 .load-more {
