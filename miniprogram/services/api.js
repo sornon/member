@@ -272,6 +272,19 @@ export const GuildService = {
     }
     return callCloud(CLOUD_FUNCTIONS.GUILD, payload);
   },
+  async adminGetSystemOverview() {
+    return callCloud(CLOUD_FUNCTIONS.GUILD, attachClientEnv({ action: 'admin.systemOverview' }));
+  },
+  async adminResetGuildSystem(options = {}) {
+    const payload = attachClientEnv({
+      action: 'admin.resetGuildSystem',
+      confirm: true
+    });
+    if (options && typeof options.requestId === 'string' && options.requestId.trim()) {
+      payload.requestId = options.requestId.trim();
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, payload);
+  },
   async refreshTicket() {
     return callCloud(CLOUD_FUNCTIONS.GUILD, attachClientEnv({ action: 'refreshTicket' }));
   },

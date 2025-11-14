@@ -1,5 +1,51 @@
 <custom-nav title="宗门管理" theme="dark"></custom-nav>
 <view class="guild-admin">
+  <view class="system-panel">
+    <view class="system-header">
+      <view class="system-title">宗门系统概览</view>
+      <view class="system-meta">更新时间：{{systemOverview.updatedAtLabel || '—'}}</view>
+    </view>
+    <view class="system-toolbar">
+      <button class="system-button" bindtap="handleRefreshSystem" loading="{{systemLoading}}" disabled="{{systemLoading}}">刷新总览</button>
+      <button
+        class="system-button danger"
+        bindtap="handleResetSystem"
+        loading="{{systemResetting}}"
+        disabled="{{systemResetting}}"
+      >清空宗门数据</button>
+    </view>
+    <view wx:if="{{systemLoading && !systemOverview.statsEntries.length}}" class="loading">正在加载系统概览...</view>
+    <view wx:elif="{{systemOverview.statsEntries.length}}" class="system-stats">
+      <view wx:for="{{systemOverview.statsEntries}}" wx:key="key" class="system-stat {{item.tone}}">
+        <view class="stat-label">{{item.label}}</view>
+        <view class="stat-value">{{item.value}}</view>
+      </view>
+    </view>
+    <view wx:else class="empty">暂无宗门系统数据</view>
+    <view class="system-subgrid">
+      <view class="system-card">
+        <view class="system-card__title">全局设置</view>
+        <view wx:if="{{systemOverview.settingsEntries.length}}" class="system-settings">
+          <view wx:for="{{systemOverview.settingsEntries}}" wx:key="key" class="setting-row {{item.tone}}">
+            <view class="setting-label">{{item.label}}</view>
+            <view class="setting-value">{{item.value}}</view>
+          </view>
+        </view>
+        <view wx:else class="summary-empty">暂无系统设置</view>
+      </view>
+      <view class="system-card">
+        <view class="system-card__title">最近更新的宗门</view>
+        <view wx:if="{{systemOverview.recentGuilds.length}}" class="recent-list">
+          <view wx:for="{{systemOverview.recentGuilds}}" wx:key="id" class="recent-item">
+            <view class="recent-name">{{item.name}}</view>
+            <view class="recent-meta">成员：{{item.memberLabel}} · 更新时间：{{item.updatedAtLabel || '—'}}</view>
+          </view>
+        </view>
+        <view wx:else class="summary-empty">暂无宗门更新记录</view>
+      </view>
+    </view>
+  </view>
+
   <view class="filter-bar">
     <input
       class="filter-input"

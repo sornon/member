@@ -73,6 +73,10 @@ const CUSTOM_ACTIONS = Object.freeze({
     service.adminGetGuildDetail(actorId, event, context),
   'admin.guildMembers': async (service, actorId, event = {}, context = {}) =>
     service.adminGetGuildMembers(actorId, event, context),
+  'admin.systemOverview': async (service, actorId, event = {}, context = {}) =>
+    service.adminGetSystemOverview(actorId, event, context),
+  'admin.resetGuildSystem': async (service, actorId, event = {}, context = {}) =>
+    service.adminResetGuildSystem(actorId, event, context),
   'admin.riskAlerts': async (service, actorId, event = {}, context = {}) => {
     if (!context || !context.proxySession) {
       throw createError(ERROR_CODES.PERMISSION_DENIED, '仅限管理员操作');
