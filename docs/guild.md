@@ -55,6 +55,8 @@
 
 宗门系统共使用 6 个核心集合，均需在 CloudBase 创建并补充索引：
 
+> 创建索引时，可在云开发控制台进入“数据库 → 索引 → 新建索引”，或使用 CLI：`tcb db:index:create --collection <name> --index '{"name":"idx_x","key":{"field":1},"unique":false,"expireAfterSeconds":-1}'`。除非另有说明，`background` 默认开启；TTL 为 `-1` 表示永久保留。
+
 ### `guilds`
 
 | 字段 | 类型 | 说明 |
@@ -72,7 +74,15 @@
 | `tech` | `object` | 科研/加成配置。|
 | `createdAt` / `updatedAt` | `Date` | 时间戳。|
 
-**推荐索引**：`name`（唯一）、`name`（文本）、`leaderId`。
+**索引配置**：
+
+| 索引名 | 字段排序 | 唯一性 | 类型 | TTL（秒） |
+| --- | --- | --- | --- | --- |
+| `idx_name_unique` | `{ name: 1 }` | `true` | `normal` | `-1` |
+| `idx_name_text` | `{ name: "text" }` | `false` | `text` | `-1` |
+| `idx_leader` | `{ leaderId: 1, updatedAt: -1 }` | `false` | `normal` | `-1` |
+
+> `idx_name_unique` 防止重复创建宗门；`idx_name_text` 支持模糊搜索；`idx_leader` 便于快速定位宗主并按照更新时间倒序排列。
 
 ### `guildMembers`
 
@@ -87,7 +97,15 @@
 | `activity` | `number` | 活跃度评分。|
 | `joinedAt` / `updatedAt` | `Date` | 时间戳。|
 
-**推荐索引**：`guildId + role`、`memberId`、`contributionWeek`（降序复合索引）。
+**索引配置**：
+
+| 索引名 | 字段排序 | 唯一性 | 类型 | TTL（秒） |
+| --- | --- | --- | --- | --- |
+| `idx_guild_role` | `{ guildId: 1, role: 1 }` | `false` | `normal` | `-1` |
+| `idx_member` | `{ memberId: 1 }` | `false` | `normal` | `-1` |
+| `idx_week_contribution` | `{ guildId: 1, contributionWeek: -1 }` | `false` | `normal` | `-1` |
+
+> 建议在创建 `idx_week_contribution` 时勾选“降序”以确保排行榜分页稳定；如需强制唯一性，可在 `idx_member` 上打开 `unique` 保证成员仅存在于单个宗门。
 
 ### `guildTasks`
 
@@ -103,7 +121,14 @@
 | `status` | `'open' / 'closed'` | 状态。|
 | `startAt` / `endAt` / `updatedAt` | `Date` | 时间戳。|
 
-**推荐索引**：`guildId + status`、`endAt`。
+**索引配置**：
+
+| 索引名 | 字段排序 | 唯一性 | 类型 | TTL（秒） |
+| --- | --- | --- | --- | --- |
+| `idx_guild_status` | `{ guildId: 1, status: 1, endAt: -1 }` | `false` | `normal` | `-1` |
+| `idx_end_at` | `{ endAt: 1 }` | `false` | `normal` | `-1` |
+
+> `idx_guild_status` 带上 `endAt` 方便按照截止时间倒序筛选开放中的任务。
 
 ### `guildBoss`
 
@@ -122,7 +147,15 @@
 | `schemaVersion` | `number` | 结构版本。|
 | `createdAt` / `updatedAt` / `defeatedAt` | `Date` | 时间戳。|
 
-**推荐索引**：`guildId + status`、`guildId + schemaVersion`、`updatedAt`（倒序）。
+**索引配置**：
+
+| 索引名 | 字段排序 | 唯一性 | 类型 | TTL（秒） |
+| --- | --- | --- | --- | --- |
+| `idx_guild_status` | `{ guildId: 1, status: 1 }` | `false` | `normal` | `-1` |
+| `idx_schema_version` | `{ guildId: 1, schemaVersion: -1 }` | `false` | `normal` | `-1` |
+| `idx_updated_at_desc` | `{ updatedAt: -1 }` | `false` | `normal` | `-1` |
+
+> 如需统计 Boss 周期，可将 `idx_schema_version` 复制到日志分析环境并结合 `status` 过滤。
 
 ### `guildBattles`
 
@@ -142,7 +175,14 @@
 | `schemaVersion` | `number` | 结构版本。|
 | `createdAt` | `Date` | 创建时间。|
 
-**推荐索引**：`guildId + createdAt(desc)`、`signature`（唯一）。
+**索引配置**：
+
+| 索引名 | 字段排序 | 唯一性 | 类型 | TTL（秒） |
+| --- | --- | --- | --- | --- |
+| `idx_guild_created_desc` | `{ guildId: 1, createdAt: -1 }` | `false` | `normal` | `-1` |
+| `idx_signature_unique` | `{ signature: 1 }` | `true` | `normal` | `-1` |
+
+> `idx_signature_unique` 能阻止重复战报回放被写入；若需根据战斗回合检索，可额外创建 `{ guildId: 1, rounds: -1 }` 辅助索引。
 
 ### `guildLeaderboard`
 
@@ -154,6 +194,15 @@
 | `schemaVersion` | `number` | 缓存结构版本号。|
 
 > 当前支持 `power`、`contribution`、`activity` 与 `boss` 四种榜单。当 `schemaVersion` 变化或 TTL 失效时会触发重建；若刷新失败，系统会回退至最近成功的快照。
+
+**索引配置**：
+
+| 索引名 | 字段排序 | 唯一性 | 类型 | TTL（秒） |
+| --- | --- | --- | --- | --- |
+| `idx_updated_at_desc` | `{ updatedAt: -1 }` | `false` | `normal` | `-1` |
+| `idx_schema_version` | `{ schemaVersion: -1 }` | `false` | `normal` | `-1` |
+
+> 若需自动过期旧快照，可在 `idx_updated_at_desc` 上设置 `expireAfterSeconds` 为 `604800`（一周），以保证只保留最近的榜单数据。
 
 ## 部署步骤
 
