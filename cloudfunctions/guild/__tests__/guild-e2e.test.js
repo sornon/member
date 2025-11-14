@@ -1,5 +1,7 @@
 const { createGuildService } = require('../guild-service');
 const { GUILD_SCHEMA_VERSION } = require('../guild-service');
+const { ERROR_CODES } = require('../error-codes');
+const { COLLECTIONS } = require('common-config');
 
 function bootstrapDb() {
   const base = {};
@@ -16,7 +18,17 @@ function bootstrapDb() {
       },
       in(values) {
         return { __op: 'in', values };
+      },
+      or(conditions) {
+        return { __op: 'or', conditions: Array.isArray(conditions) ? conditions : [] };
       }
+    }
+  };
+  db.RegExp = ({ regexp, options }) => {
+    try {
+      return { __op: 'regex', regexp: new RegExp(regexp, options || '') };
+    } catch (error) {
+      return { __op: 'regex', regexp: new RegExp('') };
     }
   };
   const collections = new Map();
@@ -39,10 +51,26 @@ function bootstrapDb() {
     });
   }
   function matches(doc, criteria = {}) {
+    if (!criteria || typeof criteria !== 'object') {
+      return true;
+    }
+    if (criteria.__op === 'or') {
+      return (criteria.conditions || []).some((condition) => matches(doc, condition));
+    }
     return Object.keys(criteria).every((key) => {
       const expected = criteria[key];
-      if (expected && typeof expected === 'object' && expected.__op === 'in') {
-        return expected.values.includes(doc[key]);
+      if (expected && typeof expected === 'object') {
+        if (expected.__op === 'in') {
+          return expected.values.includes(doc[key]);
+        }
+        if (expected.__op === 'regex' && expected.regexp instanceof RegExp) {
+          const value = doc[key] || '';
+          return expected.regexp.test(value);
+        }
+      }
+      if (expected && expected.regexp instanceof RegExp) {
+        const value = doc[key] || '';
+        return expected.regexp.test(value);
       }
       return doc[key] === expected;
     });
@@ -50,14 +78,40 @@ function bootstrapDb() {
   function buildQuery(items) {
     return {
       limit(size) {
-        return {
-          async get() {
-            return { data: items.slice(0, size).map(clone) };
+        const safe = Math.max(0, Math.floor(size || 0));
+        return buildQuery(items.slice(0, safe));
+      },
+      skip(count) {
+        const safe = Math.max(0, Math.floor(count || 0));
+        return buildQuery(items.slice(safe));
+      },
+      orderBy(field, order) {
+        const sorted = [...items].sort((a, b) => {
+          const leftValue = a && a[field];
+          const rightValue = b && b[field];
+          const leftTime = leftValue instanceof Date ? leftValue.getTime() : new Date(leftValue || 0).getTime();
+          const rightTime = rightValue instanceof Date ? rightValue.getTime() : new Date(rightValue || 0).getTime();
+          if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && order && (field || '').includes('At')) {
+            return order === 'desc' ? rightTime - leftTime : leftTime - rightTime;
           }
-        };
+          const left = Number(leftValue) || 0;
+          const right = Number(rightValue) || 0;
+          return order === 'desc' ? right - left : left - right;
+        });
+        return buildQuery(sorted);
+      },
+      where(criteria) {
+        const filtered = items.filter((item) => matches(item, criteria));
+        return buildQuery(filtered);
+      },
+      field() {
+        return buildQuery(items);
       },
       async get() {
         return { data: items.map(clone) };
+      },
+      async count() {
+        return { total: items.length };
       }
     };
   }
@@ -101,19 +155,22 @@ function bootstrapDb() {
         };
       },
       where(criteria) {
-        const filtered = store.filter((item) => matches(item, criteria));
-        return buildQuery(filtered);
+        return buildQuery(store).where(criteria);
       },
       limit(size) {
         return buildQuery(store).limit(size);
       },
       orderBy(field, order) {
-        const sorted = [...store].sort((a, b) => {
-          const left = Number(a[field]) || 0;
-          const right = Number(b[field]) || 0;
-          return order === 'desc' ? right - left : left - right;
-        });
-        return buildQuery(sorted);
+        return buildQuery(store).orderBy(field, order);
+      },
+      skip(count) {
+        return buildQuery(store).skip(count);
+      },
+      count() {
+        return buildQuery(store).count();
+      },
+      field() {
+        return buildQuery(store).field();
       }
     };
   };
@@ -164,5 +221,156 @@ describe('GuildService E2E', () => {
     const profile = await service.profile('alpha');
     expect(profile.summary.action).toBe('profile');
     expect(profile.guild.id).toBe(created.guild.id);
+  });
+
+  test('admin guild overview and members', async () => {
+    const db = bootstrapDb();
+    const service = createGuildService({
+      db,
+      command: db.command,
+      loadSettings: async () => ({
+        enabled: true,
+        maxMembers: 50,
+        secret: 'admin-secret',
+        schemaVersion: GUILD_SCHEMA_VERSION
+      })
+    });
+
+    await db.collection(COLLECTIONS.MEMBERS).doc('admin').set({
+      data: {
+        _id: 'admin',
+        roles: ['admin'],
+        displayName: '管理员'
+      }
+    });
+
+    const leaderTicket = await service.issueActionTicket('leader');
+    const created = await service.createGuild('leader', {
+      name: '太虚观',
+      manifesto: '剑指青云',
+      ticket: leaderTicket.ticket,
+      signature: leaderTicket.signature,
+      powerRating: 3200
+    });
+    const guildId = created.guild.id;
+    const joinTicket = await service.issueActionTicket('elder');
+    await service.joinGuild('elder', {
+      guildId,
+      ticket: joinTicket.ticket,
+      signature: joinTicket.signature,
+      powerRating: 2800
+    });
+    const memberTicket = await service.issueActionTicket('disciple');
+    await service.joinGuild('disciple', {
+      guildId,
+      ticket: memberTicket.ticket,
+      signature: memberTicket.signature,
+      powerRating: 1200
+    });
+
+    const guildMembers = db.collection(COLLECTIONS.GUILD_MEMBERS);
+    const memberSnapshot = await guildMembers.where({ guildId }).get();
+    for (const record of memberSnapshot.data) {
+      const updates = { displayName: record.memberId };
+      if (record.memberId === 'leader') {
+        updates.contribution = 4200;
+        updates.power = 3500;
+        updates.role = 'leader';
+      } else if (record.memberId === 'elder') {
+        updates.contribution = 5600;
+        updates.power = 3600;
+        updates.role = 'officer';
+      } else if (record.memberId === 'disciple') {
+        updates.contribution = 600;
+        updates.power = 900;
+        updates.status = 'inactive';
+      }
+      await guildMembers.doc(record._id).update({ data: updates });
+    }
+
+    await db.collection(COLLECTIONS.GUILD_LOGS).add({
+      data: {
+        _id: 'alert_1',
+        guildId,
+        type: 'security',
+        action: 'abnormalDonation',
+        actorId: 'elder',
+        summary: { message: '短期内异常高频捐献' },
+        createdAt: new Date()
+      }
+    });
+
+    await db.collection(COLLECTIONS.GUILD_TASKS).add({
+      data: {
+        _id: 'task_1',
+        guildId,
+        title: '灵田浇灌',
+        status: 'open',
+        progress: { current: 60 },
+        goal: { total: 100 },
+        endAt: new Date(),
+        updatedAt: new Date()
+      }
+    });
+
+    await db.collection(COLLECTIONS.GUILD_BOSS).add({
+      data: {
+        _id: `${guildId}_boss_fire`,
+        guildId,
+        bossId: 'boss_fire',
+        level: 5,
+        status: 'open',
+        hpMax: 8000,
+        hpLeft: 3200,
+        totalDamage: 4800,
+        damageByMember: { leader: 2000, elder: 2800 },
+        updatedAt: new Date(),
+        schemaVersion: 1
+      }
+    });
+
+    const adminContext = {
+      proxySession: {
+        sessionId: 'proxy_1',
+        adminId: 'admin',
+        targetMemberId: 'leader'
+      }
+    };
+
+    const overview = await service.adminListGuilds('admin', { keyword: '太虚', page: 1, pageSize: 10 }, adminContext);
+    expect(overview.guilds.length).toBe(1);
+    expect(overview.guilds[0].alertCount).toBe(1);
+    expect(overview.guilds[0].topMembers[0].memberId).toBe('elder');
+
+    const detail = await service.adminGetGuildDetail('admin', { guildId }, adminContext);
+    expect(detail.guild.id).toBe(guildId);
+    expect(detail.members.total).toBe(3);
+    expect(detail.tasks.length).toBe(1);
+    expect(detail.alerts.length).toBe(1);
+    expect(detail.boss.totalDamage).toBe(4800);
+
+    const members = await service.adminGetGuildMembers(
+      'admin',
+      { guildId, order: 'power', includeInactive: true, page: 1, pageSize: 10 },
+      adminContext
+    );
+    expect(members.total).toBe(3);
+    expect(members.members[0].memberId).toBe('elder');
+    expect(members.roles.leader).toBe(1);
+
+    const directOverview = await service.adminListGuilds('admin', { keyword: '太虚', page: 1, pageSize: 10 }, {});
+    expect(directOverview.guilds.length).toBe(1);
+
+    const directDetail = await service.adminGetGuildDetail('admin', { guildId }, {});
+    expect(directDetail.guild.id).toBe(guildId);
+
+    const directMembers = await service.adminGetGuildMembers(
+      'admin',
+      { guildId, order: 'power', includeInactive: true, page: 1, pageSize: 10 },
+      {}
+    );
+    expect(directMembers.total).toBe(3);
+
+    await expect(service.adminListGuilds('outsider', {}, {})).rejects.toMatchObject({ errCode: ERROR_CODES.PERMISSION_DENIED });
   });
 });

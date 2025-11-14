@@ -47,9 +47,35 @@
 | `createGuild` / `joinGuild` / `leaveGuild` | `GuildService.createGuild(payload)` 等 | `{ "guildName": "太虚观" }` | 管理员代玩家处理宗门建制/入帮/退帮。|
 | `initiateTeamBattle` | `GuildService.initiateTeamBattle({ members, difficulty })` | `{ "members": ["member_a"], "difficulty": 2 }` | 发起演练战斗并生成战报。|
 | `refreshTicket` | `GuildService.issueActionTicket()` | `{}` | 申请操作票据，用于敏感操作签名。|
+| `admin.listGuilds` | `GuildService.adminListGuilds(payload)` | `{ "page": 1, "keyword": "太虚" }` | 管理员查询宗门总览（含战力、活跃、预警）。|
+| `admin.guildDetail` | `GuildService.adminGetGuildDetail({ guildId })` | `{ "guildId": "guild_demo_crane" }` | 查看指定宗门的任务、Boss 与风险详情。|
+| `admin.guildMembers` | `GuildService.adminGetGuildMembers({ guildId })` | `{ "guildId": "guild_demo_crane", "order": "power" }` | 管理员分页查看宗门成员并按贡献/战力排序。|
 | `admin.riskAlerts` | `GuildService.listRiskAlerts({ guildId, limit })` | `{ "guildId": "guild_demo_crane", "limit": 50 }` | 仅管理员可调用，返回风控预警。|
 
 > 以上接口均会通过 `createError(code, message)` 统一抛错；前端需捕获 `errCode` 进行提示。所有读写请求默认带入 `wxContext.OPENID` 识别玩家身份。
+
+## 管理员宗门管理界面
+
+### 功能概览
+
+小程序后台新增「宗门管理」入口（`/pages/admin/guild/index`），依托 `admin.listGuilds` / `admin.guildDetail` / `admin.guildMembers` 等接口提供以下能力：
+
+- **宗门总览**：按战力、活跃、贡献和安全预警快速筛选宗门，并支持关键字模糊搜索。
+- **详情看板**：汇总宗门公告、任务进度、Boss 试炼伤害榜、风险日志和核心成员榜单。
+- **成员列表**：管理员可按贡献、战力或加入时间排序，支持关键字过滤及包含已退出成员。
+
+### 部署步骤
+
+1. **云函数升级**：在云开发控制台或 CLI 中重新部署 `cloudfunctions/guild`，以加载新增的管理员接口实现。
+2. **小程序代码发布**：更新小程序端代码，确保 `pages/admin/guild/index` 页面随版本一起上传；如使用体验版，请在上传前执行 `npm install && npm run build`（若需要）。
+3. **管理员权限校验**：确认运营账号在 `members` 集合中具备 `admin` / `developer` / `superadmin` 等角色；如需代玩家操作，可额外通过 `admin.proxyLogin` 建立代理会话，管理员接口会同时支持直接身份和代理身份。
+
+### 使用步骤
+
+1. 管理员在小程序首页点击「管理员入口」→「宗门管理」。
+2. 通过搜索或翻页选择目标宗门，点击卡片进入详情面板。
+3. 在详情页查看任务、Boss、风险预警等信息，并可通过成员筛选工具定位异常成员或战力核心。
+4. 如需执行敏感操作（代玩家建帮、踢人等），先在对应玩家详情页使用「代登录」功能获取代理会话，再返回宗门管理页执行相关指令。
 
 ## 数据结构
 
