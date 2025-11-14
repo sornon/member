@@ -1273,7 +1273,6 @@ function createGuildService(options = {}) {
     });
     const updatedAt = serverTimestamp();
     const payload = {
-      _id: normalizedType,
       type: normalizedType,
       entries,
       updatedAt,
@@ -2188,7 +2187,6 @@ function createGuildService(options = {}) {
     if (!snapshot || !snapshot.data) {
       const nowDate = serverTimestamp();
       const baseDoc = {
-        _id: docId,
         guildId,
         bossId: definition.id,
         level: definition.level,
