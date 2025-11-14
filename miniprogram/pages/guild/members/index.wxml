@@ -19,32 +19,36 @@
     </view>
 
     <view class="members-list">
-      <view wx:if="{{members.length === 0}}" class="empty">暂无成员数据</view>
-      <block wx:else wx:for="{{members}}" wx:key="memberId">
-        <view class="member-item">
-          <view class="member-avatar">
-            <image class="member-avatar__image" src="{{item.avatarUrl || defaultAvatar}}" mode="cover"></image>
-            <image
-              wx:if="{{item.avatarFrame}}"
-              class="member-avatar__frame"
-              src="{{item.avatarFrame}}"
-              mode="scaleToFill"
-            ></image>
+      <block wx:if="{{members.length === 0}}">
+        <view class="empty">暂无成员数据</view>
+      </block>
+      <block wx:else>
+        <block wx:for="{{members}}" wx:key="memberId">
+          <view class="member-item">
+            <view class="member-avatar">
+              <image class="member-avatar__image" src="{{item.avatarUrl || defaultAvatar}}" mode="cover"></image>
+              <image
+                wx:if="{{item.avatarFrame}}"
+                class="member-avatar__frame"
+                src="{{item.avatarFrame}}"
+                mode="scaleToFill"
+              ></image>
+            </view>
+            <view class="member-body">
+              <view class="member-name">{{item.displayName || item.name || item.memberName || '无名修士'}}</view>
+              <view class="member-meta">职位：{{item.roleLabel}} · 战力 {{item.powerScore || 0}}</view>
+              <view class="member-meta">总贡献 {{item.contributionTotal || 0}} · 本周 {{item.contributionWeek || 0}}</view>
+              <view class="member-meta">加入：{{item.joinedAtText}} · 最近：{{item.lastActiveText}}</view>
+            </view>
+            <button
+              class="btn btn--ghost btn--small"
+              size="mini"
+              data-id="{{item.memberId || item.id || item._id}}"
+              data-name="{{item.displayName || item.name || ''}}"
+              bindtap="handleManageMember"
+            >管理</button>
           </view>
-          <view class="member-body">
-            <view class="member-name">{{item.displayName || item.name || item.memberName || '无名修士'}}</view>
-            <view class="member-meta">职位：{{item.roleLabel}} · 战力 {{item.powerScore || 0}}</view>
-            <view class="member-meta">总贡献 {{item.contributionTotal || 0}} · 本周 {{item.contributionWeek || 0}}</view>
-            <view class="member-meta">加入：{{item.joinedAtText}} · 最近：{{item.lastActiveText}}</view>
-          </view>
-          <button
-            class="btn btn--ghost btn--small"
-            size="mini"
-            data-id="{{item.memberId || item.id || item._id}}"
-            data-name="{{item.displayName || item.name || ''}}"
-            bindtap="handleManageMember"
-          >管理</button>
-        </view>
+        </block>
       </block>
       <view wx:if="{{pagination.hasMore}}" class="load-more">
         <button
