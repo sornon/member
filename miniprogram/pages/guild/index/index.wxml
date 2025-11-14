@@ -1,151 +1,153 @@
+<custom-nav title="宗门大厅" theme="dark"></custom-nav>
 <view class="guild-page">
-  <view wx:if="{{loading}}" class="state state--loading">宗门情报载入中...</view>
-  <view wx:elif="{{error}}" class="state state--error">{{error}}</view>
-  <scroll-view
-    wx:else
-    scroll-y
-    class="guild-scroll"
-    enable-flex="true"
-  >
-    <view wx:if="{{guild}}" class="guild-card">
-      <view class="guild-card__header">
-        <view class="guild-avatar">
-          <image
-            wx:if="{{guild.icon}}"
-            class="guild-avatar__image"
-            src="{{guild.icon}}"
-            mode="aspectFill"
-          ></image>
-          <text wx:else class="guild-avatar__placeholder">🏯</text>
-        </view>
-        <view class="guild-card__info">
-          <view class="guild-card__title">{{guild.name || '未命名宗门'}}</view>
-          <view class="guild-card__meta">职位：{{resolveRoleLabel(membership.role)}}</view>
-          <view class="guild-card__stats">
-            <text>成员 {{guild.memberCount || 0}}</text>
-            <text>战力 {{formatNumber(guild.power || 0)}}</text>
-            <text>活跃 {{formatNumber(guild.activityScore || 0)}}</text>
+  <scroll-view scroll-y class="guild-scroll" enable-flex="true">
+    <block wx:if="{{loading}}">
+      <view class="state state--loading">宗门情报载入中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="state state--error">{{error}}</view>
+    </block>
+    <view wx:else class="guild-content">
+      <view wx:if="{{guild}}" class="card guild-card">
+        <view class="guild-card__header">
+          <view class="guild-avatar">
+            <image
+              wx:if="{{guild.icon}}"
+              class="guild-avatar__image"
+              src="{{guild.icon}}"
+              mode="aspectFill"
+            ></image>
+            <text wx:else class="guild-avatar__placeholder">🏯</text>
           </view>
-        </view>
-        <view class="guild-card__actions">
-          <button
-            class="btn btn--primary"
-            size="mini"
-            bindtap="handleTeamBattle"
-          >团队讨伐</button>
-          <button
-            class="btn btn--ghost"
-            size="mini"
-            bindtap="handleQuickDonate"
-            loading="{{donating}}"
-            disabled="{{donating}}"
-          >一键捐献</button>
-        </view>
-      </view>
-      <view class="guild-notice">
-        <view class="guild-notice__title">宗门公告</view>
-        <view class="guild-notice__content">{{guild.manifesto || '暂无宗门公告'}}</view>
-        <view wx:if="{{summary && summary.message}}" class="guild-notice__summary">{{summary.message}}</view>
-      </view>
-      <view class="guild-shortcuts">
-        <view
-          class="shortcut"
-          bindtap="handleNavigate"
-          data-url="/pages/guild/members/index"
-          data-require-guild="true"
-        >
-          <text class="shortcut__icon">👥</text>
-          <text class="shortcut__label">成员管理</text>
-        </view>
-        <view
-          class="shortcut"
-          bindtap="handleNavigate"
-          data-url="/pages/guild/tasks/index"
-          data-require-guild="true"
-        >
-          <text class="shortcut__icon">🗒️</text>
-          <text class="shortcut__label">宗门任务</text>
-        </view>
-        <view
-          class="shortcut"
-          bindtap="handleNavigate"
-          data-url="/pages/guild/boss/index"
-          data-require-guild="true"
-        >
-          <text class="shortcut__icon">🐉</text>
-          <text class="shortcut__label">Boss 讨伐</text>
-        </view>
-        <view
-          class="shortcut"
-          bindtap="handleNavigate"
-          data-url="/pages/guild/logs/index"
-          data-require-guild="true"
-        >
-          <text class="shortcut__icon">📜</text>
-          <text class="shortcut__label">宗门日志</text>
-        </view>
-      </view>
-    </view>
-
-    <view wx:else class="guild-empty">
-      <text class="guild-empty__title">尚未加入宗门</text>
-      <text class="guild-empty__desc">创建或加入宗门，解锁团队讨伐、宗门任务等高级玩法。</text>
-      <button class="btn btn--primary" bindtap="handleCreateGuild">创建宗门</button>
-      <button class="btn btn--ghost" bindtap="handleRefreshTicket">刷新令牌</button>
-    </view>
-
-    <view class="ticket-card">
-      <view class="ticket-card__title">操作令牌</view>
-      <view class="ticket-card__code">{{actionTicket ? actionTicket.ticket : '尚未生成'}}</view>
-      <view class="ticket-card__meta">
-        {{actionTicket && actionTicket.expiresAt ? '有效期至 ' + actionTicket.expiresAt : '用于发起捐献、任务和挑战等操作'}}
-      </view>
-      <button class="btn btn--ghost" size="mini" bindtap="handleRefreshTicket">重新生成</button>
-    </view>
-
-    <view class="guild-leaderboard">
-      <view class="section-header">
-        <view class="section-header__title">宗门排行榜</view>
-        <button class="section-header__refresh" size="mini" bindtap="loadOverview">刷新</button>
-      </view>
-      <block wx:if="{{leaderboard.length === 0}}">
-        <view class="empty">暂无排行数据</view>
-      </block>
-      <block wx:else>
-        <block wx:for="{{leaderboard}}" wx:key="id">
-          <view class="leaderboard-item">
-            <view class="leaderboard-rank">{{index + 1}}</view>
-            <view class="leaderboard-avatar">
-              <image class="leaderboard-avatar__image" src="{{item.avatarUrl}}" mode="cover"></image>
-              <image
-                wx:if="{{item.avatarFrame}}"
-                class="leaderboard-avatar__frame"
-                src="{{item.avatarFrame}}"
-                mode="scaleToFill"
-              ></image>
+          <view class="guild-card__info">
+            <view class="guild-card__title">{{guild.name || '未命名宗门'}}</view>
+            <view class="guild-card__meta">职位：{{resolveRoleLabel(membership.role)}}</view>
+            <view class="guild-card__stats">
+              <text>成员 {{guild.memberCount || 0}}</text>
+              <text>战力 {{formatNumber(guild.power || 0)}}</text>
+              <text>活跃 {{formatNumber(guild.activityScore || 0)}}</text>
             </view>
-            <view class="leaderboard-body">
-              <view class="leaderboard-name">{{item.name}}</view>
-              <view class="leaderboard-meta">成员 {{item.memberCount || 0}} · 战力 {{formatNumber(item.power || 0)}} · 活跃 {{formatNumber(item.activityScore || 0)}}</view>
-              <view wx:if="{{item.titleImage || item.titleName}}" class="leaderboard-title">
-                <image
-                  wx:if="{{item.titleImage}}"
-                  class="leaderboard-title__image"
-                  src="{{item.titleImage}}"
-                  mode="heightFix"
-                ></image>
-                <text wx:if="{{item.titleName}}" class="leaderboard-title__text">{{item.titleName}}</text>
-              </view>
-            </view>
+          </view>
+          <view class="guild-card__actions">
             <button
-              class="btn btn--link"
+              class="btn btn--primary"
               size="mini"
-              data-id="{{item.id}}"
-              bindtap="handleViewGuild"
-            >详情</button>
+              bindtap="handleTeamBattle"
+            >团队讨伐</button>
+            <button
+              class="btn btn--ghost"
+              size="mini"
+              bindtap="handleQuickDonate"
+              loading="{{donating}}"
+              disabled="{{donating}}"
+            >一键捐献</button>
           </view>
+        </view>
+        <view class="guild-notice">
+          <view class="guild-notice__title">宗门公告</view>
+          <view class="guild-notice__content">{{guild.manifesto || '暂无宗门公告'}}</view>
+          <view wx:if="{{summary && summary.message}}" class="guild-notice__summary">{{summary.message}}</view>
+        </view>
+        <view class="guild-shortcuts">
+          <view
+            class="shortcut"
+            bindtap="handleNavigate"
+            data-url="/pages/guild/members/index"
+            data-require-guild="true"
+          >
+            <text class="shortcut__icon">👥</text>
+            <text class="shortcut__label">成员管理</text>
+          </view>
+          <view
+            class="shortcut"
+            bindtap="handleNavigate"
+            data-url="/pages/guild/tasks/index"
+            data-require-guild="true"
+          >
+            <text class="shortcut__icon">🗒️</text>
+            <text class="shortcut__label">宗门任务</text>
+          </view>
+          <view
+            class="shortcut"
+            bindtap="handleNavigate"
+            data-url="/pages/guild/boss/index"
+            data-require-guild="true"
+          >
+            <text class="shortcut__icon">🐉</text>
+            <text class="shortcut__label">Boss 讨伐</text>
+          </view>
+          <view
+            class="shortcut"
+            bindtap="handleNavigate"
+            data-url="/pages/guild/logs/index"
+            data-require-guild="true"
+          >
+            <text class="shortcut__icon">📜</text>
+            <text class="shortcut__label">宗门日志</text>
+          </view>
+        </view>
+      </view>
+
+      <view wx:else class="card guild-empty">
+        <text class="guild-empty__title">尚未加入宗门</text>
+        <text class="guild-empty__desc">创建或加入宗门，解锁团队讨伐、宗门任务等高级玩法。</text>
+        <button class="btn btn--primary" bindtap="handleCreateGuild">创建宗门</button>
+        <button class="btn btn--ghost" bindtap="handleRefreshTicket">刷新令牌</button>
+      </view>
+
+      <view class="card ticket-card">
+        <view class="ticket-card__title">操作令牌</view>
+        <view class="ticket-card__code">{{actionTicket ? actionTicket.ticket : '尚未生成'}}</view>
+        <view class="ticket-card__meta">
+          {{actionTicket && actionTicket.expiresAt ? '有效期至 ' + actionTicket.expiresAt : '用于发起捐献、任务和挑战等操作'}}
+        </view>
+        <button class="btn btn--ghost" size="mini" bindtap="handleRefreshTicket">重新生成</button>
+      </view>
+
+      <view class="card guild-leaderboard">
+        <view class="section-header">
+          <view class="section-header__title">宗门排行榜</view>
+          <button class="section-header__refresh" size="mini" bindtap="loadOverview">刷新</button>
+        </view>
+        <block wx:if="{{leaderboard.length === 0}}">
+          <view class="empty">暂无排行数据</view>
         </block>
-      </block>
+        <block wx:else>
+          <block wx:for="{{leaderboard}}" wx:key="id">
+            <view class="leaderboard-item">
+              <view class="leaderboard-rank">{{index + 1}}</view>
+              <view class="leaderboard-avatar">
+                <image class="leaderboard-avatar__image" src="{{item.avatarUrl}}" mode="cover"></image>
+                <image
+                  wx:if="{{item.avatarFrame}}"
+                  class="leaderboard-avatar__frame"
+                  src="{{item.avatarFrame}}"
+                  mode="scaleToFill"
+                ></image>
+              </view>
+              <view class="leaderboard-body">
+                <view class="leaderboard-name">{{item.name}}</view>
+                <view class="leaderboard-meta">成员 {{item.memberCount || 0}} · 战力 {{formatNumber(item.power || 0)}} · 活跃 {{formatNumber(item.activityScore || 0)}}</view>
+                <view wx:if="{{item.titleImage || item.titleName}}" class="leaderboard-title">
+                  <image
+                    wx:if="{{item.titleImage}}"
+                    class="leaderboard-title__image"
+                    src="{{item.titleImage}}"
+                    mode="heightFix"
+                  ></image>
+                  <text wx:if="{{item.titleName}}" class="leaderboard-title__text">{{item.titleName}}</text>
+                </view>
+              </view>
+              <button
+                class="btn btn--link"
+                size="mini"
+                data-id="{{item.id}}"
+                bindtap="handleViewGuild"
+              >详情</button>
+            </view>
+          </block>
+        </block>
+      </view>
     </view>
   </scroll-view>
 </view>
