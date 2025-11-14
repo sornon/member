@@ -43,6 +43,7 @@
   border-radius: 18rpx;
   background: rgba(255, 255, 255, 0.12);
   color: #d0d5ff;
+  width: 300rpx!important;
 }
 
 .system-button.danger {
@@ -234,11 +235,12 @@
 }
 
 .filter-button {
-  padding: 12rpx 24rpx;
+  padding: 20rpx 24rpx;
   border-radius: 16rpx;
   background: #5c7cfa;
   color: #fff;
   font-size: 28rpx;
+  width: 120rpx!important;
 }
 
 .filter-button.secondary {
@@ -649,6 +651,8 @@
   border-radius: 14rpx;
   background: rgba(255, 255, 255, 0.1);
   color: #d0d5ff;
+  width: auto!important;
+  font-size: 24rpx;
 }
 
 .toolbar-button.secondary {
@@ -671,6 +675,8 @@
   border-radius: 14rpx;
   background: rgba(255, 255, 255, 0.08);
   color: #d0d5ff;
+  width: auto!important;
+  font-size: 24rpx;
 }
 
 .member-list {
