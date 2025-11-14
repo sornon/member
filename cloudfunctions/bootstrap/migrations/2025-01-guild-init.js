@@ -82,7 +82,25 @@ async function ensureCollection(db, name, logger) {
 }
 
 async function ensureIndexes(db, name, indexes = [], logger) {
+  if (!Array.isArray(indexes) || indexes.length === 0) {
+    return;
+  }
+
   const collection = db.collection(name);
+  if (typeof collection.createIndex !== 'function') {
+    logger.warn(
+      `[guild-init] current SDK does not support createIndex(), skip ensuring indexes for ${name}`
+    );
+    logger.warn(
+      `[guild-init] please confirm the following indexes manually: ${
+        indexes
+          .map((index) => (index.options && index.options.name) || JSON.stringify(index.key))
+          .join(', ')
+      }`
+    );
+    return;
+  }
+
   for (const index of indexes) {
     try {
       await collection.createIndex(index.key, index.options || {});
