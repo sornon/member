@@ -9,6 +9,55 @@ const ROLE_LABELS = {
   member: '成员'
 };
 
+function isPlainObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function formatKeyLabel(key = '') {
+  if (!key) {
+    return '';
+  }
+  const spaced = key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/[_\-\s]+/g, ' ')
+    .trim();
+  return spaced ? spaced.charAt(0).toUpperCase() + spaced.slice(1) : '';
+}
+
+function formatKeyValueEntries(section) {
+  if (!isPlainObject(section)) {
+    return [];
+  }
+  return Object.keys(section)
+    .filter((key) => Object.prototype.hasOwnProperty.call(section, key))
+    .map((key) => {
+      const value = section[key];
+      if (value === null || value === undefined || value === '') {
+        return null;
+      }
+      const normalizedValue =
+        typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
+      return {
+        key,
+        label: formatKeyLabel(key) || key,
+        value: normalizedValue
+      };
+    })
+    .filter(Boolean);
+}
+
+function createEmptyAlertDetail() {
+  return {
+    id: '',
+    message: '',
+    action: '',
+    actorDisplay: '',
+    createdAtLabel: '',
+    summaryItems: [],
+    payloadItems: []
+  };
+}
+
 function formatNumber(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -159,6 +208,8 @@ function decorateAlert(alert = {}) {
         alert.actor.nickname)) ||
     '';
   const actorDisplay = alert.actorDisplay || actorName || actorId || '';
+  const summary = isPlainObject(alert.summary) ? alert.summary : null;
+  const payload = isPlainObject(alert.payload) ? alert.payload : null;
   return {
     id: alert.id || '',
     action: alert.action || '',
@@ -166,7 +217,11 @@ function decorateAlert(alert = {}) {
     actorName,
     actorDisplay,
     message,
-    createdAtLabel: formatDateTime(alert.createdAt || '')
+    createdAtLabel: formatDateTime(alert.createdAt || ''),
+    summary,
+    payload,
+    summaryItems: formatKeyValueEntries(summary),
+    payloadItems: formatKeyValueEntries(payload)
   };
 }
 
@@ -428,6 +483,8 @@ Page({
     boss: null,
     tasks: [],
     alerts: [],
+    alertDetailVisible: false,
+    alertDetail: createEmptyAlertDetail(),
     detailLoading: false,
     memberKeyword: '',
     includeInactive: false,
@@ -614,6 +671,13 @@ Page({
     });
   },
 
+  closeAlertDetail() {
+    this.setData({
+      alertDetailVisible: false,
+      alertDetail: createEmptyAlertDetail()
+    });
+  },
+
   handleStatAction() {
     const { statDetail } = this.data;
     if (!statDetail || !statDetail.action) {
@@ -743,6 +807,28 @@ Page({
         break;
     }
     return detail;
+  },
+
+  handleAlertTap(event) {
+    const dataset = event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset : {};
+    const alertId = dataset.id;
+    if (!alertId) {
+      return;
+    }
+    const alert = (this.data.alerts || []).find((item) => item.id === alertId);
+    if (!alert) {
+      return;
+    }
+    const detail = {
+      id: alert.id,
+      message: alert.message || '异常行为',
+      action: alert.action || '',
+      actorDisplay: alert.actorDisplay || alert.actorName || alert.actorId || '',
+      createdAtLabel: alert.createdAtLabel || '',
+      summaryItems: Array.isArray(alert.summaryItems) ? alert.summaryItems : [],
+      payloadItems: Array.isArray(alert.payloadItems) ? alert.payloadItems : []
+    };
+    this.setData({ alertDetailVisible: true, alertDetail: detail });
   },
 
   handleSettingTap(event) {
@@ -997,7 +1083,9 @@ Page({
         membersOverview,
         boss,
         tasks,
-        alerts
+        alerts,
+        alertDetailVisible: false,
+        alertDetail: createEmptyAlertDetail()
       });
       await this.loadMemberList({ reset: true });
     } catch (error) {
