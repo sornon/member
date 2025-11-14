@@ -1,6 +1,20 @@
 import { GuildService } from '../../../services/api';
 const { resolveGuildActionTicket } = require('../../../shared/guild.js');
 
+function resolveRoleLabel(role) {
+  const normalized = typeof role === 'string' ? role.trim() : '';
+  if (!normalized) {
+    return '成员';
+  }
+  if (normalized === 'leader') {
+    return '宗主';
+  }
+  if (normalized === 'officer' || normalized === 'elder') {
+    return '长老';
+  }
+  return '成员';
+}
+
 function formatDateTime(date) {
   if (!date) {
     return '';
@@ -152,5 +166,6 @@ Page({
     } finally {
       this.setData({ claimingTaskId: '' });
     }
-  }
+  },
+  resolveRoleLabel
 });

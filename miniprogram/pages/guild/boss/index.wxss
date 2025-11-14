@@ -1,32 +1,13 @@
-.boss-page {
-  min-height: 100vh;
-  background: radial-gradient(circle at top, #1e293b 0%, #020617 90%);
-  color: #e2e8f0;
-}
+@import "../../../shared/styles/guild-theme.wxss";
 
-.boss-scroll {
-  height: 100vh;
-  padding: 32rpx 32rpx 64rpx;
-  box-sizing: border-box;
-}
-
-.state {
-  text-align: center;
-  padding: 160rpx 40rpx;
-  font-size: 30rpx;
-  color: #cbd5f5;
-}
-
-.state--error {
-  color: #fca5a5;
+.guild-page--boss .guild-content {
+  gap: 28rpx;
 }
 
 .boss-card {
-  background: rgba(15, 23, 42, 0.75);
-  border-radius: 32rpx;
-  padding: 32rpx;
-  box-shadow: 0 32rpx 48rpx rgba(2, 6, 23, 0.45);
-  margin-bottom: 32rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
 }
 
 .boss-card__header {
@@ -38,135 +19,101 @@
 .boss-card__title {
   font-size: 36rpx;
   font-weight: 600;
-  color: #f8fafc;
+  color: #f8f9ff;
 }
 
 .boss-card__meta {
   font-size: 26rpx;
-  color: #cbd5f5;
+  color: rgba(198, 209, 255, 0.78);
 }
 
 .boss-card__progress {
-  margin-top: 24rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
 }
 
 .boss-card__progress-bar {
   height: 24rpx;
   border-radius: 999rpx;
-  background: rgba(148, 163, 184, 0.25);
+  background: rgba(134, 154, 255, 0.24);
   overflow: hidden;
 }
 
 .boss-card__progress-inner {
-  height: 24rpx;
+  height: 100%;
   border-radius: 999rpx;
   background: linear-gradient(90deg, #34d399 0%, #38bdf8 50%, #6366f1 100%);
 }
 
 .boss-card__progress-text {
-  margin-top: 12rpx;
   font-size: 24rpx;
-  color: #bae6fd;
+  color: rgba(188, 212, 255, 0.85);
 }
 
 .boss-card__stats {
   display: flex;
   flex-wrap: wrap;
   gap: 24rpx;
-  margin-top: 24rpx;
-  font-size: 26rpx;
-  color: #a5b4fc;
+  font-size: 24rpx;
+  color: rgba(199, 209, 255, 0.75);
 }
 
 .boss-card__actions {
-  margin-top: 32rpx;
   display: flex;
-  gap: 24rpx;
-}
-
-.btn {
-  border: none;
-  border-radius: 999rpx;
-  height: 72rpx;
-  line-height: 72rpx;
-  padding: 0 40rpx;
-  font-size: 26rpx;
-}
-
-.btn--primary {
-  background: linear-gradient(90deg, #fbbf24 0%, #f97316 100%);
-  color: #0f172a;
-  font-weight: 600;
-}
-
-.btn--ghost {
-  background: rgba(148, 163, 184, 0.15);
-  color: #e2e8f0;
+  flex-direction: column;
+  gap: 20rpx;
 }
 
 .rank-card {
-  background: rgba(15, 23, 42, 0.65);
-  border-radius: 28rpx;
-  padding: 28rpx;
-  box-shadow: 0 28rpx 40rpx rgba(2, 6, 23, 0.4);
+  padding: 0;
 }
 
 .rank-card__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16rpx;
+  padding: 24rpx 32rpx;
 }
 
 .rank-card__title {
   font-size: 30rpx;
   font-weight: 600;
-  color: #f8fafc;
+  color: #f1f4ff;
 }
 
 .rank-card__loading {
   font-size: 24rpx;
-  color: #94a3b8;
+  color: rgba(188, 212, 255, 0.7);
 }
 
 .rank-item {
   display: flex;
   align-items: center;
   gap: 24rpx;
-  padding: 20rpx 0;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 20rpx 32rpx;
+  border-top: 1rpx solid rgba(120, 146, 255, 0.16);
 }
 
-.rank-item:last-child {
-  border-bottom: none;
+.rank-item:first-child {
+  border-top: 1rpx solid rgba(120, 146, 255, 0.16);
 }
 
 .rank-item__rank {
   width: 72rpx;
   text-align: center;
   font-size: 32rpx;
-  color: #facc15;
+  color: #ffd571;
   font-weight: 600;
-}
-
-.rank-item__body {
-  flex: 1;
 }
 
 .rank-item__name {
   font-size: 28rpx;
-  color: #f1f5f9;
+  color: #f4f6ff;
 }
 
 .rank-item__damage {
   margin-top: 4rpx;
   font-size: 24rpx;
-  color: #cbd5f5;
-}
-
-.empty {
-  text-align: center;
-  padding: 48rpx 24rpx;
-  color: #94a3b8;
-  font-size: 26rpx;
+  color: rgba(199, 209, 255, 0.75);
 }

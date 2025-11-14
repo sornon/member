@@ -1,49 +1,67 @@
-.detail-page {
-  padding: 48rpx;
-  min-height: 100vh;
-  background: radial-gradient(circle at top, #1e293b 0%, #0f172a 100%);
-  color: #e2e8f0;
+@import "../../../shared/styles/guild-theme.wxss";
+
+.guild-page--detail .guild-content {
+  gap: 32rpx;
 }
-.loading,
-.error {
-  text-align: center;
-  margin-top: 60rpx;
+
+a.btn {
+  text-decoration: none;
 }
-.card {
-  background: rgba(15, 23, 42, 0.7);
-  border-radius: 24rpx;
-  padding: 32rpx;
-  box-shadow: 0 24rpx 40rpx rgba(15, 23, 42, 0.4);
+
+.detail-card {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
 }
+
 .card-header {
   display: flex;
+  gap: 24rpx;
   align-items: center;
-  margin-bottom: 24rpx;
 }
+
 .icon {
-  width: 140rpx;
-  height: 140rpx;
-  border-radius: 32rpx;
-  margin-right: 24rpx;
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 28rpx;
+  background: rgba(18, 28, 68, 0.8);
+  border: 1rpx solid rgba(132, 154, 255, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
 }
+
+.icon__image {
+  width: 100%;
+  height: 100%;
+}
+
+.icon__placeholder {
+  font-size: 48rpx;
+}
+
+.info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
 .name {
-  font-size: 38rpx;
+  font-size: 34rpx;
   font-weight: 600;
-  color: #bfdbfe;
+  color: #f8f9ff;
 }
+
 .meta {
-  display: block;
-  margin-top: 8rpx;
-  color: #94a3b8;
+  font-size: 26rpx;
+  color: rgba(199, 209, 255, 0.78);
 }
+
 .manifesto {
   font-size: 26rpx;
-  line-height: 1.6;
-  color: #cbd5f5;
-}
-.join {
-  margin-top: 48rpx;
-  background: linear-gradient(90deg, #60a5fa 0%, #2563eb 100%);
-  color: #f8fafc;
-  border-radius: 999rpx;
+  line-height: 1.7;
+  color: rgba(215, 223, 255, 0.85);
+  white-space: pre-wrap;
 }

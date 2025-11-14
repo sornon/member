@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "宗门成员"
+  "navigationBarTitleText": "宗门成员",
+  "usingComponents": {
+    "custom-nav": "/components/custom-nav/custom-nav"
+  }
 }

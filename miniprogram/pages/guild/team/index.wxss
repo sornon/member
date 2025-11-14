@@ -1,60 +1,79 @@
-.team-page {
-  padding: 40rpx;
-  min-height: 100vh;
-  background: linear-gradient(180deg, #020617 0%, #1e3a8a 100%);
-  color: #f8fafc;
+@import "../../../shared/styles/guild-theme.wxss";
+
+.guild-page--team .guild-content {
+  gap: 28rpx;
 }
+
+.team-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
 .selector {
-  background: rgba(30, 64, 175, 0.4);
-  border-radius: 24rpx;
-  padding: 24rpx;
-  margin-bottom: 32rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
 }
+
 .label {
-  font-size: 28rpx;
-  color: #bfdbfe;
+  font-size: 26rpx;
+  color: rgba(199, 209, 255, 0.78);
 }
+
 .picker-value {
-  margin-top: 12rpx;
-  font-size: 32rpx;
+  padding: 24rpx 28rpx;
+  border-radius: 20rpx;
+  background: rgba(10, 18, 46, 0.6);
+  border: 1rpx solid rgba(118, 142, 255, 0.3);
+  font-size: 30rpx;
+  color: #f8f9ff;
 }
+
 .start {
-  background: linear-gradient(90deg, #f97316 0%, #ef4444 100%);
-  color: #0f172a;
-  border-radius: 999rpx;
+  align-self: flex-start;
 }
+
 .battle-result {
-  margin-top: 40rpx;
-  background: rgba(15, 23, 42, 0.7);
-  border-radius: 24rpx;
-  padding: 28rpx;
-  box-shadow: 0 24rpx 40rpx rgba(15, 23, 42, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
 }
+
+.result-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
 .result-title {
   font-size: 34rpx;
   font-weight: 600;
-}
-.result-meta {
-  display: block;
-  margin-top: 8rpx;
-  color: #94a3b8;
-  font-size: 24rpx;
-}
-.timeline {
-  margin-top: 24rpx;
-}
-.round {
-  font-weight: 500;
-  margin-bottom: 12rpx;
   color: #facc15;
 }
+
+.result-meta {
+  font-size: 24rpx;
+  color: rgba(188, 212, 255, 0.7);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.round {
+  font-weight: 500;
+  color: #bcd4ff;
+}
+
 .action {
   font-size: 26rpx;
-  margin-bottom: 8rpx;
-  color: #e0f2fe;
+  color: rgba(215, 223, 255, 0.9);
 }
+
 .rewards {
-  margin-top: 24rpx;
   font-size: 28rpx;
   color: #bbf7d0;
 }

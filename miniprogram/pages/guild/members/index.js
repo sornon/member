@@ -5,6 +5,18 @@ const {
   DEFAULT_MEMBER_AVATAR
 } = require('../../../shared/guild.js');
 
+function formatNumber(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+  if (numeric >= 10000) {
+    const rounded = (numeric / 10000).toFixed(1);
+    return `${rounded.replace(/\.0$/, '')}万`;
+  }
+  return `${numeric}`;
+}
+
 function resolveRoleLabel(role) {
   const normalized = typeof role === 'string' ? role.trim() : '';
   if (!normalized) {
@@ -203,5 +215,6 @@ Page({
       wx.showToast({ title: error.errMsg || '操作失败', icon: 'none' });
     }
   },
-  resolveRoleLabel
+  resolveRoleLabel,
+  formatNumber
 });

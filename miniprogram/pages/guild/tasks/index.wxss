@@ -1,161 +1,110 @@
-.tasks-page {
-  min-height: 100vh;
-  background: linear-gradient(180deg, #0f172a 0%, #0b1120 100%);
-  color: #e2e8f0;
-}
+@import "../../../shared/styles/guild-theme.wxss";
 
-.tasks-scroll {
-  height: 100vh;
-  padding: 32rpx 32rpx 64rpx;
-  box-sizing: border-box;
-}
-
-.state {
-  text-align: center;
-  padding: 160rpx 40rpx;
-  font-size: 30rpx;
-  color: #cbd5f5;
-}
-
-.state--error {
-  color: #fca5a5;
+.guild-page--tasks .guild-content {
+  gap: 28rpx;
 }
 
 .tasks-header {
-  background: rgba(15, 23, 42, 0.75);
-  border-radius: 28rpx;
-  padding: 32rpx;
-  margin-bottom: 32rpx;
-  box-shadow: 0 24rpx 36rpx rgba(2, 6, 23, 0.45);
-}
-
-.tasks-header__title {
-  font-size: 34rpx;
-  font-weight: 600;
-  color: #f8fafc;
-}
-
-.tasks-header__meta {
-  margin-top: 16rpx;
-  font-size: 26rpx;
-  color: #cbd5f5;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
 }
 
 .tasks-list {
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 24rpx;
+  gap: 0;
 }
 
 .task-card {
-  background: rgba(15, 23, 42, 0.7);
-  border-radius: 28rpx;
-  padding: 28rpx;
-  box-shadow: 0 28rpx 40rpx rgba(2, 6, 23, 0.4);
+  padding: 28rpx 32rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  border-bottom: 1rpx solid rgba(120, 146, 255, 0.16);
+}
+
+.task-card:last-child {
+  border-bottom: none;
 }
 
 .task-card__header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12rpx;
+  gap: 24rpx;
 }
 
 .task-card__title {
   font-size: 30rpx;
   font-weight: 600;
-  color: #f8fafc;
+  color: #f8f9ff;
 }
 
 .task-card__status {
   font-size: 24rpx;
-  padding: 4rpx 18rpx;
+  padding: 4rpx 20rpx;
   border-radius: 999rpx;
-  background: rgba(59, 130, 246, 0.2);
-  color: #93c5fd;
+  background: rgba(86, 106, 255, 0.25);
+  color: #bcd4ff;
 }
 
 .task-card__status.completed,
 .task-card__status.ready {
-  background: rgba(34, 197, 94, 0.2);
-  color: #bbf7d0;
+  background: rgba(34, 197, 94, 0.25);
+  color: #afffc7;
 }
 
 .task-card__status.claimed {
-  background: rgba(148, 163, 184, 0.2);
-  color: #cbd5f5;
+  background: rgba(148, 163, 184, 0.25);
+  color: rgba(207, 216, 255, 0.8);
 }
 
 .task-card__status.failed {
-  background: rgba(239, 68, 68, 0.2);
-  color: #fecaca;
+  background: rgba(239, 68, 68, 0.25);
+  color: #ffc1c1;
 }
 
 .task-card__desc {
   font-size: 26rpx;
-  color: #cbd5f5;
+  color: rgba(215, 223, 255, 0.85);
   line-height: 1.6;
-  margin-bottom: 20rpx;
 }
 
 .task-card__progress {
   display: flex;
   align-items: center;
   gap: 20rpx;
-  margin-bottom: 16rpx;
 }
 
 .task-card__progress-bar {
   flex: 1;
   height: 16rpx;
   border-radius: 999rpx;
-  background: rgba(148, 163, 184, 0.25);
+  background: rgba(134, 154, 255, 0.24);
   overflow: hidden;
 }
 
 .task-card__progress-inner {
-  height: 16rpx;
+  height: 100%;
   border-radius: 999rpx;
   background: linear-gradient(90deg, #38bdf8 0%, #6366f1 100%);
 }
 
 .task-card__progress-text {
   font-size: 24rpx;
-  color: #a5b4fc;
+  color: rgba(188, 212, 255, 0.85);
 }
 
 .task-card__meta {
   display: flex;
   gap: 24rpx;
   font-size: 24rpx;
-  color: #94a3b8;
-  margin-bottom: 12rpx;
+  color: rgba(180, 196, 255, 0.7);
 }
 
 .task-card__reward {
   font-size: 24rpx;
   color: #facc15;
-  margin-bottom: 16rpx;
-}
-
-.btn {
-  border: none;
-  border-radius: 999rpx;
-  height: 68rpx;
-  line-height: 68rpx;
-  padding: 0 36rpx;
-  font-size: 26rpx;
-}
-
-.btn--primary {
-  background: linear-gradient(90deg, #38bdf8 0%, #6366f1 100%);
-  color: #0f172a;
-  font-weight: 600;
-}
-
-.empty {
-  text-align: center;
-  padding: 64rpx 24rpx;
-  font-size: 26rpx;
-  color: #94a3b8;
 }

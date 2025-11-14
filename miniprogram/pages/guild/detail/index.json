@@ -1,3 +1,6 @@
 {
-  "navigationBarTitleText": "宗门详情"
+  "navigationBarTitleText": "宗门详情",
+  "usingComponents": {
+    "custom-nav": "/components/custom-nav/custom-nav"
+  }
 }
