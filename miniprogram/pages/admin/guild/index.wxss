@@ -240,7 +240,7 @@
   background: #5c7cfa;
   color: #fff;
   font-size: 28rpx;
-  width: 120rpx!important;
+  width: 150rpx!important;
 }
 
 .filter-button.secondary {
