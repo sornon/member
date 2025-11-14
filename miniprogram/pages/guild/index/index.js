@@ -5,6 +5,18 @@ const {
 } = require('../../../shared/guild.js');
 
 const DONATION_PRESETS = [50, 100, 200, 500];
+const TICKET_EXPIRY_GRACE_MS = 60 * 1000;
+
+function hasTicketExpired(ticket) {
+  if (!ticket || !ticket.ticket) {
+    return true;
+  }
+  const expiresAt = typeof ticket.expiresAt === 'string' ? Date.parse(ticket.expiresAt) : NaN;
+  if (!Number.isFinite(expiresAt)) {
+    return false;
+  }
+  return expiresAt <= Date.now() + TICKET_EXPIRY_GRACE_MS;
+}
 
 function buildTicketedUrl(baseUrl, ticket) {
   if (!ticket || !ticket.ticket) {
@@ -115,11 +127,16 @@ Page({
     }
   },
   async ensureActionTicket({ refresh = false } = {}) {
-    if (!refresh) {
+    let shouldRefresh = !!refresh;
+    if (!shouldRefresh) {
       const { actionTicket } = this.data;
-      if (actionTicket && actionTicket.ticket) {
+      if (actionTicket && actionTicket.ticket && !hasTicketExpired(actionTicket)) {
         return actionTicket;
       }
+      shouldRefresh = true;
+    }
+    if (!shouldRefresh) {
+      return null;
     }
     try {
       const refreshed = await GuildService.refreshTicket();
@@ -217,9 +234,6 @@ Page({
     } finally {
       this.setData({ donating: false });
     }
-  },
-  async handleRefreshTicket() {
-    await this.ensureActionTicket({ refresh: true });
   },
   resolveRoleLabel,
   formatNumber
