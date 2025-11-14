@@ -1,0 +1,128 @@
+page {
+  background: #050921;
+  min-height: 100%;
+  color: #e7ecff;
+}
+
+.guild-page {
+  min-height: 100vh;
+  padding: 0 32rpx 48rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+}
+
+.guild-scroll {
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.guild-content {
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
+  padding-bottom: calc(48rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(48rpx + env(safe-area-inset-bottom));
+}
+
+.state {
+  margin-top: 160rpx;
+  text-align: center;
+  padding: 0 48rpx;
+  font-size: 30rpx;
+  color: rgba(231, 236, 255, 0.82);
+  letter-spacing: 2rpx;
+}
+
+.state--error {
+  color: #ff9cab;
+}
+
+.btn {
+  border: none;
+  border-radius: 999rpx;
+  padding: 0 36rpx;
+  height: 70rpx;
+  line-height: 70rpx;
+  font-size: 26rpx;
+  color: #f4f6ff;
+  background: rgba(86, 106, 255, 0.12);
+}
+
+.btn::after {
+  display: none;
+}
+
+button[size='mini'].btn {
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0 28rpx;
+  font-size: 24rpx;
+}
+
+.btn[disabled] {
+  opacity: 0.6;
+}
+
+.btn--primary {
+  background: linear-gradient(135deg, #566aff, #8a4bff);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 12rpx 24rpx rgba(41, 53, 120, 0.45);
+}
+
+.btn--ghost {
+  background: rgba(86, 106, 255, 0.18);
+  color: #d7dcff;
+  border: 1rpx solid rgba(132, 154, 255, 0.35);
+}
+
+.btn--link {
+  background: transparent;
+  color: #8fb7ff;
+  padding: 0 16rpx;
+  height: 48rpx;
+  line-height: 48rpx;
+}
+
+.btn--small {
+  height: 60rpx;
+  line-height: 60rpx;
+  padding: 0 24rpx;
+}
+
+.empty {
+  text-align: center;
+  color: rgba(199, 209, 255, 0.7);
+  padding: 48rpx 24rpx;
+  font-size: 26rpx;
+  letter-spacing: 2rpx;
+}
+
+.guild-section {
+  background: rgba(14, 22, 54, 0.92);
+  border-radius: 24rpx;
+  border: 1rpx solid rgba(119, 138, 230, 0.24);
+  box-shadow: 0 18rpx 36rpx rgba(4, 8, 28, 0.55);
+  backdrop-filter: blur(12rpx);
+  padding: 32rpx;
+  color: inherit;
+}
+
+.guild-section--compact {
+  padding: 24rpx 0;
+}
+
+.guild-section__title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #f8f9ff;
+  letter-spacing: 2rpx;
+}
+
+.guild-section__meta {
+  font-size: 26rpx;
+  color: rgba(198, 209, 255, 0.78);
+}

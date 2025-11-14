@@ -1,0 +1,35 @@
+{
+  "name": "member-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WeChat mini program member platform with guild system",
+  "scripts": {
+    "test": "jest --coverage"
+  },
+  "jest": {
+    "testMatch": ["**/__tests__/**/*.test.js"],
+    "collectCoverageFrom": [
+      "cloudfunctions/guild/**/*.js",
+      "!cloudfunctions/guild/index.js",
+      "!cloudfunctions/guild/__tests__/**"
+    ],
+    "moduleDirectories": [
+      "node_modules",
+      "cloudfunctions/nodejs-layer/node_modules"
+    ],
+    "moduleNameMapper": {
+      "^wx-server-sdk$": "<rootDir>/__mocks__/wx-server-sdk.js"
+    },
+    "coverageThreshold": {
+      "global": {
+        "statements": 70,
+        "branches": 55,
+        "functions": 70,
+        "lines": 70
+      }
+    }
+  },
+  "devDependencies": {
+    "jest": "29.7.0"
+  }
+}

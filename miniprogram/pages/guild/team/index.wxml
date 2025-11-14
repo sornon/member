@@ -1,0 +1,32 @@
+<custom-nav title="团队讨伐" theme="dark"></custom-nav>
+<view class="guild-page guild-page--team">
+  <scroll-view scroll-y class="guild-scroll" enable-flex="true">
+    <view class="guild-content">
+      <view class="guild-section team-controls">
+        <view class="selector">
+          <text class="label">讨伐难度</text>
+          <picker mode="selector" range="{{difficultyOptions}}" value="{{difficultyIndex}}" bindchange="handleDifficultyChange">
+            <view class="picker-value">{{difficultyOptions[difficultyIndex]}}</view>
+          </picker>
+        </view>
+        <button class="btn btn--primary start" loading="{{loading}}" bindtap="handleStart">开始讨伐</button>
+      </view>
+
+      <view wx:if="{{battle}}" class="guild-section battle-result">
+        <view class="result-header">
+          <text class="result-title">战斗结果：{{battle.victory ? '胜利' : '失败'}}</text>
+          <text class="result-meta">签名：{{battle.signature}}</text>
+        </view>
+        <view class="timeline" wx:for="{{battle.timeline}}" wx:key="round">
+          <view class="round">第 {{item.round}} 回合</view>
+          <block wx:for="{{item.actions}}" wx:key="index">
+            <view class="action">{{item.label || item.actorId}} 对 {{item.targetId}} 造成 {{item.damage}} 点伤害</view>
+          </block>
+        </view>
+        <view class="rewards">
+          <text>奖励：灵石 {{rewards.stones}}，贡献 {{rewards.contribution}}</text>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+</view>

@@ -1,0 +1,79 @@
+@import "../../../shared/styles/guild-theme.wxss";
+
+.guild-page--team .guild-content {
+  gap: 28rpx;
+}
+
+.team-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.selector {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.label {
+  font-size: 26rpx;
+  color: rgba(199, 209, 255, 0.78);
+}
+
+.picker-value {
+  padding: 24rpx 28rpx;
+  border-radius: 20rpx;
+  background: rgba(10, 18, 46, 0.6);
+  border: 1rpx solid rgba(118, 142, 255, 0.3);
+  font-size: 30rpx;
+  color: #f8f9ff;
+}
+
+.start {
+  align-self: flex-start;
+}
+
+.battle-result {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.result-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.result-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #facc15;
+}
+
+.result-meta {
+  font-size: 24rpx;
+  color: rgba(188, 212, 255, 0.7);
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.round {
+  font-weight: 500;
+  color: #bcd4ff;
+}
+
+.action {
+  font-size: 26rpx;
+  color: rgba(215, 223, 255, 0.9);
+}
+
+.rewards {
+  font-size: 28rpx;
+  color: #bbf7d0;
+}

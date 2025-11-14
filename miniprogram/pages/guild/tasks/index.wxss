@@ -1,0 +1,110 @@
+@import "../../../shared/styles/guild-theme.wxss";
+
+.guild-page--tasks .guild-content {
+  gap: 28rpx;
+}
+
+.tasks-header {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.tasks-list {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.task-card {
+  padding: 28rpx 32rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  border-bottom: 1rpx solid rgba(120, 146, 255, 0.16);
+}
+
+.task-card:last-child {
+  border-bottom: none;
+}
+
+.task-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24rpx;
+}
+
+.task-card__title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #f8f9ff;
+}
+
+.task-card__status {
+  font-size: 24rpx;
+  padding: 4rpx 20rpx;
+  border-radius: 999rpx;
+  background: rgba(86, 106, 255, 0.25);
+  color: #bcd4ff;
+}
+
+.task-card__status.completed,
+.task-card__status.ready {
+  background: rgba(34, 197, 94, 0.25);
+  color: #afffc7;
+}
+
+.task-card__status.claimed {
+  background: rgba(148, 163, 184, 0.25);
+  color: rgba(207, 216, 255, 0.8);
+}
+
+.task-card__status.failed {
+  background: rgba(239, 68, 68, 0.25);
+  color: #ffc1c1;
+}
+
+.task-card__desc {
+  font-size: 26rpx;
+  color: rgba(215, 223, 255, 0.85);
+  line-height: 1.6;
+}
+
+.task-card__progress {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+
+.task-card__progress-bar {
+  flex: 1;
+  height: 16rpx;
+  border-radius: 999rpx;
+  background: rgba(134, 154, 255, 0.24);
+  overflow: hidden;
+}
+
+.task-card__progress-inner {
+  height: 100%;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, #38bdf8 0%, #6366f1 100%);
+}
+
+.task-card__progress-text {
+  font-size: 24rpx;
+  color: rgba(188, 212, 255, 0.85);
+}
+
+.task-card__meta {
+  display: flex;
+  gap: 24rpx;
+  font-size: 24rpx;
+  color: rgba(180, 196, 255, 0.7);
+}
+
+.task-card__reward {
+  font-size: 24rpx;
+  color: #facc15;
+}

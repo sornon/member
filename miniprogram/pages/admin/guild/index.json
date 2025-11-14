@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "宗门管理",
+  "usingComponents": {
+    "custom-nav": "/components/custom-nav/custom-nav"
+  },
+  "enablePullDownRefresh": true
+}
