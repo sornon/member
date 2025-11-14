@@ -4,24 +4,52 @@ const GUILD_COLLECTIONS = [
   {
     name: COLLECTIONS.GUILDS,
     indexes: [
-      { key: { name: 1 }, options: { name: 'idx_guild_name_unique', unique: true } },
-      { key: { name: 'text' }, options: { name: 'idx_guild_name_text' } },
-      { key: { leaderId: 1 }, options: { name: 'idx_guild_leader' } }
+      { key: { name: 1 }, options: { name: 'idx_name_unique', unique: true } },
+      { key: { name: 'text' }, options: { name: 'idx_name_text' } },
+      { key: { leaderId: 1, updatedAt: -1 }, options: { name: 'idx_leader' } }
     ]
   },
   {
     name: COLLECTIONS.GUILD_MEMBERS,
     indexes: [
-      { key: { guildId: 1, role: 1 }, options: { name: 'idx_guild_member_role' } },
-      { key: { memberId: 1 }, options: { name: 'idx_guild_member_lookup' } },
-      { key: { contributionWeek: -1 }, options: { name: 'idx_guild_contribution_week_desc' } }
+      { key: { guildId: 1, role: 1 }, options: { name: 'idx_guild_role' } },
+      { key: { memberId: 1 }, options: { name: 'idx_member' } },
+      { key: { guildId: 1, contributionWeek: -1 }, options: { name: 'idx_week_contribution' } }
+    ]
+  },
+  {
+    name: COLLECTIONS.GUILD_TASKS,
+    indexes: [
+      { key: { guildId: 1, status: 1, endAt: -1 }, options: { name: 'idx_guild_status' } },
+      { key: { endAt: 1 }, options: { name: 'idx_end_at' } }
+    ]
+  },
+  {
+    name: COLLECTIONS.GUILD_BOSS,
+    indexes: [
+      { key: { guildId: 1, status: 1 }, options: { name: 'idx_guild_status' } },
+      { key: { guildId: 1, schemaVersion: -1 }, options: { name: 'idx_schema_version' } },
+      { key: { updatedAt: -1 }, options: { name: 'idx_updated_at_desc' } }
     ]
   },
   {
     name: COLLECTIONS.GUILD_BATTLES,
     indexes: [
-      { key: { guildId: 1, createdAt: -1 }, options: { name: 'idx_guild_battles_recent' } },
-      { key: { signature: 1 }, options: { name: 'idx_guild_battle_signature' } }
+      { key: { guildId: 1, createdAt: -1 }, options: { name: 'idx_guild_created_desc' } },
+      { key: { signature: 1 }, options: { name: 'idx_signature_unique', unique: true } }
+    ]
+  },
+  {
+    name: COLLECTIONS.GUILD_LEADERBOARD,
+    indexes: [
+      { key: { updatedAt: -1 }, options: { name: 'idx_updated_at_desc' } },
+      { key: { schemaVersion: -1 }, options: { name: 'idx_schema_version' } }
+    ]
+  },
+  {
+    name: COLLECTIONS.GUILD_LOGS,
+    indexes: [
+      { key: { guildId: 1, createdAt: -1 }, options: { name: 'idx_guild_logs_recent' } }
     ]
   },
   {
@@ -217,6 +245,92 @@ async function seedSampleData(db, logger) {
       logger
     );
   }
+
+  const tasksCollection = db.collection(COLLECTIONS.GUILD_TASKS);
+  await ensureDocument(
+    tasksCollection,
+    COLLECTIONS.GUILD_TASKS,
+    `${SAMPLE_GUILD_ID}_task_trial`,
+    {
+      guildId: SAMPLE_GUILD_ID,
+      taskId: 'guild_trial_elite',
+      type: 'trial',
+      title: '云海试炼·守护灵峰',
+      goal: { metric: 'damage', target: 5000 },
+      progress: { metric: 'damage', current: 1860 },
+      reward: { contribution: 180, items: ['elixir_basic'] },
+      status: 'open',
+      startAt: now,
+      endAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
+      updatedAt: now,
+      schemaVersion: 1
+    },
+    logger
+  );
+
+  const bossCollection = db.collection(COLLECTIONS.GUILD_BOSS);
+  await ensureDocument(
+    bossCollection,
+    COLLECTIONS.GUILD_BOSS,
+    `${SAMPLE_GUILD_ID}_boss_default`,
+    {
+      guildId: SAMPLE_GUILD_ID,
+      bossId: 'boss_crane_guardian',
+      level: 3,
+      status: 'open',
+      hpMax: 180000,
+      hpLeft: 145600,
+      totalDamage: 34400,
+      damageByMember: {
+        [SAMPLE_LEADER_ID]: 18200,
+        [SAMPLE_OFFICER_ID]: 9600,
+        [SAMPLE_MEMBER_ID]: 6600
+      },
+      memberAttempts: {
+        [SAMPLE_LEADER_ID]: { dateKey: '2025-01-01', count: 2, lastChallengeAt: now },
+        [SAMPLE_OFFICER_ID]: { dateKey: '2025-01-01', count: 2, lastChallengeAt: now },
+        [SAMPLE_MEMBER_ID]: { dateKey: '2025-01-01', count: 1, lastChallengeAt: now }
+      },
+      phase: 1,
+      schemaVersion: 1,
+      createdAt: now,
+      updatedAt: now
+    },
+    logger
+  );
+
+  const leaderboardCollection = db.collection(COLLECTIONS.GUILD_LEADERBOARD);
+  await ensureDocument(
+    leaderboardCollection,
+    COLLECTIONS.GUILD_LEADERBOARD,
+    'contribution',
+    {
+      metricType: 'contribution',
+      entries: [
+        { guildId: SAMPLE_GUILD_ID, name: '云鹤仙宗', score: 48200, rank: 1 },
+        { guildId: 'guild_demo_phoenix', name: '炎羽天宫', score: 41320, rank: 2 }
+      ],
+      updatedAt: now,
+      schemaVersion: 1
+    },
+    logger
+  );
+
+  const guildLogsCollection = db.collection(COLLECTIONS.GUILD_LOGS);
+  await ensureDocument(
+    guildLogsCollection,
+    COLLECTIONS.GUILD_LOGS,
+    `${SAMPLE_GUILD_ID}_log_01`,
+    {
+      guildId: SAMPLE_GUILD_ID,
+      type: 'donate',
+      actorId: SAMPLE_OFFICER_ID,
+      details: { amount: 200, templateId: 'donate-spirit-stone' },
+      createdAt: now,
+      schemaVersion: 1
+    },
+    logger
+  );
 
   const battlesCollection = db.collection(COLLECTIONS.GUILD_BATTLES);
   await ensureDocument(
