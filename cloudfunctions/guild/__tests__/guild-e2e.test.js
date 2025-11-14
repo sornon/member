@@ -236,6 +236,14 @@ describe('GuildService E2E', () => {
       })
     });
 
+    await db.collection(COLLECTIONS.MEMBERS).doc('admin').set({
+      data: {
+        _id: 'admin',
+        roles: ['admin'],
+        displayName: '管理员'
+      }
+    });
+
     const leaderTicket = await service.issueActionTicket('leader');
     const created = await service.createGuild('leader', {
       name: '太虚观',
@@ -350,6 +358,19 @@ describe('GuildService E2E', () => {
     expect(members.members[0].memberId).toBe('elder');
     expect(members.roles.leader).toBe(1);
 
-    await expect(service.adminListGuilds('admin', {}, {})).rejects.toMatchObject({ errCode: ERROR_CODES.PERMISSION_DENIED });
+    const directOverview = await service.adminListGuilds('admin', { keyword: '太虚', page: 1, pageSize: 10 }, {});
+    expect(directOverview.guilds.length).toBe(1);
+
+    const directDetail = await service.adminGetGuildDetail('admin', { guildId }, {});
+    expect(directDetail.guild.id).toBe(guildId);
+
+    const directMembers = await service.adminGetGuildMembers(
+      'admin',
+      { guildId, order: 'power', includeInactive: true, page: 1, pageSize: 10 },
+      {}
+    );
+    expect(directMembers.total).toBe(3);
+
+    await expect(service.adminListGuilds('outsider', {}, {})).rejects.toMatchObject({ errCode: ERROR_CODES.PERMISSION_DENIED });
   });
 });

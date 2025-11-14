@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { COLLECTIONS, normalizeAvatarFrameValue, pickPortraitUrl } = require('common-config');
+const { COLLECTIONS, DEFAULT_ADMIN_ROLES, normalizeAvatarFrameValue, pickPortraitUrl } = require('common-config');
 const {
   clamp,
   resolveCombatStats,
@@ -63,6 +63,10 @@ function createGuildService(options = {}) {
   };
 
   const bossUpdateLocks = new Map();
+  const adminPermissionCache = new Map();
+
+  const ADMIN_PERMISSION_CACHE_TTL_MS = 5 * 60 * 1000;
+  const ADMIN_ROLES = new Set([...(Array.isArray(DEFAULT_ADMIN_ROLES) ? DEFAULT_ADMIN_ROLES : []), 'superadmin']);
 
   function withBossUpdateLock(key, handler) {
     const previous = bossUpdateLocks.get(key) || Promise.resolve();
@@ -2625,13 +2629,79 @@ function createGuildService(options = {}) {
     };
   }
 
+  function normalizeAdminMemberId(memberId, context = {}) {
+    if (typeof memberId === 'string' && memberId.trim()) {
+      return memberId.trim();
+    }
+    if (context && typeof context.openid === 'string' && context.openid.trim()) {
+      return context.openid.trim();
+    }
+    if (context && context.proxySession && typeof context.proxySession.adminId === 'string') {
+      return context.proxySession.adminId.trim();
+    }
+    return '';
+  }
+
+  async function hasAdminPermission(memberId) {
+    const cacheKey = memberId;
+    if (!cacheKey) {
+      return false;
+    }
+    const cached = adminPermissionCache.get(cacheKey);
+    if (cached && now() - cached.loadedAt < ADMIN_PERMISSION_CACHE_TTL_MS) {
+      return cached.allowed;
+    }
+    try {
+      const snapshot = await db
+        .collection(COLLECTIONS.MEMBERS)
+        .doc(cacheKey)
+        .get();
+      const member = snapshot && snapshot.data ? snapshot.data : null;
+      const roleCandidates = [];
+      if (member) {
+        if (Array.isArray(member.roles)) {
+          roleCandidates.push(...member.roles);
+        }
+        if (Array.isArray(member.adminRoles)) {
+          roleCandidates.push(...member.adminRoles);
+        }
+        if (typeof member.role === 'string') {
+          roleCandidates.push(member.role);
+        }
+        if (typeof member.primaryRole === 'string') {
+          roleCandidates.push(member.primaryRole);
+        }
+        if (member.isAdmin === true) {
+          roleCandidates.push('admin');
+        }
+        if (member.isDeveloper === true) {
+          roleCandidates.push('developer');
+        }
+      }
+      const allowed = roleCandidates.some((role) => ADMIN_ROLES.has(String(role || '').trim()));
+      adminPermissionCache.set(cacheKey, { loadedAt: now(), allowed });
+      return allowed;
+    } catch (error) {
+      const message = (error && (error.errMsg || error.message)) || '';
+      if (/not exist/i.test(message)) {
+        adminPermissionCache.set(cacheKey, { loadedAt: now(), allowed: false });
+        return false;
+      }
+      throw error;
+    }
+  }
+
   async function assertAdminContext(memberId, context = {}, action = 'admin') {
     if (context && context.proxySession) {
       return;
     }
+    const normalizedMemberId = normalizeAdminMemberId(memberId, context);
+    if (await hasAdminPermission(normalizedMemberId)) {
+      return;
+    }
     await recordSecurityEvent({
       action: `${action}.denied`,
-      actorId: memberId || '',
+      actorId: normalizedMemberId || memberId || '',
       code: ERROR_CODES.PERMISSION_DENIED,
       message: '检测到未授权的管理员访问',
       context: { action }

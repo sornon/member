@@ -68,7 +68,7 @@
 
 1. **云函数升级**：在云开发控制台或 CLI 中重新部署 `cloudfunctions/guild`，以加载新增的管理员接口实现。
 2. **小程序代码发布**：更新小程序端代码，确保 `pages/admin/guild/index` 页面随版本一起上传；如使用体验版，请在上传前执行 `npm install && npm run build`（若需要）。
-3. **管理员代理校验**：确认运营账号已通过 `admin.proxyLogin` 建立代理会话，确保调用管理员接口时 `proxySession` 有效。
+3. **管理员权限校验**：确认运营账号在 `members` 集合中具备 `admin` / `developer` / `superadmin` 等角色；如需代玩家操作，可额外通过 `admin.proxyLogin` 建立代理会话，管理员接口会同时支持直接身份和代理身份。
 
 ### 使用步骤
 
