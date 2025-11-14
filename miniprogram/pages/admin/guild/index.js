@@ -51,11 +51,16 @@ function decorateGuildListItem(item = {}) {
   const capacity = Number(item.capacity || 0);
   const memberLabel = capacity > 0 ? `${formatNumber(activeCount)} / ${formatNumber(capacity)}` : `${formatNumber(activeCount)}`;
   const alertCount = Number(item.alertCount || 0);
+  const leaderName =
+    item.leader && (item.leader.name || item.leader.id) ? item.leader.name || item.leader.id : '';
+  const leaderId = item.leader && item.leader.id ? item.leader.id : '';
+  const leaderLabel = leaderName || leaderId || '暂无宗主';
   return {
     id: item.id || '',
     name: item.name || '未命名宗门',
-    leaderName: item.leader && (item.leader.name || item.leader.id) ? item.leader.name || item.leader.id : '',
-    leaderId: item.leader && item.leader.id ? item.leader.id : '',
+    leaderName,
+    leaderId,
+    leaderLabel,
     memberLabel,
     powerLabel: formatNumber(item.power || 0),
     activityLabel: formatNumber(item.activityScore || 0),
@@ -75,11 +80,16 @@ function decorateGuildDetail(item = {}) {
   const activeCount = Number(item.activeMemberCount || item.memberCount || 0);
   const capacity = Number(item.capacity || 0);
   const memberLabel = capacity > 0 ? `${formatNumber(activeCount)} / ${formatNumber(capacity)}` : `${formatNumber(activeCount)}`;
+  const leaderName =
+    item.leader && (item.leader.name || item.leader.id) ? item.leader.name || item.leader.id : '';
+  const leaderId = item.leader && item.leader.id ? item.leader.id : '';
+  const leaderLabel = leaderName || leaderId || '暂无宗主';
   return {
     id: item.id || '',
     name: item.name || '未命名宗门',
-    leaderName: item.leader && (item.leader.name || item.leader.id) ? item.leader.name || item.leader.id : '',
-    leaderId: item.leader && item.leader.id ? item.leader.id : '',
+    leaderName,
+    leaderId,
+    leaderLabel,
     manifesto: item.manifesto || '',
     notice: item.notice || '',
     memberLabel,
@@ -139,10 +149,22 @@ function decorateAlert(alert = {}) {
   const summaryMessage = alert.summary && (alert.summary.message || alert.summary.description);
   const payloadMessage = alert.payload && (alert.payload.message || alert.payload.reason);
   const message = summaryMessage || payloadMessage || alert.action || '异常操作';
+  const actorId = alert.actorId || '';
+  const actorName =
+    alert.actorName ||
+    (alert.actor &&
+      (alert.actor.displayName ||
+        alert.actor.name ||
+        alert.actor.nickName ||
+        alert.actor.nickname)) ||
+    '';
+  const actorDisplay = alert.actorDisplay || actorName || actorId || '';
   return {
     id: alert.id || '',
     action: alert.action || '',
-    actorId: alert.actorId || '',
+    actorId,
+    actorName,
+    actorDisplay,
     message,
     createdAtLabel: formatDateTime(alert.createdAt || '')
   };

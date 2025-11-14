@@ -4,7 +4,7 @@
     <input
       class="filter-input"
       value="{{keyword}}"
-      placeholder="搜索宗门名称 / ID"
+      placeholder="搜索宗门名称 / 编号"
       confirm-type="search"
       bindconfirm="handleSearch"
       bindinput="handleKeywordInput"
@@ -26,10 +26,10 @@
     >
       <view class="guild-card-header">
         <view class="guild-name">{{item.name}}</view>
-        <view class="guild-id">ID：{{item.id}}</view>
+        <view class="guild-id">宗门编号：{{item.id}}</view>
       </view>
       <view class="guild-meta">
-        <text>宗主：{{item.leaderName || '—'}}</text>
+        <text>宗主：{{item.leaderLabel || '—'}}</text>
         <text>成员：{{item.memberLabel}}</text>
       </view>
       <view class="guild-metrics">
@@ -49,8 +49,8 @@
   <view wx:if="{{selectedGuild}}" class="guild-detail">
     <view class="detail-header">
       <view class="detail-title">{{selectedGuild.name}}</view>
-      <view class="detail-subtitle">宗主：{{selectedGuild.leaderName || '—'}}（{{selectedGuild.leaderId || '未知'}}）</view>
-      <view class="detail-meta">ID：{{selectedGuild.id}} · 创建：{{selectedGuild.createdAtLabel || '—'}} · 更新时间：{{selectedGuild.updatedAtLabel || '—'}}</view>
+      <view class="detail-subtitle">宗主：{{selectedGuild.leaderLabel || '—'}}</view>
+      <view class="detail-meta">宗门编号：{{selectedGuild.id || '—'}} · 创建：{{selectedGuild.createdAtLabel || '—'}} · 更新时间：{{selectedGuild.updatedAtLabel || '—'}}</view>
       <view wx:if="{{selectedGuild.notice}}" class="detail-notice">公告：{{selectedGuild.notice}}</view>
       <view wx:if="{{selectedGuild.manifesto}}" class="detail-manifesto">宣言：{{selectedGuild.manifesto}}</view>
     </view>
@@ -111,7 +111,7 @@
       <view class="section-title">风险预警</view>
       <view wx:for="{{alerts}}" wx:key="id" class="alert-item">
         <view class="alert-message">{{item.message}}</view>
-        <view class="alert-meta">操作：{{item.action || '未知'}} · 触发人：{{item.actorId || '—'}} · 时间：{{item.createdAtLabel || '—'}}</view>
+        <view class="alert-meta">操作：{{item.action || '未知'}} · 触发人：{{item.actorDisplay || '—'}} · 时间：{{item.createdAtLabel || '—'}}</view>
       </view>
     </view>
 
@@ -157,7 +157,7 @@
         <input
           class="member-search"
           value="{{memberKeyword}}"
-          placeholder="搜索成员 ID / 昵称"
+          placeholder="搜索成员昵称 / 编号"
           confirm-type="search"
           bindconfirm="handleMemberSearch"
           bindinput="handleMemberKeywordInput"
