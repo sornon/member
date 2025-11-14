@@ -3087,8 +3087,8 @@ function createGuildService(options = {}) {
     }
     const manifesto = sanitizeString(payload.manifesto || '', { maxLength: 120 });
     const icon = sanitizeString(payload.icon || '', { maxLength: 200 });
-    const { guild } = await loadMemberGuild(memberId) || {};
-    if (guild) {
+    const existingMembership = (await loadMemberGuild(memberId)) || {};
+    if (existingMembership.guild) {
       throw createError('ALREADY_IN_GUILD', '已加入其他宗门');
     }
     const guildsCollection = db.collection(COLLECTIONS.GUILDS);
@@ -3128,7 +3128,15 @@ function createGuildService(options = {}) {
     });
     await refreshLeaderboardCache();
     const guildSnapshot = await guildsCollection.doc(guildId).get();
-    return { guild: decorateGuild({ ...guildSnapshot.data, _id: guildId }) };
+    const guild = decorateGuild({ ...guildSnapshot.data, _id: guildId });
+    return wrapActionResponse(
+      'createGuild',
+      { guild },
+      {
+        code: 'GUILD_CREATED',
+        message: '宗门创建成功'
+      }
+    );
   }
 
   /* istanbul ignore next */
