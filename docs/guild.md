@@ -83,7 +83,7 @@
 
 ## 数据结构
 
-宗门系统共使用 6 个核心集合，均需在 CloudBase 创建并补充索引：
+宗门系统依赖 11 个集合：其中 `guilds`、`guildMembers`、`guildTasks`、`guildBoss`、`guildBattles`、`guildLeaderboard` 为核心业务集合，`guildLogs`、`guildEventLogs`、`guildTickets`、`guildRateLimits`、`guildCache` 用于审计、风控与缓存支撑。上述集合都需要在 CloudBase 创建并按下表配置索引：
 
 > 创建索引时，可在云开发控制台进入“数据库 → 索引 → 新建索引”，或使用 CLI：`tcb db:index:create --collection <name> --index '{"name":"idx_x","key":{"field":1},"unique":false,"expireAfterSeconds":-1}'`。除非另有说明，`background` 默认开启；TTL 为 `-1` 表示永久保留。
 
@@ -234,12 +234,120 @@
 
 > 若需自动过期旧快照，可在 `idx_updated_at_desc` 上设置 `expireAfterSeconds` 为 `604800`（一周），以保证只保留最近的榜单数据。
 
+### `guildLogs`
+
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | `string` | 日志文档 ID，由数据库生成。|
+| `guildId` | `string` | 关联宗门 ID，安全日志可为空表示全局事件。|
+| `type` | `'activity' / 'security' / 'boss' / …` | 日志类别，安全事件统一写入 `security`。|
+| `action` | `string` | 触发动作标识，例如 `riskControl`、`bossChallenge`。|
+| `actorId` | `string` | 操作成员 ID。|
+| `severity` | `'info' / 'warning' / 'error'` | 事件级别，`recordSecurityEvent` 默认写入 `warning`。|
+| `summary` | `object` | 通过 `buildSummary` 生成的结构化摘要（含 `action`、`code`、`message` 等字段）。|
+| `payload` / `details` | `object` | 事件上下文，包含风控计数、战斗摘要等扩展字段。|
+| `createdAt` | `Date` | 入库时间，由服务端时间戳生成。|
+| `schemaVersion` | `number` | 文档结构版本，随核心逻辑升级递增。|
+
+**索引配置**：
+
+| 索引名 | 字段排序 | 唯一性 | 类型 | TTL（秒） |
+| --- | --- | --- | --- | --- |
+| `idx_guild_logs_recent` | `{ guildId: 1, createdAt: -1 }` | `false` | `normal` | `-1` |
+
+> 运营后台的风控面板通过 `idx_guild_logs_recent` 拉取最新安全日志，若需要全局检索可追加 `{ type: 1, createdAt: -1 }` 组合索引。
+
+### `guildEventLogs`
+
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | `string` | 事件文档 ID，由数据库生成。|
+| `guildId` | `string` | 宗门 ID。|
+| `type` | `string` | 事件类型，例如 `bossChallenge`、`teamBattle`、`joinGuild`。|
+| `actorId` | `string` | 操作成员 ID。|
+| `details` | `object` | 事件细节（战斗胜负、参与成员等）。|
+| `createdAt` | `Date` | 事件写入时间（`serverTimestamp()`）。|
+| `schemaVersion` | `number` | 结构版本。|
+
+**索引配置**：
+
+| 索引名 | 字段排序 | 唯一性 | 类型 | TTL（秒） |
+| --- | --- | --- | --- | --- |
+| `idx_guild_event_logs_recent` | `{ guildId: 1, createdAt: -1 }` | `false` | `normal` | `-1` |
+
+> `recordEvent` 会为 Boss 挑战、团队试炼等关键操作写入事件日志。若需要按类型筛选，可额外创建 `{ guildId: 1, type: 1, createdAt: -1 }` 辅助索引。
+
+### `guildTickets`
+
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | `string` | `ticket_<hash>` 形式的文档 ID，由成员 ID 与签名哈希拼接。|
+| `memberId` | `string` | 票据持有者。|
+| `signature` | `string` | `memberId` + `ticket` + `secret` 生成的 MD5，用于验签并限制重复签发。|
+| `issuedAt` | `Date` | 签发时间。|
+| `expiresAt` | `Date` | 票据过期时间，通常为 30 分钟。|
+| `consumed` | `boolean` | 是否已核销。|
+| `consumedAt` / `lastUsedAt` | `Date` | 最近一次使用时间，仅在票据校验成功后写入。|
+| `uses` | `number` | 使用次数统计（默认自增 1）。|
+| `schemaVersion` | `number` | 结构版本。|
+| `updatedAt` | `Date` | 复签时更新的时间戳。|
+
+**索引配置**：
+
+| 索引名 | 字段排序 | 唯一性 | 类型 | TTL（秒） |
+| --- | --- | --- | --- | --- |
+| `idx_guild_ticket_signature_unique` | `{ signature: 1 }` | `true` | `normal` | `-1` |
+| `idx_guild_ticket_member_consumed` | `{ memberId: 1, consumed: 1 }` | `false` | `normal` | `-1` |
+| `idx_guild_ticket_expires` | `{ expiresAt: 1 }` | `false` | `normal` | `-1` |
+
+> 建议在 `idx_guild_ticket_expires` 上配置 `expireAfterSeconds: 0` 以自动清理过期票据。云函数在签发时会处理文档已存在的情况，确保重复签发会复用并刷新原文档。
+
+### `guildRateLimits`
+
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | `string` | 针对成员、宗门、动作及窗口期生成的哈希。|
+| `type` | `'rate' / 'cooldown' / 'daily' / 'abuse'` | 限制类型，与调用的守卫对应。|
+| `memberId` | `string` | 被限制的成员 ID。|
+| `guildId` | `string` | 关联宗门 ID，日限额/风控监测会写入。|
+| `action` | `string` | 动作标识，例如 `boss.challenge`、`tasks.claim`。|
+| `windowMs` | `number` | 限制窗口长度（毫秒），日限额则记录当日窗口。|
+| `limit` | `number` | 每日/窗口允许的最大次数。|
+| `count` | `number` | 当前窗口已使用次数。|
+| `dateKey` | `string` | 日限额窗口日期（UTC `YYYY-MM-DD`）。|
+| `lastTriggeredAt` | `Date` | 最近一次触发时间。|
+| `windowStartedAt` | `Date` | 统计窗口起始时间（滥用监控使用）。|
+| `flaggedAt` | `Date` | 触发风控后标记时间。|
+| `expiresAt` | `Date` | 文档过期时间，守卫会设置为窗口结束。|
+| `schemaVersion` | `number` | 结构版本。|
+
+**索引配置**：
+
+| 索引名 | 字段排序 | 唯一性 | 类型 | TTL（秒） |
+| --- | --- | --- | --- | --- |
+| `idx_guild_rate_limit_member_action` | `{ memberId: 1, action: 1 }` | `true` | `normal` | `-1` |
+| `idx_guild_rate_limit_expires` | `{ expiresAt: 1 }` | `false` | `normal` | `-1` |
+
+> 日志巡检推荐为 `idx_guild_rate_limit_expires` 设置 `expireAfterSeconds: 0`，从而在窗口结束后由数据库自动清理限流记录。
+
+### `guildCache`
+
+| 字段 | 类型 | 说明 |
+| ---- | ---- | ---- |
+| `_id` | `string` | 缓存键，例如 `leaderboard`、`overview`。|
+| `schemaVersion` | `number` | 缓存结构版本。|
+| `generatedAt` | `Date` | 缓存生成时间。|
+| `expiresAt` | `Date` | 过期时间（可选字段，部分工具脚本会写入）。|
+| `data` | `any` | 缓存内容（排行榜快照、统计摘要等）。|
+
+> 默认不创建索引；如需对 `generatedAt` 做过期清理，可按需补充 `{ generatedAt: 1 }` + TTL 索引。该集合主要由迁移脚本和重置流程初始化/清除，日常运行中可选。
+
 ## 部署步骤
 
 1. **安装依赖**：在仓库根目录执行 `npm install`，随后进入 `cloudfunctions/guild` 运行 `npm install`。
 2. **上传云函数**：通过微信开发者工具右键部署 `guild` 云函数，同时在“函数配置 → 版本管理”中绑定统一的 `nodejs-layer`（用于复用 `common-config` 等公共模块）。
 3. **同步公共模块**：确认 `common-config`、`combat-system`、`skill-engine` 等共享代码均已打包在 `nodejs-layer`，避免云函数包体超出限制。
-4. **初始化集合与索引**：在云开发控制台执行 `bootstrap` 云函数：`{ "action": "runMigration", "migration": "guild-init" }`，自动创建 6 个集合、索引与示例数据。
+4. **初始化集合与索引**：在云开发控制台执行 `bootstrap` 云函数：`{ "action": "runMigration", "migration": "guild-init" }`，自动创建 11 个集合、索引与示例数据。
 5. **灰度与回滚**：如需回滚，执行 `{ "action": "runMigration", "migration": "guild-rollback", "force": true }`。若需灰度发布，可先在测试环境运行 `guild` 云函数并验证排行榜缓存刷新情况。
 6. **前端配置**：确保小程序 `miniprogram/pages/guild/**` 已加入 `app.json`，并在 `miniprogram/services/api.js` 中开启 `GuildService` 入口。
 7. **监控接入**：为 `guild` 云函数开启默认监控，配置 `errorlogs` 告警，建议设置 `5xx` 错误阈值与执行超时通知。
