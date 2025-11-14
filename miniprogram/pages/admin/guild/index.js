@@ -229,6 +229,7 @@ Page({
     memberTotal: 0,
     memberFinished: false,
     memberLoading: false,
+    memberLoadingGuildId: '',
     memberRoles: {},
     memberStats: {}
   },
@@ -414,11 +415,14 @@ Page({
     if (!guildId) {
       return Promise.resolve();
     }
-    if (this.data.memberLoading) {
+    const { memberLoading, memberLoadingGuildId } = this.data;
+    if (memberLoading && memberLoadingGuildId === guildId) {
       return Promise.resolve();
     }
     const targetPage = page || (reset ? 1 : this.data.memberPage || 1);
-    this.setData({ memberLoading: true });
+    const requestId = `${guildId}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    this._activeMemberRequestId = requestId;
+    this.setData({ memberLoading: true, memberLoadingGuildId: guildId });
     if (reset) {
       this.setData({ memberList: [], memberFinished: false, memberTotal: 0, memberPage: 1 });
     }
@@ -431,6 +435,9 @@ Page({
         includeInactive: this.data.includeInactive,
         order: this.data.memberOrder
       });
+      if (this._activeMemberRequestId !== requestId || this.data.selectedGuildId !== guildId) {
+        return;
+      }
       const entries = Array.isArray(response && response.members)
         ? response.members.map((entry) => decorateMemberListEntry(entry))
         : [];
@@ -447,12 +454,16 @@ Page({
       });
     } catch (error) {
       console.error('[admin:guild] load members failed', error);
-      wx.showToast({
-        title: (error && error.message) || '加载成员失败',
-        icon: 'none'
-      });
+      if (this._activeMemberRequestId === requestId) {
+        wx.showToast({
+          title: (error && error.message) || '加载成员失败',
+          icon: 'none'
+        });
+      }
     } finally {
-      this.setData({ memberLoading: false });
+      if (this._activeMemberRequestId === requestId) {
+        this.setData({ memberLoading: false, memberLoadingGuildId: '' });
+      }
     }
   }
 });
