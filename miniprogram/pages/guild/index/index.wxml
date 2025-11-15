@@ -21,7 +21,7 @@
           </view>
           <view class="guild-card__info">
             <view class="guild-card__title">{{guild.name || '未命名宗门'}}</view>
-            <view class="guild-card__meta">职位：{{membership ? resolveRoleLabel(membership.role) : '成员'}}</view>
+            <view class="guild-card__meta">职位：{{membershipRoleLabel}}</view>
             <view class="guild-card__stats">
               <text>成员 {{guild.memberCount || 0}}</text>
               <text>战力 {{formatNumber(guild.power || 0)}}</text>

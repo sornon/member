@@ -70,6 +70,7 @@ Page({
     error: '',
     guild: null,
     membership: null,
+    membershipRoleLabel: '成员',
     leaderboard: [],
     actionTicket: null,
     settings: null,
@@ -96,10 +97,12 @@ Page({
       const result = await GuildService.getOverview();
       const ticket = resolveGuildActionTicket(result);
       const leaderboard = decorateGuildLeaderboardEntries(result.leaderboard || []);
+      const membership = result.membership || null;
       this.setData({
         loading: false,
         guild: result.guild || null,
-        membership: result.membership || null,
+        membership,
+        membershipRoleLabel: membership ? resolveRoleLabel(membership.role) : '成员',
         leaderboard,
         actionTicket: ticket,
         settings: result.settings || null,
