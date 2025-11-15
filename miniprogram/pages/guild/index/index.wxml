@@ -21,7 +21,7 @@
           </view>
           <view class="guild-card__info">
             <view class="guild-card__title">{{guild.name || '未命名宗门'}}</view>
-            <view class="guild-card__meta">职位：{{resolveRoleLabel(membership.role)}}</view>
+            <view class="guild-card__meta">职位：{{membership ? resolveRoleLabel(membership.role) : '成员'}}</view>
             <view class="guild-card__stats">
               <text>成员 {{guild.memberCount || 0}}</text>
               <text>战力 {{formatNumber(guild.power || 0)}}</text>
@@ -46,7 +46,6 @@
         <view class="guild-notice">
           <view class="guild-notice__title">宗门公告</view>
           <view class="guild-notice__content">{{guild.manifesto || '暂无宗门公告'}}</view>
-          <view wx:if="{{summary && summary.message}}" class="guild-notice__summary">{{summary.message}}</view>
         </view>
         <view class="guild-shortcuts">
           <view
@@ -102,17 +101,23 @@
         <block wx:if="{{leaderboard.length === 0}}">
           <view class="empty">暂无排行数据</view>
         </block>
-        <block wx:else>
-          <block wx:for="{{leaderboard}}" wx:key="id">
-            <view class="leaderboard-item">
-              <view class="leaderboard-rank">{{index + 1}}</view>
-              <view class="leaderboard-avatar">
-                <image class="leaderboard-avatar__image" src="{{item.avatarUrl}}" mode="cover"></image>
-                <image
-                  wx:if="{{item.avatarFrame}}"
-                  class="leaderboard-avatar__frame"
-                  src="{{item.avatarFrame}}"
-                  mode="scaleToFill"
+          <block wx:else>
+            <block wx:for="{{leaderboard}}" wx:key="id">
+              <view class="leaderboard-item">
+                <view class="leaderboard-rank">{{index + 1}}</view>
+                <view class="leaderboard-avatar">
+                  <image
+                    wx:if="{{item.hasCustomAvatar}}"
+                    class="leaderboard-avatar__image"
+                    src="{{item.avatarUrl}}"
+                    mode="cover"
+                  ></image>
+                  <text wx:else class="leaderboard-avatar__placeholder">🏯</text>
+                  <image
+                    wx:if="{{item.avatarFrame}}"
+                    class="leaderboard-avatar__frame"
+                    src="{{item.avatarFrame}}"
+                    mode="scaleToFill"
                 ></image>
               </view>
               <view class="leaderboard-body">

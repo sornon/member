@@ -2395,6 +2395,29 @@ function createGuildService(options = {}) {
     return rounded;
   }
 
+  function resolveOffsetCursor(cursor) {
+    if (typeof cursor === 'number' && Number.isFinite(cursor)) {
+      return Math.max(0, Math.floor(cursor));
+    }
+    if (typeof cursor !== 'string' || !cursor) {
+      return 0;
+    }
+    const offsetMatch = cursor.match(/offset:(\d+)/i);
+    if (offsetMatch) {
+      return Math.max(0, parseInt(offsetMatch[1], 10) || 0);
+    }
+    const numeric = Number(cursor);
+    if (Number.isFinite(numeric)) {
+      return Math.max(0, Math.floor(numeric));
+    }
+    return 0;
+  }
+
+  function buildOffsetCursor(offset) {
+    const value = Math.max(0, Math.floor(Number(offset) || 0));
+    return `offset:${value}`;
+  }
+
   function buildFuzzyRegExp(keyword) {
     if (!keyword || typeof keyword !== 'string' || !keyword.trim()) {
       return null;
@@ -2458,6 +2481,7 @@ function createGuildService(options = {}) {
       return null;
     }
     const memberId = normalizeMemberId(doc.memberId || doc._id || doc.id);
+    /* istanbul ignore next */
     if (!memberId) {
       return null;
     }
@@ -2503,6 +2527,135 @@ function createGuildService(options = {}) {
       lookup.set(summary.memberId, summary);
     });
     return { entries, lookup };
+  }
+
+  function buildGuildMemberListEntry(doc = {}, { memberDoc = null, extrasDoc = null } = {}) {
+    /* istanbul ignore next */
+    if (!doc || typeof doc !== 'object') {
+      return null;
+    }
+    const memberId = normalizeMemberId(doc.memberId || doc._id || doc.id);
+    if (!memberId) {
+      return null;
+    }
+    const guildId = normalizeId(doc.guildId);
+    const role = toTrimmedString(doc.role) || 'member';
+    const status = toTrimmedString(doc.status) || 'active';
+    const nameCandidates = [
+      doc.displayName,
+      doc.nickName,
+      doc.nickname,
+      doc.name,
+      memberDoc && memberDoc.displayName,
+      memberDoc && memberDoc.nickName,
+      memberDoc && memberDoc.nickname,
+      memberDoc && memberDoc.name,
+      extrasDoc && extrasDoc.displayName,
+      extrasDoc && extrasDoc.nickName,
+      extrasDoc && extrasDoc.nickname,
+      extrasDoc && extrasDoc.name
+    ];
+    const displayName = nameCandidates.map(toTrimmedString).find(Boolean) || memberId;
+    const avatarUrl =
+      pickPortraitUrl(
+        doc.avatarUrl,
+        doc.portrait,
+        memberDoc && memberDoc.avatarUrl,
+        memberDoc && memberDoc.portrait,
+        extrasDoc && extrasDoc.avatarUrl,
+        extrasDoc && extrasDoc.portrait
+      ) || '';
+    const avatarFrame = resolveAvatarFrameValue(
+      doc.avatarFrame,
+      memberDoc && memberDoc.avatarFrame,
+      memberDoc && memberDoc.appearanceFrame,
+      memberDoc && memberDoc.appearance && memberDoc.appearance.avatarFrame,
+      extrasDoc && extrasDoc.avatarFrame
+    );
+    const titleCatalogEntries = [];
+    if (Array.isArray(doc.titleCatalog)) {
+      titleCatalogEntries.push(...doc.titleCatalog);
+    }
+    if (Array.isArray(doc.titles)) {
+      titleCatalogEntries.push(...doc.titles);
+    }
+    if (memberDoc && Array.isArray(memberDoc.titleCatalog)) {
+      titleCatalogEntries.push(...memberDoc.titleCatalog);
+    }
+    if (memberDoc && memberDoc.appearance && Array.isArray(memberDoc.appearance.titleCatalog)) {
+      titleCatalogEntries.push(...memberDoc.appearance.titleCatalog);
+    }
+    if (extrasDoc && Array.isArray(extrasDoc.titleCatalog)) {
+      titleCatalogEntries.push(...extrasDoc.titleCatalog);
+    }
+    if (extrasDoc && extrasDoc.appearance && Array.isArray(extrasDoc.appearance.titleCatalog)) {
+      titleCatalogEntries.push(...extrasDoc.appearance.titleCatalog);
+    }
+    const titleCatalog = normalizeTitleCatalog(titleCatalogEntries);
+    let titleId =
+      doc.titleId ||
+      (doc.title && doc.title.id) ||
+      (memberDoc && (memberDoc.titleId || memberDoc.appearanceTitle || (memberDoc.appearance && memberDoc.appearance.titleId))) ||
+      (extrasDoc && (extrasDoc.titleId || extrasDoc.appearanceTitle || (extrasDoc.appearance && extrasDoc.appearance.titleId))) ||
+      '';
+    let titleName =
+      doc.titleName ||
+      (doc.title && doc.title.name) ||
+      (memberDoc &&
+        (memberDoc.titleName ||
+          memberDoc.appearanceTitleName ||
+          (memberDoc.appearance && memberDoc.appearance.titleName))) ||
+      (extrasDoc &&
+        (extrasDoc.titleName ||
+          extrasDoc.appearanceTitleName ||
+          (extrasDoc.appearance && extrasDoc.appearance.titleName))) ||
+      '';
+    titleId = normalizeTitleId(titleId);
+    titleName = toTrimmedString(titleName);
+    if (!titleId && titleCatalog.length) {
+      titleId = titleCatalog[0].id;
+      titleName = titleName || titleCatalog[0].name;
+    }
+    const contribution = extractMemberContribution(doc);
+    const contributionTotal = Number.isFinite(Number(doc.contributionTotal))
+      ? Math.max(0, Math.round(Number(doc.contributionTotal)))
+      : contribution;
+    const contributionWeek = Number.isFinite(Number(doc.contributionWeek))
+      ? Math.max(0, Math.round(Number(doc.contributionWeek)))
+      : 0;
+    const power = extractMemberPowerValue(doc);
+    const activityScore = Number.isFinite(Number(doc.activityScore))
+      ? Math.max(0, Math.round(Number(doc.activityScore)))
+      : Number.isFinite(Number(doc.activity))
+      ? Math.max(0, Math.round(Number(doc.activity)))
+      : 0;
+    const joinedAt = toIsoString(doc.joinedAt || doc.createdAt || doc.updatedAt || null);
+    const lastActiveAt = toIsoString(doc.lastActiveAt || doc.lastSeenAt || doc.updatedAt || null);
+    const joinedAtTimestamp = joinedAt ? new Date(joinedAt).getTime() : 0;
+    return {
+      memberId,
+      guildId,
+      role,
+      status,
+      displayName,
+      name: displayName,
+      avatarUrl,
+      avatarFrame,
+      titleId,
+      titleName,
+      titleCatalog,
+      contribution,
+      contributionTotal,
+      contributionWeek,
+      power,
+      powerScore: power,
+      activityScore,
+      joinedAt,
+      joinedAtTimestamp,
+      updatedAt: toIsoString(doc.updatedAt || null),
+      lastActiveAt,
+      schemaVersion: doc.schemaVersion || GUILD_SCHEMA_VERSION
+    };
   }
 
   async function loadGuildMembersForAdmin(guildIds = []) {
@@ -3857,13 +4010,59 @@ function createGuildService(options = {}) {
   async function membersList(memberId, payload = {}) {
     await enforceRateLimit(memberId, 'members.list');
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
-    return buildPlaceholderResponse('members.list', {
-      members: [],
-      pagination: {
-        hasMore: false,
-        next: null
+    const membership = await loadMemberGuild(memberId);
+    if (!membership || !membership.guild) {
+      throw createError('NOT_IN_GUILD', '请先加入宗门');
+    }
+    const guildId = membership.guild.id;
+    const limit = sanitizePageSize(payload.limit, { defaultSize: 20, max: 100 });
+    const offset = resolveOffsetCursor(payload.cursor);
+    const query = db
+      .collection(COLLECTIONS.GUILD_MEMBERS)
+      .where({ guildId, status: 'active' })
+      .orderBy('contribution', 'desc')
+      .orderBy('power', 'desc')
+      .orderBy('joinedAt', 'asc');
+    const snapshot = await query
+      .skip(offset)
+      .limit(limit)
+      .get()
+      .catch((error) => {
+        logger.error('[guild] load member list failed', error);
+        return { data: [] };
+      });
+    const docs = (snapshot && snapshot.data ? snapshot.data : []).filter(Boolean);
+    const memberIds = docs
+      .map((doc) => normalizeMemberId(doc.memberId || doc._id || doc.id))
+      .filter(Boolean);
+    const [memberMap, extrasMap] = await Promise.all([
+      loadDocumentsByIds(COLLECTIONS.MEMBERS, memberIds),
+      loadDocumentsByIds(COLLECTIONS.MEMBER_EXTRAS, memberIds)
+    ]);
+    const members = docs
+      .map((doc) => {
+        const id = normalizeMemberId(doc.memberId || doc._id || doc.id);
+        const memberDoc = id ? memberMap.get(id) || null : null;
+        const extrasDoc = id ? extrasMap.get(id) || null : null;
+        return buildGuildMemberListEntry(doc, { memberDoc, extrasDoc });
+      })
+      .filter(Boolean);
+    const hasMore = docs.length === limit;
+    const nextCursor = hasMore ? buildOffsetCursor(offset + docs.length) : null;
+    return wrapActionResponse(
+      'members.list',
+      {
+        guildId,
+        members,
+        pagination: {
+          hasMore,
+          next: nextCursor
+        }
+      },
+      {
+        message: '宗门成员列表已加载'
       }
-    });
+    );
   }
 
   async function logsList(memberId, payload = {}) {
