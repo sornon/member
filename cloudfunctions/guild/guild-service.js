@@ -830,6 +830,29 @@ function createGuildService(options = {}) {
     return fallbackEntries;
   }
 
+  function applyPowerMetricFallback(entries = []) {
+    if (!Array.isArray(entries)) {
+      return [];
+    }
+    return entries.map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return entry;
+      }
+      const numericPower = Number(entry.power);
+      if (Number.isFinite(numericPower) && numericPower > 0) {
+        return entry;
+      }
+      const metricValue = Number(entry.metricValue);
+      if (Number.isFinite(metricValue) && metricValue > 0) {
+        return {
+          ...entry,
+          power: Math.max(0, Math.round(metricValue))
+        };
+      }
+      return entry;
+    });
+  }
+
   async function loadLeaderboard(options = {}) {
     const { force = false, type = DEFAULT_LEADERBOARD_TYPE, limit = 20 } = options;
     const effectiveLimit = clampLeaderboardLimit(limit);
@@ -838,7 +861,14 @@ function createGuildService(options = {}) {
       limit: GUILD_LEADERBOARD_CACHE_SIZE,
       forceRefresh: force
     });
-    return snapshot.entries.slice(0, effectiveLimit);
+    const responseType = resolveLeaderboardType(snapshot.type || type);
+    const rawEntries = Array.isArray(snapshot.entries)
+      ? snapshot.entries.slice(0, effectiveLimit)
+      : [];
+    if (responseType === 'power') {
+      return applyPowerMetricFallback(rawEntries);
+    }
+    return rawEntries;
   }
 
   function resolveBattleSeed(guildId, difficulty, timestamp = now()) {

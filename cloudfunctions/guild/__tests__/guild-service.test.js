@@ -1,7 +1,11 @@
 const { COLLECTIONS } = require('common-config');
 const { FEATURE_TOGGLE_DOC_ID } = require('system-settings');
 const crypto = require('crypto');
-const { createGuildService, LEADERBOARD_CACHE_SCHEMA_VERSION } = require('../guild-service');
+const {
+  createGuildService,
+  LEADERBOARD_CACHE_SCHEMA_VERSION,
+  GUILD_SCHEMA_VERSION
+} = require('../guild-service');
 const { ERROR_CODES } = require('../error-codes');
 
 function createMemoryDb() {
@@ -313,6 +317,69 @@ describe('GuildService', () => {
     expect(overview.guild.activityScore).toBe(680);
     expect(overview.membership.memberId).toBe('member-metrics');
   });
+
+  test('listGuilds uses leaderboard metric value when cached entries miss power', async () => {
+    const db = createMemoryDb();
+    const service = createGuildService({
+      db,
+      command: db.command,
+      loadSettings: async () => ({
+        enabled: true,
+        leaderboardCacheTtlMs: 300000,
+        schemaVersion: GUILD_SCHEMA_VERSION,
+        secret: 'guild-secret'
+      })
+    });
+
+    await db
+      .collection(COLLECTIONS.GUILD_LEADERBOARD)
+      .doc('power')
+      .set({
+        data: {
+          _id: 'power',
+          type: 'power',
+          schemaVersion: LEADERBOARD_CACHE_SCHEMA_VERSION,
+          updatedAt: new Date().toISOString(),
+          entries: [
+            {
+              id: 'guild-stale',
+              guildId: 'guild-stale',
+              name: '云岚宗',
+              memberCount: 18,
+              metricType: 'power',
+              metricValue: 54321,
+              contribution: 0,
+              activityScore: 0,
+              titleCatalog: [],
+              avatarFrame: '',
+              avatarUrl: ''
+            },
+            {
+              id: 'guild-active',
+              guildId: 'guild-active',
+              name: '飞星阁',
+              memberCount: 16,
+              metricType: 'power',
+              metricValue: 11111,
+              power: 11111,
+              contribution: 0,
+              activityScore: 0,
+              titleCatalog: [],
+              avatarFrame: '',
+              avatarUrl: ''
+            }
+          ]
+        }
+      });
+
+    const list = await service.listGuilds();
+    expect(list.guilds).toHaveLength(2);
+    expect(list.guilds[0].id).toBe('guild-stale');
+    expect(list.guilds[0].power).toBe(54321);
+    expect(list.guilds[1].id).toBe('guild-active');
+    expect(list.guilds[1].power).toBe(11111);
+  });
+
 
   test('join guild and initiate battle', async () => {
     const leaderTicket = await service.issueActionTicket('leader');
