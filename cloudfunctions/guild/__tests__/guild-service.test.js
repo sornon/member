@@ -278,6 +278,42 @@ describe('GuildService', () => {
     expect(overview.actionTicket.ticket).toBeTruthy();
   });
 
+  test('overview normalizes guild metrics from derived fields', async () => {
+    await db.collection(COLLECTIONS.GUILDS).add({
+      data: {
+        _id: 'guild-metrics',
+        name: '太初宗',
+        icon: '',
+        manifesto: '大道初行',
+        founderId: 'founder-1',
+        memberCount: '27',
+        powerScore: '12345.6',
+        totalPower: 12000,
+        activity: '678.9',
+        activityScore: 650,
+        stats: { powerScore: 12400, activity: 680 }
+      }
+    });
+    await db.collection(COLLECTIONS.GUILD_MEMBERS).add({
+      data: {
+        _id: 'membership-metrics',
+        guildId: 'guild-metrics',
+        memberId: 'member-metrics',
+        role: 'leader',
+        status: 'active',
+        joinedAt: new Date().toISOString(),
+        power: 5000
+      }
+    });
+
+    const overview = await service.getOverview('member-metrics');
+    expect(overview.guild.id).toBe('guild-metrics');
+    expect(overview.guild.memberCount).toBe(27);
+    expect(overview.guild.power).toBe(12400);
+    expect(overview.guild.activityScore).toBe(680);
+    expect(overview.membership.memberId).toBe('member-metrics');
+  });
+
   test('join guild and initiate battle', async () => {
     const leaderTicket = await service.issueActionTicket('leader');
     const guildResult = await service.createGuild('leader', {

@@ -723,19 +723,63 @@ function createGuildService(options = {}) {
     };
   }
 
+  function extractGuildPowerValue(doc = {}) {
+    const candidates = [
+      doc.power,
+      doc.powerScore,
+      doc.totalPower,
+      doc.powerTotal,
+      doc.powerRating,
+      doc.stats && doc.stats.power,
+      doc.stats && doc.stats.powerScore,
+      doc.metrics && doc.metrics.power,
+      doc.metrics && doc.metrics.powerScore
+    ];
+    return candidates.reduce((acc, value) => {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > acc) {
+        return Math.max(0, Math.round(numeric));
+      }
+      return acc;
+    }, 0);
+  }
+
+  function extractGuildActivityValue(doc = {}) {
+    const candidates = [
+      doc.activityScore,
+      doc.activity,
+      doc.activityTotal,
+      doc.activityWeek,
+      doc.stats && doc.stats.activity,
+      doc.stats && doc.stats.activityScore,
+      doc.metrics && doc.metrics.activity,
+      doc.metrics && doc.metrics.activityScore
+    ];
+    return candidates.reduce((acc, value) => {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > acc) {
+        return Math.max(0, Math.round(numeric));
+      }
+      return acc;
+    }, 0);
+  }
+
   function decorateGuild(doc = {}) {
     if (!doc || typeof doc !== 'object') {
       return null;
     }
+    const memberCount = Number.isFinite(Number(doc.memberCount))
+      ? Math.max(0, Math.round(Number(doc.memberCount)))
+      : 0;
     return {
       id: doc._id || doc.id || null,
-      name: doc.name || '未命名宗门',
-      icon: doc.icon || '',
-      manifesto: doc.manifesto || '',
-      founderId: doc.founderId || '',
-      memberCount: doc.memberCount || 0,
-      power: doc.power || 0,
-      activityScore: doc.activityScore || 0,
+      name: toTrimmedString(doc.name) || '未命名宗门',
+      icon: toTrimmedString(doc.icon),
+      manifesto: toTrimmedString(doc.manifesto),
+      founderId: toTrimmedString(doc.founderId),
+      memberCount,
+      power: extractGuildPowerValue(doc),
+      activityScore: extractGuildActivityValue(doc),
       createdAt: doc.createdAt || null,
       schemaVersion: doc.schemaVersion || GUILD_SCHEMA_VERSION
     };
@@ -751,20 +795,21 @@ function createGuildService(options = {}) {
     if (!record) {
       return null;
     }
-      const guildSnapshot = await db
-        .collection(COLLECTIONS.GUILDS)
-        .doc(record.guildId)
-        .get()
-        /* istanbul ignore next */
-        .catch((error) => {
-          if (error && /not exist/i.test(error.errMsg || '')) {
-            return null;
-          }
-          throw error;
+    const guildSnapshot = await db
+      .collection(COLLECTIONS.GUILDS)
+      .doc(record.guildId)
+      .get()
+      /* istanbul ignore next */
+      .catch((error) => {
+        if (error && /not exist/i.test(error.errMsg || '')) {
+          return null;
+        }
+        throw error;
       });
+    const guildDoc = guildSnapshot && guildSnapshot.data ? { ...guildSnapshot.data, _id: record.guildId } : { _id: record.guildId };
     return {
       membership: record,
-      guild: decorateGuild((guildSnapshot && guildSnapshot.data) || {})
+      guild: decorateGuild(guildDoc)
     };
   }
 
@@ -1182,11 +1227,15 @@ function createGuildService(options = {}) {
         .get()
         .catch(() => ({ data: [] }));
       const docs = snapshot && snapshot.data ? snapshot.data : [];
-      baseEntries = docs.map((doc) => ({
-        guild: doc,
-        metricValue: Math.max(0, Math.round(Number(doc[orderField] || 0))),
-        bossInfo: bossTotals.get(normalizeId(doc._id || doc.id)) || { totalDamage: 0, bossId: '' }
-      }));
+      baseEntries = docs.map((doc) => {
+        const metricValue =
+          normalizedType === 'power' ? extractGuildPowerValue(doc) : extractGuildActivityValue(doc);
+        return {
+          guild: doc,
+          metricValue,
+          bossInfo: bossTotals.get(normalizeId(doc._id || doc.id)) || { totalDamage: 0, bossId: '' }
+        };
+      });
     } else if (normalizedType === 'contribution') {
       const snapshot = await db
         .collection(COLLECTIONS.GUILDS)
@@ -1269,10 +1318,12 @@ function createGuildService(options = {}) {
       const leaderId = normalizeMemberId(fallbackLeaderId);
       const memberDoc = leaderId ? memberMap.get(leaderId) || null : null;
       const extrasDoc = leaderId ? extrasMap.get(leaderId) || null : null;
-      const name = guildDoc.name || '未命名宗门';
-      const memberCount = Math.max(0, Math.round(Number(guildDoc.memberCount || 0)));
-      const power = Math.max(0, Math.round(Number(guildDoc.power || 0)));
-      const activityScore = Math.max(0, Math.round(Number(guildDoc.activityScore || 0)));
+      const name = toTrimmedString(guildDoc.name) || '未命名宗门';
+      const memberCount = Number.isFinite(Number(guildDoc.memberCount))
+        ? Math.max(0, Math.round(Number(guildDoc.memberCount)))
+        : 0;
+      const power = extractGuildPowerValue(guildDoc);
+      const activityScore = extractGuildActivityValue(guildDoc);
       const contribution = contributionTotals.get(guildId) || 0;
       const bossInfo = entry.bossInfo || bossTotals.get(guildId) || { totalDamage: 0, bossId: '' };
       const avatarUrl =
