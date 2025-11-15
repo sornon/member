@@ -73,8 +73,7 @@ Page({
     leaderboard: [],
     actionTicket: null,
     settings: null,
-    donating: false,
-    summary: null
+    donating: false
   },
   onShow() {
     this.loadOverview();
@@ -104,7 +103,6 @@ Page({
         leaderboard,
         actionTicket: ticket,
         settings: result.settings || null,
-        summary: result.summary || null,
         error: ''
       });
     } catch (error) {
