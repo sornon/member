@@ -1,22 +1,11 @@
 import { GuildService } from '../../../services/api';
 const {
   resolveGuildActionTicket,
-  decorateGuildLeaderboardEntries
+  decorateGuildLeaderboardEntries,
+  hasGuildActionTicketExpired
 } = require('../../../shared/guild.js');
 
 const DONATION_PRESETS = [50, 100, 200, 500];
-const TICKET_EXPIRY_GRACE_MS = 60 * 1000;
-
-function hasTicketExpired(ticket) {
-  if (!ticket || !ticket.ticket) {
-    return true;
-  }
-  const expiresAt = typeof ticket.expiresAt === 'string' ? Date.parse(ticket.expiresAt) : NaN;
-  if (!Number.isFinite(expiresAt)) {
-    return false;
-  }
-  return expiresAt <= Date.now() + TICKET_EXPIRY_GRACE_MS;
-}
 
 function buildTicketedUrl(baseUrl, ticket) {
   if (!ticket || !ticket.ticket) {
@@ -130,7 +119,7 @@ Page({
     let shouldRefresh = !!refresh;
     if (!shouldRefresh) {
       const { actionTicket } = this.data;
-      if (actionTicket && actionTicket.ticket && !hasTicketExpired(actionTicket)) {
+      if (actionTicket && actionTicket.ticket && !hasGuildActionTicketExpired(actionTicket)) {
         return actionTicket;
       }
       shouldRefresh = true;
@@ -145,10 +134,10 @@ Page({
         this.setData({ actionTicket: ticket });
         return ticket;
       }
-      wx.showToast({ title: '令牌生成失败，请稍后重试', icon: 'none' });
+      wx.showToast({ title: '授权生成失败，请稍后重试', icon: 'none' });
     } catch (error) {
       console.error('[guild] refresh ticket failed', error);
-      wx.showToast({ title: error.errMsg || '令牌获取失败', icon: 'none' });
+      wx.showToast({ title: error.errMsg || '授权获取失败', icon: 'none' });
     }
     return null;
   },

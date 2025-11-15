@@ -56,7 +56,7 @@ Page({
       return;
     }
     if (!ticket) {
-      wx.showToast({ title: '令牌失效，请返回重试', icon: 'none' });
+      wx.showToast({ title: '授权失效，请返回重试', icon: 'none' });
       return;
     }
     this.setData({ joining: true });

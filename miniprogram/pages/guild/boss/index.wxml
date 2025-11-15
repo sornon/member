@@ -31,7 +31,6 @@
             loading="{{challenging}}"
             disabled="{{!canChallenge || challenging}}"
           >发起挑战</button>
-          <button class="btn btn--ghost" bindtap="handleRefreshTicket">刷新令牌</button>
         </view>
       </view>
 

@@ -4,6 +4,22 @@ const { normalizeAvatarFrameValue } = require('./avatar-frames');
 const { AVATAR_IMAGE_BASE_PATH } = require('./asset-paths.js');
 
 const DEFAULT_MEMBER_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
+const DEFAULT_TICKET_GRACE_MS = 60 * 1000;
+
+function hasGuildActionTicketExpired(ticket, { graceMs = DEFAULT_TICKET_GRACE_MS } = {}) {
+  if (!ticket || !ticket.ticket) {
+    return true;
+  }
+  if (!ticket.expiresAt) {
+    return false;
+  }
+  const expiresAt = Date.parse(ticket.expiresAt);
+  if (!Number.isFinite(expiresAt)) {
+    return false;
+  }
+  const gracePeriod = Number.isFinite(graceMs) ? graceMs : DEFAULT_TICKET_GRACE_MS;
+  return expiresAt <= Date.now() + gracePeriod;
+}
 
 function normalizeTicketCandidate(candidate, fallbackSignature = '') {
   if (!candidate) {
@@ -113,5 +129,6 @@ module.exports = {
   decorateGuildLeaderboardEntries,
   decorateGuildMembers,
   DEFAULT_GUILD_AVATAR: DEFAULT_AVATAR,
-  DEFAULT_MEMBER_AVATAR
+  DEFAULT_MEMBER_AVATAR,
+  hasGuildActionTicketExpired
 };
