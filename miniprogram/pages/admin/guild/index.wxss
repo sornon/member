@@ -353,6 +353,45 @@
   color: rgba(245, 247, 255, 0.65);
 }
 
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.modal-section-title {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: rgba(245, 247, 255, 0.75);
+}
+
+.modal-kv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.modal-kv-item {
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 16rpx;
+  padding: 16rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.modal-kv-label {
+  font-size: 24rpx;
+  color: rgba(245, 247, 255, 0.65);
+}
+
+.modal-kv-value {
+  font-size: 26rpx;
+  color: #f5f7ff;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .modal-list {
   display: flex;
   flex-direction: column;
@@ -579,6 +618,14 @@
   background: rgba(255, 255, 255, 0.05);
   border-radius: 16rpx;
   padding: 16rpx;
+}
+
+.alert-item.clickable {
+  border: 1rpx solid rgba(92, 124, 250, 0.25);
+}
+
+.alert-item.clickable:active {
+  background: rgba(92, 124, 250, 0.18);
 }
 
 .task-title,

@@ -168,7 +168,7 @@
 
     <view wx:if="{{alerts.length}}" class="section" id="guildAlertSection">
       <view class="section-title">风险预警</view>
-      <view wx:for="{{alerts}}" wx:key="id" class="alert-item">
+      <view wx:for="{{alerts}}" wx:key="id" class="alert-item clickable" data-id="{{item.id}}" bindtap="handleAlertTap">
         <view class="alert-message">{{item.message}}</view>
         <view class="alert-meta">操作：{{item.action || '未知'}} · 触发人：{{item.actorDisplay || '—'}} · 时间：{{item.createdAtLabel || '—'}}</view>
       </view>
@@ -304,6 +304,49 @@
     <view class="modal-actions">
       <button class="ghost-button" bindtap="closeStatDetail">关闭</button>
       <button wx:if="{{statDetail.action}}" class="primary-button" bindtap="handleStatAction">{{statDetail.action.label}}</button>
+    </view>
+  </view>
+</view>
+
+<view
+  wx:if="{{alertDetailVisible}}"
+  class="modal-backdrop"
+  bindtap="closeAlertDetail"
+  catchtouchmove="preventTouchMove"
+>
+  <view class="modal-card" catchtap="stopPropagation">
+    <view class="modal-title">安全预警详情</view>
+    <view class="modal-value">{{alertDetail.message || '异常行为'}}</view>
+    <view class="modal-note">
+      操作：{{alertDetail.action || '未知'}} · 触发人：{{alertDetail.actorDisplay || '—'}} · 时间：{{alertDetail.createdAtLabel || '—'}}
+    </view>
+    <view wx:if="{{alertDetail.summaryItems.length}}" class="modal-section">
+      <view class="modal-section-title">摘要信息</view>
+      <view class="modal-kv-list">
+        <block wx:for="{{alertDetail.summaryItems}}" wx:key="key">
+          <view class="modal-kv-item">
+            <view class="modal-kv-label">{{item.label}}</view>
+            <view class="modal-kv-value">{{item.value}}</view>
+          </view>
+        </block>
+      </view>
+    </view>
+    <view wx:if="{{alertDetail.payloadItems.length}}" class="modal-section">
+      <view class="modal-section-title">详细数据</view>
+      <view class="modal-kv-list">
+        <block wx:for="{{alertDetail.payloadItems}}" wx:key="key">
+          <view class="modal-kv-item">
+            <view class="modal-kv-label">{{item.label}}</view>
+            <view class="modal-kv-value">{{item.value}}</view>
+          </view>
+        </block>
+      </view>
+    </view>
+    <view wx:if="{{!alertDetail.summaryItems.length && !alertDetail.payloadItems.length}}" class="modal-empty">
+      暂无更多上下文信息
+    </view>
+    <view class="modal-actions">
+      <button class="ghost-button" bindtap="closeAlertDetail">关闭</button>
     </view>
   </view>
 </view>
