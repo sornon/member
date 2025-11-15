@@ -6,7 +6,7 @@ page {
 
 .guild-page {
   min-height: 100vh;
-  padding: 0 32rpx 48rpx;
+  padding: 24rpx 32rpx 48rpx;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
