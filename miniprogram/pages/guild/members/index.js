@@ -2,7 +2,8 @@ import { GuildService } from '../../../services/api';
 const {
   resolveGuildActionTicket,
   decorateGuildMembers,
-  DEFAULT_MEMBER_AVATAR
+  DEFAULT_MEMBER_AVATAR,
+  hasGuildActionTicketExpired
 } = require('../../../shared/guild.js');
 
 function formatNumber(value) {
@@ -127,11 +128,16 @@ Page({
     }
   },
   async ensureActionTicket({ refresh = false } = {}) {
-    if (!refresh) {
+    let shouldRefresh = !!refresh;
+    if (!shouldRefresh) {
       const { actionTicket } = this.data;
-      if (actionTicket && actionTicket.ticket) {
+      if (actionTicket && actionTicket.ticket && !hasGuildActionTicketExpired(actionTicket)) {
         return actionTicket;
       }
+      shouldRefresh = true;
+    }
+    if (!shouldRefresh) {
+      return null;
     }
     try {
       const refreshed = await GuildService.refreshTicket();
@@ -140,10 +146,10 @@ Page({
         this.setData({ actionTicket: ticket });
         return ticket;
       }
-      wx.showToast({ title: '令牌生成失败', icon: 'none' });
+      wx.showToast({ title: '授权生成失败', icon: 'none' });
     } catch (error) {
       console.error('[guild] refresh ticket failed', error);
-      wx.showToast({ title: error.errMsg || '令牌获取失败', icon: 'none' });
+      wx.showToast({ title: error.errMsg || '授权获取失败', icon: 'none' });
     }
     return null;
   },
@@ -185,9 +191,6 @@ Page({
     this.fetchMembers({ reset: false }).catch((error) => {
       console.error('[guild] load more members failed', error);
     });
-  },
-  async handleRefreshTicket() {
-    await this.ensureActionTicket({ refresh: true });
   },
   async handleManageMember(event) {
     const { id, name } = event.currentTarget.dataset || {};

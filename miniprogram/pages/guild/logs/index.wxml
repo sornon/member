@@ -10,9 +10,7 @@
     <view wx:else class="guild-content">
       <view wx:if="{{guild}}" class="guild-section logs-header">
         <view class="guild-section__title">{{guild.name || '未命名宗门'}}</view>
-        <view class="logs-header__actions">
-          <button class="btn btn--ghost" size="mini" bindtap="handleRefreshTicket">刷新令牌</button>
-        </view>
+        <view class="logs-header__actions"></view>
       </view>
 
       <view class="guild-section guild-section--compact logs-list">

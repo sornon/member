@@ -353,11 +353,11 @@ function createGuildService(options = {}) {
     const secret = settings.secret || 'guild_secret';
     const normalizedTicket = sanitizeString(ticket, { maxLength: 64 });
     if (!normalizedTicket) {
-      throw createError('INVALID_TICKET', '令牌无效');
+      throw createError('INVALID_TICKET', '授权无效');
     }
     const signature = buildTicketSignature(normalizedTicket, secret);
     if (providedSignature && providedSignature !== signature) {
-      throw createError('INVALID_TICKET_SIGNATURE', '令牌签名不匹配');
+      throw createError('INVALID_TICKET_SIGNATURE', '授权验证失败');
     }
     const docId = buildTicketDocId(memberId, signature);
       const snapshot = await db
@@ -372,15 +372,15 @@ function createGuildService(options = {}) {
           throw error;
       });
     if (!snapshot || !snapshot.data) {
-      throw createError('TICKET_NOT_FOUND', '令牌不存在或已过期');
+      throw createError('TICKET_NOT_FOUND', '授权不存在或已过期');
     }
     const doc = snapshot.data;
     const expiresAt = doc.expiresAt ? new Date(doc.expiresAt) : null;
     if (expiresAt && expiresAt.getTime() < now()) {
-      throw createError('TICKET_EXPIRED', '令牌已过期');
+      throw createError('TICKET_EXPIRED', '授权已过期');
     }
     if (doc.consumed) {
-      throw createError('TICKET_CONSUMED', '令牌已被使用');
+      throw createError('TICKET_CONSUMED', '授权已被使用');
     }
     const usageTimestamp = db.serverDate ? db.serverDate() : new Date();
       await db
