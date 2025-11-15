@@ -68,20 +68,24 @@ function createMemoryDb() {
   function clone(doc) {
     return JSON.parse(JSON.stringify(doc));
   }
-  function createQuery(data) {
+  function createQuery(data, view = data) {
     return {
+      skip(count) {
+        const offset = Math.max(0, Math.floor(Number(count) || 0));
+        return createQuery(data, view.slice(offset));
+      },
       limit(size) {
-        return {
-          async get() {
-            return { data: data.slice(0, size).map(clone) };
-          }
-        };
+        const bounded = Math.max(0, Math.floor(Number(size) || 0));
+        if (bounded === 0) {
+          return createQuery(data, []);
+        }
+        return createQuery(data, view.slice(0, bounded));
       },
       async get() {
-        return { data: data.map(clone) };
+        return { data: view.map(clone) };
       },
       async remove() {
-        const ids = new Set(data.map((item) => item._id || item.id));
+        const ids = new Set(view.map((item) => item._id || item.id));
         if (!ids.size) {
           return { deleted: 0, stats: { removed: 0 } };
         }
@@ -148,7 +152,7 @@ function createMemoryDb() {
       where(criteria) {
         const filtered = data.filter((item) => matches(item, criteria));
         return {
-          ...createQuery(filtered),
+          ...createQuery(data, filtered),
           async remove() {
             const ids = new Set(filtered.map((item) => item._id || item.id));
             if (!ids.size) {
@@ -168,7 +172,7 @@ function createMemoryDb() {
         };
       },
       limit(size) {
-        return createQuery(data).limit(size);
+        return createQuery(data, data).limit(size);
       },
       orderBy(field, direction) {
         const sorted = [...data].sort((a, b) => {
@@ -176,7 +180,7 @@ function createMemoryDb() {
           const right = Number(b[field]) || 0;
           return direction === 'desc' ? right - left : left - right;
         });
-        return createQuery(sorted);
+        return createQuery(data, sorted);
       }
     };
   }
@@ -272,6 +276,42 @@ describe('GuildService', () => {
     expect(overview.guild.name).toBe('苍穹宗');
     expect(overview.membership.role).toBe('leader');
     expect(overview.actionTicket.ticket).toBeTruthy();
+  });
+
+  test('overview normalizes guild metrics from derived fields', async () => {
+    await db.collection(COLLECTIONS.GUILDS).add({
+      data: {
+        _id: 'guild-metrics',
+        name: '太初宗',
+        icon: '',
+        manifesto: '大道初行',
+        founderId: 'founder-1',
+        memberCount: '27',
+        powerScore: '12345.6',
+        totalPower: 12000,
+        activity: '678.9',
+        activityScore: 650,
+        stats: { powerScore: 12400, activity: 680 }
+      }
+    });
+    await db.collection(COLLECTIONS.GUILD_MEMBERS).add({
+      data: {
+        _id: 'membership-metrics',
+        guildId: 'guild-metrics',
+        memberId: 'member-metrics',
+        role: 'leader',
+        status: 'active',
+        joinedAt: new Date().toISOString(),
+        power: 5000
+      }
+    });
+
+    const overview = await service.getOverview('member-metrics');
+    expect(overview.guild.id).toBe('guild-metrics');
+    expect(overview.guild.memberCount).toBe(27);
+    expect(overview.guild.power).toBe(12400);
+    expect(overview.guild.activityScore).toBe(680);
+    expect(overview.membership.memberId).toBe('member-metrics');
   });
 
   test('join guild and initiate battle', async () => {
@@ -390,6 +430,135 @@ describe('GuildService', () => {
       .limit(1)
       .get();
     expect(snapshot.data[0].power).toBe(4321);
+  });
+
+  test('membersList returns decorated entries with pagination and filters', async () => {
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc('leader-alpha')
+      .set({ data: createSampleMember('leader-alpha', { nickName: '掌门' }) });
+    await db
+      .collection(COLLECTIONS.MEMBER_EXTRAS)
+      .doc('leader-alpha')
+      .set({ data: { _id: 'leader-alpha', avatarUrl: 'https://example.com/leader.png' } });
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc('ally-beta')
+      .set({ data: createSampleMember('ally-beta', { nickName: 'Beta' }) });
+    await db
+      .collection(COLLECTIONS.MEMBER_EXTRAS)
+      .doc('ally-beta')
+      .set({ data: { _id: 'ally-beta', avatarFrame: 'frame-test' } });
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc('ally-delta')
+      .set({ data: createSampleMember('ally-delta', { nickName: 'Delta' }) });
+    await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc('sleepy-gamma')
+      .set({ data: createSampleMember('sleepy-gamma', { nickName: 'Gamma' }) });
+
+    const createTicket = await service.issueActionTicket('leader-alpha');
+    const guildResult = await service.createGuild('leader-alpha', {
+      name: '云霄殿',
+      ticket: createTicket.ticket,
+      signature: createTicket.signature,
+      powerRating: 2800
+    });
+    const betaTicket = await service.issueActionTicket('ally-beta');
+    await service.joinGuild('ally-beta', {
+      guildId: guildResult.guild.id,
+      ticket: betaTicket.ticket,
+      signature: betaTicket.signature,
+      powerRating: 1800
+    });
+    const deltaTicket = await service.issueActionTicket('ally-delta');
+    await service.joinGuild('ally-delta', {
+      guildId: guildResult.guild.id,
+      ticket: deltaTicket.ticket,
+      signature: deltaTicket.signature,
+      powerRating: 1400
+    });
+    const gammaTicket = await service.issueActionTicket('sleepy-gamma');
+    await service.joinGuild('sleepy-gamma', {
+      guildId: guildResult.guild.id,
+      ticket: gammaTicket.ticket,
+      signature: gammaTicket.signature,
+      powerRating: 1600
+    });
+
+    const memberSnapshot = await db
+      .collection(COLLECTIONS.GUILD_MEMBERS)
+      .where({ guildId: guildResult.guild.id })
+      .get();
+    for (const doc of memberSnapshot.data) {
+      const updates = {};
+      if (doc.memberId === 'leader-alpha') {
+        updates.contribution = 320;
+        updates.contributionWeek = 60;
+        updates.power = 5200;
+        updates.joinedAt = new Date('2024-01-01T00:00:00Z');
+      } else if (doc.memberId === 'ally-beta') {
+        updates.contribution = 210;
+        updates.contributionWeek = 45;
+        updates.power = 4100;
+        updates.joinedAt = new Date('2024-01-02T00:00:00Z');
+      } else if (doc.memberId === 'ally-delta') {
+        updates.contribution = 150;
+        updates.contributionWeek = 18;
+        updates.power = 3600;
+        updates.joinedAt = new Date('2024-01-03T00:00:00Z');
+      } else if (doc.memberId === 'sleepy-gamma') {
+        updates.contribution = 430;
+        updates.power = 4800;
+        updates.status = 'inactive';
+        updates.joinedAt = new Date('2024-01-04T00:00:00Z');
+      }
+      if (Object.keys(updates).length) {
+        await db.collection(COLLECTIONS.GUILD_MEMBERS).doc(doc._id).update({ data: updates });
+      }
+    }
+
+    const listTicket = await service.issueActionTicket('leader-alpha');
+    const firstPage = await service.membersList('leader-alpha', {
+      ticket: listTicket.ticket,
+      signature: listTicket.signature,
+      limit: 2
+    });
+    expect(firstPage.members.map((entry) => entry.memberId)).toEqual(['leader-alpha', 'ally-beta']);
+    expect(firstPage.pagination.hasMore).toBe(true);
+    expect(typeof firstPage.pagination.next).toBe('string');
+    const leaderEntry = firstPage.members.find((entry) => entry.memberId === 'leader-alpha');
+    expect(leaderEntry.role).toBe('leader');
+    expect(leaderEntry.avatarUrl).toBe('https://example.com/leader.png');
+    const betaFromFirstPage = firstPage.members.find((entry) => entry.memberId === 'ally-beta');
+    expect(betaFromFirstPage.contributionTotal).toBe(210);
+    expect(betaFromFirstPage.contributionWeek).toBe(45);
+    expect(betaFromFirstPage.avatarFrame).toBe('frame-test');
+    expect(betaFromFirstPage.displayName).toBe('Beta');
+
+    const secondTicket = await service.issueActionTicket('leader-alpha');
+    const secondPage = await service.membersList('leader-alpha', {
+      ticket: secondTicket.ticket,
+      signature: secondTicket.signature,
+      cursor: firstPage.pagination.next,
+      limit: 2
+    });
+    expect(secondPage.members.map((entry) => entry.memberId)).toEqual(['ally-delta']);
+    expect(secondPage.pagination.hasMore).toBe(false);
+    const deltaEntry = secondPage.members.find((entry) => entry.memberId === 'ally-delta');
+    expect(deltaEntry.contributionTotal).toBe(150);
+    expect(deltaEntry.displayName).toBe('Delta');
+  });
+
+  test('membersList requires guild membership', async () => {
+    const ticket = await service.issueActionTicket('solo-wanderer');
+    await expect(
+      service.membersList('solo-wanderer', {
+        ticket: ticket.ticket,
+        signature: ticket.signature
+      })
+    ).rejects.toHaveProperty('code', 'NOT_IN_GUILD');
   });
 
   test('rate limiting prevents rapid guild creation', async () => {

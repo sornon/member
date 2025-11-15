@@ -84,7 +84,20 @@ function resolveGuildActionTicket(source = {}) {
 }
 
 function decorateGuildLeaderboardEntries(entries = []) {
-  return decorateLeaderboardEntries(entries, { registerTitles: true });
+  const decorated = decorateLeaderboardEntries(entries, { registerTitles: true });
+  return decorated.map((entry) => {
+    /* istanbul ignore next */
+    if (!entry || typeof entry !== 'object') {
+      return entry;
+    }
+    const avatarUrl = typeof entry.avatarUrl === 'string' ? entry.avatarUrl.trim() : '';
+    const hasCustomAvatar = !!avatarUrl && avatarUrl !== DEFAULT_AVATAR;
+    return {
+      ...entry,
+      avatarUrl: hasCustomAvatar ? avatarUrl : '',
+      hasCustomAvatar
+    };
+  });
 }
 
 function decorateGuildMembers(entries = []) {
