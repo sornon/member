@@ -58,6 +58,27 @@ function normalizePagination(payload = {}) {
   };
 }
 
+function resolvePowerScore(entry = {}) {
+  const candidates = [
+    entry.power,
+    entry.powerScore,
+    entry.powerValue,
+    entry.combatPower,
+    entry.totalPower,
+    entry.powerRating,
+    entry.attributeSummary && (entry.attributeSummary.powerScore || entry.attributeSummary.combatPower),
+    entry.attributes && (entry.attributes.powerScore || entry.attributes.combatPower),
+    entry.profile && (entry.profile.powerScore || entry.profile.combatPower || entry.profile.powerRating)
+  ];
+  return candidates.reduce((acc, value) => {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > acc) {
+      return Math.max(0, Math.round(numeric));
+    }
+    return acc;
+  }, 0);
+}
+
 function decorateMemberList(entries = []) {
   const decorated = decorateGuildMembers(entries);
   return decorated.map((entry) => {
@@ -71,7 +92,7 @@ function decorateMemberList(entries = []) {
       lastActiveText: formatDateTime(lastActive),
       contributionTotal: Number(entry.contributionTotal || entry.contribution || 0),
       contributionWeek: Number(entry.contributionWeek || entry.contributionWeekly || 0),
-      powerScore: Number(entry.power || entry.powerScore || 0)
+      powerScore: resolvePowerScore(entry)
     };
   });
 }
