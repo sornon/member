@@ -380,6 +380,51 @@ describe('GuildService', () => {
     expect(list.guilds[1].power).toBe(11111);
   });
 
+  test('listGuilds aggregates member power when guild stats are stale', async () => {
+    const db = createMemoryDb();
+    const service = createGuildService({
+      db,
+      command: db.command
+    });
+
+    await db.collection(COLLECTIONS.GUILDS).add({
+      data: {
+        _id: 'guild-aggregate',
+        name: '乘风宗',
+        power: 0,
+        memberCount: 2,
+        stats: {}
+      }
+    });
+
+    await db.collection(COLLECTIONS.GUILD_MEMBERS).add({
+      data: {
+        _id: 'member-power-a',
+        guildId: 'guild-aggregate',
+        memberId: 'member-a',
+        role: 'member',
+        status: 'active',
+        power: 2345
+      }
+    });
+    await db.collection(COLLECTIONS.GUILD_MEMBERS).add({
+      data: {
+        _id: 'member-power-b',
+        guildId: 'guild-aggregate',
+        memberId: 'member-b',
+        role: 'member',
+        status: 'active',
+        powerScore: 3210
+      }
+    });
+
+    const list = await service.listGuilds();
+    expect(list.guilds).toHaveLength(1);
+    expect(list.guilds[0].id).toBe('guild-aggregate');
+    expect(list.guilds[0].power).toBe(5555);
+    expect(list.guilds[0].metricValue).toBe(5555);
+  });
+
 
   test('join guild and initiate battle', async () => {
     const leaderTicket = await service.issueActionTicket('leader');

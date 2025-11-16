@@ -1184,6 +1184,29 @@ function createGuildService(options = {}) {
     return totals;
   }
 
+  async function loadGuildPowerTotals() {
+    const snapshot = await db
+      .collection(COLLECTIONS.GUILD_MEMBERS)
+      .where({ status: 'active' })
+      .get()
+      .catch(() => ({ data: [] }));
+    const totals = new Map();
+    const docs = snapshot && snapshot.data ? snapshot.data : [];
+    docs.forEach((doc) => {
+      const guildId = normalizeId(doc.guildId);
+      if (!guildId) {
+        return;
+      }
+      const memberPower = Math.max(0, Math.round(extractMemberPowerFromDoc(doc)));
+      if (!memberPower) {
+        return;
+      }
+      const current = totals.get(guildId) || 0;
+      totals.set(guildId, current + memberPower);
+    });
+    return totals;
+  }
+
   async function loadGuildBossTotals() {
     const snapshot = await db
       .collection(COLLECTIONS.GUILD_BOSS)
@@ -1243,9 +1266,11 @@ function createGuildService(options = {}) {
   async function buildGuildLeaderboardEntries(type, limit) {
     const normalizedType = resolveLeaderboardType(type);
     const effectiveLimit = clampLeaderboardLimit(limit);
-    const [contributionTotals, bossTotals] = await Promise.all([
+    const needsPowerTotals = normalizedType === 'power';
+    const [contributionTotals, bossTotals, powerTotals] = await Promise.all([
       loadGuildContributionTotals().catch(() => new Map()),
-      loadGuildBossTotals().catch(() => new Map())
+      loadGuildBossTotals().catch(() => new Map()),
+      needsPowerTotals ? loadGuildPowerTotals().catch(() => new Map()) : Promise.resolve(new Map())
     ]);
     let baseEntries = [];
     if (normalizedType === 'power' || normalizedType === 'activity') {
@@ -1258,12 +1283,15 @@ function createGuildService(options = {}) {
         .catch(() => ({ data: [] }));
       const docs = snapshot && snapshot.data ? snapshot.data : [];
       baseEntries = docs.map((doc) => {
-        const metricValue =
+        const guildId = normalizeId(doc._id || doc.id);
+        const derivedMetric =
           normalizedType === 'power' ? extractGuildPowerValue(doc) : extractGuildActivityValue(doc);
+        const aggregatedPower = normalizedType === 'power' && guildId ? powerTotals.get(guildId) || 0 : 0;
+        const metricValue = normalizedType === 'power' ? Math.max(derivedMetric, aggregatedPower) : derivedMetric;
         return {
           guild: doc,
           metricValue,
-          bossInfo: bossTotals.get(normalizeId(doc._id || doc.id)) || { totalDamage: 0, bossId: '' }
+          bossInfo: bossTotals.get(guildId) || { totalDamage: 0, bossId: '' }
         };
       });
     } else if (normalizedType === 'contribution') {
@@ -1352,7 +1380,9 @@ function createGuildService(options = {}) {
       const memberCount = Number.isFinite(Number(guildDoc.memberCount))
         ? Math.max(0, Math.round(Number(guildDoc.memberCount)))
         : 0;
-      const power = extractGuildPowerValue(guildDoc);
+      const aggregatedPower = powerTotals.get(guildId) || 0;
+      const derivedPower = extractGuildPowerValue(guildDoc);
+      const power = Math.max(derivedPower, aggregatedPower);
       const activityScore = extractGuildActivityValue(guildDoc);
       const contribution = contributionTotals.get(guildId) || 0;
       const bossInfo = entry.bossInfo || bossTotals.get(guildId) || { totalDamage: 0, bossId: '' };
