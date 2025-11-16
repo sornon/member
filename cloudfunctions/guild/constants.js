@@ -20,7 +20,6 @@ const ACTION_RATE_LIMIT_WINDOWS = Object.freeze({
   'tasks.claim': 30 * 1000,
   'boss.status': 15 * 1000,
   'boss.challenge': 60 * 1000,
-  'boss.rank': 30 * 1000,
   bossChallenge: 60 * 1000,
   getLeaderboard: 30 * 1000,
   joinGuild: 30 * 1000,

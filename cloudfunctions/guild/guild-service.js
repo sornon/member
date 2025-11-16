@@ -4519,7 +4519,6 @@ function createGuildService(options = {}) {
   }
 
   async function bossRank(memberId, payload = {}) {
-    await enforceRateLimit(memberId, 'boss.rank');
     await verifyActionTicket(memberId, payload.ticket, payload.signature, { consume: false });
     const settings = await loadSettings();
     const bossSettings = resolveBossSettings(settings.boss || DEFAULT_GUILD_BOSS_SETTINGS);
