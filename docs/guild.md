@@ -301,6 +301,7 @@
 | `idx_guild_ticket_expires` | `{ expiresAt: 1 }` | `false` | `normal` | `-1` |
 
 > 建议在 `idx_guild_ticket_expires` 上配置 `expireAfterSeconds: 0` 以自动清理过期票据。云函数在签发时会处理文档已存在的情况，确保重复签发会复用并刷新原文档。
+> 纯读取动作（如 `boss.status`、`boss.rank`）在服务端以「只读验签」模式运行，不会立即核销票据，方便一次票据执行多个查看操作；写操作仍保持一次性特性。
 
 ### `guildRateLimits`
 
