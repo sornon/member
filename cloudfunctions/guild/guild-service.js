@@ -348,7 +348,8 @@ function createGuildService(options = {}) {
     return { ticket: token, signature, expiresAt: expiresAt.toISOString() };
   }
 
-  async function verifyActionTicket(memberId, ticket, providedSignature) {
+  async function verifyActionTicket(memberId, ticket, providedSignature, options = {}) {
+    const { consume = true } = typeof options === 'object' && options !== null ? options : {};
     const settings = await loadSettings();
     const secret = settings.secret || 'guild_secret';
     const normalizedTicket = sanitizeString(ticket, { maxLength: 64 });
@@ -379,23 +380,26 @@ function createGuildService(options = {}) {
     if (expiresAt && expiresAt.getTime() < now()) {
       throw createError('TICKET_EXPIRED', '授权已过期');
     }
-    if (doc.consumed) {
+    if (doc.consumed && consume) {
       throw createError('TICKET_CONSUMED', '授权已被使用');
     }
     const usageTimestamp = db.serverDate ? db.serverDate() : new Date();
-      await db
-        .collection(COLLECTIONS.GUILD_TICKETS)
-        .doc(docId)
-        .update({
-          data: {
-            consumed: true,
-            consumedAt: usageTimestamp,
-            lastUsedAt: usageTimestamp,
-            uses: command.inc(1)
-          }
-        })
-        /* istanbul ignore next */
-        .catch((error) => logger.warn('[guild] ticket update failed', error));
+    const updatePayload = {
+      lastUsedAt: usageTimestamp,
+      uses: command.inc(1)
+    };
+    if (consume && !doc.consumed) {
+      updatePayload.consumed = true;
+      updatePayload.consumedAt = usageTimestamp;
+    }
+    await db
+      .collection(COLLECTIONS.GUILD_TICKETS)
+      .doc(docId)
+      .update({
+        data: updatePayload
+      })
+      /* istanbul ignore next */
+      .catch((error) => logger.warn('[guild] ticket update failed', error));
     return true;
   }
 
@@ -958,6 +962,7 @@ function createGuildService(options = {}) {
   }
 
   function resolveAvatarFrameValue(...candidates) {
+    let fallback = '';
     for (let i = 0; i < candidates.length; i += 1) {
       const candidate = toTrimmedString(candidates[i]);
       if (!candidate) {
@@ -970,8 +975,11 @@ function createGuildService(options = {}) {
       if (looksLikeUrl(candidate)) {
         return candidate;
       }
+      if (!fallback) {
+        fallback = candidate;
+      }
     }
-    return '';
+    return fallback;
   }
 
   function normalizeTitleId(value) {
@@ -4059,7 +4067,9 @@ function createGuildService(options = {}) {
   }
 
   async function membersList(memberId, payload = {}) {
-    await enforceRateLimit(memberId, 'members.list');
+    if (!payload || !payload.cursor) {
+      await enforceRateLimit(memberId, 'members.list');
+    }
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
     const membership = await loadMemberGuild(memberId);
     if (!membership || !membership.guild) {
@@ -4162,7 +4172,7 @@ function createGuildService(options = {}) {
 
   async function bossStatus(memberId, payload = {}) {
     await enforceRateLimit(memberId, 'boss.status');
-    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    await verifyActionTicket(memberId, payload.ticket, payload.signature, { consume: false });
     const settings = await loadSettings();
     const bossSettings = resolveBossSettings(settings.boss || DEFAULT_GUILD_BOSS_SETTINGS);
     const membership = await loadMemberGuild(memberId);
@@ -4509,8 +4519,7 @@ function createGuildService(options = {}) {
   }
 
   async function bossRank(memberId, payload = {}) {
-    await enforceRateLimit(memberId, 'boss.rank');
-    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    await verifyActionTicket(memberId, payload.ticket, payload.signature, { consume: false });
     const settings = await loadSettings();
     const bossSettings = resolveBossSettings(settings.boss || DEFAULT_GUILD_BOSS_SETTINGS);
     const membership = await loadMemberGuild(memberId);

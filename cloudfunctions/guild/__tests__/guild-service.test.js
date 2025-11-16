@@ -81,6 +81,14 @@ function createMemoryDb() {
         }
         return createQuery(data, view.slice(0, bounded));
       },
+      orderBy(field, direction) {
+        const sorted = [...view].sort((a, b) => {
+          const left = Number(a[field]) || 0;
+          const right = Number(b[field]) || 0;
+          return direction === 'desc' ? right - left : left - right;
+        });
+        return createQuery(data, sorted);
+      },
       async get() {
         return { data: view.map(clone) };
       },
@@ -347,6 +355,22 @@ describe('GuildService', () => {
     ).resolves.toBe(true);
     await expect(
       service.verifyActionTicket('member-3', ticket.ticket, ticket.signature)
+    ).rejects.toHaveProperty('code', 'TICKET_CONSUMED');
+  });
+
+  test('action ticket can opt out of consumption for read-only calls', async () => {
+    const ticket = await service.issueActionTicket('member-read');
+    await expect(
+      service.verifyActionTicket('member-read', ticket.ticket, ticket.signature, { consume: false })
+    ).resolves.toBe(true);
+    await expect(
+      service.verifyActionTicket('member-read', ticket.ticket, ticket.signature, { consume: false })
+    ).resolves.toBe(true);
+    await expect(
+      service.verifyActionTicket('member-read', ticket.ticket, ticket.signature)
+    ).resolves.toBe(true);
+    await expect(
+      service.verifyActionTicket('member-read', ticket.ticket, ticket.signature)
     ).rejects.toHaveProperty('code', 'TICKET_CONSUMED');
   });
 
