@@ -833,42 +833,55 @@ function createGuildService(options = {}) {
     if (!members.length) {
       return { totalDelta: 0, updatedMembership: null, updatedGuildPower: currentGuildPower };
     }
+
     const nowDate = db.serverDate ? db.serverDate() : new Date();
     let totalDelta = 0;
     let updatedMembership = null;
+    let latestGuildPower = 0;
+    const changedMembers = [];
+
     for (let i = 0; i < members.length; i += 1) {
       const record = members[i];
       const storedPower = Number.isFinite(Number(record.power)) ? Math.max(0, Math.round(Number(record.power))) : 0;
       const latestPower = await resolveMemberPower(record.memberId, storedPower, appliedSettings);
-      if (latestPower === storedPower) {
-        if (!updatedMembership && currentMemberId && record.memberId === currentMemberId) {
-          updatedMembership = record;
-        }
-        // eslint-disable-next-line no-continue
-        continue;
+      latestGuildPower += latestPower;
+
+      if (latestPower !== storedPower) {
+        totalDelta += latestPower - storedPower;
+        changedMembers.push({ ...record, latestPower });
       }
-      const delta = latestPower - storedPower;
-      totalDelta += delta;
+
+      if (currentMemberId && record.memberId === currentMemberId) {
+        updatedMembership = { ...record, power: latestPower, updatedAt: nowDate };
+      }
+    }
+
+    for (let i = 0; i < changedMembers.length; i += 1) {
+      const record = changedMembers[i];
       await db
         .collection(COLLECTIONS.GUILD_MEMBERS)
         .doc(record._id || record.id)
         .update({
           data: {
-            power: latestPower,
+            power: record.latestPower,
             updatedAt: nowDate
           }
         });
-      if (currentMemberId && record.memberId === currentMemberId) {
-        updatedMembership = { ...record, power: latestPower, updatedAt: nowDate };
-      }
     }
-    if (totalDelta !== 0) {
+
+    const normalizedGuildPower = Math.max(0, Math.round(latestGuildPower));
+    const shouldUpdateGuildPower =
+      changedMembers.length > 0
+      || !Number.isFinite(Number(currentGuildPower))
+      || Math.max(0, Math.round(Number(currentGuildPower))) !== normalizedGuildPower;
+
+    if (shouldUpdateGuildPower) {
       await db
         .collection(COLLECTIONS.GUILDS)
         .doc(guildId)
         .update({
           data: {
-            power: command.inc(totalDelta),
+            power: normalizedGuildPower,
             updatedAt: nowDate
           }
         });
@@ -876,12 +889,10 @@ function createGuildService(options = {}) {
         logger.warn('[guild] refresh leaderboard after power sync failed', error);
       });
     }
-    const updatedGuildPower = Number.isFinite(Number(currentGuildPower))
-      ? Math.max(0, Math.round(Number(currentGuildPower + totalDelta)))
-      : null;
+
     return {
       totalDelta,
-      updatedGuildPower,
+      updatedGuildPower: normalizedGuildPower,
       updatedMembership
     };
   }

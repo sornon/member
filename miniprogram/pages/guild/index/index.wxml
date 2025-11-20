@@ -95,7 +95,6 @@
       <view class="card guild-leaderboard">
         <view class="section-header">
           <view class="section-header__title">宗门排行榜</view>
-          <button class="section-header__refresh" size="mini" bindtap="loadOverview">刷新</button>
         </view>
         <block wx:if="{{leaderboard.length === 0}}">
           <view class="empty">暂无排行数据</view>

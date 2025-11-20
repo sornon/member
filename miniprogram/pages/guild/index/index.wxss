@@ -259,21 +259,6 @@ button[size='mini'].btn {
   letter-spacing: 2rpx;
 }
 
-.section-header__refresh {
-  height: 56rpx;
-  line-height: 56rpx;
-  padding: 0 24rpx;
-  font-size: 24rpx;
-  border: none;
-  border-radius: 999rpx;
-  background: rgba(95, 123, 255, 0.2);
-  color: #bcd4ff;
-}
-
-.section-header__refresh::after {
-  display: none;
-}
-
 .empty {
   text-align: center;
   color: rgba(199, 209, 255, 0.7);
