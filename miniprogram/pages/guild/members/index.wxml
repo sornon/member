@@ -10,11 +10,10 @@
     <view wx:else class="guild-content">
       <view wx:if="{{guild}}" class="guild-section guild-summary">
         <view class="guild-section__title">{{guild.name || '未命名宗门'}}</view>
-        <view class="guild-summary__meta">
-          <text>成员 {{guild.memberCount || 0}}</text>
-          <text>战力 {{formatNumber(guild.power || 0)}}</text>
-          <text>活跃 {{formatNumber(guild.activityScore || 0)}}</text>
-        </view>
+          <view class="guild-summary__meta">
+            <text>成员 {{guild.memberCountText || guild.memberCount || 0}}</text>
+            <text>战力 {{guild.powerText || guild.power || 0}}</text>
+          </view>
         <view class="guild-summary__role">我的职位：{{membership ? resolveRoleLabel(membership.role) : '成员'}}</view>
       </view>
 
@@ -36,8 +35,8 @@
               </view>
               <view class="member-body">
                 <view class="member-name">{{item.displayName || item.name || item.memberName || '无名修士'}}</view>
-                <view class="member-meta">职位：{{item.roleLabel}} · 战力 {{formatNumber(item.powerScore || 0)}}</view>
-                <view class="member-meta">总贡献 {{formatNumber(item.contributionTotal || 0)}} · 本周 {{formatNumber(item.contributionWeek || 0)}}</view>
+                  <view class="member-meta">职位：{{item.roleLabel}} · 战力 {{item.powerText || item.powerScore || 0}}</view>
+                  <view class="member-meta">总贡献 {{formatNumber(item.contributionTotal || 0)}} · 本周 {{formatNumber(item.contributionWeek || 0)}}</view>
                 <view class="member-meta">加入：{{item.joinedAtText}} · 最近：{{item.lastActiveText}}</view>
               </view>
               <button

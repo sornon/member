@@ -255,7 +255,13 @@ function createGuildService(options = {}) {
       doc.attributes && doc.attributes.combatPower,
       doc.attributes && doc.attributes.powerScore,
       doc.profile && doc.profile.combatPower,
-      doc.profile && doc.profile.powerRating
+      doc.profile && doc.profile.powerRating,
+      doc.pveProfile && doc.pveProfile.combatPower,
+      doc.pveProfile && doc.pveProfile.powerScore,
+      doc.pveProfile && doc.pveProfile.attributeSummary && doc.pveProfile.attributeSummary.combatPower,
+      doc.pveProfile && doc.pveProfile.attributeSummary && doc.pveProfile.attributeSummary.powerScore,
+      doc.pveProfile && doc.pveProfile.attributes && doc.pveProfile.attributes.combatPower,
+      doc.pveProfile && doc.pveProfile.attributes && doc.pveProfile.attributes.powerScore
     ];
     return candidates.reduce((acc, value) => {
       const numeric = Number(value);
@@ -812,8 +818,82 @@ function createGuildService(options = {}) {
       });
     const guildDoc = guildSnapshot && guildSnapshot.data ? { ...guildSnapshot.data, _id: record.guildId } : { _id: record.guildId };
     return {
-      membership: record,
+      membership: { ...record, id: record._id || record.id },
       guild: decorateGuild(guildDoc)
+    };
+  }
+
+  async function syncGuildMemberPowers(guildId, { settings = null, currentMemberId = null, currentGuildPower = null } = {}) {
+    const appliedSettings = settings || (await loadSettings());
+    const snapshot = await db
+      .collection(COLLECTIONS.GUILD_MEMBERS)
+      .where({ guildId, status: 'active' })
+      .get();
+    const members = (snapshot && snapshot.data) || [];
+    if (!members.length) {
+      return { totalDelta: 0, updatedMembership: null, updatedGuildPower: currentGuildPower };
+    }
+
+    const nowDate = db.serverDate ? db.serverDate() : new Date();
+    let totalDelta = 0;
+    let updatedMembership = null;
+    let latestGuildPower = 0;
+    const changedMembers = [];
+
+    for (let i = 0; i < members.length; i += 1) {
+      const record = members[i];
+      const storedPower = Number.isFinite(Number(record.power)) ? Math.max(0, Math.round(Number(record.power))) : 0;
+      const latestPower = await resolveMemberPower(record.memberId, storedPower, appliedSettings);
+      latestGuildPower += latestPower;
+
+      if (latestPower !== storedPower) {
+        totalDelta += latestPower - storedPower;
+        changedMembers.push({ ...record, latestPower });
+      }
+
+      if (currentMemberId && record.memberId === currentMemberId) {
+        updatedMembership = { ...record, power: latestPower, updatedAt: nowDate };
+      }
+    }
+
+    for (let i = 0; i < changedMembers.length; i += 1) {
+      const record = changedMembers[i];
+      await db
+        .collection(COLLECTIONS.GUILD_MEMBERS)
+        .doc(record._id || record.id)
+        .update({
+          data: {
+            power: record.latestPower,
+            updatedAt: nowDate
+          }
+        });
+    }
+
+    const normalizedGuildPower = Math.max(0, Math.round(latestGuildPower));
+    const shouldUpdateGuildPower =
+      changedMembers.length > 0
+      || !Number.isFinite(Number(currentGuildPower))
+      || Math.max(0, Math.round(Number(currentGuildPower))) !== normalizedGuildPower;
+
+    if (shouldUpdateGuildPower) {
+      await db
+        .collection(COLLECTIONS.GUILDS)
+        .doc(guildId)
+        .update({
+          data: {
+            power: normalizedGuildPower,
+            updatedAt: nowDate
+          }
+        });
+      await refreshLeaderboardCache().catch((error) => {
+        logger.warn('[guild] refresh leaderboard after power sync failed', error);
+      });
+    }
+
+    return {
+      totalDelta,
+      updatedGuildPower: normalizedGuildPower,
+      updatedMembership
     };
   }
 
@@ -4598,15 +4678,32 @@ function createGuildService(options = {}) {
   }
 
   async function getOverview(memberId) {
-    const [settings, current, leaderboard, ticket] = await Promise.all([
-      loadSettings(),
-      loadMemberGuild(memberId),
-      loadLeaderboard(),
-      issueActionTicket(memberId)
-    ]);
+    const settingsPromise = loadSettings();
+    const leaderboardPromise = loadLeaderboard();
+    const ticketPromise = issueActionTicket(memberId);
+    const settings = await settingsPromise;
+    const membershipRecord = await loadMemberGuild(memberId);
+    let guild = membershipRecord ? membershipRecord.guild : null;
+    let membership = membershipRecord ? membershipRecord.membership : null;
+    if (guild) {
+      const syncResult = await syncGuildMemberPowers(guild.id, {
+        settings,
+        currentMemberId: memberId,
+        currentGuildPower: guild.power
+      });
+      if (syncResult) {
+        if (Number.isFinite(Number(syncResult.updatedGuildPower))) {
+          guild = { ...guild, power: syncResult.updatedGuildPower };
+        }
+        if (syncResult.updatedMembership) {
+          membership = syncResult.updatedMembership;
+        }
+      }
+    }
+    const [leaderboard, ticket] = await Promise.all([leaderboardPromise, ticketPromise]);
     return {
-      guild: current ? current.guild : null,
-      membership: current ? current.membership : null,
+      guild,
+      membership,
       leaderboard,
       actionTicket: ticket,
       settings
@@ -4638,7 +4735,7 @@ function createGuildService(options = {}) {
       icon,
       founderId: memberId,
       memberCount: 1,
-      power: 0,
+      power: memberPower,
       activityScore: 0,
       createdAt,
       schemaVersion: GUILD_SCHEMA_VERSION
@@ -4736,6 +4833,7 @@ function createGuildService(options = {}) {
       .update({
         data: {
           memberCount: command.inc(1),
+          power: command.inc(memberPower),
           updatedAt: nowDate
         }
       });
@@ -4771,6 +4869,7 @@ function createGuildService(options = {}) {
       .update({
         data: {
           memberCount: command.inc(-1),
+          power: command.inc(-Math.max(0, Math.round(Number(current.membership.power) || 0))),
           updatedAt: db.serverDate ? db.serverDate() : new Date()
         }
       });

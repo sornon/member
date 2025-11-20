@@ -71,9 +71,21 @@ function decorateMemberList(entries = []) {
       lastActiveText: formatDateTime(lastActive),
       contributionTotal: Number(entry.contributionTotal || entry.contribution || 0),
       contributionWeek: Number(entry.contributionWeek || entry.contributionWeekly || 0),
-      powerScore: Number(entry.power || entry.powerScore || 0)
+      powerScore: Number(entry.power || entry.powerScore || 0),
+      powerText: formatNumber(entry.power || entry.powerScore || 0)
     };
   });
+}
+
+function decorateGuild(guild) {
+  if (!guild || typeof guild !== 'object') {
+    return null;
+  }
+  return {
+    ...guild,
+    powerText: formatNumber(guild.power || guild.powerScore || 0),
+    memberCountText: formatNumber(guild.memberCount || 0)
+  };
 }
 
 Page({
@@ -113,7 +125,7 @@ Page({
       const ticket = resolveGuildActionTicket(result);
       this.setData({
         loading: false,
-        guild: result.guild || null,
+        guild: decorateGuild(result.guild),
         membership: result.membership || null,
         actionTicket: ticket,
         error: ''

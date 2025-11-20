@@ -12,6 +12,17 @@ function formatNumber(value) {
   return `${numeric}`;
 }
 
+function decorateGuild(guild) {
+  if (!guild || typeof guild !== 'object') {
+    return null;
+  }
+  return {
+    ...guild,
+    powerText: formatNumber(guild.power || guild.powerScore || 0),
+    memberCountText: formatNumber(guild.memberCount || 0)
+  };
+}
+
 Page({
   data: {
     guildId: '',
@@ -44,7 +55,7 @@ Page({
         this.setData({ loading: false, error: '宗门不存在或已解散' });
         return;
       }
-      this.setData({ loading: false, guild: target });
+      this.setData({ loading: false, guild: decorateGuild(target) });
     } catch (error) {
       console.error('[guild] load detail failed', error);
       this.setData({ loading: false, error: error.errMsg || '加载失败' });

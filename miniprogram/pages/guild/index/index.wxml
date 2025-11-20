@@ -23,9 +23,8 @@
             <view class="guild-card__title">{{guild.name || '未命名宗门'}}</view>
             <view class="guild-card__meta">职位：{{membershipRoleLabel}}</view>
             <view class="guild-card__stats">
-              <text>成员 {{guild.memberCount || 0}}</text>
-              <text>战力 {{formatNumber(guild.power || 0)}}</text>
-              <text>活跃 {{formatNumber(guild.activityScore || 0)}}</text>
+              <text>成员 {{guild.memberCountText || guild.memberCount || 0}}</text>
+              <text>战力 {{guild.powerText || guild.power || 0}}</text>
             </view>
           </view>
           <view class="guild-card__actions">
@@ -96,7 +95,6 @@
       <view class="card guild-leaderboard">
         <view class="section-header">
           <view class="section-header__title">宗门排行榜</view>
-          <button class="section-header__refresh" size="mini" bindtap="loadOverview">刷新</button>
         </view>
         <block wx:if="{{leaderboard.length === 0}}">
           <view class="empty">暂无排行数据</view>
@@ -122,7 +120,7 @@
               </view>
               <view class="leaderboard-body">
                 <view class="leaderboard-name">{{item.name}}</view>
-                <view class="leaderboard-meta">成员 {{item.memberCount || 0}} · 战力 {{formatNumber(item.power || 0)}} · 活跃 {{formatNumber(item.activityScore || 0)}}</view>
+                <view class="leaderboard-meta">成员 {{item.memberCountText || item.memberCount || 0}} · 战力 {{item.powerText || item.power || 0}}</view>
                 <view wx:if="{{item.titleImage || item.titleName}}" class="leaderboard-title">
                   <image
                     wx:if="{{item.titleImage}}"
