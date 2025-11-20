@@ -1414,14 +1414,7 @@ function createGuildService(options = {}) {
       const activityScore = extractGuildActivityValue(guildDoc);
       const contribution = contributionTotals.get(guildId) || 0;
       const bossInfo = entry.bossInfo || bossTotals.get(guildId) || { totalDamage: 0, bossId: '' };
-      const avatarUrl =
-        pickPortraitUrl(
-          leaderRecord && leaderRecord.avatarUrl,
-          memberDoc && memberDoc.avatarUrl,
-          memberDoc && memberDoc.portrait,
-          extrasDoc && extrasDoc.avatarUrl,
-          extrasDoc && extrasDoc.portrait
-        ) || '';
+      const avatarUrl = toTrimmedString(guildDoc.icon) || '';
       const avatarFrame =
         resolveAvatarFrameValue(
           leaderRecord && leaderRecord.avatarFrame,
