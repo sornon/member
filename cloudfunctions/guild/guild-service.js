@@ -2457,6 +2457,37 @@ function createGuildService(options = {}) {
     return entries.slice(0, limit);
   }
 
+  function resolveBossMemberName(memberId, { memberMap, extrasMap }) {
+    const memberDoc = memberId ? memberMap.get(memberId) || null : null;
+    const extrasDoc = memberId ? extrasMap.get(memberId) || null : null;
+    const candidates = [
+      memberDoc && memberDoc.displayName,
+      memberDoc && memberDoc.nickName,
+      memberDoc && memberDoc.nickname,
+      memberDoc && memberDoc.name,
+      extrasDoc && extrasDoc.displayName,
+      extrasDoc && extrasDoc.nickName,
+      extrasDoc && extrasDoc.nickname,
+      extrasDoc && extrasDoc.name
+    ];
+    return candidates.map(toTrimmedString).find(Boolean) || memberId || '未知成员';
+  }
+
+  function decorateBossLeaderboardEntries(entries = [], options = {}) {
+    const { memberMap = new Map(), extrasMap = new Map() } = options;
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return entries || [];
+    }
+    return entries.map((entry) => {
+      const memberName = resolveBossMemberName(entry && entry.memberId, { memberMap, extrasMap });
+      return {
+        ...entry,
+        memberName,
+        name: entry && entry.name ? entry.name : memberName
+      };
+    });
+  }
+
   function buildBossStatusPayload({ state, definition, settings, memberId, now }) {
     const hpMax = Math.max(1, state.hpMax || definition.hp);
     const hpLeft = Math.max(0, Math.min(hpMax, state.hpLeft));
@@ -4618,16 +4649,25 @@ function createGuildService(options = {}) {
     const definition = normalizeBossDefinition(baseDefinition);
     const { state } = await ensureBossState(membership.guild.id, definition);
     const leaderboard = buildBossLeaderboard(state.damageByMember, BOSS_RANK_LIMIT);
-    const selfDamage = leaderboard.find((entry) => entry.memberId === memberId) || {
+    const memberIds = leaderboard.map((entry) => entry.memberId).filter(Boolean);
+    const [memberMap, extrasMap] = memberIds.length
+      ? await Promise.all([
+          loadDocumentsByIds(COLLECTIONS.MEMBERS, memberIds),
+          loadDocumentsByIds(COLLECTIONS.MEMBER_EXTRAS, memberIds)
+        ])
+      : [new Map(), new Map()];
+    const decoratedLeaderboard = decorateBossLeaderboardEntries(leaderboard, { memberMap, extrasMap });
+    const selfDamageBase = decoratedLeaderboard.find((entry) => entry.memberId === memberId) || {
       memberId,
       damage: Math.max(0, Math.round(Number(state.damageByMember[memberId]) || 0))
     };
+    const selfDamage = decorateBossLeaderboardEntries([selfDamageBase], { memberMap, extrasMap })[0] || selfDamageBase;
     return wrapActionResponse(
       'boss.rank',
       {
         bossId: definition.id,
         bossName: definition.name,
-        leaderboard,
+        leaderboard: decoratedLeaderboard,
         self: selfDamage,
         schemaVersion: BOSS_SCHEMA_VERSION,
         updatedAt: new Date().toISOString()
