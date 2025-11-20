@@ -818,8 +818,48 @@ function createGuildService(options = {}) {
       });
     const guildDoc = guildSnapshot && guildSnapshot.data ? { ...guildSnapshot.data, _id: record.guildId } : { _id: record.guildId };
     return {
-      membership: record,
+      membership: { ...record, id: record._id || record.id },
       guild: decorateGuild(guildDoc)
+    };
+  }
+
+  async function syncMemberPower(memberId, { settings = null } = {}) {
+    const membershipRecord = await loadMemberGuild(memberId);
+    if (!membershipRecord || !membershipRecord.guild || !membershipRecord.membership) {
+      return membershipRecord;
+    }
+    const storedPower = Number.isFinite(Number(membershipRecord.membership.power))
+      ? Math.max(0, Math.round(Number(membershipRecord.membership.power)))
+      : 0;
+    const appliedSettings = settings || (await loadSettings());
+    const latestPower = await resolveMemberPower(memberId, storedPower, appliedSettings);
+    if (latestPower === storedPower) {
+      return membershipRecord;
+    }
+    const nowDate = db.serverDate ? db.serverDate() : new Date();
+    const delta = latestPower - storedPower;
+    const memberCollection = db.collection(COLLECTIONS.GUILD_MEMBERS);
+    await memberCollection.doc(membershipRecord.membership._id || membershipRecord.membership.id).update({
+      data: {
+        power: latestPower,
+        updatedAt: nowDate
+      }
+    });
+    await db
+      .collection(COLLECTIONS.GUILDS)
+      .doc(membershipRecord.guild.id)
+      .update({
+        data: {
+          power: command.inc(delta),
+          updatedAt: nowDate
+        }
+      });
+    await refreshLeaderboardCache().catch((error) => {
+      logger.warn('[guild] refresh leaderboard after power sync failed', error);
+    });
+    return {
+      membership: { ...membershipRecord.membership, power: latestPower, updatedAt: nowDate },
+      guild: { ...membershipRecord.guild, power: (membershipRecord.guild.power || 0) + delta, updatedAt: nowDate }
     };
   }
 
@@ -4604,12 +4644,12 @@ function createGuildService(options = {}) {
   }
 
   async function getOverview(memberId) {
-    const [settings, current, leaderboard, ticket] = await Promise.all([
-      loadSettings(),
-      loadMemberGuild(memberId),
-      loadLeaderboard(),
-      issueActionTicket(memberId)
-    ]);
+    const settingsPromise = loadSettings();
+    const leaderboardPromise = loadLeaderboard();
+    const ticketPromise = issueActionTicket(memberId);
+    const settings = await settingsPromise;
+    const current = await syncMemberPower(memberId, { settings });
+    const [leaderboard, ticket] = await Promise.all([leaderboardPromise, ticketPromise]);
     return {
       guild: current ? current.guild : null,
       membership: current ? current.membership : null,
