@@ -170,6 +170,28 @@ async function seedSampleData(db, logger) {
   const now = new Date();
 
   const guildsCollection = db.collection(COLLECTIONS.GUILDS);
+
+  const existingGuildsSnapshot = await guildsCollection
+    .limit(1)
+    .get()
+    .catch((error) => {
+      if (error && /not exist|not found/i.test(error.errMsg || '')) {
+        return { data: [] };
+      }
+      throw error;
+    });
+
+  const hasExistingGuilds = Array.isArray(existingGuildsSnapshot.data)
+    ? existingGuildsSnapshot.data.length > 0
+    : typeof existingGuildsSnapshot.total === 'number'
+    ? existingGuildsSnapshot.total > 0
+    : false;
+
+  if (hasExistingGuilds) {
+    logger.info('[guild-init] existing guild detected, skip seeding sample data');
+    return;
+  }
+
   const guildCreated = await ensureDocument(
     guildsCollection,
     COLLECTIONS.GUILDS,
