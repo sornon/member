@@ -375,7 +375,7 @@
 | 新建宗门后成员战力与宗门战力都为 0 | `guildMembers` 写入战力时仅读取顶层 `combatPower`/`power` 字段，未兼容 `pveProfile.attributeSummary.combatPower` 等路径 | 升级 `guild-service`，在 `extractMemberPowerFromDoc` 中补充 `pveProfile` 下的战力候选字段后重新创建或更新成员战力。|
 | `guildMembers` 已有战力但 `guilds`/`guildLeaderboard` 战力始终为 0 | 建帮/入帮/退帮流程未同步累加宗门战力，`guilds.power` 仍保持初始值 | 升级 `guild-service`：创建宗门时写入创始人战力，入帮时累加成员战力，退帮时扣减成员战力，并刷新排行榜；历史数据可按 `guildMembers` 的 `power` 汇总回填到 `guilds.power` 后再强制刷新排行榜。|
 | 接口返回战力正常，但小程序页面战力展示为空 | 前端模板直接调用格式化函数，未对 `guild.power`/`leaderboard.power` 预处理，首屏渲染时表达式求值为空字符串 | 升级小程序前端：在 `guild/index`、`guild/members`、`guild/detail` 页面为宗门与成员列表预先计算 `powerText`/`memberCountText`，模板直接使用文本字段即可正常展示；活跃度仅保留在数据库侧，不再前端展示。|
-| 成员战力提升后宗门战力仍未更新 | 仅在建帮/入帮/退帮时变更 `guilds.power`，后续成员战力调整未做增量同步 | 升级 `guild-service`：在获取宗门概览时通过 `syncMemberPower` 对比成员当前战力与存档差值，自动更新 `guildMembers` 与 `guilds.power` 并刷新排行榜缓存；历史数据可手动按成员战力汇总回填后再调用接口触发同步。|
+| 成员战力提升后宗门战力仍未更新 | 仅在建帮/入帮/退帮时变更 `guilds.power`，后续成员战力调整未做增量同步，且旧版只同步当前调用者 | 升级 `guild-service`：在获取宗门概览时对全体在帮成员执行战力巡检，批量回填 `guildMembers.power`、累加 `guilds.power` 并刷新排行榜缓存；历史数据可手动按成员战力汇总回填后再调用接口触发同步。|
 | Boss 挑战返回 `rate_limit_exceeded` | 成员挑战频率过高 | 检查 `guildRateLimits` 文档并调整限流策略或冷却时间。|
 | 排行榜数据未更新 | 缓存 TTL 未到或刷新失败回退 | 使用 `forceRefresh: true` 再次请求，或查看 `errorlogs` 中的刷新异常。|
 | 宗门任务进度停滞 | 定时任务未触发 | 确认 `guild` 云函数中的 `cron` 触发器是否部署，并检查 `guildCache` 是否存量数据过期。|
