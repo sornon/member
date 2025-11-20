@@ -32,7 +32,7 @@ function resolveRoleLabel(role) {
 }
 
 function formatNumber(value) {
-  const numeric = Number(value);
+  const numeric = Number(value || 0);
   if (!Number.isFinite(numeric)) {
     return '0';
   }
@@ -40,6 +40,27 @@ function formatNumber(value) {
     return `${(numeric / 10000).toFixed(1)}万`;
   }
   return `${numeric}`;
+}
+
+function decorateGuild(guild) {
+  if (!guild || typeof guild !== 'object') {
+    return null;
+  }
+  return {
+    ...guild,
+    powerText: formatNumber(guild.power || guild.powerScore || 0),
+    activityScoreText: formatNumber(guild.activityScore || guild.activity || 0),
+    memberCountText: formatNumber(guild.memberCount || 0)
+  };
+}
+
+function decorateLeaderboard(leaderboard = []) {
+  return decorateGuildLeaderboardEntries(leaderboard || []).map((entry) => ({
+    ...entry,
+    powerText: formatNumber(entry.power || entry.metricValue || 0),
+    activityScoreText: formatNumber(entry.activityScore || entry.activity || 0),
+    memberCountText: formatNumber(entry.memberCount || 0)
+  }));
 }
 
 function pickDonationAmount() {
@@ -96,11 +117,11 @@ Page({
     try {
       const result = await GuildService.getOverview();
       const ticket = resolveGuildActionTicket(result);
-      const leaderboard = decorateGuildLeaderboardEntries(result.leaderboard || []);
+      const leaderboard = decorateLeaderboard(result.leaderboard || []);
       const membership = result.membership || null;
       this.setData({
         loading: false,
-        guild: result.guild || null,
+        guild: decorateGuild(result.guild),
         membership,
         membershipRoleLabel: membership ? resolveRoleLabel(membership.role) : '成员',
         leaderboard,
