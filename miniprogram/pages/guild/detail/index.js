@@ -19,7 +19,6 @@ function decorateGuild(guild) {
   return {
     ...guild,
     powerText: formatNumber(guild.power || guild.powerScore || 0),
-    activityScoreText: formatNumber(guild.activityScore || guild.activity || 0),
     memberCountText: formatNumber(guild.memberCount || 0)
   };
 }

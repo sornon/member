@@ -49,7 +49,6 @@ function decorateGuild(guild) {
   return {
     ...guild,
     powerText: formatNumber(guild.power || guild.powerScore || 0),
-    activityScoreText: formatNumber(guild.activityScore || guild.activity || 0),
     memberCountText: formatNumber(guild.memberCount || 0)
   };
 }
@@ -58,7 +57,6 @@ function decorateLeaderboard(leaderboard = []) {
   return decorateGuildLeaderboardEntries(leaderboard || []).map((entry) => ({
     ...entry,
     powerText: formatNumber(entry.power || entry.metricValue || 0),
-    activityScoreText: formatNumber(entry.activityScore || entry.activity || 0),
     memberCountText: formatNumber(entry.memberCount || 0)
   }));
 }

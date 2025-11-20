@@ -13,7 +13,6 @@
           <view class="guild-summary__meta">
             <text>成员 {{guild.memberCountText || guild.memberCount || 0}}</text>
             <text>战力 {{guild.powerText || guild.power || 0}}</text>
-            <text>活跃 {{guild.activityScoreText || guild.activityScore || 0}}</text>
           </view>
         <view class="guild-summary__role">我的职位：{{membership ? resolveRoleLabel(membership.role) : '成员'}}</view>
       </view>
