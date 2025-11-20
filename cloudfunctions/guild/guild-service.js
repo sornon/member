@@ -4644,7 +4644,7 @@ function createGuildService(options = {}) {
       icon,
       founderId: memberId,
       memberCount: 1,
-      power: 0,
+      power: memberPower,
       activityScore: 0,
       createdAt,
       schemaVersion: GUILD_SCHEMA_VERSION
@@ -4742,6 +4742,7 @@ function createGuildService(options = {}) {
       .update({
         data: {
           memberCount: command.inc(1),
+          power: command.inc(memberPower),
           updatedAt: nowDate
         }
       });
@@ -4777,6 +4778,7 @@ function createGuildService(options = {}) {
       .update({
         data: {
           memberCount: command.inc(-1),
+          power: command.inc(-Math.max(0, Math.round(Number(current.membership.power) || 0))),
           updatedAt: db.serverDate ? db.serverDate() : new Date()
         }
       });
