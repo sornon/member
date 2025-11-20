@@ -23,6 +23,18 @@ function formatCooldown(ms) {
   return `${String(minutes).padStart(2, '0')}:${String(remainSeconds).padStart(2, '0')}`;
 }
 
+function formatBossStatus(status) {
+  const normalized = typeof status === 'string' ? status.trim().toLowerCase() : '';
+  switch (normalized) {
+    case 'open':
+      return '进行中';
+    case 'ended':
+      return '已结束';
+    default:
+      return '未知';
+  }
+}
+
 function decorateBossStatus(payload = {}) {
   const boss = payload && payload.boss ? payload.boss : {};
   const hp = boss.hp || {};
@@ -33,6 +45,7 @@ function decorateBossStatus(payload = {}) {
   const cooldownRemaining = Number(attempts.cooldownRemaining || 0);
   return {
     ...boss,
+    statusText: formatBossStatus(boss.status),
     hp: {
       ...hp,
       max,
