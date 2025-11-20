@@ -255,7 +255,13 @@ function createGuildService(options = {}) {
       doc.attributes && doc.attributes.combatPower,
       doc.attributes && doc.attributes.powerScore,
       doc.profile && doc.profile.combatPower,
-      doc.profile && doc.profile.powerRating
+      doc.profile && doc.profile.powerRating,
+      doc.pveProfile && doc.pveProfile.combatPower,
+      doc.pveProfile && doc.pveProfile.powerScore,
+      doc.pveProfile && doc.pveProfile.attributeSummary && doc.pveProfile.attributeSummary.combatPower,
+      doc.pveProfile && doc.pveProfile.attributeSummary && doc.pveProfile.attributeSummary.powerScore,
+      doc.pveProfile && doc.pveProfile.attributes && doc.pveProfile.attributes.combatPower,
+      doc.pveProfile && doc.pveProfile.attributes && doc.pveProfile.attributes.powerScore
     ];
     return candidates.reduce((acc, value) => {
       const numeric = Number(value);
