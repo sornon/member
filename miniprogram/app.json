@@ -24,6 +24,7 @@
     "pages/guild/tasks/index",
     "pages/guild/boss/index",
     "pages/guild/logs/index",
+    "pages/guild/attributes/index",
     "pages/guild/create/index",
     "pages/guild/detail/index",
     "pages/guild/team/index",

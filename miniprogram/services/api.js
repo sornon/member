@@ -402,6 +402,42 @@ export const GuildService = {
     }
     return callCloud(CLOUD_FUNCTIONS.GUILD, request);
   },
+  async getGuildAttributes(payload = {}) {
+    const request = attachClientEnv({ action: 'attributes.overview' });
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
+  async upgradeGuildAttributeCap(payload = {}) {
+    const request = attachClientEnv({
+      action: 'attributes.upgradeCap',
+      key: typeof payload.key === 'string' ? payload.key : payload.stat || payload.attribute
+    });
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
+  async upgradeMemberGuildAttribute(payload = {}) {
+    const request = attachClientEnv({
+      action: 'attributes.upgradeLevel',
+      key: typeof payload.key === 'string' ? payload.key : payload.stat || payload.attribute
+    });
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
   async listTasks(payload = {}) {
     const request = attachClientEnv({ action: 'tasks.list' });
     if (payload && payload.filters) {
