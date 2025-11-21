@@ -4915,6 +4915,10 @@ function createGuildService(options = {}) {
   async function initiateTeamBattle(memberId, payload = {}) {
     await enforceRateLimit(memberId, 'initiateTeamBattle');
     await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    const settings = await loadSettings();
+    if (!settings || !settings.teamBattle || settings.teamBattle.enabled === false) {
+      throw createError('TEAM_BATTLE_DISABLED', '团队讨伐功能暂未开放');
+    }
     const current = await loadMemberGuild(memberId);
     if (!current || !current.guild) {
       throw createError('NOT_IN_GUILD', '请先加入宗门');

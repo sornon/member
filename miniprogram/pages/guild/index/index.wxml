@@ -31,6 +31,7 @@
             <button
               class="btn btn--primary"
               size="mini"
+              disabled="{{!teamBattleEnabled}}"
               bindtap="handleTeamBattle"
             >团队讨伐</button>
             <button
