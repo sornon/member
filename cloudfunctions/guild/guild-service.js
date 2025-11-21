@@ -4587,10 +4587,17 @@ function createGuildService(options = {}) {
           transaction.collection(COLLECTIONS.GUILDS).doc(guildId).get().catch(() => null),
           transaction.collection(COLLECTIONS.GUILD_MEMBERS).doc(memberDocId).get().catch(() => null)
         ]);
-        const guildDoc = guildSnapshot && guildSnapshot.data ? guildSnapshot.data : {};
+        let guildDoc = guildSnapshot && guildSnapshot.data ? guildSnapshot.data : {};
         const memberDoc = memberSnapshot && memberSnapshot.data ? memberSnapshot.data : {};
-        const caps = resolveGuildAttributeCaps(guildDoc);
-        const cap = caps[targetKey] || 0;
+        let caps = resolveGuildAttributeCaps(guildDoc);
+        let cap = caps[targetKey] || 0;
+        if (cap <= 0) {
+          const liveSnapshot = await db.collection(COLLECTIONS.GUILDS).doc(guildId).get().catch(() => null);
+          const liveDoc = liveSnapshot && liveSnapshot.data ? liveSnapshot.data : guildDoc;
+          caps = resolveGuildAttributeCaps(liveDoc);
+          cap = caps[targetKey] || 0;
+          guildDoc = liveDoc;
+        }
         if (cap <= 0) {
           throw createError('ATTRIBUTE_LOCKED', '宗主尚未解锁该属性上限');
         }
@@ -4627,10 +4634,17 @@ function createGuildService(options = {}) {
         db.collection(COLLECTIONS.GUILDS).doc(guildId).get().catch(() => null),
         db.collection(COLLECTIONS.GUILD_MEMBERS).doc(memberDocId).get().catch(() => null)
       ]);
-      const guildDoc = guildSnapshot && guildSnapshot.data ? guildSnapshot.data : {};
+      let guildDoc = guildSnapshot && guildSnapshot.data ? guildSnapshot.data : {};
       const memberDoc = memberSnapshot && memberSnapshot.data ? memberSnapshot.data : {};
-      const caps = resolveGuildAttributeCaps(guildDoc);
-      const cap = caps[targetKey] || 0;
+      let caps = resolveGuildAttributeCaps(guildDoc);
+      let cap = caps[targetKey] || 0;
+      if (cap <= 0) {
+        const liveSnapshot = await db.collection(COLLECTIONS.GUILDS).doc(guildId).get().catch(() => null);
+        const liveDoc = liveSnapshot && liveSnapshot.data ? liveSnapshot.data : guildDoc;
+        caps = resolveGuildAttributeCaps(liveDoc);
+        cap = caps[targetKey] || 0;
+        guildDoc = liveDoc;
+      }
       if (cap <= 0) {
         throw createError('ATTRIBUTE_LOCKED', '宗主尚未解锁该属性上限');
       }
