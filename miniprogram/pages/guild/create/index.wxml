@@ -15,6 +15,7 @@
           <text class="label">徽章链接（可选）</text>
           <input class="input" placeholder="请输入图片链接" value="{{icon}}" bindinput="handleIconInput" />
         </view>
+        <view class="form-hint">创建宗门需消耗 100000 灵石，宗主将立即获得 500 点宗门贡献。</view>
         <button class="btn btn--primary" loading="{{submitting}}" bindtap="handleSubmit">创建宗门</button>
       </view>
     </view>
