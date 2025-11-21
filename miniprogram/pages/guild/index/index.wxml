@@ -98,6 +98,15 @@
             <text class="shortcut__icon">📜</text>
             <text class="shortcut__label">宗门日志</text>
           </view>
+          <view
+            class="shortcut"
+            bindtap="handleNavigate"
+            data-url="/pages/guild/attributes/index"
+            data-require-guild="true"
+          >
+            <text class="shortcut__icon">✨</text>
+            <text class="shortcut__label">宗门属性</text>
+          </view>
         </view>
       </view>
 

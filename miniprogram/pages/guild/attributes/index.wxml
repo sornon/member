@@ -1,0 +1,78 @@
+<custom-nav title="宗门属性" theme="dark"></custom-nav>
+<view class="guild-page guild-attributes">
+  <scroll-view scroll-y class="guild-scroll" enable-flex="true">
+    <block wx:if="{{loading}}">
+      <view class="state state--loading">宗门属性加载中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="state state--error">{{error}}</view>
+    </block>
+    <view wx:else class="guild-content">
+      <view class="card summary-card" wx:if="{{attributes}}">
+        <view class="summary-header">
+          <view class="summary-title">{{guild.name || '未命名宗门'}}</view>
+          <view class="summary-role">我的职位：{{membership ? resolveRoleLabel(membership.role) : '成员'}}</view>
+        </view>
+        <view class="summary-metrics">
+          <view class="metric">
+            <text class="metric__label">可用上限点</text>
+            <text class="metric__value">{{attributes.points.remainingText || '0'}}</text>
+          </view>
+          <view class="metric">
+            <text class="metric__label">个人贡献可用</text>
+            <text class="metric__value">{{attributes.contribution.remainingText || '0'}}</text>
+          </view>
+          <view class="metric">
+            <text class="metric__label">累计上限</text>
+            <text class="metric__value">{{attributes.points.spent || 0}} / {{attributes.points.earned || 0}}</text>
+          </view>
+        </view>
+        <view class="progress-row">
+          <text>距下一个上限点还需 {{formatNumber(attributes.points.remainingToNext || attributes.contributionPerPoint || 0)}} 贡献</text>
+        </view>
+      </view>
+
+      <view class="card attribute-card" wx:for="{{(attributes && attributes.catalog) || []}}" wx:key="key">
+        <view class="attribute-header">
+          <view class="attribute-title">{{item.name}}</view>
+          <view class="attribute-sub">{{item.description || '暂无描述'}}</view>
+        </view>
+        <view class="attribute-meta">
+          <text>上限 {{item.cap}} / {{attributes.maxLevel}}</text>
+          <text>我的等级 {{item.level}}</text>
+        </view>
+        <view class="attribute-progress">
+          <view class="attribute-progress__bar">
+            <view
+              class="attribute-progress__fill"
+              style="width: {{item.progress}}%;"
+            ></view>
+          </view>
+          <view class="attribute-progress__text">每级 {{item.perLevelText}}</view>
+        </view>
+        <view class="attribute-actions">
+          <button
+            wx:if="{{membership && membership.role === 'leader'}}"
+            class="btn btn--ghost"
+            size="mini"
+            data-key="{{item.key}}"
+            loading="{{upgradingCap && upgradingKey === item.key}}"
+            disabled="{{!attributes.points || attributes.points.available <= 0 || item.cap >= attributes.maxLevel || upgradingCap}}"
+            bindtap="handleUpgradeCap"
+          >提升上限</button>
+          <view class="attribute-cost">消耗贡献 {{item.nextCost || 0}}</view>
+          <button
+            class="btn btn--primary"
+            size="mini"
+            data-key="{{item.key}}"
+            loading="{{upgradingKey === item.key}}"
+            disabled="{{item.level >= item.cap || (attributes.contribution && attributes.contribution.available < item.nextCost) || upgradingKey === item.key}}"
+            bindtap="handleUpgradeLevel"
+          >升级</button>
+        </view>
+      </view>
+
+      <view wx:if="{{attributes && attributes.catalog && attributes.catalog.length === 0}}" class="empty">暂无可用宗门属性</view>
+    </view>
+  </scroll-view>
+</view>

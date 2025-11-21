@@ -9,6 +9,7 @@ const {
   DEFAULT_COMBAT_STATS,
   DEFAULT_SPECIAL_STATS
 } = require('combat-system');
+const { COMBAT_STAT_KEYS } = require('skill-model');
 const { createBattlePayload, decorateBattleReplay } = require('battle-schema');
 const {
   normalizeGuildSettings,
@@ -57,6 +58,75 @@ const GUILD_LEVELS = Object.freeze([
   { level: 4, requiredContribution: 50000, capacity: 30 },
   { level: 5, requiredContribution: 500000, capacity: 50 }
 ]);
+const GUILD_ATTRIBUTE_CONTRIBUTION_STEP = 1000;
+const GUILD_ATTRIBUTE_MAX_LEVEL = 10;
+const GUILD_ATTRIBUTE_MEMBER_COST_BASE = 120;
+const GUILD_ATTRIBUTE_MEMBER_COST_STEP = 40;
+const DEFAULT_GUILD_ATTRIBUTE_RATIO = 0.01;
+const GUILD_ATTRIBUTE_LABELS = Object.freeze({
+  maxHp: { name: '生命上限', description: '提高角色最大生命值' },
+  physicalAttack: { name: '物理攻击', description: '提升武修与近战技能的伤害' },
+  magicAttack: { name: '法术攻击', description: '提升法修与术法技能的伤害' },
+  physicalDefense: { name: '物理防御', description: '降低受到的物理伤害' },
+  magicDefense: { name: '法术防御', description: '降低受到的法术伤害' },
+  speed: { name: '速度', description: '提升出手顺序与回合行动优势' },
+  accuracy: { name: '命中', description: '提升命中率，克制高闪避敌人' },
+  dodge: { name: '闪避', description: '有几率完全闪避伤害' },
+  critRate: { name: '暴击率', description: '提升暴击触发概率' },
+  critDamage: { name: '暴击伤害', description: '提升暴击时的额外伤害' },
+  finalDamageBonus: { name: '终伤加成', description: '提高最终伤害倍率' },
+  finalDamageReduction: { name: '终伤减免', description: '降低最终受到的伤害' },
+  lifeSteal: { name: '吸血', description: '造成伤害时回复生命' },
+  healingBonus: { name: '治疗加成', description: '提升治疗效果' },
+  healingReduction: { name: '重伤', description: '降低敌方受到的治疗' },
+  controlHit: { name: '控场命中', description: '提高眩晕、冻结等控场命中率' },
+  controlResist: { name: '控场抗性', description: '降低被控概率' },
+  physicalPenetration: { name: '破甲', description: '无视部分物理防御' },
+  magicPenetration: { name: '法穿', description: '无视部分法术防御' },
+  critResist: { name: '暴击抗性', description: '降低被暴击概率' },
+  comboRate: { name: '连击率', description: '提升多段攻击的触发' },
+  block: { name: '格挡', description: '减少受到的伤害' },
+  counterRate: { name: '反击', description: '受到攻击时反击敌人' },
+  damageReduction: { name: '减伤', description: '直接降低伤害' },
+  healingReceived: { name: '受疗加成', description: '提升自身受到的治疗量' },
+  rageGain: { name: '怒气获取', description: '增加怒气累积速度' },
+  controlStrength: { name: '控场强度', description: '延长或强化控场效果' },
+  shieldPower: { name: '护盾强度', description: '提升护盾数值与吸收率' },
+  summonPower: { name: '召唤强度', description: '增强召唤物能力' },
+  elementalVulnerability: { name: '元素易伤', description: '降低自身元素易伤系数' }
+});
+const GUILD_ATTRIBUTE_GROWTH_CONFIG = Object.freeze({
+  maxHp: { ratio: 0.02 },
+  physicalAttack: { ratio: 0.018 },
+  magicAttack: { ratio: 0.018 },
+  physicalDefense: { ratio: 0.015 },
+  magicDefense: { ratio: 0.015 },
+  speed: { ratio: 0.008 },
+  accuracy: { ratio: 0.01 },
+  dodge: { ratio: 0.01 },
+  critRate: { absolute: 0.01 },
+  critDamage: { absolute: 0.04 },
+  finalDamageBonus: { absolute: 0.01 },
+  finalDamageReduction: { absolute: 0.01 },
+  lifeSteal: { absolute: 0.01 },
+  healingBonus: { absolute: 0.01 },
+  healingReduction: { absolute: 0.01 },
+  controlHit: { ratio: 0.012 },
+  controlResist: { ratio: 0.012 },
+  physicalPenetration: { ratio: 0.012 },
+  magicPenetration: { ratio: 0.012 },
+  critResist: { absolute: 0.01 },
+  comboRate: { absolute: 0.008 },
+  block: { absolute: 0.008 },
+  counterRate: { absolute: 0.006 },
+  damageReduction: { absolute: 0.01 },
+  healingReceived: { absolute: 0.01 },
+  rageGain: { absolute: 0.01 },
+  controlStrength: { absolute: 0.008 },
+  shieldPower: { absolute: 0.01 },
+  summonPower: { absolute: 0.01 },
+  elementalVulnerability: { absolute: -0.01 }
+});
 function createGuildService(options = {}) {
   const db = options.db;
   const command = options.command;
@@ -286,6 +356,156 @@ function createGuildService(options = {}) {
       capacity,
       contributionTotal: total,
       requiredContribution: matched ? matched.requiredContribution : 0
+    };
+  }
+
+  function resolveGuildAttributeCaps(doc = {}) {
+    const source = doc.guildAttributes && typeof doc.guildAttributes.caps === 'object' ? doc.guildAttributes.caps : {};
+    const caps = {};
+    COMBAT_STAT_KEYS.forEach((key) => {
+      const numeric = Number(source[key]);
+      caps[key] = Number.isFinite(numeric)
+        ? Math.max(0, Math.min(GUILD_ATTRIBUTE_MAX_LEVEL, Math.round(numeric)))
+        : 0;
+    });
+    return caps;
+  }
+
+  function resolveGuildAttributeLevels(doc = {}) {
+    const source = doc.guildAttributes && typeof doc.guildAttributes.levels === 'object' ? doc.guildAttributes.levels : {};
+    const levels = {};
+    COMBAT_STAT_KEYS.forEach((key) => {
+      const numeric = Number(source[key]);
+      levels[key] = Number.isFinite(numeric) ? Math.max(0, Math.round(numeric)) : 0;
+    });
+    return levels;
+  }
+
+  function resolveMemberContributionBalance(doc = {}) {
+    const total = extractMemberContribution(doc);
+    const spentRaw = doc.guildAttributes && doc.guildAttributes.spentContribution;
+    const spent = Number.isFinite(Number(spentRaw)) ? Math.max(0, Math.round(Number(spentRaw))) : 0;
+    return {
+      total,
+      spent,
+      available: Math.max(0, total - spent)
+    };
+  }
+
+  function sumGuildAttributeCaps(caps = {}) {
+    return COMBAT_STAT_KEYS.reduce((acc, key) => acc + (Number(caps[key]) || 0), 0);
+  }
+
+  function resolveGuildAttributePoints(doc = {}, caps = null) {
+    const contributionTotal = resolveGuildContributionValue(doc);
+    const capsMap = caps || resolveGuildAttributeCaps(doc);
+    const spent = sumGuildAttributeCaps(capsMap);
+    const earned = Math.max(0, Math.floor(contributionTotal / GUILD_ATTRIBUTE_CONTRIBUTION_STEP));
+    const available = Math.max(0, earned - spent);
+    const progressTowardsNext = contributionTotal % GUILD_ATTRIBUTE_CONTRIBUTION_STEP;
+    const remainingToNext = Math.max(0, GUILD_ATTRIBUTE_CONTRIBUTION_STEP - progressTowardsNext);
+    return {
+      earned,
+      spent,
+      available,
+      contributionTotal,
+      progressTowardsNext,
+      remainingToNext,
+      nextPointContribution: GUILD_ATTRIBUTE_CONTRIBUTION_STEP
+    };
+  }
+
+  function calculateMemberAttributeUpgradeCost(nextLevel = 1) {
+    const level = Math.max(1, Math.round(Number(nextLevel) || 1));
+    const baseCost = GUILD_ATTRIBUTE_MEMBER_COST_BASE + (level - 1) * GUILD_ATTRIBUTE_MEMBER_COST_STEP;
+    return Math.max(1, Math.round(baseCost));
+  }
+
+  function resolveAttributePerLevelIncrement(key) {
+    const config = GUILD_ATTRIBUTE_GROWTH_CONFIG[key] || {};
+    if (typeof config.absolute === 'number') {
+      return Number(config.absolute.toFixed(4));
+    }
+    const ratio = Number.isFinite(Number(config.ratio)) ? Number(config.ratio) : DEFAULT_GUILD_ATTRIBUTE_RATIO;
+    const baseStat = Number(DEFAULT_COMBAT_STATS[key]);
+    if (!Number.isFinite(baseStat) || baseStat === 0) {
+      return Number(ratio.toFixed(4));
+    }
+    const bonus = baseStat * ratio;
+    const digits = Math.abs(bonus) < 1 ? 4 : 2;
+    return Number(bonus.toFixed(digits));
+  }
+
+  function buildGuildAttributeBonuses(levels = {}) {
+    const bonuses = {};
+    COMBAT_STAT_KEYS.forEach((key) => {
+      const level = Number(levels[key]);
+      const normalizedLevel = Number.isFinite(level) ? Math.max(0, Math.min(GUILD_ATTRIBUTE_MAX_LEVEL, Math.round(level))) : 0;
+      if (!normalizedLevel) {
+        return;
+      }
+      const perLevel = resolveAttributePerLevelIncrement(key);
+      const total = Number((perLevel * normalizedLevel).toFixed(4));
+      if (total !== 0) {
+        bonuses[key] = total;
+      }
+    });
+    return bonuses;
+  }
+
+  function formatAttributeIncrementText(value) {
+    if (!Number.isFinite(Number(value))) {
+      return '+0';
+    }
+    const numeric = Number(value);
+    const prefix = numeric >= 0 ? '+' : '';
+    if (Math.abs(numeric) < 1) {
+      return `${prefix}${(numeric * 100).toFixed(1).replace(/\.0$/, '')}%`;
+    }
+    return `${prefix}${numeric}`;
+  }
+
+  function buildGuildAttributeCatalog() {
+    return COMBAT_STAT_KEYS.map((key) => {
+      const labels = GUILD_ATTRIBUTE_LABELS[key] || {};
+      const perLevel = resolveAttributePerLevelIncrement(key);
+      return {
+        key,
+        name: labels.name || key,
+        description: labels.description || '',
+        perLevel,
+        perLevelText: formatAttributeIncrementText(perLevel)
+      };
+    });
+  }
+
+  function buildGuildAttributeState({ guildDoc = {}, memberDoc = null, capsOverride = null } = {}) {
+    const caps = capsOverride || resolveGuildAttributeCaps(guildDoc);
+    const points = resolveGuildAttributePoints(guildDoc, caps);
+    const memberLevels = resolveGuildAttributeLevels(memberDoc || {});
+    const contribution = resolveMemberContributionBalance(memberDoc || {});
+    const catalog = buildGuildAttributeCatalog();
+    const bonuses = buildGuildAttributeBonuses(memberLevels);
+    const catalogWithRuntime = catalog.map((entry) => ({
+      ...entry,
+      cap: caps[entry.key] || 0,
+      level: memberLevels[entry.key] || 0,
+      nextCost: calculateMemberAttributeUpgradeCost((memberLevels[entry.key] || 0) + 1)
+    }));
+    return {
+      guildId: guildDoc._id || guildDoc.id || null,
+      catalog: catalogWithRuntime,
+      caps,
+      levels: memberLevels,
+      points,
+      contribution,
+      bonuses,
+      maxLevel: GUILD_ATTRIBUTE_MAX_LEVEL,
+      contributionPerPoint: GUILD_ATTRIBUTE_CONTRIBUTION_STEP,
+      cost: {
+        base: GUILD_ATTRIBUTE_MEMBER_COST_BASE,
+        step: GUILD_ATTRIBUTE_MEMBER_COST_STEP
+      }
     };
   }
 
@@ -4220,6 +4440,247 @@ function createGuildService(options = {}) {
     }
   }
 
+  async function getGuildAttributes(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'attributes.overview');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    const membershipRecord = await loadMemberGuild(memberId);
+    if (!membershipRecord || !membershipRecord.guild || !membershipRecord.membership) {
+      throw createError('NOT_IN_GUILD', '请先加入宗门');
+    }
+    const guildId = membershipRecord.guild.id;
+    const membershipId = membershipRecord.membership._id || membershipRecord.membership.id;
+    const [guildSnapshot, memberSnapshot] = await Promise.all([
+      db.collection(COLLECTIONS.GUILDS)
+        .doc(guildId)
+        .get()
+        .catch(() => null),
+      membershipId
+        ? db.collection(COLLECTIONS.GUILD_MEMBERS)
+            .doc(membershipId)
+            .get()
+            .catch(() => null)
+        : null
+    ]);
+    const guildDoc = guildSnapshot && guildSnapshot.data ? { ...guildSnapshot.data, _id: guildId } : { _id: guildId };
+    const memberDoc = memberSnapshot && memberSnapshot.data
+      ? { ...memberSnapshot.data, _id: membershipId }
+      : membershipRecord.membership;
+    const attributeState = buildGuildAttributeState({ guildDoc, memberDoc });
+    return wrapActionResponse('attributes.overview', attributeState, {
+      message: '宗门属性已加载'
+    });
+  }
+
+  async function upgradeGuildAttributeCap(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'attributes.upgradeCap');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    const membershipRecord = await loadMemberGuild(memberId);
+    if (!membershipRecord || !membershipRecord.guild || !membershipRecord.membership) {
+      throw createError('NOT_IN_GUILD', '请先加入宗门');
+    }
+    if ((membershipRecord.membership.role || '').trim() !== 'leader') {
+      throw createError('NO_PERMISSION', '仅宗主可分配宗门属性上限');
+    }
+    const targetKey = sanitizeString(payload.key || payload.stat || payload.attribute || '', { maxLength: 64 });
+    if (!COMBAT_STAT_KEYS.includes(targetKey)) {
+      throw createError('INVALID_ATTRIBUTE', '未找到需要升级的宗门属性');
+    }
+    const guildId = membershipRecord.guild.id;
+    const guildRef = db.collection(COLLECTIONS.GUILDS).doc(guildId);
+    let attributeState = null;
+    if (typeof db.runTransaction === 'function') {
+      await db.runTransaction(async (transaction) => {
+        const guildSnapshot = await transaction.collection(COLLECTIONS.GUILDS).doc(guildId).get().catch(() => null);
+        const guildDoc = guildSnapshot && guildSnapshot.data ? guildSnapshot.data : {};
+        const caps = resolveGuildAttributeCaps(guildDoc);
+        const points = resolveGuildAttributePoints(guildDoc, caps);
+        const currentCap = caps[targetKey] || 0;
+        if (points.available <= 0) {
+          throw createError('ATTRIBUTE_POINT_NOT_ENOUGH', '宗门属性升级点不足');
+        }
+        if (currentCap >= GUILD_ATTRIBUTE_MAX_LEVEL) {
+          throw createError('ATTRIBUTE_MAXED', '已达到宗门属性上限');
+        }
+        const updatedCaps = { ...caps, [targetKey]: currentCap + 1 };
+        const updatedAttributes = {
+          ...(guildDoc.guildAttributes || {}),
+          caps: updatedCaps,
+          pointsSpent: sumGuildAttributeCaps(updatedCaps),
+          updatedAt: serverTimestamp()
+        };
+        await transaction.collection(COLLECTIONS.GUILDS).doc(guildId).update({
+          data: {
+            guildAttributes: updatedAttributes,
+            updatedAt: serverTimestamp()
+          }
+        });
+        attributeState = buildGuildAttributeState({
+          guildDoc: { ...guildDoc, guildAttributes: updatedAttributes },
+          memberDoc: membershipRecord.membership,
+          capsOverride: updatedCaps
+        });
+      });
+    } else {
+      const guildSnapshot = await guildRef.get().catch(() => null);
+      const guildDoc = guildSnapshot && guildSnapshot.data ? guildSnapshot.data : {};
+      const caps = resolveGuildAttributeCaps(guildDoc);
+      const points = resolveGuildAttributePoints(guildDoc, caps);
+      const currentCap = caps[targetKey] || 0;
+      if (points.available <= 0) {
+        throw createError('ATTRIBUTE_POINT_NOT_ENOUGH', '宗门属性升级点不足');
+      }
+      if (currentCap >= GUILD_ATTRIBUTE_MAX_LEVEL) {
+        throw createError('ATTRIBUTE_MAXED', '已达到宗门属性上限');
+      }
+      const updatedCaps = { ...caps, [targetKey]: currentCap + 1 };
+      const updatedAttributes = {
+        ...(guildDoc.guildAttributes || {}),
+        caps: updatedCaps,
+        pointsSpent: sumGuildAttributeCaps(updatedCaps),
+        updatedAt: serverTimestamp()
+      };
+      await guildRef.update({ data: { guildAttributes: updatedAttributes, updatedAt: serverTimestamp() } });
+      attributeState = buildGuildAttributeState({
+        guildDoc: { ...guildDoc, guildAttributes: updatedAttributes },
+        memberDoc: membershipRecord.membership,
+        capsOverride: updatedCaps
+      });
+    }
+    const catalog = buildGuildAttributeCatalog();
+    const targetConfig = catalog.find((item) => item.key === targetKey);
+    await recordGuildLog({
+      guildId,
+      actorId: memberId,
+      type: 'guild.attribute.cap',
+      message: `宗主将「${(targetConfig && targetConfig.name) || targetKey}」上限提升至 ${attributeState.caps[targetKey]} 级`,
+      metadata: {
+        attribute: targetKey,
+        cap: attributeState.caps[targetKey],
+        pointsLeft: attributeState.points.available
+      }
+    });
+    return wrapActionResponse('attributes.upgradeCap', attributeState, {
+      message: '宗门属性上限已提升'
+    });
+  }
+
+  async function upgradeMemberGuildAttribute(memberId, payload = {}) {
+    await enforceRateLimit(memberId, 'attributes.upgradeLevel');
+    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    const membershipRecord = await loadMemberGuild(memberId);
+    if (!membershipRecord || !membershipRecord.guild || !membershipRecord.membership) {
+      throw createError('NOT_IN_GUILD', '请先加入宗门');
+    }
+    const targetKey = sanitizeString(payload.key || payload.stat || payload.attribute || '', { maxLength: 64 });
+    if (!COMBAT_STAT_KEYS.includes(targetKey)) {
+      throw createError('INVALID_ATTRIBUTE', '未找到需要升级的宗门属性');
+    }
+    const guildId = membershipRecord.guild.id;
+    const memberDocId = membershipRecord.membership._id || membershipRecord.membership.id;
+    if (!memberDocId) {
+      throw createError(ERROR_CODES.INTERNAL_ERROR, '成员信息异常');
+    }
+    let attributeState = null;
+    if (typeof db.runTransaction === 'function') {
+      await db.runTransaction(async (transaction) => {
+        const [guildSnapshot, memberSnapshot] = await Promise.all([
+          transaction.collection(COLLECTIONS.GUILDS).doc(guildId).get().catch(() => null),
+          transaction.collection(COLLECTIONS.GUILD_MEMBERS).doc(memberDocId).get().catch(() => null)
+        ]);
+        const guildDoc = guildSnapshot && guildSnapshot.data ? guildSnapshot.data : {};
+        const memberDoc = memberSnapshot && memberSnapshot.data ? memberSnapshot.data : {};
+        const caps = resolveGuildAttributeCaps(guildDoc);
+        const cap = caps[targetKey] || 0;
+        if (cap <= 0) {
+          throw createError('ATTRIBUTE_LOCKED', '宗主尚未解锁该属性上限');
+        }
+        const memberLevels = resolveGuildAttributeLevels(memberDoc);
+        const currentLevel = memberLevels[targetKey] || 0;
+        if (currentLevel >= cap) {
+          throw createError('ATTRIBUTE_MAXED', '已达到宗门上限');
+        }
+        const cost = calculateMemberAttributeUpgradeCost(currentLevel + 1);
+        const contribution = resolveMemberContributionBalance(memberDoc);
+        if (contribution.available < cost) {
+          throw createError('CONTRIBUTION_INSUFFICIENT', '个人宗门贡献不足');
+        }
+        const updatedLevels = { ...memberLevels, [targetKey]: currentLevel + 1 };
+        const updatedAttributes = {
+          ...(memberDoc.guildAttributes || {}),
+          levels: updatedLevels,
+          spentContribution: contribution.spent + cost
+        };
+        await transaction.collection(COLLECTIONS.GUILD_MEMBERS).doc(memberDocId).update({
+          data: {
+            guildAttributes: updatedAttributes,
+            updatedAt: serverTimestamp()
+          }
+        });
+        attributeState = buildGuildAttributeState({
+          guildDoc: { ...guildDoc },
+          memberDoc: { ...memberDoc, guildAttributes: updatedAttributes },
+          capsOverride: caps
+        });
+      });
+    } else {
+      const [guildSnapshot, memberSnapshot] = await Promise.all([
+        db.collection(COLLECTIONS.GUILDS).doc(guildId).get().catch(() => null),
+        db.collection(COLLECTIONS.GUILD_MEMBERS).doc(memberDocId).get().catch(() => null)
+      ]);
+      const guildDoc = guildSnapshot && guildSnapshot.data ? guildSnapshot.data : {};
+      const memberDoc = memberSnapshot && memberSnapshot.data ? memberSnapshot.data : {};
+      const caps = resolveGuildAttributeCaps(guildDoc);
+      const cap = caps[targetKey] || 0;
+      if (cap <= 0) {
+        throw createError('ATTRIBUTE_LOCKED', '宗主尚未解锁该属性上限');
+      }
+      const memberLevels = resolveGuildAttributeLevels(memberDoc);
+      const currentLevel = memberLevels[targetKey] || 0;
+      if (currentLevel >= cap) {
+        throw createError('ATTRIBUTE_MAXED', '已达到宗门上限');
+      }
+      const cost = calculateMemberAttributeUpgradeCost(currentLevel + 1);
+      const contribution = resolveMemberContributionBalance(memberDoc);
+      if (contribution.available < cost) {
+        throw createError('CONTRIBUTION_INSUFFICIENT', '个人宗门贡献不足');
+      }
+      const updatedLevels = { ...memberLevels, [targetKey]: currentLevel + 1 };
+      const updatedAttributes = {
+        ...(memberDoc.guildAttributes || {}),
+        levels: updatedLevels,
+        spentContribution: contribution.spent + cost
+      };
+      await db.collection(COLLECTIONS.GUILD_MEMBERS).doc(memberDocId).update({
+        data: {
+          guildAttributes: updatedAttributes,
+          updatedAt: serverTimestamp()
+        }
+      });
+      attributeState = buildGuildAttributeState({
+        guildDoc: { ...guildDoc },
+        memberDoc: { ...memberDoc, guildAttributes: updatedAttributes },
+        capsOverride: caps
+      });
+    }
+    const catalog = buildGuildAttributeCatalog();
+    const targetConfig = catalog.find((item) => item.key === targetKey);
+    const currentLevel = attributeState.levels[targetKey] || 0;
+    await recordGuildLog({
+      guildId,
+      actorId: memberId,
+      type: 'guild.attribute.level',
+      message: `成员提升「${(targetConfig && targetConfig.name) || targetKey}」至 ${currentLevel} 级`,
+      metadata: {
+        attribute: targetKey,
+        level: currentLevel,
+        spentContribution: attributeState.contribution.spent
+      }
+    });
+    return wrapActionResponse('attributes.upgradeLevel', attributeState, {
+      message: '宗门属性已升级'
+    });
+  }
+
   async function create(memberId, payload = {}) {
     const creation = await createGuild(memberId, payload);
     const overview = await getOverview(memberId);
@@ -5344,6 +5805,9 @@ function createGuildService(options = {}) {
     disband,
     profile,
     donate,
+    getGuildAttributes,
+    upgradeGuildAttributeCap,
+    upgradeMemberGuildAttribute,
     membersList,
     logsList,
     tasksList: listTasks,
