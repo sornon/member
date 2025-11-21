@@ -58,7 +58,9 @@
           </view>
           <view class="metric" wx:if="{{membership}}">
             <text class="metric__label">我的贡献</text>
-            <text class="metric__value">{{formatNumber(membership.contributionTotal || membership.contribution || 0)}}</text>
+            <text class="metric__value">
+              {{formatNumber(membership.contribution || 0)}}/{{formatNumber(membership.contributionTotal || membership.contribution || 0)}}
+            </text>
           </view>
         </view>
         <view class="guild-shortcuts">

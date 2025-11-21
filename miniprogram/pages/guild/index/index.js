@@ -286,13 +286,15 @@ Page({
       const toastTitle = contribution ? `贡献 +${contribution}` : `已捐献 ${amount} 灵石`;
       wx.showToast({ title: toastTitle, icon: 'success' });
       if (contribution > 0 && this.data.membership) {
-        const current = Number(this.data.membership.contributionTotal || this.data.membership.contribution || 0) || 0;
-        const updatedContribution = current + contribution;
+        const contributionAvailable = Number(this.data.membership.contribution) || 0;
+        const contributionTotal = Number(this.data.membership.contributionTotal || contributionAvailable) || 0;
+        const contributionWeek = Number(this.data.membership.contributionWeek || 0) || 0;
         this.setData({
           membership: {
             ...this.data.membership,
-            contribution: updatedContribution,
-            contributionTotal: updatedContribution
+            contribution: contributionAvailable + contribution,
+            contributionTotal: contributionTotal + contribution,
+            contributionWeek: contributionWeek + contribution
           }
         });
       }
