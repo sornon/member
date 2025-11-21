@@ -4442,7 +4442,7 @@ function createGuildService(options = {}) {
 
   async function getGuildAttributes(memberId, payload = {}) {
     await enforceRateLimit(memberId, 'attributes.overview');
-    await verifyActionTicket(memberId, payload.ticket, payload.signature);
+    await verifyActionTicket(memberId, payload.ticket, payload.signature, { consume: false });
     const membershipRecord = await loadMemberGuild(memberId);
     if (!membershipRecord || !membershipRecord.guild || !membershipRecord.membership) {
       throw createError('NOT_IN_GUILD', '请先加入宗门');
