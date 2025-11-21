@@ -237,13 +237,15 @@ Page({
     }
     this.setData({ donating: true });
     try {
-      await GuildService.donate({
+      const result = await GuildService.donate({
         amount,
         type: 'stone',
         ticket: ticket.ticket,
         signature: ticket.signature
       });
-      wx.showToast({ title: `已捐献 ${amount} 灵石`, icon: 'success' });
+      const contribution = result && result.donation ? Number(result.donation.contribution) || 0 : 0;
+      const toastTitle = contribution ? `贡献 +${contribution}` : `已捐献 ${amount} 灵石`;
+      wx.showToast({ title: toastTitle, icon: 'success' });
       await this.reloadOverview({ showLoading: true });
     } catch (error) {
       console.error('[guild] donate failed', error);

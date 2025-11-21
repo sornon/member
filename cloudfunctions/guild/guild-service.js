@@ -45,6 +45,18 @@ const DEFAULT_LEADERBOARD_TYPE = 'power';
 const GUILD_LEADERBOARD_TYPES = Object.freeze(['power', 'contribution', 'activity', 'boss']);
 const ACTION_LIMIT_MESSAGE = '操作次数已达上限，请稍后再试';
 const RISK_ALERT_MESSAGE = '检测到异常高频操作';
+const GUILD_CREATION_COST = 100000;
+const GUILD_CREATION_CONTRIBUTION_REWARD = 500;
+const GUILD_DONATION_CONVERSION = 100;
+const GUILD_BOSS_PARTICIPATION_CONTRIBUTION = 10;
+const GUILD_BOSS_CLEAR_CONTRIBUTION = 10;
+const GUILD_LEVELS = Object.freeze([
+  { level: 1, requiredContribution: 0, capacity: 10 },
+  { level: 2, requiredContribution: 1000, capacity: 15 },
+  { level: 3, requiredContribution: 5000, capacity: 20 },
+  { level: 4, requiredContribution: 50000, capacity: 30 },
+  { level: 5, requiredContribution: 500000, capacity: 50 }
+]);
 function createGuildService(options = {}) {
   const db = options.db;
   const command = options.command;
@@ -239,6 +251,56 @@ function createGuildService(options = {}) {
       return Math.max(1000, Math.round(baseEnemyPower * 10));
     }
     return 50000;
+  }
+
+  function resolveMemberStoneBalance(doc = {}) {
+    const numeric = Number(doc.stoneBalance ?? doc.balance);
+    if (!Number.isFinite(numeric)) {
+      return 0;
+    }
+    return Math.max(0, Math.floor(numeric));
+  }
+
+  function resolveGuildContributionValue(doc = {}) {
+    const candidates = [doc.contributionTotal, doc.contribution, doc.totalContribution];
+    return candidates.reduce((acc, value) => {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > acc) {
+        return Math.max(0, Math.round(numeric));
+      }
+      return acc;
+    }, 0);
+  }
+
+  function resolveGuildProgression(contributionTotal = 0, { memberCount = 0, settings = null } = {}) {
+    const total = Math.max(0, Math.round(Number(contributionTotal) || 0));
+    const sortedLevels = [...GUILD_LEVELS].sort((left, right) => right.requiredContribution - left.requiredContribution);
+    const matched = sortedLevels.find((entry) => total >= entry.requiredContribution) || GUILD_LEVELS[0];
+    const baseCapacity = matched ? matched.capacity : 10;
+    const settingsLimitRaw = settings && Number.isFinite(Number(settings.maxMembers)) ? Math.floor(Number(settings.maxMembers)) : null;
+    const settingsLimit = settingsLimitRaw != null ? Math.max(5, settingsLimitRaw) : null;
+    const cappedCapacity = settingsLimit != null ? Math.min(baseCapacity, settingsLimit) : baseCapacity;
+    const capacity = Math.max(memberCount, cappedCapacity);
+    return {
+      level: matched ? matched.level : 1,
+      capacity,
+      contributionTotal: total,
+      requiredContribution: matched ? matched.requiredContribution : 0
+    };
+  }
+
+  function buildGuildContributionUpdate(doc = {}, delta = 0, { settings = null } = {}) {
+    const currentTotal = resolveGuildContributionValue(doc);
+    const memberCount = Number.isFinite(Number(doc.memberCount)) ? Math.max(0, Math.round(Number(doc.memberCount))) : 0;
+    const nextTotal = Math.max(0, currentTotal + Math.max(0, Math.round(Number(delta) || 0)));
+    const progression = resolveGuildProgression(nextTotal, { memberCount, settings });
+    return {
+      contribution: progression.contributionTotal,
+      contributionTotal: progression.contributionTotal,
+      level: progression.level,
+      capacity: progression.capacity,
+      updatedAt: serverTimestamp()
+    };
   }
 
   function extractMemberPowerFromDoc(doc = {}) {
@@ -781,6 +843,12 @@ function createGuildService(options = {}) {
     const memberCount = Number.isFinite(Number(doc.memberCount))
       ? Math.max(0, Math.round(Number(doc.memberCount)))
       : 0;
+    const contributionTotal = resolveGuildContributionValue(doc);
+    const progression = resolveGuildProgression(contributionTotal, { memberCount });
+    const level = Number.isFinite(Number(doc.level)) ? Math.max(1, Math.round(Number(doc.level))) : progression.level;
+    const capacity = Number.isFinite(Number(doc.capacity))
+      ? Math.max(memberCount, Math.round(Number(doc.capacity)))
+      : progression.capacity;
     return {
       id: doc._id || doc.id || null,
       name: toTrimmedString(doc.name) || '未命名宗门',
@@ -788,6 +856,9 @@ function createGuildService(options = {}) {
       manifesto: toTrimmedString(doc.manifesto),
       founderId: toTrimmedString(doc.founderId),
       memberCount,
+      level,
+      capacity,
+      contributionTotal,
       power: extractGuildPowerValue(doc),
       activityScore: extractGuildActivityValue(doc),
       createdAt: doc.createdAt || null,
@@ -1262,6 +1333,80 @@ function createGuildService(options = {}) {
       }
     });
     return map;
+  }
+
+  async function applyGuildContributionDelta(guildId, delta = 0, { guildDoc = null, settings = null } = {}) {
+    const contributionDelta = Math.max(0, Math.round(Number(delta) || 0));
+    if (!guildId || contributionDelta <= 0) {
+      return null;
+    }
+    const guildRef = db.collection(COLLECTIONS.GUILDS).doc(guildId);
+    const baseSnapshot = guildDoc ? { data: guildDoc } : await guildRef.get().catch(() => null);
+    if (!baseSnapshot || !baseSnapshot.data) {
+      throw createError('GUILD_NOT_FOUND', '宗门不存在');
+    }
+    const appliedSettings = settings || (await loadSettings().catch(() => DEFAULT_GUILD_SETTINGS));
+    const updatePayload = buildGuildContributionUpdate(baseSnapshot.data, contributionDelta, { settings: appliedSettings });
+    await guildRef.update({ data: updatePayload }).catch((error) => {
+      logger.error('[guild] update guild contribution failed', error);
+      throw createError(ERROR_CODES.INTERNAL_ERROR, '更新宗门贡献失败');
+    });
+    return updatePayload;
+  }
+
+  async function applyMemberContributionChanges(
+    guildId,
+    changes = [],
+    { settings = null, skipGuildUpdate = false } = {}
+  ) {
+    const mergedChanges = new Map();
+    (Array.isArray(changes) ? changes : []).forEach((change) => {
+      const memberId = normalizeMemberId(change && change.memberId);
+      const delta = Math.max(0, Math.round(Number(change && change.amount) || 0));
+      if (!memberId || delta <= 0) {
+        return;
+      }
+      mergedChanges.set(memberId, (mergedChanges.get(memberId) || 0) + delta);
+    });
+    if (!guildId || !mergedChanges.size) {
+      return { totalContributionDelta: 0, updatedCount: 0 };
+    }
+    const memberIds = Array.from(mergedChanges.keys());
+    const memberCollection = db.collection(COLLECTIONS.GUILD_MEMBERS);
+    const snapshot = await memberCollection
+      .where({ guildId, memberId: command.in(memberIds), status: 'active' })
+      .limit(memberIds.length)
+      .get()
+      .catch(() => ({ data: [] }));
+    const docs = snapshot && snapshot.data ? snapshot.data : [];
+    let totalContributionDelta = 0;
+    let updatedCount = 0;
+    for (const doc of docs) {
+      const memberId = normalizeMemberId(doc.memberId || doc._id || doc.id);
+      if (!memberId || !mergedChanges.has(memberId)) {
+        continue;
+      }
+      const delta = mergedChanges.get(memberId);
+      const updatePayload = {
+        contribution: command.inc(delta),
+        contributionTotal: command.inc(delta),
+        contributionWeek: command.inc(delta),
+        updatedAt: serverTimestamp()
+      };
+      await memberCollection
+        .doc(doc._id || doc.id)
+        .update({ data: updatePayload })
+        .catch((error) => {
+          logger.error('[guild] update member contribution failed', error);
+          throw createError(ERROR_CODES.INTERNAL_ERROR, '更新成员贡献失败');
+        });
+      totalContributionDelta += delta;
+      updatedCount += 1;
+    }
+    if (totalContributionDelta > 0 && !skipGuildUpdate) {
+      await applyGuildContributionDelta(guildId, totalContributionDelta, { settings });
+    }
+    return { totalContributionDelta, updatedCount };
   }
 
   async function loadGuildLeaderRecords(guildIds = []) {
@@ -3176,7 +3321,9 @@ function createGuildService(options = {}) {
   function decorateGuildDetailPayload(summary = {}, { members = [], memberLookup = new Map(), securitySummary = null, bossDoc = null } = {}) {
     const activeMembers = members.filter((entry) => entry.status !== 'inactive');
     const inactiveMembers = members.filter((entry) => entry.status === 'inactive');
-    const totalContribution = activeMembers.reduce((acc, entry) => acc + (Number(entry.contribution) || 0), 0);
+    const totalContribution = Number.isFinite(Number(summary.contributionTotal))
+      ? Math.max(0, Math.round(Number(summary.contributionTotal)))
+      : activeMembers.reduce((acc, entry) => acc + (Number(entry.contribution) || 0), 0);
     const totalPower = activeMembers.reduce((acc, entry) => acc + (Number(entry.power) || 0), 0);
     const averagePower = activeMembers.length ? Math.round(totalPower / activeMembers.length) : 0;
     const topContributors = [...activeMembers]
@@ -4144,8 +4291,12 @@ function createGuildService(options = {}) {
   }
 
   async function donate(memberId, payload = {}) {
-    const membership = await loadMemberGuild(memberId);
-    const guildId = membership && membership.guild ? membership.guild.id : null;
+    const membershipRecord = await loadMemberGuild(memberId);
+    const guildId = membershipRecord && membershipRecord.guild ? membershipRecord.guild.id : null;
+    const memberRecord = membershipRecord && membershipRecord.membership ? membershipRecord.membership : null;
+    if (!guildId || !memberRecord) {
+      throw createError('NOT_IN_GUILD', '请先加入宗门');
+    }
     const limitContext = await assertDailyLimit(memberId, 'donate', { guildId });
     await enforceRateLimit(memberId, 'donate');
     await enforceCooldown(memberId, 'donate');
@@ -4153,21 +4304,101 @@ function createGuildService(options = {}) {
     if (limitContext) {
       await reserveDailyQuota(limitContext);
     }
+    const amount = Math.max(0, Math.floor(Number(payload.amount) || 0));
+    if (amount <= 0) {
+      throw createError('INVALID_DONATION', '捐献灵石数量需为正数');
+    }
+    const contributionGain = Math.floor(amount / GUILD_DONATION_CONVERSION);
+    if (contributionGain <= 0) {
+      throw createError('DONATION_TOO_SMALL', '每 100 灵石兑换 1 点贡献，请至少捐献 100 灵石');
+    }
+    const settings = await loadSettings();
     await monitorActionFrequency({
       guildId,
       memberId,
       type: 'donate',
       metadata: {
-        amount: Number(payload.amount) || 0,
+        amount,
         donationType: payload.type || 'stone'
       }
     });
-    return buildPlaceholderResponse('donate', {
-      donation: {
-        amount: Number(payload.amount) || 0,
-        type: payload.type || 'stone'
+    const memberDocId = memberRecord._id || memberRecord.id;
+    if (!memberDocId) {
+      throw createError(ERROR_CODES.INTERNAL_ERROR, '成员信息异常');
+    }
+    if (typeof db.runTransaction === 'function') {
+      await db.runTransaction(async (transaction) => {
+        const memberSnapshot = await transaction.collection(COLLECTIONS.MEMBERS).doc(memberId).get().catch(() => null);
+        const memberDoc = memberSnapshot && memberSnapshot.data;
+        if (!memberDoc) {
+          throw createError('INVALID_MEMBER', '未找到玩家信息');
+        }
+        const balance = resolveMemberStoneBalance(memberDoc);
+        if (balance < amount) {
+          throw createError('STONE_INSUFFICIENT', '灵石不足，无法捐献');
+        }
+        const guildSnapshot = await transaction.collection(COLLECTIONS.GUILDS).doc(guildId).get().catch(() => null);
+        if (!guildSnapshot || !guildSnapshot.data) {
+          throw createError('GUILD_NOT_FOUND', '宗门不存在');
+        }
+        const contributionUpdate = buildGuildContributionUpdate(guildSnapshot.data, contributionGain, { settings });
+        await transaction.collection(COLLECTIONS.GUILDS).doc(guildId).update({ data: contributionUpdate });
+        await transaction.collection(COLLECTIONS.GUILD_MEMBERS).doc(memberDocId).update({
+          data: {
+            contribution: command.inc(contributionGain),
+            contributionTotal: command.inc(contributionGain),
+            contributionWeek: command.inc(contributionGain),
+            updatedAt: serverTimestamp()
+          }
+        });
+        await transaction.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
+          data: {
+            stoneBalance: command.inc(-amount),
+            updatedAt: serverTimestamp()
+          }
+        });
+      });
+    } else {
+      const memberSnapshot = await db.collection(COLLECTIONS.MEMBERS).doc(memberId).get().catch(() => null);
+      const memberDoc = memberSnapshot && memberSnapshot.data;
+      if (!memberDoc || resolveMemberStoneBalance(memberDoc) < amount) {
+        throw createError('STONE_INSUFFICIENT', '灵石不足，无法捐献');
       }
-    });
+      const guildSnapshot = await db.collection(COLLECTIONS.GUILDS).doc(guildId).get().catch(() => null);
+      if (!guildSnapshot || !guildSnapshot.data) {
+        throw createError('GUILD_NOT_FOUND', '宗门不存在');
+      }
+      const contributionUpdate = buildGuildContributionUpdate(guildSnapshot.data, contributionGain, { settings });
+      await db.collection(COLLECTIONS.GUILDS).doc(guildId).update({ data: contributionUpdate });
+      await db.collection(COLLECTIONS.GUILD_MEMBERS).doc(memberDocId).update({
+        data: {
+          contribution: command.inc(contributionGain),
+          contributionTotal: command.inc(contributionGain),
+          contributionWeek: command.inc(contributionGain),
+          updatedAt: serverTimestamp()
+        }
+      });
+      await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
+        data: {
+          stoneBalance: command.inc(-amount),
+          updatedAt: serverTimestamp()
+        }
+      });
+    }
+    await refreshLeaderboardCache();
+    return wrapActionResponse(
+      'donate',
+      {
+        donation: {
+          amount,
+          type: payload.type || 'stone',
+          contribution: contributionGain
+        }
+      },
+      {
+        message: `已捐献 ${amount} 灵石，贡献 +${contributionGain}`
+      }
+    );
   }
 
   async function membersList(memberId, payload = {}) {
@@ -4588,6 +4819,40 @@ function createGuildService(options = {}) {
         seed
       }
     });
+    const contributionChanges = [];
+    const contributionMap = new Map();
+    partySummary.forEach((entry) => {
+      contributionChanges.push({ memberId: entry.memberId, amount: GUILD_BOSS_PARTICIPATION_CONTRIBUTION });
+      contributionMap.set(
+        entry.memberId,
+        (contributionMap.get(entry.memberId) || 0) + GUILD_BOSS_PARTICIPATION_CONTRIBUTION
+      );
+    });
+    if (simulation.victory) {
+      const activeMembersSnapshot = await db
+        .collection(COLLECTIONS.GUILD_MEMBERS)
+        .where({ guildId: membership.guild.id, status: 'active' })
+        .get()
+        .catch(() => ({ data: [] }));
+      const activeMembers = (activeMembersSnapshot && activeMembersSnapshot.data) || [];
+      activeMembers.forEach((doc) => {
+        if (!doc || !doc.memberId) {
+          return;
+        }
+        contributionChanges.push({ memberId: doc.memberId, amount: GUILD_BOSS_CLEAR_CONTRIBUTION });
+        contributionMap.set(
+          doc.memberId,
+          (contributionMap.get(doc.memberId) || 0) + GUILD_BOSS_CLEAR_CONTRIBUTION
+        );
+      });
+    }
+    if (contributionChanges.length) {
+      await applyMemberContributionChanges(membership.guild.id, contributionChanges, { settings }).catch((error) => {
+        logger.error('[guild] failed to apply boss contributions', error);
+        throw createError(ERROR_CODES.INTERNAL_ERROR, '结算宗门贡献失败');
+      });
+      await refreshLeaderboardCache().catch(() => {});
+    }
     const nowDate = new Date();
     const bossPayload = buildBossStatusPayload({
       state: updatedState,
@@ -4596,15 +4861,12 @@ function createGuildService(options = {}) {
       memberId,
       now: nowDate
     });
-    const rewards = simulation.victory
-      ? {
-          stones: Math.max(0, Math.round(totalDamage / 1500)),
-          contribution: Math.max(1, Math.round(totalDamage / 2000))
-        }
-      : {
-          stones: Math.max(0, Math.round(totalDamage / 3000)),
-          contribution: Math.max(0, Math.round(totalDamage / 4000))
-        };
+    const rewards = {
+      stones: simulation.victory
+        ? Math.max(0, Math.round(totalDamage / 1500))
+        : Math.max(0, Math.round(totalDamage / 3000)),
+      contribution: contributionMap.get(memberId) || 0
+    };
     return wrapActionResponse(
       'boss.challenge',
       {
@@ -4758,35 +5020,104 @@ function createGuildService(options = {}) {
     if (existingMembership.guild) {
       throw createError('ALREADY_IN_GUILD', '已加入其他宗门');
     }
+    const memberDocSnapshot = await db
+      .collection(COLLECTIONS.MEMBERS)
+      .doc(memberId)
+      .get()
+      .catch(() => null);
+    const memberDoc = memberDocSnapshot && memberDocSnapshot.data;
+    if (!memberDoc) {
+      throw createError('INVALID_MEMBER', '未找到玩家信息');
+    }
+    const stoneBalance = resolveMemberStoneBalance(memberDoc);
+    if (stoneBalance < GUILD_CREATION_COST) {
+      throw createError('STONE_INSUFFICIENT', '创建宗门需要 100000 灵石');
+    }
     const guildsCollection = db.collection(COLLECTIONS.GUILDS);
     const memberCollection = db.collection(COLLECTIONS.GUILD_MEMBERS);
     const createdAt = db.serverDate ? db.serverDate() : new Date();
     const memberPower = await resolveMemberPower(memberId, payload.powerRating, settings);
+    const progression = resolveGuildProgression(GUILD_CREATION_CONTRIBUTION_REWARD, {
+      memberCount: 1,
+      settings
+    });
+    let guildId = null;
     const guildDoc = {
       name,
       manifesto,
       icon,
       founderId: memberId,
       memberCount: 1,
+      level: progression.level,
+      capacity: progression.capacity,
+      contribution: GUILD_CREATION_CONTRIBUTION_REWARD,
+      contributionTotal: GUILD_CREATION_CONTRIBUTION_REWARD,
       power: memberPower,
       activityScore: 0,
       createdAt,
       schemaVersion: GUILD_SCHEMA_VERSION
     };
-    const guildCreateResult = await guildsCollection.add({ data: guildDoc });
-    const guildId = guildCreateResult.id || guildCreateResult._id;
-    await memberCollection.add({
-      data: {
-        guildId,
-        memberId,
-        role: 'leader',
-        status: 'active',
-        joinedAt: createdAt,
-        contribution: 0,
-        power: memberPower,
-        schemaVersion: GUILD_SCHEMA_VERSION
+    if (typeof db.runTransaction === 'function') {
+      const result = await db.runTransaction(async (transaction) => {
+        const memberSnapshot = await transaction.collection(COLLECTIONS.MEMBERS).doc(memberId).get().catch(() => null);
+        const memberData = memberSnapshot && memberSnapshot.data;
+        if (!memberData || resolveMemberStoneBalance(memberData) < GUILD_CREATION_COST) {
+          throw createError('STONE_INSUFFICIENT', '创建宗门需要 100000 灵石');
+        }
+        const guildCreateResult = await transaction.collection(COLLECTIONS.GUILDS).add({ data: guildDoc });
+        const newGuildId = guildCreateResult.id || guildCreateResult._id;
+        await transaction.collection(COLLECTIONS.GUILD_MEMBERS).add({
+          data: {
+            guildId: newGuildId,
+            memberId,
+            role: 'leader',
+            status: 'active',
+            joinedAt: createdAt,
+            contribution: GUILD_CREATION_CONTRIBUTION_REWARD,
+            contributionTotal: GUILD_CREATION_CONTRIBUTION_REWARD,
+            contributionWeek: GUILD_CREATION_CONTRIBUTION_REWARD,
+            power: memberPower,
+            schemaVersion: GUILD_SCHEMA_VERSION
+          }
+        });
+        await transaction.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
+          data: {
+            stoneBalance: command.inc(-GUILD_CREATION_COST),
+            updatedAt: createdAt
+          }
+        });
+        return { guildId: newGuildId };
+      });
+      guildId = result && (result.guildId || result._id || result.id) ? result.guildId || result._id || result.id : null;
+    } else {
+      const latestMemberSnapshot = await db.collection(COLLECTIONS.MEMBERS).doc(memberId).get().catch(() => null);
+      const latestMember = latestMemberSnapshot && latestMemberSnapshot.data;
+      if (!latestMember || resolveMemberStoneBalance(latestMember) < GUILD_CREATION_COST) {
+        throw createError('STONE_INSUFFICIENT', '创建宗门需要 100000 灵石');
       }
-    });
+      const guildCreateResult = await guildsCollection.add({ data: guildDoc });
+      guildId = guildCreateResult.id || guildCreateResult._id;
+      await memberCollection.add({
+        data: {
+          guildId,
+          memberId,
+          role: 'leader',
+          status: 'active',
+          joinedAt: createdAt,
+          contribution: GUILD_CREATION_CONTRIBUTION_REWARD,
+          contributionTotal: GUILD_CREATION_CONTRIBUTION_REWARD,
+          contributionWeek: GUILD_CREATION_CONTRIBUTION_REWARD,
+          power: memberPower,
+          schemaVersion: GUILD_SCHEMA_VERSION
+        }
+      });
+      await db.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
+        data: { stoneBalance: command.inc(-GUILD_CREATION_COST), updatedAt: createdAt }
+      });
+    }
+    if (!guildId) {
+      throw createError(ERROR_CODES.INTERNAL_ERROR, '宗门创建失败');
+    }
     await recordEvent({
       type: 'createGuild',
       guildId,
@@ -4825,7 +5156,11 @@ function createGuildService(options = {}) {
     if (!guildDoc) {
       throw createError('GUILD_NOT_FOUND', '宗门不存在');
     }
-    if (guildDoc.memberCount >= settings.maxMembers) {
+    const progression = resolveGuildProgression(resolveGuildContributionValue(guildDoc), {
+      memberCount: Number(guildDoc.memberCount || 0),
+      settings
+    });
+    if (guildDoc.memberCount >= progression.capacity) {
       throw createError('GUILD_FULL', '宗门人数已满');
     }
     const memberCollection = db.collection(COLLECTIONS.GUILD_MEMBERS);
