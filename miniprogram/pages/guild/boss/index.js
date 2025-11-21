@@ -23,6 +23,18 @@ function formatCooldown(ms) {
   return `${String(minutes).padStart(2, '0')}:${String(remainSeconds).padStart(2, '0')}`;
 }
 
+function formatBossStatus(status) {
+  const normalized = typeof status === 'string' ? status.trim().toLowerCase() : '';
+  switch (normalized) {
+    case 'open':
+      return '进行中';
+    case 'ended':
+      return '已结束';
+    default:
+      return '未知';
+  }
+}
+
 function decorateBossStatus(payload = {}) {
   const boss = payload && payload.boss ? payload.boss : {};
   const hp = boss.hp || {};
@@ -33,6 +45,7 @@ function decorateBossStatus(payload = {}) {
   const cooldownRemaining = Number(attempts.cooldownRemaining || 0);
   return {
     ...boss,
+    statusText: formatBossStatus(boss.status),
     hp: {
       ...hp,
       max,
@@ -61,6 +74,7 @@ Page({
     error: '',
     boss: null,
     canChallenge: false,
+    serverCanChallenge: false,
     actionTicket: null,
     membership: null,
     guild: null,
@@ -71,6 +85,9 @@ Page({
   },
   onLoad() {
     this.loadStatus();
+  },
+  onUnload() {
+    this.clearCooldownTimer();
   },
   onPullDownRefresh() {
     this.reload()
@@ -136,13 +153,16 @@ Page({
         signature: currentTicket.signature
       });
       const boss = decorateBossStatus(status);
+      const serverCanChallenge = !!status.canChallenge;
       this.setData({
         boss,
-        canChallenge: !!status.canChallenge,
+        serverCanChallenge,
+        canChallenge: this.evaluateCanChallenge(boss, serverCanChallenge),
         settings: status.settings || null,
         loading: false,
         error: ''
       });
+      this.startCooldownTimer(boss);
     } catch (error) {
       console.error('[guild] fetch boss status failed', error);
       wx.showToast({ title: error.errMsg || 'Boss 状态获取失败', icon: 'none' });
@@ -181,17 +201,62 @@ Page({
         signature: ticket.signature
       });
       const boss = decorateBossStatus(result);
+      const serverCanChallenge = !!result.canChallenge;
       this.setData({
         boss,
-        canChallenge: !!result.canChallenge,
+        serverCanChallenge,
+        canChallenge: this.evaluateCanChallenge(boss, serverCanChallenge),
         challenging: false
       });
+      this.startCooldownTimer(boss);
       wx.showToast({ title: result.victory ? '讨伐成功' : '挑战完成', icon: 'success' });
       await this.fetchBossRank(ticket);
     } catch (error) {
       console.error('[guild] boss challenge failed', error);
       wx.showToast({ title: error.errMsg || '挑战失败', icon: 'none' });
       this.setData({ challenging: false });
+    }
+  },
+  evaluateCanChallenge(boss, baseCanChallenge = this.data.serverCanChallenge) {
+    const attempts = (boss && boss.attempts) || {};
+    const hasAttempts = Number(attempts.remaining || 0) > 0;
+    const cooldownReady = Number(attempts.cooldownRemaining || 0) <= 0;
+    return !!baseCanChallenge || (hasAttempts && cooldownReady);
+  },
+  startCooldownTimer(boss) {
+    this.clearCooldownTimer();
+    const attempts = (boss && boss.attempts) || {};
+    const cooldownRemaining = Number(attempts.cooldownRemaining || 0);
+    if (!Number.isFinite(cooldownRemaining) || cooldownRemaining <= 0) {
+      this.setData({ canChallenge: this.evaluateCanChallenge(boss) });
+      return;
+    }
+    const endTime = Date.now() + cooldownRemaining;
+    this.cooldownTimer = setInterval(() => {
+      const remaining = Math.max(0, endTime - Date.now());
+      const nextBoss = {
+        ...(this.data.boss || {}),
+        ...boss,
+        attempts: {
+          ...((this.data.boss && this.data.boss.attempts) || {}),
+          ...(boss && boss.attempts ? boss.attempts : {}),
+          cooldownRemaining: remaining,
+          cooldownText: formatCooldown(remaining)
+        }
+      };
+      this.setData({
+        boss: nextBoss,
+        canChallenge: this.evaluateCanChallenge(nextBoss)
+      });
+      if (remaining <= 0) {
+        this.clearCooldownTimer();
+      }
+    }, 1000);
+  },
+  clearCooldownTimer() {
+    if (this.cooldownTimer) {
+      clearInterval(this.cooldownTimer);
+      this.cooldownTimer = null;
     }
   },
   formatNumber

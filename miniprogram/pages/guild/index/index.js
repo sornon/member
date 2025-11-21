@@ -93,6 +93,7 @@ Page({
     leaderboard: [],
     actionTicket: null,
     settings: null,
+    teamBattleEnabled: false,
     donating: false
   },
   onShow() {
@@ -117,6 +118,8 @@ Page({
       const ticket = resolveGuildActionTicket(result);
       const leaderboard = decorateLeaderboard(result.leaderboard || []);
       const membership = result.membership || null;
+      // 团队讨伐暂未开放，强制标记为关闭以禁用入口
+      const teamBattleEnabled = false;
       this.setData({
         loading: false,
         guild: decorateGuild(result.guild),
@@ -125,6 +128,7 @@ Page({
         leaderboard,
         actionTicket: ticket,
         settings: result.settings || null,
+        teamBattleEnabled,
         error: ''
       });
     } catch (error) {
@@ -181,7 +185,11 @@ Page({
     wx.navigateTo({ url });
   },
   async handleTeamBattle() {
-    const { guild } = this.data;
+    const { guild, teamBattleEnabled } = this.data;
+    if (!teamBattleEnabled) {
+      wx.showToast({ title: '团队讨伐功能暂未开放', icon: 'none' });
+      return;
+    }
     if (!guild) {
       wx.showToast({ title: '请先加入宗门', icon: 'none' });
       return;

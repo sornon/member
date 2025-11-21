@@ -11,7 +11,7 @@
       <view wx:if="{{boss}}" class="guild-section boss-card">
         <view class="boss-card__header">
           <view class="boss-card__title">{{boss.name || '未知 Boss'}}</view>
-          <view class="boss-card__meta">等级 {{boss.level || 1}} · 状态 {{boss.status || '未知'}}</view>
+          <view class="boss-card__meta">等级 {{boss.level || 1}} · 状态 {{boss.statusText || '未知'}}</view>
         </view>
         <view class="boss-card__progress">
           <view class="boss-card__progress-bar">
