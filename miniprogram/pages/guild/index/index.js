@@ -118,12 +118,8 @@ Page({
       const ticket = resolveGuildActionTicket(result);
       const leaderboard = decorateLeaderboard(result.leaderboard || []);
       const membership = result.membership || null;
-      const teamBattleEnabled = !!(
-        result &&
-        result.settings &&
-        result.settings.teamBattle &&
-        result.settings.teamBattle.enabled !== false
-      );
+      // 团队讨伐暂未开放，强制标记为关闭以禁用入口
+      const teamBattleEnabled = false;
       this.setData({
         loading: false,
         guild: decorateGuild(result.guild),
