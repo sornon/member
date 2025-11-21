@@ -42,24 +42,40 @@ function formatNumber(value) {
   return `${numeric}`;
 }
 
-function decorateGuild(guild) {
-  if (!guild || typeof guild !== 'object') {
-    return null;
+  function decorateGuild(guild) {
+    if (!guild || typeof guild !== 'object') {
+      return null;
+    }
+    const memberCapacity = Number(guild.capacity || guild.memberLimit || guild.memberCap || guild.capacityLimit || 0);
+    const contribution = Number(guild.contribution || guild.contributionTotal || 0);
+    return {
+      ...guild,
+      powerText: formatNumber(guild.power || guild.powerScore || 0),
+      memberCountText: formatNumber(guild.memberCount || 0),
+      memberCapacity,
+      memberCapacityText: Number.isFinite(memberCapacity) && memberCapacity > 0 ? formatNumber(memberCapacity) : '',
+      contributionText: formatNumber(contribution)
+    };
   }
-  return {
-    ...guild,
-    powerText: formatNumber(guild.power || guild.powerScore || 0),
-    memberCountText: formatNumber(guild.memberCount || 0)
-  };
-}
 
-function decorateLeaderboard(leaderboard = []) {
-  return decorateGuildLeaderboardEntries(leaderboard || []).map((entry) => ({
-    ...entry,
-    powerText: formatNumber(entry.power || entry.metricValue || 0),
-    memberCountText: formatNumber(entry.memberCount || 0)
-  }));
-}
+  function decorateLeaderboard(leaderboard = []) {
+    const normalized = decorateGuildLeaderboardEntries(leaderboard || []);
+    return normalized.map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return entry;
+      }
+      const basePower = Number(entry.metricValue || entry.power || 0);
+      const decorated = decorateGuild({ ...entry, power: basePower });
+      if (!decorated) {
+        return entry;
+      }
+      return {
+        ...entry,
+        ...decorated,
+        powerText: formatNumber(basePower)
+      };
+    });
+  }
 
 function pickDonationAmount() {
   return new Promise((resolve, reject) => {
@@ -91,16 +107,23 @@ Page({
     membership: null,
     membershipRoleLabel: '成员',
     leaderboard: [],
+    guildList: [],
     actionTicket: null,
     settings: null,
     teamBattleEnabled: false,
-    donating: false
+    donating: false,
+    guildListLoading: true,
+    guildListError: ''
   },
   onShow() {
     this.loadOverview();
+    this.loadGuildList();
   },
   onPullDownRefresh() {
-    this.reloadOverview({ showLoading: false })
+    Promise.all([
+      this.reloadOverview({ showLoading: false }),
+      this.loadGuildList({ showLoading: false })
+    ])
       .catch((error) => {
         console.error('[guild] refresh overview failed', error);
       })
@@ -136,6 +159,22 @@ Page({
       this.setData({
         loading: false,
         error: error.errMsg || error.message || '加载失败'
+      });
+    }
+  },
+  async loadGuildList({ showLoading = true } = {}) {
+    if (showLoading) {
+      this.setData({ guildListLoading: true, guildListError: '' });
+    }
+    try {
+      const result = await GuildService.listGuilds();
+      const guildList = decorateLeaderboard(result.guilds || []);
+      this.setData({ guildListLoading: false, guildList, guildListError: '' });
+    } catch (error) {
+      console.error('[guild] load guild list failed', error);
+      this.setData({
+        guildListLoading: false,
+        guildListError: error.errMsg || error.message || '宗门列表加载失败'
       });
     }
   },
@@ -237,13 +276,15 @@ Page({
     }
     this.setData({ donating: true });
     try {
-      await GuildService.donate({
+      const result = await GuildService.donate({
         amount,
         type: 'stone',
         ticket: ticket.ticket,
         signature: ticket.signature
       });
-      wx.showToast({ title: `已捐献 ${amount} 灵石`, icon: 'success' });
+      const contribution = result && result.donation ? Number(result.donation.contribution) || 0 : 0;
+      const toastTitle = contribution ? `贡献 +${contribution}` : `已捐献 ${amount} 灵石`;
+      wx.showToast({ title: toastTitle, icon: 'success' });
       await this.reloadOverview({ showLoading: true });
     } catch (error) {
       console.error('[guild] donate failed', error);

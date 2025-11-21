@@ -187,6 +187,35 @@ button[size='mini'].btn {
   white-space: pre-wrap;
 }
 
+.guild-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.metric {
+  background: rgba(20, 30, 76, 0.75);
+  border: 1rpx solid rgba(118, 142, 255, 0.28);
+  border-radius: 18rpx;
+  padding: 18rpx 16rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  box-shadow: inset 0 0 12rpx rgba(10, 18, 56, 0.45);
+}
+
+.metric__label {
+  font-size: 22rpx;
+  color: rgba(200, 212, 255, 0.82);
+  letter-spacing: 1rpx;
+}
+
+.metric__value {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #f8f9ff;
+}
+
 .guild-shortcuts {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -237,6 +266,82 @@ button[size='mini'].btn {
   font-size: 26rpx;
   color: rgba(207, 219, 255, 0.8);
   line-height: 1.6;
+}
+
+.guild-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  padding: 24rpx 22rpx;
+}
+
+.guild-list__item {
+  display: flex;
+  gap: 18rpx;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid rgba(120, 146, 255, 0.14);
+  align-items: center;
+}
+
+.guild-list__item:last-child {
+  border-bottom: none;
+}
+
+.guild-list__avatar {
+  position: relative;
+  width: 96rpx;
+  height: 96rpx;
+  flex-shrink: 0;
+}
+
+.guild-list__avatar-placeholder,
+.guild-list__avatar-image {
+  width: 100%;
+  height: 100%;
+  border-radius: 20rpx;
+  border: 1rpx solid rgba(130, 154, 255, 0.35);
+  background: rgba(24, 34, 82, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48rpx;
+  color: #ffd571;
+}
+
+.guild-list__avatar-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.guild-list__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10rpx;
+  color: #f4f6ff;
+}
+
+.guild-list__title {
+  font-size: 30rpx;
+  font-weight: 700;
+  letter-spacing: 1rpx;
+}
+
+.guild-list__meta {
+  display: flex;
+  gap: 18rpx;
+  font-size: 24rpx;
+  color: rgba(199, 209, 255, 0.76);
+  flex-wrap: wrap;
+}
+
+.guild-list__manifesto {
+  font-size: 24rpx;
+  color: rgba(223, 230, 255, 0.86);
+  line-height: 1.5;
 }
 
 .guild-leaderboard {

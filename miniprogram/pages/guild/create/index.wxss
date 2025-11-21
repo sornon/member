@@ -36,3 +36,9 @@
   min-height: 180rpx;
   line-height: 1.6;
 }
+
+.form-hint {
+  font-size: 24rpx;
+  color: rgba(199, 209, 255, 0.78);
+  line-height: 1.6;
+}
