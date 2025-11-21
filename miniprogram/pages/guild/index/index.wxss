@@ -460,3 +460,103 @@ button[size='mini'].btn {
   color: #c6d8ff;
   letter-spacing: 2rpx;
 }
+
+.donation-dialog__mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 9, 33, 0.8);
+  backdrop-filter: blur(12rpx);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx 32rpx;
+  box-sizing: border-box;
+  z-index: 99;
+}
+
+.donation-dialog {
+  width: 100%;
+  max-width: 680rpx;
+  background: linear-gradient(160deg, rgba(22, 32, 80, 0.95), rgba(11, 16, 46, 0.96));
+  border: 1rpx solid rgba(134, 157, 255, 0.35);
+  box-shadow: 0 24rpx 48rpx rgba(2, 6, 23, 0.6);
+  border-radius: 28rpx;
+  padding: 32rpx 28rpx;
+  color: #f1f4ff;
+}
+
+.donation-dialog__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24rpx;
+}
+
+.donation-dialog__title {
+  font-size: 32rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.donation-dialog__subtitle {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: rgba(219, 227, 255, 0.78);
+}
+
+.donation-dialog__close {
+  font-size: 36rpx;
+  line-height: 1;
+  color: rgba(231, 236, 255, 0.72);
+  padding: 8rpx 12rpx;
+}
+
+.donation-dialog__close:active {
+  opacity: 0.7;
+}
+
+.donation-options {
+  margin: 28rpx 0 16rpx;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18rpx;
+}
+
+.donation-option {
+  padding: 20rpx 18rpx;
+  border-radius: 20rpx;
+  background: rgba(20, 30, 76, 0.85);
+  border: 1rpx solid rgba(118, 142, 255, 0.22);
+  box-shadow: inset 0 0 18rpx rgba(10, 16, 48, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  color: #e7ecff;
+  transition: all 0.2s ease;
+}
+
+.donation-option__value {
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.donation-option__hint {
+  font-size: 22rpx;
+  color: rgba(199, 209, 255, 0.7);
+}
+
+.donation-option--active {
+  border-color: rgba(132, 154, 255, 0.75);
+  background: linear-gradient(135deg, rgba(81, 103, 255, 0.18), rgba(138, 75, 255, 0.14));
+  box-shadow: 0 12rpx 24rpx rgba(78, 97, 255, 0.28), inset 0 0 16rpx rgba(132, 154, 255, 0.35);
+}
+
+.donation-dialog__actions {
+  margin-top: 16rpx;
+  display: flex;
+  gap: 16rpx;
+}
+
+.donation-dialog__actions .btn {
+  flex: 1;
+}

@@ -228,4 +228,43 @@
       </view>
     </view>
   </scroll-view>
+
+  <view
+    wx:if="{{donationDialogVisible}}"
+    class="donation-dialog__mask"
+    catchtouchmove="noop"
+    bindtap="handleCloseDonationDialog"
+  >
+    <view class="donation-dialog" catchtap="noop">
+      <view class="donation-dialog__header">
+        <view>
+          <view class="donation-dialog__title">一键捐献</view>
+          <view class="donation-dialog__subtitle">选择合适的灵石数量，助力宗门发展</view>
+        </view>
+        <text class="donation-dialog__close" bindtap="handleCloseDonationDialog">×</text>
+      </view>
+      <view class="donation-options">
+        <view
+          wx:for="{{donationOptions}}"
+          wx:key="amount"
+          class="donation-option {{donationSelectedAmount === item.amount ? 'donation-option--active' : ''}}"
+          data-amount="{{item.amount}}"
+          bindtap="handleSelectDonation"
+        >
+          <text class="donation-option__value">{{item.label}}</text>
+          <text class="donation-option__hint">快速贡献 · 稳步提升</text>
+        </view>
+      </view>
+      <view class="donation-dialog__actions">
+        <button class="btn btn--ghost" size="mini" bindtap="handleCloseDonationDialog">稍后再捐</button>
+        <button
+          class="btn btn--primary"
+          size="mini"
+          loading="{{donating}}"
+          disabled="{{donating}}"
+          bindtap="handleConfirmDonation"
+        >立即捐献</button>
+      </view>
+    </view>
+  </view>
 </view>

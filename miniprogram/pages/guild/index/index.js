@@ -5,7 +5,7 @@ const {
   hasGuildActionTicketExpired
 } = require('../../../shared/guild.js');
 
-const DONATION_PRESETS = [50, 100, 200, 500];
+const DONATION_PRESETS = [2000, 5000, 10000, 20000, 50000, 100000];
 
 function buildTicketedUrl(baseUrl, ticket) {
   if (!ticket || !ticket.ticket) {
@@ -42,6 +42,11 @@ function formatNumber(value) {
   return `${numeric}`;
 }
 
+const DONATION_OPTIONS = DONATION_PRESETS.map((amount) => ({
+  amount,
+  label: `${formatNumber(amount)} 灵石`
+}));
+
   function decorateGuild(guild) {
     if (!guild || typeof guild !== 'object') {
       return null;
@@ -77,28 +82,6 @@ function formatNumber(value) {
     });
   }
 
-function pickDonationAmount() {
-  return new Promise((resolve, reject) => {
-    wx.showActionSheet({
-      itemList: DONATION_PRESETS.map((amount) => `捐献 ${amount} 灵石`),
-      success: (res) => {
-        if (typeof res.tapIndex === 'number' && DONATION_PRESETS[res.tapIndex]) {
-          resolve(DONATION_PRESETS[res.tapIndex]);
-        } else {
-          resolve(null);
-        }
-      },
-      fail: (error) => {
-        if (error && /cancel/.test(error.errMsg || '')) {
-          resolve(null);
-          return;
-        }
-        reject(error);
-      }
-    });
-  });
-}
-
 Page({
   data: {
     loading: true,
@@ -113,7 +96,10 @@ Page({
     teamBattleEnabled: false,
     donating: false,
     guildListLoading: true,
-    guildListError: ''
+    guildListError: '',
+    donationDialogVisible: false,
+    donationSelectedAmount: DONATION_PRESETS[0],
+    donationOptions: DONATION_OPTIONS
   },
   onShow() {
     this.loadOverview();
@@ -259,31 +245,42 @@ Page({
     if (this.data.donating) {
       return;
     }
+    if (!this.data.guild) {
+      wx.showToast({ title: '请先加入宗门', icon: 'none' });
+      return;
+    }
     const ticket = await this.ensureActionTicket();
     if (!ticket) {
       return;
     }
-    let amount;
-    try {
-      amount = await pickDonationAmount();
-    } catch (error) {
-      console.error('[guild] donation picker failed', error);
-      wx.showToast({ title: error.errMsg || '选择失败', icon: 'none' });
+    this.setData({ donationDialogVisible: true, donationSelectedAmount: this.data.donationSelectedAmount || DONATION_PRESETS[0] });
+  },
+  async handleConfirmDonation() {
+    const { donationSelectedAmount, donating } = this.data;
+    if (donating) {
       return;
     }
-    if (!amount) {
+    if (!donationSelectedAmount) {
+      wx.showToast({ title: '请选择捐献额度', icon: 'none' });
+      return;
+    }
+    const ticket = await this.ensureActionTicket();
+    if (!ticket) {
       return;
     }
     this.setData({ donating: true });
     try {
       const result = await GuildService.donate({
-        amount,
+        amount: donationSelectedAmount,
         type: 'stone',
         ticket: ticket.ticket,
         signature: ticket.signature
       });
       const contribution = result && result.donation ? Number(result.donation.contribution) || 0 : 0;
-      const toastTitle = contribution ? `贡献 +${contribution}` : `已捐献 ${amount} 灵石`;
+      const toastTitle = contribution
+        ? `贡献 +${contribution}`
+        : `已捐献 ${donationSelectedAmount} 灵石`;
+      this.setData({ donationDialogVisible: false });
       wx.showToast({ title: toastTitle, icon: 'success' });
       await this.reloadOverview({ showLoading: true });
     } catch (error) {
@@ -293,6 +290,17 @@ Page({
       this.setData({ donating: false });
     }
   },
+  handleSelectDonation(event) {
+    const { amount } = event.currentTarget.dataset || {};
+    if (!amount) {
+      return;
+    }
+    this.setData({ donationSelectedAmount: amount });
+  },
+  handleCloseDonationDialog() {
+    this.setData({ donationDialogVisible: false });
+  },
+  noop() {},
   resolveRoleLabel,
   formatNumber
 });
