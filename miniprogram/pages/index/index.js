@@ -286,7 +286,7 @@ const DEFAULT_HOME_ENTRY_VISIBILITY = Object.freeze({
   mall: true,
   secretRealm: false,
   rights: true,
-  guild: true,
+  guild: false,
   pvp: false,
   trading: false
 });

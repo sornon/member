@@ -119,6 +119,7 @@ const HOME_ENTRY_FEATURE_KEYS = [
   'homeEntries.mall',
   'homeEntries.secretRealm',
   'homeEntries.rights',
+  'homeEntries.guild',
   'homeEntries.pvp',
   'homeEntries.trading'
 ];
@@ -156,6 +157,11 @@ const FEATURE_KEY_ALIASES = {
   perks: 'homeEntries.rights',
   benefit: 'homeEntries.rights',
   'homeentries.rights': 'homeEntries.rights',
+  homeguild: 'homeEntries.guild',
+  guild: 'homeEntries.guild',
+  sect: 'homeEntries.guild',
+  zongmen: 'homeEntries.guild',
+  'homeentries.guild': 'homeEntries.guild',
   homepvp: 'homeEntries.pvp',
   pvp: 'homeEntries.pvp',
   arena: 'homeEntries.pvp',
