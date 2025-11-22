@@ -25,6 +25,7 @@ const DEFAULT_HOME_ENTRIES = {
   mall: true,
   secretRealm: false,
   rights: true,
+  guild: true,
   pvp: false,
   trading: false
 };
@@ -713,6 +714,14 @@ Page({
         description: '配置会员权益专区是否出现在首页。',
         visibleHint: '开启后权益入口默认展示。',
         hiddenHint: '关闭后权益入口隐藏。'
+      },
+      {
+        key: 'guild',
+        fullKey: 'homeEntries.guild',
+        label: '宗门',
+        description: '控制宗门入口在首页的展示。',
+        visibleHint: '开启后可从首页进入宗门。',
+        hiddenHint: '关闭后首页隐藏宗门入口。'
       },
       {
         key: 'pvp',
