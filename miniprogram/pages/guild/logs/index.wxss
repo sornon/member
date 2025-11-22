@@ -1,0 +1,5 @@
+.redirect-placeholder {
+  padding: 32rpx;
+  color: #888;
+  font-size: 28rpx;
+}

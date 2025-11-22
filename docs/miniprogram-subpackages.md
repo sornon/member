@@ -19,6 +19,7 @@
     - `detail/index`
     - `team/index`
   - 原有 `miniprogram/pages/guild/*` 目录已整体移动到上述位置。
+  - 兼容处理：为避免历史缓存仍引用老路径，保留 `miniprogram/pages/guild/logs/index` 的占位页并自动重定向至 `/subpackages/guild/logs/index`。
 
 - 管理员分包
   - 根目录：`miniprogram/subpackages/admin`
