@@ -51,29 +51,18 @@ function decorateMembership(membership) {
   if (!membership || typeof membership !== 'object') {
     return null;
   }
-  const spentRaw = membership.guildAttributes && membership.guildAttributes.spentContribution;
-  const spent = Number.isFinite(Number(spentRaw)) ? Math.max(0, Math.round(Number(spentRaw))) : 0;
   const totalRaw = Number(membership.contributionTotal);
   const availableRaw = Number(membership.contribution);
-  const hasContributionTotal = Number.isFinite(totalRaw);
-  const hasContributionAvailable = Number.isFinite(availableRaw);
-  const contributionTotal = hasContributionTotal ? Math.max(0, Math.round(totalRaw)) : null;
-  const available = hasContributionAvailable
-    ? Math.max(0, Math.round(availableRaw))
-    : contributionTotal != null
-    ? Math.max(0, contributionTotal - spent)
-    : null;
-  const contributionDataWarning = !hasContributionTotal || !hasContributionAvailable;
-  const contributionAvailableText = available != null ? formatNumber(available) : '';
+  const contributionTotal = Number.isFinite(totalRaw) ? Math.max(0, Math.round(totalRaw)) : null;
+  const contributionAvailable = Number.isFinite(availableRaw) ? Math.max(0, Math.round(availableRaw)) : null;
+  const contributionAvailableText = contributionAvailable != null ? formatNumber(contributionAvailable) : '';
   const contributionTotalText = contributionTotal != null ? formatNumber(contributionTotal) : '';
   return {
     ...membership,
-    contributionAvailable: available,
+    contributionAvailable,
     contributionTotalResolved: contributionTotal,
-    contributionSpent: spent,
     contributionAvailableText,
-    contributionTotalText,
-    contributionDataWarning
+    contributionTotalText
   };
 }
 
@@ -120,25 +109,20 @@ Page({
     membership: null,
     membershipRoleLabel: '成员',
     leaderboard: [],
-    guildList: [],
     actionTicket: null,
     settings: null,
     teamBattleEnabled: false,
     donating: false,
-    guildListLoading: true,
-    guildListError: '',
     donationDialogVisible: false,
     donationSelectedAmount: DONATION_PRESETS[0],
     donationOptions: DONATION_OPTIONS
   },
   onShow() {
     this.loadOverview();
-    this.loadGuildList();
   },
   onPullDownRefresh() {
     Promise.all([
-      this.reloadOverview({ showLoading: false }),
-      this.loadGuildList({ showLoading: false })
+      this.reloadOverview({ showLoading: false })
     ])
       .catch((error) => {
         console.error('[guild] refresh overview failed', error);
@@ -157,13 +141,6 @@ Page({
       const ticket = resolveGuildActionTicket(result);
       const leaderboard = decorateLeaderboard(result.leaderboard || []);
       const membership = decorateMembership(result.membership || null);
-      if (membership && membership.contributionDataWarning) {
-        console.warn('[guild] member contribution data missing', {
-          contribution: membership.contribution,
-          contributionTotal: membership.contributionTotal
-        });
-        wx.showToast({ title: '贡献数据缺失，请稍后重试', icon: 'none' });
-      }
       // 团队讨伐暂未开放，强制标记为关闭以禁用入口
       const teamBattleEnabled = false;
       this.setData({
@@ -182,22 +159,6 @@ Page({
       this.setData({
         loading: false,
         error: error.errMsg || error.message || '加载失败'
-      });
-    }
-  },
-  async loadGuildList({ showLoading = true } = {}) {
-    if (showLoading) {
-      this.setData({ guildListLoading: true, guildListError: '' });
-    }
-    try {
-      const result = await GuildService.listGuilds();
-      const guildList = decorateLeaderboard(result.guilds || []);
-      this.setData({ guildListLoading: false, guildList, guildListError: '' });
-    } catch (error) {
-      console.error('[guild] load guild list failed', error);
-      this.setData({
-        guildListLoading: false,
-        guildListError: error.errMsg || error.message || '宗门列表加载失败'
       });
     }
   },
