@@ -31,22 +31,45 @@
     "pages/role/index",
     "pages/wallet/wallet",
     "pages/avatar/avatar",
-    "pages/admin/index",
-    "pages/admin/guild/index",
-    "pages/admin/reservations/index",
-    "pages/admin/members/index",
-    "pages/admin/wine-storage/index",
-    "pages/admin/member-detail/index",
-    "pages/admin/charge/index",
-    "pages/admin/orders/index",
-    "pages/admin/trading/index",
-    "pages/admin/menu-orders/index",
-    "pages/admin/menu-catalog/index",
-    "pages/admin/activities/index",
-    "pages/admin/finance-report/index",
-    "pages/admin/data-cleanup/index",
-    "pages/admin/system-switches/index",
     "pages/wallet/charge-confirm/index"
+  ],
+  "subPackages": [
+    {
+      "root": "pages/guild",
+      "name": "guild",
+      "pages": [
+        "index/index",
+        "members/index",
+        "tasks/index",
+        "boss/index",
+        "logs/index",
+        "attributes/index",
+        "create/index",
+        "detail/index",
+        "team/index"
+      ]
+    },
+    {
+      "root": "pages/admin",
+      "name": "admin",
+      "pages": [
+        "index",
+        "guild/index",
+        "reservations/index",
+        "members/index",
+        "wine-storage/index",
+        "member-detail/index",
+        "charge/index",
+        "orders/index",
+        "trading/index",
+        "menu-orders/index",
+        "menu-catalog/index",
+        "activities/index",
+        "finance-report/index",
+        "data-cleanup/index",
+        "system-switches/index"
+      ]
+    }
   ],
   "window": {
     "backgroundTextStyle": "dark",
