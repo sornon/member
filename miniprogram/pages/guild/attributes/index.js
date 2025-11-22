@@ -48,7 +48,7 @@ function decorateAttributes(state) {
     catalog,
     contribution: {
       ...contribution,
-      remainingText: formatNumber(contribution.available || contribution.total || 0)
+      remainingText: formatNumber(contribution.available)
     },
     points: {
       ...points,

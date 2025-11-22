@@ -387,7 +387,7 @@ function createGuildService(options = {}) {
     const spentRaw = doc.guildAttributes && doc.guildAttributes.spentContribution;
     const spent = Number.isFinite(Number(spentRaw)) ? Math.max(0, Math.round(Number(spentRaw))) : 0;
     const total = Number.isFinite(totalRaw) ? Math.max(0, Math.round(totalRaw)) : 0;
-    const available = Number.isFinite(availableRaw) ? Math.max(0, Math.round(availableRaw)) : Math.max(0, total - spent);
+    const available = Number.isFinite(availableRaw) ? Math.max(0, Math.round(availableRaw)) : 0;
     const missingFields = [];
     if (!Number.isFinite(totalRaw)) {
       missingFields.push('contributionTotal');
