@@ -47,6 +47,31 @@ const DONATION_OPTIONS = DONATION_PRESETS.map((amount) => ({
   label: `${formatNumber(amount)} 灵石`
 }));
 
+function decorateMembership(membership) {
+  if (!membership || typeof membership !== 'object') {
+    return null;
+  }
+  const spentRaw = membership.guildAttributes && membership.guildAttributes.spentContribution;
+  const spent = Number.isFinite(Number(spentRaw)) ? Math.max(0, Math.round(Number(spentRaw))) : 0;
+  const totalRaw = Number(membership.contributionTotal);
+  const contributionRaw = Number(membership.contribution);
+  const weeklyRaw = Number(membership.contributionWeek);
+  const contributionTotal = Number.isFinite(totalRaw)
+    ? Math.max(0, Math.round(totalRaw))
+    : Number.isFinite(contributionRaw)
+    ? Math.max(0, Math.round(contributionRaw + spent))
+    : Number.isFinite(weeklyRaw)
+    ? Math.max(0, Math.round(weeklyRaw + spent))
+    : 0;
+  const available = Math.max(0, contributionTotal - spent);
+  return {
+    ...membership,
+    contributionAvailable: available,
+    contributionTotalResolved: contributionTotal,
+    contributionSpent: spent
+  };
+}
+
   function decorateGuild(guild) {
     if (!guild || typeof guild !== 'object') {
       return null;
@@ -126,7 +151,7 @@ Page({
       const result = await GuildService.getOverview();
       const ticket = resolveGuildActionTicket(result);
       const leaderboard = decorateLeaderboard(result.leaderboard || []);
-      const membership = result.membership || null;
+      const membership = decorateMembership(result.membership || null);
       // 团队讨伐暂未开放，强制标记为关闭以禁用入口
       const teamBattleEnabled = false;
       this.setData({
