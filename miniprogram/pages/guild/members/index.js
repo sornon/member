@@ -5,6 +5,7 @@ const {
   DEFAULT_MEMBER_AVATAR,
   hasGuildActionTicketExpired
 } = require('../../../shared/guild.js');
+const { buildTitleImageUrl } = require('../../../shared/titles.js');
 
 function formatNumber(value) {
   const numeric = Number(value || 0);
@@ -32,22 +33,6 @@ function resolveRoleLabel(role) {
   return '成员';
 }
 
-function formatDateTime(date) {
-  if (!date) {
-    return '--';
-  }
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) {
-    return '--';
-  }
-  const yyyy = parsed.getFullYear();
-  const mm = String(parsed.getMonth() + 1).padStart(2, '0');
-  const dd = String(parsed.getDate()).padStart(2, '0');
-  const hh = String(parsed.getHours()).padStart(2, '0');
-  const mi = String(parsed.getMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
-}
-
 function normalizePagination(payload = {}) {
   if (!payload || typeof payload !== 'object') {
     return { hasMore: false, cursor: '' };
@@ -61,14 +46,12 @@ function normalizePagination(payload = {}) {
 function decorateMemberList(entries = []) {
   const decorated = decorateGuildMembers(entries);
   return decorated.map((entry) => {
-    const joinedAt = entry.joinedAt || entry.joined_at || entry.joinDate || entry.join_time;
-    const lastActive = entry.updatedAt || entry.lastActiveAt || entry.lastSeenAt;
+    const titleImage = entry.titleImage || (entry.titleId ? buildTitleImageUrl(entry.titleId) : '');
     return {
       ...entry,
       avatarUrl: entry.avatarUrl || DEFAULT_MEMBER_AVATAR,
       roleLabel: resolveRoleLabel(entry.role),
-      joinedAtText: formatDateTime(joinedAt),
-      lastActiveText: formatDateTime(lastActive),
+      titleImage,
       contributionTotal: Number(entry.contributionTotal || entry.contribution || 0),
       contributionWeek: Number(entry.contributionWeek || entry.contributionWeekly || 0),
       powerScore: Number(entry.power || entry.powerScore || 0),
@@ -94,6 +77,7 @@ Page({
     error: '',
     guild: null,
     membership: null,
+    membershipRoleLabel: '成员',
     members: [],
     pagination: { hasMore: false, cursor: '' },
     fetching: false,
@@ -127,6 +111,7 @@ Page({
         loading: false,
         guild: decorateGuild(result.guild),
         membership: result.membership || null,
+        membershipRoleLabel: resolveRoleLabel(result.membership && result.membership.role),
         actionTicket: ticket,
         error: ''
       });

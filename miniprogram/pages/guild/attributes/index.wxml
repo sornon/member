@@ -11,7 +11,7 @@
       <view class="card summary-card" wx:if="{{attributes}}">
         <view class="summary-header">
           <view class="summary-title">{{guild.name || '未命名宗门'}}</view>
-          <view class="summary-role">我的职位：{{membership ? resolveRoleLabel(membership.role) : '成员'}}</view>
+          <view class="summary-role">我的职位：{{membershipRoleLabel}}</view>
         </view>
         <view class="summary-metrics">
           <view class="metric">

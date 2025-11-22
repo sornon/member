@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { COLLECTIONS, DEFAULT_ADMIN_ROLES, normalizeAvatarFrameValue, pickPortraitUrl } = require('common-config');
+const { COLLECTIONS, DEFAULT_ADMIN_ROLES, normalizeAvatarFrameValue } = require('common-config');
 const {
   clamp,
   resolveCombatStats,
@@ -382,13 +382,24 @@ function createGuildService(options = {}) {
   }
 
   function resolveMemberContributionBalance(doc = {}) {
-    const total = extractMemberContribution(doc);
+    const totalRaw = Number(doc.contributionTotal);
+    const availableRaw = Number(doc.contribution);
     const spentRaw = doc.guildAttributes && doc.guildAttributes.spentContribution;
     const spent = Number.isFinite(Number(spentRaw)) ? Math.max(0, Math.round(Number(spentRaw))) : 0;
+    const total = Number.isFinite(totalRaw) ? Math.max(0, Math.round(totalRaw)) : 0;
+    const available = Number.isFinite(availableRaw) ? Math.max(0, Math.round(availableRaw)) : 0;
+    const missingFields = [];
+    if (!Number.isFinite(totalRaw)) {
+      missingFields.push('contributionTotal');
+    }
+    if (!Number.isFinite(availableRaw)) {
+      missingFields.push('contribution');
+    }
     return {
       total,
       spent,
-      available: Math.max(0, total - spent)
+      available,
+      missingFields
     };
   }
 
@@ -1317,6 +1328,16 @@ function createGuildService(options = {}) {
       return '';
     }
     return value.trim();
+  }
+
+  function pickAvatarUrl(...candidates) {
+    for (let i = 0; i < candidates.length; i += 1) {
+      const trimmed = toTrimmedString(candidates[i]);
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+    return '';
   }
 
   function looksLikeUrl(value) {
@@ -3085,13 +3106,11 @@ function createGuildService(options = {}) {
     ];
     const displayName = nameCandidates.map(toTrimmedString).find(Boolean) || memberId;
     const avatarUrl =
-      pickPortraitUrl(
+      pickAvatarUrl(
         doc.avatarUrl,
-        doc.portrait,
-        memberDoc && memberDoc.avatarUrl,
-        memberDoc && memberDoc.portrait,
-        extrasDoc && extrasDoc.avatarUrl,
-        extrasDoc && extrasDoc.portrait
+        doc.avatar,
+        memberDoc && (memberDoc.avatarUrl || (memberDoc.appearance && memberDoc.appearance.avatarUrl)),
+        extrasDoc && (extrasDoc.avatarUrl || (extrasDoc.appearance && extrasDoc.appearance.avatarUrl))
       ) || '';
     const avatarFrame = resolveAvatarFrameValue(
       doc.avatarFrame,
@@ -4608,17 +4627,23 @@ function createGuildService(options = {}) {
         }
         const cost = calculateMemberAttributeUpgradeCost(currentLevel + 1);
         const contribution = resolveMemberContributionBalance(memberDoc);
+        if (contribution.missingFields && contribution.missingFields.length) {
+          throw createError('CONTRIBUTION_DATA_MISSING', '个人贡献数据缺失，请稍后重试');
+        }
         if (contribution.available < cost) {
           throw createError('CONTRIBUTION_INSUFFICIENT', '个人宗门贡献不足');
         }
         const updatedLevels = { ...memberLevels, [targetKey]: currentLevel + 1 };
+        const nextSpentContribution = contribution.spent + cost;
+        const contributionTotal = Math.max(0, Math.round(Number(memberDoc.contributionTotal)));
         const updatedAttributes = {
           ...(memberDoc.guildAttributes || {}),
           levels: updatedLevels,
-          spentContribution: contribution.spent + cost
+          spentContribution: nextSpentContribution
         };
         await transaction.collection(COLLECTIONS.GUILD_MEMBERS).doc(memberDocId).update({
           data: {
+            contribution: Math.max(0, contributionTotal - nextSpentContribution),
             guildAttributes: updatedAttributes,
             updatedAt: serverTimestamp()
           }
@@ -4655,17 +4680,23 @@ function createGuildService(options = {}) {
       }
       const cost = calculateMemberAttributeUpgradeCost(currentLevel + 1);
       const contribution = resolveMemberContributionBalance(memberDoc);
+      if (contribution.missingFields && contribution.missingFields.length) {
+        throw createError('CONTRIBUTION_DATA_MISSING', '个人贡献数据缺失，请稍后重试');
+      }
       if (contribution.available < cost) {
         throw createError('CONTRIBUTION_INSUFFICIENT', '个人宗门贡献不足');
       }
       const updatedLevels = { ...memberLevels, [targetKey]: currentLevel + 1 };
+      const nextSpentContribution = contribution.spent + cost;
+      const contributionTotal = Math.max(0, Math.round(Number(memberDoc.contributionTotal)));
       const updatedAttributes = {
         ...(memberDoc.guildAttributes || {}),
         levels: updatedLevels,
-        spentContribution: contribution.spent + cost
+        spentContribution: nextSpentContribution
       };
       await db.collection(COLLECTIONS.GUILD_MEMBERS).doc(memberDocId).update({
         data: {
+          contribution: Math.max(0, contributionTotal - nextSpentContribution),
           guildAttributes: updatedAttributes,
           updatedAt: serverTimestamp()
         }

@@ -58,7 +58,7 @@
           </view>
           <view class="metric" wx:if="{{membership}}">
             <text class="metric__label">我的贡献</text>
-            <text class="metric__value">{{formatNumber(membership.contributionTotal || membership.contribution || 0)}}</text>
+            <text class="metric__value">{{membership.contributionTotalText || '0'}}</text>
           </view>
         </view>
         <view class="guild-shortcuts">
@@ -92,15 +92,6 @@
           <view
             class="shortcut"
             bindtap="handleNavigate"
-            data-url="/pages/guild/logs/index"
-            data-require-guild="true"
-          >
-            <text class="shortcut__icon">📜</text>
-            <text class="shortcut__label">宗门日志</text>
-          </view>
-          <view
-            class="shortcut"
-            bindtap="handleNavigate"
             data-url="/pages/guild/attributes/index"
             data-require-guild="true"
           >
@@ -114,67 +105,6 @@
         <text class="guild-empty__title">尚未加入宗门</text>
         <text class="guild-empty__desc">创建或加入宗门，解锁团队讨伐、宗门任务等高级玩法。</text>
         <button class="btn btn--primary" bindtap="handleCreateGuild">创建宗门</button>
-      </view>
-
-      <view class="card guild-list">
-        <view class="section-header">
-          <view class="section-header__title">全部宗门</view>
-          <button
-            class="btn btn--link"
-            size="mini"
-            bindtap="loadGuildList"
-            loading="{{guildListLoading}}"
-            disabled="{{guildListLoading}}"
-          >刷新</button>
-        </view>
-        <block wx:if="{{guildListLoading}}">
-          <view class="empty">宗门列表加载中...</view>
-        </block>
-        <block wx:elif="{{guildListError}}">
-          <view class="empty">{{guildListError}}</view>
-        </block>
-        <block wx:elif="{{guildList.length === 0}}">
-          <view class="empty">暂无宗门，快去创建吧</view>
-        </block>
-        <block wx:else>
-          <block wx:for="{{guildList}}" wx:key="id">
-            <view class="guild-list__item">
-              <view class="guild-list__avatar">
-                <image
-                  wx:if="{{item.hasCustomAvatar}}"
-                  class="guild-list__avatar-image"
-                  src="{{item.avatarUrl}}"
-                  mode="cover"
-                ></image>
-                <text wx:else class="guild-list__avatar-placeholder">🏯</text>
-                <image
-                  wx:if="{{item.avatarFrame}}"
-                  class="guild-list__avatar-frame"
-                  src="{{item.avatarFrame}}"
-                  mode="scaleToFill"
-                ></image>
-              </view>
-              <view class="guild-list__body">
-                <view class="guild-list__title">{{item.name}}</view>
-                <view class="guild-list__meta">
-                  <text>等级 Lv.{{item.level || 1}}</text>
-                  <text>贡献 {{item.contributionText || formatNumber(item.contribution || item.contributionTotal || 0)}}</text>
-                </view>
-                <view class="guild-list__meta">
-                  <text>成员 {{item.memberCountText || item.memberCount || 0}}{{item.memberCapacityText ? '/' + item.memberCapacityText : ''}}</text>
-                  <text>战力 {{item.powerText || item.power || 0}}</text>
-                </view>
-                <view class="guild-list__manifesto">{{item.manifesto || '暂未填写宗门宣言。'}}</view>
-              </view>
-              <button
-                class="btn btn--link"
-                size="mini"
-                data-id="{{item.id}}"
-                bindtap="handleViewGuild"
-              >查看</button>
-            </view>
-          </block>
-        </block>
       </view>
 
       <view class="card guild-leaderboard">
@@ -196,24 +126,12 @@
                     mode="cover"
                   ></image>
                   <text wx:else class="leaderboard-avatar__placeholder">🏯</text>
-                  <image
-                    wx:if="{{item.avatarFrame}}"
-                    class="leaderboard-avatar__frame"
-                    src="{{item.avatarFrame}}"
-                    mode="scaleToFill"
-                ></image>
-              </view>
+                </view>
               <view class="leaderboard-body">
                 <view class="leaderboard-name">{{item.name}}</view>
                 <view class="leaderboard-meta">成员 {{item.memberCountText || item.memberCount || 0}} · 战力 {{item.powerText || item.power || 0}}</view>
-                <view wx:if="{{item.titleImage || item.titleName}}" class="leaderboard-title">
-                  <image
-                    wx:if="{{item.titleImage}}"
-                    class="leaderboard-title__image"
-                    src="{{item.titleImage}}"
-                    mode="heightFix"
-                  ></image>
-                  <text wx:if="{{item.titleName}}" class="leaderboard-title__text">{{item.titleName}}</text>
+                <view wx:if="{{item.titleName}}" class="leaderboard-title">
+                  <text class="leaderboard-title__text">{{item.titleName}}</text>
                 </view>
               </view>
               <button
