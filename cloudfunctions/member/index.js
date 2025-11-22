@@ -601,12 +601,13 @@ async function getSystemSettings() {
   const document = await loadFeatureToggleDocument();
   const homeEntries = document && document.homeEntries ? document.homeEntries : DEFAULT_HOME_ENTRIES;
   const normalizedHomeEntries = normalizeHomeEntries(homeEntries);
+  const mergedHomeEntries = { ...DEFAULT_HOME_ENTRIES, ...normalizedHomeEntries };
   const backgroundCatalog = normalizeBackgroundCatalog(
     (document && document.globalBackgroundCatalog) || []
   );
   registerCustomBackgrounds(backgroundCatalog);
   const response = {
-    homeEntries: cloneHomeEntries(normalizedHomeEntries),
+    homeEntries: cloneHomeEntries(mergedHomeEntries),
     globalBackground: cloneGlobalBackground(document && document.globalBackground),
     globalBackgroundCatalog: cloneGlobalBackgroundCatalog(backgroundCatalog)
   };
