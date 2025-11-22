@@ -23,7 +23,7 @@
 - 管理员分包
   - 根目录：`miniprogram/subpackages/admin`
   - 已迁移页面：
-    - `index/index`
+    - `index`
     - `guild/index`
     - `reservations/index`
     - `members/index`
@@ -48,5 +48,5 @@
 ## 后续指引
 
 - 新增后台或宗门页面时，请将文件放在对应分包目录并在 `app.json` 注册。
-- 其它页面如需跳转至后台或宗门模块，统一使用分包路径 `/subpackages/admin/<page>/index` 或 `/subpackages/guild/<page>/index`。
+- 其它页面如需跳转至后台或宗门模块，统一使用分包路径 `/subpackages/admin/index`（后台首页）或 `/subpackages/admin/<page>/index`，宗门模块使用 `/subpackages/guild/<page>/index`。
 - 如需进一步拆分其他业务，可沿用相同方式创建新的 `subpackages/<name>` 目录，并在 `app.json` 中追加分包配置。

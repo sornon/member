@@ -36,7 +36,7 @@
       "root": "subpackages/admin",
       "name": "admin",
       "pages": [
-        "index/index",
+        "index",
         "guild/index",
         "reservations/index",
         "members/index",

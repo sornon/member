@@ -1276,7 +1276,7 @@ function resolveNavItems(member) {
     navItems.push({
       icon: '🛡️',
       label: '管理员',
-      url: '/subpackages/admin/index/index',
+      url: '/subpackages/admin/index',
       showDot: shouldShowAdminDot(badges)
     });
   }
