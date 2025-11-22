@@ -216,6 +216,10 @@ button[size='mini'].btn {
   color: #f8f9ff;
 }
 
+.metric__value--warning {
+  color: #f6c344;
+}
+
 .guild-shortcuts {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

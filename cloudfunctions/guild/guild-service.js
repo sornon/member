@@ -382,13 +382,24 @@ function createGuildService(options = {}) {
   }
 
   function resolveMemberContributionBalance(doc = {}) {
-    const total = extractMemberContribution(doc);
+    const totalRaw = Number(doc.contributionTotal);
+    const availableRaw = Number(doc.contribution);
     const spentRaw = doc.guildAttributes && doc.guildAttributes.spentContribution;
     const spent = Number.isFinite(Number(spentRaw)) ? Math.max(0, Math.round(Number(spentRaw))) : 0;
+    const total = Number.isFinite(totalRaw) ? Math.max(0, Math.round(totalRaw)) : 0;
+    const available = Number.isFinite(availableRaw) ? Math.max(0, Math.round(availableRaw)) : Math.max(0, total - spent);
+    const missingFields = [];
+    if (!Number.isFinite(totalRaw)) {
+      missingFields.push('contributionTotal');
+    }
+    if (!Number.isFinite(availableRaw)) {
+      missingFields.push('contribution');
+    }
     return {
       total,
       spent,
-      available: Math.max(0, total - spent)
+      available,
+      missingFields
     };
   }
 
@@ -4608,14 +4619,15 @@ function createGuildService(options = {}) {
         }
         const cost = calculateMemberAttributeUpgradeCost(currentLevel + 1);
         const contribution = resolveMemberContributionBalance(memberDoc);
+        if (contribution.missingFields && contribution.missingFields.length) {
+          throw createError('CONTRIBUTION_DATA_MISSING', '个人贡献数据缺失，请稍后重试');
+        }
         if (contribution.available < cost) {
           throw createError('CONTRIBUTION_INSUFFICIENT', '个人宗门贡献不足');
         }
         const updatedLevels = { ...memberLevels, [targetKey]: currentLevel + 1 };
         const nextSpentContribution = contribution.spent + cost;
-        const contributionTotal = Number.isFinite(Number(memberDoc.contributionTotal))
-          ? Math.max(0, Math.round(Number(memberDoc.contributionTotal)))
-          : Math.max(0, contribution.total + contribution.spent);
+        const contributionTotal = Math.max(0, Math.round(Number(memberDoc.contributionTotal)));
         const updatedAttributes = {
           ...(memberDoc.guildAttributes || {}),
           levels: updatedLevels,
@@ -4660,14 +4672,15 @@ function createGuildService(options = {}) {
       }
       const cost = calculateMemberAttributeUpgradeCost(currentLevel + 1);
       const contribution = resolveMemberContributionBalance(memberDoc);
+      if (contribution.missingFields && contribution.missingFields.length) {
+        throw createError('CONTRIBUTION_DATA_MISSING', '个人贡献数据缺失，请稍后重试');
+      }
       if (contribution.available < cost) {
         throw createError('CONTRIBUTION_INSUFFICIENT', '个人宗门贡献不足');
       }
       const updatedLevels = { ...memberLevels, [targetKey]: currentLevel + 1 };
       const nextSpentContribution = contribution.spent + cost;
-      const contributionTotal = Number.isFinite(Number(memberDoc.contributionTotal))
-        ? Math.max(0, Math.round(Number(memberDoc.contributionTotal)))
-        : Math.max(0, contribution.total + contribution.spent);
+      const contributionTotal = Math.max(0, Math.round(Number(memberDoc.contributionTotal)));
       const updatedAttributes = {
         ...(memberDoc.guildAttributes || {}),
         levels: updatedLevels,

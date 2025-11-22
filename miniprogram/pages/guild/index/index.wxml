@@ -58,18 +58,10 @@
           </view>
           <view class="metric" wx:if="{{membership}}">
             <text class="metric__label">我的贡献</text>
-            <text class="metric__value">
-              {{
-                formatNumber(membership.contributionAvailable || membership.contribution || 0)
-              }}/{{
-                formatNumber(
-                  membership.contributionTotalResolved ||
-                    membership.contributionTotal ||
-                    membership.contribution ||
-                    0
-                )
-              }}
+            <text class="metric__value" wx:if="{{!membership.contributionDataWarning}}">
+              {{membership.contributionAvailableText}}/{{membership.contributionTotalText}}
             </text>
+            <text class="metric__value metric__value--warning" wx:else>贡献数据缺失</text>
           </view>
         </view>
         <view class="guild-shortcuts">
