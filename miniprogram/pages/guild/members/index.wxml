@@ -35,12 +35,12 @@
                       mode="scaleToFill"
                     ></image>
                   </view>
-                  <view wx:if="{{item.titleImage}}" class="member-title">
-                    <image class="member-title__image" src="{{item.titleImage}}" mode="heightFix"></image>
-                  </view>
                 </view>
                 <view class="member-identity__info">
                   <view class="member-name">{{item.displayName || item.name || item.memberName || '无名修士'}}</view>
+                  <view wx:if="{{item.titleImage}}" class="member-title">
+                    <image class="member-title__image" src="{{item.titleImage}}" mode="heightFix"></image>
+                  </view>
                 </view>
               </view>
               <view class="member-stats">
