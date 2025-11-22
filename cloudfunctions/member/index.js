@@ -602,11 +602,13 @@ async function getSystemSettings() {
   const homeEntries = document && document.homeEntries ? document.homeEntries : DEFAULT_HOME_ENTRIES;
   const normalizedHomeEntries = normalizeHomeEntries(homeEntries);
   const mergedHomeEntries = { ...DEFAULT_HOME_ENTRIES, ...normalizedHomeEntries };
-  if (typeof mergedHomeEntries.guild !== 'boolean') {
-    mergedHomeEntries.guild = Boolean(
-      normalizedHomeEntries.guild != null ? normalizedHomeEntries.guild : DEFAULT_HOME_ENTRIES.guild
-    );
-  }
+  ['activities', 'mall', 'secretRealm', 'rights', 'guild', 'pvp', 'trading'].forEach((key) => {
+    if (typeof mergedHomeEntries[key] !== 'boolean') {
+      mergedHomeEntries[key] = Boolean(
+        normalizedHomeEntries[key] != null ? normalizedHomeEntries[key] : DEFAULT_HOME_ENTRIES[key]
+      );
+    }
+  });
   const backgroundCatalog = normalizeBackgroundCatalog(
     (document && document.globalBackgroundCatalog) || []
   );
