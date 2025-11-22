@@ -132,14 +132,8 @@
               <view class="leaderboard-body">
                 <view class="leaderboard-name">{{item.name}}</view>
                 <view class="leaderboard-meta">成员 {{item.memberCountText || item.memberCount || 0}} · 战力 {{item.powerText || item.power || 0}}</view>
-                <view wx:if="{{item.titleImage || item.titleName}}" class="leaderboard-title">
-                  <image
-                    wx:if="{{item.titleImage}}"
-                    class="leaderboard-title__image"
-                    src="{{item.titleImage}}"
-                    mode="heightFix"
-                  ></image>
-                  <text wx:if="{{item.titleName}}" class="leaderboard-title__text">{{item.titleName}}</text>
+                <view wx:if="{{item.titleName}}" class="leaderboard-title">
+                  <text class="leaderboard-title__text">{{item.titleName}}</text>
                 </view>
               </view>
               <button

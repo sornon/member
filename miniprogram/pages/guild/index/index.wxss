@@ -366,10 +366,6 @@ button[size='mini'].btn {
   gap: 12rpx;
 }
 
-.leaderboard-title__image {
-  height: 32rpx;
-}
-
 .leaderboard-title__text {
   font-size: 22rpx;
   color: #c6d8ff;
