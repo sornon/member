@@ -40,7 +40,7 @@
               bindtap="handleQuickDonate"
               loading="{{donating}}"
               disabled="{{donating}}"
-            >一键捐献</button>
+            >捐献灵石</button>
           </view>
         </view>
         <view class="guild-notice">
@@ -156,7 +156,7 @@
     <view class="donation-dialog" catchtap="noop">
       <view class="donation-dialog__header">
         <view>
-          <view class="donation-dialog__title">一键捐献</view>
+          <view class="donation-dialog__title">捐献灵石</view>
           <view class="donation-dialog__subtitle">选择合适的灵石数量，助力宗门发展</view>
         </view>
         <text class="donation-dialog__close" bindtap="handleCloseDonationDialog">×</text>
@@ -170,7 +170,7 @@
           bindtap="handleSelectDonation"
         >
           <text class="donation-option__value">{{item.label}}</text>
-          <text class="donation-option__hint">快速贡献 · 稳步提升</text>
+          <text class="donation-option__hint">获得 {{item.contributionGain}} 点贡献</text>
         </view>
       </view>
       <view class="donation-dialog__actions">
