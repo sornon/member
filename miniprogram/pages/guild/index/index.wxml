@@ -94,39 +94,12 @@
           <view
             class="shortcut"
             bindtap="handleNavigate"
-            data-url="/pages/guild/logs/index"
-            data-require-guild="true"
-          >
-            <text class="shortcut__icon">📜</text>
-            <text class="shortcut__label">宗门日志</text>
-          </view>
-          <view
-            class="shortcut"
-            bindtap="handleNavigate"
             data-url="/pages/guild/attributes/index"
             data-require-guild="true"
           >
             <text class="shortcut__icon">✨</text>
             <text class="shortcut__label">宗门属性</text>
           </view>
-        </view>
-
-        <view class="guild-logs card">
-          <view class="section-header">
-            <view class="section-header__title">宗门日志</view>
-            <button class="btn btn--link" size="mini" bindtap="handleNavigate" data-url="/pages/guild/logs/index" data-require-guild="true">更多</button>
-          </view>
-          <block wx:if="{{logs.length === 0}}">
-            <view class="empty">暂无日志</view>
-          </block>
-          <block wx:else>
-            <block wx:for="{{logs}}" wx:key="id || createdAtText || index">
-              <view class="log-item">
-                <view class="log-item__message">{{item.message || '无内容'}}</view>
-                <view class="log-item__meta">{{item.createdAtText || '--'}}</view>
-              </view>
-            </block>
-          </block>
         </view>
       </view>
 

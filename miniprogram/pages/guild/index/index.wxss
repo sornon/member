@@ -476,28 +476,3 @@ button[size='mini'].btn {
   flex: 1;
 }
 
-.guild-logs {
-  display: flex;
-  flex-direction: column;
-  gap: 12rpx;
-}
-
-.log-item {
-  padding: 16rpx 12rpx;
-  border-bottom: 1rpx solid rgba(118, 142, 255, 0.18);
-}
-
-.log-item:last-child {
-  border-bottom: none;
-}
-
-.log-item__message {
-  font-size: 26rpx;
-  color: #e7ecff;
-}
-
-.log-item__meta {
-  margin-top: 6rpx;
-  font-size: 22rpx;
-  color: rgba(200, 210, 255, 0.7);
-}

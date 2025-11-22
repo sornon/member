@@ -6,7 +6,6 @@ const {
 } = require('../../../shared/guild.js');
 
 const DONATION_PRESETS = [2000, 5000, 10000, 20000, 50000, 100000];
-const LOG_PREVIEW_LIMIT = 5;
 
 function buildTicketedUrl(baseUrl, ticket) {
   if (!ticket || !ticket.ticket) {
@@ -67,30 +66,6 @@ function decorateMembership(membership) {
   };
 }
 
-function formatTimestamp(date) {
-  if (!date) {
-    return '';
-  }
-  const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) {
-    return '';
-  }
-  const yyyy = parsed.getFullYear();
-  const mm = String(parsed.getMonth() + 1).padStart(2, '0');
-  const dd = String(parsed.getDate()).padStart(2, '0');
-  const hh = String(parsed.getHours()).padStart(2, '0');
-  const mi = String(parsed.getMinutes()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
-}
-
-function decorateLogs(entries = []) {
-  return (entries || []).map((entry) => ({
-    ...entry,
-    createdAtText: formatTimestamp(entry.createdAt || entry.timestamp || entry.created_at),
-    message: entry.message || entry.title || ''
-  }));
-}
-
   function decorateGuild(guild) {
     if (!guild || typeof guild !== 'object') {
       return null;
@@ -134,7 +109,6 @@ Page({
     membership: null,
     membershipRoleLabel: '成员',
     leaderboard: [],
-    logs: [],
     actionTicket: null,
     settings: null,
     teamBattleEnabled: false,
@@ -175,13 +149,11 @@ Page({
         membership,
         membershipRoleLabel: membership ? resolveRoleLabel(membership.role) : '成员',
         leaderboard,
-        logs: [],
         actionTicket: ticket,
         settings: result.settings || null,
         teamBattleEnabled,
         error: ''
       });
-      await this.fetchLogs(ticket);
     } catch (error) {
       console.error('[guild] load overview failed', error);
       this.setData({
@@ -215,24 +187,6 @@ Page({
       wx.showToast({ title: error.errMsg || '授权获取失败', icon: 'none' });
     }
     return null;
-  },
-  async fetchLogs(ticket) {
-    if (!ticket || !ticket.ticket) {
-      this.setData({ logs: [] });
-      return;
-    }
-    try {
-      const response = await GuildService.getLogs({
-        ticket: ticket.ticket,
-        signature: ticket.signature,
-        limit: LOG_PREVIEW_LIMIT
-      });
-      const decorated = decorateLogs(response.logs || response.entries || []);
-      this.setData({ logs: decorated });
-    } catch (error) {
-      console.error('[guild] load latest logs failed', error);
-      this.setData({ logs: [] });
-    }
   },
   async handleCreateGuild() {
     const ticket = await this.ensureActionTicket();
