@@ -5,6 +5,7 @@ const {
   DEFAULT_MEMBER_AVATAR,
   hasGuildActionTicketExpired
 } = require('../../../shared/guild.js');
+const { buildTitleImageUrl } = require('../../../shared/titles.js');
 
 function formatNumber(value) {
   const numeric = Number(value || 0);
@@ -63,12 +64,14 @@ function decorateMemberList(entries = []) {
   return decorated.map((entry) => {
     const joinedAt = entry.joinedAt || entry.joined_at || entry.joinDate || entry.join_time;
     const lastActive = entry.updatedAt || entry.lastActiveAt || entry.lastSeenAt;
+    const titleImage = entry.titleImage || (entry.titleId ? buildTitleImageUrl(entry.titleId) : '');
     return {
       ...entry,
       avatarUrl: entry.avatarUrl || DEFAULT_MEMBER_AVATAR,
       roleLabel: resolveRoleLabel(entry.role),
       joinedAtText: formatDateTime(joinedAt),
       lastActiveText: formatDateTime(lastActive),
+      titleImage,
       contributionTotal: Number(entry.contributionTotal || entry.contribution || 0),
       contributionWeek: Number(entry.contributionWeek || entry.contributionWeekly || 0),
       powerScore: Number(entry.power || entry.powerScore || 0),

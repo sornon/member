@@ -24,20 +24,30 @@
         <block wx:else>
           <block wx:for="{{members}}" wx:key="memberId">
             <view class="member-item">
-              <view class="member-avatar">
-                <image class="member-avatar__image" src="{{item.avatarUrl || defaultAvatar}}" mode="cover"></image>
-                <image
-                  wx:if="{{item.avatarFrame}}"
-                  class="member-avatar__frame"
-                  src="{{item.avatarFrame}}"
-                  mode="scaleToFill"
-                ></image>
+              <view class="member-identity">
+                <view class="member-avatar-wrapper">
+                  <image class="member-avatar" src="{{item.avatarUrl || defaultAvatar}}" mode="cover"></image>
+                  <image
+                    wx:if="{{item.avatarFrame}}"
+                    class="member-avatar-frame"
+                    src="{{item.avatarFrame}}"
+                    mode="scaleToFill"
+                  ></image>
+                </view>
+                <view class="member-identity__info">
+                  <view class="member-name-row">
+                    <view class="member-name">{{item.displayName || item.name || item.memberName || '无名修士'}}</view>
+                    <view wx:if="{{item.titleImage}}" class="member-title">
+                      <image class="member-title__image" src="{{item.titleImage}}" mode="heightFix"></image>
+                    </view>
+                  </view>
+                  <view class="member-meta">加入：{{item.joinedAtText}} · 最近：{{item.lastActiveText}}</view>
+                </view>
               </view>
-              <view class="member-body">
-                <view class="member-name">{{item.displayName || item.name || item.memberName || '无名修士'}}</view>
-                  <view class="member-meta">职位：{{item.roleLabel}} · 战力 {{item.powerText || item.powerScore || 0}}</view>
-                  <view class="member-meta">总贡献 {{formatNumber(item.contributionTotal || 0)}} · 本周 {{formatNumber(item.contributionWeek || 0)}}</view>
-                <view class="member-meta">加入：{{item.joinedAtText}} · 最近：{{item.lastActiveText}}</view>
+              <view class="member-stats">
+                <view class="member-meta">职位：{{item.roleLabel}}</view>
+                <view class="member-meta">战力 {{item.powerText || item.powerScore || 0}}</view>
+                <view class="member-meta">总贡献 {{formatNumber(item.contributionTotal || 0)}} · 本周 {{formatNumber(item.contributionWeek || 0)}}</view>
               </view>
               <button
                 class="btn btn--ghost btn--small"
