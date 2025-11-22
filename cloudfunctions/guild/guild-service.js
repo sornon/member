@@ -4612,13 +4612,18 @@ function createGuildService(options = {}) {
           throw createError('CONTRIBUTION_INSUFFICIENT', '个人宗门贡献不足');
         }
         const updatedLevels = { ...memberLevels, [targetKey]: currentLevel + 1 };
+        const nextSpentContribution = contribution.spent + cost;
+        const contributionTotal = Number.isFinite(Number(memberDoc.contributionTotal))
+          ? Math.max(0, Math.round(Number(memberDoc.contributionTotal)))
+          : Math.max(0, contribution.total + contribution.spent);
         const updatedAttributes = {
           ...(memberDoc.guildAttributes || {}),
           levels: updatedLevels,
-          spentContribution: contribution.spent + cost
+          spentContribution: nextSpentContribution
         };
         await transaction.collection(COLLECTIONS.GUILD_MEMBERS).doc(memberDocId).update({
           data: {
+            contribution: Math.max(0, contributionTotal - nextSpentContribution),
             guildAttributes: updatedAttributes,
             updatedAt: serverTimestamp()
           }
@@ -4659,13 +4664,18 @@ function createGuildService(options = {}) {
         throw createError('CONTRIBUTION_INSUFFICIENT', '个人宗门贡献不足');
       }
       const updatedLevels = { ...memberLevels, [targetKey]: currentLevel + 1 };
+      const nextSpentContribution = contribution.spent + cost;
+      const contributionTotal = Number.isFinite(Number(memberDoc.contributionTotal))
+        ? Math.max(0, Math.round(Number(memberDoc.contributionTotal)))
+        : Math.max(0, contribution.total + contribution.spent);
       const updatedAttributes = {
         ...(memberDoc.guildAttributes || {}),
         levels: updatedLevels,
-        spentContribution: contribution.spent + cost
+        spentContribution: nextSpentContribution
       };
       await db.collection(COLLECTIONS.GUILD_MEMBERS).doc(memberDocId).update({
         data: {
+          contribution: Math.max(0, contributionTotal - nextSpentContribution),
           guildAttributes: updatedAttributes,
           updatedAt: serverTimestamp()
         }
