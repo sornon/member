@@ -25,7 +25,7 @@ const DEFAULT_HOME_ENTRIES = {
   mall: true,
   secretRealm: false,
   rights: true,
-  guild: true,
+  guild: false,
   pvp: false,
   trading: false
 };
