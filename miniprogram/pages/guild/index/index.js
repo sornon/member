@@ -42,9 +42,21 @@ function formatNumber(value) {
   return `${numeric}`;
 }
 
+function formatDonationAmount(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return '0';
+  }
+  if (numeric >= 10000) {
+    return `${Math.round(numeric / 10000)}万`;
+  }
+  return `${Math.round(numeric)}`;
+}
+
 const DONATION_OPTIONS = DONATION_PRESETS.map((amount) => ({
   amount,
-  label: `${formatNumber(amount)} 灵石`
+  label: `${formatDonationAmount(amount)} 灵石`,
+  contributionGain: Math.floor(amount / 100)
 }));
 
 function decorateMembership(membership) {
