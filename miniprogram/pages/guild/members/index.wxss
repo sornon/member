@@ -42,8 +42,15 @@
   display: flex;
   align-items: center;
   gap: 16rpx;
-  flex: 1;
+  flex: 1.35;
   min-width: 0;
+}
+
+.member-portrait {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8rpx;
 }
 
 .member-avatar-wrapper {
@@ -74,14 +81,6 @@
 .member-identity__info {
   display: flex;
   flex-direction: column;
-  gap: 8rpx;
-  min-width: 0;
-}
-
-.member-name-row {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
   min-width: 0;
 }
 
@@ -90,7 +89,7 @@
   font-weight: 600;
   color: #f8f9ff;
   letter-spacing: 1rpx;
-  max-width: 320rpx;
+  max-width: 420rpx;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -118,8 +117,8 @@
   display: flex;
   flex-direction: column;
   gap: 8rpx;
-  min-width: 300rpx;
-  flex-shrink: 0;
+  min-width: 320rpx;
+  flex: 0 0 auto;
 }
 
 .member-item .btn--small {

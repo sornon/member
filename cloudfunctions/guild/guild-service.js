@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { COLLECTIONS, DEFAULT_ADMIN_ROLES, normalizeAvatarFrameValue, pickPortraitUrl } = require('common-config');
+const { COLLECTIONS, DEFAULT_ADMIN_ROLES, normalizeAvatarFrameValue } = require('common-config');
 const {
   clamp,
   resolveCombatStats,
@@ -1328,6 +1328,16 @@ function createGuildService(options = {}) {
       return '';
     }
     return value.trim();
+  }
+
+  function pickAvatarUrl(...candidates) {
+    for (let i = 0; i < candidates.length; i += 1) {
+      const trimmed = toTrimmedString(candidates[i]);
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+    return '';
   }
 
   function looksLikeUrl(value) {
@@ -3096,13 +3106,11 @@ function createGuildService(options = {}) {
     ];
     const displayName = nameCandidates.map(toTrimmedString).find(Boolean) || memberId;
     const avatarUrl =
-      pickPortraitUrl(
+      pickAvatarUrl(
         doc.avatarUrl,
-        doc.portrait,
-        memberDoc && memberDoc.avatarUrl,
-        memberDoc && memberDoc.portrait,
-        extrasDoc && extrasDoc.avatarUrl,
-        extrasDoc && extrasDoc.portrait
+        doc.avatar,
+        memberDoc && (memberDoc.avatarUrl || (memberDoc.appearance && memberDoc.appearance.avatarUrl)),
+        extrasDoc && (extrasDoc.avatarUrl || (extrasDoc.appearance && extrasDoc.appearance.avatarUrl))
       ) || '';
     const avatarFrame = resolveAvatarFrameValue(
       doc.avatarFrame,
