@@ -600,7 +600,10 @@ async function getCacheVersions() {
 async function getSystemSettings() {
   const document = await loadFeatureToggleDocument();
   const homeEntries = document && document.homeEntries ? document.homeEntries : DEFAULT_HOME_ENTRIES;
-  const normalizedHomeEntries = normalizeHomeEntries(homeEntries);
+  const normalizedHomeEntries = normalizeHomeEntries({
+    ...DEFAULT_HOME_ENTRIES,
+    ...(homeEntries && typeof homeEntries === 'object' ? homeEntries : {})
+  });
   const backgroundCatalog = normalizeBackgroundCatalog(
     (document && document.globalBackgroundCatalog) || []
   );
