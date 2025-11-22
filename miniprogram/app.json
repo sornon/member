@@ -19,15 +19,6 @@
     "pages/pvp/leaderboard",
     "pages/pvp/archive",
     "pages/pvp/battle",
-    "pages/guild/index/index",
-    "pages/guild/members/index",
-    "pages/guild/tasks/index",
-    "pages/guild/boss/index",
-    "pages/guild/logs/index",
-    "pages/guild/attributes/index",
-    "pages/guild/create/index",
-    "pages/guild/detail/index",
-    "pages/guild/team/index",
     "pages/role/index",
     "pages/wallet/wallet",
     "pages/avatar/avatar",
@@ -47,6 +38,23 @@
     "pages/admin/data-cleanup/index",
     "pages/admin/system-switches/index",
     "pages/wallet/charge-confirm/index"
+  ],
+  "subpackages": [
+    {
+      "root": "packages/guild",
+      "name": "guild",
+      "pages": [
+        "index/index",
+        "members/index",
+        "tasks/index",
+        "boss/index",
+        "logs/index",
+        "attributes/index",
+        "create/index",
+        "detail/index",
+        "team/index"
+      ]
+    }
   ],
   "window": {
     "backgroundTextStyle": "dark",

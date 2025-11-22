@@ -367,7 +367,7 @@
 3. **同步公共模块**：确认 `common-config`、`combat-system`、`skill-engine` 等共享代码均已打包在 `nodejs-layer`，避免云函数包体超出限制。
 4. **初始化集合与索引**：在云开发控制台执行 `bootstrap` 云函数：`{ "action": "runMigration", "migration": "guild-init" }`，自动创建 11 个集合、索引与示例数据。
 5. **灰度与回滚**：如需回滚，执行 `{ "action": "runMigration", "migration": "guild-rollback", "force": true }`。若需灰度发布，可先在测试环境运行 `guild` 云函数并验证排行榜缓存刷新情况。
-6. **前端配置**：确保小程序 `miniprogram/pages/guild/**` 已加入 `app.json`，并在 `miniprogram/services/api.js` 中开启 `GuildService` 入口。
+6. **前端配置**：确保小程序宗门页面以分包形式配置在 `miniprogram/app.json` 的 `packages/guild/**`，并在 `miniprogram/services/api.js` 中开启 `GuildService` 入口。
 7. **监控接入**：为 `guild` 云函数开启默认监控，配置 `errorlogs` 告警，建议设置 `5xx` 错误阈值与执行超时通知。
 
 ## 管理员操作手册
