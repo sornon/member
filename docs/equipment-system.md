@@ -267,7 +267,7 @@ PVP 最终伤害为 `DamagePVP = HitRate × Final`。由于守方可同时堆叠
 ### 5. 部署流程
 - 云函数：先在微信开发者工具或命令行中部署共享层 `cloudfunctions/nodejs-layer`，随后依次上传 `cloudfunctions/pve` 与 `cloudfunctions/admin`，确保强化配置与前后台接口保持一致。【F:cloudfunctions/nodejs-layer/node_modules/system-settings/index.js†L1-L220】【F:cloudfunctions/pve/index.js†L3704-L3997】
 - 小程序前端：拉取最新代码后执行 `npm install`，使用微信开发者工具重新编译并上传 `miniprogram`。前端新增的强化面板依赖 `services/api` 中的 `PveService.enhanceEquipment` 与样式资源，需要完整发布。 【F:miniprogram/services/api.js†L431-L458】【F:miniprogram/pages/role/index.wxml†L520-L760】
-- 管理端：部署管理员端代码后，登录“系统设置 → 装备强化配置”确认 `maxLevel`、`guaranteedLevel`、`decayPerLevel` 等参数是否符合当前运营策略，再保存同步至云端。【F:miniprogram/pages/admin/system-switches/index.js†L600-L760】【F:cloudfunctions/admin/index.js†L3040-L3240】
+- 管理端：部署管理员端代码后，登录“系统设置 → 装备强化配置”确认 `maxLevel`、`guaranteedLevel`、`decayPerLevel` 等参数是否符合当前运营策略，再保存同步至云端。【F:miniprogram/subpackages/admin/system-switches/index.js†L600-L760】【F:cloudfunctions/admin/index.js†L3040-L3240】
 
 ## 十一、凡品装备基线库
 
@@ -455,5 +455,5 @@ PVP 最终伤害为 `DamagePVP = HitRate × Final`。由于守方可同时堆叠
 ## 十三、部署与运营提示
 
 - **云函数同步**：凡品装备库、管理员发放接口均落地在 `cloudfunctions/pve` 与 `cloudfunctions/admin` 中，更新后需在微信云开发控制台重新上传这两个函数目录并安装依赖。
-- **后台操作**：运营后台的“会员资料”详情页已经新增“PVE 装备”面板，可通过下拉选择器调用 `listEquipmentCatalog` 查看可发放装备并执行 `grantEquipment` 发放动作。更新前端代码后即可使用。【F:miniprogram/pages/admin/member-detail/index.wxml†L121-L171】【F:miniprogram/pages/admin/member-detail/index.js†L1-L270】
+- **后台操作**：运营后台的“会员资料”详情页已经新增“PVE 装备”面板，可通过下拉选择器调用 `listEquipmentCatalog` 查看可发放装备并执行 `grantEquipment` 发放动作。更新前端代码后即可使用。【F:miniprogram/subpackages/admin/member-detail/index.wxml†L121-L171】【F:miniprogram/subpackages/admin/member-detail/index.js†L1-L270】
 - **发放记录**：发放装备会写入会员的 `memberPveHistory.battleHistory`，便于后续审计或排查；同一装备重复发放会刷新 `obtainedAt` 时间但不会产生重复条目，保持背包的唯一性。【F:cloudfunctions/pve/index.js†L1795-L1856】【F:cloudfunctions/pve/index.js†L1869-L1911】

@@ -114,7 +114,7 @@ cd cloudfunctions/member && npm install && cd -
 1. **创建并初始化集合**：如果在运行 `bootstrap` 之前手动执行过第 2 步，可在云开发控制台确认 `activities` 集合已经生成；若缺失，请新增同名集合或重新执行 `bootstrap` 云函数。
 2. **安装依赖并上传云函数**：进入 `cloudfunctions/activities` 目录执行 `npm install`，随后在微信开发者工具中右键上传部署。同样地，请重新部署 `cloudfunctions/admin` 以加载最新的活动管理接口。
 3. **初始化示例数据**：部署完成后再次执行一次 `bootstrap` 云函数，系统将写入两条 10 月主题活动示例数据（充值礼包与万圣节派对），便于验证前后台逻辑。
-4. **更新小程序代码**：上传小程序前端，确保 `app.json` 已包含 `pages/activities/index`、`pages/admin/activities/index` 页面，首页右上角会自动出现「活动」入口。
+4. **更新小程序代码**：上传小程序前端，确保 `app.json` 已包含 `pages/activities/index`、`subpackages/admin/activities/index` 页面，首页右上角会自动出现「活动」入口。
 
 ### 使用方法
 

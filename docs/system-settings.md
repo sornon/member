@@ -73,7 +73,7 @@
 管理员页面的“全局背景”卡片提供启用开关、动态背景切换与背景列表预览。选择新的背景后会立即持久化到云端，
 会员端下次刷新首页时会加载统一的图像/视频资源；管理员关闭开关后，会员将重新使用个人资料中保存的背景。
 
-管理员页面同时新增“装备强化配置”卡片，展示当前的上限、保底等级与衰减系数。管理员调整参数后点击保存，即会调用 `updateEquipmentEnhancement` 接口同步到云端，会员端强化面板会在下一次打开时自动应用最新的配置。【F:miniprogram/pages/admin/system-switches/index.wxml†L160-L220】【F:miniprogram/pages/admin/system-switches/index.js†L600-L820】
+管理员页面同时新增“装备强化配置”卡片，展示当前的上限、保底等级与衰减系数。管理员调整参数后点击保存，即会调用 `updateEquipmentEnhancement` 接口同步到云端，会员端强化面板会在下一次打开时自动应用最新的配置。【F:miniprogram/subpackages/admin/system-switches/index.wxml†L160-L220】【F:miniprogram/subpackages/admin/system-switches/index.js†L600-L820】
 
 ### 全局背景管理操作指南
 

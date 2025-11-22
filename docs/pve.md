@@ -140,7 +140,7 @@
 1. 在云开发控制台创建或更新 `pve` 云函数，上传 `cloudfunctions/pve` 目录并安装依赖。
 2. 若 `cloudfunctions/nodejs-layer/node_modules/combat-system` 有改动（例如本次统一 PVE/PVP 数值公式），请重新打包 `nodejs-layer` 为新的层版本，并在 `pve`、`pvp` 云函数的“层管理”中绑定最新版本。
 3. 同步更新 `admin` 云函数（目录 `cloudfunctions/admin`），获取管理员发放装备所需的代理接口。
-4. 重新上传小程序前端代码，包含会员端 `/pages/role` 以及后台 `/pages/admin/member-detail` 的改动。
+4. 重新上传小程序前端代码，包含会员端 `/pages/role` 以及后台 `/subpackages/admin/member-detail` 的改动。
 5. 如需重置老用户数据，可在运营后台执行一次 `pve` 云函数的 `profile` 动作，或在数据库中删除 `pveProfile` 字段后重新进入页面。
 
 通过上述体系，会员可在日常充值累积修为、参与活动获取装备与灵石，从而持续提升“战力”，运营侧可结合副本掉落、抽卡概率和任务奖励设计更丰富的玩法。

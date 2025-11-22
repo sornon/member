@@ -74,7 +74,7 @@
 
 ### 功能概览
 
-小程序后台新增「宗门管理」入口（`/pages/admin/guild/index`），依托 `admin.systemOverview` / `admin.listGuilds` / `admin.guildDetail` / `admin.guildMembers` 等接口提供以下能力：
+小程序后台新增「宗门管理」入口（`/subpackages/admin/guild/index`），依托 `admin.systemOverview` / `admin.listGuilds` / `admin.guildDetail` / `admin.guildMembers` 等接口提供以下能力：
 
 - **系统概览与全局操作**：集中展示宗门总数、成员规模、任务与 Boss 运行状态以及安全预警，实时读取云端 `guildSettings` 配置，并提供「清空宗门数据」等全局维护动作。
 - **宗门总览**：按战力、活跃、贡献和安全预警快速筛选宗门，并支持关键字模糊搜索。
@@ -86,7 +86,7 @@
 ### 部署步骤
 
 1. **云函数升级**：在云开发控制台或 CLI 中重新部署 `cloudfunctions/guild`，以加载新增的管理员接口实现。
-2. **小程序代码发布**：更新小程序端代码，确保 `pages/admin/guild/index` 页面随版本一起上传；如使用体验版，请在上传前执行 `npm install && npm run build`（若需要）。
+2. **小程序代码发布**：更新小程序端代码，确保 `subpackages/admin/guild/index` 页面随版本一起上传；如使用体验版，请在上传前执行 `npm install && npm run build`（若需要）。
 3. **管理员权限校验**：确认运营账号在 `members` 集合中具备 `admin` / `developer` / `superadmin` 等角色；如需代玩家操作，可额外通过 `admin.proxyLogin` 建立代理会话，管理员接口会同时支持直接身份和代理身份。
 
 ### 使用步骤
