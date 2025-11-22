@@ -94,6 +94,7 @@ Page({
     error: '',
     guild: null,
     membership: null,
+    membershipRoleLabel: '成员',
     members: [],
     pagination: { hasMore: false, cursor: '' },
     fetching: false,
@@ -127,6 +128,7 @@ Page({
         loading: false,
         guild: decorateGuild(result.guild),
         membership: result.membership || null,
+        membershipRoleLabel: resolveRoleLabel(result.membership && result.membership.role),
         actionTicket: ticket,
         error: ''
       });

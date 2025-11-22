@@ -71,7 +71,8 @@ Page({
     actionTicket: null,
     claimingTaskId: '',
     guild: null,
-    membership: null
+    membership: null,
+    membershipRoleLabel: '成员'
   },
   onLoad() {
     this.loadTasks();
@@ -94,6 +95,7 @@ Page({
       this.setData({
         guild: overview.guild || null,
         membership: overview.membership || null,
+        membershipRoleLabel: resolveRoleLabel(overview.membership && overview.membership.role),
         actionTicket: ticket
       });
       await this.fetchTasks(ticket);

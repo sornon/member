@@ -14,7 +14,7 @@
             <text>成员 {{guild.memberCountText || guild.memberCount || 0}}</text>
             <text>战力 {{guild.powerText || guild.power || 0}}</text>
           </view>
-        <view class="guild-summary__role">我的职位：{{membership ? resolveRoleLabel(membership.role) : '成员'}}</view>
+        <view class="guild-summary__role">我的职位：{{membershipRoleLabel}}</view>
       </view>
 
       <view class="guild-section guild-section--compact members-list">

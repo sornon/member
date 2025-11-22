@@ -10,7 +10,7 @@
     <view wx:else class="guild-content">
       <view wx:if="{{guild}}" class="guild-section tasks-header">
         <view class="guild-section__title">{{guild.name || '未命名宗门'}}</view>
-        <view class="guild-section__meta">职位：{{membership ? resolveRoleLabel(membership.role) : '成员'}}</view>
+        <view class="guild-section__meta">职位：{{membershipRoleLabel}}</view>
       </view>
 
       <view class="guild-section guild-section--compact tasks-list">

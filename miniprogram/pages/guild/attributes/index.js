@@ -63,6 +63,7 @@ Page({
     error: '',
     guild: null,
     membership: null,
+    membershipRoleLabel: '成员',
     actionTicket: null,
     attributes: null,
     refreshing: false,
@@ -92,6 +93,7 @@ Page({
       this.setData({
         guild: overview.guild || null,
         membership: overview.membership || null,
+        membershipRoleLabel: resolveRoleLabel(overview.membership && overview.membership.role),
         actionTicket: ticket
       });
       await this.fetchAttributes({ ticket });
