@@ -294,7 +294,7 @@ Page({
       return;
     }
     wx.navigateTo({
-      url: `/pages/admin/charge/index?orderId=${encodeURIComponent(id)}`
+      url: `/subpackages/admin/charge/index?orderId=${encodeURIComponent(id)}`
     });
   },
 

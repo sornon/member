@@ -669,7 +669,7 @@ Page({
           { type: 'metric', label: '活跃成员', value: active ? active.value : '0' },
           { type: 'metric', label: '退出成员', value: inactive ? inactive.value : '0' }
         ];
-        detail.action = { type: 'navigate', url: '/pages/admin/members/index', label: '查看会员列表' };
+        detail.action = { type: 'navigate', url: '/subpackages/admin/members/index', label: '查看会员列表' };
         break;
       }
       case 'activeMembers': {
@@ -679,7 +679,7 @@ Page({
           { type: 'metric', label: `${guildName} 活跃`, value: formatNumber((membersOverview && membersOverview.active) || 0) },
           { type: 'metric', label: `${guildName} 总人数`, value: formatNumber((membersOverview && membersOverview.total) || 0) }
         ];
-        detail.action = { type: 'navigate', url: '/pages/admin/members/index', label: '查看会员列表' };
+        detail.action = { type: 'navigate', url: '/subpackages/admin/members/index', label: '查看会员列表' };
         break;
       }
       case 'inactiveMembers': {
@@ -688,7 +688,7 @@ Page({
         detail.items = [
           { type: 'metric', label: `${guildName} 退出成员`, value: formatNumber((membersOverview && membersOverview.inactive) || 0) }
         ];
-        detail.action = { type: 'navigate', url: '/pages/admin/members/index', label: '查看会员列表' };
+        detail.action = { type: 'navigate', url: '/subpackages/admin/members/index', label: '查看会员列表' };
         break;
       }
       case 'bossCount':

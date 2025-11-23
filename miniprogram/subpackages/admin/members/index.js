@@ -77,6 +77,6 @@ Page({
   handleMemberTap(event) {
     const { id } = event.currentTarget.dataset;
     if (!id) return;
-    wx.navigateTo({ url: `/pages/admin/member-detail/index?id=${id}` });
+    wx.navigateTo({ url: `/subpackages/admin/member-detail/index?id=${id}` });
   }
 });
