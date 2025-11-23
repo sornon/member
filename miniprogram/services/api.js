@@ -993,6 +993,19 @@ export const AdminService = {
     }
     return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   },
+  async listMemberRights(memberId) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'listMemberRights',
+      memberId
+    });
+  },
+  async removeMemberRight(memberId, rightEntryId) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'removeMemberRight',
+      memberId,
+      rightEntryId
+    });
+  },
   async createChargeOrder(items) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'createChargeOrder',

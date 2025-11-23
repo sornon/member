@@ -7,6 +7,7 @@ import {
   buildAvatarUrlById
 } from '../../../utils/avatar-catalog';
 import { sanitizeEquipmentProfile, buildEquipmentIconPaths } from '../../../utils/equipment';
+import { formatDateTime } from '../../../utils/format';
 const {
   buildTitleImageUrlByFile,
   buildTitleImageUrl,
@@ -182,6 +183,40 @@ function resolveFilteredSelection(catalog, currentId) {
     return { id: currentId, index: existingIndex };
   }
   return { id: list[0].id, index: 0 };
+}
+
+function formatMemberRight(entry) {
+  if (!entry) {
+    return null;
+  }
+
+  const meta = entry.meta || {};
+  const validUntilText = entry.validUntil
+    ? formatDateTime(entry.validUntil, { includeTime: false })
+    : '';
+  const issuedAtText = entry.issuedAt
+    ? formatDateTime(entry.issuedAt, { includeTime: false })
+    : '';
+  const usageSummary = [];
+
+  if (Number.isFinite(entry.roomUsageCredits) && entry.roomUsageCredits > 0) {
+    usageSummary.push(`包房使用次数 +${entry.roomUsageCredits}`);
+  }
+
+  if (meta.rewardName) {
+    usageSummary.push(meta.rewardName);
+  }
+
+  if (meta.fromLevel) {
+    usageSummary.push(`来源等级：${meta.fromLevel}`);
+  }
+
+  return {
+    ...entry,
+    validUntilText,
+    issuedAtText,
+    usageSummary: usageSummary.join(' · ')
+  };
 }
 
 function buildSecretRealmProgress(profile) {
@@ -806,7 +841,10 @@ Page({
     backgroundManagerUnlocks: [],
     backgroundManagerUnlockedEntries: [],
     backgroundManagerForm: { name: '', file: '' },
-    backgroundManagerDirty: false
+    backgroundManagerDirty: false,
+    rightsLoading: false,
+    memberRights: [],
+    removingRightId: ''
   },
 
   onLoad(options) {
@@ -838,6 +876,7 @@ Page({
     try {
       const detail = await AdminService.getMemberDetail(memberId);
       this.applyDetail(detail);
+      this.loadMemberRights(memberId);
     } catch (error) {
       console.error('[admin:member:detail]', error);
       this.setData({ loading: false });
@@ -889,6 +928,67 @@ Page({
       });
     } catch (error) {
       console.error('[admin] load equipment catalog failed', error);
+    }
+  },
+
+  async loadMemberRights(memberId) {
+    const targetId = typeof memberId === 'string' && memberId ? memberId : this.data.memberId;
+    if (!targetId) {
+      return;
+    }
+
+    this.setData({ rightsLoading: true });
+
+    try {
+      const res = await AdminService.listMemberRights(targetId);
+      const rights = Array.isArray(res && res.rights)
+        ? res.rights.map((item) => formatMemberRight(item)).filter(Boolean)
+        : [];
+
+      this.setData({
+        memberRights: rights,
+        rightsLoading: false,
+        removingRightId: ''
+      });
+    } catch (error) {
+      console.error('[admin] load member rights failed', error);
+      this.setData({ rightsLoading: false, removingRightId: '' });
+      wx.showToast({ title: error.errMsg || error.message || '权益加载失败', icon: 'none' });
+    }
+  },
+
+  async handleRemoveMemberRight(event) {
+    const { rightId } = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const memberId = this.data.memberId;
+
+    if (!memberId || !rightId || this.data.removingRightId) {
+      return;
+    }
+
+    const confirmed = await new Promise((resolve) => {
+      wx.showModal({
+        title: '删除权益',
+        content: '删除后不可恢复，确认删除该权益吗？',
+        confirmColor: '#d73a49',
+        success: (res) => resolve(!!res.confirm),
+        fail: () => resolve(false)
+      });
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    this.setData({ removingRightId: rightId });
+
+    try {
+      await AdminService.removeMemberRight(memberId, rightId);
+      wx.showToast({ title: '已删除', icon: 'success' });
+      await this.loadMemberRights(memberId);
+    } catch (error) {
+      console.error('[admin] remove member right failed', error);
+      wx.showToast({ title: error.errMsg || error.message || '删除失败', icon: 'none' });
+      this.setData({ removingRightId: '' });
     }
   },
 
