@@ -12011,11 +12011,14 @@ function formatDateTime(date) {
   if (!d || Number.isNaN(d.getTime())) {
     return '';
   }
-  const y = d.getFullYear();
-  const m = `${d.getMonth() + 1}`.padStart(2, '0');
-  const day = `${d.getDate()}`.padStart(2, '0');
-  const hh = `${d.getHours()}`.padStart(2, '0');
-  const mm = `${d.getMinutes()}`.padStart(2, '0');
+  // Always present time in Asia/Shanghai (UTC+8) to align with player-facing UI expectations.
+  const shanghaiOffsetMs = 8 * 60 * 60 * 1000;
+  const shanghaiDate = new Date(d.getTime() + shanghaiOffsetMs);
+  const y = shanghaiDate.getUTCFullYear();
+  const m = `${shanghaiDate.getUTCMonth() + 1}`.padStart(2, '0');
+  const day = `${shanghaiDate.getUTCDate()}`.padStart(2, '0');
+  const hh = `${shanghaiDate.getUTCHours()}`.padStart(2, '0');
+  const mm = `${shanghaiDate.getUTCMinutes()}`.padStart(2, '0');
   return `${y}-${m}-${day} ${hh}:${mm}`;
 }
 
