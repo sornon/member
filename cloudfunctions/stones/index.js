@@ -25,7 +25,7 @@ const MALL_ITEMS = [
     price: 120,
     description: '兑换额外的改名次数，随时焕新道号。',
     effectLabel: '兑换后改名次数 +1',
-    effects: { renameCards: 1 },
+    effects: { renameCredits: 1 },
     category: 'rename',
     categoryLabel: '改名道具',
     categoryOrder: 1,
@@ -600,11 +600,9 @@ async function purchaseItem(memberId, itemId, quantity = 1) {
     updatedAt: new Date()
   };
 
-  if (item.effects && item.effects.renameCards) {
-    const renameAmount = Math.max(0, Math.floor(Number(item.effects.renameCards) || 0));
-    if (renameAmount > 0) {
-      updates.renameCards = _.inc(renameAmount * normalizedQuantity);
-    }
+  const renameCreditsIncrease = normalizeEffectAmount(item.effects && item.effects.renameCredits);
+  if (renameCreditsIncrease > 0) {
+    updates.renameCredits = _.inc(renameCreditsIncrease * normalizedQuantity);
   }
 
   let profileForUpdate = null;
