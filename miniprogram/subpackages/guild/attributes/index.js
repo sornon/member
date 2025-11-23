@@ -1,5 +1,5 @@
 import { GuildService } from '../../../services/api';
-const { resolveGuildActionTicket, hasGuildActionTicketExpired } = require('../../../shared/guild.js');
+const { resolveGuildActionTicket, hasGuildActionTicketExpired } = require('../shared/guild.js');
 
 function resolveRoleLabel(role) {
   const normalized = typeof role === 'string' ? role.trim() : '';

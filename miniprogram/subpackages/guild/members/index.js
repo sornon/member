@@ -4,7 +4,7 @@ const {
   decorateGuildMembers,
   DEFAULT_MEMBER_AVATAR,
   hasGuildActionTicketExpired
-} = require('../../../shared/guild.js');
+} = require('../shared/guild.js');
 const { buildTitleImageUrl } = require('../../../shared/titles.js');
 
 function formatNumber(value) {

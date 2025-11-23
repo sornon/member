@@ -1,7 +1,7 @@
-const { decorateLeaderboardEntries, DEFAULT_AVATAR } = require('./pvp-leaderboard.js');
-const { normalizeTitleCatalog, registerCustomTitles } = require('./titles.js');
-const { normalizeAvatarFrameValue } = require('./avatar-frames');
-const { AVATAR_IMAGE_BASE_PATH } = require('./asset-paths.js');
+const { decorateLeaderboardEntries, DEFAULT_AVATAR } = require('../../../shared/pvp-leaderboard.js');
+const { normalizeTitleCatalog, registerCustomTitles } = require('../../../shared/titles.js');
+const { normalizeAvatarFrameValue } = require('../../../shared/avatar-frames');
+const { AVATAR_IMAGE_BASE_PATH } = require('../../../shared/asset-paths.js');
 
 const DEFAULT_MEMBER_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_TICKET_GRACE_MS = 60 * 1000;
