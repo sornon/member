@@ -1,7 +1,11 @@
 {
   "navigationBarTitleText": "宗门管理",
   "usingComponents": {
-    "custom-nav": "/components/custom-nav/custom-nav"
+    "custom-nav": "/components/custom-nav/custom-nav",
+    "custom-nav-placeholder": "/components/custom-nav-placeholder/custom-nav-placeholder"
   },
-  "enablePullDownRefresh": true
+  "enablePullDownRefresh": true,
+  "componentPlaceholder": {
+    "custom-nav": "custom-nav-placeholder"
+  }
 }

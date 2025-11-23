@@ -1,0 +1,41 @@
+.custom-nav-placeholder {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 998;
+  box-sizing: border-box;
+  background: rgba(5, 9, 33, 0.4);
+  color: #eff2ff;
+}
+
+.custom-nav-placeholder .nav-content {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 100%;
+}
+
+.custom-nav-placeholder .nav-title-skeleton {
+  width: 200rpx;
+  height: 28rpx;
+  border-radius: 28rpx;
+  background: rgba(239, 242, 255, 0.16);
+}
+
+.custom-nav-placeholder.light,
+.custom-nav-placeholder.dark {
+  background: rgba(5, 9, 33, 0.4);
+  color: #eff2ff;
+}
+
+.custom-nav-placeholder.transparent {
+  background: transparent;
+  color: #f6f8ff;
+}
+
+.nav-placeholder {
+  width: 100%;
+  background: transparent;
+}

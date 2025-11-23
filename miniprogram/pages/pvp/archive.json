@@ -1,6 +1,10 @@
 {
   "usingComponents": {
-    "custom-nav": "/components/custom-nav/custom-nav"
+    "custom-nav": "/components/custom-nav/custom-nav",
+    "custom-nav-placeholder": "/components/custom-nav-placeholder/custom-nav-placeholder"
   },
-  "navigationBarTitleText": "角色档案"
+  "navigationBarTitleText": "角色档案",
+  "componentPlaceholder": {
+    "custom-nav": "custom-nav-placeholder"
+  }
 }
