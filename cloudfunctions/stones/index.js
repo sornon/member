@@ -24,18 +24,8 @@ const MALL_ITEMS = [
     icon: '🪪',
     price: 120,
     description: '兑换额外的改名次数，随时焕新道号。',
-    effectLabel: '兑换后 +1 张改名卡',
+    effectLabel: '兑换后改名次数 +1',
     effects: { renameCards: 1 },
-    storageReward: {
-      itemId: 'mall_rename_card_single',
-      name: '改名卡',
-      shortName: '改名卡',
-      description: '使用后立即增加 1 次改名机会。',
-      slotLabel: '改名',
-      storageCategory: 'consumable',
-      notes: ['兑换后可在档案页使用，改名次数 +1'],
-      usage: { type: 'grantRenameCredits', amount: 1 }
-    },
     category: 'rename',
     categoryLabel: '改名道具',
     categoryOrder: 1,
@@ -43,23 +33,14 @@ const MALL_ITEMS = [
   },
   {
     id: 'skill_draw_token_single',
-    name: '天衍符',
+    name: '技能卡',
     icon: '📜',
     price: 5000,
     description: '用于追加一次技能抽取机会，助你锁定心仪神通。',
     effectLabel: '兑换后 +1 次技能抽取',
-    storageReward: {
-      itemId: 'mall_skill_draw_token_single',
-      name: '天衍符',
-      shortName: '天衍符',
-      description: '使用后获得 1 次技能抽取次数，可前往神通界面进行抽取。',
-      slotLabel: '神通',
-      storageCategory: 'consumable',
-      notes: ['兑换后存入纳戒，使用可获得技能抽取次数'],
-      usage: { type: 'grantSkillDrawCredits', amount: 1 }
-    },
+    effects: { skillDrawCredits: 1 },
     category: 'skill',
-    categoryLabel: '神通道具',
+    categoryLabel: '技能道具',
     categoryOrder: 2,
     order: 1
   },
@@ -70,18 +51,9 @@ const MALL_ITEMS = [
     price: 2000,
     description: '重置属性配置的必备道具，兑换后可额外获得一次洗点机会。',
     effectLabel: '兑换后 +1 次洗点机会',
-    storageReward: {
-      itemId: 'mall_attribute_respec_card_single',
-      name: '属性遗忘卡',
-      shortName: '遗忘卡',
-      description: '使用后恢复 1 次洗点机会，洗炼属性更自由。',
-      slotLabel: '洗点',
-      storageCategory: 'consumable',
-      notes: ['兑换后存入纳戒，使用后洗点次数 +1'],
-      usage: { type: 'grantRespec', amount: 1 }
-    },
+    effects: { respecAvailable: 1 },
     category: 'attribute',
-    categoryLabel: '修行辅助',
+    categoryLabel: '属性道具',
     categoryOrder: 3,
     order: 1
   }
