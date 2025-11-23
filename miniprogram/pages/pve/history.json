@@ -1,6 +1,10 @@
 {
   "usingComponents": {
-    "custom-nav": "/components/custom-nav/custom-nav"
+    "custom-nav": "/components/custom-nav/custom-nav",
+    "custom-nav-placeholder": "/components/custom-nav-placeholder/custom-nav-placeholder"
   },
-  "navigationBarTitleText": "战斗详情"
+  "navigationBarTitleText": "战斗详情",
+  "componentPlaceholder": {
+    "custom-nav": "custom-nav-placeholder"
+  }
 }

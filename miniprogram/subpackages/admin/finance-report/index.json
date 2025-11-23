@@ -1,6 +1,10 @@
 {
   "navigationBarTitleText": "财务报表",
   "usingComponents": {
-    "custom-nav": "/components/custom-nav/custom-nav"
+    "custom-nav": "/components/custom-nav/custom-nav",
+    "custom-nav-placeholder": "/components/custom-nav-placeholder/custom-nav-placeholder"
+  },
+  "componentPlaceholder": {
+    "custom-nav": "custom-nav-placeholder"
   }
 }

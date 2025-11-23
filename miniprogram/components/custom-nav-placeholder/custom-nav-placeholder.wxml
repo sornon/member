@@ -1,0 +1,6 @@
+<view class="custom-nav-placeholder {{theme}}" style="height: {{navHeight}}px; padding-top: {{statusBarHeight}}px;">
+  <view class="nav-content" style="height: {{navBarHeight}}px;">
+    <view class="nav-title-skeleton" wx:if="{{title}}"></view>
+  </view>
+</view>
+<view class="nav-placeholder" style="height: {{navPlaceholderHeight}}px;"></view>
