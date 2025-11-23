@@ -1,6 +1,6 @@
 import { AdminService } from '../../../services/api';
 import { formatCurrency as formatCurrencyLabel } from '../../../utils/format';
-import { drawQrCode } from '../../../utils/qrcode';
+import { drawQrCode } from './qrcode';
 
 function toFen(value) {
   if (value == null || value === '') return 0;
