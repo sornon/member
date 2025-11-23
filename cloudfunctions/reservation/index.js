@@ -3,10 +3,12 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const { COLLECTIONS, DEFAULT_ADMIN_ROLES } = require('common-config');
+const { createProxyHelpers } = require('admin-proxy');
 
 const db = cloud.database();
 const _ = db.command;
 const ADMIN_ROLES = DEFAULT_ADMIN_ROLES;
+const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'reservation' });
 
 const MINUTES_PER_DAY = 24 * 60;
 const DAY_IN_MS = MINUTES_PER_DAY * 60 * 1000;
@@ -35,21 +37,34 @@ exports.main = async (event = {}) => {
   const { OPENID } = cloud.getWXContext();
   const action = event.action || 'availableRooms';
 
+  const { memberId: actingMemberId, proxySession } = await proxyHelpers.resolveProxyContext(OPENID);
+  const targetMemberId = actingMemberId || OPENID;
+
+  if (proxySession) {
+    await proxyHelpers.recordProxyAction(proxySession, OPENID, action, event || {});
+  }
+
   switch (action) {
     case 'availableRooms':
-      return listAvailableRooms(OPENID, event.date, event.startTime, event.endTime, event.endDate);
+      return listAvailableRooms(
+        targetMemberId,
+        event.date,
+        event.startTime,
+        event.endTime,
+        event.endDate
+      );
     case 'create':
-      return createReservation(OPENID, event.order || {});
+      return createReservation(targetMemberId, event.order || {});
     case 'cancel':
-      return cancelReservation(OPENID, event.reservationId);
+      return cancelReservation(targetMemberId, event.reservationId);
     case 'redeemUsageCoupon':
-      return redeemRoomUsageCoupon(OPENID, event.memberRightId);
+      return redeemRoomUsageCoupon(targetMemberId, event.memberRightId);
     default:
       throw new Error(`Unknown action: ${action}`);
   }
 };
 
-async function listAvailableRooms(openid, date, startTime, endTime, endDate) {
+async function listAvailableRooms(memberId, date, startTime, endTime, endDate) {
   if (!date || !startTime || !endTime) {
     throw new Error('请提供预约日期与时间');
   }
@@ -102,13 +117,13 @@ async function listAvailableRooms(openid, date, startTime, endTime, endDate) {
       .get(),
     db
       .collection(COLLECTIONS.MEMBER_RIGHTS)
-      .where({ memberId: openid, status: 'active' })
+      .where({ memberId, status: 'active' })
       .get(),
     db.collection(COLLECTIONS.MEMBERSHIP_RIGHTS).get(),
     db
       .collection(COLLECTIONS.RESERVATIONS)
       .where({
-        memberId: openid,
+        memberId,
         status: _.in(MEMBER_FETCH_STATUSES)
       })
       .orderBy('date', 'desc')
@@ -117,7 +132,7 @@ async function listAvailableRooms(openid, date, startTime, endTime, endDate) {
       .get(),
     db
       .collection(COLLECTIONS.MEMBERS)
-      .doc(openid)
+      .doc(memberId)
       .get()
       .catch(() => null)
   ]);
@@ -169,7 +184,7 @@ async function listAvailableRooms(openid, date, startTime, endTime, endDate) {
   if (badges.memberSeenVersion < badges.memberVersion) {
     await db
       .collection(COLLECTIONS.MEMBERS)
-      .doc(openid)
+      .doc(memberId)
       .update({
         data: {
           'reservationBadges.memberSeenVersion': badges.memberVersion,
@@ -200,7 +215,7 @@ async function listAvailableRooms(openid, date, startTime, endTime, endDate) {
   };
 }
 
-async function createReservation(openid, order) {
+async function createReservation(memberId, order) {
   const { roomId, date, startTime, endTime, endDate, rightId } = order;
   if (!roomId || !date || !startTime || !endTime) {
     throw new Error('预约信息不完整');
@@ -237,7 +252,7 @@ async function createReservation(openid, order) {
   const reservationResult = await db.runTransaction(async (transaction) => {
     const memberSnapshot = await transaction
       .collection(COLLECTIONS.MEMBERS)
-      .doc(openid)
+      .doc(memberId)
       .get()
       .catch(() => null);
     if (!memberSnapshot || !memberSnapshot.data) {
@@ -275,7 +290,7 @@ async function createReservation(openid, order) {
         .get()
         .catch(() => null);
       const right = rightDoc && rightDoc.data;
-      if (!right || right.memberId !== openid || right.status !== 'active') {
+      if (!right || right.memberId !== memberId || right.status !== 'active') {
         throw new Error('权益不可用');
       }
       if (right.validUntil && new Date(right.validUntil).getTime() < Date.now()) {
@@ -294,7 +309,7 @@ async function createReservation(openid, order) {
     }
 
     const reservation = {
-      memberId: openid,
+      memberId,
       roomId,
       date,
       endDate: normalizedEndDate,
@@ -313,7 +328,7 @@ async function createReservation(openid, order) {
     };
     const res = await transaction.collection(COLLECTIONS.RESERVATIONS).add({ data: reservation });
 
-    await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).update({
+    await transaction.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
       data: {
         roomUsageCount: Math.max(0, usageCount - 1),
         updatedAt: new Date(),
@@ -344,7 +359,7 @@ async function createReservation(openid, order) {
   };
 }
 
-async function cancelReservation(openid, reservationId) {
+async function cancelReservation(memberId, reservationId) {
   if (!reservationId) {
     throw new Error('预约不存在');
   }
@@ -359,7 +374,7 @@ async function cancelReservation(openid, reservationId) {
       throw new Error('预约不存在');
     }
     const reservation = { ...snapshot.data, _id: reservationId };
-    if (reservation.memberId !== openid) {
+    if (reservation.memberId !== memberId) {
       throw new Error('无权操作该预约');
     }
     if (reservation.status === 'cancelled') {
@@ -382,7 +397,7 @@ async function cancelReservation(openid, reservationId) {
   return { success: true, message: '预约已取消' };
 }
 
-async function redeemRoomUsageCoupon(openid, memberRightId) {
+async function redeemRoomUsageCoupon(memberId, memberRightId) {
   if (!memberRightId) {
     throw new Error('缺少权益编号');
   }
@@ -397,7 +412,7 @@ async function redeemRoomUsageCoupon(openid, memberRightId) {
       throw new Error('权益不存在');
     }
     const right = rightSnapshot.data;
-    if (right.memberId !== openid) {
+    if (right.memberId !== memberId) {
       throw new Error('无权操作该权益');
     }
     if (right.status !== 'active') {
@@ -431,7 +446,7 @@ async function redeemRoomUsageCoupon(openid, memberRightId) {
       }
     });
 
-    await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).update({
+    await transaction.collection(COLLECTIONS.MEMBERS).doc(memberId).update({
       data: {
         roomUsageCount: _.inc(increment),
         updatedAt: new Date()
