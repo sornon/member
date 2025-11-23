@@ -1,0 +1,474 @@
+page {
+  background: #050921;
+  min-height: 100%;
+  color: #e7ecff;
+}
+
+.guild-page {
+  min-height: 100vh;
+  padding: 24rpx 32rpx 48rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+}
+
+.guild-scroll {
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.guild-content {
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
+  padding-bottom: calc(48rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(48rpx + env(safe-area-inset-bottom));
+}
+
+.state {
+  margin-top: 160rpx;
+  text-align: center;
+  padding: 0 48rpx;
+  font-size: 30rpx;
+  color: rgba(231, 236, 255, 0.82);
+  letter-spacing: 2rpx;
+}
+
+.state--error {
+  color: #ff9cab;
+}
+
+.guild-content .card {
+  margin-bottom: 0;
+  background: rgba(14, 22, 54, 0.92);
+  border-radius: 24rpx;
+  border: 1rpx solid rgba(119, 138, 230, 0.24);
+  box-shadow: 0 18rpx 36rpx rgba(4, 8, 28, 0.55);
+  backdrop-filter: blur(12rpx);
+}
+
+.guild-card {
+  display: flex;
+  flex-direction: column;
+  gap: 28rpx;
+}
+
+.guild-card__header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 24rpx;
+}
+
+.guild-avatar {
+  width: 136rpx;
+  height: 136rpx;
+  border-radius: 28rpx;
+  background: rgba(32, 44, 92, 0.6);
+  border: 1rpx solid rgba(118, 146, 255, 0.35);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  box-shadow: inset 0 0 12rpx rgba(148, 163, 184, 0.24);
+}
+
+.guild-avatar__image {
+  width: 100%;
+  height: 100%;
+}
+
+.guild-avatar__placeholder {
+  font-size: 60rpx;
+}
+
+.guild-card__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.guild-card__title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #f8f9ff;
+  letter-spacing: 3rpx;
+}
+
+.guild-card__meta {
+  font-size: 26rpx;
+  color: rgba(198, 209, 255, 0.78);
+}
+
+.guild-card__stats {
+  display: flex;
+  gap: 24rpx;
+  font-size: 24rpx;
+  color: rgba(199, 209, 255, 0.72);
+}
+
+.guild-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.btn {
+  border: none;
+  border-radius: 999rpx;
+  padding: 0 36rpx;
+  height: 70rpx;
+  line-height: 70rpx;
+  font-size: 26rpx;
+  color: #f4f6ff;
+  background: rgba(86, 106, 255, 0.12);
+}
+
+.btn::after {
+  display: none;
+}
+
+button[size='mini'].btn {
+  height: 56rpx;
+  line-height: 56rpx;
+  padding: 0 28rpx;
+  font-size: 24rpx;
+}
+
+.btn[disabled] {
+  opacity: 0.6;
+}
+
+.btn--primary {
+  background: linear-gradient(135deg, #566aff, #8a4bff);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 12rpx 24rpx rgba(41, 53, 120, 0.45);
+}
+
+.btn--ghost {
+  background: rgba(86, 106, 255, 0.18);
+  color: #d7dcff;
+  border: 1rpx solid rgba(132, 154, 255, 0.35);
+}
+
+.btn--link {
+  background: transparent;
+  color: #8fb7ff;
+  padding: 0 16rpx;
+  height: 48rpx;
+  line-height: 48rpx;
+}
+
+.guild-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  background: rgba(24, 34, 82, 0.6);
+  border-radius: 24rpx;
+  border: 1rpx solid rgba(116, 137, 255, 0.22);
+  padding: 24rpx;
+}
+
+.guild-notice__title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #c9d8ff;
+  letter-spacing: 2rpx;
+}
+
+.guild-notice__content {
+  font-size: 26rpx;
+  color: #f1f4ff;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.guild-card__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16rpx;
+}
+
+.metric {
+  background: rgba(20, 30, 76, 0.75);
+  border: 1rpx solid rgba(118, 142, 255, 0.28);
+  border-radius: 18rpx;
+  padding: 18rpx 16rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  box-shadow: inset 0 0 12rpx rgba(10, 18, 56, 0.45);
+}
+
+.metric__label {
+  font-size: 22rpx;
+  color: rgba(200, 212, 255, 0.82);
+  letter-spacing: 1rpx;
+}
+
+.metric__value {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #f8f9ff;
+}
+
+.guild-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20rpx;
+}
+
+.shortcut {
+  background: rgba(18, 28, 68, 0.8);
+  border-radius: 24rpx;
+  border: 1rpx solid rgba(118, 142, 255, 0.25);
+  padding: 28rpx 16rpx;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+  color: rgba(219, 227, 255, 0.9);
+  box-shadow: 0 12rpx 24rpx rgba(12, 18, 46, 0.4);
+}
+
+.shortcut__icon {
+  font-size: 40rpx;
+}
+
+.shortcut__label {
+  font-size: 24rpx;
+  letter-spacing: 2rpx;
+}
+
+.guild-empty {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+  align-items: center;
+  color: rgba(215, 223, 255, 0.92);
+  padding: 48rpx 32rpx;
+}
+
+.guild-empty__title {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #ffffff;
+  letter-spacing: 3rpx;
+}
+
+.guild-empty__desc {
+  font-size: 26rpx;
+  color: rgba(207, 219, 255, 0.8);
+  line-height: 1.6;
+}
+
+.guild-leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  padding: 28rpx 24rpx;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.section-header__title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #f1f4ff;
+  letter-spacing: 2rpx;
+}
+
+.empty {
+  text-align: center;
+  color: rgba(199, 209, 255, 0.7);
+  padding: 32rpx 0;
+  letter-spacing: 2rpx;
+}
+
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid rgba(120, 146, 255, 0.16);
+}
+
+.leaderboard-item:last-child {
+  border-bottom: none;
+}
+
+.leaderboard-rank {
+  width: 64rpx;
+  font-size: 30rpx;
+  color: #ffd571;
+  font-weight: 600;
+  text-align: center;
+}
+
+.leaderboard-avatar {
+  position: relative;
+  width: 92rpx;
+  height: 92rpx;
+}
+
+.leaderboard-avatar__placeholder {
+  width: 100%;
+  height: 100%;
+  border-radius: 20rpx;
+  border: 1rpx solid rgba(130, 154, 255, 0.35);
+  background: rgba(24, 34, 82, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 48rpx;
+  color: #ffd571;
+}
+
+.leaderboard-avatar__image {
+  width: 100%;
+  height: 100%;
+  border-radius: 20rpx;
+  border: 1rpx solid rgba(130, 154, 255, 0.35);
+}
+
+.leaderboard-body {
+  flex: 1;
+  color: #f4f6ff;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.leaderboard-name {
+  font-size: 28rpx;
+  font-weight: 600;
+  letter-spacing: 1rpx;
+}
+
+.leaderboard-meta {
+  font-size: 24rpx;
+  color: rgba(199, 209, 255, 0.75);
+}
+
+.leaderboard-title {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+
+.leaderboard-title__text {
+  font-size: 22rpx;
+  color: #c6d8ff;
+  letter-spacing: 2rpx;
+}
+
+.donation-dialog__mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 9, 33, 0.8);
+  backdrop-filter: blur(12rpx);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx 32rpx;
+  box-sizing: border-box;
+  z-index: 99;
+}
+
+.donation-dialog {
+  width: 100%;
+  max-width: 680rpx;
+  background: linear-gradient(160deg, rgba(22, 32, 80, 0.95), rgba(11, 16, 46, 0.96));
+  border: 1rpx solid rgba(134, 157, 255, 0.35);
+  box-shadow: 0 24rpx 48rpx rgba(2, 6, 23, 0.6);
+  border-radius: 28rpx;
+  padding: 32rpx 28rpx;
+  color: #f1f4ff;
+}
+
+.donation-dialog__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24rpx;
+}
+
+.donation-dialog__title {
+  font-size: 32rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.donation-dialog__subtitle {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: rgba(219, 227, 255, 0.78);
+}
+
+.donation-dialog__close {
+  font-size: 36rpx;
+  line-height: 1;
+  color: rgba(231, 236, 255, 0.72);
+  padding: 8rpx 12rpx;
+}
+
+.donation-dialog__close:active {
+  opacity: 0.7;
+}
+
+.donation-options {
+  margin: 28rpx 0 16rpx;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18rpx;
+}
+
+.donation-option {
+  padding: 20rpx 18rpx;
+  border-radius: 20rpx;
+  background: rgba(20, 30, 76, 0.85);
+  border: 1rpx solid rgba(118, 142, 255, 0.22);
+  box-shadow: inset 0 0 18rpx rgba(10, 16, 48, 0.6);
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  color: #e7ecff;
+  transition: all 0.2s ease;
+}
+
+.donation-option__value {
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.donation-option__hint {
+  font-size: 22rpx;
+  color: rgba(199, 209, 255, 0.7);
+}
+
+.donation-option--active {
+  border-color: rgba(132, 154, 255, 0.75);
+  background: linear-gradient(135deg, rgba(81, 103, 255, 0.18), rgba(138, 75, 255, 0.14));
+  box-shadow: 0 12rpx 24rpx rgba(78, 97, 255, 0.28), inset 0 0 16rpx rgba(132, 154, 255, 0.35);
+}
+
+.donation-dialog__actions {
+  margin-top: 16rpx;
+  display: flex;
+  gap: 16rpx;
+}
+
+.donation-dialog__actions .btn {
+  flex: 1;
+}
+

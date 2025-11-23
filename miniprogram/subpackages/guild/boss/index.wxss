@@ -1,0 +1,119 @@
+@import "../../../shared/styles/guild-theme.wxss";
+
+.guild-page--boss .guild-content {
+  gap: 28rpx;
+}
+
+.boss-card {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+}
+
+.boss-card__header {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.boss-card__title {
+  font-size: 36rpx;
+  font-weight: 600;
+  color: #f8f9ff;
+}
+
+.boss-card__meta {
+  font-size: 26rpx;
+  color: rgba(198, 209, 255, 0.78);
+}
+
+.boss-card__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.boss-card__progress-bar {
+  height: 24rpx;
+  border-radius: 999rpx;
+  background: rgba(134, 154, 255, 0.24);
+  overflow: hidden;
+}
+
+.boss-card__progress-inner {
+  height: 100%;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, #34d399 0%, #38bdf8 50%, #6366f1 100%);
+}
+
+.boss-card__progress-text {
+  font-size: 24rpx;
+  color: rgba(188, 212, 255, 0.85);
+}
+
+.boss-card__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24rpx;
+  font-size: 24rpx;
+  color: rgba(199, 209, 255, 0.75);
+}
+
+.boss-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+}
+
+.rank-card {
+  padding: 0;
+}
+
+.rank-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 24rpx 32rpx;
+}
+
+.rank-card__title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #f1f4ff;
+}
+
+.rank-card__loading {
+  font-size: 24rpx;
+  color: rgba(188, 212, 255, 0.7);
+}
+
+.rank-item {
+  display: flex;
+  align-items: center;
+  gap: 24rpx;
+  padding: 20rpx 32rpx;
+  border-top: 1rpx solid rgba(120, 146, 255, 0.16);
+}
+
+.rank-item:first-child {
+  border-top: 1rpx solid rgba(120, 146, 255, 0.16);
+}
+
+.rank-item__rank {
+  width: 72rpx;
+  text-align: center;
+  font-size: 32rpx;
+  color: #ffd571;
+  font-weight: 600;
+}
+
+.rank-item__name {
+  font-size: 28rpx;
+  color: #f4f6ff;
+}
+
+.rank-item__damage {
+  margin-top: 4rpx;
+  font-size: 24rpx;
+  color: rgba(199, 209, 255, 0.75);
+}
