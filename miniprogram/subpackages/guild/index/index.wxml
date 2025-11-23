@@ -1,0 +1,188 @@
+<custom-nav title="宗门大厅" theme="dark"></custom-nav>
+<view class="guild-page">
+  <scroll-view scroll-y class="guild-scroll" enable-flex="true">
+    <block wx:if="{{loading}}">
+      <view class="state state--loading">宗门情报载入中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="state state--error">{{error}}</view>
+    </block>
+    <view wx:else class="guild-content">
+      <view wx:if="{{guild}}" class="card guild-card">
+        <view class="guild-card__header">
+          <view class="guild-avatar">
+            <image
+              wx:if="{{guild.icon}}"
+              class="guild-avatar__image"
+              src="{{guild.icon}}"
+              mode="aspectFill"
+            ></image>
+            <text wx:else class="guild-avatar__placeholder">🏯</text>
+          </view>
+          <view class="guild-card__info">
+            <view class="guild-card__title">{{guild.name || '未命名宗门'}}</view>
+            <view class="guild-card__meta">职位：{{membershipRoleLabel}}</view>
+            <view class="guild-card__stats">
+              <text>成员 {{guild.memberCountText || guild.memberCount || 0}}{{guild.memberCapacityText ? '/' + guild.memberCapacityText : ''}}</text>
+              <text>战力 {{guild.powerText || guild.power || 0}}</text>
+            </view>
+          </view>
+          <view class="guild-card__actions">
+            <button
+              class="btn btn--primary"
+              size="mini"
+              disabled="{{!teamBattleEnabled}}"
+              bindtap="handleTeamBattle"
+            >团队讨伐</button>
+            <button
+              class="btn btn--ghost"
+              size="mini"
+              bindtap="handleQuickDonate"
+              loading="{{donating}}"
+              disabled="{{donating}}"
+            >捐献灵石</button>
+          </view>
+        </view>
+        <view class="guild-notice">
+          <view class="guild-notice__title">宗门公告</view>
+          <view class="guild-notice__content">{{guild.manifesto || '暂无宗门公告'}}</view>
+        </view>
+        <view class="guild-card__metrics">
+          <view class="metric">
+            <text class="metric__label">宗门等级</text>
+            <text class="metric__value">Lv. {{guild.level || 1}}</text>
+          </view>
+          <view class="metric">
+            <text class="metric__label">宗门贡献</text>
+            <text class="metric__value">{{guild.contributionText || '0'}}</text>
+          </view>
+          <view class="metric" wx:if="{{membership}}">
+            <text class="metric__label">我的贡献</text>
+            <text class="metric__value">{{membership.contributionTotalText || '0'}}</text>
+          </view>
+        </view>
+        <view class="guild-shortcuts">
+          <view
+            class="shortcut"
+            bindtap="handleNavigate"
+            data-url="/subpackages/guild/members/index"
+            data-require-guild="true"
+          >
+            <text class="shortcut__icon">👥</text>
+            <text class="shortcut__label">成员管理</text>
+          </view>
+          <view
+            class="shortcut"
+            bindtap="handleNavigate"
+            data-url="/subpackages/guild/tasks/index"
+            data-require-guild="true"
+          >
+            <text class="shortcut__icon">🗒️</text>
+            <text class="shortcut__label">宗门任务</text>
+          </view>
+          <view
+            class="shortcut"
+            bindtap="handleNavigate"
+            data-url="/subpackages/guild/boss/index"
+            data-require-guild="true"
+          >
+            <text class="shortcut__icon">🐉</text>
+            <text class="shortcut__label">Boss 讨伐</text>
+          </view>
+          <view
+            class="shortcut"
+            bindtap="handleNavigate"
+            data-url="/subpackages/guild/attributes/index"
+            data-require-guild="true"
+          >
+            <text class="shortcut__icon">✨</text>
+            <text class="shortcut__label">宗门属性</text>
+          </view>
+        </view>
+      </view>
+
+      <view wx:else class="card guild-empty">
+        <text class="guild-empty__title">尚未加入宗门</text>
+        <text class="guild-empty__desc">创建或加入宗门，解锁团队讨伐、宗门任务等高级玩法。</text>
+        <button class="btn btn--primary" bindtap="handleCreateGuild">创建宗门</button>
+      </view>
+
+      <view class="card guild-leaderboard">
+        <view class="section-header">
+          <view class="section-header__title">宗门排行榜</view>
+        </view>
+        <block wx:if="{{leaderboard.length === 0}}">
+          <view class="empty">暂无排行数据</view>
+        </block>
+          <block wx:else>
+            <block wx:for="{{leaderboard}}" wx:key="id">
+              <view class="leaderboard-item">
+                <view class="leaderboard-rank">{{index + 1}}</view>
+                <view class="leaderboard-avatar">
+                  <image
+                    wx:if="{{item.hasCustomAvatar}}"
+                    class="leaderboard-avatar__image"
+                    src="{{item.avatarUrl}}"
+                    mode="cover"
+                  ></image>
+                  <text wx:else class="leaderboard-avatar__placeholder">🏯</text>
+                </view>
+              <view class="leaderboard-body">
+                <view class="leaderboard-name">{{item.name}}</view>
+                <view class="leaderboard-meta">成员 {{item.memberCountText || item.memberCount || 0}} · 战力 {{item.powerText || item.power || 0}}</view>
+                <view wx:if="{{item.titleName}}" class="leaderboard-title">
+                  <text class="leaderboard-title__text">{{item.titleName}}</text>
+                </view>
+              </view>
+              <button
+                class="btn btn--link"
+                size="mini"
+                data-id="{{item.id}}"
+                bindtap="handleViewGuild"
+              >详情</button>
+            </view>
+          </block>
+        </block>
+      </view>
+    </view>
+  </scroll-view>
+
+  <view
+    wx:if="{{donationDialogVisible}}"
+    class="donation-dialog__mask"
+    catchtouchmove="noop"
+    bindtap="handleCloseDonationDialog"
+  >
+    <view class="donation-dialog" catchtap="noop">
+      <view class="donation-dialog__header">
+        <view>
+          <view class="donation-dialog__title">捐献灵石</view>
+          <view class="donation-dialog__subtitle">选择合适的灵石数量，助力宗门发展</view>
+        </view>
+        <text class="donation-dialog__close" bindtap="handleCloseDonationDialog">×</text>
+      </view>
+      <view class="donation-options">
+        <view
+          wx:for="{{donationOptions}}"
+          wx:key="amount"
+          class="donation-option {{donationSelectedAmount === item.amount ? 'donation-option--active' : ''}}"
+          data-amount="{{item.amount}}"
+          bindtap="handleSelectDonation"
+        >
+          <text class="donation-option__value">{{item.label}}</text>
+          <text class="donation-option__hint">获得 {{item.contributionGain}} 点贡献</text>
+        </view>
+      </view>
+      <view class="donation-dialog__actions">
+        <button class="btn btn--ghost" size="mini" bindtap="handleCloseDonationDialog">稍后再捐</button>
+        <button
+          class="btn btn--primary"
+          size="mini"
+          loading="{{donating}}"
+          disabled="{{donating}}"
+          bindtap="handleConfirmDonation"
+        >立即捐献</button>
+      </view>
+    </view>
+  </view>
+</view>

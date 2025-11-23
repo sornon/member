@@ -246,6 +246,299 @@ export const MemberService = {
   }
 };
 
+export const GuildService = {
+  async getOverview() {
+    return callCloud(CLOUD_FUNCTIONS.GUILD, attachClientEnv({ action: 'overview' }));
+  },
+  async listGuilds() {
+    return callCloud(CLOUD_FUNCTIONS.GUILD, attachClientEnv({ action: 'listGuilds' }));
+  },
+  async adminListGuilds(options = {}) {
+    const page = Number(options && options.page);
+    const pageSize = Number(options && options.pageSize);
+    const payload = attachClientEnv({
+      action: 'admin.listGuilds',
+      page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
+      pageSize: Number.isFinite(pageSize) && pageSize > 0 ? Math.floor(pageSize) : 10
+    });
+    if (options && typeof options.keyword === 'string' && options.keyword.trim()) {
+      payload.keyword = options.keyword.trim();
+    }
+    if (options && typeof options.sortBy === 'string' && options.sortBy.trim()) {
+      payload.sortBy = options.sortBy.trim();
+    }
+    if (options && typeof options.sortOrder === 'string' && options.sortOrder.trim()) {
+      payload.sortOrder = options.sortOrder.trim();
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, payload);
+  },
+  async adminGetSystemOverview() {
+    return callCloud(CLOUD_FUNCTIONS.GUILD, attachClientEnv({ action: 'admin.systemOverview' }));
+  },
+  async adminResetGuildSystem(options = {}) {
+    const payload = attachClientEnv({
+      action: 'admin.resetGuildSystem',
+      confirm: true
+    });
+    if (options && typeof options.requestId === 'string' && options.requestId.trim()) {
+      payload.requestId = options.requestId.trim();
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, payload);
+  },
+  async adminUpdateSystemSettings(options = {}) {
+    const payload = attachClientEnv({ action: 'admin.updateGuildSettings' });
+    if (options && options.updates && typeof options.updates === 'object') {
+      const keys = Object.keys(options.updates);
+      if (keys.length) {
+        payload.updates = options.updates;
+      }
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, payload);
+  },
+  async refreshTicket() {
+    return callCloud(CLOUD_FUNCTIONS.GUILD, attachClientEnv({ action: 'refreshTicket' }));
+  },
+  async adminGetGuildDetail(options = {}) {
+    const payload = attachClientEnv({ action: 'admin.guildDetail' });
+    if (options && typeof options.guildId === 'string' && options.guildId.trim()) {
+      payload.guildId = options.guildId.trim();
+    } else if (options && typeof options.id === 'string' && options.id.trim()) {
+      payload.guildId = options.id.trim();
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, payload);
+  },
+  async adminGetGuildMembers(options = {}) {
+    const page = Number(options && options.page);
+    const pageSize = Number(options && options.pageSize);
+    const payload = attachClientEnv({
+      action: 'admin.guildMembers',
+      guildId:
+        options && typeof options.guildId === 'string' && options.guildId.trim()
+          ? options.guildId.trim()
+          : typeof options.id === 'string' && options.id.trim()
+          ? options.id.trim()
+          : '' ,
+      page: Number.isFinite(page) && page > 0 ? Math.floor(page) : 1,
+      pageSize: Number.isFinite(pageSize) && pageSize > 0 ? Math.floor(pageSize) : 20
+    });
+    if (options && typeof options.keyword === 'string' && options.keyword.trim()) {
+      payload.keyword = options.keyword.trim();
+    }
+    if (options && options.includeInactive) {
+      payload.includeInactive = true;
+    }
+    if (options && typeof options.order === 'string' && options.order.trim()) {
+      payload.order = options.order.trim();
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, payload);
+  },
+  async getLeaderboard(options = {}) {
+    const payload = attachClientEnv({
+      action: 'getLeaderboard',
+      type: options.type || options.metric || 'power',
+      limit: options.limit || options.count || 50
+    });
+    if (options && (options.force || options.refresh || options.forceRefresh)) {
+      payload.force = true;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, payload);
+  },
+  async createGuild(payload) {
+    return callCloud(
+      CLOUD_FUNCTIONS.GUILD,
+      attachClientEnv({
+        action: 'createGuild',
+        ...payload
+      })
+    );
+  },
+  async joinGuild(payload) {
+    return callCloud(
+      CLOUD_FUNCTIONS.GUILD,
+      attachClientEnv({
+        action: 'joinGuild',
+        ...payload
+      })
+    );
+  },
+  async leaveGuild(payload) {
+    return callCloud(
+      CLOUD_FUNCTIONS.GUILD,
+      attachClientEnv({
+        action: 'leaveGuild',
+        ...payload
+      })
+    );
+  },
+  async listMembers(payload = {}) {
+    const request = attachClientEnv({
+      action: 'members.list'
+    });
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    if (payload && payload.cursor) {
+      request.cursor = payload.cursor;
+    }
+    if (payload && payload.limit) {
+      request.limit = payload.limit;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
+  async donate(payload = {}) {
+    const request = attachClientEnv({
+      action: 'donate',
+      amount: Number(payload.amount) || 0,
+      type: typeof payload.type === 'string' ? payload.type : 'stone'
+    });
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
+  async getGuildAttributes(payload = {}) {
+    const request = attachClientEnv({ action: 'attributes.overview' });
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
+  async upgradeGuildAttributeCap(payload = {}) {
+    const request = attachClientEnv({
+      action: 'attributes.upgradeCap',
+      key: typeof payload.key === 'string' ? payload.key : payload.stat || payload.attribute
+    });
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
+  async upgradeMemberGuildAttribute(payload = {}) {
+    const request = attachClientEnv({
+      action: 'attributes.upgradeLevel',
+      key: typeof payload.key === 'string' ? payload.key : payload.stat || payload.attribute
+    });
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
+  async listTasks(payload = {}) {
+    const request = attachClientEnv({ action: 'tasks.list' });
+    if (payload && payload.filters) {
+      request.filters = payload.filters;
+    }
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
+  async claimTask(payload = {}) {
+    const request = attachClientEnv({
+      action: 'tasks.claim',
+      taskId: payload.taskId || payload.id || ''
+    });
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
+  async getBossStatus(payload = {}) {
+    const request = attachClientEnv({ action: 'boss.status' });
+    if (payload && payload.bossId) {
+      request.bossId = payload.bossId;
+    }
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
+  async challengeBoss(payload = {}) {
+    const request = attachClientEnv({ action: 'boss.challenge' });
+    if (payload && payload.bossId) {
+      request.bossId = payload.bossId;
+    }
+    if (payload && Array.isArray(payload.party)) {
+      request.party = payload.party;
+    }
+    if (payload && Array.isArray(payload.members)) {
+      request.members = payload.members;
+    }
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
+  async getBossRank(payload = {}) {
+    const request = attachClientEnv({
+      action: 'boss.rank',
+      limit: payload.limit || payload.count || 50
+    });
+    if (payload && payload.bossId) {
+      request.bossId = payload.bossId;
+    }
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
+  async getLogs(payload = {}) {
+    const request = attachClientEnv({ action: 'logs.list' });
+    if (payload && payload.ticket) {
+      request.ticket = payload.ticket;
+    }
+    if (payload && payload.signature) {
+      request.signature = payload.signature;
+    }
+    if (payload && payload.cursor) {
+      request.cursor = payload.cursor;
+    }
+    if (payload && payload.limit) {
+      request.limit = payload.limit;
+    }
+    return callCloud(CLOUD_FUNCTIONS.GUILD, request);
+  },
+  async initiateTeamBattle(payload) {
+    return callCloud(
+      CLOUD_FUNCTIONS.GUILD,
+      attachClientEnv({
+        action: 'initiateTeamBattle',
+        ...payload
+      })
+    );
+  }
+};
+
 export const TaskService = {
   async list() {
     return callCloud(CLOUD_FUNCTIONS.TASKS, { action: 'list' });

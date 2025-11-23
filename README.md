@@ -13,6 +13,7 @@
 - **虚拟形象（Avatar）**：QQ 秀风格的装扮系统，等级与任务可解锁服饰并分享展示。
 - **秘境 PVE 玩法**：构建属性、装备、技能抽卡与副本战斗体系，提供持续的成长与掉落激励。
 - **竞技 PVP 玩法**：天梯积分、好友对战、邀战分享、赛季结算奖励与排行榜，帮助会员展开实时竞争并形成社交传播（详见 [PVP 说明](docs/pvp.md)）。
+- **宗门社交与团队讨伐**：新增宗门（公会）系统，支持创建/加入宗门、排行榜缓存与团队讨伐玩法，详情见 [宗门系统](docs/guild.md)，风控参数与错误码分别集中在 `cloudfunctions/guild/constants.js` 与 `cloudfunctions/guild/error-codes.js` 中管理。Boss 讨伐采用服务端全程模拟，输出结构化战报与 MD5 签名回放，可用于录像与申诉复盘。
 - **仙缘档案编辑**：会员可自助修改道号、性别与头像，支持改名次数管控及改名卡补充次数。
 
 ## 技术栈
@@ -56,6 +57,17 @@
    - `pvpMatches`
    - `pvpLeaderboard`
    - `pvpInvites`
+   - `guilds`（宗门档案，**新增**）
+   - `guildMembers`（宗门成员，**新增**）
+   - `guildTasks`（宗门任务，**新增**）
+   - `guildBoss`（宗门 Boss 状态，**新增**）
+   - `guildBattles`（宗门战报，**新增**）
+   - `guildLeaderboard`（宗门排行榜缓存，**新增**）
+   - `guildLogs`
+   - `guildCache`
+   - `guildEventLogs`
+   - `guildTickets`
+   - `guildRateLimits`
    - `avatars`
    - `errorlogs`
 3. 在“云函数”面板中右键部署以下函数（需先安装依赖）：
@@ -65,6 +77,7 @@
    - `reservation`
    - `wallet`
    - `avatar`
+   - `guild`（部署后请在函数配置中绑定统一的 `nodejs-layer`，复用公共模块）
    - `activities`
    - `admin`（若已部署请重新上传以获取最新活动管理接口）
 
@@ -79,6 +92,8 @@ npm install -g miniprogram-ci # 可选，用于 CI/CD
 cd cloudfunctions/member && npm install && cd -
 # 也可在微信开发者工具中右键「安装依赖」
 ```
+
+> 新增的宗门系统上线前，请在微信云函数控制台执行一次 `bootstrap` 云函数，并传入 `{ "action": "runMigration", "migration": "guild-init" }` 以创建集合、索引与示例数据；如需回滚可传入 `{ "action": "runMigration", "migration": "guild-rollback", "force": true }` 清理宗门相关集合。
 
 部署完成后，先执行一次 `bootstrap` 云函数，它会向数据库写入示例数据（等级、房间、任务等），便于演示及二次开发。
 
@@ -112,6 +127,13 @@ cd cloudfunctions/member && npm install && cd -
 
 - 小程序在调用云函数出现异常时会自动写入 `errorlogs` 集合，记录接口名称、会员 ID、时间以及完整的错误信息，便于排查线上问题。
 - 首次部署或升级到包含该功能的版本时，请确保已经创建 `errorlogs` 集合，可通过重新执行 `bootstrap` 云函数自动创建。
+
+## 测试与性能基准
+
+- 使用 `npm test -- --runInBand` 运行 Jest 测试。新增的 `__tests__/guild/` 目录补齐宗门创建、申请审批、捐献、任务领取、Boss 挑战、排行榜
+  等路径的成功、失败与边界用例，并包含端到端旅程脚本。
+- 通过 `node scripts/benchmarks/guild-boss-benchmark.js` 构造 5k 成员与 100 场挑战数据，输出各阶段耗时与索引/批量读/字段裁剪等优化建议。
+- 若在 CI 中运行，请确保 `node_modules` 安装完成并允许脚本执行自带的内存数据库替身，无需真实 CloudBase 连接。
 
 ## 常见问题
 

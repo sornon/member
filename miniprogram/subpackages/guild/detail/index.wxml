@@ -1,0 +1,27 @@
+<custom-nav title="宗门详情" theme="dark"></custom-nav>
+<view class="guild-page guild-page--detail">
+  <scroll-view scroll-y class="guild-scroll" enable-flex="true">
+    <block wx:if="{{loading}}">
+      <view class="state state--loading">加载中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="state state--error">{{error}}</view>
+    </block>
+    <view wx:else class="guild-content">
+      <view class="guild-section detail-card">
+        <view class="card-header">
+          <view class="icon">
+            <image wx:if="{{guild.icon}}" class="icon__image" src="{{guild.icon}}" mode="aspectFill" />
+            <view wx:else class="icon__placeholder">🏯</view>
+          </view>
+          <view class="info">
+            <text class="name">{{guild.name || '未命名宗门'}}</text>
+              <text class="meta">成员：{{guild.memberCountText || guild.memberCount || 0}} · 战力：{{guild.powerText || guild.power || 0}}</text>
+          </view>
+        </view>
+        <view class="manifesto">{{guild.manifesto || '这位宗主还没有留下宣言。'}}</view>
+      </view>
+      <button class="btn btn--primary" loading="{{joining}}" bindtap="handleJoin">加入宗门</button>
+    </view>
+  </scroll-view>
+</view>

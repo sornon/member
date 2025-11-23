@@ -68,6 +68,12 @@ const BASE_ACTIONS = [
     url: '/pages/admin/data-cleanup/index'
   },
   {
+    icon: '🏯',
+    label: '宗门管理',
+    description: '查看宗门概况与成员',
+    url: '/pages/admin/guild/index'
+  },
+  {
     icon: '⚙️',
     label: '系统设置',
     description: '系统全局配置功能',

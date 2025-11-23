@@ -276,6 +276,7 @@ const HOME_ENTRY_ITEMS = [
   { key: 'mall', icon: '🏪', label: '商城', url: '/pages/mall/index' },
   { key: 'secretRealm', icon: '⚔️', label: '秘境', url: '/pages/pve/pve' },
   { key: 'rights', icon: '🎫', label: '权益', url: '/pages/rights/rights' },
+  { key: 'guild', icon: '🏯', label: '宗门', url: '/subpackages/guild/index/index' },
   { key: 'pvp', icon: '🥊', label: '比武', url: '/pages/pvp/index' },
   { key: 'trading', icon: '⚖️', label: '交易', url: '/pages/trading/index' }
 ];
@@ -285,6 +286,7 @@ const DEFAULT_HOME_ENTRY_VISIBILITY = Object.freeze({
   mall: true,
   secretRealm: false,
   rights: true,
+  guild: false,
   pvp: false,
   trading: false
 });

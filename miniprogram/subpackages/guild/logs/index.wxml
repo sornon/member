@@ -1,0 +1,40 @@
+<custom-nav title="宗门日志" theme="dark"></custom-nav>
+<view class="guild-page guild-page--logs">
+  <scroll-view scroll-y class="guild-scroll" enable-flex="true">
+    <block wx:if="{{loading}}">
+      <view class="state state--loading">宗门事件加载中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="state state--error">{{error}}</view>
+    </block>
+    <view wx:else class="guild-content">
+      <view wx:if="{{guild}}" class="guild-section logs-header">
+        <view class="guild-section__title">{{guild.name || '未命名宗门'}}</view>
+        <view class="logs-header__actions"></view>
+      </view>
+
+      <view class="guild-section guild-section--compact logs-list">
+        <block wx:if="{{logs.length === 0}}">
+          <view class="empty">暂无宗门事件</view>
+        </block>
+        <block wx:else>
+          <block wx:for="{{logs}}" wx:key="_id">
+            <view class="log-item">
+              <view class="log-item__header">
+                <view class="log-item__type">{{item.type || '未知事件'}}</view>
+                <view class="log-item__time">{{item.createdAtText}}</view>
+              </view>
+              <view wx:if="{{item.actorName || item.actorId}}" class="log-item__actor">
+                触发者：{{item.actorName || item.actorId}}
+              </view>
+              <view wx:if="{{item.payloadText}}" class="log-item__payload">{{item.payloadText}}</view>
+            </view>
+          </block>
+        </block>
+        <view wx:if="{{pagination.hasMore}}" class="load-more">
+          <button class="btn btn--ghost" loading="{{fetching}}" disabled="{{fetching}}" bindtap="handleLoadMore">加载更多</button>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+</view>

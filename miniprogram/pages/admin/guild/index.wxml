@@ -1,0 +1,355 @@
+<custom-nav title="宗门管理" theme="dark"></custom-nav>
+<view class="guild-admin">
+  <view class="system-panel">
+    <view class="system-header">
+      <view class="system-title">宗门系统概览</view>
+      <view class="system-meta">更新时间：{{systemOverview.updatedAtLabel || '—'}}</view>
+    </view>
+    <view class="system-toolbar">
+      <button class="system-button" bindtap="handleRefreshSystem" loading="{{systemLoading}}" disabled="{{systemLoading}}">刷新总览</button>
+      <button
+        class="system-button danger"
+        bindtap="handleResetSystem"
+        loading="{{systemResetting}}"
+        disabled="{{systemResetting}}"
+      >清空宗门数据</button>
+    </view>
+    <view wx:if="{{systemLoading && !systemOverview.statsEntries.length}}" class="loading">正在加载系统概览...</view>
+    <view wx:elif="{{systemOverview.statsEntries.length}}" class="system-stats">
+      <view
+        wx:for="{{systemOverview.statsEntries}}"
+        wx:key="key"
+        class="system-stat {{item.tone}} clickable"
+        data-key="{{item.key}}"
+        bindtap="handleStatTap"
+      >
+        <view class="stat-label">{{item.label}}</view>
+        <view class="stat-value">{{item.value}}</view>
+      </view>
+    </view>
+    <view wx:else class="empty">暂无宗门系统数据</view>
+    <view class="system-subgrid">
+      <view class="system-card">
+        <view class="system-card__title">全局设置</view>
+        <view wx:if="{{systemOverview.settingsEntries.length}}" class="system-settings">
+          <view
+            wx:for="{{systemOverview.settingsEntries}}"
+            wx:key="key"
+            class="setting-row {{item.tone}} {{item.editable !== false ? 'clickable' : ''}}"
+            data-key="{{item.key}}"
+            data-type="{{item.type}}"
+            data-label="{{item.label}}"
+            data-helper="{{item.helper}}"
+            data-unit="{{item.inputUnit}}"
+            data-value="{{item.editValue}}"
+            data-boolean="{{item.rawValue ? 'true' : 'false'}}"
+            data-editable="{{item.editable === false ? 'false' : 'true'}}"
+            bindtap="handleSettingTap"
+          >
+            <view class="setting-info">
+              <view class="setting-label">{{item.label}}</view>
+              <view wx:if="{{item.helper}}" class="setting-helper">{{item.helper}}</view>
+            </view>
+            <view class="setting-value">{{item.value}}</view>
+          </view>
+        </view>
+        <view wx:else class="summary-empty">暂无系统设置</view>
+      </view>
+      <view class="system-card">
+        <view class="system-card__title">最近更新的宗门</view>
+        <view wx:if="{{systemOverview.recentGuilds.length}}" class="recent-list">
+          <view wx:for="{{systemOverview.recentGuilds}}" wx:key="id" class="recent-item">
+            <view class="recent-name">{{item.name}}</view>
+            <view class="recent-meta">成员：{{item.memberLabel}} · 更新时间：{{item.updatedAtLabel || '—'}}</view>
+          </view>
+        </view>
+        <view wx:else class="summary-empty">暂无宗门更新记录</view>
+      </view>
+    </view>
+  </view>
+
+  <view class="filter-bar">
+    <input
+      class="filter-input"
+      value="{{keyword}}"
+      placeholder="搜索宗门名称 / 编号"
+      confirm-type="search"
+      bindconfirm="handleSearch"
+      bindinput="handleKeywordInput"
+    />
+    <button class="filter-button" bindtap="handleSearch" loading="{{loading}}" disabled="{{loading}}">搜索</button>
+    <button class="filter-button secondary" bindtap="handleReset" disabled="{{loading}}">重置</button>
+  </view>
+
+  <view wx:if="{{loading && !guilds.length}}" class="loading">正在加载宗门数据...</view>
+  <view wx:elif="{{!loading && !guilds.length}}" class="empty">暂无宗门数据</view>
+
+  <view wx:if="{{guilds.length}}" class="guild-list" id="guildList">
+    <view
+      wx:for="{{guilds}}"
+      wx:key="id"
+      class="guild-card {{item.id === selectedGuildId ? 'active' : ''}}"
+      data-id="{{item.id}}"
+      bindtap="handleGuildTap"
+    >
+      <view class="guild-card-body">
+        <view class="guild-name">{{item.name}}</view>
+        <view class="guild-meta-line">
+          <text class="guild-meta-text">宗主：{{item.leaderLabel || '—'}}</text>
+          <text class="guild-meta-text">成员：{{item.memberLabel}}</text>
+        </view>
+      </view>
+    </view>
+    <view wx:if="{{!finished}}" class="load-more">
+      <button class="load-more-button" bindtap="handleLoadMoreGuilds" loading="{{loading}}" disabled="{{loading}}">加载更多</button>
+    </view>
+  </view>
+
+  <view wx:if="{{selectedGuild}}" class="guild-detail">
+    <view class="detail-header">
+      <view class="detail-title">{{selectedGuild.name}}</view>
+      <view class="detail-subtitle">宗主：{{selectedGuild.leaderLabel || '—'}}</view>
+      <view class="detail-meta">宗门编号：{{selectedGuild.id || '—'}} · 创建：{{selectedGuild.createdAtLabel || '—'}} · 更新时间：{{selectedGuild.updatedAtLabel || '—'}}</view>
+      <view wx:if="{{selectedGuild.notice}}" class="detail-notice">公告：{{selectedGuild.notice}}</view>
+      <view wx:if="{{selectedGuild.manifesto}}" class="detail-manifesto">宣言：{{selectedGuild.manifesto}}</view>
+    </view>
+
+    <view class="detail-stats">
+      <view class="stat-card">
+        <view class="stat-label">成员</view>
+        <view class="stat-value">{{selectedGuild.memberLabel}}</view>
+        <view class="stat-desc">活跃：{{membersOverview.active}} · 离开：{{membersOverview.inactive}}</view>
+      </view>
+      <view class="stat-card">
+        <view class="stat-label">总战力</view>
+        <view class="stat-value">{{selectedGuild.powerLabel}}</view>
+        <view class="stat-desc">均值：{{selectedGuild.averagePowerLabel}}</view>
+      </view>
+      <view class="stat-card">
+        <view class="stat-label">贡献</view>
+        <view class="stat-value">{{selectedGuild.contributionLabel}}</view>
+        <view class="stat-desc">贡献 TOP：{{selectedGuild.topMembersText || '—'}}</view>
+      </view>
+      <view class="stat-card">
+        <view class="stat-label">活跃</view>
+        <view class="stat-value">{{selectedGuild.activityLabel}}</view>
+        <view class="stat-desc">预警：{{selectedGuild.alertLabel}}</view>
+      </view>
+    </view>
+
+    <view wx:if="{{boss}}" class="section" id="guildBossSection">
+      <view class="section-title">宗门试炼</view>
+      <view class="boss-summary">
+        <view class="boss-name">{{boss.name}} · {{boss.levelLabel}}</view>
+        <view class="boss-progress">进度：{{boss.progressLabel}} · 剩余 HP：{{boss.hpLabel}}</view>
+        <view class="boss-meta">总伤害：{{boss.totalDamageLabel}} · 更新时间：{{boss.updatedAtLabel || '—'}}</view>
+        <view wx:if="{{boss.leaderboard.length}}" class="boss-leaderboard">
+          <view class="leaderboard-row header">
+            <text class="col-rank">排名</text>
+            <text class="col-name">成员</text>
+            <text class="col-damage">伤害</text>
+          </view>
+          <view wx:for="{{boss.leaderboard}}" wx:key="memberId" class="leaderboard-row">
+            <text class="col-rank">{{index + 1}}</text>
+            <text class="col-name">{{item.name}}</text>
+            <text class="col-damage">{{item.damageLabel}}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <view wx:if="{{tasks.length}}" class="section" id="guildTaskSection">
+      <view class="section-title">活跃任务</view>
+      <view wx:for="{{tasks}}" wx:key="id" class="task-item">
+        <view class="task-title">{{item.title}}</view>
+        <view class="task-meta">状态：{{item.statusLabel}} · 进度：{{item.progressLabel}} · 截止：{{item.endAtLabel || '—'}}</view>
+      </view>
+    </view>
+
+    <view wx:if="{{alerts.length}}" class="section" id="guildAlertSection">
+      <view class="section-title">风险预警</view>
+      <view wx:for="{{alerts}}" wx:key="id" class="alert-item">
+        <view class="alert-message">{{item.message}}</view>
+        <view class="alert-meta">操作：{{item.action || '未知'}} · 触发人：{{item.actorDisplay || '—'}} · 时间：{{item.createdAtLabel || '—'}}</view>
+      </view>
+    </view>
+
+    <view class="section">
+      <view class="section-title">成员概览</view>
+      <view class="member-summary">
+        <view class="summary-group">
+          <view class="summary-title">贡献榜</view>
+          <view wx:if="{{membersOverview.topContributors.length}}" class="summary-list">
+            <view wx:for="{{membersOverview.topContributors}}" wx:key="memberId" class="summary-item">
+              <text class="summary-name">{{item.name}}</text>
+              <text class="summary-extra">{{item.contributionLabel}}</text>
+            </view>
+          </view>
+          <view wx:else class="summary-empty">暂无数据</view>
+        </view>
+        <view class="summary-group">
+          <view class="summary-title">战力榜</view>
+          <view wx:if="{{membersOverview.topPower.length}}" class="summary-list">
+            <view wx:for="{{membersOverview.topPower}}" wx:key="memberId" class="summary-item">
+              <text class="summary-name">{{item.name}}</text>
+              <text class="summary-extra">{{item.powerLabel}}</text>
+            </view>
+          </view>
+          <view wx:else class="summary-empty">暂无数据</view>
+        </view>
+        <view class="summary-group">
+          <view class="summary-title">近期入门</view>
+          <view wx:if="{{membersOverview.recentJoins.length}}" class="summary-list">
+            <view wx:for="{{membersOverview.recentJoins}}" wx:key="memberId" class="summary-item">
+              <text class="summary-name">{{item.name}}</text>
+              <text class="summary-extra">{{item.joinedAtLabel || '—'}}</text>
+            </view>
+          </view>
+          <view wx:else class="summary-empty">暂无数据</view>
+        </view>
+    </view>
+  </view>
+
+  <view class="section">
+      <view class="section-title">成员列表</view>
+      <view class="member-toolbar">
+        <input
+          class="member-search"
+          value="{{memberKeyword}}"
+          placeholder="搜索成员昵称 / 编号"
+          confirm-type="search"
+          bindconfirm="handleMemberSearch"
+          bindinput="handleMemberKeywordInput"
+        />
+        <button class="toolbar-button" bindtap="handleMemberSearch" loading="{{memberLoading}}" disabled="{{memberLoading}}">筛选</button>
+        <button class="toolbar-button secondary" bindtap="handleMemberReset" disabled="{{memberLoading}}">重置</button>
+        <button
+          class="toolbar-button toggle {{includeInactive ? 'active' : ''}}"
+          bindtap="handleToggleInactive"
+          disabled="{{memberLoading}}"
+        >{{includeInactive ? '显示活跃' : '含退出成员'}}</button>
+        <view class="order-switch">
+          <button
+            class="order-button {{memberOrder === 'contribution' ? 'active' : ''}}"
+            data-order="contribution"
+            bindtap="handleMemberOrderChange"
+            disabled="{{memberLoading}}"
+          >按贡献</button>
+          <button
+            class="order-button {{memberOrder === 'power' ? 'active' : ''}}"
+            data-order="power"
+            bindtap="handleMemberOrderChange"
+            disabled="{{memberLoading}}"
+          >按战力</button>
+          <button
+            class="order-button {{memberOrder === 'joinedat' ? 'active' : ''}}"
+            data-order="joinedat"
+            bindtap="handleMemberOrderChange"
+            disabled="{{memberLoading}}"
+          >按加入时间</button>
+        </view>
+      </view>
+
+      <view class="member-list" wx:if="{{memberList.length}}">
+        <view wx:for="{{memberList}}" wx:key="memberId" class="member-row">
+          <view class="member-main">
+            <view class="member-name">{{item.name}}</view>
+            <view class="member-tags">
+              <text class="tag role">{{item.roleLabel}}</text>
+              <text class="tag status {{item.statusClass}}">{{item.statusLabel}}</text>
+            </view>
+          </view>
+          <view class="member-stats">
+            <text>贡献：{{item.contributionLabel}}</text>
+            <text>战力：{{item.powerLabel}}</text>
+            <text>活跃：{{item.activityLabel}}</text>
+            <text>加入：{{item.joinedAtLabel || '—'}}</text>
+          </view>
+        </view>
+        <view wx:if="{{memberFinished && memberList.length}}" class="list-end">已展示全部成员</view>
+      </view>
+      <view wx:elif="{{memberLoading}}" class="loading">成员列表加载中...</view>
+      <view wx:else class="empty">暂无符合条件的成员</view>
+
+      <view wx:if="{{!memberFinished && memberList.length}}" class="load-more">
+        <button class="load-more-button" bindtap="handleMemberLoadMore" loading="{{memberLoading}}" disabled="{{memberLoading}}">加载更多成员</button>
+      </view>
+    </view>
+  </view>
+</view>
+
+<view
+  wx:if="{{statDetailVisible}}"
+  class="modal-backdrop"
+  bindtap="closeStatDetail"
+  catchtouchmove="preventTouchMove"
+>
+  <view class="modal-card" catchtap="stopPropagation">
+    <view class="modal-title">{{statDetail.title}}</view>
+    <view class="modal-value">{{statDetail.value}}</view>
+    <view wx:if="{{statDetail.note}}" class="modal-note">{{statDetail.note}}</view>
+    <view wx:if="{{statDetail.items.length}}" class="modal-list">
+      <block wx:for="{{statDetail.items}}" wx:key="index">
+        <view wx:if="{{item.type === 'list'}}" class="modal-list-item">
+          <view class="modal-list-primary">{{item.primary}}</view>
+          <view class="modal-list-secondary">{{item.secondary}}</view>
+        </view>
+        <view wx:elif="{{item.type === 'metric'}}" class="modal-metric-item">
+          <view class="modal-metric-label">{{item.label}}</view>
+          <view class="modal-metric-value">{{item.value}}</view>
+        </view>
+      </block>
+    </view>
+    <view wx:else class="modal-empty">暂无相关数据</view>
+    <view class="modal-actions">
+      <button class="ghost-button" bindtap="closeStatDetail">关闭</button>
+      <button wx:if="{{statDetail.action}}" class="primary-button" bindtap="handleStatAction">{{statDetail.action.label}}</button>
+    </view>
+  </view>
+</view>
+
+<view
+  wx:if="{{settingEditor.visible}}"
+  class="modal-backdrop"
+  bindtap="handleSettingCancel"
+  catchtouchmove="preventTouchMove"
+>
+  <view class="modal-card" catchtap="stopPropagation">
+    <view class="modal-title">{{settingEditor.label}}</view>
+    <view wx:if="{{settingEditor.helper}}" class="modal-note">{{settingEditor.helper}}</view>
+    <view wx:if="{{settingEditor.type === 'boolean'}}" class="modal-boolean">
+      <button
+        class="modal-option {{settingEditor.value === true ? 'active' : ''}}"
+        data-value="true"
+        bindtap="handleSettingSelect"
+        disabled="{{settingSaving}}"
+      >开启</button>
+      <button
+        class="modal-option {{settingEditor.value === false ? 'active' : ''}}"
+        data-value="false"
+        bindtap="handleSettingSelect"
+        disabled="{{settingSaving}}"
+      >关闭</button>
+    </view>
+    <view wx:elif="{{settingEditor.type === 'number' || settingEditor.type === 'duration'}}" class="modal-input-wrapper">
+      <input
+        class="modal-input"
+        type="number"
+        value="{{settingEditor.inputValue}}"
+        bindinput="handleSettingInput"
+        placeholder="请输入数值"
+      />
+      <view wx:if="{{settingEditor.unit}}" class="modal-unit">单位：{{settingEditor.unit}}</view>
+    </view>
+    <view wx:if="{{settingEditor.error}}" class="modal-error">{{settingEditor.error}}</view>
+    <view class="modal-actions">
+      <button class="ghost-button" bindtap="handleSettingCancel" disabled="{{settingSaving}}">取消</button>
+      <button
+        class="primary-button"
+        bindtap="handleSettingConfirm"
+        loading="{{settingSaving}}"
+        disabled="{{settingSaving}}"
+      >保存</button>
+    </view>
+  </view>
+</view>

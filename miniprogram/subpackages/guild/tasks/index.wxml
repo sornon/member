@@ -1,0 +1,53 @@
+<custom-nav title="宗门任务" theme="dark"></custom-nav>
+<view class="guild-page guild-page--tasks">
+  <scroll-view scroll-y class="guild-scroll" enable-flex="true">
+    <block wx:if="{{loading}}">
+      <view class="state state--loading">宗门任务加载中...</view>
+    </block>
+    <block wx:elif="{{error}}">
+      <view class="state state--error">{{error}}</view>
+    </block>
+    <view wx:else class="guild-content">
+      <view wx:if="{{guild}}" class="guild-section tasks-header">
+        <view class="guild-section__title">{{guild.name || '未命名宗门'}}</view>
+        <view class="guild-section__meta">职位：{{membershipRoleLabel}}</view>
+      </view>
+
+      <view class="guild-section guild-section--compact tasks-list">
+        <block wx:if="{{tasks.length === 0}}">
+          <view class="empty">暂无宗门任务，敬请期待</view>
+        </block>
+        <block wx:else>
+          <block wx:for="{{tasks}}" wx:key="id">
+            <view class="task-card">
+              <view class="task-card__header">
+                <view class="task-card__title">{{item.title || '未命名任务'}}</view>
+                <view class="task-card__status {{item.status}}">{{item.statusLabel}}</view>
+              </view>
+              <view wx:if="{{item.description}}" class="task-card__desc">{{item.description}}</view>
+              <view class="task-card__progress">
+                <view class="task-card__progress-bar">
+                  <view class="task-card__progress-inner" style="width: {{item.progressPercent}}%;"></view>
+                </view>
+                <view class="task-card__progress-text">{{item.progressCurrent}} / {{item.progressTarget}}</view>
+              </view>
+              <view class="task-card__meta">
+                <text wx:if="{{item.startAtText}}">开始 {{item.startAtText}}</text>
+                <text wx:if="{{item.endAtText}}">结束 {{item.endAtText}}</text>
+              </view>
+              <view wx:if="{{item.rewardText}}" class="task-card__reward">奖励：{{item.rewardText}}</view>
+              <button
+                class="btn btn--primary"
+                size="mini"
+                data-id="{{item.taskId || item.id}}"
+                bindtap="handleClaimTask"
+                disabled="{{!item.claimable || item.claimed || claimingTaskId === (item.taskId || item.id)}}"
+                loading="{{claimingTaskId === (item.taskId || item.id)}}"
+              >领取奖励</button>
+            </view>
+          </block>
+        </block>
+      </view>
+    </view>
+  </scroll-view>
+</view>
