@@ -65,7 +65,7 @@
           <view
             class="shortcut"
             bindtap="handleNavigate"
-            data-url="/pages/guild/members/index"
+            data-url="/subpackages/guild/members/index"
             data-require-guild="true"
           >
             <text class="shortcut__icon">👥</text>
@@ -74,7 +74,7 @@
           <view
             class="shortcut"
             bindtap="handleNavigate"
-            data-url="/pages/guild/tasks/index"
+            data-url="/subpackages/guild/tasks/index"
             data-require-guild="true"
           >
             <text class="shortcut__icon">🗒️</text>
@@ -83,7 +83,7 @@
           <view
             class="shortcut"
             bindtap="handleNavigate"
-            data-url="/pages/guild/boss/index"
+            data-url="/subpackages/guild/boss/index"
             data-require-guild="true"
           >
             <text class="shortcut__icon">🐉</text>
@@ -92,7 +92,7 @@
           <view
             class="shortcut"
             bindtap="handleNavigate"
-            data-url="/pages/guild/attributes/index"
+            data-url="/subpackages/guild/attributes/index"
             data-require-guild="true"
           >
             <text class="shortcut__icon">✨</text>

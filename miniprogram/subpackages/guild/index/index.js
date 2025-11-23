@@ -3,7 +3,7 @@ const {
   resolveGuildActionTicket,
   decorateGuildLeaderboardEntries,
   hasGuildActionTicketExpired
-} = require('../../../shared/guild.js');
+} = require('../shared/guild.js');
 
 const DONATION_PRESETS = [2000, 5000, 10000, 20000, 50000, 100000];
 
@@ -205,7 +205,7 @@ Page({
     if (!ticket) {
       return;
     }
-    wx.navigateTo({ url: buildTicketedUrl('/pages/guild/create/index', ticket) });
+    wx.navigateTo({ url: buildTicketedUrl('/subpackages/guild/create/index', ticket) });
   },
   async handleViewGuild(event) {
     const { id } = event.currentTarget.dataset || {};
@@ -216,7 +216,7 @@ Page({
     if (!ticket) {
       return;
     }
-    const url = buildTicketedUrl(`/pages/guild/detail/index?id=${encodeURIComponent(id)}`, ticket);
+    const url = buildTicketedUrl(`/subpackages/guild/detail/index?id=${encodeURIComponent(id)}`, ticket);
     wx.navigateTo({ url });
   },
   async handleTeamBattle() {
@@ -233,7 +233,7 @@ Page({
     if (!ticket) {
       return;
     }
-    const baseUrl = `/pages/guild/team/index?guildId=${encodeURIComponent(guild.id)}`;
+    const baseUrl = `/subpackages/guild/team/index?guildId=${encodeURIComponent(guild.id)}`;
     wx.navigateTo({ url: buildTicketedUrl(baseUrl, ticket) });
   },
   async handleNavigate(event) {

@@ -1,5 +1,5 @@
 import { GuildService } from '../../../services/api';
-const { resolveGuildActionTicket, hasGuildActionTicketExpired } = require('../../../shared/guild.js');
+const { resolveGuildActionTicket, hasGuildActionTicketExpired } = require('../shared/guild.js');
 
 function formatTimestamp(date) {
   if (!date) {
