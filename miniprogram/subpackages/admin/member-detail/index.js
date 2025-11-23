@@ -1673,7 +1673,7 @@ Page({
         wx.navigateBack({
           delta: 1,
           fail: () => {
-            wx.redirectTo({ url: '/pages/admin/members/index' });
+            wx.redirectTo({ url: '/subpackages/admin/members/index' });
           }
         });
       }, 500);
