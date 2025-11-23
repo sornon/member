@@ -106,6 +106,13 @@ const ACTIVE_RESERVATION_STATUSES = [
 ];
 const WEEKDAY_LABELS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 
+const RIGHT_STATUS_LABELS = {
+  active: '可使用',
+  used: '已使用',
+  expired: '已过期',
+  locked: '预约中'
+};
+
 const CLEANUP_TASK_CONCURRENCY = 3;
 const SPEND_FIX_TRANSACTION_BATCH_LIMIT = 200;
 const ORPHAN_QUERY_BATCH_LIMIT = 200;
@@ -415,6 +422,8 @@ const ACTIONS = {
   UPDATE_GLOBAL_BACKGROUND: 'updateGlobalBackground',
   UPDATE_GLOBAL_BACKGROUND_CATALOG: 'updateGlobalBackgroundCatalog',
   UPDATE_EQUIPMENT_ENHANCEMENT: 'updateEquipmentEnhancement',
+  LIST_MEMBER_RIGHTS: 'listMemberRights',
+  REMOVE_MEMBER_RIGHT: 'removeMemberRight',
   BUMP_CACHE_VERSION: 'bumpCacheVersion',
   RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament',
   REFRESH_IMMORTAL_TOURNAMENT_PLAYERS: 'refreshImmortalTournamentPlayers',
@@ -525,6 +534,9 @@ const ACTION_ALIASES = {
   enableglobalbackground: ACTIONS.UPDATE_GLOBAL_BACKGROUND,
   disableglobalbackground: ACTIONS.UPDATE_GLOBAL_BACKGROUND,
   globalbackground: ACTIONS.UPDATE_GLOBAL_BACKGROUND,
+  listmemberrights: ACTIONS.LIST_MEMBER_RIGHTS,
+  memberrights: ACTIONS.LIST_MEMBER_RIGHTS,
+  removememberright: ACTIONS.REMOVE_MEMBER_RIGHT,
   bumpcacheversion: ACTIONS.BUMP_CACHE_VERSION,
   refreshcache: ACTIONS.BUMP_CACHE_VERSION,
   updatecacheversion: ACTIONS.BUMP_CACHE_VERSION,
@@ -865,6 +877,10 @@ const ACTION_HANDLERS = {
     removeEquipment(openid, event.memberId, event.itemId, event.inventoryId),
   [ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES]: (openid, event) =>
     updateEquipmentAttributes(openid, event.memberId, event.itemId, event.attributes || {}, event),
+  [ACTIONS.LIST_MEMBER_RIGHTS]: (openid, event) =>
+    listMemberRights(openid, { memberId: event.memberId || event.targetId || '' }),
+  [ACTIONS.REMOVE_MEMBER_RIGHT]: (openid, event) =>
+    removeMemberRight(openid, event.memberId, event.rightEntryId || event.rightId || ''),
   [ACTIONS.LIST_TRADE_ORDERS]: (openid, event) =>
     listTradeOrders(openid, {
       page: event.page || 1,
@@ -2747,6 +2763,124 @@ async function removeWineStorage(openid, memberId, entryId) {
     removedId: targetId,
     entries: filtered.map((entry) => serializeWineStorageEntry(entry)),
     totalQuantity: calculateWineStorageTotal(filtered)
+  };
+}
+
+async function listMemberRights(openid, options = {}) {
+  await ensureAdmin(openid);
+  const memberId = normalizeMemberIdValue(options.memberId || options.targetId || '');
+  if (!memberId) {
+    throw new Error('缺少会员编号');
+  }
+
+  const [rightsSnapshot, masterMap] = await Promise.all([
+    db
+      .collection(COLLECTIONS.MEMBER_RIGHTS)
+      .where({ memberId })
+      .orderBy('issuedAt', 'desc')
+      .get()
+      .catch(() => ({ data: [] })),
+    loadMembershipRightsMap()
+  ]);
+
+  const now = Date.now();
+  const rights = (rightsSnapshot.data || [])
+    .map((item) => buildMemberRightEntry(item, masterMap, now))
+    .filter(Boolean);
+
+  return { rights };
+}
+
+async function removeMemberRight(openid, memberId, rightEntryId) {
+  await ensureAdmin(openid);
+  const targetId = normalizeMemberIdValue(memberId);
+  const normalizedRightId = typeof rightEntryId === 'string' ? rightEntryId.trim() : '';
+  if (!targetId) {
+    throw new Error('缺少会员编号');
+  }
+  if (!normalizedRightId) {
+    throw new Error('缺少权益编号');
+  }
+
+  const collection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
+  const snapshot = await collection
+    .doc(normalizedRightId)
+    .get()
+    .catch(() => null);
+
+  if (!snapshot || !snapshot.data) {
+    throw new Error('权益不存在');
+  }
+
+  if (normalizeMemberIdValue(snapshot.data.memberId) !== targetId) {
+    throw new Error('权益不属于该会员');
+  }
+
+  await collection.doc(normalizedRightId).remove();
+
+  return { removedId: normalizedRightId };
+}
+
+async function loadMembershipRightsMap() {
+  const collection = db.collection(COLLECTIONS.RIGHTS_MASTER);
+  const PAGE_SIZE = 100;
+  const masterMap = {};
+  let fetched = 0;
+
+  while (true) {
+    const snapshot = await collection
+      .skip(fetched)
+      .limit(PAGE_SIZE)
+      .get()
+      .catch(() => ({ data: [] }));
+
+    const items = Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!items.length) {
+      break;
+    }
+
+    items.forEach((item) => {
+      if (!item || typeof item._id !== 'string') {
+        return;
+      }
+      const id = item._id.trim();
+      if (!id) {
+        return;
+      }
+      masterMap[id] = item;
+    });
+
+    fetched += items.length;
+    if (items.length < PAGE_SIZE) {
+      break;
+    }
+  }
+
+  return masterMap;
+}
+
+function buildMemberRightEntry(item, masterMap = {}, now = Date.now()) {
+  if (!item) {
+    return null;
+  }
+
+  const right = masterMap[item.rightId] || {};
+  const expired = item.validUntil && new Date(item.validUntil).getTime() < now;
+  const status = expired ? 'expired' : item.status || 'active';
+  const mergedMeta = { ...(right.meta || {}), ...(item.meta || {}) };
+  const usageCredits = Number(mergedMeta.roomUsageCount || mergedMeta.roomUsageCredits || 0);
+
+  return {
+    _id: item._id,
+    rightId: item.rightId || '',
+    name: right.name || item.name || '权益',
+    description: right.description || item.description || '',
+    status,
+    statusLabel: RIGHT_STATUS_LABELS[status] || '待使用',
+    validUntil: item.validUntil || right.defaultValidUntil || '',
+    issuedAt: item.issuedAt || item.createdAt || '',
+    meta: mergedMeta,
+    roomUsageCredits: Number.isFinite(usageCredits) ? usageCredits : 0
   };
 }
 

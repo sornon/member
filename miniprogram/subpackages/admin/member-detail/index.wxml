@@ -249,6 +249,40 @@
 
   <button class="submit" type="primary" loading="{{saving}}" bindtap="handleSubmit">保存修改</button>
 
+  <view class="section section--rights">
+    <view class="section-header">
+      <view class="section-title">会员权益</view>
+      <text class="section-subtitle">查看当前权益并可删除异常记录</text>
+    </view>
+    <view wx:if="{{rightsLoading}}" class="rights-empty">权益加载中...</view>
+    <view wx:elif="{{!(memberRights && memberRights.length)}}" class="rights-empty">暂无权益记录</view>
+    <view wx:else class="rights-list">
+      <view class="rights-item" wx:for="{{memberRights}}" wx:key="_id">
+        <view class="rights-item__header">
+          <view class="rights-item__title">{{item.name}}</view>
+          <text class="rights-item__status rights-item__status--{{item.status}}">{{item.statusLabel}}</text>
+        </view>
+        <view wx:if="{{item.description}}" class="rights-item__desc">{{item.description}}</view>
+        <view class="rights-item__meta">
+          <text>{{item.validUntilText ? '有效期：' + item.validUntilText : '有效期：长期有效'}}</text>
+          <text wx:if="{{item.issuedAtText}}">发放：{{item.issuedAtText}}</text>
+          <text wx:if="{{item.usageSummary}}">{{item.usageSummary}}</text>
+        </view>
+        <view class="rights-item__actions">
+          <button
+            class="rights-item__remove"
+            size="mini"
+            type="warn"
+            loading="{{removingRightId === item._id}}"
+            disabled="{{removingRightId && removingRightId !== item._id}}"
+            data-right-id="{{item._id}}"
+            bindtap="handleRemoveMemberRight"
+          >删除权益</button>
+        </view>
+      </view>
+    </view>
+  </view>
+
   <view class="section section--secret-realm">
     <view class="section-title">秘境挑战进度</view>
     <view class="secret-realm-info">
