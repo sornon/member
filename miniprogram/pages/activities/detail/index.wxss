@@ -233,6 +233,30 @@
   box-sizing: border-box;
 }
 
+.activity-detail__immersive-badge {
+  align-self: flex-start;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 223, 140, 0.18);
+  color: #ffdf8c;
+  font-size: 22rpx;
+  letter-spacing: 2rpx;
+  border: 1rpx solid rgba(255, 223, 140, 0.65);
+}
+
+.activity-detail__immersive-hero-title {
+  font-size: 44rpx;
+  font-weight: 700;
+  color: #fdfdff;
+  text-shadow: 0 8rpx 18rpx rgba(0, 0, 0, 0.35);
+}
+
+.activity-detail__immersive-hero-tagline {
+  font-size: 30rpx;
+  color: rgba(255, 255, 255, 0.86);
+  letter-spacing: 1rpx;
+}
+
 .activity-detail__immersive-content {
   position: relative;
   margin-top: -370rpx;
@@ -259,12 +283,49 @@
   background: rgba(241, 244, 255, 0.3);
 }
 
+.activity-detail__immersive-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-bottom: 12rpx;
+}
+
 .activity-detail__immersive-subtitle {
   font-size: 32rpx;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.95);
   letter-spacing: 3rpx;
   line-height: 2;
+}
+
+.activity-detail__immersive-pill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.activity-detail__immersive-pill {
+  padding: 16rpx 20rpx;
+  border-radius: 18rpx;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1rpx solid rgba(211, 223, 255, 0.32);
+  color: rgba(244, 247, 255, 0.9);
+  font-size: 26rpx;
+  line-height: 1.6;
+  flex: 1 1 45%;
+  min-width: 300rpx;
+  box-sizing: border-box;
+}
+
+.activity-detail__immersive-scarcity {
+  margin: 12rpx 0 20rpx;
+  padding: 18rpx 22rpx;
+  border-radius: 16rpx;
+  background: linear-gradient(135deg, rgba(255, 194, 120, 0.25), rgba(255, 237, 206, 0.12));
+  color: #ffe2a8;
+  font-size: 28rpx;
+  border: 1rpx solid rgba(255, 210, 155, 0.55);
+  box-shadow: 0 12rpx 26rpx rgba(0, 0, 0, 0.22);
 }
 
 .activity-detail__immersive-tickets {
@@ -307,6 +368,52 @@
   font-size: 26rpx;
   line-height: 1.6;
   color: rgba(230, 236, 255, 0.88);
+}
+
+.activity-detail__immersive-card {
+  margin-top: 20rpx;
+  padding: 28rpx 32rpx;
+  border-radius: 24rpx;
+  background: rgba(10, 16, 40, 0.6);
+  border: 1rpx solid rgba(205, 216, 255, 0.26);
+  box-shadow: 0 18rpx 36rpx rgba(6, 10, 32, 0.45);
+  color: rgba(244, 247, 255, 0.92);
+}
+
+.activity-detail__immersive-card-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #ffdf8c;
+  margin-bottom: 12rpx;
+}
+
+.activity-detail__immersive-card-line {
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: rgba(230, 236, 255, 0.9);
+}
+
+.activity-detail__immersive-card-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin: 12rpx 0 4rpx;
+}
+
+.activity-detail__immersive-card-chip {
+  padding: 10rpx 18rpx;
+  border-radius: 14rpx;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1rpx solid rgba(211, 223, 255, 0.28);
+  font-size: 24rpx;
+  color: rgba(243, 246, 255, 0.86);
+}
+
+.activity-detail__immersive-card-note {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  line-height: 1.5;
+  color: rgba(210, 220, 255, 0.76);
 }
 
 .activity-detail__immersive-share {

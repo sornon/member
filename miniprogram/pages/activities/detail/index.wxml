@@ -21,6 +21,9 @@
               mode="widthFix"
             ></image>
             <view class="activity-detail__immersive-hero-content">
+              <view wx:if="{{specialActivity.heroBadge}}" class="activity-detail__immersive-badge">{{specialActivity.heroBadge}}</view>
+              <view wx:if="{{specialActivity.heroTitle}}" class="activity-detail__immersive-hero-title">{{specialActivity.heroTitle}}</view>
+              <view wx:if="{{specialActivity.heroTagline}}" class="activity-detail__immersive-hero-tagline">{{specialActivity.heroTagline}}</view>
               <view class="activity-detail__immersive-meta">{{specialActivity.time}}</view>
               <view class="activity-detail__immersive-meta">入场形式：{{specialActivity.entry}}</view>
               <view class="activity-detail__immersive-meta">服装要求：{{specialActivity.dressCode}}</view>
@@ -29,6 +32,13 @@
           </view>
           <view class="activity-detail__immersive-content">
             <view class="activity-detail__immersive-divider"></view>
+            <view wx:if="{{specialActivity.perks && specialActivity.perks.length}}" class="activity-detail__immersive-section">
+              <view class="activity-detail__immersive-subtitle">礼遇亮点</view>
+              <view class="activity-detail__immersive-pill-list">
+                <view wx:for="{{specialActivity.perks}}" wx:key="index" class="activity-detail__immersive-pill">{{item}}</view>
+              </view>
+            </view>
+            <view wx:if="{{specialActivity.scarcity}}" class="activity-detail__immersive-scarcity">{{specialActivity.scarcity}}</view>
             <view class="activity-detail__immersive-subtitle">票价方案</view>
             <view class="activity-detail__immersive-tickets">
               <view wx:for="{{specialActivity.tickets}}" wx:key="name" class="activity-detail__immersive-ticket">
@@ -38,6 +48,21 @@
                 </view>
                 <view class="activity-detail__immersive-ticket-desc">{{item.description}}</view>
               </view>
+            </view>
+            <view wx:if="{{specialActivity.bargain}}" class="activity-detail__immersive-card">
+              <view class="activity-detail__immersive-card-title">砍价 / 转盘玩法</view>
+              <view class="activity-detail__immersive-card-line">起价：{{specialActivity.bargain.basePrice}}，默认{{specialActivity.bargain.defaultChances}}次立减机会</view>
+              <view class="activity-detail__immersive-card-line">底价保护：{{specialActivity.bargain.floorPrice}}</view>
+              <view class="activity-detail__immersive-card-line">机制：{{specialActivity.bargain.mechanic}}</view>
+              <view class="activity-detail__immersive-card-line">分享助力：{{specialActivity.bargain.shareBoost}}</view>
+              <view wx:if="{{specialActivity.bargain.membershipBoost && specialActivity.bargain.membershipBoost.length}}" class="activity-detail__immersive-card-list">
+                <view wx:for="{{specialActivity.bargain.membershipBoost}}" wx:key="index" class="activity-detail__immersive-card-chip">{{item}}</view>
+              </view>
+              <view class="activity-detail__immersive-card-note">{{specialActivity.bargain.controlNote}}</view>
+            </view>
+            <view wx:if="{{specialActivity.shareHooks && specialActivity.shareHooks.length}}" class="activity-detail__immersive-card">
+              <view class="activity-detail__immersive-card-title">裂变玩法 & 分享钩子</view>
+              <view wx:for="{{specialActivity.shareHooks}}" wx:key="index" class="activity-detail__immersive-card-line">{{item}}</view>
             </view>
             <view class="activity-detail__immersive-divider"></view>
             <view class="activity-detail__immersive-share">
