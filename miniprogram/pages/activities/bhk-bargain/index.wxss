@@ -427,108 +427,6 @@
   margin-bottom: 12rpx;
 }
 
-.bhk-share__helpers {
-  display: flex;
-  flex-direction: column;
-  gap: 12rpx;
-  margin-bottom: 12rpx;
-}
-
-.bhk-share__helper {
-  display: grid;
-  grid-template-columns: 120rpx 1fr auto;
-  align-items: center;
-  gap: 12rpx;
-  padding: 12rpx;
-  background: rgba(255, 211, 149, 0.08);
-  border: 1rpx solid rgba(255, 211, 149, 0.25);
-  border-radius: 16rpx;
-}
-
-.bhk-share__role {
-  padding: 8rpx 12rpx;
-  border-radius: 12rpx;
-  font-size: 24rpx;
-  text-align: center;
-  color: #2b1400;
-  background: rgba(255, 212, 128, 0.8);
-}
-
-.bhk-share__role--helper {
-  background: rgba(255, 236, 210, 0.65);
-}
-
-.bhk-share__member {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-}
-
-.bhk-share__avatar-wrapper {
-  position: relative;
-  width: 72rpx;
-  height: 72rpx;
-}
-
-.bhk-share__avatar {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.bhk-share__avatar-frame {
-  position: absolute;
-  top: -6rpx;
-  left: -6rpx;
-  width: 84rpx;
-  height: 84rpx;
-  pointer-events: none;
-}
-
-.bhk-share__meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12rpx;
-  width: 100%;
-  color: #ffe8c5;
-}
-
-.bhk-share__name {
-  font-weight: 600;
-}
-
-.bhk-share__title {
-  color: rgba(255, 236, 210, 0.7);
-  font-size: 24rpx;
-}
-
-.bhk-share__cut {
-  color: #ffd480;
-}
-
-.bhk-share__action {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-}
-
-.bhk-share__assist-btn {
-  min-width: 140rpx;
-  background: linear-gradient(135deg, #f9d17a, #f0a64c);
-  color: #2b1400;
-  border: none;
-}
-
-.bhk-share__assist-btn::after {
-  border: none;
-}
-
-.bhk-share__assisted-text {
-  color: #ffd480;
-}
-
 .bhk-share__actions {
   display: flex;
   gap: 16rpx;
@@ -536,17 +434,6 @@
 
 .bhk-share__button {
   flex: 1;
-}
-
-.bhk-share__button--secondary {
-  background: rgba(255, 211, 149, 0.08);
-  color: #ffd480;
-  border: 1rpx solid rgba(255, 211, 149, 0.4);
-}
-
-.bhk-share__counter {
-  margin-top: 10rpx;
-  color: rgba(255, 236, 210, 0.8);
 }
 
 .bhk-info__list {

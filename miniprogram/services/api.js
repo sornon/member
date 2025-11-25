@@ -913,13 +913,6 @@ export const ActivityService = {
       id
     });
   },
-  async bargainAssist(id, options = {}) {
-    const payload = { action: 'bargainAssist', id };
-    if (options && options.shareId) {
-      payload.shareId = options.shareId;
-    }
-    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, payload);
-  },
   async bargainDivineHand(id) {
     return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
       action: 'bargainDivineHand',

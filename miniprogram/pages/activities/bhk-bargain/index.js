@@ -193,8 +193,6 @@ Page({
     memberTitleName: '',
     realmReward: normalizeRealmReward(),
     divineHandReady: false,
-    assistSpins: 0,
-    shareCount: 0,
     floorReached: false,
     spinning: false,
     resultOverlay: null,
@@ -202,11 +200,6 @@ Page({
     displaySegments: [],
     floorPrice: 998,
     activeSegmentIndex: -1,
-    helperRecords: [],
-    assistLimit: '不限',
-    assistGiven: 0,
-    shareContext: null,
-    shareTargetId: '',
     showRules: false,
     heroImage: '',
     perks: [],
@@ -215,7 +208,6 @@ Page({
 
   onLoad(options = {}) {
     const id = typeof options.id === 'string' ? options.id.trim() : '';
-    this.shareTargetId = typeof options.shareId === 'string' ? options.shareId.trim() : '';
     if (id && id !== TARGET_ACTIVITY_ID) {
       wx.redirectTo({ url: `/pages/activities/detail/index?id=${id}` });
       return;
@@ -301,15 +293,11 @@ Page({
       memberRealm: session.memberRealm || '',
       realmReward,
       divineHandReady,
-      assistSpins: Math.max(0, Number(session.assistSpins) || 0),
-      shareCount: Math.max(0, Number(session.shareCount) || 0),
-      helperRecords: Array.isArray(session.helperRecords) ? session.helperRecords : [],
-      assistGiven: Math.max(0, Number(session.assistGiven) || 0),
       floorReached
     };
   },
 
-  applySession(session = {}, bargain = {}, activity = this.data.activity, shareContext = null) {
+  applySession(session = {}, bargain = {}, activity = this.data.activity) {
     const displaySegments = this.normalizeDisplaySegments(bargain.displaySegments, bargain.segments);
     const countdownTarget = bargain.endsAt ? Date.parse(bargain.endsAt) : 0;
     const mapLocation = this.normalizeMapLocation(activity);
@@ -332,22 +320,15 @@ Page({
       memberRealm: session.memberRealm,
       realmReward,
       divineHandReady,
-      assistSpins: session.assistSpins,
-      shareCount: session.shareCount,
       floorReached: session.floorReached,
-      helperRecords: session.helperRecords,
       segments: bargain.segments,
       displaySegments,
-      assistLimit: Number.isFinite(bargain.assistAttemptCap) ? bargain.assistAttemptCap : '不限',
-      assistGiven: session.assistGiven,
       floorPrice: bargain.floorPrice,
       countdownTarget,
       countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
       heroImage: bargain.heroImage,
       perks: bargain.perks,
-      mapLocation,
-      shareContext: shareContext || this.data.shareContext,
-      shareTargetId: (shareContext && shareContext.ownerId) || this.data.shareTargetId
+      mapLocation
     });
     this.startCountdown();
   },
@@ -469,9 +450,6 @@ Page({
       memberTitleImage: titleImage,
       memberTitleName: titleName
     });
-    if (!this.shareTargetId && member && member._id) {
-      this.shareTargetId = member._id;
-    }
   },
 
   async fetchActivityStatus(options = {}) {
@@ -480,14 +458,11 @@ Page({
       this.setData({ loading: true, resultOverlay: null });
     }
     try {
-      const response = await ActivityService.bargainStatus(this.activityId, { shareId: this.shareTargetId });
+      const response = await ActivityService.bargainStatus(this.activityId);
       const activity = response && response.activity ? response.activity : null;
       const bargain = normalizeBargainConfig(response && response.bargainConfig);
       const session = this.normalizeSession(response && response.session, bargain);
-      this.applySession(session, bargain, activity, response && response.shareContext);
-      if (!this.shareTargetId && response && response.shareContext && response.shareContext.ownerId) {
-        this.shareTargetId = response.shareContext.ownerId;
-      }
+      this.applySession(session, bargain, activity);
     } catch (error) {
       console.error('[bhk-bargain] fetch activity failed', error);
       this.setData({
@@ -540,8 +515,7 @@ Page({
         this.applySession(
           session,
           bargain,
-          response && response.activity ? response.activity : this.data.activity,
-          response && response.shareContext
+          response && response.activity ? response.activity : this.data.activity
         );
         this.setData({ spinning: false, resultOverlay: overlay });
       });
@@ -574,48 +548,13 @@ Page({
         this.applySession(
           session,
           bargain,
-          response && response.activity ? response.activity : this.data.activity,
-          response && response.shareContext
+          response && response.activity ? response.activity : this.data.activity
         );
         this.setData({ spinning: false, resultOverlay: overlay });
       });
     } catch (error) {
       console.error('[bhk-bargain] divine hand failed', error);
       wx.showToast({ title: error.errMsg || '神之一手不可用', icon: 'none' });
-      this.clearMarquee();
-      this.setData({ spinning: false });
-    }
-  },
-
-  async handleRecordAssist() {
-    if (this.data.spinning) {
-      return;
-    }
-    this.setData({ spinning: true, resultOverlay: null });
-    this.startMarquee();
-    try {
-      const response = await ActivityService.bargainAssist(this.activityId, { shareId: this.data.shareTargetId });
-      const bargain = normalizeBargainConfig(response && response.bargainConfig);
-      const session = this.normalizeSession(response && response.session, bargain);
-      const landingIndex = Number.isFinite(response && response.landingIndex)
-        ? response.landingIndex
-        : (bargain.displaySegments || []).length - 1;
-      const overlay = {
-        amount: Number.isFinite(response && response.amount) ? response.amount : 0,
-        message: (response && response.message) || this.pickEncouragement()
-      };
-      this.settleMarquee(landingIndex, () => {
-        this.applySession(
-          session,
-          bargain,
-          response && response.activity ? response.activity : this.data.activity,
-          response && response.shareContext
-        );
-        this.setData({ spinning: false, resultOverlay: overlay });
-      });
-    } catch (error) {
-      console.error('[bhk-bargain] assist failed', error);
-      wx.showToast({ title: error.errMsg || '助力失败', icon: 'none' });
       this.clearMarquee();
       this.setData({ spinning: false });
     }
@@ -655,9 +594,7 @@ Page({
 
   onShareAppMessage() {
     const title = (this.data.activity && this.data.activity.title) || 'BHK56 限量品鉴会砍价购票';
-    const shareId =
-      (this.data.member && (this.data.member._id || this.data.member.openid || this.data.member.openId)) || this.shareTargetId;
-    const path = `/pages/activities/bhk-bargain/index?id=${this.activityId}${shareId ? `&shareId=${shareId}` : ''}`;
+    const path = `/pages/activities/bhk-bargain/index?id=${this.activityId}`;
     return {
       title,
       path,
@@ -669,7 +606,7 @@ Page({
     const title = (this.data.activity && this.data.activity.title) || 'BHK56 限量品鉴会砍价购票';
     return {
       title,
-      query: `id=${this.activityId}${this.shareTargetId ? `&shareId=${this.shareTargetId}` : ''}`,
+      query: `id=${this.activityId}`,
       imageUrl: this.data.heroImage
     };
   }

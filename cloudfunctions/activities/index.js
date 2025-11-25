@@ -708,7 +708,6 @@ function buildBargainPayload(config, session, overrides = {}) {
 
 async function getBhkBargainStatus(event = {}) {
   const config = buildBhkBargainConfig();
-  const shareId = typeof event.shareId === 'string' ? event.shareId.trim() : '';
   const { memberBoost, realmName, openid, profile } = await resolveMemberBoost(config);
   const session = await getOrCreateBargainSession(config, {
     memberBoost,
@@ -716,8 +715,7 @@ async function getBhkBargainStatus(event = {}) {
     openid,
     memberProfile: profile
   });
-  const shareContext = await buildShareContext(config, shareId || openid, openid, profile, session.assistGiven);
-  return buildBargainPayload(config, session, { shareContext });
+  return buildBargainPayload(config, session, { shareContext: null });
 }
 
 async function spinBhkBargain() {
@@ -787,116 +785,8 @@ async function spinBhkBargain() {
   return result;
 }
 
-async function assistBhkBargain(event = {}) {
-  const config = buildBhkBargainConfig();
-  const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
-  const { memberBoost, realmName, openid, profile } = await resolveMemberBoost(config);
-  const shareId = typeof event.shareId === 'string' ? event.shareId.trim() : '';
-  const helperProfile = profile || buildMemberProfile({}, openid);
-  const targetOpenId = shareId || openid;
-  const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
-  const segments = normalizeSegments(config.segments);
-  const range = (config && config.assistRewardRange) || { min: 60, max: 180 };
-  const isAssistingOther = targetOpenId !== openid;
-
-  const helperSession = await getOrCreateBargainSession(config, {
-    memberBoost,
-    memberRealm: realmName,
-    openid,
-    memberProfile: helperProfile
-  });
-
-  if (isAssistingOther && (helperSession.assistGiven || 0) >= 1) {
-    throw new Error('您的助力次数已用完');
-  }
-
-  let landingIndex = displaySegments.length - 1;
-  let cut = 0;
-  let reachedFloor = false;
-  let targetRecord = null;
-  let helperSessionUpdated = helperSession;
-
-  await db.runTransaction(async (transaction) => {
-    const ref = transaction.collection(BHK_BARGAIN_COLLECTION).doc(`${BHK_BARGAIN_ACTIVITY_ID}_${targetOpenId}`);
-    let snapshot = await ref.get().catch(() => null);
-    if (!snapshot || !snapshot.data) {
-      throw new Error('助力数据初始化失败');
-    }
-    const record = normalizeBargainSession(snapshot.data, config, {}, targetOpenId);
-
-    if (isAssistingOther && (record.helperRecords || []).some((item) => item && item.openid === openid)) {
-      throw new Error('已为该好友助力过啦');
-    }
-
-    const min = Number(range.min) || 0;
-    const max = Number(range.max) || 0;
-    const reward = Math.floor(Math.random() * (max - min + 1)) + min;
-    const availableCut = Math.max(0, record.currentPrice - config.floorPrice);
-    const rawCut = Math.max(0, reward);
-    cut = Math.min(rawCut, availableCut);
-    reachedFloor = availableCut <= rawCut;
-    landingIndex = reachedFloor ? displaySegments.length - 1 : segments.findIndex((item) => item === rawCut);
-    const nextPrice = Math.max(config.floorPrice, record.currentPrice - cut);
-    const helperEntry = {
-      id: `${Date.now()}_${(record.helperRecords || []).length + 1}`,
-      role: '助力者',
-      openid,
-      amount: cut,
-      avatar: helperProfile.avatar || DEFAULT_AVATAR,
-      avatarFrame: helperProfile.avatarFrame || '',
-      nickname: helperProfile.nickname || '助力好友',
-      titleName: helperProfile.titleName || ''
-    };
-    const helperRecords = [helperEntry, ...(record.helperRecords || [])].slice(0, 12);
-    const updatedRecord = {
-      ...record,
-      currentPrice: nextPrice,
-      totalDiscount: (record.totalDiscount || 0) + cut,
-      assistSpins: (record.assistSpins || 0) + 1,
-      shareCount: (record.shareCount || 0) + 1,
-      remainingSpins: (record.remainingSpins || 0) + 1,
-      helperRecords,
-      remainingDiscount: Math.max(0, nextPrice - config.floorPrice),
-      updatedAt: now
-    };
-
-    await ref.update({ data: updatedRecord });
-    targetRecord = updatedRecord;
-  });
-
-  if (isAssistingOther) {
-    const helperRef = db.collection(BHK_BARGAIN_COLLECTION).doc(`${BHK_BARGAIN_ACTIVITY_ID}_${openid}`);
-    const helperSnapshot = await helperRef.get().catch(() => null);
-    if (helperSnapshot && helperSnapshot.data) {
-      const normalizedHelper = normalizeBargainSession(helperSnapshot.data, config, {}, openid);
-      const updatedHelper = {
-        ...normalizedHelper,
-        assistGiven: (normalizedHelper.assistGiven || 0) + 1,
-        remainingSpins: (normalizedHelper.remainingSpins || 0) + 1,
-        updatedAt: now
-      };
-      await helperRef.update({ data: updatedHelper });
-      helperSessionUpdated = updatedHelper;
-    }
-  }
-
-  const message = reachedFloor ? '你太幸运了！已经拿到最终底价，抓紧下单吧！' : pickEncouragement();
-  const shareContext = await buildShareContext(
-    config,
-    targetOpenId,
-    openid,
-    helperProfile,
-    helperSessionUpdated.assistGiven
-  );
-
-  const resultSession = isAssistingOther ? helperSessionUpdated : targetRecord || helperSessionUpdated;
-
-  return buildBargainPayload(config, resultSession, {
-    landingIndex: landingIndex >= 0 ? landingIndex : displaySegments.length - 1,
-    amount: cut,
-    message,
-    shareContext
-  });
+async function assistBhkBargain() {
+  throw new Error('好友助力功能已关闭');
 }
 
 async function divineHandBhkBargain() {

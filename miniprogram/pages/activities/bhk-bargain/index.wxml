@@ -90,48 +90,11 @@
     </view>
 
     <view class="bhk-card bhk-share">
-      <view class="bhk-section-title">分享助力</view>
-      <view class="bhk-share__desc">邀请好友砍价，每多1人参与，砍价次数+1。</view>
-      <view class="bhk-share__helpers" wx:if="{{shareContext && shareContext.helpers && shareContext.helpers.length}}">
-        <block wx:for="{{shareContext.helpers}}" wx:key="id">
-          <view class="bhk-share__helper">
-            <view class="bhk-share__role {{item.role === '分享者' ? 'bhk-share__role--owner' : 'bhk-share__role--helper'}}">{{item.role}}</view>
-            <view class="bhk-share__member">
-              <view class="bhk-share__avatar-wrapper">
-                <image class="bhk-share__avatar" src="{{item.avatar}}" mode="aspectFill"></image>
-                <image
-                  wx:if="{{item.avatarFrame}}"
-                  class="bhk-share__avatar-frame"
-                  src="{{item.avatarFrame}}"
-                  mode="scaleToFill"
-                ></image>
-              </view>
-              <view class="bhk-share__meta">
-                <text class="bhk-share__name">{{item.nickname}}</text>
-                <text class="bhk-share__title">{{item.titleName || '称号待佩戴'}}</text>
-              </view>
-            </view>
-            <view class="bhk-share__action">
-              <button
-                wx:if="{{item.role === '分享者' && shareContext.canAssist}}"
-                class="bhk-share__assist-btn"
-                size="mini"
-                type="primary"
-                bindtap="handleRecordAssist"
-              >
-                助力
-              </button>
-              <text wx:elif="{{item.role === '分享者'}}" class="bhk-share__assisted-text">{{shareContext.assisted || assistGiven >= 1 ? '已助力' : '分享中'}}</text>
-              <text wx:else class="bhk-share__cut">{{item.amount ? ('-¥' + item.amount) : '助力成功'}}</text>
-            </view>
-          </view>
-        </block>
-      </view>
+      <view class="bhk-section-title">分享活动</view>
+      <view class="bhk-share__desc">好友助力功能已关闭，仍可将活动分享给好友了解详情。</view>
       <view class="bhk-share__actions">
         <button class="bhk-share__button" type="primary" open-type="share">分享给好友</button>
-        <button class="bhk-share__button bhk-share__button--secondary" bindtap="handleRecordAssist">记录好友助力</button>
       </view>
-      <view class="bhk-share__counter">已邀请 {{shareCount}} 位好友，额外次数 +{{assistSpins}}</view>
     </view>
 
     <view class="bhk-card bhk-info">
@@ -161,14 +124,14 @@
 </view>
 
 <view class="bhk-overlay" wx:if="{{showRules}}">
-  <view class="bhk-overlay__card bhk-overlay__card--wide">
-    <view class="bhk-overlay__title">活动规则</view>
-      <view class="bhk-overlay__rules">
-      <view class="bhk-overlay__rule">· 默认 3 次砍价，修仙境界加成最高 +{{memberBoost}} 次，好友助力累计可再得 {{assistLimit}} 次。</view>
-      <view class="bhk-overlay__rule">· 每次抽奖随机减免票价，底价隐藏，抽完仍可原价购票。</view>
-      <view class="bhk-overlay__rule">· 分享给好友后点击“记录好友助力”登记，每名好友会直接减价并追加抽奖机会。</view>
-      <view class="bhk-overlay__rule">· 限量 15 张票，售罄则停止砍价与购票。</view>
+      <view class="bhk-overlay__card bhk-overlay__card--wide">
+        <view class="bhk-overlay__title">活动规则</view>
+          <view class="bhk-overlay__rules">
+        <view class="bhk-overlay__rule">· 默认 3 次砍价，修仙境界加成最高 +{{memberBoost}} 次。</view>
+        <view class="bhk-overlay__rule">· 每次抽奖随机减免票价，底价隐藏，抽完仍可原价购票。</view>
+        <view class="bhk-overlay__rule">· 好友助力功能已停用，分享活动不会追加砍价次数。</view>
+        <view class="bhk-overlay__rule">· 限量 15 张票，售罄则停止砍价与购票。</view>
+      </view>
+      <button class="bhk-overlay__button" type="primary" bindtap="toggleRules">关闭</button>
     </view>
-    <button class="bhk-overlay__button" type="primary" bindtap="toggleRules">关闭</button>
-  </view>
 </view>
