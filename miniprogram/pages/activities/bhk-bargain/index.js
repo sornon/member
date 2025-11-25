@@ -5,9 +5,9 @@ const TARGET_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
 const DEFAULT_SEGMENTS = [120, 180, 200, 260, 320, 500];
 const DEFAULT_LOCATION = {
   name: '酒隐之茄',
-  address: '北京市朝阳区百子园社区百子湾路16号4号楼B座102酒隐之茄',
-  latitude: 39.8946,
-  longitude: 116.5015
+  address: '北京市朝阳区百子湾路16号4号楼B座102',
+  latitude: 39.8943,
+  longitude: 116.5146
 };
 const COUNTDOWN_INTERVAL = 1000;
 const ENCOURAGEMENTS = [
@@ -135,10 +135,24 @@ Page({
     const name = activity.locationName || activity.location || DEFAULT_LOCATION.name;
     const latitude = Number(activity.locationLat);
     const longitude = Number(activity.locationLng);
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-      return { name, address, latitude, longitude };
+    const hasValidCoords =
+      Number.isFinite(latitude) &&
+      Number.isFinite(longitude) &&
+      longitude > 115 &&
+      longitude < 118 &&
+      latitude > 39 &&
+      latitude < 41;
+    const isLegacyShanghai = /上海|长宁/.test(`${address}${name}`);
+
+    if (isLegacyShanghai) {
+      return DEFAULT_LOCATION;
     }
-    return DEFAULT_LOCATION;
+
+    if (hasValidCoords) {
+      return { name: name || DEFAULT_LOCATION.name, address: address || DEFAULT_LOCATION.address, latitude, longitude };
+    }
+
+    return { ...DEFAULT_LOCATION, name: name || DEFAULT_LOCATION.name, address: address || DEFAULT_LOCATION.address };
   },
 
   normalizeSession(session = {}, bargain = {}) {

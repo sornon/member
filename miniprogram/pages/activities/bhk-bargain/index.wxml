@@ -17,7 +17,8 @@
           <view class="bhk-banner__pill bhk-banner__pill--accent">余票：{{stockRemaining}}/{{bargain.stock}}</view>
         </view>
         <view class="bhk-banner__pill-row">
-          <view class="bhk-banner__pill bhk-banner__pill--link" bindtap="handleOpenLocation">地点：{{activity.location || '查看地图'}}（点击打开腾讯地图）</view>
+          <view class="bhk-banner__pill bhk-banner__pill--link" bindtap="handleOpenLocation">地点：{{mapLocation.address || activity.location || '查看地图'}}
+          </view>
           <view class="bhk-banner__pill">方案：{{activity.priceLabel}}</view>
         </view>
       </view>
