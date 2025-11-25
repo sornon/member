@@ -1,4 +1,4 @@
-import { ActivityService } from '../../../services/api';
+import { ActivityService, MemberService } from '../../../services/api';
 import { buildCloudAssetUrl } from '../../../shared/asset-paths';
 
 const TARGET_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
@@ -163,6 +163,7 @@ function resolveMysteryLanding(displaySegments = []) {
 Page({
   data: {
     loading: true,
+    member: null,
     activity: null,
     bargain: null,
     countdown: '',
@@ -201,7 +202,7 @@ Page({
       return;
     }
     this.activityId = TARGET_ACTIVITY_ID;
-    this.fetchActivityStatus();
+    this.bootstrap();
   },
 
   onUnload() {
@@ -380,8 +381,68 @@ Page({
     return list[index] || list[0];
   },
 
-  async fetchActivityStatus() {
+  async bootstrap() {
     this.setData({ loading: true, resultOverlay: null });
+    await this.ensureMemberProfile();
+    return this.fetchActivityStatus({ keepLoading: true });
+  },
+
+  async ensureMemberProfile() {
+    if (this._ensureMemberPromise) {
+      return this._ensureMemberPromise;
+    }
+    const app = getApp();
+    try {
+      const cachedMember = app && app.globalData ? app.globalData.memberInfo : null;
+      if (cachedMember && cachedMember._id) {
+        this.applyMemberProfile(cachedMember);
+        return cachedMember;
+      }
+    } catch (error) {
+      console.error('[bhk-bargain] read cached member failed', error);
+    }
+
+    const promise = MemberService.getMember()
+      .then((member) => {
+        try {
+          if (app && app.globalData) {
+            app.globalData.memberInfo = member;
+          }
+        } catch (error) {
+          console.error('[bhk-bargain] cache member failed', error);
+        }
+        this.applyMemberProfile(member);
+        return member;
+      })
+      .catch((error) => {
+        console.error('[bhk-bargain] ensure member failed', error);
+        return null;
+      })
+      .finally(() => {
+        this._ensureMemberPromise = null;
+      });
+
+    this._ensureMemberPromise = promise;
+    return promise;
+  },
+
+  applyMemberProfile(member) {
+    if (!member || typeof member !== 'object') {
+      return;
+    }
+    const realmName =
+      (member.level && member.level.realm) || member.realm || (member.levelName ? member.levelName : '');
+    this.setData({
+      member,
+      memberRealm: realmName || this.data.memberRealm
+    });
+  },
+
+  async fetchActivityStatus(options = {}) {
+    const keepLoading = options && options.keepLoading;
+    if (!keepLoading) {
+      this.setData({ loading: true, resultOverlay: null });
+    }
     try {
       const response = await ActivityService.bargainStatus(this.activityId);
       const activity = response && response.activity ? response.activity : null;
