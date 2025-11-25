@@ -66,6 +66,17 @@ describe('BHK 砍价境界奖励升级', () => {
     expect(upgraded.remainingSpins).toBe(5);
   });
 
+  test('筑基奖励升级为 +4，结丹即可解锁神之一手', () => {
+    const { bonus: foundationBonus } = resolveRealmBonus(2);
+    const { bonus: coreBonus } = resolveRealmBonus(3);
+    const reward = buildRealmRewardState({ memberBoost: 3, remainingSpins: 0, divineHandRemaining: 1 });
+
+    expect(foundationBonus).toBe(4);
+    expect(coreBonus).toBe(4);
+    expect(reward.type).toBe('divine');
+    expect(reward.total).toBe(1);
+  });
+
   test('神之一手消耗后不应被补发，并记录使用状态', () => {
     const record = {
       remainingSpins: 0,
