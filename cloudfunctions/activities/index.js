@@ -155,7 +155,7 @@ function buildBhkBargainConfig() {
       { thresholdRealmOrder: 4, bonusAttempts: 1, label: '元婴及以上修为尊享' },
       { thresholdRealmOrder: 7, bonusAttempts: 2, label: '合体及以上额外加成' }
     ],
-    segments: [120, 180, 200, 260, 320, 500, 0, 150],
+    segments: [120, 180, 200, 260, 320, 500, 0],
     assistRewardRange: { min: 60, max: 180 },
     assistAttemptCap: 6,
     stock: 15,
