@@ -20,6 +20,21 @@
           <view class="bhk-banner__pill bhk-banner__pill--link" bindtap="handleOpenLocation">地点：{{mapLocation.address || activity.location || '查看地图'}}
           </view>
         </view>
+
+        <view class="bhk-banner__member">
+          <view class="bhk-banner__avatar-wrapper">
+            <image class="bhk-banner__avatar" src="{{(member && member.avatarUrl) || defaultAvatar}}" mode="cover"></image>
+            <image wx:if="{{member && member.avatarFrame}}" class="bhk-banner__avatar-frame" src="{{member.avatarFrame}}" mode="scaleToFill"></image>
+          </view>
+          <view class="bhk-banner__member-info">
+            <view class="bhk-banner__member-name">{{member ? (member.nickName || '无名仙友') : '无名仙友'}}</view>
+            <view class="bhk-banner__member-tags">
+              <image wx:if="{{memberTitleImage}}" class="bhk-banner__member-title" src="{{memberTitleImage}}" mode="heightFix"></image>
+              <text wx:elif="{{memberTitleName}}" class="bhk-banner__member-title-text">{{memberTitleName}}</text>
+              <view class="bhk-banner__member-tag">{{memberRealm || '境界待认证'}}</view>
+            </view>
+          </view>
+        </view>
       </view>
     </view>
 

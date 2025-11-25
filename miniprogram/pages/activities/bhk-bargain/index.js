@@ -1,5 +1,5 @@
 import { ActivityService, MemberService } from '../../../services/api';
-import { buildCloudAssetUrl } from '../../../shared/asset-paths';
+import { AVATAR_IMAGE_BASE_PATH, buildCloudAssetUrl } from '../../../shared/asset-paths';
 
 const TARGET_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
 const DEFAULT_SEGMENTS = [120, 180, 200, 260, 320, 500];
@@ -23,6 +23,7 @@ const REALM_REWARD_RULES = [
   { keyword: '筑基', bonus: 2, label: '筑基奖励' },
   { keyword: '结丹', bonus: 4, label: '结丹奖励' }
 ];
+const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 
 function normalizeBargainConfig(config = {}) {
   const startPrice = Number(config.startPrice) || 3500;
@@ -164,6 +165,7 @@ Page({
   data: {
     loading: true,
     member: null,
+    defaultAvatar: DEFAULT_AVATAR,
     activity: null,
     bargain: null,
     countdown: '',
@@ -176,6 +178,8 @@ Page({
     baseSpins: 0,
     memberBoost: 0,
     memberRealm: '',
+    memberTitleImage: '',
+    memberTitleName: '',
     realmReward: normalizeRealmReward(),
     divineHandReady: false,
     assistSpins: 0,
@@ -430,11 +434,15 @@ Page({
     if (!member || typeof member !== 'object') {
       return;
     }
+    const titleImage = member.titleImage || (member.title && (member.title.image || member.title.url)) || member.activeTitleImage || '';
+    const titleName = member.titleName || (member.title && (member.title.name || member.title.titleName)) || '';
     const realmName =
       (member.level && member.level.realm) || member.realm || (member.levelName ? member.levelName : '');
     this.setData({
       member,
-      memberRealm: realmName || this.data.memberRealm
+      memberRealm: realmName || this.data.memberRealm,
+      memberTitleImage: titleImage,
+      memberTitleName: titleName
     });
   },
 

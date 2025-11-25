@@ -95,6 +95,92 @@
   opacity: 0.8;
 }
 
+.bhk-banner__member {
+  margin-top: 10rpx;
+  padding: 14rpx 16rpx;
+  background: rgba(5, 8, 20, 0.52);
+  border: 1rpx solid rgba(255, 222, 180, 0.35);
+  border-radius: 18rpx;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  box-shadow: inset 0 0 12rpx rgba(255, 212, 128, 0.18);
+}
+
+.bhk-banner__avatar-wrapper {
+  position: relative;
+  width: 110rpx;
+  height: 110rpx;
+  flex-shrink: 0;
+}
+
+.bhk-banner__avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: block;
+  border: 1rpx solid rgba(255, 231, 198, 0.55);
+}
+
+.bhk-banner__avatar-frame {
+  position: absolute;
+  top: -12%;
+  left: -12%;
+  width: 124%;
+  height: 124%;
+  pointer-events: none;
+}
+
+.bhk-banner__member-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+  min-width: 0;
+}
+
+.bhk-banner__member-name {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #fff2da;
+  text-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.35);
+  max-width: 360rpx;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bhk-banner__member-tags {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  flex-wrap: wrap;
+}
+
+.bhk-banner__member-title {
+  height: 52rpx;
+  width: auto;
+  max-width: 260rpx;
+  display: block;
+}
+
+.bhk-banner__member-title-text {
+  padding: 6rpx 12rpx;
+  border-radius: 14rpx;
+  background: rgba(255, 222, 180, 0.18);
+  color: #ffe6c7;
+  font-size: 24rpx;
+}
+
+.bhk-banner__member-tag {
+  padding: 6rpx 12rpx;
+  border-radius: 14rpx;
+  background: rgba(255, 231, 198, 0.14);
+  border: 1rpx solid rgba(255, 212, 128, 0.3);
+  color: #ffe8c5;
+  font-size: 24rpx;
+  text-shadow: 0 1rpx 3rpx rgba(0, 0, 0, 0.35);
+}
+
 .bhk-price-card__row {
   display: flex;
   justify-content: space-between;
