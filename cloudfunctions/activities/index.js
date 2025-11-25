@@ -3,7 +3,7 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
-const { COLLECTIONS, buildCloudAssetUrl } = require('common-config');
+const { COLLECTIONS, buildCloudAssetUrl, realmConfigs } = require('common-config');
 
 const DEFAULT_LIMIT = 100;
 const BHK_BARGAIN_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
@@ -146,15 +146,27 @@ function buildBhkBargainActivity() {
   };
 }
 
+function buildRealmBonusConfig() {
+  const realms = Array.isArray(realmConfigs) ? realmConfigs : [];
+  return realms.map((realm, index) => {
+    const defaultOrder = index + 1;
+    const order = Number.isFinite(realm.realmOrder) ? Math.floor(realm.realmOrder) : defaultOrder;
+    const bonus = Math.max(1, order);
+    const name = realm.shortName || realm.realmName || realm.name || `境界${bonus}`;
+    return {
+      thresholdRealmOrder: bonus,
+      bonusAttempts: bonus,
+      label: `${name} +${bonus}`
+    };
+  });
+}
+
 function buildBhkBargainConfig() {
   return {
     startPrice: 3500,
     floorPrice: 998,
     baseAttempts: 3,
-    vipBonuses: [
-      { thresholdRealmOrder: 4, bonusAttempts: 1, label: '元婴及以上修为尊享' },
-      { thresholdRealmOrder: 7, bonusAttempts: 2, label: '合体及以上额外加成' }
-    ],
+    vipBonuses: buildRealmBonusConfig(),
     segments: [120, 180, 200, 260, 320, 500, 0],
     assistRewardRange: { min: 60, max: 180 },
     assistAttemptCap: 6,
@@ -312,15 +324,40 @@ async function getActivityDetail(options = {}) {
 
 function resolveRealmOrder(level = {}) {
   if (!level || typeof level !== 'object') {
-    return 1;
+    return 0;
   }
-  if (Number.isFinite(level.realmOrder)) {
-    return Math.max(1, Math.floor(level.realmOrder));
+
+  const orderKeys = ['realmOrder', 'order'];
+  for (const key of orderKeys) {
+    const value = Number(level[key]);
+    if (Number.isFinite(value)) {
+      return Math.max(0, Math.floor(value));
+    }
   }
-  if (Number.isFinite(level.order)) {
-    return Math.max(1, Math.floor(level.order));
+
+  const realmName = (level.realmName || level.realm || '').trim();
+  if (!realmName) {
+    return 0;
   }
-  return 1;
+
+  const matched = (realmConfigs || []).find((realm) => {
+    return (
+      realm.realmName === realmName ||
+      realm.name === realmName ||
+      realm.shortName === realmName
+    );
+  });
+
+  if (matched && Number.isFinite(matched.realmOrder)) {
+    return Math.max(0, Math.floor(matched.realmOrder));
+  }
+
+  const fallbackIndex = (realmConfigs || []).findIndex((realm) => realm.shortName === realmName);
+  if (fallbackIndex >= 0) {
+    return fallbackIndex + 1;
+  }
+
+  return 0;
 }
 
 function resolveMemberRealm(member = {}) {
@@ -366,7 +403,6 @@ function buildDisplaySegments(segments = [], mysteryLabel = '???') {
 }
 
 async function resolveMemberBoost(config = {}, openid = '') {
-  const bonuses = Array.isArray(config.vipBonuses) ? config.vipBonuses : [];
   let memberBoost = 0;
   let realmName = '';
   const currentOpenId = openid || getOpenId();
@@ -380,15 +416,9 @@ async function resolveMemberBoost(config = {}, openid = '') {
   realmName = resolveMemberRealm(member);
   const realmOrder = resolveRealmOrder(member.level || member);
 
-  bonuses.forEach((bonus) => {
-    if (!bonus || !Number.isFinite(bonus.thresholdRealmOrder)) {
-      return;
-    }
-    const threshold = Math.max(1, Math.floor(bonus.thresholdRealmOrder));
-    if (realmOrder >= threshold) {
-      memberBoost = Math.max(memberBoost, Number(bonus.bonusAttempts) || 0);
-    }
-  });
+  if (realmOrder > 0) {
+    memberBoost = realmOrder;
+  }
 
   return { memberBoost, realmName, openid: currentOpenId };
 }
