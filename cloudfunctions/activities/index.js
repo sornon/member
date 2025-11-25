@@ -75,6 +75,16 @@ exports.main = async (event = {}) => {
   }
 };
 
+if (process.env.NODE_ENV === 'test') {
+  module.exports._test = {
+    applyRealmBoostUpgrade,
+    buildRealmRewardState,
+    hasRealmBoostUpgrade,
+    resolveRealmBonus,
+    normalizeBargainSession
+  };
+}
+
 function normalizeLimit(input) {
   const value = Number(input);
   if (!Number.isFinite(value)) {
@@ -452,6 +462,7 @@ function buildRealmRewardState(record = {}) {
   const realmOrder = Number(record.memberBoost) || 0;
   const realmName = (record.memberRealm || '').trim();
   const { bonus, label } = resolveRealmBonus(realmOrder);
+  const divineHandUsed = Boolean(record.divineHandUsed);
   const divineHandTotal = Number.isFinite(record.divineHandRemaining)
     ? Math.max(0, record.divineHandRemaining)
     : 0;
@@ -467,7 +478,8 @@ function buildRealmRewardState(record = {}) {
       description: '所有奖励用尽后仍可必中神秘奖池，直降至 998 底价',
       total: Math.max(1, divineHandTotal || 1),
       remaining,
-      ready: remaining > 0 && (record.remainingSpins || 0) <= 0,
+      used: divineHandUsed,
+      ready: remaining > 0 && !divineHandUsed && (record.remainingSpins || 0) <= 0,
       realmName
     };
   }
@@ -513,10 +525,53 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
     realmBonusTotal: Number.isFinite(record.realmBonusTotal) ? record.realmBonusTotal : 0,
     realmBonusRemaining: Number.isFinite(record.realmBonusRemaining) ? record.realmBonusRemaining : 0,
     divineHandRemaining: Number.isFinite(record.divineHandRemaining) ? record.divineHandRemaining : 0,
+    divineHandUsed: Boolean(record.divineHandUsed),
     remainingDiscount: Math.max(0, (Number.isFinite(record.currentPrice) ? record.currentPrice : config.startPrice) - config.floorPrice)
   };
 
   return { ...normalized, ...overrides };
+}
+
+function applyRealmBoostUpgrade(record = {}, memberBoost = 0, realmBonus = 0, divineHandRemaining = 0) {
+  const normalized = { ...record };
+  const previousBoost = Number.isFinite(normalized.memberBoost) ? normalized.memberBoost : 0;
+  const boostedMemberBoost = Math.max(previousBoost, memberBoost);
+  const previousRealmBonus = Number.isFinite(normalized.realmBonusTotal) ? normalized.realmBonusTotal : 0;
+  const targetRealmBonus = Number.isFinite(realmBonus) ? realmBonus : 0;
+  const hasDivineBoost = boostedMemberBoost >= DIVINE_HAND_THRESHOLD;
+  const hasDivineHandUsed = Boolean(normalized.divineHandUsed);
+
+  normalized.memberBoost = boostedMemberBoost;
+
+  if (!Number.isFinite(normalized.realmBonusTotal) || normalized.realmBonusTotal === 0 || targetRealmBonus > previousRealmBonus) {
+    const deltaBonus = Math.max(0, targetRealmBonus - previousRealmBonus);
+    normalized.realmBonusTotal = targetRealmBonus;
+    normalized.realmBonusRemaining = Math.max(0, (normalized.realmBonusRemaining || 0) + deltaBonus);
+    normalized.remainingSpins = Math.max(0, (normalized.remainingSpins || 0) + deltaBonus);
+  } else if (normalized.realmBonusRemaining > normalized.realmBonusTotal) {
+    normalized.realmBonusRemaining = normalized.realmBonusTotal;
+  }
+
+  if (hasDivineBoost && !hasDivineHandUsed) {
+    const targetDivine = Math.max(1, divineHandRemaining || 1);
+    if (!Number.isFinite(normalized.divineHandRemaining) || normalized.divineHandRemaining < targetDivine) {
+      normalized.divineHandRemaining = targetDivine;
+    }
+  }
+
+  normalized.divineHandUsed = hasDivineHandUsed;
+
+  return normalized;
+}
+
+function hasRealmBoostUpgrade(before = {}, after = {}) {
+  return (
+    before.memberBoost !== after.memberBoost ||
+    before.realmBonusTotal !== after.realmBonusTotal ||
+    before.realmBonusRemaining !== after.realmBonusRemaining ||
+    before.remainingSpins !== after.remainingSpins ||
+    before.divineHandRemaining !== after.divineHandRemaining
+  );
 }
 
 async function getOrCreateBargainSession(config = {}, options = {}) {
@@ -537,14 +592,16 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
   const snapshot = await collection.doc(docId).get().catch(() => null);
   if (snapshot && snapshot.data) {
     const normalized = normalizeBargainSession(snapshot.data, config, { memberRealm }, openid);
-    if (!Number.isFinite(normalized.realmBonusTotal) || normalized.realmBonusTotal === 0) {
-      normalized.realmBonusTotal = realmBonus;
-      normalized.realmBonusRemaining = Math.max(0, Math.min(realmBonus, normalized.remainingSpins || 0));
+    const upgraded = applyRealmBoostUpgrade(normalized, memberBoost, realmBonus, divineHandRemaining);
+
+    if (hasRealmBoostUpgrade(normalized, upgraded)) {
+      await collection.doc(docId).update({
+        data: { ...upgraded, updatedAt: now }
+      });
+      return { ...upgraded, updatedAt: now };
     }
-    if (!Number.isFinite(normalized.divineHandRemaining) || normalized.divineHandRemaining < divineHandRemaining) {
-      normalized.divineHandRemaining = divineHandRemaining;
-    }
-    return normalized;
+
+    return upgraded;
   }
 
   const baseSpins = Number(config.baseAttempts) || 0;
@@ -564,6 +621,7 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
     realmBonusTotal: realmBonus,
     realmBonusRemaining: realmBonus,
     divineHandRemaining,
+    divineHandUsed: false,
     createdAt: now,
     updatedAt: now,
     remainingDiscount: Math.max(0, config.startPrice - config.floorPrice)
@@ -775,6 +833,7 @@ async function divineHandBhkBargain() {
       remainingSpins: 0,
       realmBonusRemaining: Math.max(0, record.realmBonusRemaining || 0),
       divineHandRemaining: Math.max(0, (record.divineHandRemaining || 1) - 1),
+      divineHandUsed: true,
       remainingDiscount: 0,
       updatedAt: now
     };
