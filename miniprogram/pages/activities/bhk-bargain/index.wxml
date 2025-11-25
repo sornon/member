@@ -74,10 +74,6 @@
           </view>
         </view>
       </view>
-      <view class="bhk-turntable__hint" wx:if="{{realmReward}}">
-        <block wx:if="{{divineHandReady}}">神之一手已解锁，点击必中“？？？”直降 {{floorPrice}} 底价</block>
-        <block wx:else>{{realmReward.description}}</block>
-      </view>
       <view class="bhk-turntable__wheel">
         <view class="bhk-turntable__segments">
           <block wx:for="{{displaySegments}}" wx:key="index">
