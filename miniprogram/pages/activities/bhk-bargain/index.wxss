@@ -440,7 +440,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 16rpx 20rpx;
+  padding: 36rpx 20rpx;
   background: rgba(5, 8, 20, 0.92);
   border-top: 1rpx solid rgba(255, 211, 149, 0.25);
   display: flex;
