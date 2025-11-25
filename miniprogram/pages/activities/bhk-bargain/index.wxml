@@ -13,7 +13,7 @@
         <view class="bhk-banner__title">{{activity.title || '感恩节 · BHK56 品鉴会'}}</view>
         <view class="bhk-banner__subtitle">顶级雪茄 · 限量 15 席 · 感恩节回馈</view>
         <view class="bhk-banner__pill-row">
-          <view class="bhk-banner__pill">剩余时间：{{countdown}}</view>
+          <view class="bhk-banner__pill" style="width: 230rpx;">剩余时间：{{countdown}}</view>
           <view class="bhk-banner__pill bhk-banner__pill--accent">余票：{{stockRemaining}}/{{bargain.stock}}</view>
         </view>
         <view class="bhk-banner__pill-row">
