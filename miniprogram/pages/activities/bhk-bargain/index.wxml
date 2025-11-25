@@ -107,7 +107,14 @@
             </view>
             <view class="bhk-share__member-info">
               <view class="bhk-share__member-name">{{item.nickname || '神秘会员'}}</view>
-              <view class="bhk-share__member-title">{{item.titleName || '称号待佩戴'}}
+              <view class="bhk-share__member-tags">
+                <image
+                  wx:if="{{item.titleImage}}"
+                  class="bhk-share__member-tag bhk-share__member-tag--image"
+                  src="{{item.titleImage}}"
+                  mode="heightFix"
+                ></image>
+                <view wx:else class="bhk-share__member-tag">{{item.titleName || '称号待佩戴'}}</view>
               </view>
             </view>
           </view>

@@ -23,6 +23,13 @@ const REALM_BONUS_RULES = [
 ];
 const DIVINE_HAND_THRESHOLD = 3; // 结丹及以上
 
+function normalizeTitleId(id) {
+  if (typeof id !== 'string') {
+    return '';
+  }
+  return id.trim();
+}
+
 async function ensureCollectionExists(name) {
   if (!name) return;
   try {
@@ -420,6 +427,8 @@ function buildMemberProfile(member = {}, openid = '') {
   const avatar =
     member.avatarUrl || member.avatar || (member.profile && member.profile.avatarUrl) || (member.profile && member.profile.avatar);
   const avatarFrame = member.avatarFrame || (member.profile && member.profile.avatarFrame) || '';
+  const titleId =
+    normalizeTitleId(member.appearanceTitle || (member.title && (member.title.id || member.title.titleId)) || member.titleId || '');
   const titleName =
     member.titleName ||
     (member.title && (member.title.name || member.title.titleName)) ||
@@ -432,6 +441,7 @@ function buildMemberProfile(member = {}, openid = '') {
     nickname,
     avatar: avatar || DEFAULT_AVATAR,
     avatarFrame,
+    titleId,
     titleName: typeof titleName === 'string' ? titleName : ''
   };
 }
@@ -549,7 +559,8 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
     realmBonusRemaining: Number.isFinite(record.realmBonusRemaining) ? record.realmBonusRemaining : 0,
     divineHandRemaining: Number.isFinite(record.divineHandRemaining) ? record.divineHandRemaining : 0,
     divineHandUsed: Boolean(record.divineHandUsed),
-    remainingDiscount: Math.max(0, (Number.isFinite(record.currentPrice) ? record.currentPrice : config.startPrice) - config.floorPrice)
+    remainingDiscount: Math.max(0, (Number.isFinite(record.currentPrice) ? record.currentPrice : config.startPrice) - config.floorPrice),
+    lastShareTarget: typeof record.lastShareTarget === 'string' ? record.lastShareTarget : ''
   };
 
   return { ...normalized, ...overrides };
@@ -675,9 +686,15 @@ async function buildShareContext(config, targetOpenId, viewerOpenId, viewerProfi
   });
   const helperRecords = Array.isArray(targetSession.helperRecords) ? targetSession.helperRecords : [];
   const ownerProfile = targetSession.memberProfile || profile || buildMemberProfile({}, targetOpenId);
+  const ownerTitleId = normalizeTitleId(ownerProfile.titleId || ownerProfile.titleName);
   const helpers = [
-    { role: '分享者', id: ownerProfile.openid || targetOpenId, ...ownerProfile },
-    ...helperRecords.map((item) => ({ role: item.role || '助力者', id: item.id || item.openid, ...item }))
+    { role: '分享者', id: ownerProfile.openid || targetOpenId, ...ownerProfile, titleId: ownerTitleId },
+    ...helperRecords.map((item) => ({
+      role: item.role || '助力者',
+      id: item.id || item.openid,
+      ...item,
+      titleId: normalizeTitleId(item.titleId || item.titleName)
+    }))
   ].filter((item) => item && item.openid && item.openid !== viewerOpenId);
   const assisted = helperRecords.some((item) => item && item.openid && item.openid === viewerOpenId);
   const canAssist =
@@ -717,9 +734,19 @@ async function getBhkBargainStatus(event = {}) {
     memberProfile: profile
   });
 
-  const shareContext = shareId
-    ? await buildShareContext(config, shareId, openid, profile, session.assistGiven)
+  const targetShareId = shareId || session.lastShareTarget || '';
+  const shareContext = targetShareId
+    ? await buildShareContext(config, targetShareId, openid, profile, session.assistGiven)
     : null;
+
+  if (shareId && shareId !== session.lastShareTarget) {
+    const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
+    await db
+      .collection(BHK_BARGAIN_COLLECTION)
+      .doc(`${BHK_BARGAIN_ACTIVITY_ID}_${openid}`)
+      .update({ data: { lastShareTarget: shareId, updatedAt: now } })
+      .catch(() => null);
+  }
 
   return buildBargainPayload(config, session, { shareContext });
 }
@@ -887,6 +914,7 @@ async function assistBhkBargain(event = {}) {
       assistGiven: assistGiven + 1,
       remainingSpins: Math.max(0, (viewerRecord.remainingSpins || 0) + 1),
       assistSpins: Math.max(0, (viewerRecord.assistSpins || 0) + 1),
+      lastShareTarget: shareId,
       remainingDiscount: Math.max(0, (viewerRecord.currentPrice || config.startPrice) - config.floorPrice),
       updatedAt: now
     };

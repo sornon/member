@@ -164,6 +164,22 @@ function normalizeRealmReward(session = {}) {
   };
 }
 
+function normalizeShareContext(context = {}) {
+  if (!context || typeof context !== 'object') {
+    return null;
+  }
+  const helpers = (Array.isArray(context.helpers) ? context.helpers : []).map((helper) => {
+    const titleId = normalizeTitleId(helper.titleId || helper.titleName || '');
+    const titleImage = buildTitleImageUrl(titleId);
+    return {
+      ...helper,
+      titleId,
+      titleImage
+    };
+  });
+  return { ...context, helpers };
+}
+
 function resolveMysteryLanding(displaySegments = []) {
   if (!Array.isArray(displaySegments) || !displaySegments.length) {
     return 0;
@@ -309,7 +325,9 @@ Page({
       typeof session.divineHandReady === 'boolean'
         ? session.divineHandReady
         : realmReward && realmReward.type === 'divine' && realmReward.ready && !realmReward.used;
-    const shareContext = typeof extras.shareContext === 'undefined' ? this.data.shareContext : extras.shareContext;
+    const shareContext = normalizeShareContext(
+      typeof extras.shareContext === 'undefined' ? this.data.shareContext : extras.shareContext
+    );
 
     this.setData({
       loading: false,
