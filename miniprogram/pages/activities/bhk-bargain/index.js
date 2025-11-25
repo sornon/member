@@ -102,7 +102,12 @@ function normalizeRealmReward(session = {}) {
     const remaining = Number.isFinite(sessionReward.remaining)
       ? Math.max(0, Math.floor(sessionReward.remaining))
       : total;
-    const ready = Boolean(sessionReward.ready) || (type === 'divine' ? remaining > 0 : remaining > 0);
+    const ready =
+      typeof sessionReward.ready === 'boolean'
+        ? sessionReward.ready
+        : type === 'divine'
+          ? false
+          : remaining > 0;
     return {
       ...baseReward,
       type,
