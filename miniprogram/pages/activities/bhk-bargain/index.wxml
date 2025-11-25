@@ -92,13 +92,37 @@
     <view class="bhk-card bhk-share">
       <view class="bhk-section-title">分享助力</view>
       <view class="bhk-share__desc">邀请好友砍价，每多1人参与，砍价次数+1。</view>
-      <view class="bhk-share__helpers" wx:if="{{helperRecords.length}}">
-        <block wx:for="{{helperRecords}}" wx:key="id">
+      <view class="bhk-share__helpers" wx:if="{{shareContext && shareContext.helpers && shareContext.helpers.length}}">
+        <block wx:for="{{shareContext.helpers}}" wx:key="id">
           <view class="bhk-share__helper">
-            <image class="bhk-share__avatar" src="{{item.avatar}}" mode="aspectFill"></image>
-            <view class="bhk-share__meta">
-              <text class="bhk-share__name">{{item.nickname}}</text>
-              <text class="bhk-share__cut">-¥{{item.amount}}</text>
+            <view class="bhk-share__role {{item.role === '分享者' ? 'bhk-share__role--owner' : 'bhk-share__role--helper'}}">{{item.role}}</view>
+            <view class="bhk-share__member">
+              <view class="bhk-share__avatar-wrapper">
+                <image class="bhk-share__avatar" src="{{item.avatar}}" mode="aspectFill"></image>
+                <image
+                  wx:if="{{item.avatarFrame}}"
+                  class="bhk-share__avatar-frame"
+                  src="{{item.avatarFrame}}"
+                  mode="scaleToFill"
+                ></image>
+              </view>
+              <view class="bhk-share__meta">
+                <text class="bhk-share__name">{{item.nickname}}</text>
+                <text class="bhk-share__title">{{item.titleName || '称号待佩戴'}}</text>
+              </view>
+            </view>
+            <view class="bhk-share__action">
+              <button
+                wx:if="{{item.role === '分享者' && shareContext.canAssist}}"
+                class="bhk-share__assist-btn"
+                size="mini"
+                type="primary"
+                bindtap="handleRecordAssist"
+              >
+                助力
+              </button>
+              <text wx:elif="{{item.role === '分享者'}}" class="bhk-share__assisted-text">{{shareContext.assisted || assistGiven >= 1 ? '已助力' : '分享中'}}</text>
+              <text wx:else class="bhk-share__cut">{{item.amount ? ('-¥' + item.amount) : '助力成功'}}</text>
             </view>
           </view>
         </block>

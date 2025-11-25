@@ -203,7 +203,10 @@ Page({
     floorPrice: 998,
     activeSegmentIndex: -1,
     helperRecords: [],
-    assistLimit: 6,
+    assistLimit: '不限',
+    assistGiven: 0,
+    shareContext: null,
+    shareTargetId: '',
     showRules: false,
     heroImage: '',
     perks: [],
@@ -212,6 +215,7 @@ Page({
 
   onLoad(options = {}) {
     const id = typeof options.id === 'string' ? options.id.trim() : '';
+    this.shareTargetId = typeof options.shareId === 'string' ? options.shareId.trim() : '';
     if (id && id !== TARGET_ACTIVITY_ID) {
       wx.redirectTo({ url: `/pages/activities/detail/index?id=${id}` });
       return;
@@ -300,11 +304,12 @@ Page({
       assistSpins: Math.max(0, Number(session.assistSpins) || 0),
       shareCount: Math.max(0, Number(session.shareCount) || 0),
       helperRecords: Array.isArray(session.helperRecords) ? session.helperRecords : [],
+      assistGiven: Math.max(0, Number(session.assistGiven) || 0),
       floorReached
     };
   },
 
-  applySession(session = {}, bargain = {}, activity = this.data.activity) {
+  applySession(session = {}, bargain = {}, activity = this.data.activity, shareContext = null) {
     const displaySegments = this.normalizeDisplaySegments(bargain.displaySegments, bargain.segments);
     const countdownTarget = bargain.endsAt ? Date.parse(bargain.endsAt) : 0;
     const mapLocation = this.normalizeMapLocation(activity);
@@ -333,13 +338,16 @@ Page({
       helperRecords: session.helperRecords,
       segments: bargain.segments,
       displaySegments,
-      assistLimit: bargain.assistAttemptCap,
+      assistLimit: Number.isFinite(bargain.assistAttemptCap) ? bargain.assistAttemptCap : '不限',
+      assistGiven: session.assistGiven,
       floorPrice: bargain.floorPrice,
       countdownTarget,
       countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
       heroImage: bargain.heroImage,
       perks: bargain.perks,
-      mapLocation
+      mapLocation,
+      shareContext: shareContext || this.data.shareContext,
+      shareTargetId: (shareContext && shareContext.ownerId) || this.data.shareTargetId
     });
     this.startCountdown();
   },
@@ -461,6 +469,9 @@ Page({
       memberTitleImage: titleImage,
       memberTitleName: titleName
     });
+    if (!this.shareTargetId && member && member._id) {
+      this.shareTargetId = member._id;
+    }
   },
 
   async fetchActivityStatus(options = {}) {
@@ -469,11 +480,14 @@ Page({
       this.setData({ loading: true, resultOverlay: null });
     }
     try {
-      const response = await ActivityService.bargainStatus(this.activityId);
+      const response = await ActivityService.bargainStatus(this.activityId, { shareId: this.shareTargetId });
       const activity = response && response.activity ? response.activity : null;
       const bargain = normalizeBargainConfig(response && response.bargainConfig);
       const session = this.normalizeSession(response && response.session, bargain);
-      this.applySession(session, bargain, activity);
+      this.applySession(session, bargain, activity, response && response.shareContext);
+      if (!this.shareTargetId && response && response.shareContext && response.shareContext.ownerId) {
+        this.shareTargetId = response.shareContext.ownerId;
+      }
     } catch (error) {
       console.error('[bhk-bargain] fetch activity failed', error);
       this.setData({
@@ -523,7 +537,12 @@ Page({
         message: (response && response.message) || this.pickEncouragement()
       };
       this.settleMarquee(landingIndex, () => {
-        this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
+        this.applySession(
+          session,
+          bargain,
+          response && response.activity ? response.activity : this.data.activity,
+          response && response.shareContext
+        );
         this.setData({ spinning: false, resultOverlay: overlay });
       });
     } catch (error) {
@@ -552,7 +571,12 @@ Page({
         message: (response && response.message) || '神之一手！必中隐藏奖池，直达底价'
       };
       this.settleMarquee(landingIndex, () => {
-        this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
+        this.applySession(
+          session,
+          bargain,
+          response && response.activity ? response.activity : this.data.activity,
+          response && response.shareContext
+        );
         this.setData({ spinning: false, resultOverlay: overlay });
       });
     } catch (error) {
@@ -567,14 +591,10 @@ Page({
     if (this.data.spinning) {
       return;
     }
-    if (this.data.assistSpins >= this.data.assistLimit) {
-      wx.showToast({ title: '助力次数已达上限', icon: 'none' });
-      return;
-    }
     this.setData({ spinning: true, resultOverlay: null });
     this.startMarquee();
     try {
-      const response = await ActivityService.bargainAssist(this.activityId);
+      const response = await ActivityService.bargainAssist(this.activityId, { shareId: this.data.shareTargetId });
       const bargain = normalizeBargainConfig(response && response.bargainConfig);
       const session = this.normalizeSession(response && response.session, bargain);
       const landingIndex = Number.isFinite(response && response.landingIndex)
@@ -585,7 +605,12 @@ Page({
         message: (response && response.message) || this.pickEncouragement()
       };
       this.settleMarquee(landingIndex, () => {
-        this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
+        this.applySession(
+          session,
+          bargain,
+          response && response.activity ? response.activity : this.data.activity,
+          response && response.shareContext
+        );
         this.setData({ spinning: false, resultOverlay: overlay });
       });
     } catch (error) {
@@ -630,7 +655,9 @@ Page({
 
   onShareAppMessage() {
     const title = (this.data.activity && this.data.activity.title) || 'BHK56 限量品鉴会砍价购票';
-    const path = `/pages/activities/bhk-bargain/index?id=${this.activityId}`;
+    const shareId =
+      (this.data.member && (this.data.member._id || this.data.member.openid || this.data.member.openId)) || this.shareTargetId;
+    const path = `/pages/activities/bhk-bargain/index?id=${this.activityId}${shareId ? `&shareId=${shareId}` : ''}`;
     return {
       title,
       path,
@@ -642,7 +669,7 @@ Page({
     const title = (this.data.activity && this.data.activity.title) || 'BHK56 限量品鉴会砍价购票';
     return {
       title,
-      query: `id=${this.activityId}`,
+      query: `id=${this.activityId}${this.shareTargetId ? `&shareId=${this.shareTargetId}` : ''}`,
       imageUrl: this.data.heroImage
     };
   }
