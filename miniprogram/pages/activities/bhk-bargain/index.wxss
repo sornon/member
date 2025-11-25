@@ -96,15 +96,15 @@
 }
 
 .bhk-banner__member {
-  margin-top: 10rpx;
-  padding: 14rpx 16rpx;
-  background: rgba(5, 8, 20, 0.52);
-  border: 1rpx solid rgba(255, 222, 180, 0.35);
-  border-radius: 18rpx;
+  margin-top: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   display: flex;
   align-items: center;
   gap: 14rpx;
-  box-shadow: inset 0 0 12rpx rgba(255, 212, 128, 0.18);
+  box-shadow: none;
 }
 
 .bhk-banner__avatar-wrapper {
@@ -200,6 +200,10 @@
   color: #ffd480;
 }
 
+.bhk-price-card__current--floor {
+  color: #ff5959;
+}
+
 .bhk-price-card__hint {
   display: flex;
   align-items: center;
@@ -243,10 +247,24 @@
 .bhk-turntable__header {
   display: flex;
   justify-content: space-between;
-  gap: 12rpx;
-  align-items: center;
+  gap: 18rpx;
   font-size: 26rpx;
   color: #ffe8c5;
+}
+
+.bhk-turntable__header-left {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  min-width: 0;
+}
+
+.bhk-turntable__header-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  align-items: flex-end;
+  flex: 1;
 }
 
 .bhk-turntable__summary {
@@ -282,12 +300,6 @@
 .bhk-turntable__reward-pill--glow {
   box-shadow: 0 0 0 2rpx rgba(255, 212, 128, 0.4), 0 10rpx 18rpx rgba(0, 0, 0, 0.35);
   background: linear-gradient(90deg, rgba(255, 210, 140, 0.32), rgba(255, 240, 200, 0.22));
-}
-
-.bhk-turntable__hint {
-  margin-top: 8rpx;
-  color: rgba(255, 236, 210, 0.85);
-  font-size: 24rpx;
 }
 
 .bhk-turntable__wheel {

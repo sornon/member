@@ -17,10 +17,10 @@ const ENCOURAGEMENTS = [
   '呼朋唤友来助力，价格还能再低！',
   '好友助力价格还能更低，快去求助一下吧~'
 ];
-const DIVINE_HAND_KEYWORDS = ['元婴', '化神', '炼虚', '合体', '大乘', '渡劫'];
+const DIVINE_HAND_KEYWORDS = ['结丹', '元婴', '化神', '炼虚', '合体', '大乘', '渡劫'];
 const REALM_REWARD_RULES = [
   { keyword: '炼气', bonus: 1, label: '炼气奖励' },
-  { keyword: '筑基', bonus: 2, label: '筑基奖励' },
+  { keyword: '筑基', bonus: 4, label: '筑基奖励' },
   { keyword: '结丹', bonus: 4, label: '结丹奖励' }
 ];
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
@@ -72,13 +72,13 @@ function resolveRealmTier(realmName = '', memberBoost = 0) {
   if (!normalized) {
     return null;
   }
+  const isDivine = DIVINE_HAND_KEYWORDS.some((keyword) => normalized.includes(keyword)) || Number(memberBoost) >= 3;
+  if (isDivine) {
+    return { type: 'divine', label: '神之一手', bonus: 0 };
+  }
   const matched = REALM_REWARD_RULES.find((item) => normalized.includes(item.keyword));
   if (matched) {
     return { ...matched, type: 'boost' };
-  }
-  const isDivine = DIVINE_HAND_KEYWORDS.some((keyword) => normalized.includes(keyword)) || Number(memberBoost) >= 4;
-  if (isDivine) {
-    return { type: 'divine', label: '神之一手', bonus: 0 };
   }
   return null;
 }
@@ -92,6 +92,7 @@ function normalizeRealmReward(session = {}) {
     total: 0,
     remaining: 0,
     ready: false,
+    used: false,
     realmName
   };
 
@@ -108,6 +109,7 @@ function normalizeRealmReward(session = {}) {
         : type === 'divine'
           ? false
           : remaining > 0;
+    const used = Boolean(sessionReward.used);
     return {
       ...baseReward,
       type,
@@ -117,7 +119,8 @@ function normalizeRealmReward(session = {}) {
         (type === 'divine' ? '必中隐藏奖池，直接抵达 998 底价' : '境界额外砍价次数'),
       total,
       remaining,
-      ready
+      ready: used ? false : ready,
+      used
     };
   }
 
@@ -132,6 +135,7 @@ function normalizeRealmReward(session = {}) {
       : session.remainingSpins <= 0
         ? 1
         : 0;
+    const used = Boolean(session.divineHandUsed);
     return {
       ...baseReward,
       type: 'divine',
@@ -139,7 +143,8 @@ function normalizeRealmReward(session = {}) {
       description: '所有奖励用尽后仍可必中神秘奖池，直降至 998 底价',
       total: Math.max(1, remaining),
       remaining,
-      ready: remaining > 0
+      ready: remaining > 0 && !used,
+      used
     };
   }
 
@@ -277,8 +282,11 @@ Page({
     const remainingSpins = Math.max(0, Number(session.remainingSpins) || 0);
     const divineHandReady =
       realmReward && realmReward.type === 'divine'
-        ? Boolean(session.divineHandReady || realmReward.ready)
+        ? Boolean(!realmReward.used && (session.divineHandReady || realmReward.ready))
         : false;
+    const floorPrice = Number.isFinite(bargain.floorPrice) ? bargain.floorPrice : this.data.floorPrice;
+    const floorReached =
+      Boolean(session.floorReached) || (Number.isFinite(currentPrice) && Number.isFinite(floorPrice) && currentPrice <= floorPrice);
     return {
       currentPrice,
       totalDiscount: Number.isFinite(session.totalDiscount) ? session.totalDiscount : basePrice - currentPrice,
@@ -291,7 +299,7 @@ Page({
       assistSpins: Math.max(0, Number(session.assistSpins) || 0),
       shareCount: Math.max(0, Number(session.shareCount) || 0),
       helperRecords: Array.isArray(session.helperRecords) ? session.helperRecords : [],
-      floorReached: Boolean(session.floorReached)
+      floorReached
     };
   },
 
@@ -303,7 +311,7 @@ Page({
     const divineHandReady =
       typeof session.divineHandReady === 'boolean'
         ? session.divineHandReady
-        : realmReward && realmReward.type === 'divine' && realmReward.ready;
+        : realmReward && realmReward.type === 'divine' && realmReward.ready && !realmReward.used;
     this.setData({
       loading: false,
       activity,
@@ -510,8 +518,8 @@ Page({
         amount: Number.isFinite(response && response.amount) ? response.amount : 0,
         message: (response && response.message) || this.pickEncouragement()
       };
-      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
       this.settleMarquee(landingIndex, () => {
+        this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
         this.setData({ spinning: false, resultOverlay: overlay });
       });
     } catch (error) {
@@ -539,8 +547,8 @@ Page({
         amount: Number.isFinite(response && response.amount) ? response.amount : 0,
         message: (response && response.message) || '神之一手！必中隐藏奖池，直达底价'
       };
-      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
       this.settleMarquee(landingIndex, () => {
+        this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
         this.setData({ spinning: false, resultOverlay: overlay });
       });
     } catch (error) {
@@ -572,8 +580,8 @@ Page({
         amount: Number.isFinite(response && response.amount) ? response.amount : 0,
         message: (response && response.message) || this.pickEncouragement()
       };
-      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
       this.settleMarquee(landingIndex, () => {
+        this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
         this.setData({ spinning: false, resultOverlay: overlay });
       });
     } catch (error) {
