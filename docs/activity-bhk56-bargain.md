@@ -49,3 +49,4 @@
 
 ## 已知问题与修复记录
 - **境界奖励未解锁（化神期用户显示未认证）**：活动云函数仅直接读取 `members` 集合内的原始字段，缺少对 `levelId` 所关联等级数据的回填，导致高阶会员只保存了 `levelId`/`levelName` 而无完整 `level.realmName`，从而计算 `realmOrder` 失败，接口返回 `type: none`、`realmName: ''`。已在 `resolveMemberBoost` 中补充等级文档兜底加载与 `levelName` 回退，确保化神及以上会员正确识别境界并解锁境界奖励/神之一手。
+- **已创建砍价档案未刷新境界加成**：用户首次进入时写入的 `memberBoost` 会固化在 `bhkBargainRecords`，后续即便认证到更高境界，再次进入页面命中已有记录时不会覆盖旧的 `memberBoost`，导致界面能展示最新境界名称但奖励仍显示“未解锁”。现已在 `getOrCreateBargainSession` 中为既有记录注入最新的 `memberBoost` 与 `memberRealm`，并同步补齐境界奖励剩余次数，确保老档案也能按新境界即时获得额外抽奖或神之一手。

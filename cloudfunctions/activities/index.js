@@ -536,7 +536,12 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
 
   const snapshot = await collection.doc(docId).get().catch(() => null);
   if (snapshot && snapshot.data) {
-    const normalized = normalizeBargainSession(snapshot.data, config, { memberRealm }, openid);
+    const normalized = normalizeBargainSession(
+      snapshot.data,
+      config,
+      { memberRealm, memberBoost },
+      openid
+    );
     if (!Number.isFinite(normalized.realmBonusTotal) || normalized.realmBonusTotal === 0) {
       normalized.realmBonusTotal = realmBonus;
       normalized.realmBonusRemaining = Math.max(0, Math.min(realmBonus, normalized.remainingSpins || 0));
@@ -789,4 +794,14 @@ async function divineHandBhkBargain() {
   });
 
   return result;
+}
+
+if (process.env.NODE_ENV === 'test') {
+  exports.__private__ = {
+    buildRealmRewardState,
+    normalizeBargainSession,
+    resolveRealmBonus,
+    resolveMemberRealm,
+    resolveRealmOrder
+  };
 }
