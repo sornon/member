@@ -135,7 +135,7 @@
       </view>
       <view class="bhk-share__actions">
         <button class="bhk-share__button" type="primary" open-type="share">分享给好友</button>
-        <button class="bhk-share__button" type="default" open-type="share">晒到朋友圈</button>
+        <button class="bhk-share__button" type="default" bindtap="handleShareToTimeline">晒到朋友圈</button>
       </view>
     </view>
 
