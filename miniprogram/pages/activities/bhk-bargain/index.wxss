@@ -181,6 +181,15 @@
   text-shadow: 0 1rpx 3rpx rgba(0, 0, 0, 0.35);
 }
 
+.bhk-banner__member-tag--image {
+  padding: 0;
+  border: none;
+  background: none;
+  height: 52rpx;
+  width: auto;
+  display: block;
+}
+
 .bhk-price-card__row {
   display: flex;
   justify-content: space-between;
