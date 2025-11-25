@@ -158,14 +158,19 @@ Page({
   normalizeSession(session = {}, bargain = {}) {
     const basePrice = Number(bargain.startPrice) || this.data.basePrice || 3500;
     const currentPrice = Number.isFinite(session.currentPrice) ? session.currentPrice : basePrice;
-    const memberBoost = Number.isFinite(session.memberBoost) ? session.memberBoost : 0;
-    const rawRemainingSpins = Math.max(0, Number(session.remainingSpins) || 0);
+    const baseSpins = Number.isFinite(session.baseSpins) ? session.baseSpins : bargain.baseAttempts;
+    const rawRemainingSpins = Number.isFinite(session.remainingSpins) ? Math.max(0, session.remainingSpins) : null;
+    const normalizedMemberBoost = Number.isFinite(session.memberBoost)
+      ? Math.max(0, session.memberBoost)
+      : Math.max(0, (rawRemainingSpins || 0) - (Number.isFinite(baseSpins) ? baseSpins : 0));
+    const normalizedRemainingSpins =
+      rawRemainingSpins !== null ? rawRemainingSpins : (Number.isFinite(baseSpins) ? baseSpins : 0) + normalizedMemberBoost;
     return {
       currentPrice,
       totalDiscount: Number.isFinite(session.totalDiscount) ? session.totalDiscount : basePrice - currentPrice,
-      remainingSpins: rawRemainingSpins + Math.max(0, memberBoost),
-      baseSpins: Number.isFinite(session.baseSpins) ? session.baseSpins : bargain.baseAttempts,
-      memberBoost,
+      remainingSpins: normalizedRemainingSpins,
+      baseSpins,
+      memberBoost: normalizedMemberBoost,
       memberRealm: session.memberRealm || '',
       assistSpins: Math.max(0, Number(session.assistSpins) || 0),
       shareCount: Math.max(0, Number(session.shareCount) || 0),

@@ -166,6 +166,8 @@
 .bhk-turntable__remaining {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  width: 100%;
   flex-wrap: wrap;
   gap: 12rpx;
 }
