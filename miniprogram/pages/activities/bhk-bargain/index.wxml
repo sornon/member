@@ -62,17 +62,11 @@
             <view class="bhk-turntable__reward" wx:if="{{realmReward}}">
               <view class="bhk-turntable__reward-text">{{realmReward.realmName || '境界奖励'}}</view>
               <view class="bhk-turntable__reward-pill {{divineHandReady ? 'bhk-turntable__reward-pill--glow' : ''}}">
-                <block wx:if="{{realmReward.type === 'divine'}}">
-                  <text wx:if="{{divineHandReady}}">神之一手已激活</text>
-                  <text wx:elif="{{realmReward.used}}">神之一手已使用</text>
-                  <text wx:else>神之一手待触发</text>
-                </block>
-                <block wx:elif="{{realmReward.type === 'boost'}}">
-                  <text>剩余 {{realmReward.remaining}} / {{realmReward.total}} 次</text>
-                </block>
-                <block wx:else>
-                  <text>未解锁</text>
-                </block>
+                <text wx:if="{{realmReward.type === 'divine' && divineHandReady}}">神之一手已激活</text>
+                <text wx:elif="{{realmReward.type === 'divine' && realmReward.used}}">神之一手已使用</text>
+                <text wx:elif="{{realmReward.type === 'divine'}}">神之一手待触发</text>
+                <text wx:elif="{{realmReward.type === 'boost'}}">剩余 {{realmReward.remaining}} / {{realmReward.total}} 次</text>
+                <text wx:else>未解锁</text>
               </view>
             </view>
           </view>
