@@ -5,8 +5,6 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const { COLLECTIONS, buildCloudAssetUrl } = require('common-config');
 
-const { OPENID } = cloud.getWXContext();
-
 const DEFAULT_LIMIT = 100;
 const BHK_BARGAIN_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
 const BHK_BARGAIN_COLLECTION = 'bhkBargainRecords';
@@ -18,6 +16,11 @@ const ENCOURAGEMENTS = [
   '呼朋唤友来助力，价格还能再低！',
   '好友助力价格还能更低，快去求助一下吧~'
 ];
+
+function getOpenId() {
+  const context = (typeof cloud.getWXContext === 'function' && cloud.getWXContext()) || {};
+  return context.OPENID || context.openId || '';
+}
 
 exports.main = async (event = {}) => {
   const action = typeof event.action === 'string' ? event.action.trim() : 'list';
@@ -337,16 +340,17 @@ function buildDisplaySegments(segments = [], mysteryLabel = '???') {
   return display;
 }
 
-async function resolveMemberBoost(config = {}) {
+async function resolveMemberBoost(config = {}, openid = '') {
   const bonuses = Array.isArray(config.vipBonuses) ? config.vipBonuses : [];
   let memberBoost = 0;
   let realmName = '';
+  const currentOpenId = openid || getOpenId();
 
-  if (!OPENID) {
-    return { memberBoost, realmName };
+  if (!currentOpenId) {
+    return { memberBoost, realmName, openid: '' };
   }
 
-  const memberSnapshot = await db.collection(COLLECTIONS.MEMBERS).doc(OPENID).get().catch(() => null);
+  const memberSnapshot = await db.collection(COLLECTIONS.MEMBERS).doc(currentOpenId).get().catch(() => null);
   const member = (memberSnapshot && memberSnapshot.data) || {};
   realmName = resolveMemberRealm(member);
   const realmOrder = resolveRealmOrder(member.level || member);
@@ -361,13 +365,14 @@ async function resolveMemberBoost(config = {}) {
     }
   });
 
-  return { memberBoost, realmName };
+  return { memberBoost, realmName, openid: currentOpenId };
 }
 
-function normalizeBargainSession(record = {}, config = {}, overrides = {}) {
+function normalizeBargainSession(record = {}, config = {}, overrides = {}, openid = '') {
+  const memberId = overrides.memberId || record.memberId || openid || '';
   const normalized = {
     id: record._id || '',
-    memberId: record.memberId || OPENID || '',
+    memberId,
     activityId: record.activityId || BHK_BARGAIN_ACTIVITY_ID,
     currentPrice: Number.isFinite(record.currentPrice) ? record.currentPrice : config.startPrice,
     totalDiscount: Number.isFinite(record.totalDiscount) ? record.totalDiscount : 0,
@@ -385,26 +390,27 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}) {
 }
 
 async function getOrCreateBargainSession(config = {}, options = {}) {
-  if (!OPENID) {
+  const openid = options.openid || getOpenId();
+  if (!openid) {
     throw new Error('未登录，请先授权');
   }
 
   const collection = db.collection(BHK_BARGAIN_COLLECTION);
   const memberBoost = Number.isFinite(options.memberBoost) ? options.memberBoost : 0;
   const memberRealm = options.memberRealm || '';
-  const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${OPENID}`;
+  const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
 
   const snapshot = await collection.doc(docId).get().catch(() => null);
   if (snapshot && snapshot.data) {
-    return normalizeBargainSession(snapshot.data, config, { memberRealm });
+    return normalizeBargainSession(snapshot.data, config, { memberRealm }, openid);
   }
 
   const baseSpins = (Number(config.baseAttempts) || 0) + memberBoost;
   const session = {
     _id: docId,
     activityId: BHK_BARGAIN_ACTIVITY_ID,
-    memberId: OPENID,
+    memberId: openid,
     currentPrice: config.startPrice,
     totalDiscount: 0,
     remainingSpins: baseSpins,
@@ -420,7 +426,7 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
   };
 
   await collection.add({ data: session });
-  return normalizeBargainSession(session, config);
+  return normalizeBargainSession(session, config, {}, openid);
 }
 
 function buildBargainPayload(config, session, overrides = {}) {
@@ -435,16 +441,20 @@ function buildBargainPayload(config, session, overrides = {}) {
 
 async function getBhkBargainStatus() {
   const config = buildBhkBargainConfig();
-  const { memberBoost, realmName } = await resolveMemberBoost(config);
-  const session = await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName });
+  const { memberBoost, realmName, openid } = await resolveMemberBoost(config);
+  const session = await getOrCreateBargainSession(config, {
+    memberBoost,
+    memberRealm: realmName,
+    openid
+  });
   return buildBargainPayload(config, session);
 }
 
 async function spinBhkBargain() {
   const config = buildBhkBargainConfig();
   const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
-  const { memberBoost, realmName } = await resolveMemberBoost(config);
-  const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${OPENID}`;
+  const { memberBoost, realmName, openid } = await resolveMemberBoost(config);
+  const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
   const segments = normalizeSegments(config.segments);
 
@@ -454,7 +464,7 @@ async function spinBhkBargain() {
 
   let result = null;
 
-  await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName });
+  await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName, openid });
 
   await db.runTransaction(async (transaction) => {
     const ref = transaction.collection(BHK_BARGAIN_COLLECTION).doc(docId);
@@ -462,7 +472,7 @@ async function spinBhkBargain() {
     if (!snapshot || !snapshot.data) {
       throw new Error('抽奖数据初始化失败');
     }
-    const record = normalizeBargainSession(snapshot.data, config, { memberBoost, memberRealm: realmName });
+    const record = normalizeBargainSession(snapshot.data, config, { memberBoost, memberRealm: realmName }, openid);
     if ((record.remainingSpins || 0) <= 0) {
       throw new Error('抽奖次数不足');
     }
@@ -504,15 +514,15 @@ async function spinBhkBargain() {
 async function assistBhkBargain() {
   const config = buildBhkBargainConfig();
   const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
-  const { memberBoost, realmName } = await resolveMemberBoost(config);
-  const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${OPENID}`;
+  const { memberBoost, realmName, openid } = await resolveMemberBoost(config);
+  const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
   const segments = normalizeSegments(config.segments);
   const range = (config && config.assistRewardRange) || { min: 60, max: 180 };
 
   let result = null;
 
-  await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName });
+  await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName, openid });
 
   await db.runTransaction(async (transaction) => {
     const ref = transaction.collection(BHK_BARGAIN_COLLECTION).doc(docId);
@@ -520,7 +530,7 @@ async function assistBhkBargain() {
     if (!snapshot || !snapshot.data) {
       throw new Error('助力数据初始化失败');
     }
-    const record = normalizeBargainSession(snapshot.data, config, { memberBoost, memberRealm: realmName });
+    const record = normalizeBargainSession(snapshot.data, config, { memberBoost, memberRealm: realmName }, openid);
 
     if (record.assistSpins >= config.assistAttemptCap) {
       throw new Error('助力次数已达上限');
