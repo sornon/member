@@ -70,7 +70,7 @@ const AVATAR_RARITY_LABELS = {
   ss: 'SS',
   sss: 'SSS'
 };
-const STARTUP_COVER_IMAGE = '/cover-20251102.jpg';
+const STARTUP_COVER_IMAGE = '/cover-20251126.jpg';
 const STARTUP_OVERLAY_ENABLED = !!STARTUP_COVER_IMAGE;
 const STARTUP_VIDEO_DEFAULT_SOURCES = [
   buildCloudAssetUrl('background', 'cover-20251028.mp4'),
