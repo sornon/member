@@ -142,8 +142,7 @@ function buildBhkBargainActivity() {
     perks: [
       '伴手礼含 Cohiba Behike 56 雪茄一支（市场价约 ¥3500）',
       '高端雪茄吧包场氛围，专属品鉴席位仅 15 席',
-      '到店签到即享节日调酒与软饮畅饮权益',
-      '现场导师讲解 Cohiba 品牌故事与雪茄品鉴礼仪'
+      '到店签到即享软饮畅饮权益'
     ],
     notes:
       '本活动仅限 18 岁以上会员到店参与，门票不可转售或退款；售罄即止。如遇不可抗力主办方保留变更活动时间的权利。'
@@ -179,7 +178,7 @@ function buildBhkBargainConfig() {
     heroImage: buildCloudAssetUrl('background', 'cover-20251102.jpg'),
     mysteryLabel: '???',
     perks: [
-      '原价 ¥3500，拼手气拿到惊爆价',
+      '拼手气拿惊爆价',
       '默认 3 次砍价，每个修仙境界额外多1次砍价',
       '分享好友额外奖励砍价次数',
     ]

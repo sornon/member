@@ -27,7 +27,6 @@
       <view class="bhk-price-card__row">
         <text class="bhk-price-card__original">原价 ¥{{basePrice}}</text>
         <text class="bhk-price-card__current">当前票价 ¥{{currentPrice}}</text>
-        <button class="bhk-price-card__icon" size="mini" plain bindtap="toggleRules">?</button>
       </view>
       <view class="bhk-price-card__hint">
       </view>
