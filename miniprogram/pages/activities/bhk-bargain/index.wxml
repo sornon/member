@@ -39,7 +39,7 @@
 
     <view class="bhk-card bhk-turntable">
       <view class="bhk-turntable__header">
-        <view>剩余抽奖次数：{{remainingSpins}}</view>
+        <view>剩余砍价次数：{{remainingSpins}}</view>
         <view wx:if="{{memberBoost}}" class="bhk-turntable__boost">{{memberRealm || '修仙境界'}}加成：+{{memberBoost}}</view>
       </view>
       <view class="bhk-turntable__wheel">
