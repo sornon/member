@@ -16,6 +16,12 @@ const ENCOURAGEMENTS = [
   '呼朋唤友来助力，价格还能再低！',
   '好友助力价格还能更低，快去求助一下吧~'
 ];
+const REALM_BONUS_RULES = [
+  { thresholdRealmOrder: 1, bonusAttempts: 1, label: '炼气奖励 +1' },
+  { thresholdRealmOrder: 2, bonusAttempts: 2, label: '筑基奖励 +2' },
+  { thresholdRealmOrder: 3, bonusAttempts: 4, label: '结丹奖励 +4' }
+];
+const DIVINE_HAND_THRESHOLD = 4; // 元婴及以上
 
 async function ensureCollectionExists(name) {
   if (!name) return;
@@ -62,6 +68,8 @@ exports.main = async (event = {}) => {
       return spinBhkBargain(event || {});
     case 'bargainAssist':
       return assistBhkBargain(event || {});
+    case 'bargainDivineHand':
+      return divineHandBhkBargain(event || {});
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -150,18 +158,7 @@ function buildBhkBargainActivity() {
 }
 
 function buildRealmBonusConfig() {
-  const realms = Array.isArray(realmConfigs) ? realmConfigs : [];
-  return realms.map((realm, index) => {
-    const defaultOrder = index + 1;
-    const order = Number.isFinite(realm.realmOrder) ? Math.floor(realm.realmOrder) : defaultOrder;
-    const bonus = Math.max(1, order);
-    const name = realm.shortName || realm.realmName || realm.name || `境界${bonus}`;
-    return {
-      thresholdRealmOrder: bonus,
-      bonusAttempts: bonus,
-      label: `${name} +${bonus}`
-    };
-  });
+  return REALM_BONUS_RULES;
 }
 
 function buildBhkBargainConfig() {
@@ -179,7 +176,7 @@ function buildBhkBargainConfig() {
     mysteryLabel: '???',
     perks: [
       '拼手气拿惊爆价',
-      '默认 3 次砍价，每个修仙境界额外多1次砍价',
+      '默认 3 次砍价，炼气+1，筑基+2，结丹+4，元婴及以上解锁神之一手',
       '分享好友额外奖励砍价次数',
     ]
   };
@@ -429,6 +426,66 @@ async function resolveMemberBoost(config = {}, openid = '') {
   return { memberBoost, realmName, openid: currentOpenId };
 }
 
+function resolveRealmBonus(realmOrder = 0) {
+  if (!Number.isFinite(realmOrder) || realmOrder <= 0) {
+    return { bonus: 0, label: '' };
+  }
+  const matched = [...REALM_BONUS_RULES]
+    .sort((a, b) => b.thresholdRealmOrder - a.thresholdRealmOrder)
+    .find((rule) => realmOrder >= rule.thresholdRealmOrder);
+  if (!matched) {
+    return { bonus: 0, label: '' };
+  }
+  return { bonus: matched.bonusAttempts || 0, label: matched.label || '' };
+}
+
+function buildRealmRewardState(record = {}) {
+  const realmOrder = Number(record.memberBoost) || 0;
+  const realmName = (record.memberRealm || '').trim();
+  const { bonus, label } = resolveRealmBonus(realmOrder);
+  const divineHandTotal = Number.isFinite(record.divineHandRemaining)
+    ? Math.max(0, record.divineHandRemaining)
+    : 0;
+  const bonusRemaining = Number.isFinite(record.realmBonusRemaining)
+    ? Math.max(0, record.realmBonusRemaining)
+    : bonus;
+
+  if (realmOrder >= DIVINE_HAND_THRESHOLD) {
+    const remaining = divineHandTotal;
+    return {
+      type: 'divine',
+      label: '神之一手',
+      description: '所有奖励用尽后仍可必中神秘奖池，直降至 998 底价',
+      total: Math.max(1, divineHandTotal || 1),
+      remaining,
+      ready: remaining > 0 && (record.remainingSpins || 0) <= 0,
+      realmName
+    };
+  }
+
+  if (bonus > 0) {
+    return {
+      type: 'boost',
+      label: label || `${realmName || '境界'}奖励 +${bonus}`,
+      description: '境界额外砍价次数，先用完再触发神之一手',
+      total: bonus,
+      remaining: bonusRemaining,
+      ready: bonusRemaining > 0,
+      realmName
+    };
+  }
+
+  return {
+    type: 'none',
+    label: realmName ? `${realmName} 奖励` : '境界奖励',
+    description: '认证修仙境界即可解锁额外砍价奖励',
+    total: 0,
+    remaining: 0,
+    ready: false,
+    realmName
+  };
+}
+
 function normalizeBargainSession(record = {}, config = {}, overrides = {}, openid = '') {
   const memberId = overrides.memberId || record.memberId || openid || '';
   const normalized = {
@@ -444,6 +501,9 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
     shareCount: Number.isFinite(record.shareCount) ? record.shareCount : 0,
     helperRecords: Array.isArray(record.helperRecords) ? record.helperRecords : [],
     memberRealm: record.memberRealm || resolveMemberRealm(record.member) || '',
+    realmBonusTotal: Number.isFinite(record.realmBonusTotal) ? record.realmBonusTotal : 0,
+    realmBonusRemaining: Number.isFinite(record.realmBonusRemaining) ? record.realmBonusRemaining : 0,
+    divineHandRemaining: Number.isFinite(record.divineHandRemaining) ? record.divineHandRemaining : 0,
     remainingDiscount: Math.max(0, (Number.isFinite(record.currentPrice) ? record.currentPrice : config.startPrice) - config.floorPrice)
   };
 
@@ -460,28 +520,41 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
   const collection = db.collection(BHK_BARGAIN_COLLECTION);
   const memberBoost = Number.isFinite(options.memberBoost) ? options.memberBoost : 0;
   const memberRealm = options.memberRealm || '';
+  const { bonus: realmBonus } = resolveRealmBonus(memberBoost);
+  const divineHandRemaining = memberBoost >= DIVINE_HAND_THRESHOLD ? 1 : 0;
   const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
 
   const snapshot = await collection.doc(docId).get().catch(() => null);
   if (snapshot && snapshot.data) {
-    return normalizeBargainSession(snapshot.data, config, { memberRealm }, openid);
+    const normalized = normalizeBargainSession(snapshot.data, config, { memberRealm }, openid);
+    if (!Number.isFinite(normalized.realmBonusTotal) || normalized.realmBonusTotal === 0) {
+      normalized.realmBonusTotal = realmBonus;
+      normalized.realmBonusRemaining = Math.max(0, Math.min(realmBonus, normalized.remainingSpins || 0));
+    }
+    if (!Number.isFinite(normalized.divineHandRemaining) || normalized.divineHandRemaining < divineHandRemaining) {
+      normalized.divineHandRemaining = divineHandRemaining;
+    }
+    return normalized;
   }
 
-  const baseSpins = (Number(config.baseAttempts) || 0) + memberBoost;
+  const baseSpins = Number(config.baseAttempts) || 0;
   const session = {
     _id: docId,
     activityId: BHK_BARGAIN_ACTIVITY_ID,
     memberId: openid,
     currentPrice: config.startPrice,
     totalDiscount: 0,
-    remainingSpins: baseSpins,
+    remainingSpins: baseSpins + realmBonus,
     baseSpins: config.baseAttempts,
     memberBoost,
     assistSpins: 0,
     shareCount: 0,
     helperRecords: [],
     memberRealm,
+    realmBonusTotal: realmBonus,
+    realmBonusRemaining: realmBonus,
+    divineHandRemaining,
     createdAt: now,
     updatedAt: now,
     remainingDiscount: Math.max(0, config.startPrice - config.floorPrice)
@@ -498,10 +571,11 @@ function buildBargainPayload(config, session, overrides = {}) {
   delete publicConfig.floorPrice;
   const publicSession = { ...session, floorReached };
   delete publicSession.remainingDiscount;
+  const realmReward = buildRealmRewardState(publicSession);
   const payload = {
     activity: decorateActivity(buildBhkBargainActivity()),
     bargainConfig: publicConfig,
-    session: publicSession,
+    session: { ...publicSession, realmReward, divineHandReady: realmReward.type === 'divine' && realmReward.ready },
     floorReached
   };
   return { ...payload, ...overrides };
@@ -554,11 +628,17 @@ async function spinBhkBargain() {
     const landingIndex = reachedFloor ? displaySegments.length - 1 : sliceIndex;
     const nextPrice = Math.max(config.floorPrice, record.currentPrice - cut);
     const nextDiscount = (record.totalDiscount || 0) + cut;
+    const nextRemainingSpins = Math.max(0, (record.remainingSpins || 0) - 1);
+    const nextRealmBonusRemaining = Math.max(
+      0,
+      record.realmBonusRemaining > 0 ? record.realmBonusRemaining - 1 : record.realmBonusRemaining || 0
+    );
     const updatedRecord = {
       ...record,
       currentPrice: nextPrice,
       totalDiscount: nextDiscount,
-      remainingSpins: Math.max(0, (record.remainingSpins || 0) - 1),
+      remainingSpins: nextRemainingSpins,
+      realmBonusRemaining: nextRealmBonusRemaining,
       remainingDiscount: Math.max(0, nextPrice - config.floorPrice),
       updatedAt: now
     };
@@ -644,6 +724,58 @@ async function assistBhkBargain() {
       landingIndex: landingIndex >= 0 ? landingIndex : displaySegments.length - 1,
       amount: cut,
       message
+    });
+  });
+
+  return result;
+}
+
+async function divineHandBhkBargain() {
+  const config = buildBhkBargainConfig();
+  const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
+  const { memberBoost, realmName, openid } = await resolveMemberBoost(config);
+  const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
+  const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
+
+  let result = null;
+
+  await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName, openid });
+
+  await db.runTransaction(async (transaction) => {
+    const ref = transaction.collection(BHK_BARGAIN_COLLECTION).doc(docId);
+    let snapshot = await ref.get().catch(() => null);
+    if (!snapshot || !snapshot.data) {
+      throw new Error('抽奖数据初始化失败');
+    }
+    const record = normalizeBargainSession(snapshot.data, config, { memberBoost, memberRealm: realmName }, openid);
+
+    if (record.remainingSpins > 0) {
+      throw new Error('还有普通砍价次数可用');
+    }
+
+    if (!record.divineHandRemaining || memberBoost < DIVINE_HAND_THRESHOLD) {
+      throw new Error('神之一手未解锁');
+    }
+
+    const cut = Math.max(0, record.currentPrice - config.floorPrice);
+    const nextPrice = Math.max(config.floorPrice, record.currentPrice - cut);
+    const updatedRecord = {
+      ...record,
+      currentPrice: nextPrice,
+      totalDiscount: (record.totalDiscount || 0) + cut,
+      remainingSpins: 0,
+      realmBonusRemaining: Math.max(0, record.realmBonusRemaining || 0),
+      divineHandRemaining: Math.max(0, (record.divineHandRemaining || 1) - 1),
+      remainingDiscount: 0,
+      updatedAt: now
+    };
+
+    await ref.update({ data: updatedRecord });
+
+    result = buildBargainPayload(config, updatedRecord, {
+      landingIndex: displaySegments.length - 1,
+      amount: cut,
+      message: '神之一手！必中隐藏奖池，直达底价'
     });
   });
 

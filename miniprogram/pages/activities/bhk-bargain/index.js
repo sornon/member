@@ -17,6 +17,12 @@ const ENCOURAGEMENTS = [
   '呼朋唤友来助力，价格还能再低！',
   '好友助力价格还能更低，快去求助一下吧~'
 ];
+const DIVINE_HAND_KEYWORDS = ['元婴', '化神', '炼虚', '合体', '大乘', '渡劫'];
+const REALM_REWARD_RULES = [
+  { keyword: '炼气', bonus: 1, label: '炼气奖励' },
+  { keyword: '筑基', bonus: 2, label: '筑基奖励' },
+  { keyword: '结丹', bonus: 4, label: '结丹奖励' }
+];
 
 function normalizeBargainConfig(config = {}) {
   const startPrice = Number(config.startPrice) || 3500;
@@ -30,6 +36,7 @@ function normalizeBargainConfig(config = {}) {
   const perks = Array.isArray(config.perks) ? config.perks : [];
   const vipBonuses = Array.isArray(config.vipBonuses) ? config.vipBonuses : [];
   const displaySegments = Array.isArray(config.displaySegments) ? config.displaySegments : [];
+  const floorPrice = Number.isFinite(config.floorPrice) ? Math.max(0, config.floorPrice) : 998;
   return {
     startPrice,
     baseAttempts,
@@ -41,7 +48,8 @@ function normalizeBargainConfig(config = {}) {
     heroImage,
     perks,
     vipBonuses,
-    displaySegments
+    displaySegments,
+    floorPrice
   };
 }
 
@@ -56,6 +64,100 @@ function formatCountdownText(targetTimestamp) {
   const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
   const seconds = String(totalSeconds % 60).padStart(2, '0');
   return `${hours}:${minutes}:${seconds}`;
+}
+
+function resolveRealmTier(realmName = '', memberBoost = 0) {
+  const normalized = (realmName || '').trim();
+  if (!normalized) {
+    return null;
+  }
+  const matched = REALM_REWARD_RULES.find((item) => normalized.includes(item.keyword));
+  if (matched) {
+    return { ...matched, type: 'boost' };
+  }
+  const isDivine = DIVINE_HAND_KEYWORDS.some((keyword) => normalized.includes(keyword)) || Number(memberBoost) >= 4;
+  if (isDivine) {
+    return { type: 'divine', label: '神之一手', bonus: 0 };
+  }
+  return null;
+}
+
+function normalizeRealmReward(session = {}) {
+  const realmName = (session.memberRealm || '').trim();
+  const baseReward = {
+    type: 'none',
+    label: realmName ? `${realmName} 奖励` : '境界奖励',
+    description: '认证修仙境界即可解锁额外砍价奖励',
+    total: 0,
+    remaining: 0,
+    ready: false,
+    realmName
+  };
+
+  const sessionReward = session.realmReward;
+  if (sessionReward && typeof sessionReward === 'object') {
+    const type = sessionReward.type === 'divine' ? 'divine' : sessionReward.type === 'boost' ? 'boost' : 'none';
+    const total = Number.isFinite(sessionReward.total) ? Math.max(0, Math.floor(sessionReward.total)) : 0;
+    const remaining = Number.isFinite(sessionReward.remaining)
+      ? Math.max(0, Math.floor(sessionReward.remaining))
+      : total;
+    const ready = Boolean(sessionReward.ready) || (type === 'divine' ? remaining > 0 : remaining > 0);
+    return {
+      ...baseReward,
+      type,
+      label: sessionReward.label || baseReward.label,
+      description:
+        sessionReward.description ||
+        (type === 'divine' ? '必中隐藏奖池，直接抵达 998 底价' : '境界额外砍价次数'),
+      total,
+      remaining,
+      ready
+    };
+  }
+
+  const tier = resolveRealmTier(realmName, session.memberBoost);
+  if (!tier) {
+    return baseReward;
+  }
+
+  if (tier.type === 'divine') {
+    const remaining = Number.isFinite(session.divineHandRemaining)
+      ? Math.max(0, Math.floor(session.divineHandRemaining))
+      : session.remainingSpins <= 0
+        ? 1
+        : 0;
+    return {
+      ...baseReward,
+      type: 'divine',
+      label: '神之一手',
+      description: '所有奖励用尽后仍可必中神秘奖池，直降至 998 底价',
+      total: Math.max(1, remaining),
+      remaining,
+      ready: remaining > 0
+    };
+  }
+
+  const total = tier.bonus;
+  const remaining = Number.isFinite(session.realmBonusRemaining)
+    ? Math.max(0, Math.floor(session.realmBonusRemaining))
+    : total;
+  return {
+    ...baseReward,
+    type: 'boost',
+    label: `${tier.label} +${total}`,
+    description: '境界额外砍价次数，先用完再触发神之一手',
+    total,
+    remaining,
+    ready: remaining > 0
+  };
+}
+
+function resolveMysteryLanding(displaySegments = []) {
+  if (!Array.isArray(displaySegments) || !displaySegments.length) {
+    return 0;
+  }
+  const index = displaySegments.findIndex((item) => item && (item.isMystery || (item.label || '').includes('?')));
+  return index >= 0 ? index : displaySegments.length - 1;
 }
 
 Page({
@@ -73,6 +175,8 @@ Page({
     baseSpins: 0,
     memberBoost: 0,
     memberRealm: '',
+    realmReward: normalizeRealmReward(),
+    divineHandReady: false,
     assistSpins: 0,
     shareCount: 0,
     floorReached: false,
@@ -80,6 +184,7 @@ Page({
     resultOverlay: null,
     segments: DEFAULT_SEGMENTS,
     displaySegments: [],
+    floorPrice: 998,
     activeSegmentIndex: -1,
     helperRecords: [],
     assistLimit: 6,
@@ -158,13 +263,21 @@ Page({
   normalizeSession(session = {}, bargain = {}) {
     const basePrice = Number(bargain.startPrice) || this.data.basePrice || 3500;
     const currentPrice = Number.isFinite(session.currentPrice) ? session.currentPrice : basePrice;
+    const realmReward = normalizeRealmReward(session);
+    const remainingSpins = Math.max(0, Number(session.remainingSpins) || 0);
+    const divineHandReady =
+      realmReward && realmReward.type === 'divine'
+        ? Boolean(session.divineHandReady || realmReward.ready)
+        : false;
     return {
       currentPrice,
       totalDiscount: Number.isFinite(session.totalDiscount) ? session.totalDiscount : basePrice - currentPrice,
-      remainingSpins: Math.max(0, Number(session.remainingSpins) || 0),
+      remainingSpins,
       baseSpins: Number.isFinite(session.baseSpins) ? session.baseSpins : bargain.baseAttempts,
       memberBoost: Number.isFinite(session.memberBoost) ? session.memberBoost : 0,
       memberRealm: session.memberRealm || '',
+      realmReward,
+      divineHandReady,
       assistSpins: Math.max(0, Number(session.assistSpins) || 0),
       shareCount: Math.max(0, Number(session.shareCount) || 0),
       helperRecords: Array.isArray(session.helperRecords) ? session.helperRecords : [],
@@ -176,6 +289,11 @@ Page({
     const displaySegments = this.normalizeDisplaySegments(bargain.displaySegments, bargain.segments);
     const countdownTarget = bargain.endsAt ? Date.parse(bargain.endsAt) : 0;
     const mapLocation = this.normalizeMapLocation(activity);
+    const realmReward = session.realmReward || normalizeRealmReward(session);
+    const divineHandReady =
+      typeof session.divineHandReady === 'boolean'
+        ? session.divineHandReady
+        : realmReward && realmReward.type === 'divine' && realmReward.ready;
     this.setData({
       loading: false,
       activity,
@@ -188,6 +306,8 @@ Page({
       baseSpins: session.baseSpins,
       memberBoost: session.memberBoost,
       memberRealm: session.memberRealm,
+      realmReward,
+      divineHandReady,
       assistSpins: session.assistSpins,
       shareCount: session.shareCount,
       floorReached: session.floorReached,
@@ -195,6 +315,7 @@ Page({
       segments: bargain.segments,
       displaySegments,
       assistLimit: bargain.assistAttemptCap,
+      floorPrice: bargain.floorPrice,
       countdownTarget,
       countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
       heroImage: bargain.heroImage,
@@ -294,8 +415,12 @@ Page({
   },
 
   async handleSpin() {
-    const { spinning, remainingSpins } = this.data;
-    if (spinning || remainingSpins <= 0) {
+    const { spinning, remainingSpins, divineHandReady } = this.data;
+    if (spinning || (remainingSpins <= 0 && !divineHandReady)) {
+      return;
+    }
+    if (divineHandReady) {
+      await this.triggerDivineHand();
       return;
     }
     this.setData({ spinning: true, resultOverlay: null });
@@ -318,6 +443,35 @@ Page({
     } catch (error) {
       console.error('[bhk-bargain] spin failed', error);
       wx.showToast({ title: error.errMsg || '抽奖失败', icon: 'none' });
+      this.clearMarquee();
+      this.setData({ spinning: false });
+    }
+  },
+
+  async triggerDivineHand() {
+    if (this.data.spinning || !this.data.divineHandReady) {
+      return;
+    }
+    this.setData({ spinning: true, resultOverlay: null });
+    this.startMarquee();
+    try {
+      const response = await ActivityService.bargainDivineHand(this.activityId);
+      const bargain = normalizeBargainConfig(response && response.bargainConfig);
+      const session = this.normalizeSession(response && response.session, bargain);
+      const landingIndex = Number.isFinite(response && response.landingIndex)
+        ? response.landingIndex
+        : resolveMysteryLanding(bargain.displaySegments);
+      const overlay = {
+        amount: Number.isFinite(response && response.amount) ? response.amount : 0,
+        message: (response && response.message) || '神之一手！必中隐藏奖池，直达底价'
+      };
+      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
+      this.settleMarquee(landingIndex, () => {
+        this.setData({ spinning: false, resultOverlay: overlay });
+      });
+    } catch (error) {
+      console.error('[bhk-bargain] divine hand failed', error);
+      wx.showToast({ title: error.errMsg || '神之一手不可用', icon: 'none' });
       this.clearMarquee();
       this.setData({ spinning: false });
     }

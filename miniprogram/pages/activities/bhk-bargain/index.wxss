@@ -163,8 +163,56 @@
   color: #ffe8c5;
 }
 
-.bhk-turntable__boost {
+.bhk-turntable__summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10rpx;
+}
+
+.bhk-turntable__label {
+  opacity: 0.86;
+}
+
+.bhk-turntable__value {
+  font-size: 32rpx;
+  font-weight: 700;
   color: #ffd480;
+}
+
+.bhk-turntable__reward {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10rpx;
+  flex: 1;
+  text-align: right;
+}
+
+.bhk-turntable__reward-text {
+  color: #ffd480;
+  font-weight: 600;
+}
+
+.bhk-turntable__reward-pill {
+  padding: 8rpx 14rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid rgba(255, 212, 128, 0.5);
+  background: rgba(255, 212, 128, 0.12);
+  font-size: 24rpx;
+  color: #ffe8c5;
+  min-width: 170rpx;
+  text-align: center;
+}
+
+.bhk-turntable__reward-pill--glow {
+  box-shadow: 0 0 0 2rpx rgba(255, 212, 128, 0.4), 0 10rpx 18rpx rgba(0, 0, 0, 0.35);
+  background: linear-gradient(90deg, rgba(255, 210, 140, 0.32), rgba(255, 240, 200, 0.22));
+}
+
+.bhk-turntable__hint {
+  margin-top: 8rpx;
+  color: rgba(255, 236, 210, 0.85);
+  font-size: 24rpx;
 }
 
 .bhk-turntable__wheel {
