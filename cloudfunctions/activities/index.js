@@ -487,10 +487,16 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
 
 function buildBargainPayload(config, session, overrides = {}) {
   const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
+  const floorReached = (session.currentPrice || 0) <= config.floorPrice;
+  const publicConfig = { ...config, displaySegments };
+  delete publicConfig.floorPrice;
+  const publicSession = { ...session, floorReached };
+  delete publicSession.remainingDiscount;
   const payload = {
     activity: decorateActivity(buildBhkBargainActivity()),
-    bargainConfig: { ...config, displaySegments },
-    session
+    bargainConfig: publicConfig,
+    session: publicSession,
+    floorReached
   };
   return { ...payload, ...overrides };
 }

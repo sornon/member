@@ -32,7 +32,7 @@
         <text>砍价后最低价保密，越砍越惊喜</text>
         <button class="bhk-price-card__icon" size="mini" plain bindtap="toggleRules">?</button>
       </view>
-      <view class="bhk-price-card__progress">已减 ¥{{totalDiscount}} · 可再减 ¥{{remainingDiscount}}</view>
+      <view class="bhk-price-card__progress">已减 ¥{{totalDiscount}}，分享好友价格还能更低</view>
       <view class="bhk-price-card__perks" wx:if="{{perks.length}}">
         <view class="bhk-price-card__perk" wx:for="{{perks}}" wx:key="perk">{{item}}</view>
       </view>

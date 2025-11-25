@@ -14,8 +14,6 @@ const ENCOURAGEMENTS = [
 
 function normalizeBargainConfig(config = {}) {
   const startPrice = Number(config.startPrice) || 3500;
-  const configuredFloor = Number(config.floorPrice);
-  const floorPrice = Number.isFinite(configuredFloor) ? Math.min(configuredFloor, 998) : 998;
   const baseAttempts = Number.isFinite(config.baseAttempts) ? config.baseAttempts : 3;
   const segments = Array.isArray(config.segments) && config.segments.length ? config.segments : DEFAULT_SEGMENTS;
   const assistRewardRange = config.assistRewardRange || { min: 60, max: 180 };
@@ -28,7 +26,6 @@ function normalizeBargainConfig(config = {}) {
   const displaySegments = Array.isArray(config.displaySegments) ? config.displaySegments : [];
   return {
     startPrice,
-    floorPrice,
     baseAttempts,
     segments,
     assistRewardRange,
@@ -65,15 +62,14 @@ Page({
     stockRemaining: 15,
     basePrice: 3500,
     currentPrice: 3500,
-    priceFloor: 998,
     totalDiscount: 0,
-    remainingDiscount: 0,
     remainingSpins: 0,
     baseSpins: 0,
     memberBoost: 0,
     memberRealm: '',
     assistSpins: 0,
     shareCount: 0,
+    floorReached: false,
     spinning: false,
     resultOverlay: null,
     segments: DEFAULT_SEGMENTS,
@@ -129,7 +125,6 @@ Page({
 
   normalizeSession(session = {}, bargain = {}) {
     const basePrice = Number(bargain.startPrice) || this.data.basePrice || 3500;
-    const floor = Number(bargain.floorPrice) || this.data.priceFloor || 998;
     const currentPrice = Number.isFinite(session.currentPrice) ? session.currentPrice : basePrice;
     return {
       currentPrice,
@@ -141,9 +136,7 @@ Page({
       assistSpins: Math.max(0, Number(session.assistSpins) || 0),
       shareCount: Math.max(0, Number(session.shareCount) || 0),
       helperRecords: Array.isArray(session.helperRecords) ? session.helperRecords : [],
-      remainingDiscount: Number.isFinite(session.remainingDiscount)
-        ? Math.max(0, session.remainingDiscount)
-        : Math.max(0, currentPrice - floor)
+      floorReached: Boolean(session.floorReached)
     };
   },
 
@@ -156,16 +149,15 @@ Page({
       bargain,
       stockRemaining: bargain.stock,
       basePrice: bargain.startPrice,
-      priceFloor: bargain.floorPrice,
       currentPrice: session.currentPrice,
       totalDiscount: session.totalDiscount,
-      remainingDiscount: session.remainingDiscount,
       remainingSpins: session.remainingSpins,
       baseSpins: session.baseSpins,
       memberBoost: session.memberBoost,
       memberRealm: session.memberRealm,
       assistSpins: session.assistSpins,
       shareCount: session.shareCount,
+      floorReached: session.floorReached,
       helperRecords: session.helperRecords,
       segments: bargain.segments,
       displaySegments,
@@ -324,7 +316,7 @@ Page({
       wx.showToast({ title: '已售罄，感谢关注', icon: 'none' });
       return;
     }
-    if (this.data.remainingSpins > 0 && this.data.currentPrice > this.data.priceFloor) {
+    if (this.data.remainingSpins > 0 && !this.data.floorReached) {
       wx.showModal({
         title: '继续砍价？',
         content: '还有砍价机会未用完，确定现在以当前价购买吗？',

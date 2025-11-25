@@ -24,13 +24,13 @@
   - 配置字段包括转盘区间、助力减免范围、会员加成阈值、余票 15 张、封面/背景图、礼遇文案等。
   - 兜底数据同时注入活动列表与详情接口，确保数据库缺失时仍可访问。
   - 新增抽奖接口 `bargainStatus` / `bargainSpin` / `bargainAssist`：抽奖逻辑与随机数在后端完成，返还落点索引与实际减免；若抽奖将低于 998，
-    则调整减免金额至刚好触达底价，并要求前端落在“???” 槽位，避免金额与落点不一致。
+    则调整减免金额至刚好触达底价，并要求前端落在“???” 槽位，同时仅回传 `floorReached` 标识而不暴露具体底价，避免金额与落点不一致。
   - 用户砍价进度持久化到 `bhkBargainRecords`（按 openid 分片存储），记录当前票价、已减金额、剩余次数、助力记录等，刷新页面不会丢失进度。
 
 ## 前端实现要点
 - 新增页面：`pages/activities/bhk-bargain/index`，采用 `custom-nav` 自定义头部，深色系 + 金色点缀的模块化布局（Banner、价格卡、转盘、分享、规则、底部购买）。
 - 状态管理：
-  - 砍价状态包含 `currentPrice`、`totalDiscount`、`remainingSpins`、`remainingDiscount`、`helperRecords` 等。
+  - 砍价状态包含 `currentPrice`、`totalDiscount`、`remainingSpins`、`helperRecords` 等。底价不在接口透出，云函数返回布尔 `floorReached` 用于提示“已触底”。
 - 倒计时按秒刷新，落地时计算剩余时间；库存与底价/砍价状态实时联动。
 - 会员加成：由后端依据 `realmOrder` 判定，规则为“当前境界序号即额外抽奖次数”（炼气 +1、筑基 +2、结丹 +3、元婴 +4，化神 +5...），前端直接渲染云函数返回的加成与境界名称。
 - 分享与助力：
