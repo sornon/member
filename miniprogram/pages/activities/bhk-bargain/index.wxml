@@ -47,9 +47,13 @@
             <view class="bhk-banner__member-info">
               <view class="bhk-banner__member-name">{{member ? (member.nickName || '无名仙友') : '无名仙友'}}</view>
               <view class="bhk-banner__member-tags">
-                <image wx:if="{{memberTitleImage}}" class="bhk-banner__member-title" src="{{memberTitleImage}}" mode="heightFix"></image>
-                <text wx:elif="{{memberTitleName}}" class="bhk-banner__member-title-text">{{memberTitleName}}</text>
-                <view class="bhk-banner__member-tag">{{memberTitleName || '称号待佩戴'}}</view>
+                <image
+                  wx:if="{{memberTitleImage}}"
+                  class="bhk-banner__member-tag bhk-banner__member-tag--image"
+                  src="{{memberTitleImage}}"
+                  mode="heightFix"
+                ></image>
+                <view wx:else class="bhk-banner__member-tag">{{memberTitleName || '称号待佩戴'}}</view>
               </view>
             </view>
           </view>

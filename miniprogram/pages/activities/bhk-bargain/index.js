@@ -1,5 +1,6 @@
 import { ActivityService, MemberService } from '../../../services/api';
 import { AVATAR_IMAGE_BASE_PATH, buildCloudAssetUrl } from '../../../shared/asset-paths';
+import { buildTitleImageUrl, normalizeTitleId } from '../../../shared/titles';
 
 const TARGET_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
 const DEFAULT_SEGMENTS = [120, 180, 200, 260, 320, 500];
@@ -447,7 +448,10 @@ Page({
     if (!member || typeof member !== 'object') {
       return;
     }
-    const titleImage = member.titleImage || (member.title && (member.title.image || member.title.url)) || member.activeTitleImage || '';
+    const titleId = normalizeTitleId(
+      member.appearanceTitle || (member.title && (member.title.id || member.title.titleId)) || member.titleId || ''
+    );
+    const titleImage = buildTitleImageUrl(titleId);
     const titleName = member.titleName || (member.title && (member.title.name || member.title.titleName)) || '';
     const realmName =
       (member.level && member.level.realm) || member.realm || (member.levelName ? member.levelName : '');
