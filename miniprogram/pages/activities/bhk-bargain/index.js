@@ -193,8 +193,6 @@ Page({
     memberTitleName: '',
     realmReward: normalizeRealmReward(),
     divineHandReady: false,
-    assistSpins: 0,
-    shareCount: 0,
     floorReached: false,
     spinning: false,
     resultOverlay: null,
@@ -202,8 +200,6 @@ Page({
     displaySegments: [],
     floorPrice: 998,
     activeSegmentIndex: -1,
-    helperRecords: [],
-    assistLimit: 6,
     showRules: false,
     heroImage: '',
     perks: [],
@@ -297,9 +293,6 @@ Page({
       memberRealm: session.memberRealm || '',
       realmReward,
       divineHandReady,
-      assistSpins: Math.max(0, Number(session.assistSpins) || 0),
-      shareCount: Math.max(0, Number(session.shareCount) || 0),
-      helperRecords: Array.isArray(session.helperRecords) ? session.helperRecords : [],
       floorReached
     };
   },
@@ -327,13 +320,9 @@ Page({
       memberRealm: session.memberRealm,
       realmReward,
       divineHandReady,
-      assistSpins: session.assistSpins,
-      shareCount: session.shareCount,
       floorReached: session.floorReached,
-      helperRecords: session.helperRecords,
       segments: bargain.segments,
       displaySegments,
-      assistLimit: bargain.assistAttemptCap,
       floorPrice: bargain.floorPrice,
       countdownTarget,
       countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
@@ -523,7 +512,11 @@ Page({
         message: (response && response.message) || this.pickEncouragement()
       };
       this.settleMarquee(landingIndex, () => {
-        this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
+        this.applySession(
+          session,
+          bargain,
+          response && response.activity ? response.activity : this.data.activity
+        );
         this.setData({ spinning: false, resultOverlay: overlay });
       });
     } catch (error) {
@@ -552,45 +545,16 @@ Page({
         message: (response && response.message) || '神之一手！必中隐藏奖池，直达底价'
       };
       this.settleMarquee(landingIndex, () => {
-        this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
+        this.applySession(
+          session,
+          bargain,
+          response && response.activity ? response.activity : this.data.activity
+        );
         this.setData({ spinning: false, resultOverlay: overlay });
       });
     } catch (error) {
       console.error('[bhk-bargain] divine hand failed', error);
       wx.showToast({ title: error.errMsg || '神之一手不可用', icon: 'none' });
-      this.clearMarquee();
-      this.setData({ spinning: false });
-    }
-  },
-
-  async handleRecordAssist() {
-    if (this.data.spinning) {
-      return;
-    }
-    if (this.data.assistSpins >= this.data.assistLimit) {
-      wx.showToast({ title: '助力次数已达上限', icon: 'none' });
-      return;
-    }
-    this.setData({ spinning: true, resultOverlay: null });
-    this.startMarquee();
-    try {
-      const response = await ActivityService.bargainAssist(this.activityId);
-      const bargain = normalizeBargainConfig(response && response.bargainConfig);
-      const session = this.normalizeSession(response && response.session, bargain);
-      const landingIndex = Number.isFinite(response && response.landingIndex)
-        ? response.landingIndex
-        : (bargain.displaySegments || []).length - 1;
-      const overlay = {
-        amount: Number.isFinite(response && response.amount) ? response.amount : 0,
-        message: (response && response.message) || this.pickEncouragement()
-      };
-      this.settleMarquee(landingIndex, () => {
-        this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
-        this.setData({ spinning: false, resultOverlay: overlay });
-      });
-    } catch (error) {
-      console.error('[bhk-bargain] assist failed', error);
-      wx.showToast({ title: error.errMsg || '助力失败', icon: 'none' });
       this.clearMarquee();
       this.setData({ spinning: false });
     }

@@ -900,21 +900,16 @@ export const ActivityService = {
       id
     });
   },
-  async bargainStatus(id) {
-    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
-      action: 'bargainStatus',
-      id
-    });
+  async bargainStatus(id, options = {}) {
+    const payload = { action: 'bargainStatus', id };
+    if (options && options.shareId) {
+      payload.shareId = options.shareId;
+    }
+    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, payload);
   },
   async bargainSpin(id) {
     return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
       action: 'bargainSpin',
-      id
-    });
-  },
-  async bargainAssist(id) {
-    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
-      action: 'bargainAssist',
       id
     });
   },

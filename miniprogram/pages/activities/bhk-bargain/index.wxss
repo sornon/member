@@ -427,47 +427,6 @@
   margin-bottom: 12rpx;
 }
 
-.bhk-share__helpers {
-  display: flex;
-  flex-direction: column;
-  gap: 12rpx;
-  margin-bottom: 12rpx;
-}
-
-.bhk-share__helper {
-  display: flex;
-  align-items: center;
-  gap: 12rpx;
-  padding: 12rpx;
-  background: rgba(255, 211, 149, 0.08);
-  border: 1rpx solid rgba(255, 211, 149, 0.25);
-  border-radius: 16rpx;
-}
-
-.bhk-share__avatar {
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.bhk-share__meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12rpx;
-  width: 100%;
-  color: #ffe8c5;
-}
-
-.bhk-share__name {
-  font-weight: 600;
-}
-
-.bhk-share__cut {
-  color: #ffd480;
-}
-
 .bhk-share__actions {
   display: flex;
   gap: 16rpx;
@@ -475,17 +434,6 @@
 
 .bhk-share__button {
   flex: 1;
-}
-
-.bhk-share__button--secondary {
-  background: rgba(255, 211, 149, 0.08);
-  color: #ffd480;
-  border: 1rpx solid rgba(255, 211, 149, 0.4);
-}
-
-.bhk-share__counter {
-  margin-top: 10rpx;
-  color: rgba(255, 236, 210, 0.8);
 }
 
 .bhk-info__list {
