@@ -48,4 +48,4 @@
 3. **静态资源**：若使用自定义封面或头像占位，可按示例上传到云存储的 `background/cover-20251102.jpg`、`avatar/default.png` 路径，或在配置中替换为现有资源。
 
 ## 已知问题与修复记录
-- **境界奖励未解锁（化神期用户显示未认证）**：活动云函数仅直接读取 `members` 集合内的原始字段，缺少对 `levelId` 所关联等级数据的回填，导致高阶会员只保存了 `levelId`/`levelName` 而无完整 `level.realmName`，从而计算 `realmOrder` 失败，接口返回 `type: none`、`realmName: ''`。已在 `resolveMemberBoost` 中补充等级文档兜底加载与 `levelName` 回退，确保化神及以上会员正确识别境界并解锁境界奖励/神之一手。
+- **境界奖励未解锁（化神期用户显示未认证）**：`realmConfigs` 仅存储了境界名称/简称，并未显式记录 `realmOrder`，`resolveRealmOrder` 之前仅在匹配到配置且存在 `realmOrder` 字段时才返回有效序号，导致虽能识别出“化神期”名称却回退到 0，界面展示“化神期 奖励 未解锁”。现已在 `resolveRealmOrder` 中对匹配到的配置按下标自动推导序号（缺省时使用 `index + 1`），保证高阶境界均能解锁对应奖励与神之一手。

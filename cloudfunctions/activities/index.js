@@ -338,21 +338,23 @@ function resolveRealmOrder(level = {}) {
     }
   }
 
-  const realmName = (level.realmName || level.realm || '').trim();
+  const realmName = (level.realmName || level.realm || level.levelName || '').trim();
   if (!realmName) {
     return 0;
   }
 
   const normalizedRealmName = realmName.toLowerCase();
-  const matched = (realmConfigs || []).find((realm) => {
+  const matchedIndex = (realmConfigs || []).findIndex((realm) => {
     const candidates = [realm.realmName, realm.name, realm.shortName]
       .filter(Boolean)
       .map((value) => value.toLowerCase());
     return candidates.some((value) => value === normalizedRealmName || normalizedRealmName.includes(value));
   });
 
-  if (matched && Number.isFinite(matched.realmOrder)) {
-    return Math.max(0, Math.floor(matched.realmOrder));
+  if (matchedIndex >= 0) {
+    const matched = realmConfigs[matchedIndex];
+    const order = Number.isFinite(matched.realmOrder) ? matched.realmOrder : matchedIndex + 1;
+    return Math.max(0, Math.floor(order));
   }
 
   const fallbackIndex = (realmConfigs || []).findIndex((realm) => realm.shortName === realmName);
@@ -370,7 +372,7 @@ function resolveMemberRealm(member = {}) {
   return (
     member.realmName ||
     member.realm ||
-    (member.level && (member.level.realmName || member.level.realm)) ||
+    (member.level && (member.level.realmName || member.level.realm || member.level.levelName)) ||
     ''
   );
 }
@@ -789,4 +791,12 @@ async function divineHandBhkBargain() {
   });
 
   return result;
+}
+
+if (process.env.NODE_ENV === 'test') {
+  module.exports.__TESTING__ = {
+    resolveRealmOrder,
+    resolveRealmBonus,
+    buildRealmRewardState
+  };
 }
