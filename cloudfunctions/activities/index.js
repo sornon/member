@@ -678,7 +678,7 @@ async function buildShareContext(config, targetOpenId, viewerOpenId, viewerProfi
   const helpers = [
     { role: '分享者', id: ownerProfile.openid || targetOpenId, ...ownerProfile },
     ...helperRecords.map((item) => ({ role: item.role || '助力者', id: item.id || item.openid, ...item }))
-  ];
+  ].filter((item) => item && item.openid && item.openid !== viewerOpenId);
   const assisted = helperRecords.some((item) => item && item.openid && item.openid === viewerOpenId);
   const canAssist =
     Boolean(viewerOpenId) &&
