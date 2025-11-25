@@ -3,9 +3,49 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
-const { COLLECTIONS } = require('common-config');
+const { COLLECTIONS, buildCloudAssetUrl, realmConfigs } = require('common-config');
 
 const DEFAULT_LIMIT = 100;
+const BHK_BARGAIN_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
+const BHK_BARGAIN_COLLECTION = 'bhkBargainRecords';
+const DEFAULT_AVATAR = buildCloudAssetUrl('avatar', 'default.png');
+const ENCOURAGEMENTS = [
+  '好友助力价格还能更低，赶紧喊上小伙伴！',
+  '邀请好友帮砍，惊爆价就在前面！',
+  '继续分享，越多人助力越容易砍到底！',
+  '呼朋唤友来助力，价格还能再低！',
+  '好友助力价格还能更低，快去求助一下吧~'
+];
+
+async function ensureCollectionExists(name) {
+  if (!name) return;
+  try {
+    if (typeof db.createCollection === 'function') {
+      await db.createCollection(name);
+    }
+  } catch (err) {
+    const code = (err && (err.errCode || err.code || '')) || '';
+    const message = (err && err.message) || '';
+    const codeStr = code.toString();
+    const msgStr = message.toString();
+    const alreadyExists =
+      codeStr === '-501001' ||
+      codeStr.includes('ResourceExists') ||
+      codeStr.includes('ResourceExist') ||
+      msgStr.includes('ResourceExists') ||
+      msgStr.includes('ResourceExist') ||
+      msgStr.toLowerCase().includes('already exist');
+    if (!alreadyExists) {
+      console.error(`createCollection ${name} failed:`, err);
+      throw err;
+    }
+  }
+}
+
+function getOpenId() {
+  const context = (typeof cloud.getWXContext === 'function' && cloud.getWXContext()) || {};
+  return context.OPENID || context.openId || '';
+}
 
 exports.main = async (event = {}) => {
   const action = typeof event.action === 'string' ? event.action.trim() : 'list';
@@ -16,6 +56,12 @@ exports.main = async (event = {}) => {
       return listPublicActivities(event || {});
     case 'detail':
       return getActivityDetail(event || {});
+    case 'bargainStatus':
+      return getBhkBargainStatus(event || {});
+    case 'bargainSpin':
+      return spinBhkBargain(event || {});
+    case 'bargainAssist':
+      return assistBhkBargain(event || {});
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -76,6 +122,71 @@ function normalizeStringArray(source) {
   return [];
 }
 
+function buildBhkBargainActivity() {
+  return {
+    _id: BHK_BARGAIN_ACTIVITY_ID,
+    title: '感恩节 · BHK56 限量品鉴会',
+    tagline: '珍稀雪茄 15 席限量，感恩节回馈到店酒友',
+    status: 'published',
+    startTime: '2025-11-27T11:00:00.000Z',
+    endTime: '2025-12-01T16:00:00.000Z',
+    priceLabel: '¥3500 起 / 15 席',
+    location: '北京市朝阳区百子园社区百子湾路16号4号楼B座102酒隐之茄',
+    locationName: '酒隐之茄',
+    locationAddress: '北京市朝阳区百子园社区百子湾路16号4号楼B座102酒隐之茄',
+    locationLat: 39.8946,
+    locationLng: 116.5015,
+    coverImage: buildCloudAssetUrl('background', 'cover-20251102.jpg'),
+    highlight: 'Cohiba BHK56 珍品雪茄 + 品鉴会入场 + 畅饮调酒',
+    tags: ['BHK56', '感恩节', '限量品鉴'],
+    perks: [
+      '伴手礼含 Cohiba Behike 56 雪茄一支（市场价约 ¥3500）',
+      '高端雪茄吧包场氛围，专属品鉴席位仅 15 席',
+      '到店签到即享节日调酒与软饮畅饮权益',
+      '现场导师讲解 Cohiba 品牌故事与雪茄品鉴礼仪'
+    ],
+    notes:
+      '本活动仅限 18 岁以上会员到店参与，门票不可转售或退款；售罄即止。如遇不可抗力主办方保留变更活动时间的权利。'
+  };
+}
+
+function buildRealmBonusConfig() {
+  const realms = Array.isArray(realmConfigs) ? realmConfigs : [];
+  return realms.map((realm, index) => {
+    const defaultOrder = index + 1;
+    const order = Number.isFinite(realm.realmOrder) ? Math.floor(realm.realmOrder) : defaultOrder;
+    const bonus = Math.max(1, order);
+    const name = realm.shortName || realm.realmName || realm.name || `境界${bonus}`;
+    return {
+      thresholdRealmOrder: bonus,
+      bonusAttempts: bonus,
+      label: `${name} +${bonus}`
+    };
+  });
+}
+
+function buildBhkBargainConfig() {
+  return {
+    startPrice: 3500,
+    floorPrice: 998,
+    baseAttempts: 3,
+    vipBonuses: buildRealmBonusConfig(),
+    segments: [120, 180, 200, 260, 320, 500, 0],
+    assistRewardRange: { min: 60, max: 180 },
+    assistAttemptCap: 6,
+    stock: 15,
+    endsAt: '2025-12-01T16:00:00.000Z',
+    heroImage: buildCloudAssetUrl('background', 'cover-20251102.jpg'),
+    mysteryLabel: '???',
+    perks: [
+      '原价 ¥3500，拼手气拿到惊爆价',
+      '默认 3 次砍价，修仙境界越高额外次数越多，分享好友还可叠加',
+      '好友助力砍价后自动追加一次转盘机会，助力金额实时累计',
+      '余票与倒计时实时提醒，便捷一键购票'
+    ]
+  };
+}
+
 function decorateActivity(doc = {}) {
   const perks = normalizeStringArray(doc.perks);
   return {
@@ -87,6 +198,10 @@ function decorateActivity(doc = {}) {
     endTime: toIsoString(doc.endTime),
     priceLabel: typeof doc.priceLabel === 'string' ? doc.priceLabel : '',
     location: typeof doc.location === 'string' ? doc.location : '',
+    locationName: typeof doc.locationName === 'string' ? doc.locationName : '',
+    locationAddress: typeof doc.locationAddress === 'string' ? doc.locationAddress : '',
+    locationLat: Number.isFinite(doc.locationLat) ? Number(doc.locationLat) : null,
+    locationLng: Number.isFinite(doc.locationLng) ? Number(doc.locationLng) : null,
     coverImage: typeof doc.coverImage === 'string' ? doc.coverImage : '',
     perks,
     notes: typeof doc.notes === 'string' ? doc.notes : '',
@@ -150,6 +265,13 @@ async function listPublicActivities(options = {}) {
 
   const decorated = (snapshot.data || []).map((item) => decorateActivity(item));
 
+  if (!decorated.find((item) => item && item.id === BHK_BARGAIN_ACTIVITY_ID)) {
+    const bhk = decorateActivity(buildBhkBargainActivity());
+    if (bhk) {
+      decorated.push({ ...bhk, sortOrder: Number.MAX_SAFE_INTEGER });
+    }
+  }
+
   const sorted = decorated.sort((a, b) => {
     const bucketDiff = resolveTimelineBucket(a, now) - resolveTimelineBucket(b, now);
     if (bucketDiff !== 0) {
@@ -188,10 +310,344 @@ async function getActivityDetail(options = {}) {
     });
 
   if (!doc || doc.status !== 'published') {
+    if (id === BHK_BARGAIN_ACTIVITY_ID) {
+      return {
+        activity: decorateActivity(buildBhkBargainActivity()),
+        bargainConfig: buildBhkBargainConfig()
+      };
+    }
     throw new Error('活动不存在或已下架');
   }
 
-  return {
+  const payload = {
     activity: decorateActivity(doc)
   };
+
+  if (id === BHK_BARGAIN_ACTIVITY_ID) {
+    payload.bargainConfig = buildBhkBargainConfig();
+  }
+
+  return payload;
+}
+
+function resolveRealmOrder(level = {}) {
+  if (!level || typeof level !== 'object') {
+    return 0;
+  }
+
+  const orderKeys = ['realmOrder', 'order'];
+  for (const key of orderKeys) {
+    const value = Number(level[key]);
+    if (Number.isFinite(value)) {
+      return Math.max(0, Math.floor(value));
+    }
+  }
+
+  const realmName = (level.realmName || level.realm || '').trim();
+  if (!realmName) {
+    return 0;
+  }
+
+  const matched = (realmConfigs || []).find((realm) => {
+    return (
+      realm.realmName === realmName ||
+      realm.name === realmName ||
+      realm.shortName === realmName
+    );
+  });
+
+  if (matched && Number.isFinite(matched.realmOrder)) {
+    return Math.max(0, Math.floor(matched.realmOrder));
+  }
+
+  const fallbackIndex = (realmConfigs || []).findIndex((realm) => realm.shortName === realmName);
+  if (fallbackIndex >= 0) {
+    return fallbackIndex + 1;
+  }
+
+  return 0;
+}
+
+function resolveMemberRealm(member = {}) {
+  if (!member || typeof member !== 'object') {
+    return '';
+  }
+  return (
+    member.realmName ||
+    member.realm ||
+    (member.level && (member.level.realmName || member.level.realm)) ||
+    ''
+  );
+}
+
+function pickEncouragement() {
+  if (!Array.isArray(ENCOURAGEMENTS) || !ENCOURAGEMENTS.length) {
+    return '好友助力价格还能更低，快去求助一下吧~';
+  }
+  const index = Math.floor(Math.random() * ENCOURAGEMENTS.length);
+  return ENCOURAGEMENTS[index] || ENCOURAGEMENTS[0];
+}
+
+function normalizeSegments(segments = []) {
+  if (!Array.isArray(segments) || !segments.length) {
+    return [];
+  }
+  return segments
+    .map((value) => {
+      const amount = Number(value);
+      if (!Number.isFinite(amount)) {
+        return null;
+      }
+      return Math.max(0, Math.floor(amount));
+    })
+    .filter((value) => Number.isFinite(value));
+}
+
+function buildDisplaySegments(segments = [], mysteryLabel = '???') {
+  const normalized = normalizeSegments(segments);
+  const display = normalized.map((amount) => ({ amount, label: `-¥${amount}` }));
+  display.push({ amount: null, label: mysteryLabel || '???', isMystery: true });
+  return display;
+}
+
+async function resolveMemberBoost(config = {}, openid = '') {
+  let memberBoost = 0;
+  let realmName = '';
+  const currentOpenId = openid || getOpenId();
+
+  if (!currentOpenId) {
+    return { memberBoost, realmName, openid: '' };
+  }
+
+  const memberSnapshot = await db.collection(COLLECTIONS.MEMBERS).doc(currentOpenId).get().catch(() => null);
+  const member = (memberSnapshot && memberSnapshot.data) || {};
+  realmName = resolveMemberRealm(member);
+  const realmOrder = resolveRealmOrder(member.level || member);
+
+  if (realmOrder > 0) {
+    memberBoost = realmOrder;
+  }
+
+  return { memberBoost, realmName, openid: currentOpenId };
+}
+
+function normalizeBargainSession(record = {}, config = {}, overrides = {}, openid = '') {
+  const memberId = overrides.memberId || record.memberId || openid || '';
+  const normalized = {
+    id: record._id || '',
+    memberId,
+    activityId: record.activityId || BHK_BARGAIN_ACTIVITY_ID,
+    currentPrice: Number.isFinite(record.currentPrice) ? record.currentPrice : config.startPrice,
+    totalDiscount: Number.isFinite(record.totalDiscount) ? record.totalDiscount : 0,
+    remainingSpins: Number.isFinite(record.remainingSpins) ? record.remainingSpins : 0,
+    baseSpins: Number.isFinite(record.baseSpins) ? record.baseSpins : config.baseAttempts,
+    memberBoost: Number.isFinite(record.memberBoost) ? record.memberBoost : 0,
+    assistSpins: Number.isFinite(record.assistSpins) ? record.assistSpins : 0,
+    shareCount: Number.isFinite(record.shareCount) ? record.shareCount : 0,
+    helperRecords: Array.isArray(record.helperRecords) ? record.helperRecords : [],
+    memberRealm: record.memberRealm || resolveMemberRealm(record.member) || '',
+    remainingDiscount: Math.max(0, (Number.isFinite(record.currentPrice) ? record.currentPrice : config.startPrice) - config.floorPrice)
+  };
+
+  return { ...normalized, ...overrides };
+}
+
+async function getOrCreateBargainSession(config = {}, options = {}) {
+  const openid = options.openid || getOpenId();
+  if (!openid) {
+    throw new Error('未登录，请先授权');
+  }
+
+  await ensureCollectionExists(BHK_BARGAIN_COLLECTION);
+  const collection = db.collection(BHK_BARGAIN_COLLECTION);
+  const memberBoost = Number.isFinite(options.memberBoost) ? options.memberBoost : 0;
+  const memberRealm = options.memberRealm || '';
+  const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
+  const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
+
+  const snapshot = await collection.doc(docId).get().catch(() => null);
+  if (snapshot && snapshot.data) {
+    return normalizeBargainSession(snapshot.data, config, { memberRealm }, openid);
+  }
+
+  const baseSpins = (Number(config.baseAttempts) || 0) + memberBoost;
+  const session = {
+    _id: docId,
+    activityId: BHK_BARGAIN_ACTIVITY_ID,
+    memberId: openid,
+    currentPrice: config.startPrice,
+    totalDiscount: 0,
+    remainingSpins: baseSpins,
+    baseSpins: config.baseAttempts,
+    memberBoost,
+    assistSpins: 0,
+    shareCount: 0,
+    helperRecords: [],
+    memberRealm,
+    createdAt: now,
+    updatedAt: now,
+    remainingDiscount: Math.max(0, config.startPrice - config.floorPrice)
+  };
+
+  await collection.add({ data: session });
+  return normalizeBargainSession(session, config, {}, openid);
+}
+
+function buildBargainPayload(config, session, overrides = {}) {
+  const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
+  const floorReached = (session.currentPrice || 0) <= config.floorPrice;
+  const publicConfig = { ...config, displaySegments };
+  delete publicConfig.floorPrice;
+  const publicSession = { ...session, floorReached };
+  delete publicSession.remainingDiscount;
+  const payload = {
+    activity: decorateActivity(buildBhkBargainActivity()),
+    bargainConfig: publicConfig,
+    session: publicSession,
+    floorReached
+  };
+  return { ...payload, ...overrides };
+}
+
+async function getBhkBargainStatus() {
+  const config = buildBhkBargainConfig();
+  const { memberBoost, realmName, openid } = await resolveMemberBoost(config);
+  const session = await getOrCreateBargainSession(config, {
+    memberBoost,
+    memberRealm: realmName,
+    openid
+  });
+  return buildBargainPayload(config, session);
+}
+
+async function spinBhkBargain() {
+  const config = buildBhkBargainConfig();
+  const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
+  const { memberBoost, realmName, openid } = await resolveMemberBoost(config);
+  const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
+  const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
+  const segments = normalizeSegments(config.segments);
+
+  if (!segments.length) {
+    throw new Error('暂无抽奖配置');
+  }
+
+  let result = null;
+
+  await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName, openid });
+
+  await db.runTransaction(async (transaction) => {
+    const ref = transaction.collection(BHK_BARGAIN_COLLECTION).doc(docId);
+    let snapshot = await ref.get().catch(() => null);
+    if (!snapshot || !snapshot.data) {
+      throw new Error('抽奖数据初始化失败');
+    }
+    const record = normalizeBargainSession(snapshot.data, config, { memberBoost, memberRealm: realmName }, openid);
+    if ((record.remainingSpins || 0) <= 0) {
+      throw new Error('抽奖次数不足');
+    }
+
+    const sliceIndex = Math.floor(Math.random() * segments.length);
+    const slice = segments[sliceIndex] || 0;
+    const availableCut = Math.max(0, record.currentPrice - config.floorPrice);
+    const rawCut = Math.max(0, slice);
+    const cut = Math.min(rawCut, availableCut);
+    const reachedFloor = availableCut <= rawCut;
+    const landingIndex = reachedFloor ? displaySegments.length - 1 : sliceIndex;
+    const nextPrice = Math.max(config.floorPrice, record.currentPrice - cut);
+    const nextDiscount = (record.totalDiscount || 0) + cut;
+    const updatedRecord = {
+      ...record,
+      currentPrice: nextPrice,
+      totalDiscount: nextDiscount,
+      remainingSpins: Math.max(0, (record.remainingSpins || 0) - 1),
+      remainingDiscount: Math.max(0, nextPrice - config.floorPrice),
+      updatedAt: now
+    };
+
+    await ref.update({ data: updatedRecord });
+
+    const message = reachedFloor
+      ? '你太幸运了！已经拿到最终底价，抓紧下单吧！'
+      : pickEncouragement();
+
+    result = buildBargainPayload(config, updatedRecord, {
+      landingIndex,
+      amount: cut,
+      message
+    });
+  });
+
+  return result;
+}
+
+async function assistBhkBargain() {
+  const config = buildBhkBargainConfig();
+  const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
+  const { memberBoost, realmName, openid } = await resolveMemberBoost(config);
+  const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
+  const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
+  const segments = normalizeSegments(config.segments);
+  const range = (config && config.assistRewardRange) || { min: 60, max: 180 };
+
+  let result = null;
+
+  await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName, openid });
+
+  await db.runTransaction(async (transaction) => {
+    const ref = transaction.collection(BHK_BARGAIN_COLLECTION).doc(docId);
+    let snapshot = await ref.get().catch(() => null);
+    if (!snapshot || !snapshot.data) {
+      throw new Error('助力数据初始化失败');
+    }
+    const record = normalizeBargainSession(snapshot.data, config, { memberBoost, memberRealm: realmName }, openid);
+
+    if (record.assistSpins >= config.assistAttemptCap) {
+      throw new Error('助力次数已达上限');
+    }
+
+    const min = Number(range.min) || 0;
+    const max = Number(range.max) || 0;
+    const reward = Math.floor(Math.random() * (max - min + 1)) + min;
+    const availableCut = Math.max(0, record.currentPrice - config.floorPrice);
+    const rawCut = Math.max(0, reward);
+    const cut = Math.min(rawCut, availableCut);
+    const reachedFloor = availableCut <= rawCut;
+    const landingIndex = reachedFloor
+      ? displaySegments.length - 1
+      : segments.findIndex((item) => item === rawCut);
+    const nextPrice = Math.max(config.floorPrice, record.currentPrice - cut);
+    const nextHelper = {
+      id: `${Date.now()}_${(record.assistSpins || 0) + 1}`,
+      amount: cut,
+      avatar: DEFAULT_AVATAR,
+      nickname: `助力好友 ${(record.shareCount || 0) + 1}`
+    };
+    const helperRecords = [nextHelper, ...(record.helperRecords || [])].slice(0, 6);
+    const updatedRecord = {
+      ...record,
+      currentPrice: nextPrice,
+      totalDiscount: (record.totalDiscount || 0) + cut,
+      assistSpins: (record.assistSpins || 0) + 1,
+      shareCount: (record.shareCount || 0) + 1,
+      remainingSpins: (record.remainingSpins || 0) + 1,
+      helperRecords,
+      remainingDiscount: Math.max(0, nextPrice - config.floorPrice),
+      updatedAt: now
+    };
+
+    await ref.update({ data: updatedRecord });
+
+    const message = reachedFloor
+      ? '你太幸运了！已经拿到最终底价，抓紧下单吧！'
+      : pickEncouragement();
+
+    result = buildBargainPayload(config, updatedRecord, {
+      landingIndex: landingIndex >= 0 ? landingIndex : displaySegments.length - 1,
+      amount: cut,
+      message
+    });
+  });
+
+  return result;
 }

@@ -1,6 +1,8 @@
 import { ActivityService } from '../../services/api';
 import { decorateActivity } from '../../shared/activity';
 
+const BHK_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
+
 Page({
   data: {
     loading: true,
@@ -40,6 +42,7 @@ Page({
     if (!id) {
       return;
     }
-    wx.navigateTo({ url: `/pages/activities/detail/index?id=${id}` });
+    const url = id === BHK_ACTIVITY_ID ? '/pages/activities/bhk-bargain/index' : '/pages/activities/detail/index';
+    wx.navigateTo({ url: `${url}?id=${id}` });
   }
 });

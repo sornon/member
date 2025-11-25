@@ -1,0 +1,120 @@
+<custom-nav title="感恩节 · BHK56 限量品鉴" theme="dark"></custom-nav>
+<view class="bhk-page">
+  <block wx:if="{{loading}}">
+    <view class="bhk-card bhk-state">活动情报加载中...</view>
+  </block>
+  <block wx:elif="{{!activity}}">
+    <view class="bhk-card bhk-state bhk-state--error">活动暂不可用，请稍后再试</view>
+  </block>
+  <block wx:else>
+    <view class="bhk-banner" style="background-image: url({{heroImage}});">
+      <view class="bhk-banner__mask"></view>
+      <view class="bhk-banner__content">
+        <view class="bhk-banner__title">{{activity.title || '感恩节 · BHK56 限量品鉴会'}}</view>
+        <view class="bhk-banner__subtitle">珍稀雪茄 · 限量 15 席 · 感恩节回馈</view>
+        <view class="bhk-banner__pill-row">
+          <view class="bhk-banner__pill">剩余时间：{{countdown}}</view>
+          <view class="bhk-banner__pill bhk-banner__pill--accent">余票：{{stockRemaining}}/{{bargain.stock}}</view>
+        </view>
+        <view class="bhk-banner__pill-row">
+          <view class="bhk-banner__pill bhk-banner__pill--link" bindtap="handleOpenLocation">地点：{{activity.location || '查看地图'}}（点击打开腾讯地图）</view>
+          <view class="bhk-banner__pill">方案：{{activity.priceLabel}}</view>
+        </view>
+      </view>
+    </view>
+
+    <view class="bhk-card bhk-price-card">
+      <view class="bhk-price-card__row">
+        <text class="bhk-price-card__original">原价 ¥{{basePrice}}</text>
+        <text class="bhk-price-card__current">当前票价 ¥{{currentPrice}}</text>
+      </view>
+      <view class="bhk-price-card__hint">
+        <text>砍价后最低价保密，越砍越惊喜</text>
+        <button class="bhk-price-card__icon" size="mini" plain bindtap="toggleRules">?</button>
+      </view>
+      <view class="bhk-price-card__progress">已减 ¥{{totalDiscount}}，分享好友价格还能更低</view>
+      <view class="bhk-price-card__perks" wx:if="{{perks.length}}">
+        <view class="bhk-price-card__perk" wx:for="{{perks}}" wx:key="perk">{{item}}</view>
+      </view>
+    </view>
+
+    <view class="bhk-card bhk-turntable">
+      <view class="bhk-turntable__header">
+        <view>剩余抽奖次数：{{remainingSpins}}</view>
+        <view wx:if="{{memberBoost}}" class="bhk-turntable__boost">{{memberRealm || '修仙境界'}}加成：+{{memberBoost}}</view>
+      </view>
+      <view class="bhk-turntable__wheel">
+        <view class="bhk-turntable__segments">
+          <block wx:for="{{displaySegments}}" wx:key="index">
+            <view class="bhk-turntable__segment {{activeSegmentIndex === index ? 'bhk-turntable__segment--active' : ''}}">
+              {{item.label}}
+            </view>
+          </block>
+        </view>
+        <button class="bhk-turntable__button" type="primary" loading="{{spinning}}" disabled="{{spinning || remainingSpins <= 0}}" bindtap="handleSpin">
+          {{spinning ? '砍价中...' : '开始砍价'}}
+        </button>
+      </view>
+      <view class="bhk-turntable__status">已减 ¥{{totalDiscount}}，当前价 ¥{{currentPrice}}</view>
+      <view class="bhk-turntable__assist">分享好友助力可额外获得 {{assistLimit}} 次砍价机会，每次帮砍还会直降票价。</view>
+    </view>
+
+    <view class="bhk-card bhk-share">
+      <view class="bhk-section-title">分享助力</view>
+      <view class="bhk-share__desc">邀请好友砍价，每有 1 人助力，即可额外再抽一次。</view>
+      <view class="bhk-share__helpers" wx:if="{{helperRecords.length}}">
+        <block wx:for="{{helperRecords}}" wx:key="id">
+          <view class="bhk-share__helper">
+            <image class="bhk-share__avatar" src="{{item.avatar}}" mode="aspectFill"></image>
+            <view class="bhk-share__meta">
+              <text class="bhk-share__name">{{item.nickname}}</text>
+              <text class="bhk-share__cut">-¥{{item.amount}}</text>
+            </view>
+          </view>
+        </block>
+      </view>
+      <view class="bhk-share__actions">
+        <button class="bhk-share__button" type="primary" open-type="share">分享给好友</button>
+        <button class="bhk-share__button bhk-share__button--secondary" bindtap="handleRecordAssist">记录好友助力</button>
+      </view>
+      <view class="bhk-share__counter">已邀请 {{shareCount}} 位好友，额外次数 +{{assistSpins}}</view>
+    </view>
+
+    <view class="bhk-card bhk-info">
+      <view class="bhk-section-title">礼遇与规则</view>
+      <view class="bhk-info__list">
+        <view class="bhk-info__item">伴手礼包含 Cohiba Behike 56 雪茄一支（市场价约 ¥3500）。</view>
+        <view class="bhk-info__item">最低价不公开，余票与倒计时实时更新，售罄即止。</view>
+        <view class="bhk-info__item">18 岁以上会员方可参与，票券不可转售或退款。</view>
+        <view class="bhk-info__item">分享助力会为您增加抽奖机会并直接减免票价。</view>
+      </view>
+    </view>
+  </block>
+</view>
+
+<view class="bhk-footer" wx:if="{{activity}}">
+  <view class="bhk-footer__price">¥{{currentPrice}}</view>
+  <view class="bhk-footer__note">仅限 {{bargain.stock}} 张 · 剩余 {{stockRemaining}} 张</view>
+  <button class="bhk-footer__button" type="primary" disabled="{{stockRemaining <= 0}}" bindtap="handlePurchase">立即购票</button>
+</view>
+
+<view class="bhk-overlay" wx:if="{{resultOverlay}}">
+  <view class="bhk-overlay__card">
+    <view class="bhk-overlay__title">{{resultOverlay.message}}</view>
+    <view class="bhk-overlay__amount">-¥{{resultOverlay.amount}}</view>
+    <button class="bhk-overlay__button" type="primary" bindtap="closeResultOverlay">知道了</button>
+  </view>
+</view>
+
+<view class="bhk-overlay" wx:if="{{showRules}}">
+  <view class="bhk-overlay__card bhk-overlay__card--wide">
+    <view class="bhk-overlay__title">活动规则</view>
+      <view class="bhk-overlay__rules">
+      <view class="bhk-overlay__rule">· 默认 3 次砍价，修仙境界加成最高 +{{memberBoost}} 次，好友助力累计可再得 {{assistLimit}} 次。</view>
+      <view class="bhk-overlay__rule">· 每次抽奖随机减免票价，底价隐藏，抽完仍可原价购票。</view>
+      <view class="bhk-overlay__rule">· 分享给好友后点击“记录好友助力”登记，每名好友会直接减价并追加抽奖机会。</view>
+      <view class="bhk-overlay__rule">· 限量 15 张票，售罄则停止砍价与购票。</view>
+    </view>
+    <button class="bhk-overlay__button" type="primary" bindtap="toggleRules">关闭</button>
+  </view>
+</view>
