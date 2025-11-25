@@ -2,6 +2,6 @@
   "navigationBarTitleText": "BHK56 限量品鉴会",
   "navigationStyle": "custom",
   "usingComponents": {
-    "custom-nav": "/components/custom-nav/index"
+    "custom-nav": "/components/custom-nav/custom-nav"
   }
 }
