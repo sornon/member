@@ -163,7 +163,22 @@
   color: #ffe8c5;
 }
 
+.bhk-turntable__remaining {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
 .bhk-turntable__boost {
+  color: #ffd480;
+}
+
+.bhk-turntable__boost-tag {
+  padding: 6rpx 14rpx;
+  background: rgba(255, 212, 128, 0.14);
+  border: 1rpx solid rgba(255, 212, 128, 0.55);
+  border-radius: 999rpx;
   color: #ffd480;
 }
 
