@@ -645,6 +645,18 @@ Page({
     });
   },
 
+  handleShareToTimeline() {
+    const payload = this.onShareTimeline();
+    if (wx.shareTimeline && payload) {
+      wx.shareTimeline(payload);
+      return;
+    }
+    wx.showToast({
+      title: '请使用右上角菜单分享至朋友圈',
+      icon: 'none'
+    });
+  },
+
   onShareAppMessage() {
     const title = (this.data.activity && this.data.activity.title) || 'BHK56 限量品鉴会砍价购票';
     const shareId = this.data.memberId || (this.data.member && this.data.member._id) || '';
