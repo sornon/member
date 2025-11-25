@@ -3,8 +3,7 @@
   flex-direction: column;
   gap: 24rpx;
   padding: 24rpx;
-  padding-bottom: calc(200rpx + constant(safe-area-inset-bottom));
-  padding-bottom: calc(200rpx + env(safe-area-inset-bottom));
+  padding-bottom: calc(100rpx + env(safe-area-inset-bottom));
   background: radial-gradient(circle at 30% 20%, rgba(255, 215, 170, 0.08), transparent 45%),
     #050814;
   min-height: 100vh;
@@ -124,12 +123,14 @@
 }
 
 .bhk-price-card__icon {
-  min-width: 56rpx;
   height: 56rpx;
+  width: 56rpx!important;
   line-height: 56rpx;
   border-radius: 50%;
   border-color: rgba(255, 210, 150, 0.6);
   color: #ffd48c;
+  font-size: 28rpx!important;
+  padding: 0!important;
 }
 
 .bhk-price-card__progress {
@@ -200,7 +201,7 @@
   color: #2b1400;
   border: none;
   border-radius: 999rpx;
-  height: 92rpx;
+  height: 78rpx;
   font-size: 32rpx;
 }
 

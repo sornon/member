@@ -125,7 +125,7 @@ function normalizeStringArray(source) {
 function buildBhkBargainActivity() {
   return {
     _id: BHK_BARGAIN_ACTIVITY_ID,
-    title: '感恩节 · BHK56 限量品鉴会',
+    title: '感恩节 · BHK56 品鉴会',
     tagline: '珍稀雪茄 15 席限量，感恩节回馈到店酒友',
     status: 'published',
     startTime: '2025-11-27T11:00:00.000Z',
@@ -134,8 +134,8 @@ function buildBhkBargainActivity() {
     location: '北京市朝阳区百子湾路16号4号楼B座102',
     locationName: '酒隐之茄',
     locationAddress: '北京市朝阳区百子湾路16号4号楼B座102',
-    locationLat: 39.8943,
-    locationLng: 116.5146,
+    locationLat: 39.9003,
+    locationLng: 116.4837,
     coverImage: buildCloudAssetUrl('background', 'cover-20251102.jpg'),
     highlight: 'Cohiba BHK56 珍品雪茄 + 品鉴会入场 + 畅饮调酒',
     tags: ['BHK56', '感恩节', '限量品鉴'],
@@ -180,9 +180,8 @@ function buildBhkBargainConfig() {
     mysteryLabel: '???',
     perks: [
       '原价 ¥3500，拼手气拿到惊爆价',
-      '默认 3 次砍价，修仙境界越高额外次数越多，分享好友还可叠加',
-      '好友助力砍价后自动追加一次转盘机会，助力金额实时累计',
-      '余票与倒计时实时提醒，便捷一键购票'
+      '默认 3 次砍价，每个修仙境界额外多1次砍价',
+      '分享好友额外奖励砍价次数',
     ]
   };
 }
