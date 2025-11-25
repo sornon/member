@@ -96,15 +96,15 @@
 }
 
 .bhk-banner__member {
-  margin-top: 10rpx;
-  padding: 14rpx 16rpx;
-  background: rgba(5, 8, 20, 0.52);
-  border: 1rpx solid rgba(255, 222, 180, 0.35);
-  border-radius: 18rpx;
+  margin-top: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   display: flex;
   align-items: center;
   gap: 14rpx;
-  box-shadow: inset 0 0 12rpx rgba(255, 212, 128, 0.18);
+  box-shadow: none;
 }
 
 .bhk-banner__avatar-wrapper {
@@ -246,11 +246,17 @@
 
 .bhk-turntable__header {
   display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  font-size: 26rpx;
+  color: #ffe8c5;
+}
+
+.bhk-turntable__header-row {
+  display: flex;
   justify-content: space-between;
   gap: 12rpx;
   align-items: center;
-  font-size: 26rpx;
-  color: #ffe8c5;
 }
 
 .bhk-turntable__summary {
