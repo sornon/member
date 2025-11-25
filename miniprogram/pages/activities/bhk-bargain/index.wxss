@@ -313,8 +313,6 @@
   align-items: center;
   padding: 12rpx 20rpx;
   border-radius: 999rpx;
-  border: 1rpx solid rgba(255, 223, 173, 0.32);
-  background: rgba(255, 236, 210, 0.06);
   color: #ffe8c5;
   font-weight: 600;
   overflow: hidden;
