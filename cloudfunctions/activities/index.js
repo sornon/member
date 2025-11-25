@@ -343,12 +343,12 @@ function resolveRealmOrder(level = {}) {
     return 0;
   }
 
+  const normalizedRealmName = realmName.toLowerCase();
   const matched = (realmConfigs || []).find((realm) => {
-    return (
-      realm.realmName === realmName ||
-      realm.name === realmName ||
-      realm.shortName === realmName
-    );
+    const candidates = [realm.realmName, realm.name, realm.shortName]
+      .filter(Boolean)
+      .map((value) => value.toLowerCase());
+    return candidates.some((value) => value === normalizedRealmName || normalizedRealmName.includes(value));
   });
 
   if (matched && Number.isFinite(matched.realmOrder)) {
