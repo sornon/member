@@ -41,3 +41,8 @@
 ## 设计对照需求
 - 头部 Banner、倒计时与余票提示、雪茄价值展示、砍价/助力/购买流程、规则说明等均按需求文案落地。
 - 修仙等级（境界）被用于砍价次数加成，与现有等级体系接口复用，便于后续根据 `level-plan` 微调阈值或奖励。
+
+## 部署与初始化
+1. **更新云函数**：在微信云开发控制台或本地 CI 发布 `cloudfunctions/activities`，确保最新的砍价接口（`bargainStatus` / `bargainSpin` / `bargainAssist`）生效。
+2. **创建持久化集合**：在云开发数据库中新建集合 **`bhkBargainRecords`**（权限建议“仅创建者可读写”）。云函数已内置 `createCollection` 兜底，但首次调用需要环境具备建表权限，提前创建可避免 `collection not exists` 报错。
+3. **静态资源**：若使用自定义封面或头像占位，可按示例上传到云存储的 `background/cover-20251102.jpg`、`avatar/default.png` 路径，或在配置中替换为现有资源。

@@ -17,6 +17,22 @@ const ENCOURAGEMENTS = [
   '好友助力价格还能更低，快去求助一下吧~'
 ];
 
+async function ensureCollectionExists(name) {
+  if (!name) return;
+  try {
+    if (typeof db.createCollection === 'function') {
+      await db.createCollection(name);
+    }
+  } catch (err) {
+    const code = err && (err.errCode || err.code || err.message || '').toString();
+    const alreadyExists = code.includes('ResourceExists') || code.includes('already exists');
+    if (!alreadyExists) {
+      console.error(`createCollection ${name} failed:`, err);
+      throw err;
+    }
+  }
+}
+
 function getOpenId() {
   const context = (typeof cloud.getWXContext === 'function' && cloud.getWXContext()) || {};
   return context.OPENID || context.openId || '';
@@ -395,6 +411,7 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
     throw new Error('未登录，请先授权');
   }
 
+  await ensureCollectionExists(BHK_BARGAIN_COLLECTION);
   const collection = db.collection(BHK_BARGAIN_COLLECTION);
   const memberBoost = Number.isFinite(options.memberBoost) ? options.memberBoost : 0;
   const memberRealm = options.memberRealm || '';
