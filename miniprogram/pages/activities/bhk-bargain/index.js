@@ -279,6 +279,9 @@ Page({
       realmReward && realmReward.type === 'divine'
         ? Boolean(session.divineHandReady || realmReward.ready)
         : false;
+    const floorPrice = Number.isFinite(bargain.floorPrice) ? bargain.floorPrice : this.data.floorPrice;
+    const floorReached =
+      Boolean(session.floorReached) || (Number.isFinite(currentPrice) && Number.isFinite(floorPrice) && currentPrice <= floorPrice);
     return {
       currentPrice,
       totalDiscount: Number.isFinite(session.totalDiscount) ? session.totalDiscount : basePrice - currentPrice,
@@ -291,7 +294,7 @@ Page({
       assistSpins: Math.max(0, Number(session.assistSpins) || 0),
       shareCount: Math.max(0, Number(session.shareCount) || 0),
       helperRecords: Array.isArray(session.helperRecords) ? session.helperRecords : [],
-      floorReached: Boolean(session.floorReached)
+      floorReached
     };
   },
 

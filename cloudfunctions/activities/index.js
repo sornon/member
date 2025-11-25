@@ -75,6 +75,16 @@ exports.main = async (event = {}) => {
   }
 };
 
+if (process.env.NODE_ENV === 'test') {
+  module.exports._test = {
+    applyRealmBoostUpgrade,
+    buildRealmRewardState,
+    hasRealmBoostUpgrade,
+    resolveRealmBonus,
+    normalizeBargainSession
+  };
+}
+
 function normalizeLimit(input) {
   const value = Number(input);
   if (!Number.isFinite(value)) {
@@ -519,6 +529,41 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
   return { ...normalized, ...overrides };
 }
 
+function applyRealmBoostUpgrade(record = {}, memberBoost = 0, realmBonus = 0, divineHandRemaining = 0) {
+  const normalized = { ...record };
+  const previousBoost = Number.isFinite(normalized.memberBoost) ? normalized.memberBoost : 0;
+  const boostedMemberBoost = Math.max(previousBoost, memberBoost);
+  const previousRealmBonus = Number.isFinite(normalized.realmBonusTotal) ? normalized.realmBonusTotal : 0;
+  const targetRealmBonus = Number.isFinite(realmBonus) ? realmBonus : 0;
+
+  normalized.memberBoost = boostedMemberBoost;
+
+  if (!Number.isFinite(normalized.realmBonusTotal) || normalized.realmBonusTotal === 0 || targetRealmBonus > previousRealmBonus) {
+    const deltaBonus = Math.max(0, targetRealmBonus - previousRealmBonus);
+    normalized.realmBonusTotal = targetRealmBonus;
+    normalized.realmBonusRemaining = Math.max(0, (normalized.realmBonusRemaining || 0) + deltaBonus);
+    normalized.remainingSpins = Math.max(0, (normalized.remainingSpins || 0) + deltaBonus);
+  } else if (normalized.realmBonusRemaining > normalized.realmBonusTotal) {
+    normalized.realmBonusRemaining = normalized.realmBonusTotal;
+  }
+
+  if (!Number.isFinite(normalized.divineHandRemaining) || normalized.divineHandRemaining < divineHandRemaining) {
+    normalized.divineHandRemaining = divineHandRemaining;
+  }
+
+  return normalized;
+}
+
+function hasRealmBoostUpgrade(before = {}, after = {}) {
+  return (
+    before.memberBoost !== after.memberBoost ||
+    before.realmBonusTotal !== after.realmBonusTotal ||
+    before.realmBonusRemaining !== after.realmBonusRemaining ||
+    before.remainingSpins !== after.remainingSpins ||
+    before.divineHandRemaining !== after.divineHandRemaining
+  );
+}
+
 async function getOrCreateBargainSession(config = {}, options = {}) {
   const openid = options.openid || getOpenId();
   if (!openid) {
@@ -537,14 +582,16 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
   const snapshot = await collection.doc(docId).get().catch(() => null);
   if (snapshot && snapshot.data) {
     const normalized = normalizeBargainSession(snapshot.data, config, { memberRealm }, openid);
-    if (!Number.isFinite(normalized.realmBonusTotal) || normalized.realmBonusTotal === 0) {
-      normalized.realmBonusTotal = realmBonus;
-      normalized.realmBonusRemaining = Math.max(0, Math.min(realmBonus, normalized.remainingSpins || 0));
+    const upgraded = applyRealmBoostUpgrade(normalized, memberBoost, realmBonus, divineHandRemaining);
+
+    if (hasRealmBoostUpgrade(normalized, upgraded)) {
+      await collection.doc(docId).update({
+        data: { ...upgraded, updatedAt: now }
+      });
+      return { ...upgraded, updatedAt: now };
     }
-    if (!Number.isFinite(normalized.divineHandRemaining) || normalized.divineHandRemaining < divineHandRemaining) {
-      normalized.divineHandRemaining = divineHandRemaining;
-    }
-    return normalized;
+
+    return upgraded;
   }
 
   const baseSpins = Number(config.baseAttempts) || 0;

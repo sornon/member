@@ -200,6 +200,10 @@
   color: #ffd480;
 }
 
+.bhk-price-card__current--floor {
+  color: #ff5959;
+}
+
 .bhk-price-card__hint {
   display: flex;
   align-items: center;
