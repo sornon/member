@@ -708,6 +708,7 @@ function buildBargainPayload(config, session, overrides = {}) {
 
 async function getBhkBargainStatus(event = {}) {
   const config = buildBhkBargainConfig();
+  const shareId = typeof event.shareId === 'string' ? event.shareId.trim() : '';
   const { memberBoost, realmName, openid, profile } = await resolveMemberBoost(config);
   const session = await getOrCreateBargainSession(config, {
     memberBoost,
@@ -715,7 +716,12 @@ async function getBhkBargainStatus(event = {}) {
     openid,
     memberProfile: profile
   });
-  return buildBargainPayload(config, session, { shareContext: null });
+
+  const shareContext = shareId
+    ? await buildShareContext(config, shareId, openid, profile, session.assistGiven)
+    : null;
+
+  return buildBargainPayload(config, session, { shareContext });
 }
 
 async function spinBhkBargain() {
@@ -785,8 +791,114 @@ async function spinBhkBargain() {
   return result;
 }
 
-async function assistBhkBargain() {
-  throw new Error('好友助力功能已关闭');
+async function assistBhkBargain(event = {}) {
+  const shareId = typeof event.shareId === 'string' ? event.shareId.trim() : '';
+  const config = buildBhkBargainConfig();
+  const { memberBoost, realmName, openid, profile } = await resolveMemberBoost(config);
+
+  if (!openid) {
+    throw new Error('未登录，请先授权');
+  }
+
+  if (!shareId) {
+    throw new Error('助力链接无效');
+  }
+
+  if (shareId === openid) {
+    throw new Error('自己无法助力自己');
+  }
+
+  const { memberBoost: targetBoost, realmName: targetRealm, profile: targetProfile } = await resolveMemberBoost(
+    config,
+    shareId
+  );
+
+  await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName, openid, memberProfile: profile });
+  await getOrCreateBargainSession(config, {
+    memberBoost: targetBoost,
+    memberRealm: targetRealm,
+    openid: shareId,
+    memberProfile: targetProfile
+  });
+
+  const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
+  let updatedViewer = null;
+  let updatedTarget = null;
+
+  await db.runTransaction(async (transaction) => {
+    const viewerRef = transaction.collection(BHK_BARGAIN_COLLECTION).doc(`${BHK_BARGAIN_ACTIVITY_ID}_${openid}`);
+    const targetRef = transaction.collection(BHK_BARGAIN_COLLECTION).doc(`${BHK_BARGAIN_ACTIVITY_ID}_${shareId}`);
+
+    const [viewerSnapshot, targetSnapshot] = await Promise.all([viewerRef.get().catch(() => null), targetRef.get().catch(() => null)]);
+
+    if (!viewerSnapshot || !viewerSnapshot.data || !targetSnapshot || !targetSnapshot.data) {
+      throw new Error('助力数据未初始化');
+    }
+
+    const viewerRecord = normalizeBargainSession(
+      viewerSnapshot.data,
+      config,
+      { memberBoost, memberRealm: realmName },
+      openid
+    );
+    const targetRecord = normalizeBargainSession(
+      targetSnapshot.data,
+      config,
+      { memberBoost: targetBoost, memberRealm: targetRealm },
+      shareId
+    );
+
+    const assistGiven = Number.isFinite(viewerRecord.assistGiven) ? viewerRecord.assistGiven : 0;
+    if (assistGiven >= 1) {
+      throw new Error('助力次数已用完');
+    }
+
+    const helperRecords = Array.isArray(targetRecord.helperRecords) ? targetRecord.helperRecords : [];
+    const alreadyAssisted = helperRecords.some((item) => item && item.openid === openid);
+    if (alreadyAssisted) {
+      throw new Error('已助力过该好友');
+    }
+
+    const helperProfile = profile || buildMemberProfile({}, openid);
+
+    updatedTarget = {
+      ...targetRecord,
+      helperRecords: [
+        ...helperRecords,
+        {
+          role: '助力者',
+          openid,
+          id: openid,
+          nickname: helperProfile.nickname,
+          avatar: helperProfile.avatar,
+          avatarFrame: helperProfile.avatarFrame,
+          titleName: helperProfile.titleName,
+          assistedAt: now
+        }
+      ],
+      remainingSpins: Math.max(0, (targetRecord.remainingSpins || 0) + 1),
+      assistSpins: Math.max(0, (targetRecord.assistSpins || 0) + 1),
+      remainingDiscount: Math.max(0, (targetRecord.currentPrice || config.startPrice) - config.floorPrice),
+      updatedAt: now
+    };
+
+    updatedViewer = {
+      ...viewerRecord,
+      assistGiven: assistGiven + 1,
+      remainingSpins: Math.max(0, (viewerRecord.remainingSpins || 0) + 1),
+      assistSpins: Math.max(0, (viewerRecord.assistSpins || 0) + 1),
+      remainingDiscount: Math.max(0, (viewerRecord.currentPrice || config.startPrice) - config.floorPrice),
+      updatedAt: now
+    };
+
+    await targetRef.update({ data: updatedTarget });
+    await viewerRef.update({ data: updatedViewer });
+  });
+
+  const viewerSession = normalizeBargainSession(updatedViewer, config, { memberBoost, memberRealm: realmName }, openid);
+  const shareContext = await buildShareContext(config, shareId, openid, profile, viewerSession.assistGiven);
+
+  return buildBargainPayload(config, viewerSession, { shareContext, assistedTarget: shareId });
 }
 
 async function divineHandBhkBargain() {

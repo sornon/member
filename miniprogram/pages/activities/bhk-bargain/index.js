@@ -203,7 +203,9 @@ Page({
     showRules: false,
     heroImage: '',
     perks: [],
-    mapLocation: DEFAULT_LOCATION
+    mapLocation: DEFAULT_LOCATION,
+    shareContext: null,
+    memberId: ''
   },
 
   onLoad(options = {}) {
@@ -212,6 +214,7 @@ Page({
       wx.redirectTo({ url: `/pages/activities/detail/index?id=${id}` });
       return;
     }
+    this.shareId = typeof options.shareId === 'string' ? options.shareId.trim() : '';
     this.activityId = TARGET_ACTIVITY_ID;
     this.bootstrap();
   },
@@ -297,7 +300,7 @@ Page({
     };
   },
 
-  applySession(session = {}, bargain = {}, activity = this.data.activity) {
+  applySession(session = {}, bargain = {}, activity = this.data.activity, extras = {}) {
     const displaySegments = this.normalizeDisplaySegments(bargain.displaySegments, bargain.segments);
     const countdownTarget = bargain.endsAt ? Date.parse(bargain.endsAt) : 0;
     const mapLocation = this.normalizeMapLocation(activity);
@@ -306,6 +309,8 @@ Page({
       typeof session.divineHandReady === 'boolean'
         ? session.divineHandReady
         : realmReward && realmReward.type === 'divine' && realmReward.ready && !realmReward.used;
+    const shareContext = typeof extras.shareContext === 'undefined' ? this.data.shareContext : extras.shareContext;
+
     this.setData({
       loading: false,
       activity,
@@ -328,7 +333,9 @@ Page({
       countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
       heroImage: bargain.heroImage,
       perks: bargain.perks,
-      mapLocation
+      mapLocation,
+      shareContext,
+      memberId: session.memberId || this.data.memberId
     });
     this.startCountdown();
   },
@@ -458,11 +465,11 @@ Page({
       this.setData({ loading: true, resultOverlay: null });
     }
     try {
-      const response = await ActivityService.bargainStatus(this.activityId);
+      const response = await ActivityService.bargainStatus(this.activityId, { shareId: this.shareId });
       const activity = response && response.activity ? response.activity : null;
       const bargain = normalizeBargainConfig(response && response.bargainConfig);
       const session = this.normalizeSession(response && response.session, bargain);
-      this.applySession(session, bargain, activity);
+      this.applySession(session, bargain, activity, { shareContext: response && response.shareContext });
     } catch (error) {
       console.error('[bhk-bargain] fetch activity failed', error);
       this.setData({
@@ -564,6 +571,34 @@ Page({
     this.setData({ showRules: !this.data.showRules });
   },
 
+  async handleAssist() {
+    if (!this.shareId && !(this.data.shareContext && this.data.shareContext.ownerId)) {
+      wx.showToast({ title: '助力链接无效', icon: 'none' });
+      return;
+    }
+
+    const shareId = this.shareId || (this.data.shareContext && this.data.shareContext.ownerId);
+    if (!shareId) {
+      wx.showToast({ title: '助力链接无效', icon: 'none' });
+      return;
+    }
+
+    wx.showLoading({ title: '助力中...', mask: true });
+    try {
+      const response = await ActivityService.bargainAssist(this.activityId, { shareId });
+      const activity = response && response.activity ? response.activity : this.data.activity;
+      const bargain = normalizeBargainConfig(response && response.bargainConfig);
+      const session = this.normalizeSession(response && response.session, bargain);
+      this.applySession(session, bargain, activity, { shareContext: response && response.shareContext });
+      wx.showToast({ title: '助力成功，双方+1次', icon: 'success' });
+    } catch (error) {
+      console.error('[bhk-bargain] assist failed', error);
+      wx.showToast({ title: error.errMsg || '助力失败', icon: 'none' });
+    } finally {
+      wx.hideLoading();
+    }
+  },
+
   handlePurchase() {
     if (this.data.stockRemaining <= 0) {
       wx.showToast({ title: '已售罄，感谢关注', icon: 'none' });
@@ -594,7 +629,9 @@ Page({
 
   onShareAppMessage() {
     const title = (this.data.activity && this.data.activity.title) || 'BHK56 限量品鉴会砍价购票';
-    const path = `/pages/activities/bhk-bargain/index?id=${this.activityId}`;
+    const shareId = this.data.memberId || (this.data.member && this.data.member._id) || '';
+    const query = shareId ? `id=${this.activityId}&shareId=${shareId}` : `id=${this.activityId}`;
+    const path = `/pages/activities/bhk-bargain/index?${query}`;
     return {
       title,
       path,
@@ -604,9 +641,11 @@ Page({
 
   onShareTimeline() {
     const title = (this.data.activity && this.data.activity.title) || 'BHK56 限量品鉴会砍价购票';
+    const shareId = this.data.memberId || (this.data.member && this.data.member._id) || '';
+    const query = shareId ? `id=${this.activityId}&shareId=${shareId}` : `id=${this.activityId}`;
     return {
       title,
-      query: `id=${this.activityId}`,
+      query,
       imageUrl: this.data.heroImage
     };
   }
