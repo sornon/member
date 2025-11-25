@@ -899,6 +899,24 @@ export const ActivityService = {
       action: 'detail',
       id
     });
+  },
+  async bargainStatus(id) {
+    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
+      action: 'bargainStatus',
+      id
+    });
+  },
+  async bargainSpin(id) {
+    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
+      action: 'bargainSpin',
+      id
+    });
+  },
+  async bargainAssist(id) {
+    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
+      action: 'bargainAssist',
+      id
+    });
   }
 };
 
