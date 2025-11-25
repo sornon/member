@@ -32,7 +32,6 @@
   position: relative;
   border-radius: 28rpx;
   overflow: hidden;
-  min-height: 340rpx;
   background-size: cover;
   background-position: center;
   border: 1rpx solid rgba(255, 222, 180, 0.35);
