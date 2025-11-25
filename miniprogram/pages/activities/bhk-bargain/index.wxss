@@ -307,9 +307,72 @@
   font-weight: 600;
 }
 
+.bhk-turntable__reward-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 12rpx 20rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid rgba(255, 223, 173, 0.32);
+  background: rgba(255, 236, 210, 0.06);
+  color: #ffe8c5;
+  font-weight: 600;
+  overflow: hidden;
+}
+
 .bhk-turntable__reward-pill--glow {
-  box-shadow: 0 0 0 2rpx rgba(255, 212, 128, 0.4), 0 10rpx 18rpx rgba(0, 0, 0, 0.35);
-  background: linear-gradient(90deg, rgba(255, 210, 140, 0.32), rgba(255, 240, 200, 0.22));
+  border-color: rgba(255, 223, 173, 0.9);
+  color: #2b1400;
+  background: linear-gradient(120deg, #f5d98a 0%, #ffd77b 30%, #fff5d6 50%, #ffd77b 70%, #f5d98a 100%);
+  background-size: 220% 220%;
+  box-shadow: 0 0 18rpx rgba(255, 215, 141, 0.6), 0 0 0 2rpx rgba(255, 229, 190, 0.56);
+  animation: bhk-golden-sheen 2s ease-in-out infinite, bhk-golden-pulse 2s ease-in-out infinite;
+}
+
+.bhk-turntable__reward-pill--glow::before {
+  content: "";
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle at 20% 20%, rgba(255, 248, 220, 0.7), transparent 45%),
+    radial-gradient(circle at 80% 40%, rgba(255, 227, 168, 0.6), transparent 40%),
+    radial-gradient(circle at 50% 80%, rgba(255, 209, 120, 0.5), transparent 45%);
+  opacity: 0.85;
+  filter: blur(6rpx);
+  z-index: 0;
+  animation: bhk-golden-pulse 2s ease-in-out infinite;
+}
+
+.bhk-turntable__reward-pill text {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes bhk-golden-sheen {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes bhk-golden-pulse {
+  0% {
+    box-shadow: 0 0 12rpx rgba(255, 215, 141, 0.4), 0 0 0 2rpx rgba(255, 229, 190, 0.45);
+  }
+
+  50% {
+    box-shadow: 0 0 22rpx rgba(255, 227, 168, 0.8), 0 0 0 4rpx rgba(255, 243, 210, 0.7);
+  }
+
+  100% {
+    box-shadow: 0 0 12rpx rgba(255, 215, 141, 0.4), 0 0 0 2rpx rgba(255, 229, 190, 0.45);
+  }
 }
 
 .bhk-turntable__wheel {
