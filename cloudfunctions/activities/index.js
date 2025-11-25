@@ -24,8 +24,17 @@ async function ensureCollectionExists(name) {
       await db.createCollection(name);
     }
   } catch (err) {
-    const code = err && (err.errCode || err.code || err.message || '').toString();
-    const alreadyExists = code.includes('ResourceExists') || code.includes('already exists');
+    const code = (err && (err.errCode || err.code || '')) || '';
+    const message = (err && err.message) || '';
+    const codeStr = code.toString();
+    const msgStr = message.toString();
+    const alreadyExists =
+      codeStr === '-501001' ||
+      codeStr.includes('ResourceExists') ||
+      codeStr.includes('ResourceExist') ||
+      msgStr.includes('ResourceExists') ||
+      msgStr.includes('ResourceExist') ||
+      msgStr.toLowerCase().includes('already exist');
     if (!alreadyExists) {
       console.error(`createCollection ${name} failed:`, err);
       throw err;

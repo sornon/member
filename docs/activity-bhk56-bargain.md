@@ -44,5 +44,5 @@
 
 ## 部署与初始化
 1. **更新云函数**：在微信云开发控制台或本地 CI 发布 `cloudfunctions/activities`，确保最新的砍价接口（`bargainStatus` / `bargainSpin` / `bargainAssist`）生效。
-2. **创建持久化集合**：在云开发数据库中新建集合 **`bhkBargainRecords`**（权限建议“仅创建者可读写”）。云函数已内置 `createCollection` 兜底，但首次调用需要环境具备建表权限，提前创建可避免 `collection not exists` 报错。
+2. **创建持久化集合**：在云开发数据库中新建集合 **`bhkBargainRecords`**（权限建议“仅创建者可读写”）。云函数已内置 `createCollection` 兜底，并在集合已存在时报错 `ResourceUnavailable.ResourceExist/-501001` 时自动跳过，重复发布不会再中断；若首次调用环境无建表权限，仍建议先在控制台手动创建以避免缺表报错。
 3. **静态资源**：若使用自定义封面或头像占位，可按示例上传到云存储的 `background/cover-20251102.jpg`、`avatar/default.png` 路径，或在配置中替换为现有资源。
