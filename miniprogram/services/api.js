@@ -917,6 +917,12 @@ export const ActivityService = {
       action: 'bargainAssist',
       id
     });
+  },
+  async bargainDivineHand(id) {
+    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
+      action: 'bargainDivineHand',
+      id
+    });
   }
 };
 

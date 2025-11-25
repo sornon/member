@@ -20,6 +20,21 @@
           <view class="bhk-banner__pill bhk-banner__pill--link" bindtap="handleOpenLocation">地点：{{mapLocation.address || activity.location || '查看地图'}}
           </view>
         </view>
+
+        <view class="bhk-banner__member">
+          <view class="bhk-banner__avatar-wrapper">
+            <image class="bhk-banner__avatar" src="{{(member && member.avatarUrl) || defaultAvatar}}" mode="cover"></image>
+            <image wx:if="{{member && member.avatarFrame}}" class="bhk-banner__avatar-frame" src="{{member.avatarFrame}}" mode="scaleToFill"></image>
+          </view>
+          <view class="bhk-banner__member-info">
+            <view class="bhk-banner__member-name">{{member ? (member.nickName || '无名仙友') : '无名仙友'}}</view>
+            <view class="bhk-banner__member-tags">
+              <image wx:if="{{memberTitleImage}}" class="bhk-banner__member-title" src="{{memberTitleImage}}" mode="heightFix"></image>
+              <text wx:elif="{{memberTitleName}}" class="bhk-banner__member-title-text">{{memberTitleName}}</text>
+              <view class="bhk-banner__member-tag">{{memberRealm || '境界待认证'}}</view>
+            </view>
+          </view>
+        </view>
       </view>
     </view>
 
@@ -38,8 +53,28 @@
 
     <view class="bhk-card bhk-turntable">
       <view class="bhk-turntable__header">
-        <view>剩余砍价次数：{{remainingSpins}}</view>
-        <view wx:if="{{memberBoost}}" class="bhk-turntable__boost">{{memberRealm || '修仙境界'}}加成：+{{memberBoost}}</view>
+        <view class="bhk-turntable__summary">
+          <text class="bhk-turntable__label">剩余砍价次数</text>
+          <text class="bhk-turntable__value">{{remainingSpins}}</text>
+        </view>
+        <view class="bhk-turntable__reward" wx:if="{{realmReward}}">
+          <view class="bhk-turntable__reward-text">{{realmReward.label}}</view>
+          <view class="bhk-turntable__reward-pill {{divineHandReady ? 'bhk-turntable__reward-pill--glow' : ''}}">
+            <block wx:if="{{realmReward.type === 'divine'}}">
+              {{divineHandReady ? '神之一手：1次' : '神之一手待触发'}}
+            </block>
+            <block wx:elif="{{realmReward.type === 'boost'}}">
+              剩余 {{realmReward.remaining}} / {{realmReward.total}} 次
+            </block>
+            <block wx:else>
+              未解锁
+            </block>
+          </view>
+        </view>
+      </view>
+      <view class="bhk-turntable__hint" wx:if="{{realmReward}}">
+        <block wx:if="{{divineHandReady}}">神之一手已解锁，点击必中“？？？”直降 {{floorPrice}} 底价</block>
+        <block wx:else>{{realmReward.description}}</block>
       </view>
       <view class="bhk-turntable__wheel">
         <view class="bhk-turntable__segments">
@@ -49,8 +84,8 @@
             </view>
           </block>
         </view>
-        <button class="bhk-turntable__button" type="primary" loading="{{spinning}}" disabled="{{spinning || remainingSpins <= 0}}" bindtap="handleSpin">
-          {{spinning ? '砍价中...' : '开始砍价'}}
+        <button class="bhk-turntable__button" type="primary" loading="{{spinning}}" disabled="{{spinning || (!divineHandReady && remainingSpins <= 0)}}" bindtap="handleSpin">
+          {{spinning ? '砍价中...' : (divineHandReady ? '神之一手 · 一击到底' : '开始砍价')}}
         </button>
       </view>
     </view>
