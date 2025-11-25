@@ -18,10 +18,10 @@ const ENCOURAGEMENTS = [
 ];
 const REALM_BONUS_RULES = [
   { thresholdRealmOrder: 1, bonusAttempts: 1, label: '炼气奖励 +1' },
-  { thresholdRealmOrder: 2, bonusAttempts: 2, label: '筑基奖励 +2' },
+  { thresholdRealmOrder: 2, bonusAttempts: 4, label: '筑基奖励 +4' },
   { thresholdRealmOrder: 3, bonusAttempts: 4, label: '结丹奖励 +4' }
 ];
-const DIVINE_HAND_THRESHOLD = 4; // 元婴及以上
+const DIVINE_HAND_THRESHOLD = 3; // 结丹及以上
 
 async function ensureCollectionExists(name) {
   if (!name) return;
@@ -186,7 +186,7 @@ function buildBhkBargainConfig() {
     mysteryLabel: '???',
     perks: [
       '拼手气拿惊爆价',
-      '默认 3 次砍价，炼气+1，筑基+2，结丹+4，元婴及以上解锁神之一手',
+      '默认 3 次砍价，炼气+1，筑基+4，结丹及以上解锁神之一手',
       '分享好友额外奖励砍价次数',
     ]
   };

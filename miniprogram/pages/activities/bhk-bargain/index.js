@@ -17,10 +17,10 @@ const ENCOURAGEMENTS = [
   '呼朋唤友来助力，价格还能再低！',
   '好友助力价格还能更低，快去求助一下吧~'
 ];
-const DIVINE_HAND_KEYWORDS = ['元婴', '化神', '炼虚', '合体', '大乘', '渡劫'];
+const DIVINE_HAND_KEYWORDS = ['结丹', '元婴', '化神', '炼虚', '合体', '大乘', '渡劫'];
 const REALM_REWARD_RULES = [
   { keyword: '炼气', bonus: 1, label: '炼气奖励' },
-  { keyword: '筑基', bonus: 2, label: '筑基奖励' },
+  { keyword: '筑基', bonus: 4, label: '筑基奖励' },
   { keyword: '结丹', bonus: 4, label: '结丹奖励' }
 ];
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
@@ -72,13 +72,13 @@ function resolveRealmTier(realmName = '', memberBoost = 0) {
   if (!normalized) {
     return null;
   }
+  const isDivine = DIVINE_HAND_KEYWORDS.some((keyword) => normalized.includes(keyword)) || Number(memberBoost) >= 3;
+  if (isDivine) {
+    return { type: 'divine', label: '神之一手', bonus: 0 };
+  }
   const matched = REALM_REWARD_RULES.find((item) => normalized.includes(item.keyword));
   if (matched) {
     return { ...matched, type: 'boost' };
-  }
-  const isDivine = DIVINE_HAND_KEYWORDS.some((keyword) => normalized.includes(keyword)) || Number(memberBoost) >= 4;
-  if (isDivine) {
-    return { type: 'divine', label: '神之一手', bonus: 0 };
   }
   return null;
 }
