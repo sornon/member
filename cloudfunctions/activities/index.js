@@ -79,6 +79,7 @@ if (process.env.NODE_ENV === 'test') {
   module.exports._test = {
     applyRealmBoostUpgrade,
     buildRealmRewardState,
+    hasRealmBoostUpgrade,
     resolveRealmBonus,
     normalizeBargainSession
   };
@@ -553,6 +554,16 @@ function applyRealmBoostUpgrade(record = {}, memberBoost = 0, realmBonus = 0, di
   return normalized;
 }
 
+function hasRealmBoostUpgrade(before = {}, after = {}) {
+  return (
+    before.memberBoost !== after.memberBoost ||
+    before.realmBonusTotal !== after.realmBonusTotal ||
+    before.realmBonusRemaining !== after.realmBonusRemaining ||
+    before.remainingSpins !== after.remainingSpins ||
+    before.divineHandRemaining !== after.divineHandRemaining
+  );
+}
+
 async function getOrCreateBargainSession(config = {}, options = {}) {
   const openid = options.openid || getOpenId();
   if (!openid) {
@@ -571,7 +582,16 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
   const snapshot = await collection.doc(docId).get().catch(() => null);
   if (snapshot && snapshot.data) {
     const normalized = normalizeBargainSession(snapshot.data, config, { memberRealm }, openid);
-    return applyRealmBoostUpgrade(normalized, memberBoost, realmBonus, divineHandRemaining);
+    const upgraded = applyRealmBoostUpgrade(normalized, memberBoost, realmBonus, divineHandRemaining);
+
+    if (hasRealmBoostUpgrade(normalized, upgraded)) {
+      await collection.doc(docId).update({
+        data: { ...upgraded, updatedAt: now }
+      });
+      return { ...upgraded, updatedAt: now };
+    }
+
+    return upgraded;
   }
 
   const baseSpins = Number(config.baseAttempts) || 0;

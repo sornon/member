@@ -1,6 +1,6 @@
 const { _test } = require('../../cloudfunctions/activities/index');
 
-const { applyRealmBoostUpgrade, resolveRealmBonus } = _test;
+const { applyRealmBoostUpgrade, hasRealmBoostUpgrade, resolveRealmBonus } = _test;
 
 describe('BHK 砍价境界奖励升级', () => {
   test('新老境界差额应补齐奖励与抽奖次数', () => {
@@ -34,6 +34,20 @@ describe('BHK 砍价境界奖励升级', () => {
     expect(upgraded.realmBonusTotal).toBe(4);
     expect(upgraded.realmBonusRemaining).toBe(1 + (bonus - 2));
     expect(upgraded.remainingSpins).toBe(4 + (bonus - 2));
+  });
+
+  test('判定需持久化升级时应覆盖剩余抽奖次数与境界加成字段', () => {
+    const before = {
+      remainingSpins: 3,
+      memberBoost: 1,
+      realmBonusTotal: 1,
+      realmBonusRemaining: 0,
+      divineHandRemaining: 0
+    };
+    const { bonus } = resolveRealmBonus(6);
+    const after = applyRealmBoostUpgrade(before, 6, bonus, 1);
+
+    expect(hasRealmBoostUpgrade(before, after)).toBe(true);
   });
 
   test('保持已领取进度，不应因境界回落而扣减剩余奖励', () => {
