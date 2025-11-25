@@ -52,3 +52,4 @@
 - **境界奖励未随境界提升刷新**：老用户在境界提升后沿用之前的砍价档案，`bhkBargainRecords` 中的 `memberBoost/realmBonusTotal` 仍保留旧值，导致界面已显示正确境界但奖励区块仍为“未解锁”。现有逻辑在读取历史档案时会以最新境界重新赋值 `memberBoost`，对比 `realmBonusTotal` 后自动补齐新增的境界奖励并同步到 `remainingSpins`，确保化神、大乘等高阶境界即时解锁对应奖励/神之一手。
 - **境界奖励补齐后未落盘导致抽奖次数不足**：老档案虽然会根据境界补齐剩余次数，但未及时写回数据库，事务内的抽奖接口仍读取旧值，基础 3 次用完后会报“抽奖次数不足”。现在读取旧档案时会检测境界加成差异并立即持久化 `remainingSpins`、`realmBonusRemaining/Total` 与 `divineHandRemaining`，确保转盘接口使用升级后的次数，避免误判。
 - **砍价页模板节点未闭合导致编译失败**：`bhk-turntable` 区块的卡片容器与转盘主体被拆成了两个同级节点，末尾多出一层 `</view>`，导致 WXML 解析器持续报 "expect end-tag `block`, near `view`" 并在渲染层抛出 `__route__ is not defined`。已将转盘头部与转盘主体同置于 `bhk-card bhk-turntable` 容器内，并校验所有 `view` 节点闭合，编译恢复正常。
+- **跑马灯期间价格提前跳变**：抽奖接口返回后立刻调用 `applySession` 会立即刷新票价，使得跑马灯尚未停下价格就发生变化，视觉上与落点动画不一致。现改为待跑马灯落在目标槽位后再刷新会话数据（包括价格、次数、境界加成状态），保持动画与数据展示同步。

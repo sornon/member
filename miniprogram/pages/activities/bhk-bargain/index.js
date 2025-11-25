@@ -518,8 +518,8 @@ Page({
         amount: Number.isFinite(response && response.amount) ? response.amount : 0,
         message: (response && response.message) || this.pickEncouragement()
       };
-      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
       this.settleMarquee(landingIndex, () => {
+        this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
         this.setData({ spinning: false, resultOverlay: overlay });
       });
     } catch (error) {
@@ -547,8 +547,8 @@ Page({
         amount: Number.isFinite(response && response.amount) ? response.amount : 0,
         message: (response && response.message) || '神之一手！必中隐藏奖池，直达底价'
       };
-      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
       this.settleMarquee(landingIndex, () => {
+        this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
         this.setData({ spinning: false, resultOverlay: overlay });
       });
     } catch (error) {
@@ -580,8 +580,8 @@ Page({
         amount: Number.isFinite(response && response.amount) ? response.amount : 0,
         message: (response && response.message) || this.pickEncouragement()
       };
-      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
       this.settleMarquee(landingIndex, () => {
+        this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
         this.setData({ spinning: false, resultOverlay: overlay });
       });
     } catch (error) {
