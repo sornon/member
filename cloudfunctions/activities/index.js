@@ -3,9 +3,10 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
-const { COLLECTIONS } = require('common-config');
+const { COLLECTIONS, buildCloudAssetUrl } = require('common-config');
 
 const DEFAULT_LIMIT = 100;
+const BHK_BARGAIN_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
 
 exports.main = async (event = {}) => {
   const action = typeof event.action === 'string' ? event.action.trim() : 'list';
@@ -74,6 +75,54 @@ function normalizeStringArray(source) {
       .filter(Boolean);
   }
   return [];
+}
+
+function buildBhkBargainActivity() {
+  return {
+    _id: BHK_BARGAIN_ACTIVITY_ID,
+    title: '感恩节 · BHK56 限量品鉴会',
+    tagline: '珍稀雪茄 15 席限量，感恩节回馈到店酒友',
+    status: 'published',
+    startTime: '2025-11-27T11:00:00.000Z',
+    endTime: '2025-12-01T16:00:00.000Z',
+    priceLabel: '¥3500 起 / 15 席',
+    location: '酒隐之茄·上海店（长宁路 188 号）',
+    coverImage: buildCloudAssetUrl('background', 'cover-20251102.jpg'),
+    highlight: 'Cohiba BHK56 珍品雪茄 + 品鉴会入场 + 畅饮调酒',
+    tags: ['BHK56', '感恩节', '限量品鉴'],
+    perks: [
+      '伴手礼含 Cohiba Behike 56 雪茄一支（市场价约 ¥3500）',
+      '高端雪茄吧包场氛围，专属品鉴席位仅 15 席',
+      '到店签到即享节日调酒与软饮畅饮权益',
+      '现场导师讲解 Cohiba 品牌故事与雪茄品鉴礼仪'
+    ],
+    notes:
+      '本活动仅限 18 岁以上会员到店参与，门票不可转售或退款；售罄即止。如遇不可抗力主办方保留变更活动时间的权利。'
+  };
+}
+
+function buildBhkBargainConfig() {
+  return {
+    startPrice: 3500,
+    floorPrice: 1288,
+    baseAttempts: 3,
+    vipBonuses: [
+      { thresholdRealmOrder: 4, bonusAttempts: 1, label: '元婴及以上修为尊享' },
+      { thresholdRealmOrder: 7, bonusAttempts: 2, label: '合体及以上额外加成' }
+    ],
+    segments: [120, 180, 200, 260, 320, 500, 0, 150],
+    assistRewardRange: { min: 60, max: 180 },
+    assistAttemptCap: 6,
+    stock: 15,
+    endsAt: '2025-12-01T16:00:00.000Z',
+    heroImage: buildCloudAssetUrl('background', 'cover-20251102.jpg'),
+    perks: [
+      '原价 ¥3500，砍价后最低 ¥1288 即可锁定限量席位',
+      '默认 3 次砍价，修仙境界越高额外次数越多，分享好友还可叠加',
+      '好友助力砍价后自动追加一次转盘机会，助力金额实时累计',
+      '余票与倒计时实时提醒，便捷一键购票'
+    ]
+  };
 }
 
 function decorateActivity(doc = {}) {
@@ -150,6 +199,13 @@ async function listPublicActivities(options = {}) {
 
   const decorated = (snapshot.data || []).map((item) => decorateActivity(item));
 
+  if (!decorated.find((item) => item && item.id === BHK_BARGAIN_ACTIVITY_ID)) {
+    const bhk = decorateActivity(buildBhkBargainActivity());
+    if (bhk) {
+      decorated.push({ ...bhk, sortOrder: Number.MAX_SAFE_INTEGER });
+    }
+  }
+
   const sorted = decorated.sort((a, b) => {
     const bucketDiff = resolveTimelineBucket(a, now) - resolveTimelineBucket(b, now);
     if (bucketDiff !== 0) {
@@ -188,10 +244,22 @@ async function getActivityDetail(options = {}) {
     });
 
   if (!doc || doc.status !== 'published') {
+    if (id === BHK_BARGAIN_ACTIVITY_ID) {
+      return {
+        activity: decorateActivity(buildBhkBargainActivity()),
+        bargainConfig: buildBhkBargainConfig()
+      };
+    }
     throw new Error('活动不存在或已下架');
   }
 
-  return {
+  const payload = {
     activity: decorateActivity(doc)
   };
+
+  if (id === BHK_BARGAIN_ACTIVITY_ID) {
+    payload.bargainConfig = buildBhkBargainConfig();
+  }
+
+  return payload;
 }
