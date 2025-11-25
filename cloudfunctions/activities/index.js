@@ -338,7 +338,7 @@ function resolveRealmOrder(level = {}) {
     }
   }
 
-  const realmName = (level.realmName || level.realm || '').trim();
+  const realmName = (level.realmName || level.realm || level.levelName || level.name || '').trim();
   if (!realmName) {
     return 0;
   }

@@ -49,3 +49,4 @@
 
 ## 已知问题与修复记录
 - **境界奖励未解锁（化神期用户显示未认证）**：活动云函数仅直接读取 `members` 集合内的原始字段，缺少对 `levelId` 所关联等级数据的回填，导致高阶会员只保存了 `levelId`/`levelName` 而无完整 `level.realmName`，从而计算 `realmOrder` 失败，接口返回 `type: none`、`realmName: ''`。已在 `resolveMemberBoost` 中补充等级文档兜底加载与 `levelName` 回退，确保化神及以上会员正确识别境界并解锁境界奖励/神之一手。
+- **境界奖励文案显示“未解锁”但境界名称正确**：部分高阶会员仅保存了 `levelName`（如“化神期”）而未包含 `realmName`/`realm` 字段，旧版 `resolveRealmOrder` 只依据 `realm/realmName` 解析，导致 `memberBoost` 始终为 0 并返回 `realmReward.type = none`。已在该方法中增加对 `levelName/name` 的兜底匹配，保证只有等级名时也能正确计算境界序号并解锁对应境界奖励或神之一手。
