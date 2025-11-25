@@ -45,8 +45,10 @@
       </view>
       <view class="bhk-turntable__wheel">
         <view class="bhk-turntable__segments">
-          <block wx:for="{{segments}}" wx:key="index">
-            <view class="bhk-turntable__segment">-¥{{item}}</view>
+          <block wx:for="{{displaySegments}}" wx:key="index">
+            <view class="bhk-turntable__segment {{activeSegmentIndex === index ? 'bhk-turntable__segment--active' : ''}}">
+              {{item.label}}
+            </view>
           </block>
         </view>
         <button class="bhk-turntable__button" type="primary" loading="{{spinning}}" disabled="{{spinning || remainingSpins <= 0}}" bindtap="handleSpin">

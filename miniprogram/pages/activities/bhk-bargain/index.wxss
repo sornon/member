@@ -180,6 +180,12 @@
   font-weight: 600;
 }
 
+.bhk-turntable__segment--active {
+  border-color: #ffd480;
+  box-shadow: 0 0 0 2rpx rgba(255, 212, 128, 0.6), 0 10rpx 18rpx rgba(0, 0, 0, 0.35);
+  background: radial-gradient(circle at 30% 30%, rgba(255, 240, 200, 0.45), rgba(255, 210, 140, 0.12));
+}
+
 .bhk-turntable__button {
   background: linear-gradient(135deg, #f9d17a, #f0a64c);
   color: #2b1400;

@@ -1,4 +1,4 @@
-import { ActivityService, MemberService } from '../../../services/api';
+import { ActivityService } from '../../../services/api';
 import { buildCloudAssetUrl } from '../../../shared/asset-paths';
 
 const TARGET_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
@@ -11,17 +11,6 @@ const ENCOURAGEMENTS = [
   '呼朋唤友来助力，价格还能再低！',
   '好友助力价格还能更低，快去求助一下吧~'
 ];
-
-function resolveRealmOrder(level = {}) {
-  const { realmOrder, order } = level || {};
-  if (Number.isFinite(realmOrder)) {
-    return Math.max(1, Math.floor(realmOrder));
-  }
-  if (Number.isFinite(order)) {
-    return Math.max(1, Math.floor(order));
-  }
-  return 1;
-}
 
 function normalizeBargainConfig(config = {}) {
   const startPrice = Number(config.startPrice) || 3500;
@@ -36,6 +25,7 @@ function normalizeBargainConfig(config = {}) {
   const heroImage = config.heroImage || buildCloudAssetUrl('background', 'cover-20251102.jpg');
   const perks = Array.isArray(config.perks) ? config.perks : [];
   const vipBonuses = Array.isArray(config.vipBonuses) ? config.vipBonuses : [];
+  const displaySegments = Array.isArray(config.displaySegments) ? config.displaySegments : [];
   return {
     startPrice,
     floorPrice,
@@ -47,7 +37,8 @@ function normalizeBargainConfig(config = {}) {
     endsAt,
     heroImage,
     perks,
-    vipBonuses
+    vipBonuses,
+    displaySegments
   };
 }
 
@@ -86,6 +77,8 @@ Page({
     spinning: false,
     resultOverlay: null,
     segments: DEFAULT_SEGMENTS,
+    displaySegments: [],
+    activeSegmentIndex: -1,
     helperRecords: [],
     assistLimit: 6,
     showRules: false,
@@ -100,8 +93,7 @@ Page({
       return;
     }
     this.activityId = TARGET_ACTIVITY_ID;
-    this.fetchMemberBoost();
-    this.fetchActivity();
+    this.fetchActivityStatus();
   },
 
   onUnload() {
@@ -109,51 +101,131 @@ Page({
       clearInterval(this.countdownTimer);
       this.countdownTimer = null;
     }
+    this.clearMarquee();
   },
 
-  async fetchMemberBoost() {
-    try {
-      const progress = await MemberService.getLevelProgress();
-      const level = progress && progress.currentLevel ? progress.currentLevel : null;
-      const realmOrder = resolveRealmOrder(level);
-      const boost = realmOrder >= 7 ? 2 : realmOrder >= 4 ? 1 : 0;
-      const realm = (level && (level.realm || level.realmName)) || '';
-      this.setData({ memberBoost: boost, memberRealm: realm });
-      this.recalculateSpins(boost);
-    } catch (error) {
-      console.warn('[bhk-bargain] resolve member boost failed', error);
+  normalizeDisplaySegments(displaySegments = [], fallbackSegments = []) {
+    const source = Array.isArray(displaySegments) && displaySegments.length ? displaySegments : fallbackSegments;
+    const normalized = (Array.isArray(source) ? source : DEFAULT_SEGMENTS).map((item) => {
+      if (item && typeof item === 'object') {
+        const amount = Number.isFinite(item.amount) ? Math.max(0, Math.floor(item.amount)) : null;
+        const label = item.label || (amount !== null ? `-¥${amount}` : '???');
+        return { amount, label, isMystery: Boolean(item.isMystery) || label.includes('?') };
+      }
+      const amount = Number(item);
+      if (!Number.isFinite(amount)) {
+        return { amount: null, label: '???', isMystery: true };
+      }
+      const safeAmount = Math.max(0, Math.floor(amount));
+      return { amount: safeAmount, label: `-¥${safeAmount}` };
+    });
+
+    if (!normalized.find((segment) => segment && segment.isMystery)) {
+      normalized.push({ amount: null, label: '???', isMystery: true });
+    }
+
+    return normalized;
+  },
+
+  normalizeSession(session = {}, bargain = {}) {
+    const basePrice = Number(bargain.startPrice) || this.data.basePrice || 3500;
+    const floor = Number(bargain.floorPrice) || this.data.priceFloor || 998;
+    const currentPrice = Number.isFinite(session.currentPrice) ? session.currentPrice : basePrice;
+    return {
+      currentPrice,
+      totalDiscount: Number.isFinite(session.totalDiscount) ? session.totalDiscount : basePrice - currentPrice,
+      remainingSpins: Math.max(0, Number(session.remainingSpins) || 0),
+      baseSpins: Number.isFinite(session.baseSpins) ? session.baseSpins : bargain.baseAttempts,
+      memberBoost: Number.isFinite(session.memberBoost) ? session.memberBoost : 0,
+      memberRealm: session.memberRealm || '',
+      assistSpins: Math.max(0, Number(session.assistSpins) || 0),
+      shareCount: Math.max(0, Number(session.shareCount) || 0),
+      helperRecords: Array.isArray(session.helperRecords) ? session.helperRecords : [],
+      remainingDiscount: Number.isFinite(session.remainingDiscount)
+        ? Math.max(0, session.remainingDiscount)
+        : Math.max(0, currentPrice - floor)
+    };
+  },
+
+  applySession(session = {}, bargain = {}, activity = this.data.activity) {
+    const displaySegments = this.normalizeDisplaySegments(bargain.displaySegments, bargain.segments);
+    const countdownTarget = bargain.endsAt ? Date.parse(bargain.endsAt) : 0;
+    this.setData({
+      loading: false,
+      activity,
+      bargain,
+      stockRemaining: bargain.stock,
+      basePrice: bargain.startPrice,
+      priceFloor: bargain.floorPrice,
+      currentPrice: session.currentPrice,
+      totalDiscount: session.totalDiscount,
+      remainingDiscount: session.remainingDiscount,
+      remainingSpins: session.remainingSpins,
+      baseSpins: session.baseSpins,
+      memberBoost: session.memberBoost,
+      memberRealm: session.memberRealm,
+      assistSpins: session.assistSpins,
+      shareCount: session.shareCount,
+      helperRecords: session.helperRecords,
+      segments: bargain.segments,
+      displaySegments,
+      assistLimit: bargain.assistAttemptCap,
+      countdownTarget,
+      countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
+      heroImage: bargain.heroImage,
+      perks: bargain.perks
+    });
+    this.startCountdown();
+  },
+
+  clearMarquee() {
+    if (this.marqueeTimer) {
+      clearInterval(this.marqueeTimer);
+      this.marqueeTimer = null;
     }
   },
 
-  async fetchActivity() {
+  startMarquee() {
+    this.clearMarquee();
+    const total = (this.data.displaySegments && this.data.displaySegments.length) || 1;
+    let current = this.data.activeSegmentIndex >= 0 ? this.data.activeSegmentIndex : 0;
+    this.setData({ activeSegmentIndex: current });
+    this.marqueeTimer = setInterval(() => {
+      current = (current + 1) % total;
+      this.setData({ activeSegmentIndex: current });
+    }, 120);
+  },
+
+  settleMarquee(targetIndex, callback) {
+    const total = (this.data.displaySegments && this.data.displaySegments.length) || 1;
+    const target = Math.max(0, Number(targetIndex) || 0) % total;
+    const delay = 120 * (total * 2 + 2);
+    setTimeout(() => {
+      this.clearMarquee();
+      this.setData({ activeSegmentIndex: target });
+      if (typeof callback === 'function') {
+        callback();
+      }
+    }, delay);
+  },
+
+  pickEncouragement() {
+    const list = ENCOURAGEMENTS;
+    if (!Array.isArray(list) || !list.length) {
+      return '好友助力价格还能更低，快去求助一下吧~';
+    }
+    const index = Math.floor(Math.random() * list.length);
+    return list[index] || list[0];
+  },
+
+  async fetchActivityStatus() {
     this.setData({ loading: true, resultOverlay: null });
     try {
-      const response = await ActivityService.detail(this.activityId);
+      const response = await ActivityService.bargainStatus(this.activityId);
       const activity = response && response.activity ? response.activity : null;
       const bargain = normalizeBargainConfig(response && response.bargainConfig);
-      const remainingSpins = bargain.baseAttempts + this.data.memberBoost + this.data.assistSpins;
-      const remainingDiscount = Math.max(0, bargain.startPrice - bargain.floorPrice);
-      const countdownTarget = bargain.endsAt ? Date.parse(bargain.endsAt) : 0;
-      this.setData({
-        loading: false,
-        activity,
-        bargain,
-        stockRemaining: bargain.stock,
-        basePrice: bargain.startPrice,
-        currentPrice: bargain.startPrice,
-        priceFloor: bargain.floorPrice,
-        totalDiscount: 0,
-        remainingDiscount,
-        remainingSpins,
-        baseSpins: bargain.baseAttempts,
-        segments: bargain.segments,
-        assistLimit: bargain.assistAttemptCap,
-        countdownTarget,
-        countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
-        heroImage: bargain.heroImage,
-        perks: bargain.perks
-      });
-      this.startCountdown();
+      const session = this.normalizeSession(response && response.session, bargain);
+      this.applySession(session, bargain, activity);
     } catch (error) {
       console.error('[bhk-bargain] fetch activity failed', error);
       this.setData({
@@ -176,94 +248,71 @@ Page({
     }, COUNTDOWN_INTERVAL);
   },
 
-  recalculateSpins(boost = this.data.memberBoost) {
-    const { baseSpins, assistSpins } = this.data;
-    const updated =
-      Math.max(0, Number(baseSpins || 0)) + Math.max(0, Number(boost || 0)) + Math.max(0, Number(assistSpins || 0));
-    this.setData({ remainingSpins: updated });
-  },
-
-  pickEncouragement() {
-    const list = ENCOURAGEMENTS;
-    if (!Array.isArray(list) || !list.length) {
-      return '好友助力价格还能更低，快去求助一下吧~';
-    }
-    const index = Math.floor(Math.random() * list.length);
-    return list[index] || list[0];
-  },
-
-  handleSpin() {
-    const { spinning, remainingSpins, segments, currentPrice, priceFloor, totalDiscount } = this.data;
-    if (spinning || remainingSpins <= 0) {
-      return;
-    }
-    const slice = segments[Math.floor(Math.random() * segments.length)] || 0;
-    const availableCut = Math.max(0, currentPrice - priceFloor);
-    const cut = Math.min(slice, availableCut);
-    const nextPrice = Math.max(priceFloor, currentPrice - cut);
-    this.setData({ spinning: true });
-    setTimeout(() => {
-      const nextRemainingSpins = Math.max(0, remainingSpins - 1);
-      const nextTotalDiscount = totalDiscount + cut;
-      const remainingDiscount = Math.max(0, nextPrice - priceFloor);
-      const reachedFloor = nextPrice <= priceFloor;
-      const message = reachedFloor
-        ? '你太幸运了！已经拿到最终底价，抓紧下单吧！'
-        : this.pickEncouragement();
-      this.setData({
-        spinning: false,
-        remainingSpins: nextRemainingSpins,
-        currentPrice: nextPrice,
-        totalDiscount: nextTotalDiscount,
-        remainingDiscount,
-        resultOverlay: {
-          amount: cut,
-          message
-        }
-      });
-    }, 900);
-  },
-
   closeResultOverlay() {
     this.setData({ resultOverlay: null });
   },
 
-  handleRecordAssist() {
-    const { assistSpins, assistLimit, shareCount, bargain, currentPrice, priceFloor, totalDiscount } = this.data;
-    if (assistSpins >= assistLimit) {
+  async handleSpin() {
+    const { spinning, remainingSpins } = this.data;
+    if (spinning || remainingSpins <= 0) {
+      return;
+    }
+    this.setData({ spinning: true, resultOverlay: null });
+    this.startMarquee();
+    try {
+      const response = await ActivityService.bargainSpin(this.activityId);
+      const bargain = normalizeBargainConfig(response && response.bargainConfig);
+      const session = this.normalizeSession(response && response.session, bargain);
+      const landingIndex = Number.isFinite(response && response.landingIndex)
+        ? response.landingIndex
+        : (bargain.displaySegments || []).length - 1;
+      const overlay = {
+        amount: Number.isFinite(response && response.amount) ? response.amount : 0,
+        message: (response && response.message) || this.pickEncouragement()
+      };
+      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
+      this.settleMarquee(landingIndex, () => {
+        this.setData({ spinning: false, resultOverlay: overlay });
+      });
+    } catch (error) {
+      console.error('[bhk-bargain] spin failed', error);
+      wx.showToast({ title: error.errMsg || '抽奖失败', icon: 'none' });
+      this.clearMarquee();
+      this.setData({ spinning: false });
+    }
+  },
+
+  async handleRecordAssist() {
+    if (this.data.spinning) {
+      return;
+    }
+    if (this.data.assistSpins >= this.data.assistLimit) {
       wx.showToast({ title: '助力次数已达上限', icon: 'none' });
       return;
     }
-    const range = (bargain && bargain.assistRewardRange) || { min: 60, max: 180 };
-    const min = Number(range.min) || 0;
-    const max = Number(range.max) || 0;
-    const reward = Math.floor(Math.random() * (max - min + 1)) + min;
-    const availableCut = Math.max(0, currentPrice - priceFloor);
-    const cut = Math.min(reward, availableCut);
-    const nextPrice = Math.max(priceFloor, currentPrice - cut);
-    const remainingDiscount = Math.max(0, nextPrice - priceFloor);
-    const reachedFloor = nextPrice <= priceFloor;
-    const record = {
-      id: `${Date.now()}_${assistSpins}`,
-      amount: cut,
-      avatar: buildCloudAssetUrl('avatar', 'default.png'),
-      nickname: `助力好友 ${shareCount + 1}`
-    };
-    const helperRecords = [record, ...this.data.helperRecords].slice(0, 6);
-    const payload = {
-      assistSpins: assistSpins + 1,
-      shareCount: shareCount + 1,
-      remainingSpins: this.data.remainingSpins + 1,
-      currentPrice: nextPrice,
-      totalDiscount: totalDiscount + cut,
-      remainingDiscount,
-      helperRecords
-    };
-    payload.resultOverlay = {
-      amount: cut,
-      message: reachedFloor ? '你太幸运了！已经拿到最终底价，抓紧下单吧！' : this.pickEncouragement()
-    };
-    this.setData(payload);
+    this.setData({ spinning: true, resultOverlay: null });
+    this.startMarquee();
+    try {
+      const response = await ActivityService.bargainAssist(this.activityId);
+      const bargain = normalizeBargainConfig(response && response.bargainConfig);
+      const session = this.normalizeSession(response && response.session, bargain);
+      const landingIndex = Number.isFinite(response && response.landingIndex)
+        ? response.landingIndex
+        : (bargain.displaySegments || []).length - 1;
+      const overlay = {
+        amount: Number.isFinite(response && response.amount) ? response.amount : 0,
+        message: (response && response.message) || this.pickEncouragement()
+      };
+      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
+      this.settleMarquee(landingIndex, () => {
+        this.setData({ spinning: false, resultOverlay: overlay });
+      });
+    } catch (error) {
+      console.error('[bhk-bargain] assist failed', error);
+      wx.showToast({ title: error.errMsg || '助力失败', icon: 'none' });
+      this.clearMarquee();
+      this.setData({ spinning: false });
+    }
   },
 
   toggleRules() {
