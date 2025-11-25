@@ -46,3 +46,6 @@
 1. **更新云函数**：在微信云开发控制台或本地 CI 发布 `cloudfunctions/activities`，确保最新的砍价接口（`bargainStatus` / `bargainSpin` / `bargainAssist`）生效。
 2. **创建持久化集合**：在云开发数据库中新建集合 **`bhkBargainRecords`**（权限建议“仅创建者可读写”）。云函数已内置 `createCollection` 兜底，并在集合已存在时报错 `ResourceUnavailable.ResourceExist/-501001` 时自动跳过，重复发布不会再中断；若首次调用环境无建表权限，仍建议先在控制台手动创建以避免缺表报错。
 3. **静态资源**：若使用自定义封面或头像占位，可按示例上传到云存储的 `background/cover-20251102.jpg`、`avatar/default.png` 路径，或在配置中替换为现有资源。
+
+## 已知问题与修复记录
+- **境界奖励未解锁（化神期用户显示未认证）**：活动云函数仅直接读取 `members` 集合内的原始字段，缺少对 `levelId` 所关联等级数据的回填，导致高阶会员只保存了 `levelId`/`levelName` 而无完整 `level.realmName`，从而计算 `realmOrder` 失败，接口返回 `type: none`、`realmName: ''`。已在 `resolveMemberBoost` 中补充等级文档兜底加载与 `levelName` 回退，确保化神及以上会员正确识别境界并解锁境界奖励/神之一手。

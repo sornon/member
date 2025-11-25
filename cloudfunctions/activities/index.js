@@ -416,8 +416,17 @@ async function resolveMemberBoost(config = {}, openid = '') {
 
   const memberSnapshot = await db.collection(COLLECTIONS.MEMBERS).doc(currentOpenId).get().catch(() => null);
   const member = (memberSnapshot && memberSnapshot.data) || {};
-  realmName = resolveMemberRealm(member);
-  const realmOrder = resolveRealmOrder(member.level || member);
+  let memberLevel = member.level || null;
+  if ((!memberLevel || !memberLevel.realmName) && member.levelId) {
+    const levelSnapshot = await db.collection(COLLECTIONS.LEVELS).doc(member.levelId).get().catch(() => null);
+    if (levelSnapshot && levelSnapshot.data) {
+      memberLevel = levelSnapshot.data;
+    }
+  }
+
+  const hydratedMember = memberLevel ? { ...member, level: memberLevel } : member;
+  realmName = resolveMemberRealm(hydratedMember) || member.levelName || '';
+  const realmOrder = resolveRealmOrder(memberLevel || hydratedMember);
 
   if (realmOrder > 0) {
     memberBoost = realmOrder;
