@@ -117,7 +117,7 @@ function buildBhkBargainConfig() {
     endsAt: '2025-12-01T16:00:00.000Z',
     heroImage: buildCloudAssetUrl('background', 'cover-20251102.jpg'),
     perks: [
-      '原价 ¥3500，砍价后有机会直击隐藏底价锁定限量席位',
+      '原价 ¥3500，拼手气拿到惊爆价',
       '默认 3 次砍价，修仙境界越高额外次数越多，分享好友还可叠加',
       '好友助力砍价后自动追加一次转盘机会，助力金额实时累计',
       '余票与倒计时实时提醒，便捷一键购票'

@@ -4,6 +4,13 @@ import { buildCloudAssetUrl } from '../../../shared/asset-paths';
 const TARGET_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
 const DEFAULT_SEGMENTS = [120, 180, 200, 260, 320, 500];
 const COUNTDOWN_INTERVAL = 1000;
+const ENCOURAGEMENTS = [
+  '好友助力价格还能更低，赶紧喊上小伙伴！',
+  '邀请好友帮砍，惊爆价就在前面！',
+  '继续分享，越多人助力越容易砍到底！',
+  '呼朋唤友来助力，价格还能再低！',
+  '好友助力价格还能更低，快去求助一下吧~'
+];
 
 function resolveRealmOrder(level = {}) {
   const { realmOrder, order } = level || {};
@@ -176,6 +183,15 @@ Page({
     this.setData({ remainingSpins: updated });
   },
 
+  pickEncouragement() {
+    const list = ENCOURAGEMENTS;
+    if (!Array.isArray(list) || !list.length) {
+      return '好友助力价格还能更低，快去求助一下吧~';
+    }
+    const index = Math.floor(Math.random() * list.length);
+    return list[index] || list[0];
+  },
+
   handleSpin() {
     const { spinning, remainingSpins, segments, currentPrice, priceFloor, totalDiscount } = this.data;
     if (spinning || remainingSpins <= 0) {
@@ -191,6 +207,9 @@ Page({
       const nextTotalDiscount = totalDiscount + cut;
       const remainingDiscount = Math.max(0, nextPrice - priceFloor);
       const reachedFloor = nextPrice <= priceFloor;
+      const message = reachedFloor
+        ? '你太幸运了！已经拿到最终底价，抓紧下单吧！'
+        : this.pickEncouragement();
       this.setData({
         spinning: false,
         remainingSpins: nextRemainingSpins,
@@ -199,7 +218,7 @@ Page({
         remainingDiscount,
         resultOverlay: {
           amount: cut,
-          message: reachedFloor ? '已经砍到最终底价，商家血亏！' : cut > 0 ? '恭喜砍价成功！' : '再接再厉，继续抽取优惠~'
+          message
         }
       });
     }, 900);
@@ -240,9 +259,10 @@ Page({
       remainingDiscount,
       helperRecords
     };
-    if (reachedFloor) {
-      payload.resultOverlay = { amount: cut, message: '已经砍到最终底价，商家血亏！' };
-    }
+    payload.resultOverlay = {
+      amount: cut,
+      message: reachedFloor ? '你太幸运了！已经拿到最终底价，抓紧下单吧！' : this.pickEncouragement()
+    };
     this.setData(payload);
   },
 
