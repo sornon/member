@@ -26,6 +26,15 @@ const REALM_REWARD_RULES = [
   { keyword: '结丹', bonus: 4, label: '结丹奖励' }
 ];
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
+const DEFAULT_HERO_IMAGE = buildCloudAssetUrl('background', 'activity-20251127.jpg');
+
+function resolveNavHeight() {
+  const app = getApp();
+  const { customNav = {}, safeArea = {} } = (app && app.globalData) || {};
+  const statusBarHeight = customNav.statusBarHeight ?? safeArea.top ?? 0;
+  const navHeight = customNav.navHeight || (statusBarHeight ? statusBarHeight + 44 : 0);
+  return navHeight > 0 ? navHeight : 64;
+}
 
 function normalizeBargainConfig(config = {}) {
   const startPrice = Number(config.startPrice) || 3500;
@@ -35,7 +44,8 @@ function normalizeBargainConfig(config = {}) {
   const assistAttemptCap = Number.isFinite(config.assistAttemptCap) ? config.assistAttemptCap : 6;
   const stock = Number.isFinite(config.stock) ? config.stock : 0;
   const endsAt = config.endsAt || '';
-  const heroImage = config.heroImage || buildCloudAssetUrl('background', 'cover-20251126.jpg');
+  // 感恩节主题的背景图需固定为本地常量，避免云端沿用旧活动（如万圣节）的 heroImage 覆盖
+  const heroImage = DEFAULT_HERO_IMAGE;
   const perks = Array.isArray(config.perks) ? config.perks : [];
   const vipBonuses = Array.isArray(config.vipBonuses) ? config.vipBonuses : [];
   const displaySegments = Array.isArray(config.displaySegments) ? config.displaySegments : [];
@@ -192,6 +202,7 @@ function resolveMysteryLanding(displaySegments = []) {
 Page({
   data: {
     loading: true,
+    navHeight: 64,
     member: null,
     defaultAvatar: DEFAULT_AVATAR,
     activity: null,
@@ -218,7 +229,7 @@ Page({
     floorPrice: 998,
     activeSegmentIndex: -1,
     showRules: false,
-    heroImage: '',
+    heroImage: DEFAULT_HERO_IMAGE,
     perks: [],
     mapLocation: DEFAULT_LOCATION,
     shareContext: null,
@@ -233,6 +244,7 @@ Page({
       wx.redirectTo({ url: `/pages/activities/detail/index?id=${id}` });
       return;
     }
+    this.setData({ navHeight: resolveNavHeight() });
     this.shareId = typeof options.shareId === 'string' ? options.shareId.trim() : '';
     this.activityId = TARGET_ACTIVITY_ID;
     this.bootstrap();
@@ -372,7 +384,7 @@ Page({
       floorPrice: bargain.floorPrice,
       countdownTarget,
       countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
-      heroImage: bargain.heroImage,
+      heroImage: bargain.heroImage || DEFAULT_HERO_IMAGE,
       perks: bargain.perks,
       mapLocation,
       shareContext,
