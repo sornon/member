@@ -116,6 +116,8 @@ cd cloudfunctions/member && npm install && cd -
 3. **初始化示例数据**：部署完成后再次执行一次 `bootstrap` 云函数，系统将写入两条 10 月主题活动示例数据（充值礼包与万圣节派对），便于验证前后台逻辑。
 4. **更新小程序代码**：上传小程序前端，确保 `app.json` 已包含 `pages/activities/index`、`pages/admin/activities/index` 页面，首页右上角会自动出现「活动」入口。
 
+> 感恩节 BHK 砍价页新增“完善档案”奖励：会员昵称非空且头像非默认占位图（`avatar/default.png`）时自动补发 1 次砍价并持久化 `thanksgivingProfileRewarded`，请在发布前更新 `cloudfunctions/activities` 并确认默认头像路径与云函数常量一致，避免误判重复发放。
+
 ### 使用方法
 
 - **会员端展示**：会员可通过首页右上角的「活动」入口进入活动列表。列表按排序值与开始时间自动排序，状态会根据开始/结束时间显示“即将开始”“进行中”“已结束”等标签。点击卡片可查看活动亮点、赠品、门票信息及备注。
