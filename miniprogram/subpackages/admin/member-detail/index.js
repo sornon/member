@@ -42,6 +42,20 @@ const RARITY_LABELS = {
   sss: 'SSS'
 };
 
+const RIGHT_STATUS_LABELS = {
+  active: '可使用',
+  used: '已使用',
+  expired: '已过期',
+  locked: '预约中'
+};
+
+const RIGHT_STATUS_OPTIONS = [
+  { value: 'active', label: RIGHT_STATUS_LABELS.active },
+  { value: 'used', label: RIGHT_STATUS_LABELS.used },
+  { value: 'locked', label: RIGHT_STATUS_LABELS.locked },
+  { value: 'expired', label: RIGHT_STATUS_LABELS.expired }
+];
+
 const RARITY_ORDER = ['c', 'b', 'a', 's', 'ss', 'sss'];
 
 const AVATAR_GENDER_LABELS = {
@@ -191,6 +205,8 @@ function formatMemberRight(entry) {
   }
 
   const meta = entry.meta || {};
+  const status = entry.status || 'active';
+  const statusIndex = RIGHT_STATUS_OPTIONS.findIndex((option) => option.value === status);
   const validUntilText = entry.validUntil
     ? formatDateTime(entry.validUntil, { includeTime: false })
     : '';
@@ -213,6 +229,9 @@ function formatMemberRight(entry) {
 
   return {
     ...entry,
+    status,
+    statusLabel: RIGHT_STATUS_LABELS[status] || '待使用',
+    statusIndex: statusIndex >= 0 ? statusIndex : 0,
     validUntilText,
     issuedAtText,
     usageSummary: usageSummary.join(' · ')
@@ -844,7 +863,9 @@ Page({
     backgroundManagerDirty: false,
     rightsLoading: false,
     memberRights: [],
-    removingRightId: ''
+    removingRightId: '',
+    rightStatusOptions: RIGHT_STATUS_OPTIONS,
+    updatingRightStatusId: ''
   },
 
   onLoad(options) {
@@ -954,6 +975,55 @@ Page({
       console.error('[admin] load member rights failed', error);
       this.setData({ rightsLoading: false, removingRightId: '' });
       wx.showToast({ title: error.errMsg || error.message || '权益加载失败', icon: 'none' });
+    }
+  },
+
+  async handleMemberRightStatusChange(event) {
+    const { value } = event && event.detail ? event.detail : {};
+    const { rightId, status } = (event && event.currentTarget && event.currentTarget.dataset) || {};
+    const options = this.data.rightStatusOptions || [];
+    const selectedIndex = Number(value);
+    const selectedOption = Number.isFinite(selectedIndex) ? options[selectedIndex] : null;
+
+    if (!rightId || !selectedOption || selectedOption.value === status) {
+      return;
+    }
+
+    if (this.data.updatingRightStatusId && this.data.updatingRightStatusId !== rightId) {
+      wx.showToast({ title: '请稍候，其他权益保存中', icon: 'none' });
+      return;
+    }
+
+    this.setData({ updatingRightStatusId: rightId });
+
+    try {
+      const res = await AdminService.updateMemberRightStatus(
+        this.data.memberId,
+        rightId,
+        selectedOption.value
+      );
+      const currentEntry =
+        (this.data.memberRights || []).find((item) => item && item._id === rightId) || {};
+      const updatedEntry = formatMemberRight(
+        (res && res.right) || {
+          ...currentEntry,
+          _id: rightId,
+          status: selectedOption.value,
+          statusLabel: selectedOption.label
+        }
+      );
+
+      const memberRights = (this.data.memberRights || []).map((item) =>
+        item && item._id === rightId && updatedEntry ? updatedEntry : item
+      );
+      this.setData({ memberRights });
+      wx.showToast({ title: '状态已更新', icon: 'success' });
+    } catch (error) {
+      console.error('[admin] update member right status failed', error);
+      wx.showToast({ title: error.errMsg || error.message || '更新失败', icon: 'none' });
+      this.loadMemberRights(this.data.memberId);
+    } finally {
+      this.setData({ updatingRightStatusId: '' });
     }
   },
 
