@@ -1,4 +1,29 @@
+.bhk-hero {
+  position: relative;
+  width: 100%;
+  height: 460rpx;
+  overflow: hidden;
+}
+
+.bhk-hero__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.bhk-hero__mask {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(5, 8, 20, 0.1) 0%, rgba(5, 8, 20, 0.76) 72%, #050814 100%);
+}
+
 .bhk-page {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 24rpx;
