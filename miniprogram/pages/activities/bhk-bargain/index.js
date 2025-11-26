@@ -203,7 +203,7 @@ function resolveTimelineCapability() {
   const canShareTimeline =
     (typeof wx.canIUse === 'function' && wx.canIUse('shareTimeline')) || typeof wx.shareTimeline === 'function';
   if (!canShareTimeline) {
-    return { supported: false, message: '当前微信版本不支持朋友圈小程序卡片，请升级到最新客户端' };
+    return { supported: false, message: '当前微信版本不支持朋友圈小程序卡片，请从右上角菜单分享' };
   }
 
   let envVersion = 'release';
