@@ -106,7 +106,7 @@
 
     <view class="bhk-card bhk-share">
       <view class="bhk-section-title">分享助力</view>
-      <view class="bhk-share__desc">“被助力”<text style="color:rgb(72, 161, 245);">次数不限</text>，但“助力他人”只有<text style="color: red;">1</text>次，请斟酌使用，使用后双方各得1次砍价数。</view>
+      <view class="bhk-share__desc">“被助力”<text style="color:skyblue;">次数不限</text>，但“助力他人”只有<text style="color: tomato;">1</text>次，请斟酌使用，使用后双方各得1次砍价数。</view>
       <view class="bhk-share__helpers" wx:if="{{shareContext && shareContext.helpers && shareContext.helpers.length}}">
         <view class="bhk-share__helper" wx:for="{{shareContext.helpers}}" wx:key="id">
           <view class="bhk-share__role">{{item.role || '助力者'}}</view>
@@ -170,7 +170,7 @@
         <view class="bhk-info__item">余票与倒计时实时更新，售罄即止。</view>
         <view class="bhk-info__item">票券不可转售或退款。</view>
         <view class="bhk-info__item">购票消费可同时提升修为和灵石。</view>
-        <view class="bhk-info__item">本次活动是修仙晋升的大好机会，不容错过！</view>
+        <view class="bhk-info__item">本次活动是修仙晋升的<text style="color:tomato;">大好机会，不容错过！</text></view>
       </view>
     </view>
   </block>
