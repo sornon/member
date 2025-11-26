@@ -761,10 +761,24 @@ Page({
   },
 
   async handlePostPaymentSuccess() {
-    this.setData({
-      ticketOwned: true,
-      stockRemaining: Math.max(0, Number.isFinite(this.data.stockRemaining) ? this.data.stockRemaining - 1 : 0)
-    });
+    try {
+      const response = await ActivityService.bargainConfirmPurchase(this.activityId);
+      const activity = response && response.activity ? response.activity : this.data.activity;
+      const bargain = normalizeBargainConfig(response && response.bargainConfig);
+      const session = this.normalizeSession(response && response.session, bargain);
+      this.applySession(session, bargain, activity, {
+        shareContext: response && response.shareContext,
+        ticketOwned: true,
+        stockRemaining: session.stockRemaining
+      });
+    } catch (error) {
+      console.error('[bhk-bargain] confirm purchase failed', error);
+      wx.showToast({ title: error.errMsg || '购票状态同步失败', icon: 'none' });
+      this.setData({
+        ticketOwned: true,
+        stockRemaining: Math.max(0, Number.isFinite(this.data.stockRemaining) ? this.data.stockRemaining - 1 : 0)
+      });
+    }
     try {
       await this.ensureThanksgivingRight();
     } catch (error) {

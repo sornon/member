@@ -1,0 +1,16 @@
+# 感恩节通行证发售上线说明
+
+## 功能概览
+- 全局席位库存存储在 `bhkBargainStock` 集合，支付确认后自动减库存，减至 0 后前端会禁用购票按钮并提示售罄。
+- 支付后调用 `activities` 云函数的 `bargainConfirmPurchase` 动作，持久化会员的购票状态（`ticketOwned`/`purchasedAt`），避免重复购票。
+- 云端会同步校验会员权益：若已发放 `thanksgiving-pass` 权益，活动页自动识别已购状态，锁定按钮并展示“已获得通行证”。
+
+## 部署步骤
+1. 重新部署 `cloudfunctions/activities`：确保新建 `bhkBargainStock` 集合权限默认即可，云函数发布后会自动初始化库存文档。
+2. 若此前未发放过权益，请一并部署 `cloudfunctions/member`，以使用 `grantRight` 动作写入感恩节通行证。
+3. 小程序端重新构建并上传，确保 `miniprogram/pages/activities/bhk-bargain` 与 `miniprogram/services/api.js` 的最新支付确认流程生效。
+4. 部署后可在数据库查看 `bhkBargainStock` 与 `bhkBargainRecords`：确认库存递减、`ticketOwned`/`purchasedAt` 字段更新正常；在“我的权益”中应能看到“感恩节通行证”。
+
+## 体验校验
+- 支付成功后刷新活动页，顶部卡片应显示斜体水印“已获得通行证”，并在地点下方出现“门票购买成功，请在权益中查看”链接。
+- 重复进入活动页或重新发起支付时，应提示已购且按钮禁用；当库存为 0 时全体用户都不可支付。

@@ -937,6 +937,12 @@ export const ActivityService = {
       payload.shareId = options.shareId;
     }
     return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, payload);
+  },
+  async bargainConfirmPurchase(id) {
+    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
+      action: 'bargainConfirmPurchase',
+      id
+    });
   }
 };
 
