@@ -1,4 +1,9 @@
-<custom-nav title="感恩节 · BHK56 限量品鉴" theme="dark"></custom-nav>
+<custom-nav title="" theme="transparent"></custom-nav>
+<view class="bhk-hero" style="margin-top: -{{navHeight}}px;">
+  <image class="bhk-hero__image" src="{{heroImage}}" mode="aspectFill"></image>
+  <view class="bhk-hero__mask"></view>
+</view>
+
 <view class="bhk-page">
   <block wx:if="{{loading}}">
     <view class="bhk-card bhk-state">活动情报加载中...</view>
