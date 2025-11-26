@@ -1,4 +1,4 @@
-<custom-nav title="感恩节 · BHK56 限量品鉴" theme="dark"></custom-nav>
+<custom-nav title="" theme="transparent"></custom-nav>
 <view class="bhk-page">
   <block wx:if="{{loading}}">
     <view class="bhk-card bhk-state">活动情报加载中...</view>
@@ -7,7 +7,7 @@
     <view class="bhk-card bhk-state bhk-state--error">活动暂不可用，请稍后再试</view>
   </block>
   <block wx:else>
-    <view class="bhk-banner">
+    <view class="bhk-banner" style="background-image: url({{heroImage}});">
       <view class="bhk-banner__mask"></view>
       <view class="bhk-banner__content">
         <view wx:if="{{ticketOwned}}" class="bhk-banner__badge">已获得通行证</view>
