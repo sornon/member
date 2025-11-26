@@ -477,6 +477,25 @@ function buildDisplaySegments(segments = [], mysteryLabel = '???') {
   return display;
 }
 
+function hasCompletedProfile(member = {}) {
+  const nickname = (member.nickName || member.nickname || member.name || '').trim();
+  const avatar =
+    (member.avatarUrl ||
+      member.avatar ||
+      (member.profile && (member.profile.avatarUrl || member.profile.avatar)) ||
+      '')
+      .trim();
+  const normalizedDefaultAvatar = (DEFAULT_AVATAR || '').split('?')[0];
+  const normalizedAvatar = avatar.split('?')[0];
+  if (!nickname) {
+    return false;
+  }
+  if (!normalizedAvatar) {
+    return false;
+  }
+  return normalizedAvatar !== normalizedDefaultAvatar;
+}
+
 function buildMemberProfile(member = {}, openid = '') {
   const nickname = member.nickName || member.nickname || member.name || '神秘会员';
   const avatar =
@@ -528,7 +547,13 @@ async function resolveMemberBoost(config = {}, openid = '') {
     memberBoost = realmOrder;
   }
 
-  return { memberBoost, realmName, openid: currentOpenId, profile: buildMemberProfile(hydratedMember, currentOpenId) };
+  return {
+    memberBoost,
+    realmName,
+    openid: currentOpenId,
+    profile: buildMemberProfile(hydratedMember, currentOpenId),
+    profileComplete: hasCompletedProfile(hydratedMember)
+  };
 }
 
 function resolveRealmBonus(realmOrder = 0) {
@@ -618,7 +643,8 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
     lastShareTarget: typeof record.lastShareTarget === 'string' ? record.lastShareTarget : '',
     ticketOwned: Boolean(record.ticketOwned || record.hasTicket || record.purchased),
     purchasedAt: record.purchasedAt || null,
-    stockRemaining: Number.isFinite(record.stockRemaining) ? record.stockRemaining : config.stock
+    stockRemaining: Number.isFinite(record.stockRemaining) ? record.stockRemaining : config.stock,
+    thanksgivingProfileRewarded: Boolean(record.thanksgivingProfileRewarded)
   };
 
   return { ...normalized, ...overrides };
@@ -666,6 +692,23 @@ function hasRealmBoostUpgrade(before = {}, after = {}) {
   );
 }
 
+function applyThanksgivingProfileReward(record = {}, profileComplete = false) {
+  if (!profileComplete) {
+    return record;
+  }
+  if (record.thanksgivingProfileRewarded) {
+    return record;
+  }
+  const updated = { ...record };
+  updated.thanksgivingProfileRewarded = true;
+  updated.remainingSpins = Math.max(0, (updated.remainingSpins || 0) + 1);
+  return updated;
+}
+
+function hasProfileRewardUpdate(before = {}, after = {}) {
+  return Boolean(after.thanksgivingProfileRewarded && !before.thanksgivingProfileRewarded);
+}
+
 async function getOrCreateBargainSession(config = {}, options = {}) {
   const openid = options.openid || getOpenId();
   if (!openid) {
@@ -677,6 +720,7 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
   const memberBoost = Number.isFinite(options.memberBoost) ? options.memberBoost : 0;
   const memberRealm = options.memberRealm || '';
   const memberProfile = options.memberProfile || null;
+  const profileComplete = options.profileComplete === true;
   const { bonus: realmBonus } = resolveRealmBonus(memberBoost);
   const divineHandRemaining = memberBoost >= DIVINE_HAND_THRESHOLD ? 1 : 0;
   const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
@@ -686,19 +730,21 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
   if (snapshot && snapshot.data) {
     const normalized = normalizeBargainSession(snapshot.data, config, { memberRealm }, openid);
     const upgraded = applyRealmBoostUpgrade(normalized, memberBoost, realmBonus, divineHandRemaining);
+    const rewarded = applyThanksgivingProfileReward(upgraded, profileComplete);
     if (memberProfile && !normalized.memberProfile) {
-      upgraded.memberProfile = memberProfile;
+      rewarded.memberProfile = memberProfile;
     }
 
     const shouldPersistProfile = memberProfile && !normalized.memberProfile;
-    if (hasRealmBoostUpgrade(normalized, upgraded) || shouldPersistProfile) {
+    const shouldPersistProfileReward = hasProfileRewardUpdate(normalized, rewarded);
+    if (hasRealmBoostUpgrade(normalized, rewarded) || shouldPersistProfile || shouldPersistProfileReward) {
       await collection.doc(docId).update({
-        data: { ...upgraded, updatedAt: now }
+        data: { ...rewarded, updatedAt: now }
       });
-      return { ...upgraded, updatedAt: now };
+      return { ...rewarded, updatedAt: now };
     }
 
-    return upgraded;
+    return rewarded;
   }
 
   const baseSpins = Number(config.baseAttempts) || 0;
@@ -720,13 +766,16 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
     realmBonusRemaining: realmBonus,
     divineHandRemaining,
     divineHandUsed: false,
+    thanksgivingProfileRewarded: false,
     createdAt: now,
     updatedAt: now,
     remainingDiscount: Math.max(0, config.startPrice - config.floorPrice)
   };
 
-  await collection.doc(docId).set({ data: session });
-  return normalizeBargainSession({ ...session, _id: docId }, config, {}, openid);
+  const rewardedSession = applyThanksgivingProfileReward(session, profileComplete);
+
+  await collection.doc(docId).set({ data: rewardedSession });
+  return normalizeBargainSession({ ...rewardedSession, _id: docId }, config, {}, openid);
 }
 
 async function buildShareContext(config, targetOpenId, viewerOpenId, viewerProfile, viewerAssistGiven = 0) {
@@ -734,12 +783,13 @@ async function buildShareContext(config, targetOpenId, viewerOpenId, viewerProfi
     return null;
   }
 
-  const { memberBoost, realmName, profile } = await resolveMemberBoost(config, targetOpenId);
+  const { memberBoost, realmName, profile, profileComplete } = await resolveMemberBoost(config, targetOpenId);
   const targetSession = await getOrCreateBargainSession(config, {
     memberBoost,
     memberRealm: realmName,
     openid: targetOpenId,
-    memberProfile: profile
+    memberProfile: profile,
+    profileComplete
   });
   const helperRecords = Array.isArray(targetSession.helperRecords) ? targetSession.helperRecords : [];
   const ownerProfile = targetSession.memberProfile || profile || buildMemberProfile({}, targetOpenId);
@@ -789,12 +839,13 @@ function buildBargainPayload(config, session, overrides = {}) {
 async function getBhkBargainStatus(event = {}) {
   const config = buildBhkBargainConfig();
   const shareId = typeof event.shareId === 'string' ? event.shareId.trim() : '';
-  const { memberBoost, realmName, openid, profile } = await resolveMemberBoost(config);
+  const { memberBoost, realmName, openid, profile, profileComplete } = await resolveMemberBoost(config);
   const session = await getOrCreateBargainSession(config, {
     memberBoost,
     memberRealm: realmName,
     openid,
-    memberProfile: profile
+    memberProfile: profile,
+    profileComplete
   });
   const stockState = await getBargainStock(config);
   const ownedRight = await hasThanksgivingPass(openid);
@@ -838,7 +889,7 @@ async function spinBhkBargain() {
   const config = buildBhkBargainConfig();
   const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
   const stockState = await getBargainStock(config);
-  const { memberBoost, realmName, openid, profile } = await resolveMemberBoost(config);
+  const { memberBoost, realmName, openid, profile, profileComplete } = await resolveMemberBoost(config);
   const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
   const segments = normalizeSegments(config.segments);
@@ -849,7 +900,13 @@ async function spinBhkBargain() {
 
   let result = null;
 
-  await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName, openid, memberProfile: profile });
+  await getOrCreateBargainSession(config, {
+    memberBoost,
+    memberRealm: realmName,
+    openid,
+    memberProfile: profile,
+    profileComplete
+  });
 
   await db.runTransaction(async (transaction) => {
     const ref = transaction.collection(BHK_BARGAIN_COLLECTION).doc(docId);
@@ -908,7 +965,7 @@ async function assistBhkBargain(event = {}) {
   const shareId = typeof event.shareId === 'string' ? event.shareId.trim() : '';
   const config = buildBhkBargainConfig();
   const stockState = await getBargainStock(config);
-  const { memberBoost, realmName, openid, profile } = await resolveMemberBoost(config);
+  const { memberBoost, realmName, openid, profile, profileComplete } = await resolveMemberBoost(config);
 
   if (!openid) {
     throw new Error('未登录，请先授权');
@@ -922,17 +979,26 @@ async function assistBhkBargain(event = {}) {
     throw new Error('自己无法助力自己');
   }
 
-  const { memberBoost: targetBoost, realmName: targetRealm, profile: targetProfile } = await resolveMemberBoost(
-    config,
-    shareId
-  );
+  const {
+    memberBoost: targetBoost,
+    realmName: targetRealm,
+    profile: targetProfile,
+    profileComplete: targetProfileComplete
+  } = await resolveMemberBoost(config, shareId);
 
-  await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName, openid, memberProfile: profile });
+  await getOrCreateBargainSession(config, {
+    memberBoost,
+    memberRealm: realmName,
+    openid,
+    memberProfile: profile,
+    profileComplete
+  });
   await getOrCreateBargainSession(config, {
     memberBoost: targetBoost,
     memberRealm: targetRealm,
     openid: shareId,
-    memberProfile: targetProfile
+    memberProfile: targetProfile,
+    profileComplete: targetProfileComplete
   });
 
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
@@ -1030,13 +1096,19 @@ async function divineHandBhkBargain() {
   const config = buildBhkBargainConfig();
   const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
   const stockState = await getBargainStock(config);
-  const { memberBoost, realmName, openid, profile } = await resolveMemberBoost(config);
+  const { memberBoost, realmName, openid, profile, profileComplete } = await resolveMemberBoost(config);
   const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
 
   let result = null;
 
-  await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName, openid, memberProfile: profile });
+  await getOrCreateBargainSession(config, {
+    memberBoost,
+    memberRealm: realmName,
+    openid,
+    memberProfile: profile,
+    profileComplete
+  });
 
   await db.runTransaction(async (transaction) => {
     const ref = transaction.collection(BHK_BARGAIN_COLLECTION).doc(docId);
@@ -1084,7 +1156,7 @@ async function divineHandBhkBargain() {
 
 async function confirmBhkBargainPurchase() {
   const config = buildBhkBargainConfig();
-  const { memberBoost, realmName, openid, profile } = await resolveMemberBoost(config);
+  const { memberBoost, realmName, openid, profile, profileComplete } = await resolveMemberBoost(config);
 
   if (!openid) {
     throw new Error('未登录，请先授权');
@@ -1094,7 +1166,8 @@ async function confirmBhkBargainPurchase() {
     memberBoost,
     memberRealm: realmName,
     openid,
-    memberProfile: profile
+    memberProfile: profile,
+    profileComplete
   });
 
   const sessionDocId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
