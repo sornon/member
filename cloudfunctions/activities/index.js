@@ -3,11 +3,14 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
+const _ = db.command;
 const { COLLECTIONS, buildCloudAssetUrl, realmConfigs } = require('common-config');
 
 const DEFAULT_LIMIT = 100;
 const BHK_BARGAIN_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
 const BHK_BARGAIN_COLLECTION = 'bhkBargainRecords';
+const BHK_BARGAIN_STOCK_COLLECTION = 'bhkBargainStock';
+const THANKSGIVING_RIGHT_ID = 'thanksgiving-pass';
 const DEFAULT_AVATAR = buildCloudAssetUrl('avatar', 'default.png');
 const ENCOURAGEMENTS = [
   '好友助力价格还能更低，赶紧喊上小伙伴！',
@@ -77,6 +80,8 @@ exports.main = async (event = {}) => {
       return assistBhkBargain(event || {});
     case 'bargainDivineHand':
       return divineHandBhkBargain(event || {});
+    case 'bargainConfirmPurchase':
+      return confirmBhkBargainPurchase(event || {});
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -193,10 +198,58 @@ function buildBhkBargainConfig() {
     mysteryLabel: '???',
     perks: [
       '拼手气拿惊爆价',
-      '默认 3 次砍价，炼气+1，筑基+4，结丹及以上解锁神之一手',
-      '分享好友额外奖励砍价次数',
+      '无限次好友助力直击底价',
+      '炼气4次，筑基7次，结丹及以上有神之一手',
     ]
   };
+}
+
+async function ensureBargainStockDoc(config = {}) {
+  await ensureCollectionExists(BHK_BARGAIN_STOCK_COLLECTION);
+  const stockRef = db.collection(BHK_BARGAIN_STOCK_COLLECTION).doc(BHK_BARGAIN_ACTIVITY_ID);
+  const snapshot = await stockRef.get().catch(() => null);
+  if (snapshot && snapshot.data) {
+    return snapshot.data;
+  }
+
+  const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
+  const doc = {
+    totalStock: config.stock,
+    stockRemaining: config.stock,
+    sold: 0,
+    updatedAt: now
+  };
+
+  await stockRef.set({ data: doc });
+
+  const written = await stockRef.get().catch(() => null);
+  if (written && written.data) {
+    return written.data;
+  }
+
+  throw new Error('库存初始化失败，请稍后重试');
+}
+
+async function getBargainStock(config = {}) {
+  const doc = await ensureBargainStockDoc(config);
+  const totalStock = Number.isFinite(doc.totalStock) ? doc.totalStock : config.stock;
+  const stockRemaining = Number.isFinite(doc.stockRemaining) ? doc.stockRemaining : config.stock;
+  return { totalStock, stockRemaining };
+}
+
+async function hasThanksgivingPass(memberId) {
+  if (!memberId) {
+    return false;
+  }
+  await ensureCollectionExists(COLLECTIONS.MEMBER_RIGHTS);
+  const rights = await db
+    .collection(COLLECTIONS.MEMBER_RIGHTS)
+    .where({ memberId, rightId: THANKSGIVING_RIGHT_ID, status: _.neq('revoked') })
+    .limit(1)
+    .get()
+    .catch(() => ({ data: [] }));
+
+  return Array.isArray(rights.data) && rights.data.length > 0;
 }
 
 function decorateActivity(doc = {}) {
@@ -560,7 +613,10 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
     divineHandRemaining: Number.isFinite(record.divineHandRemaining) ? record.divineHandRemaining : 0,
     divineHandUsed: Boolean(record.divineHandUsed),
     remainingDiscount: Math.max(0, (Number.isFinite(record.currentPrice) ? record.currentPrice : config.startPrice) - config.floorPrice),
-    lastShareTarget: typeof record.lastShareTarget === 'string' ? record.lastShareTarget : ''
+    lastShareTarget: typeof record.lastShareTarget === 'string' ? record.lastShareTarget : '',
+    ticketOwned: Boolean(record.ticketOwned || record.hasTicket || record.purchased),
+    purchasedAt: record.purchasedAt || null,
+    stockRemaining: Number.isFinite(record.stockRemaining) ? record.stockRemaining : config.stock
   };
 
   return { ...normalized, ...overrides };
@@ -645,7 +701,6 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
 
   const baseSpins = Number(config.baseAttempts) || 0;
   const session = {
-    _id: docId,
     activityId: BHK_BARGAIN_ACTIVITY_ID,
     memberId: openid,
     currentPrice: config.startPrice,
@@ -668,8 +723,8 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
     remainingDiscount: Math.max(0, config.startPrice - config.floorPrice)
   };
 
-  await collection.add({ data: session });
-  return normalizeBargainSession(session, config, {}, openid);
+  await collection.doc(docId).set({ data: session });
+  return normalizeBargainSession({ ...session, _id: docId }, config, {}, openid);
 }
 
 async function buildShareContext(config, targetOpenId, viewerOpenId, viewerProfile, viewerAssistGiven = 0) {
@@ -709,9 +764,15 @@ async function buildShareContext(config, targetOpenId, viewerOpenId, viewerProfi
 function buildBargainPayload(config, session, overrides = {}) {
   const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
   const floorReached = (session.currentPrice || 0) <= config.floorPrice;
-  const publicConfig = { ...config, displaySegments };
+  const totalStock = Number.isFinite(overrides.totalStock) ? overrides.totalStock : config.stock;
+  const publicConfig = { ...config, stock: totalStock, displaySegments };
   delete publicConfig.floorPrice;
-  const publicSession = { ...session, floorReached };
+  const stockRemaining = Number.isFinite(overrides.stockRemaining)
+    ? overrides.stockRemaining
+    : Number.isFinite(session.stockRemaining)
+      ? session.stockRemaining
+      : config.stock;
+  const publicSession = { ...session, floorReached, stockRemaining };
   delete publicSession.remainingDiscount;
   const realmReward = buildRealmRewardState(publicSession);
   const payload = {
@@ -733,10 +794,26 @@ async function getBhkBargainStatus(event = {}) {
     openid,
     memberProfile: profile
   });
+  const stockState = await getBargainStock(config);
+  const ownedRight = await hasThanksgivingPass(openid);
+  const normalizedSession = normalizeBargainSession(
+    { ...session, stockRemaining: stockState.stockRemaining },
+    config,
+    { ticketOwned: Boolean(session.ticketOwned) || ownedRight },
+    openid
+  );
 
-  const targetShareId = shareId || session.lastShareTarget || '';
+  if (normalizedSession.ticketOwned && !session.ticketOwned) {
+    await db
+      .collection(BHK_BARGAIN_COLLECTION)
+      .doc(`${BHK_BARGAIN_ACTIVITY_ID}_${openid}`)
+      .update({ data: { ticketOwned: true, purchased: true, stockRemaining: stockState.stockRemaining } })
+      .catch(() => null);
+  }
+
+  const targetShareId = shareId || normalizedSession.lastShareTarget || '';
   const shareContext = targetShareId
-    ? await buildShareContext(config, targetShareId, openid, profile, session.assistGiven)
+    ? await buildShareContext(config, targetShareId, openid, profile, normalizedSession.assistGiven)
     : null;
 
   if (shareId && shareId !== session.lastShareTarget) {
@@ -748,12 +825,17 @@ async function getBhkBargainStatus(event = {}) {
       .catch(() => null);
   }
 
-  return buildBargainPayload(config, session, { shareContext });
+  return buildBargainPayload(config, normalizedSession, {
+    shareContext,
+    stockRemaining: stockState.stockRemaining,
+    totalStock: stockState.totalStock
+  });
 }
 
 async function spinBhkBargain() {
   const config = buildBhkBargainConfig();
   const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
+  const stockState = await getBargainStock(config);
   const { memberBoost, realmName, openid, profile } = await resolveMemberBoost(config);
   const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
@@ -811,7 +893,9 @@ async function spinBhkBargain() {
     result = buildBargainPayload(config, updatedRecord, {
       landingIndex,
       amount: cut,
-      message
+      message,
+      stockRemaining: stockState.stockRemaining,
+      totalStock: stockState.totalStock
     });
   });
 
@@ -821,6 +905,7 @@ async function spinBhkBargain() {
 async function assistBhkBargain(event = {}) {
   const shareId = typeof event.shareId === 'string' ? event.shareId.trim() : '';
   const config = buildBhkBargainConfig();
+  const stockState = await getBargainStock(config);
   const { memberBoost, realmName, openid, profile } = await resolveMemberBoost(config);
 
   if (!openid) {
@@ -923,15 +1008,26 @@ async function assistBhkBargain(event = {}) {
     await viewerRef.update({ data: updatedViewer });
   });
 
-  const viewerSession = normalizeBargainSession(updatedViewer, config, { memberBoost, memberRealm: realmName }, openid);
+  const viewerSession = normalizeBargainSession(
+    { ...updatedViewer, stockRemaining: stockState.stockRemaining },
+    config,
+    { memberBoost, memberRealm: realmName },
+    openid
+  );
   const shareContext = await buildShareContext(config, shareId, openid, profile, viewerSession.assistGiven);
 
-  return buildBargainPayload(config, viewerSession, { shareContext, assistedTarget: shareId });
+  return buildBargainPayload(config, viewerSession, {
+    shareContext,
+    assistedTarget: shareId,
+    stockRemaining: stockState.stockRemaining,
+    totalStock: stockState.totalStock
+  });
 }
 
 async function divineHandBhkBargain() {
   const config = buildBhkBargainConfig();
   const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
+  const stockState = await getBargainStock(config);
   const { memberBoost, realmName, openid, profile } = await resolveMemberBoost(config);
   const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
@@ -975,9 +1071,154 @@ async function divineHandBhkBargain() {
     result = buildBargainPayload(config, updatedRecord, {
       landingIndex: displaySegments.length - 1,
       amount: cut,
-      message: '神之一手！必中隐藏奖池，直达底价'
+      message: '神之一手！必中隐藏奖池，直达底价',
+      stockRemaining: stockState.stockRemaining,
+      totalStock: stockState.totalStock
     });
   });
 
   return result;
+}
+
+async function confirmBhkBargainPurchase() {
+  const config = buildBhkBargainConfig();
+  const { memberBoost, realmName, openid, profile } = await resolveMemberBoost(config);
+
+  if (!openid) {
+    throw new Error('未登录，请先授权');
+  }
+
+  await getOrCreateBargainSession(config, {
+    memberBoost,
+    memberRealm: realmName,
+    openid,
+    memberProfile: profile
+  });
+
+  const sessionDocId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
+  let stockState = await getBargainStock(config);
+  let latestSession = null;
+
+  await db.runTransaction(async (transaction) => {
+    const sessionRef = transaction.collection(BHK_BARGAIN_COLLECTION).doc(sessionDocId);
+    const stockRef = transaction.collection(BHK_BARGAIN_STOCK_COLLECTION).doc(BHK_BARGAIN_ACTIVITY_ID);
+
+    const [sessionSnapshot, stockSnapshot] = await Promise.all([
+      sessionRef.get().catch(() => null),
+      stockRef.get().catch(() => null)
+    ]);
+
+    const hasSession = Boolean(sessionSnapshot && sessionSnapshot.data);
+    const baseSession = hasSession
+      ? normalizeBargainSession(
+          { ...sessionSnapshot.data, stockRemaining: stockState.stockRemaining },
+          config,
+          { memberBoost, memberRealm: realmName },
+          openid
+        )
+      : null;
+
+    const existingStockDoc = stockSnapshot && stockSnapshot.data;
+    const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
+    const preparedStock = existingStockDoc
+      ? existingStockDoc
+      : { totalStock: config.stock, stockRemaining: config.stock, sold: 0, updatedAt: now };
+
+    if (preparedStock && !existingStockDoc) {
+      await stockRef.set({ data: preparedStock });
+    }
+
+    const verifiedStockSnapshot = existingStockDoc ? stockSnapshot : await stockRef.get().catch(() => null);
+    const verifiedStockDoc = verifiedStockSnapshot && verifiedStockSnapshot.data ? verifiedStockSnapshot.data : preparedStock;
+
+    const remainingStock = Number.isFinite(verifiedStockDoc.stockRemaining)
+      ? verifiedStockDoc.stockRemaining
+      : config.stock;
+
+    if (hasSession && baseSession.ticketOwned) {
+      latestSession = baseSession;
+      stockState = { ...stockState, stockRemaining: remainingStock };
+      return;
+    }
+
+    if (remainingStock <= 0) {
+      throw new Error('席位已售罄');
+    }
+
+    const nextRemaining = Math.max(0, remainingStock - 1);
+    await stockRef.update({ data: { stockRemaining: nextRemaining, sold: _.inc(1), updatedAt: now } });
+
+    const { bonus: realmBonus } = resolveRealmBonus(memberBoost);
+    const baseSpins = Number(config.baseAttempts) || 0;
+    const memberProfile = profile || buildMemberProfile({}, openid);
+
+    const updatedSession = hasSession
+      ? { ...baseSession, purchased: true, ticketOwned: true, purchasedAt: now, stockRemaining: nextRemaining, updatedAt: now }
+      : {
+          activityId: BHK_BARGAIN_ACTIVITY_ID,
+          memberId: openid,
+          currentPrice: config.startPrice,
+          totalDiscount: 0,
+          remainingSpins: baseSpins + realmBonus,
+          baseSpins: config.baseAttempts,
+          memberBoost,
+          assistGiven: 0,
+          assistSpins: 0,
+          shareCount: 0,
+          helperRecords: [],
+          memberRealm: realmName,
+          memberProfile,
+          realmBonusTotal: realmBonus,
+          realmBonusRemaining: realmBonus,
+          divineHandRemaining: memberBoost >= DIVINE_HAND_THRESHOLD ? 1 : 0,
+          divineHandUsed: false,
+          createdAt: now,
+          remainingDiscount: Math.max(0, config.startPrice - config.floorPrice),
+          ticketOwned: true,
+          purchased: true,
+          purchasedAt: now,
+          stockRemaining: nextRemaining,
+          updatedAt: now
+        };
+
+    if (hasSession) {
+      const { _id, ...updateData } = updatedSession;
+      await sessionRef.update({ data: updateData });
+      latestSession = normalizeBargainSession(
+        { ...updatedSession, _id: sessionDocId },
+        config,
+        { memberBoost, memberRealm: realmName },
+        openid
+      );
+    } else {
+      await sessionRef.set({ data: updatedSession });
+      latestSession = normalizeBargainSession(
+        { ...updatedSession, _id: sessionDocId },
+        config,
+        { memberBoost, memberRealm: realmName },
+        openid
+      );
+    }
+
+    stockState = { ...stockState, stockRemaining: nextRemaining };
+  });
+
+  const normalizedSession = latestSession ||
+    normalizeBargainSession(
+      { stockRemaining: stockState.stockRemaining },
+      config,
+      { memberBoost, memberRealm: realmName },
+      openid
+    );
+
+  const shareId = normalizedSession.lastShareTarget || '';
+  const shareContext = shareId
+    ? await buildShareContext(config, shareId, openid, profile, normalizedSession.assistGiven)
+    : null;
+
+  return buildBargainPayload(config, normalizedSession, {
+    shareContext,
+    stockRemaining: stockState.stockRemaining,
+    totalStock: stockState.totalStock
+  });
 }

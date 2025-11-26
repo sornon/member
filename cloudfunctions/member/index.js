@@ -1279,6 +1279,8 @@ exports.main = async (event, context) => {
       return getRights(memberOpenId);
     case 'claimLevelReward':
       return claimLevelReward(memberOpenId, event.levelId, { proxySession, actorId: OPENID });
+    case 'grantRight':
+      return grantRight(memberOpenId, event.entry || {}, { proxySession, actorId: OPENID });
     case 'completeProfile':
       return completeProfile(memberOpenId, event, { proxySession, actorId: OPENID });
     case 'updateArchive':
@@ -1483,6 +1485,48 @@ async function getRights(openid) {
       meta: mergedMeta
     };
   });
+}
+
+async function grantRight(openid, entry = {}, context = {}) {
+  const rightsCollection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
+  const masterMap = await loadMembershipRightsMap();
+  const rightId = (entry.rightId || entry.key || '').trim();
+  if (!rightId) {
+    throw new Error('缺少权益标识');
+  }
+
+  const existingSnapshot = await rightsCollection
+    .where({ memberId: openid, rightId, status: _.neq('revoked') })
+    .orderBy('issuedAt', 'desc')
+    .limit(1)
+    .get()
+    .catch(() => ({ data: [] }));
+  if (Array.isArray(existingSnapshot.data) && existingSnapshot.data.length && entry.unique !== false) {
+    return existingSnapshot.data[0];
+  }
+
+  const now = new Date();
+  const right = masterMap[rightId] || {};
+  const validDays = Number.isFinite(entry.validDays) ? Math.max(0, Math.floor(entry.validDays)) : right.validDays;
+  const validUntil = entry.validUntil
+    ? new Date(entry.validUntil)
+    : validDays
+      ? new Date(now.getTime() + validDays * 24 * 60 * 60 * 1000)
+      : null;
+  const meta = { ...(right.meta || {}), ...(entry.meta || {}) };
+  const doc = {
+    memberId: openid,
+    rightId,
+    name: entry.name || entry.title || right.name || '权益',
+    description: entry.description || entry.remarks || right.description || '',
+    status: entry.status || 'active',
+    issuedAt: now,
+    validUntil,
+    meta: { ...meta, grantedBy: context.actorId || openid }
+  };
+
+  const created = await rightsCollection.add({ data: doc });
+  return { ...doc, _id: created._id };
 }
 
 async function completeProfile(openid, payload = {}, context = {}) {

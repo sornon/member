@@ -1,8 +1,9 @@
-import { ActivityService, MemberService } from '../../../services/api';
+import { ActivityService, MemberService, WalletService } from '../../../services/api';
 import { AVATAR_IMAGE_BASE_PATH, buildCloudAssetUrl } from '../../../shared/asset-paths';
 import { buildTitleImageUrl, normalizeTitleId } from '../../../shared/titles';
 
 const TARGET_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
+const THANKSGIVING_RIGHT_ID = 'thanksgiving-pass';
 const DEFAULT_SEGMENTS = [120, 180, 200, 260, 320, 500];
 const DEFAULT_LOCATION = {
   name: '酒隐之茄',
@@ -32,7 +33,7 @@ function normalizeBargainConfig(config = {}) {
   const segments = Array.isArray(config.segments) && config.segments.length ? config.segments : DEFAULT_SEGMENTS;
   const assistRewardRange = config.assistRewardRange || { min: 60, max: 180 };
   const assistAttemptCap = Number.isFinite(config.assistAttemptCap) ? config.assistAttemptCap : 6;
-  const stock = Number.isFinite(config.stock) ? config.stock : 15;
+  const stock = Number.isFinite(config.stock) ? config.stock : 0;
   const endsAt = config.endsAt || '';
   const heroImage = config.heroImage || buildCloudAssetUrl('background', 'cover-20251126.jpg');
   const perks = Array.isArray(config.perks) ? config.perks : [];
@@ -197,7 +198,7 @@ Page({
     bargain: null,
     countdown: '',
     countdownTarget: 0,
-    stockRemaining: 15,
+    stockRemaining: 0,
     basePrice: 3500,
     currentPrice: 3500,
     totalDiscount: 0,
@@ -221,7 +222,9 @@ Page({
     perks: [],
     mapLocation: DEFAULT_LOCATION,
     shareContext: null,
-    memberId: ''
+    memberId: '',
+    processingPurchase: false,
+    ticketOwned: false
   },
 
   onLoad(options = {}) {
@@ -303,6 +306,11 @@ Page({
     const floorPrice = Number.isFinite(bargain.floorPrice) ? bargain.floorPrice : this.data.floorPrice;
     const floorReached =
       Boolean(session.floorReached) || (Number.isFinite(currentPrice) && Number.isFinite(floorPrice) && currentPrice <= floorPrice);
+    const stockRemaining = Number.isFinite(session.stockRemaining)
+      ? session.stockRemaining
+      : Number.isFinite(bargain.stock)
+        ? bargain.stock
+        : this.data.stockRemaining;
     return {
       currentPrice,
       totalDiscount: Number.isFinite(session.totalDiscount) ? session.totalDiscount : basePrice - currentPrice,
@@ -312,7 +320,9 @@ Page({
       memberRealm: session.memberRealm || '',
       realmReward,
       divineHandReady,
-      floorReached
+      floorReached,
+      stockRemaining,
+      ticketOwned: Boolean(session.ticketOwned || session.hasTicket || session.purchased)
     };
   },
 
@@ -328,12 +338,25 @@ Page({
     const shareContext = normalizeShareContext(
       typeof extras.shareContext === 'undefined' ? this.data.shareContext : extras.shareContext
     );
+    const ticketOwned =
+      typeof session.ticketOwned === 'boolean'
+        ? session.ticketOwned
+        : typeof extras.ticketOwned === 'boolean'
+          ? extras.ticketOwned
+          : this.data.ticketOwned;
+    const stockRemaining = Number.isFinite(session.stockRemaining)
+      ? session.stockRemaining
+      : Number.isFinite(extras.stockRemaining)
+        ? extras.stockRemaining
+        : Number.isFinite(bargain.stock)
+          ? bargain.stock
+          : this.data.stockRemaining;
 
     this.setData({
       loading: false,
       activity,
       bargain,
-      stockRemaining: bargain.stock,
+      stockRemaining,
       basePrice: bargain.startPrice,
       currentPrice: session.currentPrice,
       totalDiscount: session.totalDiscount,
@@ -353,7 +376,8 @@ Page({
       perks: bargain.perks,
       mapLocation,
       shareContext,
-      memberId: session.memberId || this.data.memberId
+      memberId: session.memberId || this.data.memberId,
+      ticketOwned
     });
     this.startCountdown();
   },
@@ -415,7 +439,7 @@ Page({
 
   async bootstrap() {
     this.setData({ loading: true, resultOverlay: null });
-    await this.ensureMemberProfile();
+    await Promise.all([this.ensureMemberProfile(), this.ensureTicketOwnershipFromRights()]);
     return this.fetchActivityStatus({ keepLoading: true });
   },
 
@@ -477,6 +501,23 @@ Page({
     });
   },
 
+  async ensureTicketOwnershipFromRights() {
+    try {
+      const rights = await MemberService.getRights();
+      const hasTicket = Array.isArray(rights)
+        ? rights.some((item) => (item.rightId || item.key || '').trim() === THANKSGIVING_RIGHT_ID)
+        : false;
+      if (hasTicket) {
+        this._rightSynced = true;
+        this.setData({ ticketOwned: true });
+      }
+      return rights;
+    } catch (error) {
+      console.error('[bhk-bargain] fetch rights failed', error);
+      return null;
+    }
+  },
+
   async fetchActivityStatus(options = {}) {
     const keepLoading = options && options.keepLoading;
     if (!keepLoading) {
@@ -487,7 +528,11 @@ Page({
       const activity = response && response.activity ? response.activity : null;
       const bargain = normalizeBargainConfig(response && response.bargainConfig);
       const session = this.normalizeSession(response && response.session, bargain);
-      this.applySession(session, bargain, activity, { shareContext: response && response.shareContext });
+      this.applySession(session, bargain, activity, {
+        shareContext: response && response.shareContext,
+        ticketOwned: this.data.ticketOwned,
+        stockRemaining: this.data.stockRemaining
+      });
     } catch (error) {
       console.error('[bhk-bargain] fetch activity failed', error);
       this.setData({
@@ -618,6 +663,10 @@ Page({
   },
 
   handlePurchase() {
+    if (this.data.ticketOwned) {
+      wx.showToast({ title: '已获得通行证，无需重复购票', icon: 'none' });
+      return;
+    }
     if (this.data.stockRemaining <= 0) {
       wx.showToast({ title: '已售罄，感谢关注', icon: 'none' });
       return;
@@ -638,11 +687,168 @@ Page({
     this.confirmPurchase();
   },
 
-  confirmPurchase() {
-    wx.showToast({
-      title: '已锁定席位，稍后进入支付流程',
-      icon: 'none'
-    });
+  async confirmPurchase() {
+    if (this.data.processingPurchase) {
+      return;
+    }
+
+    // 最新库存/购票状态兜底，避免售罄后仍发起支付
+    try {
+      const response = await ActivityService.bargainStatus(this.activityId, { shareId: this.shareId });
+      const activity = response && response.activity ? response.activity : this.data.activity;
+      const bargain = normalizeBargainConfig(response && response.bargainConfig);
+      const session = this.normalizeSession(response && response.session, bargain);
+      this.applySession(session, bargain, activity, {
+        shareContext: response && response.shareContext,
+        ticketOwned: this.data.ticketOwned,
+        stockRemaining: this.data.stockRemaining
+      });
+
+      if (session.ticketOwned) {
+        wx.showToast({ title: '已获得通行证，无需重复购票', icon: 'none' });
+        return;
+      }
+      if (session.stockRemaining <= 0) {
+        wx.showToast({ title: '席位已售罄，暂不可支付', icon: 'none' });
+        return;
+      }
+    } catch (error) {
+      console.warn('[bhk-bargain] preflight purchase check failed', error);
+    }
+
+    const amountYuan = Number(this.data.currentPrice);
+    if (!Number.isFinite(amountYuan) || amountYuan <= 0) {
+      wx.showToast({ title: '票价无效，暂无法支付', icon: 'none' });
+      return;
+    }
+
+    const amountInCents = Math.round(amountYuan * 100);
+    if (!Number.isFinite(amountInCents) || amountInCents <= 0) {
+      wx.showToast({ title: '票价异常，暂无法支付', icon: 'none' });
+      return;
+    }
+
+    this.setData({ processingPurchase: true });
+    wx.showLoading({ title: '创建订单', mask: true });
+    try {
+      const result = await WalletService.createRecharge(amountInCents);
+      wx.hideLoading();
+
+      if (result.payment && result.payment.paySign === 'MOCK_SIGN') {
+        wx.showModal({
+          title: '提示',
+          content: '当前为示例支付参数，请在云函数 wallet 中接入真实微信支付后再发起支付。',
+          showCancel: false
+        });
+        return;
+      }
+
+      const { transactionId } = result;
+      wx.requestPayment({
+        ...result.payment,
+        success: async () => {
+          try {
+            await WalletService.completeRecharge(transactionId);
+            wx.showToast({ title: '支付成功，席位已锁定', icon: 'success' });
+            await this.handlePostPaymentSuccess();
+          } catch (error) {
+            wx.showToast({ title: '支付状态更新失败', icon: 'none' });
+            await this.handlePostPaymentSuccess();
+          } finally {
+            this.fetchActivityStatus({ keepLoading: false });
+          }
+        },
+        fail: (error) => {
+          const errMsg = error && error.errMsg ? error.errMsg : '';
+          const isCancelled = errMsg.includes('cancel');
+          wx.showToast({ title: isCancelled ? '支付已取消' : '支付未完成', icon: 'none' });
+          (async () => {
+            if (!transactionId) {
+              return;
+            }
+            try {
+              await WalletService.failRecharge(transactionId, {
+                reason: isCancelled ? '用户取消支付' : errMsg || '支付未完成'
+              });
+            } catch (failureError) {
+              // ignore failRecharge errors in UI flow
+            }
+          })();
+        }
+      });
+    } catch (error) {
+      wx.hideLoading();
+      wx.showToast({ title: error.errMsg || '支付发起失败', icon: 'none' });
+    } finally {
+      this.setData({ processingPurchase: false });
+    }
+  },
+
+  async handlePostPaymentSuccess() {
+    let confirmSucceeded = false;
+    try {
+      const response = await ActivityService.bargainConfirmPurchase(this.activityId);
+      const activity = response && response.activity ? response.activity : this.data.activity;
+      const bargain = normalizeBargainConfig(response && response.bargainConfig);
+      const session = this.normalizeSession(response && response.session, bargain);
+      this.applySession(session, bargain, activity, {
+        shareContext: response && response.shareContext,
+        ticketOwned: true,
+        stockRemaining: session.stockRemaining
+      });
+      confirmSucceeded = true;
+    } catch (error) {
+      console.error('[bhk-bargain] confirm purchase failed', error);
+      const errMsg = (error && (error.errMsg || error.message)) || '';
+      const soldOut = errMsg.includes('售罄') || errMsg.includes('stock');
+      wx.showToast({ title: soldOut ? '席位已售罄，订单未扣减库存' : '购票状态同步失败', icon: 'none' });
+      if (!soldOut) {
+        this.setData({
+          ticketOwned: true,
+          stockRemaining: Math.max(0, Number.isFinite(this.data.stockRemaining) ? this.data.stockRemaining - 1 : 0)
+        });
+        confirmSucceeded = true;
+      }
+    }
+    if (confirmSucceeded) {
+      try {
+        await this.ensureThanksgivingRight();
+      } catch (error) {
+        console.error('[bhk-bargain] sync right failed', error);
+        wx.showToast({ title: '权益同步异常，请稍后在权益页查看', icon: 'none' });
+      }
+    }
+  },
+
+  async ensureThanksgivingRight() {
+    if (this._rightSynced || this._grantingRight) {
+      return null;
+    }
+    this._grantingRight = true;
+    try {
+      const result = await MemberService.grantRight({
+        rightId: THANKSGIVING_RIGHT_ID,
+        key: THANKSGIVING_RIGHT_ID,
+        title: '感恩节通行证',
+        name: '感恩节通行证',
+        description: 'BHK56 感恩节限量品鉴会门票，含活动简介与入场凭证。',
+        remarks: '支付成功后自动发放，凭此权益入场。',
+        status: 'active',
+        meta: {
+          source: 'bhk-bargain-thanksgiving',
+          activityId: this.activityId,
+          activityTitle: (this.data.activity && this.data.activity.title) || 'BHK56 感恩节限量品鉴会'
+        }
+      });
+      this._rightSynced = true;
+      return result;
+    } finally {
+      this._grantingRight = false;
+    }
+  },
+
+  navigateToRights() {
+    wx.navigateTo({ url: '/pages/rights/rights' });
   },
 
   handleShareToTimeline() {
