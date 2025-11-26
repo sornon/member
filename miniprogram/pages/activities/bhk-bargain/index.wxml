@@ -106,7 +106,7 @@
 
     <view class="bhk-card bhk-share">
       <view class="bhk-section-title">分享助力</view>
-      <view class="bhk-share__desc">接受助力次数不限，但助力他人只有1次，请斟酌使用，使用后双方各得1次砍价数。</view>
+      <view class="bhk-share__desc">“被助力”次数不限，但“助力他人”只有<text style="color: red;">1</text>次，请斟酌使用，使用后双方各得1次砍价数。</view>
       <view class="bhk-share__helpers" wx:if="{{shareContext && shareContext.helpers && shareContext.helpers.length}}">
         <view class="bhk-share__helper" wx:for="{{shareContext.helpers}}" wx:key="id">
           <view class="bhk-share__role">{{item.role || '助力者'}}</view>
