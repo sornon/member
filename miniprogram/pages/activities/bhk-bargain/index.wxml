@@ -9,7 +9,9 @@
     <view class="bhk-card bhk-state">活动情报加载中...</view>
   </block>
   <block wx:elif="{{!activity}}">
-    <view class="bhk-card bhk-state bhk-state--error">活动暂不可用，请稍后再试</view>
+    <view class="bhk-card bhk-state bhk-state--error">
+      {{singlePageMode ? '查看活动详情点击右下角，前往小程序' : '活动暂不可用，请稍后再试'}}
+    </view>
   </block>
   <block wx:else>
     <view class="bhk-banner">
@@ -148,8 +150,16 @@
       </view>
       <view class="bhk-share__actions">
         <button class="bhk-share__button" type="primary" open-type="share">分享给好友</button>
-        <button class="bhk-share__button" type="default" bindtap="handleShareToTimeline">晒到朋友圈</button>
+        <button
+          class="bhk-share__button"
+          type="default"
+          bindtap="handleShareToTimeline"
+          disabled="{{!shareTimelineSupported}}"
+        >
+          晒到朋友圈
+        </button>
       </view>
+      <view wx:if="{{shareTimelineMessage}}" class="bhk-share__hint">{{shareTimelineMessage}}</view>
     </view>
 
     <view class="bhk-card bhk-info">

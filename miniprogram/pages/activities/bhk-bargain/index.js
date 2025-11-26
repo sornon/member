@@ -199,6 +199,44 @@ function resolveMysteryLanding(displaySegments = []) {
   return index >= 0 ? index : displaySegments.length - 1;
 }
 
+function resolveTimelineCapability() {
+  const canShareTimeline =
+    (typeof wx.canIUse === 'function' && wx.canIUse('shareTimeline')) || typeof wx.shareTimeline === 'function';
+  if (!canShareTimeline) {
+    return { supported: false, message: '当前微信版本不支持朋友圈小程序卡片，请从右上角菜单分享' };
+  }
+
+  let envVersion = 'release';
+  if (typeof wx.getAccountInfoSync === 'function') {
+    try {
+      const accountInfo = wx.getAccountInfoSync();
+      envVersion = (accountInfo && accountInfo.miniProgram && accountInfo.miniProgram.envVersion) || 'release';
+    } catch (error) {
+      console.warn('[bhk-bargain] getAccountInfoSync failed', error);
+    }
+  }
+
+  if (envVersion !== 'release') {
+    return {
+      supported: true,
+      envVersion,
+      message: '朋友圈卡片只会拉起线上正式版，请发布正式版后在正式版内测试'
+    };
+  }
+
+  return { supported: true, envVersion };
+}
+
+function isCloudPermissionDenied(error) {
+  const code = typeof error === 'object' && error ? error.errCode : null;
+  const message = (error && (error.errMsg || error.message || '')) || '';
+  if (code === -501023) {
+    return true;
+  }
+  const normalized = message.toLowerCase();
+  return normalized.includes('permission denied') || normalized.includes('unauthenticated access');
+}
+
 Page({
   data: {
     loading: true,
@@ -235,7 +273,10 @@ Page({
     shareContext: null,
     memberId: '',
     processingPurchase: false,
-    ticketOwned: false
+    ticketOwned: false,
+    shareTimelineSupported: true,
+    shareTimelineMessage: '',
+    singlePageMode: false
   },
 
   onLoad(options = {}) {
@@ -247,6 +288,9 @@ Page({
     this.setData({ navHeight: resolveNavHeight() });
     this.shareId = typeof options.shareId === 'string' ? options.shareId.trim() : '';
     this.activityId = TARGET_ACTIVITY_ID;
+    this._singlePageMarked = false;
+    this.setupTimelineCapability();
+    this.enableTimelineShare();
     this.bootstrap();
   },
 
@@ -449,13 +493,32 @@ Page({
     return list[index] || list[0];
   },
 
+  markSinglePageMode(reason) {
+    if (this._singlePageMarked) {
+      return true;
+    }
+    this._singlePageMarked = true;
+    if (reason) {
+      console.warn('[bhk-bargain] enter single page fallback', reason);
+    }
+    this.setData({ loading: false, activity: null, bargain: null, singlePageMode: true });
+    return true;
+  },
+
   async bootstrap() {
     this.setData({ loading: true, resultOverlay: null });
+    if (this.isSinglePageMode()) {
+      this.markSinglePageMode('wx.cloud unavailable');
+      return;
+    }
     await Promise.all([this.ensureMemberProfile(), this.ensureTicketOwnershipFromRights()]);
     return this.fetchActivityStatus({ keepLoading: true });
   },
 
   async ensureMemberProfile() {
+    if (this._singlePageMarked) {
+      return null;
+    }
     if (this._ensureMemberPromise) {
       return this._ensureMemberPromise;
     }
@@ -484,6 +547,9 @@ Page({
       })
       .catch((error) => {
         console.error('[bhk-bargain] ensure member failed', error);
+        if (isCloudPermissionDenied(error)) {
+          this.markSinglePageMode('member profile permission denied');
+        }
         return null;
       })
       .finally(() => {
@@ -514,6 +580,9 @@ Page({
   },
 
   async ensureTicketOwnershipFromRights() {
+    if (this._singlePageMarked) {
+      return null;
+    }
     try {
       const rights = await MemberService.getRights();
       const hasTicket = Array.isArray(rights)
@@ -526,6 +595,9 @@ Page({
       return rights;
     } catch (error) {
       console.error('[bhk-bargain] fetch rights failed', error);
+      if (isCloudPermissionDenied(error)) {
+        this.markSinglePageMode('rights permission denied');
+      }
       return null;
     }
   },
@@ -534,6 +606,10 @@ Page({
     const keepLoading = options && options.keepLoading;
     if (!keepLoading) {
       this.setData({ loading: true, resultOverlay: null });
+    }
+    if (this._singlePageMarked) {
+      this.setData({ loading: false, activity: null, bargain: null, singlePageMode: true });
+      return null;
     }
     try {
       const response = await ActivityService.bargainStatus(this.activityId, { shareId: this.shareId });
@@ -547,11 +623,11 @@ Page({
       });
     } catch (error) {
       console.error('[bhk-bargain] fetch activity failed', error);
-      this.setData({
-        loading: false,
-        activity: null,
-        bargain: null
-      });
+      if (isCloudPermissionDenied(error)) {
+        this.markSinglePageMode('activity status permission denied');
+        return null;
+      }
+      this.setData({ loading: false, activity: null, bargain: null, singlePageMode: this.isSinglePageMode() || this.data.singlePageMode });
     }
   },
 
@@ -859,26 +935,66 @@ Page({
     }
   },
 
+  enableTimelineShare() {
+    const capability = this.timelineCapability;
+    if (!capability || !capability.supported) {
+      return;
+    }
+
+    if (wx.showShareMenu) {
+      wx.showShareMenu({
+        withShareTicket: true,
+        menus: ['shareAppMessage', 'shareTimeline']
+      });
+    }
+  },
+
+  setupTimelineCapability() {
+    const capability = resolveTimelineCapability();
+    this.timelineCapability = capability;
+    this.setData({
+      shareTimelineSupported: capability.supported,
+      shareTimelineMessage: capability.message || ''
+    });
+  },
+
   navigateToRights() {
     wx.navigateTo({ url: '/pages/rights/rights' });
   },
 
   handleShareToTimeline() {
-    const payload = this.onShareTimeline();
+    const capability = this.timelineCapability;
+    if (!capability || !capability.supported) {
+      wx.showToast({
+        title: capability?.message || '当前微信版本不支持朋友圈分享，请升级微信客户端',
+        icon: 'none'
+      });
+      return;
+    }
+
+    if (capability.envVersion && capability.envVersion !== 'release') {
+      wx.showModal({
+        title: '请在正式版内分享',
+        content: '朋友圈卡片只会拉起线上正式版。请先发布正式版并在正式版内测试分享效果。',
+        showCancel: false
+      });
+      return;
+    }
+
+    const payload = this.buildShareTimelinePayload();
     if (wx.shareTimeline && payload) {
       wx.shareTimeline(payload);
       return;
     }
     wx.showToast({
-      title: '请使用右上角菜单分享至朋友圈',
+      title: '微信客户端暂不支持，请升级后再试',
       icon: 'none'
     });
   },
 
   onShareAppMessage() {
     const title = (this.data.activity && this.data.activity.title) || 'BHK56 限量品鉴会砍价购票';
-    const shareId = this.data.memberId || (this.data.member && this.data.member._id) || '';
-    const query = shareId ? `id=${this.activityId}&shareId=${shareId}` : `id=${this.activityId}`;
+    const query = this.buildShareQuery();
     const path = `/pages/activities/bhk-bargain/index?${query}`;
     return {
       title,
@@ -888,13 +1004,33 @@ Page({
   },
 
   onShareTimeline() {
-    const title = (this.data.activity && this.data.activity.title) || 'BHK56 限量品鉴会砍价购票';
+    return this.buildShareTimelinePayload();
+  },
+
+  isSinglePageMode() {
+    try {
+      if (!wx.cloud || typeof wx.cloud.callFunction !== 'function') {
+        return true;
+      }
+    } catch (error) {
+      console.warn('[bhk-bargain] single page detection failed', error);
+      return false;
+    }
+    return false;
+  },
+
+  buildShareQuery() {
     const shareId = this.data.memberId || (this.data.member && this.data.member._id) || '';
-    const query = shareId ? `id=${this.activityId}&shareId=${shareId}` : `id=${this.activityId}`;
-    return {
-      title,
-      query,
-      imageUrl: this.data.heroImage
-    };
+    return shareId ? `id=${this.activityId}&shareId=${shareId}` : `id=${this.activityId}`;
+  },
+
+  buildShareTimelinePayload() {
+    const title = (this.data.activity && this.data.activity.title) || 'BHK56 限量品鉴会砍价购票';
+    const query = this.buildShareQuery();
+    const payload = { title, query };
+    if (this.data.heroImage) {
+      payload.imageUrl = this.data.heroImage;
+    }
+    return payload;
   }
 });
