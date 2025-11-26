@@ -197,10 +197,11 @@ function buildBhkBargainConfig() {
     heroImage: buildCloudAssetUrl('background', 'cover-20251126.jpg'),
     mysteryLabel: '???',
     perks: [
-      '拼手气，惊爆价，随时到店品尝',
-      '无限次好友助力直击底价',
-      '炼气4次，筑基7次，结丹及以上有神之一手',
-      '本次门票消费也会提升修为',
+      '炼气期：+4',
+      '筑基期：+7',
+      '结丹及以上：送神之一手',
+      '分享助力：双方+1',
+      '设置名字、头像：+1',
     ]
   };
 }
