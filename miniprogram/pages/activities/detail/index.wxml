@@ -21,10 +21,10 @@
               mode="widthFix"
             ></image>
             <view class="activity-detail__immersive-hero-content">
-              <view class="activity-detail__immersive-meta">{{specialActivity.time}}</view>
-              <view class="activity-detail__immersive-meta">入场形式：{{specialActivity.entry}}</view>
-              <view class="activity-detail__immersive-meta">服装要求：{{specialActivity.dressCode}}</view>
-              <view class="activity-detail__immersive-highlight">活动特色：{{specialActivity.feature}}</view>
+              <view wx:if="{{specialActivity.time}}" class="activity-detail__immersive-meta">{{specialActivity.time}}</view>
+              <view wx:if="{{specialActivity.entry}}" class="activity-detail__immersive-meta">入场形式：{{specialActivity.entry}}</view>
+              <view wx:if="{{specialActivity.dressCode}}" class="activity-detail__immersive-meta">服装要求：{{specialActivity.dressCode}}</view>
+              <view wx:if="{{specialActivity.feature}}" class="activity-detail__immersive-highlight">活动特色：{{specialActivity.feature}}</view>
             </view>
           </view>
           <view class="activity-detail__immersive-content">

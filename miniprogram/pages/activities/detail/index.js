@@ -18,6 +18,16 @@ const HALLOWEEN_EVENT_TITLE_KEYWORDS = ['酒隐之茄——万圣节私人派对
 const HALLOWEEN_BACKGROUND_IMAGE = buildCloudAssetUrl('background', 'activity-29251031-2.jpg');
 const HALLOWEEN_SHARE_COVER_IMAGE = buildCloudAssetUrl('background', 'cover-20251031.jpg');
 
+const THANKSGIVING_EVENT_IDS = new Set(
+  [
+    'activity_202511_thanksgiving',
+    'activity_20251127_thanksgiving',
+    'activity_20251127_thanksgiving_private'
+  ].map((id) => id.toLowerCase())
+);
+const THANKSGIVING_EVENT_TITLE_KEYWORDS = ['感恩节', 'Thanksgiving'];
+const THANKSGIVING_BACKGROUND_IMAGE = buildCloudAssetUrl('background', 'activity-20251127.jpg');
+
 const HALLOWEEN_CUSTOM_CONTENT = {
   title: '酒隐之茄——万圣节私人派对',
   time: '时间：2025年10月31日19:00通宵。',
@@ -67,6 +77,47 @@ function resolveHalloweenCustomContent(activity) {
   };
 }
 
+function matchesThanksgivingActivity(activity = {}) {
+  const id = typeof activity.id === 'string' ? activity.id.trim().toLowerCase() : '';
+  const title = typeof activity.title === 'string' ? activity.title.trim() : '';
+  const matchesId = !!id && (THANKSGIVING_EVENT_IDS.has(id) || (id.includes('thanksgiving') && id.includes('activity')));
+  const matchesTitle = title && THANKSGIVING_EVENT_TITLE_KEYWORDS.some((keyword) => title.includes(keyword));
+  return matchesId || matchesTitle;
+}
+
+function resolveThanksgivingCustomContent(activity) {
+  if (!activity) {
+    return null;
+  }
+  if (!matchesThanksgivingActivity(activity)) {
+    return null;
+  }
+
+  const specialActivity = {
+    backgroundImage: THANKSGIVING_BACKGROUND_IMAGE,
+    tickets: []
+  };
+
+  if (activity.timeRangeLabel) {
+    specialActivity.time = `时间：${activity.timeRangeLabel}`;
+  }
+  if (activity.location) {
+    specialActivity.entry = `地点：${activity.location}`;
+  }
+  if (activity.priceLabel) {
+    specialActivity.dressCode = `方案：${activity.priceLabel}`;
+  }
+  if (activity.highlight || activity.summary) {
+    specialActivity.feature = activity.highlight || activity.summary;
+  }
+
+  return specialActivity;
+}
+
+function resolveSpecialActivity(activity) {
+  return resolveHalloweenCustomContent(activity) || resolveThanksgivingCustomContent(activity) || null;
+}
+
 function buildShareImage(activity) {
   if (matchesHalloweenActivity(activity)) {
     return HALLOWEEN_SHARE_COVER_IMAGE;
@@ -103,6 +154,10 @@ function buildShareTitle(activity) {
   return '精彩活动';
 }
 
+function matchesImmersiveActivity(activity) {
+  return matchesHalloweenActivity(activity) || matchesThanksgivingActivity(activity);
+}
+
 function buildSharePath(id) {
   const activityId = typeof id === 'string' ? id.trim() : '';
   return `/pages/activities/detail/index?id=${activityId}`;
@@ -122,7 +177,7 @@ Page({
     const id = typeof options.id === 'string' ? options.id.trim() : '';
     this.activityId = id;
 
-    const immersiveMode = matchesHalloweenActivity({ id });
+    const immersiveMode = matchesImmersiveActivity({ id });
     this.setData({ immersiveMode });
     if (immersiveMode) {
       this.ensureNavMetrics();
@@ -169,7 +224,7 @@ Page({
       if (!activity) {
         throw new Error('活动不存在或已下架');
       }
-      const specialActivity = resolveHalloweenCustomContent(activity);
+      const specialActivity = resolveSpecialActivity(activity);
       const immersiveMode = !!specialActivity;
       if (immersiveMode) {
         this.ensureNavMetrics();
