@@ -11,6 +11,7 @@ const BHK_BARGAIN_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
 const BHK_BARGAIN_COLLECTION = 'bhkBargainRecords';
 const BHK_BARGAIN_STOCK_COLLECTION = 'bhkBargainStock';
 const THANKSGIVING_RIGHT_ID = 'thanksgiving-pass';
+const THANKSGIVING_TICKET_REMARK = '感恩节活动门票';
 const DEFAULT_AVATAR = buildCloudAssetUrl('avatar', 'default.png');
 const ENCOURAGEMENTS = [
   '好友助力价格还能更低，赶紧喊上小伙伴！',
@@ -500,6 +501,36 @@ function buildMemberProfile(member = {}, openid = '') {
   };
 }
 
+function resolveCashBalance(member = {}) {
+  if (!member || typeof member !== 'object') {
+    return 0;
+  }
+  if (typeof member.cashBalance === 'number' && Number.isFinite(member.cashBalance)) {
+    return member.cashBalance;
+  }
+  if (typeof member.balance === 'number' && Number.isFinite(member.balance)) {
+    return member.balance;
+  }
+  return 0;
+}
+
+function buildMemberSnapshot(member = {}) {
+  if (!member || typeof member !== 'object') {
+    return {
+      nickName: '',
+      realName: '',
+      mobile: '',
+      levelId: ''
+    };
+  }
+  return {
+    nickName: typeof member.nickName === 'string' ? member.nickName : '',
+    realName: typeof member.realName === 'string' ? member.realName : '',
+    mobile: typeof member.mobile === 'string' ? member.mobile : '',
+    levelId: typeof member.levelId === 'string' ? member.levelId : ''
+  };
+}
+
 async function resolveMemberBoost(config = {}, openid = '') {
   let memberBoost = 0;
   let realmName = '';
@@ -617,10 +648,151 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
     lastShareTarget: typeof record.lastShareTarget === 'string' ? record.lastShareTarget : '',
     ticketOwned: Boolean(record.ticketOwned || record.hasTicket || record.purchased),
     purchasedAt: record.purchasedAt || null,
-    stockRemaining: Number.isFinite(record.stockRemaining) ? record.stockRemaining : config.stock
+    stockRemaining: Number.isFinite(record.stockRemaining) ? record.stockRemaining : config.stock,
+    chargeOrderId: typeof record.thanksgivingChargeOrderId === 'string'
+      ? record.thanksgivingChargeOrderId
+      : typeof record.chargeOrderId === 'string'
+      ? record.chargeOrderId
+      : '',
+    chargeOrderAmount: Number.isFinite(record.chargeOrderAmount) ? record.chargeOrderAmount : 0,
+    chargeOrderCreatedAt: record.chargeOrderCreatedAt || null
   };
 
   return { ...normalized, ...overrides };
+}
+
+async function ensureThanksgivingChargeOrder(openid, sessionDocId, amountInCents = 0) {
+  const normalizedAmount = Math.max(0, Math.round(Number(amountInCents || 0)));
+  if (!openid || !sessionDocId || !normalizedAmount) {
+    return null;
+  }
+
+  const now = new Date();
+  let chargeOrderId = '';
+
+  await db.runTransaction(async (transaction) => {
+    const sessionRef = transaction.collection(BHK_BARGAIN_COLLECTION).doc(sessionDocId);
+    const sessionSnapshot = await sessionRef.get().catch(() => null);
+    if (!sessionSnapshot || !sessionSnapshot.data) {
+      throw new Error('购票信息不存在');
+    }
+
+    const sessionData = sessionSnapshot.data;
+    const existingOrderId =
+      (typeof sessionData.thanksgivingChargeOrderId === 'string' && sessionData.thanksgivingChargeOrderId) ||
+      (typeof sessionData.chargeOrderId === 'string' && sessionData.chargeOrderId) ||
+      '';
+
+    if (existingOrderId) {
+      chargeOrderId = existingOrderId;
+      return;
+    }
+
+    const memberRef = transaction.collection(COLLECTIONS.MEMBERS).doc(openid);
+    const memberDoc = await memberRef.get().catch(() => null);
+    if (!memberDoc || !memberDoc.data) {
+      throw new Error('会员不存在');
+    }
+
+    const member = memberDoc.data;
+    const memberSnapshot = buildMemberSnapshot(member);
+    const balanceBefore = resolveCashBalance(member);
+    const balanceAfter = balanceBefore - normalizedAmount;
+    const debtIncurred = balanceAfter < 0;
+    const walletRemark = THANKSGIVING_TICKET_REMARK;
+
+    const orderPayload = {
+      status: 'paid',
+      items: [
+        {
+          name: THANKSGIVING_TICKET_REMARK,
+          price: normalizedAmount,
+          quantity: 1,
+          amount: normalizedAmount,
+          isDining: false
+        }
+      ],
+      totalAmount: normalizedAmount,
+      stoneReward: normalizedAmount,
+      diningAmount: 0,
+      createdBy: openid,
+      createdAt: now,
+      updatedAt: now,
+      confirmedAt: now,
+      memberId: openid,
+      memberSnapshot,
+      activityId: BHK_BARGAIN_ACTIVITY_ID,
+      source: 'bhk-bargain-thanksgiving',
+      remark: walletRemark,
+      balanceBefore,
+      balanceAfter,
+      allowNegativeBalance: debtIncurred,
+      debtIncurred
+    };
+
+    const orderResult = await transaction.collection(COLLECTIONS.CHARGE_ORDERS).add({ data: orderPayload });
+    chargeOrderId = (orderResult && orderResult._id) || '';
+
+    if (!chargeOrderId) {
+      throw new Error('订单写入失败，请稍后重试');
+    }
+
+    await memberRef.update({
+      data: {
+        cashBalance: _.inc(-normalizedAmount),
+        totalSpend: _.inc(normalizedAmount),
+        stoneBalance: _.inc(normalizedAmount),
+        updatedAt: now
+      }
+    });
+
+    await transaction.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
+      data: {
+        memberId: openid,
+        amount: -normalizedAmount,
+        type: 'spend',
+        status: 'success',
+        source: 'chargeOrder',
+        orderId: chargeOrderId,
+        remark: walletRemark,
+        createdAt: now,
+        updatedAt: now,
+        balanceBefore,
+        balanceAfter,
+        allowNegativeBalance: debtIncurred,
+        debtIncurred,
+        spendExperienceFixed: true,
+        spendExperienceFixedAt: now,
+        spendExperienceFixedBy: openid
+      }
+    });
+
+    await transaction.collection(COLLECTIONS.STONE_TRANSACTIONS).add({
+      data: {
+        memberId: openid,
+        amount: normalizedAmount,
+        type: 'earn',
+        source: 'chargeOrder',
+        description: walletRemark,
+        createdAt: now,
+        meta: {
+          orderId: chargeOrderId,
+          activityId: BHK_BARGAIN_ACTIVITY_ID
+        }
+      }
+    });
+
+    await sessionRef.update({
+      data: {
+        thanksgivingChargeOrderId: chargeOrderId,
+        chargeOrderId,
+        chargeOrderAmount: normalizedAmount,
+        chargeOrderCreatedAt: now
+      }
+    });
+  });
+
+  return { orderId: chargeOrderId };
 }
 
 function applyRealmBoostUpgrade(record = {}, memberBoost = 0, realmBonus = 0, divineHandRemaining = 0) {
@@ -1211,6 +1383,12 @@ async function confirmBhkBargainPurchase() {
       { memberBoost, memberRealm: realmName },
       openid
     );
+
+  const normalizedChargeAmount =
+    Math.max(0, Math.round(Number(normalizedSession.currentPrice || 0) * 100)) ||
+    Math.max(0, Math.round(Number(config.floorPrice || 0) * 100));
+
+  await ensureThanksgivingChargeOrder(openid, sessionDocId, normalizedChargeAmount);
 
   const shareId = normalizedSession.lastShareTarget || '';
   const shareContext = shareId
