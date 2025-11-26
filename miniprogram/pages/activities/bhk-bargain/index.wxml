@@ -7,7 +7,8 @@
     <view class="bhk-card bhk-state bhk-state--error">活动暂不可用，请稍后再试</view>
   </block>
   <block wx:else>
-    <view class="bhk-banner" style="background-image: url({{heroImage}});">
+    <view class="bhk-banner">
+      <image class="bhk-banner__image" src="{{heroImage}}" mode="widthFix"></image>
       <view class="bhk-banner__mask"></view>
       <view class="bhk-banner__content">
         <view wx:if="{{ticketOwned}}" class="bhk-banner__badge">已获得通行证</view>
