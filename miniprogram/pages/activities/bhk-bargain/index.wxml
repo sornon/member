@@ -1,4 +1,4 @@
-<custom-nav title="感恩节 · BHK56 限量品鉴" theme="transparent"></custom-nav>
+<custom-nav title="" theme="transparent"></custom-nav>
 <view class="bhk-hero" style="margin-top: -{{navHeight}}px;">
   <image class="bhk-hero__image" src="{{heroImage}}" mode="aspectFill"></image>
   <view class="bhk-hero__mask"></view>
