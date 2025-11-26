@@ -1544,6 +1544,7 @@ Page({
   onLoad() {
     this.startupVideoDismissed = !STARTUP_OVERLAY_ENABLED;
     this.startupVideoFadeTimeout = null;
+    this.startupOverlayAutoFadeTimer = null;
     this.startupVideoActivationTimer = null;
     this.startupVideoContext = null;
     this.startupVideoRevealPending = false;
@@ -1645,6 +1646,7 @@ Page({
     if (STARTUP_VIDEO_ENABLED) {
       this.activateStartupVideo();
     }
+    this.scheduleStartupOverlayAutoFade();
   },
 
   onReady() {
@@ -1656,6 +1658,7 @@ Page({
   onHide() {
     this.detachMemberRealtime();
     this.clearStartupVideoFadeTimer();
+    this.clearStartupOverlayAutoFadeTimer();
     this.clearStartupVideoActivationTimer();
     this.stopStartupVideo();
     try {
@@ -1671,6 +1674,7 @@ Page({
   onUnload() {
     this.detachMemberRealtime();
     this.clearStartupVideoFadeTimer();
+    this.clearStartupOverlayAutoFadeTimer();
     this.clearStartupVideoActivationTimer();
     this.stopStartupVideo();
   },
@@ -1706,6 +1710,13 @@ Page({
     if (this.startupVideoFadeTimeout) {
       clearTimeout(this.startupVideoFadeTimeout);
       this.startupVideoFadeTimeout = null;
+    }
+  },
+
+  clearStartupOverlayAutoFadeTimer() {
+    if (this.startupOverlayAutoFadeTimer) {
+      clearTimeout(this.startupOverlayAutoFadeTimer);
+      this.startupOverlayAutoFadeTimer = null;
     }
   },
 
@@ -1800,6 +1811,7 @@ Page({
       }
       return;
     }
+    this.clearStartupOverlayAutoFadeTimer();
     if (this.startupVideoDismissed) {
       if (this.homeReady && this.data.loading) {
         this.setData({ loading: false });
@@ -1849,6 +1861,19 @@ Page({
     }, STARTUP_VIDEO_FADE_DURATION_MS);
   },
 
+  scheduleStartupOverlayAutoFade() {
+    if (!STARTUP_OVERLAY_ENABLED || this.startupVideoDismissed) {
+      return;
+    }
+    if (this.startupOverlayAutoFadeTimer) {
+      return;
+    }
+    this.startupOverlayAutoFadeTimer = setTimeout(() => {
+      this.startupOverlayAutoFadeTimer = null;
+      this.triggerStartupVideoFade();
+    }, STARTUP_VIDEO_FADE_OUT_AT_SECONDS * 1000);
+  },
+
   revealStartupVideo() {
     if (!STARTUP_VIDEO_ENABLED) {
       return;
@@ -1881,7 +1906,9 @@ Page({
       if (STARTUP_VIDEO_ENABLED && this.startupVideoRevealPending) {
         this.revealStartupVideo();
       }
-      this.triggerStartupVideoFade();
+      if (this.startupOverlayFadePending) {
+        this.triggerStartupVideoFade();
+      }
       return;
     }
     this.setData({ loading: false });
