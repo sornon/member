@@ -198,11 +198,12 @@ function buildBhkBargainConfig() {
     heroImage: buildCloudAssetUrl('background', 'cover-20251126.jpg'),
     mysteryLabel: '???',
     perks: [
-        '炼气期：4次砍价',
-        '筑基期：7次砍价',
-        '结丹及以上：7次砍价+神之一手',
+        '基础砍价：3次',
+        '炼气期：+1次砍价',
+        '筑基期：+3次砍价',
+        '结丹及以上：神之一手',
         '分享助力：双方+1次砍价',
-        '设置名字、头像：+1次砍价',
+        '设置名字、头像：+1次砍价'
     ]
   };
 }
