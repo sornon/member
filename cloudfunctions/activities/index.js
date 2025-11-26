@@ -682,7 +682,7 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
       ? record.chargeOrderId
       : '',
     chargeOrderAmount: Number.isFinite(record.chargeOrderAmount) ? record.chargeOrderAmount : 0,
-    chargeOrderCreatedAt: record.chargeOrderCreatedAt || null
+    chargeOrderCreatedAt: record.chargeOrderCreatedAt || null,
     thanksgivingProfileRewarded: Boolean(record.thanksgivingProfileRewarded)
   };
 
