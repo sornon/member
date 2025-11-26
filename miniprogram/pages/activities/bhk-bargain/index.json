@@ -1,4 +1,6 @@
 {
+  "enableShareAppMessage": true,
+  "enableShareTimeline": true,
   "navigationBarTitleText": "BHK56 限量品鉴会",
   "navigationStyle": "custom",
   "usingComponents": {
