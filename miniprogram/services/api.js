@@ -204,6 +204,15 @@ export const MemberService = {
       levelId
     });
   },
+  async grantRight(entry = {}) {
+    return callCloud(
+      CLOUD_FUNCTIONS.MEMBER,
+      attachClientEnv({
+        action: 'grantRight',
+        entry
+      })
+    );
+  },
   async getRights() {
     return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'rights' });
   },
@@ -928,6 +937,12 @@ export const ActivityService = {
       payload.shareId = options.shareId;
     }
     return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, payload);
+  },
+  async bargainConfirmPurchase(id) {
+    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
+      action: 'bargainConfirmPurchase',
+      id
+    });
   }
 };
 
