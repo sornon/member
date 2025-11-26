@@ -1,3 +1,12 @@
+.bhk-hero {
+  width: 100%;
+}
+
+.bhk-hero__image {
+  width: 100%;
+  display: block;
+}
+
 .bhk-page {
   display: flex;
   flex-direction: column;
@@ -32,9 +41,12 @@
   position: relative;
   border-radius: 28rpx;
   overflow: hidden;
-  background-size: cover;
-  background-position: center;
   border: 1rpx solid rgba(255, 222, 180, 0.35);
+}
+
+.bhk-banner__image {
+  width: 100%;
+  display: block;
 }
 
 .bhk-banner__mask {
@@ -44,8 +56,9 @@
 }
 
 .bhk-banner__content {
-  position: relative;
-  padding: 32rpx;
+  position: absolute;
+  inset: 0;
+  padding: 96rpx 32rpx 32rpx;
   display: flex;
   flex-direction: column;
   gap: 12rpx;

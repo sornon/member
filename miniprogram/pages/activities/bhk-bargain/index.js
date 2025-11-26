@@ -35,7 +35,7 @@ function normalizeBargainConfig(config = {}) {
   const assistAttemptCap = Number.isFinite(config.assistAttemptCap) ? config.assistAttemptCap : 6;
   const stock = Number.isFinite(config.stock) ? config.stock : 0;
   const endsAt = config.endsAt || '';
-  const heroImage = config.heroImage || buildCloudAssetUrl('background', 'cover-20251126.jpg');
+  const heroImage = config.heroImage || buildCloudAssetUrl('background', 'activity-20251127.jpg');
   const perks = Array.isArray(config.perks) ? config.perks : [];
   const vipBonuses = Array.isArray(config.vipBonuses) ? config.vipBonuses : [];
   const displaySegments = Array.isArray(config.displaySegments) ? config.displaySegments : [];
@@ -218,7 +218,7 @@ Page({
     floorPrice: 998,
     activeSegmentIndex: -1,
     showRules: false,
-    heroImage: '',
+    heroImage: buildCloudAssetUrl('background', 'activity-20251127.jpg'),
     perks: [],
     mapLocation: DEFAULT_LOCATION,
     shareContext: null,
