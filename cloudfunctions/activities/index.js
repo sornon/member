@@ -214,7 +214,6 @@ async function ensureBargainStockDoc(config = {}) {
 
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
   const doc = {
-    _id: BHK_BARGAIN_ACTIVITY_ID,
     totalStock: config.stock,
     stockRemaining: config.stock,
     sold: 0,
@@ -1115,7 +1114,7 @@ async function confirmBhkBargainPurchase() {
     const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
     const preparedStock = existingStockDoc
       ? existingStockDoc
-      : { _id: BHK_BARGAIN_ACTIVITY_ID, totalStock: config.stock, stockRemaining: config.stock, sold: 0, updatedAt: now };
+      : { totalStock: config.stock, stockRemaining: config.stock, sold: 0, updatedAt: now };
 
     if (preparedStock && !existingStockDoc) {
       await stockRef.set({ data: preparedStock });
