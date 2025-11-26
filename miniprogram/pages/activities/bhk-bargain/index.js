@@ -26,7 +26,7 @@ const REALM_REWARD_RULES = [
   { keyword: '结丹', bonus: 4, label: '结丹奖励' }
 ];
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
-const DEFAULT_HERO_IMAGE = buildCloudAssetUrl('background', 'activity-20251127.jpg');
+const DEFAULT_HERO_IMAGE = buildCloudAssetUrl('background', 'activity-20251127-2.jpg');
 
 function resolveNavHeight() {
   const app = getApp();
