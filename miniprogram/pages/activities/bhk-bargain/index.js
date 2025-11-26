@@ -1,4 +1,4 @@
-import { ActivityService, MemberService } from '../../../services/api';
+import { ActivityService, MemberService, WalletService } from '../../../services/api';
 import { AVATAR_IMAGE_BASE_PATH, buildCloudAssetUrl } from '../../../shared/asset-paths';
 import { buildTitleImageUrl, normalizeTitleId } from '../../../shared/titles';
 
@@ -221,7 +221,8 @@ Page({
     perks: [],
     mapLocation: DEFAULT_LOCATION,
     shareContext: null,
-    memberId: ''
+    memberId: '',
+    processingPurchase: false
   },
 
   onLoad(options = {}) {
@@ -638,11 +639,75 @@ Page({
     this.confirmPurchase();
   },
 
-  confirmPurchase() {
-    wx.showToast({
-      title: '已锁定席位，稍后进入支付流程',
-      icon: 'none'
-    });
+  async confirmPurchase() {
+    if (this.data.processingPurchase) {
+      return;
+    }
+
+    const amountYuan = Number(this.data.currentPrice);
+    if (!Number.isFinite(amountYuan) || amountYuan <= 0) {
+      wx.showToast({ title: '票价无效，暂无法支付', icon: 'none' });
+      return;
+    }
+
+    const amountInCents = Math.round(amountYuan * 100);
+    if (!Number.isFinite(amountInCents) || amountInCents <= 0) {
+      wx.showToast({ title: '票价异常，暂无法支付', icon: 'none' });
+      return;
+    }
+
+    this.setData({ processingPurchase: true });
+    wx.showLoading({ title: '创建订单', mask: true });
+    try {
+      const result = await WalletService.createRecharge(amountInCents);
+      wx.hideLoading();
+
+      if (result.payment && result.payment.paySign === 'MOCK_SIGN') {
+        wx.showModal({
+          title: '提示',
+          content: '当前为示例支付参数，请在云函数 wallet 中接入真实微信支付后再发起支付。',
+          showCancel: false
+        });
+        return;
+      }
+
+      const { transactionId } = result;
+      wx.requestPayment({
+        ...result.payment,
+        success: async () => {
+          try {
+            await WalletService.completeRecharge(transactionId);
+            wx.showToast({ title: '支付成功，席位已锁定', icon: 'success' });
+          } catch (error) {
+            wx.showToast({ title: '支付状态更新失败', icon: 'none' });
+          } finally {
+            this.fetchActivityStatus({ keepLoading: false });
+          }
+        },
+        fail: (error) => {
+          const errMsg = error && error.errMsg ? error.errMsg : '';
+          const isCancelled = errMsg.includes('cancel');
+          wx.showToast({ title: isCancelled ? '支付已取消' : '支付未完成', icon: 'none' });
+          (async () => {
+            if (!transactionId) {
+              return;
+            }
+            try {
+              await WalletService.failRecharge(transactionId, {
+                reason: isCancelled ? '用户取消支付' : errMsg || '支付未完成'
+              });
+            } catch (failureError) {
+              // ignore failRecharge errors in UI flow
+            }
+          })();
+        }
+      });
+    } catch (error) {
+      wx.hideLoading();
+      wx.showToast({ title: error.errMsg || '支付发起失败', icon: 'none' });
+    } finally {
+      this.setData({ processingPurchase: false });
+    }
   },
 
   handleShareToTimeline() {
