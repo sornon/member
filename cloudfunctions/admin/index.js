@@ -423,6 +423,7 @@ const ACTIONS = {
   UPDATE_GLOBAL_BACKGROUND_CATALOG: 'updateGlobalBackgroundCatalog',
   UPDATE_EQUIPMENT_ENHANCEMENT: 'updateEquipmentEnhancement',
   LIST_MEMBER_RIGHTS: 'listMemberRights',
+  UPDATE_MEMBER_RIGHT_STATUS: 'updateMemberRightStatus',
   REMOVE_MEMBER_RIGHT: 'removeMemberRight',
   BUMP_CACHE_VERSION: 'bumpCacheVersion',
   RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament',
@@ -536,6 +537,7 @@ const ACTION_ALIASES = {
   globalbackground: ACTIONS.UPDATE_GLOBAL_BACKGROUND,
   listmemberrights: ACTIONS.LIST_MEMBER_RIGHTS,
   memberrights: ACTIONS.LIST_MEMBER_RIGHTS,
+  updatememberrightstatus: ACTIONS.UPDATE_MEMBER_RIGHT_STATUS,
   removememberright: ACTIONS.REMOVE_MEMBER_RIGHT,
   bumpcacheversion: ACTIONS.BUMP_CACHE_VERSION,
   refreshcache: ACTIONS.BUMP_CACHE_VERSION,
@@ -879,6 +881,8 @@ const ACTION_HANDLERS = {
     updateEquipmentAttributes(openid, event.memberId, event.itemId, event.attributes || {}, event),
   [ACTIONS.LIST_MEMBER_RIGHTS]: (openid, event) =>
     listMemberRights(openid, { memberId: event.memberId || event.targetId || '' }),
+  [ACTIONS.UPDATE_MEMBER_RIGHT_STATUS]: (openid, event) =>
+    updateMemberRightStatus(openid, event.memberId, event.rightEntryId || event.rightId || '', event.status),
   [ACTIONS.REMOVE_MEMBER_RIGHT]: (openid, event) =>
     removeMemberRight(openid, event.memberId, event.rightEntryId || event.rightId || ''),
   [ACTIONS.LIST_TRADE_ORDERS]: (openid, event) =>
@@ -2819,6 +2823,49 @@ async function removeMemberRight(openid, memberId, rightEntryId) {
   await collection.doc(normalizedRightId).remove();
 
   return { removedId: normalizedRightId };
+}
+
+async function updateMemberRightStatus(openid, memberId, rightEntryId, status) {
+  await ensureAdmin(openid);
+  const targetId = normalizeMemberIdValue(memberId);
+  const normalizedRightId = typeof rightEntryId === 'string' ? rightEntryId.trim() : '';
+  const normalizedStatus = typeof status === 'string' ? status.trim() : '';
+
+  if (!targetId) {
+    throw new Error('缺少会员编号');
+  }
+
+  if (!normalizedRightId) {
+    throw new Error('缺少权益编号');
+  }
+
+  if (!normalizedStatus || !RIGHT_STATUS_LABELS[normalizedStatus]) {
+    throw new Error('无效的权益状态');
+  }
+
+  const collection = db.collection(COLLECTIONS.MEMBER_RIGHTS);
+  const snapshot = await collection
+    .doc(normalizedRightId)
+    .get()
+    .catch(() => null);
+
+  if (!snapshot || !snapshot.data) {
+    throw new Error('权益不存在');
+  }
+
+  if (normalizeMemberIdValue(snapshot.data.memberId) !== targetId) {
+    throw new Error('权益不属于该会员');
+  }
+
+  await collection.doc(normalizedRightId).update({ data: { status: normalizedStatus } });
+
+  const masterMap = await loadMembershipRightsMap();
+  const entry = buildMemberRightEntry(
+    { ...snapshot.data, _id: normalizedRightId, status: normalizedStatus },
+    masterMap
+  );
+
+  return { right: entry };
 }
 
 async function loadMembershipRightsMap() {

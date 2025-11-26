@@ -1548,6 +1548,39 @@ page {
   font-size: 24rpx;
 }
 
+.rights-item__status-control {
+  margin: 12rpx 0 8rpx;
+  padding: 12rpx 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.rights-item__status-label {
+  color: #cbd5e1;
+  font-size: 24rpx;
+}
+
+.rights-item__status-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14rpx 16rpx;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 12rpx;
+}
+
+.rights-item__status-picker-value {
+  color: #e2e8f0;
+  font-size: 26rpx;
+}
+
+.rights-item__status-picker-hint {
+  color: #94a3b8;
+  font-size: 22rpx;
+}
+
 .rights-item__actions {
   display: flex;
   justify-content: flex-end;

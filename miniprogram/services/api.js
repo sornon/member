@@ -1043,6 +1043,14 @@ export const AdminService = {
       memberId
     });
   },
+  async updateMemberRightStatus(memberId, rightEntryId, status) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, {
+      action: 'updateMemberRightStatus',
+      memberId,
+      rightEntryId,
+      status
+    });
+  },
   async removeMemberRight(memberId, rightEntryId) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'removeMemberRight',

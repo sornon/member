@@ -268,6 +268,26 @@
           <text wx:if="{{item.issuedAtText}}">发放：{{item.issuedAtText}}</text>
           <text wx:if="{{item.usageSummary}}">{{item.usageSummary}}</text>
         </view>
+        <view class="rights-item__status-control">
+          <view class="rights-item__status-label">调整状态</view>
+          <picker
+            mode="selector"
+            range="{{rightStatusOptions}}"
+            range-key="label"
+            value="{{item.statusIndex || 0}}"
+            data-right-id="{{item._id}}"
+            data-status="{{item.status}}"
+            disabled="{{!!(updatingRightStatusId && updatingRightStatusId !== item._id)}}"
+            bindchange="handleMemberRightStatusChange"
+          >
+            <view class="rights-item__status-picker">
+              <text class="rights-item__status-picker-value">{{item.statusLabel}}</text>
+              <text class="rights-item__status-picker-hint">
+                {{updatingRightStatusId === item._id ? '保存中…' : '修改后自动保存'}}
+              </text>
+            </view>
+          </picker>
+        </view>
         <view class="rights-item__actions">
           <button
             class="rights-item__remove"
