@@ -9,7 +9,9 @@
     <view class="bhk-card bhk-state">活动情报加载中...</view>
   </block>
   <block wx:elif="{{!activity}}">
-    <view class="bhk-card bhk-state bhk-state--error">活动暂不可用，请稍后再试</view>
+    <view class="bhk-card bhk-state bhk-state--error">
+      {{singlePageMode ? '查看活动详情点击右下角，前往小程序' : '活动暂不可用，请稍后再试'}}
+    </view>
   </block>
   <block wx:else>
     <view class="bhk-banner">
@@ -104,7 +106,7 @@
 
     <view class="bhk-card bhk-share">
       <view class="bhk-section-title">分享助力</view>
-      <view class="bhk-share__desc">接受助力次数不限，但助力他人只有1次，请斟酌使用，使用后双方各得1次砍价数。</view>
+      <view class="bhk-share__desc">“被助力”<text style="color:skyblue;">次数不限</text>，但“助力他人”只有<text style="color: tomato;">1</text>次，请斟酌使用，使用后双方各得1次砍价数。</view>
       <view class="bhk-share__helpers" wx:if="{{shareContext && shareContext.helpers && shareContext.helpers.length}}">
         <view class="bhk-share__helper" wx:for="{{shareContext.helpers}}" wx:key="id">
           <view class="bhk-share__role">{{item.role || '助力者'}}</view>
@@ -148,8 +150,16 @@
       </view>
       <view class="bhk-share__actions">
         <button class="bhk-share__button" type="primary" open-type="share">分享给好友</button>
-        <button class="bhk-share__button" type="default" bindtap="handleShareToTimeline">晒到朋友圈</button>
+        <button
+          class="bhk-share__button"
+          type="default"
+          bindtap="handleShareToTimeline"
+          disabled="{{!shareTimelineSupported}}"
+        >
+          晒到朋友圈
+        </button>
       </view>
+      <view wx:if="{{shareTimelineMessage}}" class="bhk-share__hint">{{shareTimelineMessage}}</view>
     </view>
 
     <view class="bhk-card bhk-info">
@@ -159,6 +169,8 @@
         <view class="bhk-info__item">软饮畅饮，伴手礼 BHK56 雪茄一支。</view>
         <view class="bhk-info__item">余票与倒计时实时更新，售罄即止。</view>
         <view class="bhk-info__item">票券不可转售或退款。</view>
+        <view class="bhk-info__item">购票消费可同时提升修为和灵石。</view>
+        <view class="bhk-info__item">本次活动是修仙晋升的<text style="color:tomato;">大好机会，不容错过！</text></view>
       </view>
     </view>
   </block>
