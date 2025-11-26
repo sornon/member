@@ -161,7 +161,7 @@ function buildBhkBargainActivity() {
     locationAddress: '北京市朝阳区百子湾路16号4号楼B座102',
     locationLat: 39.9003,
     locationLng: 116.4837,
-    coverImage: buildCloudAssetUrl('background', 'cover-20251102.jpg'),
+    coverImage: buildCloudAssetUrl('background', 'cover-20251126.jpg'),
     highlight: 'Cohiba BHK56 珍品雪茄 + 品鉴会入场 + 畅饮调酒',
     tags: ['BHK56', '感恩节', '限量品鉴'],
     perks: [
@@ -189,7 +189,7 @@ function buildBhkBargainConfig() {
     assistAttemptCap: null,
     stock: 15,
     endsAt: '2025-12-01T16:00:00.000Z',
-    heroImage: buildCloudAssetUrl('background', 'cover-20251102.jpg'),
+    heroImage: buildCloudAssetUrl('background', 'cover-20251126.jpg'),
     mysteryLabel: '???',
     perks: [
       '拼手气拿惊爆价',
