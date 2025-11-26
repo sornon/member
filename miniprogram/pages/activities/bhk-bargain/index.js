@@ -247,6 +247,7 @@ Page({
     this.setData({ navHeight: resolveNavHeight() });
     this.shareId = typeof options.shareId === 'string' ? options.shareId.trim() : '';
     this.activityId = TARGET_ACTIVITY_ID;
+    this.enableTimelineShare();
     this.bootstrap();
   },
 
@@ -859,12 +860,21 @@ Page({
     }
   },
 
+  enableTimelineShare() {
+    if (wx.showShareMenu) {
+      wx.showShareMenu({
+        withShareTicket: true,
+        menus: ['shareAppMessage', 'shareTimeline']
+      });
+    }
+  },
+
   navigateToRights() {
     wx.navigateTo({ url: '/pages/rights/rights' });
   },
 
   handleShareToTimeline() {
-    const payload = this.onShareTimeline();
+    const payload = this.buildShareTimelinePayload();
     if (wx.shareTimeline && payload) {
       wx.shareTimeline(payload);
       return;
@@ -877,8 +887,7 @@ Page({
 
   onShareAppMessage() {
     const title = (this.data.activity && this.data.activity.title) || 'BHK56 限量品鉴会砍价购票';
-    const shareId = this.data.memberId || (this.data.member && this.data.member._id) || '';
-    const query = shareId ? `id=${this.activityId}&shareId=${shareId}` : `id=${this.activityId}`;
+    const query = this.buildShareQuery();
     const path = `/pages/activities/bhk-bargain/index?${query}`;
     return {
       title,
@@ -888,13 +897,21 @@ Page({
   },
 
   onShareTimeline() {
-    const title = (this.data.activity && this.data.activity.title) || 'BHK56 限量品鉴会砍价购票';
+    return this.buildShareTimelinePayload();
+  },
+
+  buildShareQuery() {
     const shareId = this.data.memberId || (this.data.member && this.data.member._id) || '';
-    const query = shareId ? `id=${this.activityId}&shareId=${shareId}` : `id=${this.activityId}`;
-    return {
-      title,
-      query,
-      imageUrl: this.data.heroImage
-    };
+    return shareId ? `id=${this.activityId}&shareId=${shareId}` : `id=${this.activityId}`;
+  },
+
+  buildShareTimelinePayload() {
+    const title = (this.data.activity && this.data.activity.title) || 'BHK56 限量品鉴会砍价购票';
+    const query = this.buildShareQuery();
+    const payload = { title, query };
+    if (this.data.heroImage) {
+      payload.imageUrl = this.data.heroImage;
+    }
+    return payload;
   }
 });
