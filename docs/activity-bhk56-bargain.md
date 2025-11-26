@@ -33,6 +33,7 @@
   - 砍价状态包含 `currentPrice`、`totalDiscount`、`remainingSpins` 等。底价不在接口透出，云函数返回布尔 `floorReached` 用于提示“已触底”。
 - 倒计时按秒刷新，落地时计算剩余时间；库存与底价/砍价状态实时联动。
 - 会员加成：由后端依据 `realmOrder` 判定，规则为“当前境界序号即额外抽奖次数”（炼气 +1、筑基 +4、结丹 +4 并解锁神之一手，化神 +5...），前端直接渲染云函数返回的加成与境界名称。
+- 档案完成奖励：后端在进入砍价会话时校验会员昵称非空且头像不为 `avatar/default.png` 默认占位图；满足条件会在该会员的砍价档案中追加 1 次抽奖并写入 `thanksgivingProfileRewarded` 防重复标记，后续刷新、助力、购票均不会重复发放。
 - 分享：
   - `onShareAppMessage`/`onShareTimeline` 定向至专属页面路径，附带封面图；好友助力入口已移除。
   - 助力接口关闭后不再追加砍价次数或展示助力名单。
@@ -45,7 +46,8 @@
 ## 部署与初始化
 1. **更新云函数**：在微信云开发控制台或本地 CI 发布 `cloudfunctions/activities`，确保最新的砍价接口（`bargainStatus` / `bargainSpin`）生效。
 2. **创建持久化集合**：在云开发数据库中新建集合 **`bhkBargainRecords`**（权限建议“仅创建者可读写”）。云函数已内置 `createCollection` 兜底，并在集合已存在时报错 `ResourceUnavailable.ResourceExist/-501001` 时自动跳过，重复发布不会再中断；若首次调用环境无建表权限，仍建议先在控制台手动创建以避免缺表报错。
-3. **静态资源**：若使用自定义封面或头像占位，可按示例上传到云存储的 `background/cover-20251126.jpg`、`avatar/default.png` 路径，或在配置中替换为现有资源。
+3. **静态资源与默认头像校验**：确保云存储中存在 `avatar/default.png` 且为活动默认头像，档案奖励逻辑会以此路径作为“默认头像”判定基准；若更换占位图，请同步更新云函数内的 `DEFAULT_AVATAR` 路径避免误判。
+4. **档案奖励回填**：部署完成后，可在数据库搜索 `bhkBargainRecords` 中新增的 `thanksgivingProfileRewarded` 字段。该字段缺失或为 `false` 且会员已设置自定义头像/昵称时，云函数会在下一次进入活动时自动补发 1 次抽奖并写入标记，无需手工清洗。
 
 ## 已知问题与修复记录
 - **境界奖励未解锁（化神期用户显示未认证）**：活动云函数仅直接读取 `members` 集合内的原始字段，缺少对 `levelId` 所关联等级数据的回填，导致高阶会员只保存了 `levelId`/`levelName` 而无完整 `level.realmName`，从而计算 `realmOrder` 失败，接口返回 `type: none`、`realmName: ''`。已在 `resolveMemberBoost` 中补充等级文档兜底加载与 `levelName` 回退，确保化神及以上会员正确识别境界并解锁境界奖励/神之一手。
