@@ -148,8 +148,16 @@
       </view>
       <view class="bhk-share__actions">
         <button class="bhk-share__button" type="primary" open-type="share">分享给好友</button>
-        <button class="bhk-share__button" type="default" bindtap="handleShareToTimeline">晒到朋友圈</button>
+        <button
+          class="bhk-share__button"
+          type="default"
+          bindtap="handleShareToTimeline"
+          disabled="{{!shareTimelineSupported}}"
+        >
+          晒到朋友圈
+        </button>
       </view>
+      <view wx:if="{{shareTimelineMessage}}" class="bhk-share__hint">{{shareTimelineMessage}}</view>
     </view>
 
     <view class="bhk-card bhk-info">

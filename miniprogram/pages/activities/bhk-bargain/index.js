@@ -199,6 +199,34 @@ function resolveMysteryLanding(displaySegments = []) {
   return index >= 0 ? index : displaySegments.length - 1;
 }
 
+function resolveTimelineCapability() {
+  const canShareTimeline =
+    (typeof wx.canIUse === 'function' && wx.canIUse('shareTimeline')) || typeof wx.shareTimeline === 'function';
+  if (!canShareTimeline) {
+    return { supported: false, message: '当前微信版本不支持朋友圈小程序卡片，请升级到最新客户端' };
+  }
+
+  let envVersion = 'release';
+  if (typeof wx.getAccountInfoSync === 'function') {
+    try {
+      const accountInfo = wx.getAccountInfoSync();
+      envVersion = (accountInfo && accountInfo.miniProgram && accountInfo.miniProgram.envVersion) || 'release';
+    } catch (error) {
+      console.warn('[bhk-bargain] getAccountInfoSync failed', error);
+    }
+  }
+
+  if (envVersion !== 'release') {
+    return {
+      supported: true,
+      envVersion,
+      message: '朋友圈卡片只会拉起线上正式版，请发布正式版后在正式版内测试'
+    };
+  }
+
+  return { supported: true, envVersion };
+}
+
 Page({
   data: {
     loading: true,
@@ -235,7 +263,9 @@ Page({
     shareContext: null,
     memberId: '',
     processingPurchase: false,
-    ticketOwned: false
+    ticketOwned: false,
+    shareTimelineSupported: true,
+    shareTimelineMessage: ''
   },
 
   onLoad(options = {}) {
@@ -247,6 +277,7 @@ Page({
     this.setData({ navHeight: resolveNavHeight() });
     this.shareId = typeof options.shareId === 'string' ? options.shareId.trim() : '';
     this.activityId = TARGET_ACTIVITY_ID;
+    this.setupTimelineCapability();
     this.enableTimelineShare();
     this.bootstrap();
   },
@@ -861,6 +892,11 @@ Page({
   },
 
   enableTimelineShare() {
+    const capability = this.timelineCapability;
+    if (!capability || !capability.supported) {
+      return;
+    }
+
     if (wx.showShareMenu) {
       wx.showShareMenu({
         withShareTicket: true,
@@ -869,18 +905,45 @@ Page({
     }
   },
 
+  setupTimelineCapability() {
+    const capability = resolveTimelineCapability();
+    this.timelineCapability = capability;
+    this.setData({
+      shareTimelineSupported: capability.supported,
+      shareTimelineMessage: capability.message || ''
+    });
+  },
+
   navigateToRights() {
     wx.navigateTo({ url: '/pages/rights/rights' });
   },
 
   handleShareToTimeline() {
+    const capability = this.timelineCapability;
+    if (!capability || !capability.supported) {
+      wx.showToast({
+        title: capability?.message || '当前微信版本不支持朋友圈分享，请升级微信客户端',
+        icon: 'none'
+      });
+      return;
+    }
+
+    if (capability.envVersion && capability.envVersion !== 'release') {
+      wx.showModal({
+        title: '请在正式版内分享',
+        content: '朋友圈卡片只会拉起线上正式版。请先发布正式版并在正式版内测试分享效果。',
+        showCancel: false
+      });
+      return;
+    }
+
     const payload = this.buildShareTimelinePayload();
     if (wx.shareTimeline && payload) {
       wx.shareTimeline(payload);
       return;
     }
     wx.showToast({
-      title: '请使用右上角菜单分享至朋友圈',
+      title: '微信客户端暂不支持，请升级后再试',
       icon: 'none'
     });
   },
