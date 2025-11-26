@@ -221,8 +221,14 @@ async function ensureBargainStockDoc(config = {}) {
     updatedAt: now
   };
 
-  await stockRef.set({ data: doc }).catch(() => null);
-  return doc;
+  await stockRef.set({ data: doc });
+
+  const written = await stockRef.get().catch(() => null);
+  if (written && written.data) {
+    return written.data;
+  }
+
+  throw new Error('库存初始化失败，请稍后重试');
 }
 
 async function getBargainStock(config = {}) {
@@ -1112,11 +1118,14 @@ async function confirmBhkBargainPurchase() {
       : { _id: BHK_BARGAIN_ACTIVITY_ID, totalStock: config.stock, stockRemaining: config.stock, sold: 0, updatedAt: now };
 
     if (preparedStock && !existingStockDoc) {
-      await stockRef.set({ data: preparedStock }).catch(() => null);
+      await stockRef.set({ data: preparedStock });
     }
 
-    const remainingStock = Number.isFinite(preparedStock.stockRemaining)
-      ? preparedStock.stockRemaining
+    const verifiedStockSnapshot = existingStockDoc ? stockSnapshot : await stockRef.get().catch(() => null);
+    const verifiedStockDoc = verifiedStockSnapshot && verifiedStockSnapshot.data ? verifiedStockSnapshot.data : preparedStock;
+
+    const remainingStock = Number.isFinite(verifiedStockDoc.stockRemaining)
+      ? verifiedStockDoc.stockRemaining
       : config.stock;
 
     if (hasSession && baseSession.ticketOwned) {
