@@ -1,7 +1,33 @@
+.bhk-hero {
+  position: relative;
+  width: 100%;
+  height: 460rpx;
+  overflow: hidden;
+}
+
+.bhk-hero__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.bhk-hero__mask {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(5, 8, 20, 0.1) 0%, rgba(5, 8, 20, 0.76) 72%, #050814 100%);
+}
+
 .bhk-page {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 24rpx;
+  margin-top: -230rpx;
   padding: 24rpx;
   padding-bottom: calc(100rpx + env(safe-area-inset-bottom));
   background: radial-gradient(circle at 30% 20%, rgba(255, 215, 170, 0.08), transparent 45%),
@@ -600,12 +626,14 @@
   right: 0;
   bottom: 0;
   padding: 36rpx 20rpx;
+  padding-bottom: calc(36rpx + env(safe-area-inset-bottom));
   background: rgba(5, 8, 20, 0.92);
   border-top: 1rpx solid rgba(255, 211, 149, 0.25);
   display: flex;
   align-items: center;
   gap: 16rpx;
   box-sizing: border-box;
+  z-index: 6;
 }
 
 .bhk-footer__price {
