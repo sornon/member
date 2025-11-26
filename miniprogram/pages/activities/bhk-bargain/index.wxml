@@ -150,10 +150,10 @@
     <view class="bhk-card bhk-info">
       <view class="bhk-section-title">礼遇与规则</view>
       <view class="bhk-info__list">
-        <view class="bhk-info__item">伴手礼 Cohiba Behike 56 雪茄一支。</view>
+        <view class="bhk-info__item">持"感恩节活动"会员权益任意时间到店使用。</view>
+        <view class="bhk-info__item">软饮畅饮，伴手礼 BHK56 雪茄一支。</view>
         <view class="bhk-info__item">余票与倒计时实时更新，售罄即止。</view>
         <view class="bhk-info__item">票券不可转售或退款。</view>
-        <view class="bhk-info__item">现场品尝，软饮畅饮。</view>
       </view>
     </view>
   </block>
@@ -171,17 +171,4 @@
     <view class="bhk-overlay__amount">-¥{{resultOverlay.amount}}</view>
     <button class="bhk-overlay__button" type="primary" bindtap="closeResultOverlay">知道了</button>
   </view>
-</view>
-
-<view class="bhk-overlay" wx:if="{{showRules}}">
-      <view class="bhk-overlay__card bhk-overlay__card--wide">
-        <view class="bhk-overlay__title">活动规则</view>
-      <view class="bhk-overlay__rules">
-        <view class="bhk-overlay__rule">· 默认 3 次砍价，修仙境界加成最高 +{{memberBoost}} 次。</view>
-        <view class="bhk-overlay__rule">· 每次抽奖随机减免票价，底价隐藏，抽完仍可原价购票。</view>
-        <view class="bhk-overlay__rule">· 分享好友/朋友圈可互得 1 次砍价机会，助力他人仅 1 次。</view>
-        <view class="bhk-overlay__rule">· 限量 {{bargain.stock || stockRemaining || 0}} 张票，售罄则停止砍价与购票。</view>
-      </view>
-      <button class="bhk-overlay__button" type="primary" bindtap="toggleRules">关闭</button>
-    </view>
 </view>
