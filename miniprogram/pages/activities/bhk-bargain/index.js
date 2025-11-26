@@ -265,7 +265,8 @@ Page({
     processingPurchase: false,
     ticketOwned: false,
     shareTimelineSupported: true,
-    shareTimelineMessage: ''
+    shareTimelineMessage: '',
+    singlePageMode: false
   },
 
   onLoad(options = {}) {
@@ -483,6 +484,10 @@ Page({
 
   async bootstrap() {
     this.setData({ loading: true, resultOverlay: null });
+    if (this.isSinglePageMode()) {
+      this.setData({ loading: false, activity: null, bargain: null, singlePageMode: true });
+      return;
+    }
     await Promise.all([this.ensureMemberProfile(), this.ensureTicketOwnershipFromRights()]);
     return this.fetchActivityStatus({ keepLoading: true });
   },
@@ -582,7 +587,8 @@ Page({
       this.setData({
         loading: false,
         activity: null,
-        bargain: null
+        bargain: null,
+        singlePageMode: this.isSinglePageMode() || this.data.singlePageMode
       });
     }
   },
@@ -961,6 +967,18 @@ Page({
 
   onShareTimeline() {
     return this.buildShareTimelinePayload();
+  },
+
+  isSinglePageMode() {
+    try {
+      if (!wx.cloud || typeof wx.cloud.callFunction !== 'function') {
+        return true;
+      }
+    } catch (error) {
+      console.warn('[bhk-bargain] single page detection failed', error);
+      return false;
+    }
+    return false;
   },
 
   buildShareQuery() {

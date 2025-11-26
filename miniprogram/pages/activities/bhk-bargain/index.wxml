@@ -9,7 +9,9 @@
     <view class="bhk-card bhk-state">活动情报加载中...</view>
   </block>
   <block wx:elif="{{!activity}}">
-    <view class="bhk-card bhk-state bhk-state--error">活动暂不可用，请稍后再试</view>
+    <view class="bhk-card bhk-state bhk-state--error">
+      {{singlePageMode ? '查看活动详情点击右下角，前往小程序' : '活动暂不可用，请稍后再试'}}
+    </view>
   </block>
   <block wx:else>
     <view class="bhk-banner">
