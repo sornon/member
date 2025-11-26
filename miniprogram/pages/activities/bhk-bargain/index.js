@@ -227,6 +227,16 @@ function resolveTimelineCapability() {
   return { supported: true, envVersion };
 }
 
+function isCloudPermissionDenied(error) {
+  const code = typeof error === 'object' && error ? error.errCode : null;
+  const message = (error && (error.errMsg || error.message || '')) || '';
+  if (code === -501023) {
+    return true;
+  }
+  const normalized = message.toLowerCase();
+  return normalized.includes('permission denied') || normalized.includes('unauthenticated access');
+}
+
 Page({
   data: {
     loading: true,
@@ -278,6 +288,7 @@ Page({
     this.setData({ navHeight: resolveNavHeight() });
     this.shareId = typeof options.shareId === 'string' ? options.shareId.trim() : '';
     this.activityId = TARGET_ACTIVITY_ID;
+    this._singlePageMarked = false;
     this.setupTimelineCapability();
     this.enableTimelineShare();
     this.bootstrap();
@@ -482,10 +493,22 @@ Page({
     return list[index] || list[0];
   },
 
+  markSinglePageMode(reason) {
+    if (this._singlePageMarked) {
+      return true;
+    }
+    this._singlePageMarked = true;
+    if (reason) {
+      console.warn('[bhk-bargain] enter single page fallback', reason);
+    }
+    this.setData({ loading: false, activity: null, bargain: null, singlePageMode: true });
+    return true;
+  },
+
   async bootstrap() {
     this.setData({ loading: true, resultOverlay: null });
     if (this.isSinglePageMode()) {
-      this.setData({ loading: false, activity: null, bargain: null, singlePageMode: true });
+      this.markSinglePageMode('wx.cloud unavailable');
       return;
     }
     await Promise.all([this.ensureMemberProfile(), this.ensureTicketOwnershipFromRights()]);
@@ -493,6 +516,9 @@ Page({
   },
 
   async ensureMemberProfile() {
+    if (this._singlePageMarked) {
+      return null;
+    }
     if (this._ensureMemberPromise) {
       return this._ensureMemberPromise;
     }
@@ -521,6 +547,9 @@ Page({
       })
       .catch((error) => {
         console.error('[bhk-bargain] ensure member failed', error);
+        if (isCloudPermissionDenied(error)) {
+          this.markSinglePageMode('member profile permission denied');
+        }
         return null;
       })
       .finally(() => {
@@ -551,6 +580,9 @@ Page({
   },
 
   async ensureTicketOwnershipFromRights() {
+    if (this._singlePageMarked) {
+      return null;
+    }
     try {
       const rights = await MemberService.getRights();
       const hasTicket = Array.isArray(rights)
@@ -563,6 +595,9 @@ Page({
       return rights;
     } catch (error) {
       console.error('[bhk-bargain] fetch rights failed', error);
+      if (isCloudPermissionDenied(error)) {
+        this.markSinglePageMode('rights permission denied');
+      }
       return null;
     }
   },
@@ -571,6 +606,10 @@ Page({
     const keepLoading = options && options.keepLoading;
     if (!keepLoading) {
       this.setData({ loading: true, resultOverlay: null });
+    }
+    if (this._singlePageMarked) {
+      this.setData({ loading: false, activity: null, bargain: null, singlePageMode: true });
+      return null;
     }
     try {
       const response = await ActivityService.bargainStatus(this.activityId, { shareId: this.shareId });
@@ -584,12 +623,11 @@ Page({
       });
     } catch (error) {
       console.error('[bhk-bargain] fetch activity failed', error);
-      this.setData({
-        loading: false,
-        activity: null,
-        bargain: null,
-        singlePageMode: this.isSinglePageMode() || this.data.singlePageMode
-      });
+      if (isCloudPermissionDenied(error)) {
+        this.markSinglePageMode('activity status permission denied');
+        return null;
+      }
+      this.setData({ loading: false, activity: null, bargain: null, singlePageMode: this.isSinglePageMode() || this.data.singlePageMode });
     }
   },
 
