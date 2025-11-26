@@ -204,6 +204,15 @@ export const MemberService = {
       levelId
     });
   },
+  async grantRight(entry = {}) {
+    return callCloud(
+      CLOUD_FUNCTIONS.MEMBER,
+      attachClientEnv({
+        action: 'grantRight',
+        entry
+      })
+    );
+  },
   async getRights() {
     return callCloud(CLOUD_FUNCTIONS.MEMBER, { action: 'rights' });
   },

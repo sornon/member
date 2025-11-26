@@ -10,6 +10,7 @@
     <view class="bhk-banner">
       <view class="bhk-banner__mask"></view>
       <view class="bhk-banner__content">
+        <view wx:if="{{ticketOwned}}" class="bhk-banner__badge">已获得通行证</view>
         <view class="bhk-banner__title">{{activity.title || '感恩节 · BHK56 品鉴会'}}</view>
         <view class="bhk-banner__subtitle">顶级雪茄 · 限量 15 席 · 感恩节回馈</view>
         <view class="bhk-banner__pill-row">
@@ -18,6 +19,13 @@
         </view>
         <view class="bhk-banner__pill-row">
           <view class="bhk-banner__pill bhk-banner__pill--link" bindtap="handleOpenLocation">地点：{{mapLocation.address || activity.location || '查看地图'}}
+          </view>
+        </view>
+        <view class="bhk-banner__pill-row" wx:if="{{ticketOwned}}">
+          <view class="bhk-banner__pill bhk-banner__pill--notice">
+            门票购买成功，请在
+            <text class="bhk-banner__link" bindtap="navigateToRights">权益</text>
+            中查看
           </view>
         </view>
       </view>
@@ -153,8 +161,8 @@
 
 <view class="bhk-footer" wx:if="{{activity}}">
   <view class="bhk-footer__price">¥{{currentPrice}}</view>
-  <view class="bhk-footer__note">仅剩{{stockRemaining}}张</view>
-  <button class="bhk-footer__button" type="primary" disabled="{{stockRemaining <= 0}}" bindtap="handlePurchase">立即购票</button>
+  <view class="bhk-footer__note">{{ticketOwned ? '已持通行证，可在权益中查看' : '仅剩' + stockRemaining + '张'}}</view>
+  <button class="bhk-footer__button" type="primary" disabled="{{stockRemaining <= 0 || ticketOwned}}" bindtap="handlePurchase">{{ticketOwned ? '已购票' : '立即购票'}}</button>
 </view>
 
 <view class="bhk-overlay" wx:if="{{resultOverlay}}">
