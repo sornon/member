@@ -52,6 +52,20 @@
   color: #fdf7ed;
 }
 
+.bhk-banner__badge {
+  position: absolute;
+  top: 28rpx;
+  right: -24rpx;
+  padding: 12rpx 36rpx;
+  background: linear-gradient(135deg, #ffdb4d, #ff7a00);
+  color: #1f0f00;
+  font-weight: 800;
+  font-size: 28rpx;
+  transform: rotate(18deg);
+  box-shadow: 0 12rpx 24rpx rgba(255, 140, 0, 0.35);
+  letter-spacing: 2rpx;
+}
+
 .bhk-banner__title {
   font-size: 40rpx;
   font-weight: 700;
@@ -92,6 +106,20 @@
 
 .bhk-banner__pill--link:active {
   opacity: 0.8;
+}
+
+.bhk-banner__pill--notice {
+  background: rgba(82, 255, 201, 0.16);
+  border-color: rgba(82, 255, 201, 0.4);
+  color: #c5fff1;
+  font-weight: 600;
+}
+
+.bhk-banner__link {
+  color: #4dffff;
+  font-weight: 700;
+  text-decoration: underline;
+  padding: 0 6rpx;
 }
 
 .bhk-banner__member {
