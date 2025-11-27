@@ -453,17 +453,42 @@
   background: radial-gradient(circle at 30% 30%, rgba(255, 240, 200, 0.45), rgba(255, 210, 140, 0.12));
 }
 
+@keyframes bhk-divine-glow {
+  0% {
+    box-shadow: 0 14rpx 30rpx rgba(255, 128, 38, 0.35), 0 0 0 0 rgba(255, 179, 71, 0.45);
+  }
+
+  50% {
+    box-shadow: 0 18rpx 42rpx rgba(255, 140, 40, 0.55), 0 0 0 10rpx rgba(255, 179, 71, 0.18);
+  }
+
+  100% {
+    box-shadow: 0 14rpx 30rpx rgba(255, 128, 38, 0.35), 0 0 0 0 rgba(255, 179, 71, 0.45);
+  }
+}
+
 .bhk-turntable__button {
-  background: linear-gradient(135deg, #f9d17a, #f0a64c);
+  background: linear-gradient(135deg, #ffb14a, #ff7a1f);
   color: #2b1400;
   border: none;
   border-radius: 999rpx;
   height: 78rpx;
   font-size: 32rpx;
+  box-shadow: 0 12rpx 28rpx rgba(255, 120, 24, 0.42), 0 0 0 1rpx rgba(255, 205, 140, 0.55);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.bhk-turntable__button:active {
+  transform: translateY(2rpx) scale(0.99);
+  box-shadow: 0 8rpx 16rpx rgba(255, 120, 24, 0.38), 0 0 0 1rpx rgba(255, 205, 140, 0.55);
 }
 
 .bhk-turntable__button::after {
   border: none;
+}
+
+.bhk-turntable__button--divine {
+  animation: bhk-divine-glow 1.8s ease-in-out infinite;
 }
 
 .bhk-turntable__status,
