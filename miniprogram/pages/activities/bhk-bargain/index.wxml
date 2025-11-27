@@ -37,21 +37,11 @@
         </view>
       </view>
     </view>
-
-    <view class="bhk-card bhk-price-card">
+    <view class="bhk-card bhk-turntable">
       <view class="bhk-price-card__row">
-        <text class="bhk-price-card__original">原价 ¥{{basePrice}}</text>
+        <text class="bhk-price-card__original">原价 ¥{{basePrice}}</text><text class="bhk-price-card__reduce">已减 ¥{{totalDiscount}}</text>
         <text class="bhk-price-card__current {{floorReached ? 'bhk-price-card__current--floor' : ''}}">{{floorReached ? '价格触底' : '当前票价'}} ¥{{currentPrice}}</text>
       </view>
-      <view class="bhk-price-card__hint">
-      </view>
-      <view class="bhk-price-card__progress">已减 ¥{{totalDiscount}}</view>
-      <view class="bhk-price-card__perks" wx:if="{{perks.length}}">
-        <view class="bhk-price-card__perk" wx:for="{{perks}}" wx:key="perk">{{item}}</view>
-      </view>
-    </view>
-
-    <view class="bhk-card bhk-turntable">
       <view class="bhk-turntable__header">
         <view class="bhk-turntable__header-left">
           <view class="bhk-banner__member">
@@ -105,8 +95,11 @@
           disabled="{{spinning || (!divineHandReady && remainingSpins <= 0)}}"
           bindtap="handleSpin"
         >
-          {{spinning ? '砍价中...' : (divineHandReady ? '直击底价' : '开始砍价')}}
+          {{spinning ? '砍价中...' : (divineHandReady ? '最后一击' : '开始砍价')}}
         </button>
+      </view>
+      <view class="bhk-price-card__perks" wx:if="{{perks.length}}">
+        <view class="bhk-price-card__perk" wx:for="{{perks}}" wx:key="perk">{{item}}</view>
       </view>
     </view>
 

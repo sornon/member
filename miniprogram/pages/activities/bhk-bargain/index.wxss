@@ -247,10 +247,15 @@
   justify-content: space-between;
   align-items: center;
   gap: 12rpx;
+  padding-bottom: 30rpx;
 }
 
 .bhk-price-card__original {
   text-decoration: line-through;
+  color: rgba(255, 230, 200, 0.8);
+  font-size: 26rpx;
+}
+.bhk-price-card__reduce {
   color: rgba(255, 230, 200, 0.8);
   font-size: 26rpx;
 }
@@ -291,7 +296,7 @@
 }
 
 .bhk-price-card__perks {
-  margin-top: 12rpx;
+  margin-top: 20rpx;
   display: flex;
   flex-direction: column;
   gap: 8rpx;
