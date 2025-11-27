@@ -34,6 +34,32 @@ function normalizeTitleId(id) {
   return id.trim();
 }
 
+function isNotFoundError(error) {
+  if (!error) {
+    return false;
+  }
+  const code = (error.errCode || error.code || '').toString();
+  const message = (error.errMsg || error.message || '').toString().toLowerCase();
+  return (
+    code === '404' ||
+    code === '-501007' ||
+    message.includes('not exist') ||
+    message.includes('not found') ||
+    message.includes('no document to update') ||
+    message.includes('document not exist')
+  );
+}
+
+function handleDocGetError(label = 'document.get') {
+  return (error) => {
+    if (isNotFoundError(error)) {
+      return null;
+    }
+    console.error(`${label} failed:`, error);
+    throw error;
+  };
+}
+
 async function ensureCollectionExists(name) {
   if (!name) return;
   try {
@@ -211,7 +237,7 @@ function buildBhkBargainConfig() {
 async function ensureBargainStockDoc(config = {}) {
   await ensureCollectionExists(BHK_BARGAIN_STOCK_COLLECTION);
   const stockRef = db.collection(BHK_BARGAIN_STOCK_COLLECTION).doc(BHK_BARGAIN_ACTIVITY_ID);
-  const snapshot = await stockRef.get().catch(() => null);
+  const snapshot = await stockRef.get().catch(handleDocGetError('load bargain stock'));
   if (snapshot && snapshot.data) {
     return snapshot.data;
   }
@@ -226,7 +252,7 @@ async function ensureBargainStockDoc(config = {}) {
 
   await stockRef.set({ data: doc });
 
-  const written = await stockRef.get().catch(() => null);
+  const written = await stockRef.get().catch(handleDocGetError('verify bargain stock write'));
   if (written && written.data) {
     return written.data;
   }
@@ -1352,8 +1378,8 @@ async function confirmBhkBargainPurchase() {
     const stockRef = transaction.collection(BHK_BARGAIN_STOCK_COLLECTION).doc(BHK_BARGAIN_ACTIVITY_ID);
 
     const [sessionSnapshot, stockSnapshot] = await Promise.all([
-      sessionRef.get().catch(() => null),
-      stockRef.get().catch(() => null)
+      sessionRef.get().catch(handleDocGetError('load bargain session')), // allow missing session
+      stockRef.get().catch(handleDocGetError('load bargain stock'))
     ]);
 
     const hasSession = Boolean(sessionSnapshot && sessionSnapshot.data);
@@ -1376,7 +1402,9 @@ async function confirmBhkBargainPurchase() {
       await stockRef.set({ data: preparedStock });
     }
 
-    const verifiedStockSnapshot = existingStockDoc ? stockSnapshot : await stockRef.get().catch(() => null);
+    const verifiedStockSnapshot = existingStockDoc
+      ? stockSnapshot
+      : await stockRef.get().catch(handleDocGetError('verify bargain stock write'));
     const verifiedStockDoc = verifiedStockSnapshot && verifiedStockSnapshot.data ? verifiedStockSnapshot.data : preparedStock;
 
     const remainingStock = Number.isFinite(verifiedStockDoc.stockRemaining)
