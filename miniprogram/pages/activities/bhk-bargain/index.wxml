@@ -98,7 +98,13 @@
             </view>
           </block>
         </view>
-        <button class="bhk-turntable__button" type="primary" loading="{{spinning}}" disabled="{{spinning || (!divineHandReady && remainingSpins <= 0)}}" bindtap="handleSpin">
+        <button
+          class="bhk-turntable__button {{divineHandReady ? 'bhk-turntable__button--divine' : ''}}"
+          type="primary"
+          loading="{{spinning}}"
+          disabled="{{spinning || (!divineHandReady && remainingSpins <= 0)}}"
+          bindtap="handleSpin"
+        >
           {{spinning ? '砍价中...' : (divineHandReady ? '直击底价' : '开始砍价')}}
         </button>
       </view>
