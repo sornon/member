@@ -459,11 +459,42 @@
   }
 
   50% {
-    box-shadow: 0 18rpx 42rpx rgba(255, 140, 40, 0.55), 0 0 0 10rpx rgba(255, 179, 71, 0.18);
+    box-shadow: 0 20rpx 48rpx rgba(255, 144, 42, 0.65), 0 0 0 14rpx rgba(255, 189, 92, 0.26);
   }
 
   100% {
     box-shadow: 0 14rpx 30rpx rgba(255, 128, 38, 0.35), 0 0 0 0 rgba(255, 179, 71, 0.45);
+  }
+}
+
+@keyframes bhk-divine-shimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes bhk-divine-halo {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.65;
+  }
+
+  50% {
+    transform: scale(1.08);
+    opacity: 0.9;
+  }
+
+  100% {
+    transform: scale(0.96);
+    opacity: 0.65;
   }
 }
 
@@ -488,7 +519,24 @@
 }
 
 .bhk-turntable__button--divine {
-  animation: bhk-divine-glow 1.8s ease-in-out infinite;
+  position: relative;
+  overflow: visible;
+  background: linear-gradient(135deg, #ffcb66, #ff8f33, #ffb14a);
+  background-size: 200% 200%;
+  color: #2c1200;
+  box-shadow: 0 20rpx 52rpx rgba(255, 136, 36, 0.68), 0 0 0 2rpx rgba(255, 210, 140, 0.85);
+  animation: bhk-divine-glow 1.4s ease-in-out infinite, bhk-divine-shimmer 3.2s linear infinite;
+}
+
+.bhk-turntable__button--divine::before {
+  content: '';
+  position: absolute;
+  inset: -14rpx;
+  border-radius: inherit;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 221, 164, 0.6), rgba(255, 153, 51, 0));
+  filter: blur(6rpx);
+  z-index: -1;
+  animation: bhk-divine-halo 1.8s ease-in-out infinite;
 }
 
 .bhk-turntable__status,
