@@ -84,6 +84,11 @@ const DEFAULT_FEATURE_TOGGLES = {
   globalBackgroundCatalog: [],
   equipmentEnhancement: { ...DEFAULT_EQUIPMENT_ENHANCEMENT }
 };
+const THANKSGIVING_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
+const BHK_BARGAIN_COLLECTION = 'bhkBargainRecords';
+const BHK_BARGAIN_STOCK_COLLECTION = 'bhkBargainStock';
+const THANKSGIVING_RIGHT_ID = 'thanksgiving-pass';
+const THANKSGIVING_DASHBOARD_LIMIT = 50;
 const DRINK_VOUCHER_RIGHT_ID = 'right_realm_qi_drink';
 const CUBANEY_VOUCHER_RIGHT_ID = 'right_realm_core_cubaney_voucher';
 const DEFAULT_TRADING_SETTINGS = Object.freeze({
@@ -432,7 +437,8 @@ const ACTIONS = {
   UPDATE_SECRET_REALM_PROGRESS: 'updateSecretRealmProgress',
   LIST_ACTIVITIES: 'listActivities',
   CREATE_ACTIVITY: 'createActivity',
-  UPDATE_ACTIVITY: 'updateActivity'
+  UPDATE_ACTIVITY: 'updateActivity',
+  GET_THANKSGIVING_DASHBOARD: 'getThanksgivingDashboard'
 };
 
 const ACTION_CANONICAL_MAP = Object.values(ACTIONS).reduce((map, name) => {
@@ -547,7 +553,10 @@ const ACTION_ALIASES = {
   activities: ACTIONS.LIST_ACTIVITIES,
   createactivity: ACTIONS.CREATE_ACTIVITY,
   updateactivity: ACTIONS.UPDATE_ACTIVITY,
-  editactivity: ACTIONS.UPDATE_ACTIVITY
+  editactivity: ACTIONS.UPDATE_ACTIVITY,
+  thanksgivingdashboard: ACTIONS.GET_THANKSGIVING_DASHBOARD,
+  thanksgivingstats: ACTIONS.GET_THANKSGIVING_DASHBOARD,
+  bhkdashboard: ACTIONS.GET_THANKSGIVING_DASHBOARD
 };
 
 const ensuredCollections = new Set();
@@ -937,7 +946,9 @@ const ACTION_HANDLERS = {
   [ACTIONS.LIST_ACTIVITIES]: (openid, event) => listActivities(openid, event || {}),
   [ACTIONS.CREATE_ACTIVITY]: (openid, event) => createActivity(openid, event.activity || {}),
   [ACTIONS.UPDATE_ACTIVITY]: (openid, event) =>
-    updateActivity(openid, event.activityId || event.id, event.updates || event.activity || {})
+    updateActivity(openid, event.activityId || event.id, event.updates || event.activity || {}),
+  [ACTIONS.GET_THANKSGIVING_DASHBOARD]: (openid, event) =>
+    getThanksgivingDashboard(openid, event || {})
 };
 
 async function resolveMemberExtras(memberId) {
@@ -2928,6 +2939,131 @@ function buildMemberRightEntry(item, masterMap = {}, now = Date.now()) {
     issuedAt: item.issuedAt || item.createdAt || '',
     meta: mergedMeta,
     roomUsageCredits: Number.isFinite(usageCredits) ? usageCredits : 0
+  };
+}
+
+async function getThanksgivingDashboard(openid, options = {}) {
+  await ensureAdmin(openid);
+
+  const limitInput = Number(options.limit);
+  const limit = Number.isFinite(limitInput)
+    ? Math.max(5, Math.min(THANKSGIVING_DASHBOARD_LIMIT, Math.floor(limitInput)))
+    : THANKSGIVING_DASHBOARD_LIMIT;
+
+  const stockRef = db.collection(BHK_BARGAIN_STOCK_COLLECTION).doc(THANKSGIVING_ACTIVITY_ID);
+  const purchasedQuery = db
+    .collection(BHK_BARGAIN_COLLECTION)
+    .where({ activityId: THANKSGIVING_ACTIVITY_ID, ticketOwned: true });
+
+  const [stockSnapshot, orderCountResult, orderSnapshot, masterRightsMap] = await Promise.all([
+    stockRef.get().catch(() => null),
+    purchasedQuery.count().catch(() => ({ total: 0 })),
+    purchasedQuery
+      .orderBy('purchasedAt', 'desc')
+      .limit(limit)
+      .get()
+      .catch(() => ({ data: [] })),
+    loadMembershipRightsMap()
+  ]);
+
+  const stockDoc = (stockSnapshot && stockSnapshot.data) || {};
+  const totalStock = Number.isFinite(stockDoc.totalStock) ? stockDoc.totalStock : 0;
+  const stockRemaining = Number.isFinite(stockDoc.stockRemaining)
+    ? stockDoc.stockRemaining
+    : Math.max(0, totalStock - (Number(stockDoc.sold) || 0));
+  const sold = Number.isFinite(stockDoc.sold) ? stockDoc.sold : Math.max(0, totalStock - stockRemaining);
+
+  const orderDocs = Array.isArray(orderSnapshot.data) ? orderSnapshot.data : [];
+  const memberIds = Array.from(
+    new Set(
+      orderDocs
+        .map((item) => resolveThanksgivingMemberId(item))
+        .map((id) => normalizeMemberIdValue(id))
+        .filter(Boolean)
+    )
+  );
+  const memberMap = await loadMembersMap(memberIds);
+
+  const rightsSnapshot = memberIds.length
+    ? await db
+        .collection(COLLECTIONS.MEMBER_RIGHTS)
+        .where({ memberId: _.in(memberIds), rightId: THANKSGIVING_RIGHT_ID })
+        .get()
+        .catch(() => ({ data: [] }))
+    : { data: [] };
+
+  const rightsEntries = Array.isArray(rightsSnapshot.data) ? rightsSnapshot.data : [];
+  const rightsByMember = {};
+  const rightsStats = { total: 0 };
+
+  rightsEntries.forEach((entry) => {
+    const memberId = normalizeMemberIdValue(entry.memberId);
+    const decorated = buildMemberRightEntry(entry, masterRightsMap);
+    if (!memberId || !decorated) {
+      return;
+    }
+    if (!rightsByMember[memberId]) {
+      rightsByMember[memberId] = [];
+    }
+    rightsByMember[memberId].push(decorated);
+    rightsStats.total += 1;
+    rightsStats[decorated.status] = (rightsStats[decorated.status] || 0) + 1;
+  });
+
+  Object.keys(rightsByMember).forEach((memberId) => {
+    rightsByMember[memberId].sort((a, b) => {
+      const aTime = new Date(a.issuedAt || a.createdAt || a.updatedAt || 0).getTime();
+      const bTime = new Date(b.issuedAt || b.createdAt || b.updatedAt || 0).getTime();
+      return bTime - aTime;
+    });
+  });
+
+  const orders = orderDocs.map((record) => {
+    const memberId = resolveThanksgivingMemberId(record);
+    const member = memberMap[memberId] || {};
+    const rights = rightsByMember[memberId] || [];
+    const rightEntry = rights.length ? rights[0] : null;
+    const chargeAmount = Number(record.chargeOrderAmount) || 0;
+    const purchaseTime = record.purchasedAt || record.updatedAt || record.createdAt || null;
+    const orderId =
+      (typeof record.thanksgivingChargeOrderId === 'string' && record.thanksgivingChargeOrderId) ||
+      (typeof record.chargeOrderId === 'string' && record.chargeOrderId) ||
+      '';
+
+    return {
+      memberId,
+      displayName: resolveMemberDisplayName(member, memberId),
+      mobile: typeof member.mobile === 'string' ? member.mobile : '',
+      orderId,
+      amount: chargeAmount,
+      amountLabel: chargeAmount ? `¥${formatFenToYuan(chargeAmount)}` : '',
+      purchasedAt: purchaseTime,
+      purchasedAtLabel: formatDateTimeLabel(purchaseTime),
+      rightStatus: rightEntry ? rightEntry.status : 'pending',
+      rightStatusLabel: rightEntry ? rightEntry.statusLabel : '未发放',
+      rightId: rightEntry ? rightEntry.rightId : THANKSGIVING_RIGHT_ID,
+      ticketOwned: Boolean(record.ticketOwned || record.purchased)
+    };
+  });
+
+  const breakdown = Object.keys(RIGHT_STATUS_LABELS).map((status) => ({
+    status,
+    label: RIGHT_STATUS_LABELS[status],
+    count: rightsStats[status] || 0
+  }));
+  const now = new Date();
+
+  return {
+    updatedAt: now,
+    updatedAtLabel: formatDateTimeLabel(now),
+    stock: { totalStock, stockRemaining, sold },
+    orderCount: Number.isFinite(orderCountResult.total) ? orderCountResult.total : orders.length,
+    orderLimit: limit,
+    orders,
+    rights: {
+      total: rightsStats.total || 0,
+      breakdown
+    }
   };
 }
 
@@ -7565,6 +7701,20 @@ function normalizeUsageCount(value) {
   return Math.max(0, Math.floor(numeric));
 }
 
+function resolveThanksgivingMemberId(record = {}) {
+  const direct = normalizeMemberIdValue(record.memberId || record.ownerId || record.userId || record.openid);
+  if (direct) {
+    return direct;
+  }
+  const docId = normalizeMemberIdValue(record._id);
+  if (docId && docId.includes('_')) {
+    const parts = docId.split('_');
+    const candidate = parts[parts.length - 1];
+    return normalizeMemberIdValue(candidate);
+  }
+  return docId;
+}
+
 function normalizeOptionalUsageLimit(value) {
   if (value === null || value === undefined || value === '') {
     return null;
@@ -8617,6 +8767,10 @@ function formatDate(value) {
       .trim();
   }
   return `${y}-${m}-${d} ${hh}:${mm}`;
+}
+
+function formatDateTimeLabel(value) {
+  return formatDate(value);
 }
 
 function calculateExperienceGain(amountFen) {

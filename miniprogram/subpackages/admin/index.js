@@ -32,6 +32,12 @@ const BASE_ACTIONS = [
     url: '/subpackages/admin/activities/index'
   },
   {
+    icon: '🦃',
+    label: '感恩节活动管理',
+    description: '查看感恩节下单、库存与权益',
+    url: '/subpackages/admin/thanksgiving/index'
+  },
+  {
     icon: '🍽️',
     label: '备餐列表',
     description: '查看会员点餐并推送扣费',
