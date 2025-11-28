@@ -61,12 +61,32 @@ const {
   resolveSkillElementLabel,
   resolveSkillMaxLevel
 } = require('skill-model');
+const { getPveCurveConfig } = require('../nodejs-layer/balance/config-loader');
 
 const db = cloud.database();
 const _ = db.command;
 
 const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'pve' });
 const ensuredCollections = new Set();
+
+function mergeDeep(base = {}, override = {}) {
+  const result = Array.isArray(base) ? base.slice() : { ...base };
+  if (!override || typeof override !== 'object') {
+    return result;
+  }
+  Object.keys(override).forEach((key) => {
+    const baseValue = result[key];
+    const overrideValue = override[key];
+    if (overrideValue && typeof overrideValue === 'object' && !Array.isArray(overrideValue)) {
+      result[key] = mergeDeep(baseValue || {}, overrideValue);
+    } else {
+      result[key] = overrideValue;
+    }
+  });
+  return result;
+}
+
+const pveBalanceConfig = getPveCurveConfig();
 
 const BACKGROUND_IDS = new Set([
   'realm_refining',
@@ -115,7 +135,7 @@ function assertBattleCooldown(lastBattleAt, now = new Date()) {
   }
 }
 
-const MAX_LEVEL = 100;
+const MAX_LEVEL = pveBalanceConfig.maxLevel || 100;
 const MAX_SKILL_SLOTS = 3;
 const MAX_BATTLE_HISTORY = 15;
 const MAX_SKILL_HISTORY = 30;
@@ -125,79 +145,94 @@ const BATTLE_ARCHIVE_MIGRATION_LIMIT = 2;
 const BATTLE_ARCHIVE_COLLECTION =
   (COLLECTIONS && COLLECTIONS.MEMBER_BATTLE_ARCHIVE) || 'memberBattleArchive';
 const DEFAULT_SKILL_DRAW_CREDITS = 1;
-const BATTLE_COOLDOWN_MS = 10 * 1000;
-const BATTLE_COOLDOWN_MESSAGE = '您的上一场战斗还没结束，请稍后再战';
+const BATTLE_COOLDOWN_MS = Number.isFinite(pveBalanceConfig.cooldownMs)
+  ? pveBalanceConfig.cooldownMs
+  : 10 * 1000;
+const BATTLE_COOLDOWN_MESSAGE =
+  typeof pveBalanceConfig.cooldownMessage === 'string' && pveBalanceConfig.cooldownMessage
+    ? pveBalanceConfig.cooldownMessage
+    : '您的上一场战斗还没结束，请稍后再战';
 
-const ENEMY_COMBAT_DEFAULTS = {
-  ...DEFAULT_COMBAT_STATS,
-  maxHp: 0,
-  physicalAttack: 0,
-  magicAttack: 0,
-  physicalDefense: 0,
-  magicDefense: 0,
-  speed: 0,
-  accuracy: 110,
-  dodge: 0,
-  critRate: 0.05,
-  critDamage: 1.5
-};
+const ENEMY_COMBAT_DEFAULTS = mergeDeep(
+  {
+    ...DEFAULT_COMBAT_STATS,
+    maxHp: 0,
+    physicalAttack: 0,
+    magicAttack: 0,
+    physicalDefense: 0,
+    magicDefense: 0,
+    speed: 0,
+    accuracy: 110,
+    dodge: 0,
+    critRate: 0.05,
+    critDamage: 1.5
+  },
+  pveBalanceConfig.enemyDefaults || {}
+);
 
 const SECRET_REALM_BACKGROUND_VIDEO = buildCloudAssetUrl('background', 'mijing.mp4');
 
-const SECRET_REALM_BASE_STATS = {
-  maxHp: 920,
-  physicalAttack: 120,
-  magicAttack: 120,
-  physicalDefense: 68,
-  magicDefense: 65,
-  speed: 82,
-  accuracy: 118,
-  dodge: 88,
-  critRate: 0.06,
-  critDamage: 1.52,
-  finalDamageBonus: 0.025,
-  finalDamageReduction: 0.035,
-  lifeSteal: 0.015,
-  controlHit: 26,
-  controlResist: 18,
-  physicalPenetration: 9,
-  magicPenetration: 9
-};
+const SECRET_REALM_BASE_STATS = mergeDeep(
+  {
+    maxHp: 920,
+    physicalAttack: 120,
+    magicAttack: 120,
+    physicalDefense: 68,
+    magicDefense: 65,
+    speed: 82,
+    accuracy: 118,
+    dodge: 88,
+    critRate: 0.06,
+    critDamage: 1.52,
+    finalDamageBonus: 0.025,
+    finalDamageReduction: 0.035,
+    lifeSteal: 0.015,
+    controlHit: 26,
+    controlResist: 18,
+    physicalPenetration: 9,
+    magicPenetration: 9
+  },
+  (pveBalanceConfig.secretRealm && pveBalanceConfig.secretRealm.baseStats) || {}
+);
 
-const SECRET_REALM_TUNING = {
-  baseMultiplier: 1,
-  floorGrowth: 0.08,
-  realmGrowth: 0.34,
-  normal: {
-    base: 1,
-    primary: 1.35,
-    secondary: 1.15,
-    off: 0.98,
-    weak: 0.85
+const SECRET_REALM_TUNING = mergeDeep(
+  {
+    baseMultiplier: 1,
+    floorGrowth: 0.08,
+    realmGrowth: 0.34,
+    normal: {
+      base: 1,
+      primary: 1.35,
+      secondary: 1.15,
+      off: 0.98,
+      weak: 0.85
+    },
+    boss: {
+      base: 1.22,
+      primary: 1.68,
+      secondary: 1.34,
+      tertiary: 1.15,
+      off: 1,
+      weak: 0.88
+    },
+    special: {
+      base: 1,
+      growth: 0.07,
+      boss: 1.5
+    },
+    limits: {
+      critRate: 0.45,
+      critDamage: 2.15,
+      finalDamageBonus: 0.4,
+      finalDamageReduction: 0.55,
+      lifeSteal: 0.18,
+      accuracy: 520,
+      dodge: 420
+    }
   },
-  boss: {
-    base: 1.22,
-    primary: 1.68,
-    secondary: 1.34,
-    tertiary: 1.15,
-    off: 1,
-    weak: 0.88
-  },
-  special: {
-    base: 1,
-    growth: 0.07,
-    boss: 1.5
-  },
-  limits: {
-    critRate: 0.45,
-    critDamage: 2.15,
-    finalDamageBonus: 0.4,
-    finalDamageReduction: 0.55,
-    lifeSteal: 0.18,
-    accuracy: 520,
-    dodge: 420
-  }
-};
+  (pveBalanceConfig.secretRealm && pveBalanceConfig.secretRealm.tuning) || {}
+);
+const PVE_ROUND_LIMIT = pveBalanceConfig.roundLimit || 20;
 
 const GLOBAL_PARAMETERS_TTL_MS = 60 * 1000;
 let cachedGlobalParameters = null;
@@ -10566,7 +10601,7 @@ function runBattleSimulation({
   let previousPlayerAttributesSnapshot = null;
   let previousEnemyAttributesSnapshot = null;
   let round = 1;
-  const maxRounds = 20;
+  const maxRounds = PVE_ROUND_LIMIT;
 
   while (playerActor.hp > 0 && enemyActor.hp > 0 && round <= maxRounds) {
     const { order: roundOrder } = determineRoundOrder(playerActor, enemyActor, {
