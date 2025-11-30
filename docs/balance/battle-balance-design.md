@@ -4,7 +4,7 @@
 
 ## 8. 实现概览与测试入口
 
-- **配置文件**：`cloudfunctions/nodejs-layer/config/balance/` 下的 `level-curves.json`、`equipment-curves.json`、`skill-curves.json`、`pve-curves.json`、`pvp-config.json`。每个文件包含 `profiles`（含 v1/v2），默认 `version` 为 v1，可通过 Loader 切换。
+- **配置文件**：`cloudfunctions/nodejs-layer/node_modules/balance/config/` 下的 `level-curves.json`、`equipment-curves.json`、`skill-curves.json`、`pve-curves.json`、`pvp-config.json`。每个文件包含 `profiles`（含 v1/v2），默认 `version` 为 v1，可通过 Loader 切换。
 - **运行时 Loader**：公共模块 `cloudfunctions/nodejs-layer/node_modules/balance/config-loader.js`（使用 `require('balance/config-loader')` 引用）提供 `getLevelCurveConfig` 等方法，以及 `setBalanceVersion/getBalanceVersion`、`__resetBalanceCache`（测试用）。缺失字段自动回退到旧版常量并打印警告。
 - **战斗模拟入口**：公共模块 `cloudfunctions/nodejs-layer/node_modules/balance/simulator.js`（使用 `require('balance/simulator')` 引用）提供 `simulatePveBattle`、`simulatePvpBattle`，使用现有战斗引擎（combat-system / skill-engine），可带 seed 复现。
 - **自动化测试**：
