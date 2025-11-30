@@ -1,0 +1,77 @@
+{
+  "version": "v1",
+  "profiles": {
+    "v1": {
+      "defaults": {
+        "combatStats": {
+          "maxHp": 2860,
+          "physicalAttack": 82,
+          "magicAttack": 82,
+          "physicalDefense": 61,
+          "magicDefense": 61,
+          "speed": 92,
+          "accuracy": 112,
+          "dodge": 96,
+          "critRate": 0.062,
+          "critDamage": 1.52,
+          "finalDamageBonus": 0,
+          "finalDamageReduction": 0.024,
+          "lifeSteal": 0,
+          "healingBonus": 0.08,
+          "healingReduction": 0,
+          "controlHit": 11,
+          "controlResist": 11,
+          "physicalPenetration": 1,
+          "magicPenetration": 1,
+          "critResist": 0.0184,
+          "comboRate": 0,
+          "block": 0,
+          "counterRate": 0,
+          "damageReduction": 0,
+          "healingReceived": 0,
+          "rageGain": 0,
+          "controlStrength": 0,
+          "shieldPower": 0,
+          "summonPower": 0,
+          "elementalVulnerability": 0
+        },
+        "specialStats": {
+          "shield": 0,
+          "bonusDamage": 0,
+          "dodgeChance": 0,
+          "healOnHit": 0,
+          "healOnKill": 0,
+          "damageReflection": 0,
+          "accuracyBonus": 0,
+          "speedBonus": 0,
+          "physicalPenetrationBonus": 0,
+          "magicPenetrationBonus": 0
+        }
+      },
+      "hitFormula": { "base": 0.85, "slope": 0.005, "min": 0.2, "max": 0.99 },
+      "penetration": { "scale": 0.005, "max": 0.6 },
+      "baseDamage": { "minAttackRatio": 0.25, "randomMin": 0.9, "randomRange": 0.2, "minDamage": 1 },
+      "crit": { "min": 0.05, "max": 0.95, "damageMin": 1.2 },
+      "finalDamage": {
+        "minMultiplier": 0.1,
+        "bonusClamp": { "min": -0.9, "max": 2 },
+        "reductionClamp": { "min": 0, "max": 0.9 }
+      },
+      "healing": {
+        "lifeStealMax": 0.6,
+        "healingBonusClamp": { "min": -1, "max": 1.5 },
+        "healingReductionClamp": { "min": -1, "max": 1.5 },
+        "healingReceivedClamp": { "min": -0.5, "max": 1.5 }
+      },
+      "mitigation": { "damageReductionMax": 0.8 },
+      "procCaps": { "comboRateMax": 1, "blockMax": 1, "counterRateMax": 1 },
+      "specialCaps": { "dodgeChanceMax": 0.8, "damageReflectionMax": 0.8 },
+      "statFloors": { "critDamageMin": 1.2 }
+    },
+    "v2": {
+      "hitFormula": { "base": 0.87 },
+      "baseDamage": { "randomMin": 0.95, "randomRange": 0.22 },
+      "crit": { "min": 0.07 }
+    }
+  }
+}
