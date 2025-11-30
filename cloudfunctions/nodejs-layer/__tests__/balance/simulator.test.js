@@ -1,5 +1,5 @@
-const { setBalanceVersion, __resetBalanceCache } = require('../../balance/config-loader');
-const { simulatePveBattle, simulatePvpBattle } = require('../../balance/simulator');
+const { setBalanceVersion, __resetBalanceCache } = require('balance/config-loader');
+const { simulatePveBattle, simulatePvpBattle } = require('balance/simulator');
 const { resolveCombatStats } = require('combat-system');
 
 describe('balance simulator', () => {

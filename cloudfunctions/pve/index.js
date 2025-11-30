@@ -61,7 +61,7 @@ const {
   resolveSkillElementLabel,
   resolveSkillMaxLevel
 } = require('skill-model');
-const { getPveCurveConfig } = require('../nodejs-layer/balance/config-loader');
+const { getPveCurveConfig } = require('balance/config-loader');
 
 const db = cloud.database();
 const _ = db.command;

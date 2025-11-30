@@ -45,7 +45,7 @@ const {
   DEFAULT_GLOBAL_BACKGROUND,
   cloneGlobalBackground
 } = require('system-settings');
-const { getPvpConfig } = require('../nodejs-layer/balance/config-loader');
+const { getPvpConfig } = require('balance/config-loader');
 
 const db = cloud.database();
 const _ = db.command;

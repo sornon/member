@@ -7,7 +7,7 @@ const {
   getPvpConfig,
   setBalanceVersion,
   __resetBalanceCache
-} = require('../../balance/config-loader');
+} = require('balance/config-loader');
 
 function writeConfig(dir, fileName, content) {
   fs.writeFileSync(path.join(dir, fileName), JSON.stringify(content));
