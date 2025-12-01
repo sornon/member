@@ -1275,6 +1275,23 @@ export const AdminService = {
       config
     });
   },
+  async getBalanceConfig() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, { action: 'getBalanceConfig' });
+  },
+  async saveBalanceDraft(config = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, { action: 'saveBalanceDraft', config });
+  },
+  async testBalanceDraft(options = {}) {
+    const payload = { action: 'testBalanceConfig' };
+    if (options && typeof options === 'object') {
+      if (options.rounds) payload.rounds = options.rounds;
+      if (options.seed) payload.seed = options.seed;
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
+  },
+  async applyBalanceConfig() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, { action: 'applyBalanceConfig' });
+  },
   async bumpCacheVersion(scope) {
     const payload = {
       action: 'bumpCacheVersion'

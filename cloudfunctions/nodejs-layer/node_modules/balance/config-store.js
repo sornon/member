@@ -1,0 +1,137 @@
+const cloud = require('wx-server-sdk');
+
+const { COLLECTIONS } = require('common-config');
+const {
+  getBalanceDefaults,
+  applyRuntimeBalanceConfig,
+  withTemporaryBalanceConfig
+} = require('balance/config-loader');
+
+const db = cloud.database();
+
+const BALANCE_CONFIG_COLLECTION = COLLECTIONS.BALANCE_CONFIGS || 'balanceConfigs';
+const ACTIVE_DOC_ID = 'active';
+const STAGING_DOC_ID = 'staging';
+const CACHE_TTL_MS = 60 * 1000;
+
+function deepMerge(base = {}, override = {}) {
+  if (Array.isArray(base) || Array.isArray(override)) {
+    return override !== undefined ? override : base;
+  }
+  if (typeof base !== 'object' || typeof override !== 'object' || !override) {
+    return override !== undefined ? override : base;
+  }
+  const result = { ...base };
+  Object.keys(override).forEach((key) => {
+    result[key] = deepMerge(base[key], override[key]);
+  });
+  return result;
+}
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value || {}));
+}
+
+function normalizeBalanceConfig(config = {}) {
+  const source = config && typeof config === 'object' ? config : {};
+  const version = typeof source.version === 'string' && source.version.trim()
+    ? source.version.trim()
+    : getBalanceDefaults().version;
+  return {
+    version,
+    level: source.level || {},
+    equipment: source.equipment || {},
+    skill: source.skill || {},
+    pve: source.pve || {},
+    pvp: source.pvp || {}
+  };
+}
+
+function mergeWithDefaults(config = {}) {
+  const defaults = getBalanceDefaults();
+  const normalized = normalizeBalanceConfig(config);
+  return {
+    version: normalized.version || defaults.version,
+    level: deepMerge(defaults.level, normalized.level),
+    equipment: deepMerge(defaults.equipment, normalized.equipment),
+    skill: deepMerge(defaults.skill, normalized.skill),
+    pve: deepMerge(defaults.pve, normalized.pve),
+    pvp: deepMerge(defaults.pvp, normalized.pvp)
+  };
+}
+
+async function readBalanceConfig(docId = ACTIVE_DOC_ID) {
+  const snapshot = await db.collection(BALANCE_CONFIG_COLLECTION).doc(docId).get().catch(() => null);
+  if (!snapshot || !snapshot.data) {
+    return { exists: false, config: null, metadata: {} };
+  }
+  const { _id, updatedAt, updatedBy, updatedByName, notes, ...rest } = snapshot.data;
+  return {
+    exists: true,
+    config: normalizeBalanceConfig(rest),
+    metadata: {
+      id: _id || docId,
+      updatedAt: updatedAt || null,
+      updatedBy: updatedBy || '',
+      updatedByName: updatedByName || '',
+      notes: typeof notes === 'string' ? notes : ''
+    }
+  };
+}
+
+async function writeBalanceConfig(docId, config = {}, metadata = {}) {
+  const now = new Date();
+  const payload = {
+    ...normalizeBalanceConfig(config),
+    updatedAt: metadata.updatedAt || now,
+    updatedBy: metadata.updatedBy || '',
+    updatedByName: metadata.updatedByName || '',
+    notes: metadata.notes || ''
+  };
+  await db.collection(BALANCE_CONFIG_COLLECTION).doc(docId).set({ data: payload });
+  return { config: payload, updatedAt: payload.updatedAt };
+}
+
+let cachedActive = null;
+let cachedAt = 0;
+
+async function loadActiveBalanceConfig(options = {}) {
+  const now = Date.now();
+  const force = options && options.force;
+  if (!force && cachedActive && now - cachedAt < CACHE_TTL_MS) {
+    return cachedActive;
+  }
+  const { exists, config, metadata } = await readBalanceConfig(ACTIVE_DOC_ID);
+  const merged = mergeWithDefaults(exists ? config : {});
+  cachedActive = {
+    exists,
+    config: merged,
+    metadata: metadata || {}
+  };
+  cachedAt = now;
+  return cachedActive;
+}
+
+async function ensureActiveRuntimeConfig(options = {}) {
+  const { config } = await loadActiveBalanceConfig(options);
+  applyRuntimeBalanceConfig(config);
+  return config;
+}
+
+function runWithBalanceConfig(overrides = {}, runner) {
+  return withTemporaryBalanceConfig(mergeWithDefaults(overrides), runner);
+}
+
+module.exports = {
+  ACTIVE_DOC_ID,
+  STAGING_DOC_ID,
+  BALANCE_CONFIG_COLLECTION,
+  deepMerge,
+  mergeWithDefaults,
+  normalizeBalanceConfig,
+  readBalanceConfig,
+  writeBalanceConfig,
+  loadActiveBalanceConfig,
+  ensureActiveRuntimeConfig,
+  runWithBalanceConfig
+};
