@@ -56,7 +56,7 @@
             <view class="field-desc" wx:if="{{field.description}}">{{field.description}}</view>
             <view class="field-default">{{field.defaultHint}}</view>
           </view>
-          <view class="field-control" wx:if="{{field.type !== 'json' && field.type !== 'boolean' && field.type !== 'slots'}}">
+          <view class="field-control" wx:if="{{field.type !== 'json' && field.type !== 'boolean' && field.type !== 'slots' && field.type !== 'tiers'}}">
             <input
               class="field-input"
               type="{{field.type === 'number' ? 'number' : 'text'}}"
@@ -84,12 +84,12 @@
                 <view class="tier-row-header">
                   <view class="tier-title">{{tier.title}}</view>
                   <button
-                    class="ghost-button mini-button"
+                    class="ghost-button mini-button tier-remove"
                     data-section="{{section.key}}"
                     data-path="{{field.path}}"
                     data-index="{{idx}}"
                     bindtap="handleTierRemove"
-                  >删除段位</button>
+                  >删除</button>
                 </view>
                 <view class="tier-fields">
                   <block wx:for="{{['id','name','min','max','color','rewardKey']}}" wx:key="item">

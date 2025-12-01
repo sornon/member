@@ -252,6 +252,8 @@
   font-size: 22rpx;
   color: rgba(206, 216, 255, 0.7);
   line-height: 1.5;
+  height: 66rpx;
+  overflow: hidden;
 }
 
 .tier-input {
@@ -262,6 +264,10 @@
   background: rgba(255, 255, 255, 0.05);
   color: #f1f4ff;
   font-size: 26rpx;
+}
+
+.tier-remove {
+  margin-left: auto;
 }
 
 .add-tier {
