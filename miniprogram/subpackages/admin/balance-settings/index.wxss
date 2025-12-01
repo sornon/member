@@ -74,13 +74,17 @@
 
 .tabs-card {
   padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border: none;
 }
 
 .tabs {
   display: flex;
-  overflow-x: auto;
+  flex-wrap: wrap;
+  overflow: visible;
   padding: 12rpx 20rpx;
-  gap: 16rpx;
+  gap: 16rpx 12rpx;
 }
 
 .tab-item {
