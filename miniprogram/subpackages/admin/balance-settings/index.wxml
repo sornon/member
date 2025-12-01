@@ -56,7 +56,7 @@
             <view class="field-desc" wx:if="{{field.description}}">{{field.description}}</view>
             <view class="field-default">{{field.defaultHint}}</view>
           </view>
-          <view class="field-control" wx:if="{{field.type !== 'json' && field.type !== 'boolean'}}">
+          <view class="field-control" wx:if="{{field.type !== 'json' && field.type !== 'boolean' && field.type !== 'slots'}}">
             <input
               class="field-input"
               type="{{field.type === 'number' ? 'number' : 'text'}}"
@@ -77,6 +77,38 @@
               data-type="boolean"
               bindchange="handleFieldChange"
             />
+          </view>
+          <view class="field-control slots-control" wx:if="{{field.type === 'slots'}}">
+            <view class="slot-list">
+              <view class="slot-row" wx:for="{{field.items}}" wx:key="index" wx:for-index="idx" wx:for-item="item">
+                <view class="slot-info">
+                  <view class="slot-name">{{item.label}}</view>
+                  <view class="slot-hint">{{item.hint}}</view>
+                </view>
+                <input
+                  class="slot-input"
+                  type="text"
+                  value="{{item.value}}"
+                  data-section="{{section.key}}"
+                  data-path="{{field.path}}"
+                  data-index="{{idx}}"
+                  bindinput="handleSlotValueChange"
+                />
+                <button
+                  class="ghost-button mini-button"
+                  data-section="{{section.key}}"
+                  data-path="{{field.path}}"
+                  data-index="{{idx}}"
+                  bindtap="handleSlotRemove"
+                >删除</button>
+              </view>
+              <button
+                class="ghost-button add-slot"
+                data-section="{{section.key}}"
+                data-path="{{field.path}}"
+                bindtap="handleSlotAdd"
+              >新增槽位</button>
+            </view>
           </view>
           <view class="field-control full" wx:if="{{field.type === 'json'}}">
             <textarea

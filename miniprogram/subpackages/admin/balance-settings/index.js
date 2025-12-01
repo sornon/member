@@ -8,6 +8,12 @@ const SECTION_LABELS = {
   pvp: 'PVP 赛季与匹配'
 };
 
+const SLOT_LABEL_MAP = {
+  weapon: '武器槽位',
+  armor: '防具槽位',
+  accessory: '饰品槽位'
+};
+
 const FIELD_GROUP_META = [
   {
     section: 'level',
@@ -412,7 +418,13 @@ function flattenConfig(source = {}, prefix = '') {
   const walk = (value, path) => {
     const currentPath = path;
     if (Array.isArray(value)) {
-      fields.push({ path: currentPath, type: 'json', defaultValue: value });
+      const slotFieldPaths = ['profiles.v1.slots', 'profiles.v2.slots'];
+      const isSlotField = slotFieldPaths.includes(currentPath);
+      fields.push({
+        path: currentPath,
+        type: isSlotField ? 'slots' : 'json',
+        defaultValue: value
+      });
       return;
     }
     if (typeof value === 'boolean') {
@@ -433,6 +445,15 @@ function flattenConfig(source = {}, prefix = '') {
   };
   walk(source, prefix);
   return fields;
+}
+
+function toSlotItems(list = []) {
+  const values = Array.isArray(list) ? list : [];
+  return values.map((value, index) => ({
+    value,
+    label: SLOT_LABEL_MAP[value] || `槽位 ${index + 1}`,
+    hint: SLOT_LABEL_MAP[value] ? `键名：${value}` : '自定义槽位键'
+  }));
 }
 
 function resolveFieldMeta(sectionKey, path) {
@@ -467,22 +488,36 @@ function buildSections(defaults = {}, staging = {}, versions = {}) {
       }
     });
     const dedupedFields = Object.values(latestByPath).map(({ field, version }) => {
-      const defaultText =
-        field.defaultValue === undefined
-          ? '无'
-          : typeof field.defaultValue === 'object'
-            ? JSON.stringify(field.defaultValue)
-            : field.defaultValue;
+      const defaultText = (() => {
+        if (field.type === 'slots') {
+          const defaults = Array.isArray(field.defaultValue) ? field.defaultValue : [];
+          return defaults.length
+            ? defaults.map((item) => SLOT_LABEL_MAP[item] || item).join('、')
+            : '无';
+        }
+        if (field.defaultValue === undefined) return '无';
+        if (typeof field.defaultValue === 'object') return JSON.stringify(field.defaultValue);
+        return field.defaultValue;
+      })();
       const versionHint = Number.isFinite(version) ? ` 当前版本:v${version}` : '';
+      const currentValue = getValueByPath(staging[key] || {}, field.path);
+      const slotValue =
+        field.type === 'slots'
+          ? (() => {
+              if (Array.isArray(currentValue)) return currentValue;
+              if (Array.isArray(field.defaultValue)) return field.defaultValue;
+              return [];
+            })()
+          : currentValue;
       return {
         ...field,
         ...resolveFieldMeta(key, field.path),
         defaultHint: `默认值：${defaultText}${versionHint}`,
-        value: getValueByPath(staging[key] || {}, field.path),
+        value: slotValue,
         displayValue:
           field.type === 'json'
             ? (() => {
-                const current = getValueByPath(staging[key] || {}, field.path);
+                const current = currentValue;
                 if (!current) return '';
                 try {
                   return JSON.stringify(current, null, 2);
@@ -490,7 +525,8 @@ function buildSections(defaults = {}, staging = {}, versions = {}) {
                   return '';
                 }
               })()
-            : undefined
+            : undefined,
+        items: field.type === 'slots' ? toSlotItems(slotValue) : undefined
       };
     });
       return {
@@ -594,6 +630,47 @@ Page({
       };
     });
     this.setData({ stagingConfig: nextConfig, sections });
+  },
+
+  updateSlotsField(section, path, updater) {
+    const nextConfig = clone(this.data.stagingConfig || {});
+    const sectionConfig = clone(nextConfig[section] || {});
+    const current = getValueByPath(sectionConfig, path);
+    const nextSlots = updater(Array.isArray(current) ? [...current] : []);
+    setValueByPath(sectionConfig, path, nextSlots);
+    nextConfig[section] = sectionConfig;
+    const sections = this.data.sections.map((item) => {
+      if (item.key !== section) return item;
+      return {
+        ...item,
+        fields: item.fields.map((field) =>
+          field.path === path ? { ...field, value: nextSlots, items: toSlotItems(nextSlots) } : field
+        )
+      };
+    });
+    this.setData({ stagingConfig: nextConfig, sections });
+  },
+
+  handleSlotValueChange(event) {
+    const { section, path } = event.currentTarget.dataset;
+    const index = Number(event.currentTarget.dataset.index);
+    const value = (event.detail.value || '').trim();
+    this.updateSlotsField(section, path, (slots) => {
+      const next = [...slots];
+      next[index] = value;
+      return next;
+    });
+  },
+
+  handleSlotRemove(event) {
+    const { section, path } = event.currentTarget.dataset;
+    const index = Number(event.currentTarget.dataset.index);
+    this.updateSlotsField(section, path, (slots) => slots.filter((_, idx) => idx !== index));
+  },
+
+  handleSlotAdd(event) {
+    const { section, path } = event.currentTarget.dataset;
+    this.updateSlotsField(section, path, (slots) => [...slots, '']);
   },
 
   handleTabChange(event) {
