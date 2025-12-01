@@ -22,8 +22,22 @@
     </view>
   </view>
 
+  <view class="card tabs-card" wx:if="{{!loading}}">
+    <view class="tabs">
+      <block wx:for="{{sections}}" wx:key="key" wx:for-item="tab">
+        <view
+          class="tab-item {{tab.key === activeTab ? 'active' : ''}}"
+          data-key="{{tab.key}}"
+          bindtap="handleTabChange"
+        >
+          {{tab.title}}
+        </view>
+      </block>
+    </view>
+  </view>
+
   <block wx:for="{{sections}}" wx:key="key" wx:for-item="section">
-    <view class="card section-card">
+    <view class="card section-card" wx:if="{{section.key === activeTab}}">
       <view class="card-title">{{section.title}}</view>
       <block wx:for="{{section.fields}}" wx:key="path" wx:for-item="field">
         <view class="field {{field.type === 'json' ? 'json-field' : ''}}">

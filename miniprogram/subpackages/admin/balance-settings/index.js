@@ -487,6 +487,7 @@ Page({
     testing: false,
     applying: false,
     sections: [],
+    activeTab: '',
     stagingConfig: {},
     activeConfig: {},
     defaults: {},
@@ -507,8 +508,10 @@ Page({
       const defaults = result && result.defaults ? result.defaults : {};
       const stagingConfig = (result && result.staging && result.staging.config) || defaults;
       const sections = buildSections(defaults, stagingConfig);
+      const activeTab = this.data.activeTab || (sections[0] && sections[0].key) || '';
       this.setData({
         sections,
+        activeTab,
         defaults,
         stagingConfig,
         activeConfig: (result && result.active && result.active.config) || defaults,
@@ -563,6 +566,12 @@ Page({
       };
     });
     this.setData({ stagingConfig: nextConfig, sections });
+  },
+
+  handleTabChange(event) {
+    const { key } = event.currentTarget.dataset;
+    if (!key || key === this.data.activeTab) return;
+    this.setData({ activeTab: key });
   },
 
   async handleSaveDraft() {
