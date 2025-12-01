@@ -390,9 +390,7 @@ const FIELD_GROUP_META = [
   }
 ];
 
-const FIELD_FALLBACKS = {
-  version: { label: '配置版本', description: '用于选择当前生效的数值版本。' }
-};
+const FIELD_FALLBACKS = {};
 
 function clone(value) {
   try {
@@ -453,6 +451,7 @@ function flattenConfig(source = {}, prefix = '') {
     }
     if (value && typeof value === 'object') {
       Object.keys(value).forEach((key) => {
+        if (key === 'version') return;
         walk(value[key], currentPath ? `${currentPath}.${key}` : key);
       });
       return;
@@ -542,17 +541,17 @@ function parseVersionedPath(path = '') {
   return { basePath: `${match[1]}.${match[3]}`, version: Number(match[2]) };
 }
 
-function buildSections(defaults = {}, staging = {}, versions = {}) {
+function buildSections(defaults = {}, staging = {}) {
   return Object.keys(SECTION_LABELS).map((key) => {
     const base = defaults[key] || {};
     const fields = flattenConfig(base);
     const latestByPath = {};
     fields.forEach((field) => {
-      const version = (versions[key] && versions[key][field.path]) || parseVersionedPath(field.path).version;
-      const basePath = parseVersionedPath(field.path).basePath || field.path;
+      const parsed = parseVersionedPath(field.path);
+      const basePath = parsed.basePath || field.path;
       const current = latestByPath[basePath];
-      if (!current || (Number.isFinite(version) && version > (current.version || 0))) {
-        latestByPath[basePath] = { field, version: Number.isFinite(version) ? version : null };
+      if (!current || (Number.isFinite(parsed.version) && parsed.version > (current.version || 0))) {
+        latestByPath[basePath] = { field, version: Number.isFinite(parsed.version) ? parsed.version : null };
       }
     });
     const dedupedFields = Object.values(latestByPath).map(({ field, version }) => {
@@ -580,7 +579,6 @@ function buildSections(defaults = {}, staging = {}, versions = {}) {
         if (typeof field.defaultValue === 'object') return JSON.stringify(field.defaultValue);
         return field.defaultValue;
       })();
-      const versionHint = Number.isFinite(version) ? ` 当前版本:v${version}` : '';
       const currentValue = getValueByPath(staging[key] || {}, field.path);
       const slotValue =
         field.type === 'slots'
@@ -601,7 +599,7 @@ function buildSections(defaults = {}, staging = {}, versions = {}) {
       return {
         ...field,
         ...resolveFieldMeta(key, field.path),
-        defaultHint: `默认值：${defaultText}${versionHint}`,
+        defaultHint: `默认值：${defaultText}`,
         value: field.type === 'slots' ? slotValue : field.type === 'tiers' ? tierValue : currentValue,
         displayValue:
           field.type === 'json'
@@ -644,8 +642,6 @@ Page({
     defaults: {},
     activeMetadata: {},
     stagingMetadata: {},
-    fieldVersions: {},
-    baselineConfig: {},
     testReport: null,
     testRounds: 12,
     tierFieldMeta: TIER_FIELD_META
@@ -661,16 +657,13 @@ Page({
       const result = await AdminService.getBalanceConfig();
       const defaults = result && result.defaults ? result.defaults : {};
       const stagingConfig = (result && result.staging && result.staging.config) || defaults;
-      const fieldVersions = (result && result.staging && result.staging.metadata && result.staging.metadata.fieldVersions) || {};
-      const sections = buildSections(defaults, stagingConfig, fieldVersions);
+      const sections = buildSections(defaults, stagingConfig);
       const activeTab = this.data.activeTab || (sections[0] && sections[0].key) || '';
       this.setData({
         sections,
         activeTab,
         defaults,
         stagingConfig,
-        baselineConfig: stagingConfig,
-        fieldVersions,
         activeConfig: (result && result.active && result.active.config) || defaults,
         activeMetadata: (result && result.active && result.active.metadata) || {},
         stagingMetadata: (result && result.staging && result.staging.metadata) || {},
@@ -824,61 +817,20 @@ Page({
     this.setData({ activeTab: key });
   },
 
-  computeNextVersions() {
-    const flattenValues = (obj = {}, prefix = '') => {
-      const result = {};
-      const walk = (value, path) => {
-        if (Array.isArray(value) || typeof value !== 'object' || value === null) {
-          result[path] = value;
-          return;
-        }
-        Object.keys(value).forEach((key) => {
-          const nextPath = path ? `${path}.${key}` : key;
-          walk(value[key], nextPath);
-        });
-      };
-      walk(obj, prefix);
-      return result;
-    };
-
-    const currentFlat = flattenValues(this.data.stagingConfig || {});
-    const baselineFlat = flattenValues(this.data.baselineConfig || {});
-    const nextVersions = clone(this.data.fieldVersions || {});
-
-    Object.keys(currentFlat).forEach((fullPath) => {
-      const baseValue = baselineFlat[fullPath];
-      const currentValue = currentFlat[fullPath];
-      const changed = JSON.stringify(baseValue) !== JSON.stringify(currentValue);
-      const [section, ...rest] = fullPath.split('.');
-      const path = rest.join('.');
-      if (!section || !path) return;
-      if (changed) {
-        const sectionVersions = nextVersions[section] || {};
-        sectionVersions[path] = (sectionVersions[path] || 0) + 1;
-        nextVersions[section] = sectionVersions;
-      }
-    });
-
-    return nextVersions;
-  },
-
   async handleSaveDraft() {
     this.setData({ saving: true });
     try {
-      const nextVersions = this.computeNextVersions();
       const response = await AdminService.saveBalanceDraft({
-        config: this.data.stagingConfig || {},
-        fieldVersions: nextVersions
+        config: this.data.stagingConfig || {}
       });
       wx.showToast({ title: '已暂存', icon: 'success' });
       const stagingMetadata = {
         updatedBy: response.staging && response.staging.updatedBy,
         updatedByName: response.staging && response.staging.updatedByName,
-        updatedAt: new Date(),
-        fieldVersions: nextVersions
+        updatedAt: new Date()
       };
-      const sections = buildSections(this.data.defaults, this.data.stagingConfig, nextVersions);
-      this.setData({ stagingMetadata, fieldVersions: nextVersions, baselineConfig: this.data.stagingConfig, sections });
+      const sections = buildSections(this.data.defaults, this.data.stagingConfig);
+      this.setData({ stagingMetadata, sections });
     } catch (error) {
       console.error('save balance draft failed', error);
       wx.showToast({ title: error.message || '暂存失败', icon: 'none' });

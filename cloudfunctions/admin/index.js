@@ -52,8 +52,10 @@ const {
   readBalanceConfig,
   writeBalanceConfig,
   runWithBalanceConfig,
-  STAGING_DOC_ID,
-  ACTIVE_DOC_ID
+  STATUS_STAGING,
+  STATUS_USE,
+  STATUS_BACKUP,
+  updateBalanceStatusById
 } = require('balance/config-store');
 
 const db = cloud.database();
@@ -1908,8 +1910,8 @@ async function getBalanceConfig(openid) {
   await ensureAdmin(openid);
   await ensureCollectionExists(COLLECTIONS.BALANCE_CONFIGS);
   const defaults = mergeBalanceWithDefaults({});
-  const staging = await readBalanceConfig(STAGING_DOC_ID).catch(() => ({ exists: false }));
-  const active = await readBalanceConfig(ACTIVE_DOC_ID).catch(() => ({ exists: false }));
+  const staging = await readBalanceConfig(STATUS_STAGING).catch(() => ({ exists: false }));
+  const active = await readBalanceConfig(STATUS_USE).catch(() => ({ exists: false }));
 
   const mergeEntry = (entry) => {
     if (!entry || !entry.exists) {
@@ -1936,14 +1938,12 @@ async function saveBalanceDraft(openid, updates = {}) {
     throw new Error('请提供需要暂存的平衡性配置');
   }
   const payloadConfig = updates.config && typeof updates.config === 'object' ? updates.config : updates;
-  const fieldVersions = updates.fieldVersions && typeof updates.fieldVersions === 'object' ? updates.fieldVersions : {};
   const merged = mergeBalanceWithDefaults(payloadConfig);
   const adminName = resolveMemberDisplayName(admin) || '';
-  await writeBalanceConfig(STAGING_DOC_ID, merged, {
+  await writeBalanceConfig(STATUS_STAGING, merged, {
     updatedBy: admin._id,
     updatedByName: adminName,
-    notes: updates.notes || '',
-    fieldVersions
+    notes: updates.notes || ''
   });
   return {
     success: true,
@@ -2017,7 +2017,7 @@ function buildPkTestCases() {
 async function testBalanceDraft(openid, options = {}) {
   await ensureAdmin(openid);
   await ensureCollectionExists(COLLECTIONS.BALANCE_CONFIGS);
-  const staging = await readBalanceConfig(STAGING_DOC_ID);
+  const staging = await readBalanceConfig(STATUS_STAGING);
   if (!staging || !staging.exists) {
     throw new Error('暂无暂存配置，请先暂存后再测试');
   }
@@ -2084,13 +2084,17 @@ async function testBalanceDraft(openid, options = {}) {
 async function applyBalanceConfig(openid) {
   const admin = await ensureAdmin(openid);
   await ensureCollectionExists(COLLECTIONS.BALANCE_CONFIGS);
-  const staging = await readBalanceConfig(STAGING_DOC_ID);
+  const staging = await readBalanceConfig(STATUS_STAGING);
   if (!staging || !staging.exists) {
     throw new Error('暂无暂存配置，请先暂存后再应用');
   }
   const merged = mergeBalanceWithDefaults(staging.config || {});
   const adminName = resolveMemberDisplayName(admin) || '';
-  await writeBalanceConfig(ACTIVE_DOC_ID, merged, {
+  const currentActive = await readBalanceConfig(STATUS_USE);
+  if (currentActive && currentActive.exists && currentActive.metadata && currentActive.metadata.id) {
+    await updateBalanceStatusById(currentActive.metadata.id, STATUS_BACKUP);
+  }
+  await writeBalanceConfig(STATUS_USE, merged, {
     updatedBy: admin._id,
     updatedByName: adminName,
     notes: staging.metadata && staging.metadata.notes
