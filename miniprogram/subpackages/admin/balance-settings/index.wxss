@@ -48,6 +48,13 @@
   white-space: nowrap;
 }
 
+.ghost-button.mini-button {
+  width: 100rpx;
+  min-width: 100rpx;
+  padding-left: 0;
+  padding-right: 0;
+}
+
 .primary-button {
   background: linear-gradient(135deg, #5c7cfa, #7f8cff);
   color: #fff;
@@ -112,6 +119,15 @@
 }
 
 .field:last-child {
+  border-bottom: none;
+}
+
+.slot-field {
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid rgba(255, 255, 255, 0.04);
+}
+
+.slot-field:last-child {
   border-bottom: none;
 }
 

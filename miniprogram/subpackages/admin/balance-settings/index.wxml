@@ -50,7 +50,7 @@
     <view class="card section-card" wx:if="{{section.key === activeTab}}">
       <view class="card-title">{{section.title}}</view>
       <block wx:for="{{section.fields}}" wx:key="path" wx:for-item="field">
-        <view class="field {{field.type === 'json' ? 'json-field' : ''}}">
+        <view class="{{field.type === 'slots' ? 'slot-field' : ('field ' + (field.type === 'json' ? 'json-field' : ''))}}">
           <view class="field-info">
             <view class="field-name">{{field.label}}</view>
             <view class="field-desc" wx:if="{{field.description}}">{{field.description}}</view>
