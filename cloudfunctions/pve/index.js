@@ -62,7 +62,7 @@ const {
   resolveSkillMaxLevel
 } = require('skill-model');
 const { getPveCurveConfig } = require('balance/config-loader');
-const { ensureActiveRuntimeConfig } = require('../shared/balance-config');
+const { ensureActiveRuntimeConfig } = require('balance/config-store');
 
 const db = cloud.database();
 const _ = db.command;

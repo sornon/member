@@ -54,7 +54,7 @@ const {
   runWithBalanceConfig,
   STAGING_DOC_ID,
   ACTIVE_DOC_ID
-} = require('../shared/balance-config');
+} = require('balance/config-store');
 
 const db = cloud.database();
 const _ = db.command;

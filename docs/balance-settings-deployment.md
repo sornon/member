@@ -13,7 +13,7 @@
    - `cloudfunctions/admin`
    - `cloudfunctions/pvp`
    - `cloudfunctions/pve`
-3. **上传公共模块**：若使用了独立云托管层，请确保 `cloudfunctions/nodejs-layer` 一并发布，使新的 `balance/config-loader` 与 `shared/balance-config` 生效。
+3. **上传公共模块**：若使用了独立云托管层，请确保 `cloudfunctions/nodejs-layer` 一并发布，使新的 `balance/config-loader` 与 `balance/config-store` 生效。
 4. **更新小程序**：构建并上传小程序，包含新增页面 `subpackages/admin/balance-settings` 与首页入口。
 
 ## 使用指引

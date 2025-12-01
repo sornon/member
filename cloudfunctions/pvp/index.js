@@ -46,7 +46,7 @@ const {
   cloneGlobalBackground
 } = require('system-settings');
 const { getPvpConfig } = require('balance/config-loader');
-const { ensureActiveRuntimeConfig } = require('../shared/balance-config');
+const { ensureActiveRuntimeConfig } = require('balance/config-store');
 
 const db = cloud.database();
 const _ = db.command;
