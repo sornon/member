@@ -14,6 +14,24 @@ const SLOT_LABEL_MAP = {
   accessory: '饰品槽位'
 };
 
+const TIER_TITLE_MAP = {
+  bronze: '青铜',
+  silver: '白银',
+  gold: '黄金',
+  platinum: '白金',
+  diamond: '钻石',
+  master: '宗师'
+};
+
+const TIER_FIELD_META = {
+  id: { label: '段位键名', description: '用于引用段位的唯一键，请使用英文或拼音。' },
+  name: { label: '段位中文名', description: '显示在排行榜或界面的名称。' },
+  min: { label: '最低分', description: '进入该段位的最低天梯分。' },
+  max: { label: '最高分', description: '该段位的最高天梯分，填 Infinity 代表无上限。' },
+  color: { label: '显示颜色', description: '段位徽章或进度的配色，例如 #c4723a。' },
+  rewardKey: { label: '奖励键名', description: '对应 tierRewards 下的键名，用于领取奖励。' }
+};
+
 const FIELD_GROUP_META = [
   {
     section: 'level',
@@ -419,10 +437,12 @@ function flattenConfig(source = {}, prefix = '') {
     const currentPath = path;
     if (Array.isArray(value)) {
       const slotFieldPaths = ['profiles.v1.slots', 'profiles.v2.slots'];
+      const tierFieldPaths = ['profiles.v1.tiers'];
       const isSlotField = slotFieldPaths.includes(currentPath);
+      const isTierField = tierFieldPaths.includes(currentPath);
       fields.push({
         path: currentPath,
-        type: isSlotField ? 'slots' : 'json',
+        type: isSlotField ? 'slots' : isTierField ? 'tiers' : 'json',
         defaultValue: value
       });
       return;
@@ -454,6 +474,30 @@ function toSlotItems(list = []) {
     label: SLOT_LABEL_MAP[value] || `槽位 ${index + 1}`,
     hint: SLOT_LABEL_MAP[value] ? `键名：${value}` : '自定义槽位键'
   }));
+}
+
+function normalizeTiers(list = []) {
+  if (!Array.isArray(list)) return [];
+  return list.map((item) => ({
+    id: item && item.id ? item.id : '',
+    name: item && item.name ? item.name : '',
+    min: item && item.min !== undefined ? item.min : '',
+    max: item && item.max !== undefined ? item.max : '',
+    color: item && item.color ? item.color : '',
+    rewardKey: item && item.rewardKey ? item.rewardKey : ''
+  }));
+}
+
+function toTierItems(list = []) {
+  const normalized = normalizeTiers(list);
+  return normalized.map((tier, index) => {
+    const title = tier.name || TIER_TITLE_MAP[tier.id] || `段位 ${index + 1}`;
+    return {
+      ...tier,
+      title,
+      key: tier.id || `tier_${index + 1}`
+    };
+  });
 }
 
 function resolveFieldMeta(sectionKey, path) {
@@ -495,6 +539,19 @@ function buildSections(defaults = {}, staging = {}, versions = {}) {
             ? defaults.map((item) => SLOT_LABEL_MAP[item] || item).join('、')
             : '无';
         }
+        if (field.type === 'tiers') {
+          const defaults = Array.isArray(field.defaultValue) ? field.defaultValue : [];
+          return defaults.length
+            ? defaults
+                .map((item) => {
+                  const name = item.name || TIER_TITLE_MAP[item.id] || '段位';
+                  const min = item.min ?? '无';
+                  const max = item.max === Infinity ? 'Infinity' : item.max ?? '无';
+                  return `${name}(${min}-${max})`;
+                })
+                .join('、')
+            : '无';
+        }
         if (field.defaultValue === undefined) return '无';
         if (typeof field.defaultValue === 'object') return JSON.stringify(field.defaultValue);
         return field.defaultValue;
@@ -509,11 +566,19 @@ function buildSections(defaults = {}, staging = {}, versions = {}) {
               return [];
             })()
           : currentValue;
+      const tierValue =
+        field.type === 'tiers'
+          ? (() => {
+              if (Array.isArray(currentValue)) return normalizeTiers(currentValue);
+              if (Array.isArray(field.defaultValue)) return normalizeTiers(field.defaultValue);
+              return [];
+            })()
+          : currentValue;
       return {
         ...field,
         ...resolveFieldMeta(key, field.path),
         defaultHint: `默认值：${defaultText}${versionHint}`,
-        value: slotValue,
+        value: field.type === 'slots' ? slotValue : field.type === 'tiers' ? tierValue : currentValue,
         displayValue:
           field.type === 'json'
             ? (() => {
@@ -526,7 +591,12 @@ function buildSections(defaults = {}, staging = {}, versions = {}) {
                 }
               })()
             : undefined,
-        items: field.type === 'slots' ? toSlotItems(slotValue) : undefined
+        items:
+          field.type === 'slots'
+            ? toSlotItems(slotValue)
+            : field.type === 'tiers'
+            ? toTierItems(tierValue)
+            : undefined
       };
     });
       return {
@@ -553,7 +623,8 @@ Page({
     fieldVersions: {},
     baselineConfig: {},
     testReport: null,
-    testRounds: 12
+    testRounds: 12,
+    tierFieldMeta: TIER_FIELD_META
   },
 
   onLoad() {
@@ -651,6 +722,25 @@ Page({
     this.setData({ stagingConfig: nextConfig, sections });
   },
 
+  updateTiersField(section, path, updater) {
+    const nextConfig = clone(this.data.stagingConfig || {});
+    const sectionConfig = clone(nextConfig[section] || {});
+    const current = getValueByPath(sectionConfig, path);
+    const nextTiers = updater(Array.isArray(current) ? [...current] : []);
+    setValueByPath(sectionConfig, path, nextTiers);
+    nextConfig[section] = sectionConfig;
+    const sections = this.data.sections.map((item) => {
+      if (item.key !== section) return item;
+      return {
+        ...item,
+        fields: item.fields.map((field) =>
+          field.path === path ? { ...field, value: nextTiers, items: toTierItems(nextTiers) } : field
+        )
+      };
+    });
+    this.setData({ stagingConfig: nextConfig, sections });
+  },
+
   handleSlotValueChange(event) {
     const { section, path } = event.currentTarget.dataset;
     const index = Number(event.currentTarget.dataset.index);
@@ -671,6 +761,37 @@ Page({
   handleSlotAdd(event) {
     const { section, path } = event.currentTarget.dataset;
     this.updateSlotsField(section, path, (slots) => [...slots, '']);
+  },
+
+  handleTierFieldChange(event) {
+    const { section, path, key } = event.currentTarget.dataset;
+    const index = Number(event.currentTarget.dataset.index);
+    const rawValue = event.detail.value;
+    const value = key === 'min' || key === 'max' ? Number(rawValue) : rawValue;
+    this.updateTiersField(section, path, (tiers) => {
+      const next = normalizeTiers(tiers);
+      if (!next[index]) next[index] = { id: '', name: '', min: '', max: '', color: '', rewardKey: '' };
+      if (key === 'max' && rawValue && rawValue.trim().toLowerCase() === 'infinity') {
+        next[index][key] = Infinity;
+      } else if (key === 'min' || key === 'max') {
+        next[index][key] = Number.isNaN(value) ? '' : value;
+      } else {
+        next[index][key] = rawValue;
+      }
+      return next;
+    });
+  },
+
+  handleTierRemove(event) {
+    const { section, path } = event.currentTarget.dataset;
+    const index = Number(event.currentTarget.dataset.index);
+    this.updateTiersField(section, path, (tiers) => normalizeTiers(tiers).filter((_, idx) => idx !== index));
+  },
+
+  handleTierAdd(event) {
+    const { section, path } = event.currentTarget.dataset;
+    const nextTier = { id: '', name: '', min: 0, max: Infinity, color: '', rewardKey: '' };
+    this.updateTiersField(section, path, (tiers) => [...normalizeTiers(tiers), nextTier]);
   },
 
   handleTabChange(event) {

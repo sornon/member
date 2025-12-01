@@ -50,7 +50,7 @@
     <view class="card section-card" wx:if="{{section.key === activeTab}}">
       <view class="card-title">{{section.title}}</view>
       <block wx:for="{{section.fields}}" wx:key="path" wx:for-item="field">
-        <view class="{{field.type === 'slots' ? 'slot-field' : ('field ' + (field.type === 'json' ? 'json-field' : ''))}}">
+        <view class="{{field.type === 'slots' ? 'slot-field' : field.type === 'tiers' ? 'tier-field' : ('field ' + (field.type === 'json' ? 'json-field' : ''))}}">
           <view class="field-info">
             <view class="field-name">{{field.label}}</view>
             <view class="field-desc" wx:if="{{field.description}}">{{field.description}}</view>
@@ -77,6 +77,47 @@
               data-type="boolean"
               bindchange="handleFieldChange"
             />
+          </view>
+          <view class="field-control tiers-control" wx:if="{{field.type === 'tiers'}}">
+            <view class="tier-list">
+              <view class="tier-row" wx:for="{{field.items}}" wx:key="key" wx:for-item="tier" wx:for-index="idx">
+                <view class="tier-row-header">
+                  <view class="tier-title">{{tier.title}}</view>
+                  <button
+                    class="ghost-button mini-button"
+                    data-section="{{section.key}}"
+                    data-path="{{field.path}}"
+                    data-index="{{idx}}"
+                    bindtap="handleTierRemove"
+                  >删除段位</button>
+                </view>
+                <view class="tier-fields">
+                  <block wx:for="{{['id','name','min','max','color','rewardKey']}}" wx:key="item">
+                    <view class="tier-field">
+                      <view class="tier-field-label">{{tierFieldMeta[item].label}}</view>
+                      <view class="tier-field-desc">{{tierFieldMeta[item].description}}</view>
+                      <input
+                        class="tier-input"
+                        type="{{item === 'min' || item === 'max' ? 'number' : 'text'}}"
+                        placeholder="{{tierFieldMeta[item].label}}"
+                        value="{{item === 'max' && tier[item] === Infinity ? 'Infinity' : tier[item]}}"
+                        data-section="{{section.key}}"
+                        data-path="{{field.path}}"
+                        data-index="{{idx}}"
+                        data-key="{{item}}"
+                        bindinput="handleTierFieldChange"
+                      />
+                    </view>
+                  </block>
+                </view>
+              </view>
+              <button
+                class="ghost-button add-tier"
+                data-section="{{section.key}}"
+                data-path="{{field.path}}"
+                bindtap="handleTierAdd"
+              >新增段位</button>
+            </view>
           </view>
           <view class="field-control slots-control" wx:if="{{field.type === 'slots'}}">
             <view class="slot-list">

@@ -131,6 +131,21 @@
   border-bottom: none;
 }
 
+.tier-field {
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid rgba(255, 255, 255, 0.04);
+}
+
+.tier-field:last-child {
+  border-bottom: none;
+}
+
+.tier-field .field-info,
+.tier-field .field-control {
+  width: 100%;
+  flex: unset;
+}
+
 .field-info {
   flex: 1;
   min-width: 0;
@@ -170,6 +185,10 @@
   width: 100%;
 }
 
+.tiers-control {
+  width: 100%;
+}
+
 .slot-list {
   display: flex;
   flex-direction: column;
@@ -181,6 +200,73 @@
   display: flex;
   align-items: center;
   gap: 12rpx;
+}
+
+.tier-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  width: 100%;
+}
+
+.tier-row {
+  padding: 12rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.08);
+  border-radius: 12rpx;
+  background: rgba(255, 255, 255, 0.02);
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.tier-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tier-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #f1f4ff;
+}
+
+.tier-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260rpx, 1fr));
+  gap: 12rpx;
+}
+
+.tier-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6rpx;
+}
+
+.tier-field-label {
+  font-size: 26rpx;
+  color: #e5e9ff;
+}
+
+.tier-field-desc {
+  font-size: 22rpx;
+  color: rgba(206, 216, 255, 0.7);
+  line-height: 1.5;
+}
+
+.tier-input {
+  height: 64rpx;
+  padding: 0 16rpx;
+  border-radius: 10rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #f1f4ff;
+  font-size: 26rpx;
+}
+
+.add-tier {
+  margin-top: 4rpx;
+  align-self: flex-start;
 }
 
 .slot-info {
