@@ -1,0 +1,169 @@
+<custom-nav title="平衡性设定" theme="dark"></custom-nav>
+<view class="page container balance-settings-page">
+  <view class="card" wx:if="{{loading}}">
+    <text class="hint">正在加载平衡性配置...</text>
+  </view>
+
+  <view class="card summary-card" wx:if="{{!loading}}">
+    <view class="card-title">当前全局配置</view>
+    <view class="meta">最近更新时间：{{activeMetadata.updatedAt || '未设置'}}</view>
+    <view class="meta">操作人：{{activeMetadata.updatedByName || '未知'}} {{activeMetadata.updatedBy || ''}}</view>
+  </view>
+
+  <view class="card actions-card" wx:if="{{!loading}}">
+    <view class="action-row">
+      <view class="label">测试轮次</view>
+      <input class="field-input" type="number" value="{{testRounds}}" data-section="pvp" data-path="rounds" bindinput="handleRoundsChange" />
+    </view>
+    <view class="buttons">
+      <button class="primary-button" loading="{{saving}}" bindtap="handleSaveDraft">暂存配置</button>
+      <button class="ghost-button" loading="{{testing}}" bindtap="handleTestDraft">测试暂存配置</button>
+      <button class="danger-button" loading="{{applying}}" bindtap="handleApplyGlobal">应用到全局</button>
+    </view>
+  </view>
+
+  <view class="card" wx:if="{{testReport && !loading}}">
+    <view class="card-title">测试报告</view>
+    <view class="meta">对局次数：{{testReport.report.total}}</view>
+    <view class="meta">玩家胜场：{{testReport.report.playerAWins}} · 对手胜场：{{testReport.report.playerBWins}} · 平局：{{testReport.report.draws}}</view>
+    <view class="meta">平均回合：{{testReport.report.averageRounds}}</view>
+    <view class="seed-list" wx:if="{{testReport.seedText}}">
+      <text class="hint">种子：{{testReport.seedText}}</text>
+    </view>
+  </view>
+
+  <view class="card tabs-card" wx:if="{{!loading}}">
+    <view class="tabs">
+      <block wx:for="{{sections}}" wx:key="key" wx:for-item="tab">
+        <view
+          class="tab-item {{tab.key === activeTab ? 'active' : ''}}"
+          data-key="{{tab.key}}"
+          bindtap="handleTabChange"
+        >
+          {{tab.title}}
+        </view>
+      </block>
+    </view>
+  </view>
+
+  <block wx:for="{{sections}}" wx:key="key" wx:for-item="section">
+    <view class="card section-card" wx:if="{{section.key === activeTab}}">
+      <view class="card-title">{{section.title}}</view>
+      <block wx:for="{{section.fields}}" wx:key="path" wx:for-item="field">
+        <view class="{{field.type === 'slots' ? 'slot-field' : field.type === 'tiers' ? 'tier-field' : ('field ' + (field.type === 'json' ? 'json-field' : ''))}}">
+          <view class="field-info">
+            <view class="field-name">{{field.label}}</view>
+            <view class="field-desc" wx:if="{{field.description}}">{{field.description}}</view>
+            <view class="field-default">{{field.defaultHint}}</view>
+          </view>
+          <view class="field-control" wx:if="{{field.type !== 'json' && field.type !== 'boolean' && field.type !== 'slots' && field.type !== 'tiers'}}">
+            <input
+              class="field-input"
+              type="{{field.type === 'number' ? 'number' : 'text'}}"
+              placeholder="{{field.defaultHint}}"
+              value="{{field.value}}"
+              data-section="{{section.key}}"
+              data-path="{{field.path}}"
+              data-type="{{field.type}}"
+              bindinput="handleFieldChange"
+            />
+          </view>
+          <view class="field-control" wx:if="{{field.type === 'boolean'}}">
+            <switch
+              class="field-switch"
+              checked="{{!!field.value}}"
+              data-section="{{section.key}}"
+              data-path="{{field.path}}"
+              data-type="boolean"
+              bindchange="handleFieldChange"
+            />
+          </view>
+          <view class="field-control tiers-control" wx:if="{{field.type === 'tiers'}}">
+            <view class="tier-list">
+              <view class="tier-row" wx:for="{{field.items}}" wx:key="key" wx:for-item="tier" wx:for-index="idx">
+                <view class="tier-row-header">
+                  <view class="tier-title">{{tier.title}}</view>
+                  <button
+                    class="ghost-button mini-button tier-remove"
+                    data-section="{{section.key}}"
+                    data-path="{{field.path}}"
+                    data-index="{{idx}}"
+                    bindtap="handleTierRemove"
+                  >删除</button>
+                </view>
+                <view class="tier-fields">
+                  <block wx:for="{{['id','name','min','max','color','rewardKey']}}" wx:key="item">
+                    <view class="tier-field">
+                      <view class="tier-field-label">{{tierFieldMeta[item].label}}</view>
+                      <view class="tier-field-desc">{{tierFieldMeta[item].description}}</view>
+                      <input
+                        class="tier-input"
+                        type="{{item === 'min' || item === 'max' ? 'number' : 'text'}}"
+                        placeholder="{{tierFieldMeta[item].label}}"
+                        value="{{item === 'max' && tier[item] === Infinity ? 'Infinity' : tier[item]}}"
+                        data-section="{{section.key}}"
+                        data-path="{{field.path}}"
+                        data-index="{{idx}}"
+                        data-key="{{item}}"
+                        bindinput="handleTierFieldChange"
+                      />
+                    </view>
+                  </block>
+                </view>
+              </view>
+              <button
+                class="ghost-button add-tier"
+                data-section="{{section.key}}"
+                data-path="{{field.path}}"
+                bindtap="handleTierAdd"
+              >新增段位</button>
+            </view>
+          </view>
+          <view class="field-control slots-control" wx:if="{{field.type === 'slots'}}">
+            <view class="slot-list">
+              <view class="slot-row" wx:for="{{field.items}}" wx:key="index" wx:for-index="idx" wx:for-item="item">
+                <view class="slot-info">
+                  <view class="slot-name">{{item.label}}</view>
+                  <view class="slot-hint">{{item.hint}}</view>
+                </view>
+                <input
+                  class="slot-input"
+                  type="text"
+                  value="{{item.value}}"
+                  data-section="{{section.key}}"
+                  data-path="{{field.path}}"
+                  data-index="{{idx}}"
+                  bindinput="handleSlotValueChange"
+                />
+                <button
+                  class="ghost-button mini-button"
+                  data-section="{{section.key}}"
+                  data-path="{{field.path}}"
+                  data-index="{{idx}}"
+                  bindtap="handleSlotRemove"
+                >删除</button>
+              </view>
+              <button
+                class="ghost-button add-slot"
+                data-section="{{section.key}}"
+                data-path="{{field.path}}"
+                bindtap="handleSlotAdd"
+              >新增槽位</button>
+            </view>
+          </view>
+          <view class="field-control full" wx:if="{{field.type === 'json'}}">
+            <textarea
+              class="textarea"
+              placeholder="请输入 JSON 配置"
+              value="{{field.displayValue || ''}}"
+              data-section="{{section.key}}"
+              data-path="{{field.path}}"
+              data-type="json"
+              bindinput="handleFieldChange"
+            />
+          </view>
+        </view>
+      </block>
+    </view>
+  </block>
+</view>
