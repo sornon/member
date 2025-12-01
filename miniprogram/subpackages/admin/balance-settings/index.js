@@ -477,15 +477,39 @@ function toSlotItems(list = []) {
 }
 
 function normalizeTiers(list = []) {
+  const unwrapValue = (value) => {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'object') {
+      if ('value' in value) return value.value;
+      if ('current' in value) return value.current;
+      return '';
+    }
+    return value;
+  };
+
+  const normalizeNumber = (value) => {
+    if (value === 'Infinity') return Infinity;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : value;
+  };
+
   if (!Array.isArray(list)) return [];
-  return list.map((item) => ({
-    id: item && item.id ? item.id : '',
-    name: item && item.name ? item.name : '',
-    min: item && item.min !== undefined ? item.min : '',
-    max: item && item.max !== undefined ? item.max : '',
-    color: item && item.color ? item.color : '',
-    rewardKey: item && item.rewardKey ? item.rewardKey : ''
-  }));
+  return list.map((item) => {
+    const id = unwrapValue(item && item.id);
+    const name = unwrapValue(item && item.name);
+    const min = normalizeNumber(unwrapValue(item && item.min));
+    const max = normalizeNumber(unwrapValue(item && item.max));
+    const color = unwrapValue(item && item.color);
+    const rewardKey = unwrapValue(item && item.rewardKey);
+    return {
+      id: id || '',
+      name: name || '',
+      min: min === undefined ? '' : min,
+      max: max === undefined ? '' : max,
+      color: color || '',
+      rewardKey: rewardKey || ''
+    };
+  });
 }
 
 function toTierItems(list = []) {
