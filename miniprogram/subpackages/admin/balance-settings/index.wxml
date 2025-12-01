@@ -1,0 +1,81 @@
+<view class="page">
+  <view class="card" wx:if="{{loading}}">
+    <text class="hint">正在加载平衡性配置...</text>
+  </view>
+
+  <view class="card" wx:if="{{!loading}}">
+    <view class="card-title">当前全局配置</view>
+    <view class="meta">最近更新时间：{{activeMetadata.updatedAt || '未设置'}}</view>
+    <view class="meta">操作人：{{activeMetadata.updatedByName || '未知'}} {{activeMetadata.updatedBy || ''}}</view>
+  </view>
+
+  <view class="card actions" wx:if="{{!loading}}">
+    <view class="action-row">
+      <view class="label">测试轮次</view>
+      <input class="input" type="number" value="{{testRounds}}" data-section="pvp" data-path="rounds" bindinput="handleRoundsChange" />
+    </view>
+    <view class="buttons">
+      <button class="primary" loading="{{saving}}" bindtap="handleSaveDraft">暂存配置</button>
+      <button class="ghost" loading="{{testing}}" bindtap="handleTestDraft">测试暂存配置</button>
+      <button class="danger" loading="{{applying}}" bindtap="handleApplyGlobal">应用到全局</button>
+    </view>
+  </view>
+
+  <block wx:for="{{sections}}" wx:key="key" wx:for-item="section">
+    <view class="card">
+      <view class="card-title">{{section.title}}</view>
+      <block wx:for="{{section.fields}}" wx:key="path" wx:for-item="field">
+        <view class="field">
+          <view class="field-header">
+            <text class="field-path">{{field.path}}</text>
+            <text class="field-hint">{{field.hint}}</text>
+          </view>
+          <block wx:if="{{field.type === 'json'}}">
+            <textarea
+              class="textarea"
+              placeholder="请输入 JSON 配置"
+              value="{{field.displayValue || ''}}"
+              data-section="{{section.key}}"
+              data-path="{{field.path}}"
+              data-type="json"
+              bindinput="handleFieldChange"
+            />
+          </block>
+          <block wx:elif="{{field.type === 'number'}}">
+            <input
+              class="input"
+              type="number"
+              placeholder="{{field.hint}}"
+              value="{{field.value}}"
+              data-section="{{section.key}}"
+              data-path="{{field.path}}"
+              data-type="number"
+              bindinput="handleFieldChange"
+            />
+          </block>
+          <block wx:else>
+            <input
+              class="input"
+              placeholder="{{field.hint}}"
+              value="{{field.value}}"
+              data-section="{{section.key}}"
+              data-path="{{field.path}}"
+              data-type="text"
+              bindinput="handleFieldChange"
+            />
+          </block>
+        </view>
+      </block>
+    </view>
+  </block>
+
+  <view class="card" wx:if="{{testReport}}">
+    <view class="card-title">测试报告</view>
+    <view class="meta">对局次数：{{testReport.report.total}}</view>
+    <view class="meta">玩家胜场：{{testReport.report.playerAWins}} · 对手胜场：{{testReport.report.playerBWins}} · 平局：{{testReport.report.draws}}</view>
+    <view class="meta">平均回合：{{testReport.report.averageRounds}}</view>
+    <view class="seed-list" wx:if="{{testReport.seedText}}">
+      <text class="hint">种子：{{testReport.seedText}}</text>
+    </view>
+  </view>
+</view>

@@ -78,6 +78,12 @@ const BASE_ACTIONS = [
     label: '系统设置',
     description: '系统全局配置功能',
     url: '/subpackages/admin/system-switches/index'
+  },
+  {
+    icon: '⚖️',
+    label: '平衡性设定',
+    description: '维护战斗平衡配置并测试',
+    url: '/subpackages/admin/balance-settings/index'
   }
 ];
 

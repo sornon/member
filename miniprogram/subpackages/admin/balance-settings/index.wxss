@@ -1,0 +1,112 @@
+.page {
+  padding: 16px;
+  background: #0b122b;
+  min-height: 100vh;
+  color: #e5e7eb;
+}
+
+.card {
+  background: #11172f;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #fff;
+}
+
+.meta {
+  font-size: 12px;
+  color: #9ca3af;
+  margin-top: 2px;
+}
+
+.actions .action-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.actions .label {
+  width: 80px;
+  color: #cbd5e1;
+}
+
+.input {
+  background: #0f172a;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 8px;
+  color: #e5e7eb;
+  flex: 1;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 120px;
+  background: #0f172a;
+  color: #e5e7eb;
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.buttons {
+  display: flex;
+  gap: 8px;
+}
+
+button.primary {
+  background: #2563eb;
+  color: #fff;
+  border: none;
+}
+
+button.ghost {
+  background: #0f172a;
+  color: #e5e7eb;
+  border: 1px solid #1f2937;
+}
+
+button.danger {
+  background: #dc2626;
+  color: #fff;
+  border: none;
+}
+
+.field {
+  margin-top: 10px;
+}
+
+.field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.field-path {
+  color: #e5e7eb;
+  font-size: 13px;
+  max-width: 60%;
+  word-break: break-all;
+}
+
+.field-hint {
+  color: #9ca3af;
+  font-size: 12px;
+  text-align: right;
+}
+
+.hint {
+  color: #9ca3af;
+}
+
+.seed-list {
+  margin-top: 6px;
+}

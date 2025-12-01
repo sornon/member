@@ -46,6 +46,15 @@ const {
   resolveEquipmentEnhancementFromDocument,
   incrementCacheVersionValue
 } = require('system-settings');
+const { simulatePvpBattle } = require('balance/simulator');
+const {
+  mergeWithDefaults: mergeBalanceWithDefaults,
+  readBalanceConfig,
+  writeBalanceConfig,
+  runWithBalanceConfig,
+  STAGING_DOC_ID,
+  ACTIVE_DOC_ID
+} = require('../shared/balance-config');
 
 const db = cloud.database();
 const _ = db.command;
@@ -422,6 +431,10 @@ const ACTIONS = {
   UPDATE_GLOBAL_BACKGROUND: 'updateGlobalBackground',
   UPDATE_GLOBAL_BACKGROUND_CATALOG: 'updateGlobalBackgroundCatalog',
   UPDATE_EQUIPMENT_ENHANCEMENT: 'updateEquipmentEnhancement',
+  GET_BALANCE_CONFIG: 'getBalanceConfig',
+  SAVE_BALANCE_DRAFT: 'saveBalanceDraft',
+  APPLY_BALANCE_CONFIG: 'applyBalanceConfig',
+  TEST_BALANCE_CONFIG: 'testBalanceConfig',
   LIST_MEMBER_RIGHTS: 'listMemberRights',
   UPDATE_MEMBER_RIGHT_STATUS: 'updateMemberRightStatus',
   REMOVE_MEMBER_RIGHT: 'removeMemberRight',
@@ -472,6 +485,13 @@ const ACTION_ALIASES = {
   updateequipmentattributes: ACTIONS.UPDATE_EQUIPMENT_ATTRIBUTES,
   updateequipmentenhancement: ACTIONS.UPDATE_EQUIPMENT_ENHANCEMENT,
   equipmentenhancement: ACTIONS.UPDATE_EQUIPMENT_ENHANCEMENT,
+  getbalanceconfig: ACTIONS.GET_BALANCE_CONFIG,
+  balanceconfig: ACTIONS.GET_BALANCE_CONFIG,
+  savebalancedraft: ACTIONS.SAVE_BALANCE_DRAFT,
+  stagedbalance: ACTIONS.SAVE_BALANCE_DRAFT,
+  applybalanceconfig: ACTIONS.APPLY_BALANCE_CONFIG,
+  publishbalanceconfig: ACTIONS.APPLY_BALANCE_CONFIG,
+  testbalanceconfig: ACTIONS.TEST_BALANCE_CONFIG,
   listtradeorders: ACTIONS.LIST_TRADE_ORDERS,
   tradelog: ACTIONS.LIST_TRADE_ORDERS,
   gettradingconfig: ACTIONS.GET_TRADING_CONFIG,
@@ -925,6 +945,12 @@ const ACTION_HANDLERS = {
     updateGlobalBackgroundCatalog(openid, event.catalog || event),
   [ACTIONS.UPDATE_EQUIPMENT_ENHANCEMENT]: (openid, event = {}) =>
     updateEquipmentEnhancementConfig(openid, event.config || event),
+  [ACTIONS.GET_BALANCE_CONFIG]: (openid) => getBalanceConfig(openid),
+  [ACTIONS.SAVE_BALANCE_DRAFT]: (openid, event = {}) =>
+    saveBalanceDraft(openid, event.config || event),
+  [ACTIONS.TEST_BALANCE_CONFIG]: (openid, event = {}) =>
+    testBalanceDraft(openid, event || {}),
+  [ACTIONS.APPLY_BALANCE_CONFIG]: (openid) => applyBalanceConfig(openid),
   [ACTIONS.BUMP_CACHE_VERSION]: (openid, event) => bumpCacheVersion(openid, event || {}),
   [ACTIONS.RESET_IMMORTAL_TOURNAMENT]: (openid, event) =>
     resetImmortalTournament(openid, event || {}),
@@ -1875,6 +1901,200 @@ async function updateGameParameters(openid, updates = {}) {
       gameParameters: cloneGameParameters(DEFAULT_GAME_PARAMETERS),
       rageSettings: cloneRageSettings(DEFAULT_RAGE_SETTINGS)
     }
+  };
+}
+
+async function getBalanceConfig(openid) {
+  await ensureAdmin(openid);
+  await ensureCollectionExists(COLLECTIONS.BALANCE_CONFIGS);
+  const defaults = mergeBalanceWithDefaults({});
+  const staging = await readBalanceConfig(STAGING_DOC_ID).catch(() => ({ exists: false }));
+  const active = await readBalanceConfig(ACTIVE_DOC_ID).catch(() => ({ exists: false }));
+
+  const mergeEntry = (entry) => {
+    if (!entry || !entry.exists) {
+      return { exists: false, config: defaults, metadata: {} };
+    }
+    return {
+      exists: true,
+      config: mergeBalanceWithDefaults(entry.config || {}),
+      metadata: entry.metadata || {}
+    };
+  };
+
+  return {
+    defaults,
+    staging: mergeEntry(staging),
+    active: mergeEntry(active)
+  };
+}
+
+async function saveBalanceDraft(openid, updates = {}) {
+  const admin = await ensureAdmin(openid);
+  await ensureCollectionExists(COLLECTIONS.BALANCE_CONFIGS);
+  if (!updates || typeof updates !== 'object') {
+    throw new Error('请提供需要暂存的平衡性配置');
+  }
+  const merged = mergeBalanceWithDefaults(updates);
+  const adminName = resolveMemberDisplayName(admin) || '';
+  await writeBalanceConfig(STAGING_DOC_ID, merged, {
+    updatedBy: admin._id,
+    updatedByName: adminName,
+    notes: updates.notes || ''
+  });
+  return {
+    success: true,
+    staging: { config: merged, updatedBy: admin._id, updatedByName: adminName },
+    defaults: mergeBalanceWithDefaults({})
+  };
+}
+
+function buildPkTestCases() {
+  const balanced = {
+    stats: {
+      maxHp: 3600,
+      physicalAttack: 128,
+      magicAttack: 132,
+      physicalDefense: 88,
+      magicDefense: 86,
+      speed: 102,
+      accuracy: 132,
+      dodge: 102,
+      critRate: 0.12,
+      critDamage: 1.62,
+      finalDamageBonus: 0.08,
+      finalDamageReduction: 0.06
+    },
+    special: { healOnHit: 0.02, shield: 0 },
+    skills: []
+  };
+  const burst = {
+    stats: {
+      maxHp: 2800,
+      physicalAttack: 178,
+      magicAttack: 96,
+      physicalDefense: 62,
+      magicDefense: 64,
+      speed: 118,
+      accuracy: 140,
+      dodge: 86,
+      critRate: 0.18,
+      critDamage: 1.8,
+      finalDamageBonus: 0.14,
+      finalDamageReduction: 0.04
+    },
+    special: { bonusDamage: 0.05 },
+    skills: []
+  };
+  const tank = {
+    stats: {
+      maxHp: 4600,
+      physicalAttack: 106,
+      magicAttack: 112,
+      physicalDefense: 118,
+      magicDefense: 122,
+      speed: 88,
+      accuracy: 120,
+      dodge: 92,
+      critRate: 0.08,
+      critDamage: 1.42,
+      finalDamageBonus: 0.02,
+      finalDamageReduction: 0.12
+    },
+    special: { damageReflection: 0.04 },
+    skills: []
+  };
+  return [
+    { playerA: balanced, playerB: burst },
+    { playerA: burst, playerB: tank },
+    { playerA: tank, playerB: balanced }
+  ];
+}
+
+async function testBalanceDraft(openid, options = {}) {
+  await ensureAdmin(openid);
+  await ensureCollectionExists(COLLECTIONS.BALANCE_CONFIGS);
+  const staging = await readBalanceConfig(STAGING_DOC_ID);
+  if (!staging || !staging.exists) {
+    throw new Error('暂无暂存配置，请先暂存后再测试');
+  }
+  const merged = mergeBalanceWithDefaults(staging.config || {});
+  const rounds = Number.isFinite(Number(options.rounds)) ? Math.max(1, Number(options.rounds)) : 12;
+  const seeds = [];
+  const cases = buildPkTestCases();
+  const summary = runWithBalanceConfig(merged, () => {
+    let aWins = 0;
+    let bWins = 0;
+    let draws = 0;
+    let totalRounds = 0;
+    const reports = [];
+    for (let i = 0; i < rounds; i += 1) {
+      const seed = options.seed ? Number(options.seed) + i : Date.now() + i;
+      seeds.push(seed);
+      const testCase = cases[i % cases.length];
+      const result = simulatePvpBattle({
+        playerA: { ...testCase.playerA, id: `player_${i}` },
+        playerB: { ...testCase.playerB, id: `opponent_${i}` },
+        seed,
+        roundLimit: merged.pvp && merged.pvp.roundLimit
+      });
+      totalRounds += result.rounds || 0;
+      let winner = 'draw';
+      if (result.victory) {
+        aWins += 1;
+        winner = 'playerA';
+      } else if (!result.draw) {
+        bWins += 1;
+        winner = 'playerB';
+      } else {
+        draws += 1;
+      }
+      reports.push({
+        seed,
+        winner,
+        rounds: result.rounds,
+        remaining: result.remaining
+      });
+    }
+    const total = rounds || reports.length || 1;
+    return {
+      total,
+      playerAWins: aWins,
+      playerBWins: bWins,
+      draws,
+      averageRounds: Number((totalRounds / total).toFixed(2)),
+      reports
+    };
+  });
+
+  return {
+    success: true,
+    staging: {
+      config: merged,
+      metadata: staging.metadata || {}
+    },
+    report: summary,
+    seeds
+  };
+}
+
+async function applyBalanceConfig(openid) {
+  const admin = await ensureAdmin(openid);
+  await ensureCollectionExists(COLLECTIONS.BALANCE_CONFIGS);
+  const staging = await readBalanceConfig(STAGING_DOC_ID);
+  if (!staging || !staging.exists) {
+    throw new Error('暂无暂存配置，请先暂存后再应用');
+  }
+  const merged = mergeBalanceWithDefaults(staging.config || {});
+  const adminName = resolveMemberDisplayName(admin) || '';
+  await writeBalanceConfig(ACTIVE_DOC_ID, merged, {
+    updatedBy: admin._id,
+    updatedByName: adminName,
+    notes: staging.metadata && staging.metadata.notes
+  });
+  return {
+    success: true,
+    active: { config: merged, updatedBy: admin._id, updatedByName: adminName }
   };
 }
 
