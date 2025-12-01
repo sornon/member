@@ -22,6 +22,16 @@
     </view>
   </view>
 
+  <view class="card" wx:if="{{testReport && !loading}}">
+    <view class="card-title">测试报告</view>
+    <view class="meta">对局次数：{{testReport.report.total}}</view>
+    <view class="meta">玩家胜场：{{testReport.report.playerAWins}} · 对手胜场：{{testReport.report.playerBWins}} · 平局：{{testReport.report.draws}}</view>
+    <view class="meta">平均回合：{{testReport.report.averageRounds}}</view>
+    <view class="seed-list" wx:if="{{testReport.seedText}}">
+      <text class="hint">种子：{{testReport.seedText}}</text>
+    </view>
+  </view>
+
   <view class="card tabs-card" wx:if="{{!loading}}">
     <view class="tabs">
       <block wx:for="{{sections}}" wx:key="key" wx:for-item="tab">
@@ -73,14 +83,4 @@
       </block>
     </view>
   </block>
-
-  <view class="card" wx:if="{{testReport}}">
-    <view class="card-title">测试报告</view>
-    <view class="meta">对局次数：{{testReport.report.total}}</view>
-    <view class="meta">玩家胜场：{{testReport.report.playerAWins}} · 对手胜场：{{testReport.report.playerBWins}} · 平局：{{testReport.report.draws}}</view>
-    <view class="meta">平均回合：{{testReport.report.averageRounds}}</view>
-    <view class="seed-list" wx:if="{{testReport.seedText}}">
-      <text class="hint">种子：{{testReport.seedText}}</text>
-    </view>
-  </view>
 </view>
