@@ -52,3 +52,13 @@
   - PVE 可将 20 回合上限改为平局而非失败，或在后期引入斩杀/易伤累积；PVP 可在第10回合后增加终伤系数或降低治疗系数。
 - **命中与治疗调节**：
   - 降低命中基准或提高新手闪避基础，让防御端有波动；同时给 PVP 追加基础治疗削减，降低无限拉扯。
+
+## 4. 配置级最优数据修改建议（结合 balance 配置）
+| 字段名 | 描述 | 修改前 | 修改后 |
+| --- | --- | --- | --- |
+| `secretRealm.baseStats.maxHp` | 降低秘境小怪底血，减少“打不动”导致的超时失败风险。 | 920【F:cloudfunctions/nodejs-layer/node_modules/balance/config/pve-curves.json†L7-L20】 | 760 |
+| `secretRealm.tuning.normal.primary` | 降低主属性倍率，使首层敌人防御/生命溢出幅度收敛。 | 1.35【F:cloudfunctions/nodejs-layer/node_modules/balance/config/pve-curves.json†L26-L33】 | 1.15 |
+| `roundLimit`（PVE） | 延长回合上限并配合血量判定，避免新手因输出不足被直接判负。 | 20【F:cloudfunctions/nodejs-layer/node_modules/balance/config/pve-curves.json†L2-L4】 | 24 |
+| `baseDamage.minAttackRatio` | 提升攻防相当时的保底伤害比例，降低刮痧感。 | 0.25【F:cloudfunctions/nodejs-layer/node_modules/balance/config/level-curves.json†L48-L52】 | 0.35 |
+| `hitFormula.base` | 降低命中基准，让新手闪避更有存在感，战斗波动更明显。 | 0.85【F:cloudfunctions/nodejs-layer/node_modules/balance/config/level-curves.json†L47-L51】 | 0.80 |
+| `defaults.combatStats.critRate` & `healingBonus` | 提高暴击率、降低治疗加成，增加输出爆发同时抑制拉扯。 | critRate=0.062，healingBonus=0.08【F:cloudfunctions/nodejs-layer/node_modules/balance/config/level-curves.json†L2-L34】 | critRate=0.08，healingBonus=0.04 |
