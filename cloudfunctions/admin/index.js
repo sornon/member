@@ -55,9 +55,10 @@ const {
   STATUS_STAGING,
   STATUS_USE,
   STATUS_BACKUP,
-  demoteBalanceStatus,
+  demoteBalanceStatus: exportedDemoteBalanceStatus,
   updateBalanceDocumentStatus,
-  updateBalanceStatusById
+  updateBalanceStatusById,
+  BALANCE_CONFIG_COLLECTION
 } = require('balance/config-store');
 
 const db = cloud.database();
@@ -88,6 +89,24 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
   registrationStart: '',
   registrationEnd: ''
 };
+
+async function demoteBalanceStatus(currentStatus, nextStatus, excludeId) {
+  if (typeof exportedDemoteBalanceStatus === 'function') {
+    return exportedDemoteBalanceStatus(currentStatus, nextStatus, excludeId);
+  }
+  const snapshot = await db
+    .collection(BALANCE_CONFIG_COLLECTION)
+    .where({ status: currentStatus })
+    .limit(50)
+    .get()
+    .catch(() => ({ data: [] }));
+  const data = snapshot && snapshot.data ? snapshot.data : [];
+  if (!data.length) return;
+  const tasks = data
+    .filter((doc) => String(doc._id) !== String(excludeId || ''))
+    .map((doc) => updateBalanceStatusById(doc._id, nextStatus));
+  await Promise.all(tasks);
+}
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
