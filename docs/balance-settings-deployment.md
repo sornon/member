@@ -8,7 +8,7 @@
 - **应用到全局**：对测试结果满意后点击「应用到全局」，会自动把当前 `staging` 记录升级为 `status=use`，并将旧的 `use` 记录全部标记为 `status=backup`，实时刷新 PVE/PVP 云函数的运行时缓存，保证线上仅有一条生效配置。
 
 ## 部署步骤
-1. **创建集合**：在云开发数据库中新建 `balanceConfigs` 集合，文档 `_id` 使用从 1 开始的自增数字（云函数会自动生成），并保留 `status` 字段用于区分 `use` / `staging` / `backup`。
+1. **创建集合**：在云开发数据库中新建 `balanceConfigs` 集合，使用默认自带的 `_id`（不再强制自增数值），并保留 `status` 字段用于区分 `use` / `staging` / `backup`。
 2. **上传云函数**：重新部署以下云函数以加载新能力：
    - `cloudfunctions/admin`
    - `cloudfunctions/pvp`
