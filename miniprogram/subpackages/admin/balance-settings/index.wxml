@@ -6,6 +6,7 @@
 
   <view class="card summary-card" wx:if="{{!loading}}">
     <view class="card-title">当前全局配置</view>
+    <view class="meta">状态：{{activeMetadata.status || '未使用'}} ｜ 配置ID：{{activeMetadata.id || '未分配'}} </view>
     <view class="meta">最近更新时间：{{activeMetadata.updatedAt || '未设置'}}</view>
     <view class="meta">操作人：{{activeMetadata.updatedByName || '未知'}} {{activeMetadata.updatedBy || ''}}</view>
   </view>

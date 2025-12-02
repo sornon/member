@@ -35,7 +35,7 @@ const TIER_FIELD_META = {
 const FIELD_GROUP_META = [
   {
     section: 'level',
-    prefix: 'profiles.v1.defaults.combatStats.',
+    prefix: 'defaults.combatStats.',
     map: {
       maxHp: { label: '最大生命值上限', description: '角色生命值基线，用于计算血量与容错。' },
       physicalAttack: { label: '物理攻击强度', description: '物理输出基线，决定物攻伤害起点。' },
@@ -71,7 +71,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.defaults.specialStats.',
+    prefix: 'defaults.specialStats.',
     map: {
       shield: { label: '初始护盾值', description: '角色创建时自带护盾。' },
       bonusDamage: { label: '额外伤害系数', description: '触发额外伤害的倍率基线。' },
@@ -87,7 +87,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.hitFormula.',
+    prefix: 'hitFormula.',
     map: {
       base: { label: '命中公式基础命中率', description: '命中概率的基础值。' },
       slope: { label: '命中成长斜率', description: '命中随属性或等级提升的斜率。' },
@@ -97,7 +97,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.penetration.',
+    prefix: 'penetration.',
     map: {
       scale: { label: '穿透系数比例', description: '穿透属性转化为减防效果的比例。' },
       max: { label: '减防率上限', description: '穿透减防的封顶值。' }
@@ -105,7 +105,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.baseDamage.',
+    prefix: 'baseDamage.',
     map: {
       minAttackRatio: { label: '攻击占比最低阈值', description: '伤害公式中攻击力占比的下限。' },
       randomMin: { label: '伤害随机浮动下限', description: '基础伤害随机区间的起点。' },
@@ -115,7 +115,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.crit.',
+    prefix: 'crit.',
     map: {
       min: { label: '暴击率下限', description: '暴击触发概率最小值。' },
       max: { label: '暴击率上限', description: '暴击触发概率最大值。' },
@@ -124,7 +124,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.finalDamage.',
+    prefix: 'finalDamage.',
     map: {
       minMultiplier: { label: '终伤总乘最低倍率', description: '终伤乘区的最低值。' },
       'bonusClamp.min': { label: '终伤加成最小截断', description: '终伤加成的最低截断值。' },
@@ -135,7 +135,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.healing.',
+    prefix: 'healing.',
     map: {
       lifeStealMax: { label: '吸血比例上限', description: '吸血系数封顶，防止无限续航。' },
       'healingBonusClamp.min': { label: '治疗加成最小截断', description: '治疗增益允许的最低值。' },
@@ -148,14 +148,14 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.mitigation.',
+    prefix: 'mitigation.',
     map: {
       damageReductionMax: { label: '减伤率上限', description: '通用减伤的封顶值。' }
     }
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.procCaps.',
+    prefix: 'procCaps.',
     map: {
       comboRateMax: { label: '连击概率上限', description: '触发概率最高 100%。' },
       blockMax: { label: '格挡概率上限', description: '格挡概率封顶。' },
@@ -164,7 +164,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.specialCaps.',
+    prefix: 'specialCaps.',
     map: {
       dodgeChanceMax: { label: '闪避概率上限', description: '附加闪避的封顶值。' },
       damageReflectionMax: { label: '反弹伤害比例上限', description: '反伤比例封顶。' }
@@ -172,24 +172,14 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.statFloors.',
+    prefix: 'statFloors.',
     map: {
       critDamageMin: { label: '暴击伤害下限', description: '暴击伤害倍率的最低值。' }
     }
   },
   {
-    section: 'level',
-    prefix: 'profiles.v2.',
-    map: {
-      'hitFormula.base': { label: 'V2 命中基础值', description: '在 v2 中提升命中基础率。' },
-      'baseDamage.randomMin': { label: 'V2 伤害浮动下限', description: 'v2 的基础伤害随机下限。' },
-      'baseDamage.randomRange': { label: 'V2 伤害浮动幅度', description: 'v2 的基础伤害浮动范围。' },
-      'crit.min': { label: 'V2 暴击率下限', description: 'v2 的暴击触发下限。' }
-    }
-  },
-  {
     section: 'equipment',
-    prefix: 'profiles.v1.',
+    prefix: '',
     map: {
       slots: { label: '可强化装备槽位', description: '允许强化的装备槽列表。' },
       'enhancement.base': { label: '强化基础倍率', description: '装备强化计算使用的基础系数。' }
@@ -197,7 +187,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'skill',
-    prefix: 'profiles.v1.resource.defaults.',
+    prefix: 'resource.defaults.',
     map: {
       type: { label: '资源类型', description: '技能资源的代号，如怒气/真气。' },
       baseMax: { label: '资源上限', description: '技能资源槽的最大值。' },
@@ -212,7 +202,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'skill',
-    prefix: 'profiles.v1.controlEffects.stun.',
+    prefix: 'controlEffects.stun.',
     map: {
       summary: { label: '眩晕描述', description: '状态描述文案。' },
       skip: { label: '眩晕跳过回合', description: '是否整回合跳过。' },
@@ -223,7 +213,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'skill',
-    prefix: 'profiles.v1.controlEffects.silence.',
+    prefix: 'controlEffects.silence.',
     map: {
       summary: { label: '沉默描述', description: '状态描述文案。' },
       skip: { label: '沉默跳过回合', description: '沉默时是否跳过回合。' },
@@ -234,7 +224,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'skill',
-    prefix: 'profiles.v1.controlEffects.freeze.',
+    prefix: 'controlEffects.freeze.',
     map: {
       summary: { label: '冰冻描述', description: '状态描述文案。' },
       skip: { label: '冰冻跳过回合', description: '冰冻时是否跳过回合。' },
@@ -247,7 +237,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'skill',
-    prefix: 'profiles.v1.controlEffects.sleep.',
+    prefix: 'controlEffects.sleep.',
     map: {
       summary: { label: '沉睡描述', description: '状态描述文案。' },
       skip: { label: '沉睡跳过回合', description: '沉睡时是否跳过回合。' },
@@ -259,98 +249,71 @@ const FIELD_GROUP_META = [
     }
   },
   {
-    section: 'skill',
-    prefix: 'profiles.v2.resource.defaults.',
+    section: 'pve',
+    prefix: '',
     map: {
-      turnGain: { label: 'V2 每回合回能', description: 'v2 版本的自然回复量。' },
-      basicAttackGain: { label: 'V2 普攻回能', description: 'v2 版本的普攻资源获取。' },
-      damageTakenGain: { label: 'V2 受伤回能系数', description: 'v2 受伤获得资源的系数。' },
-      startFraction: { label: 'V2 开局资源比例', description: 'v2 版本的起手资源比例。' },
-      'controlEffects.sleep.turnResourceGain': { label: 'V2 沉睡回能', description: 'v2 中沉睡状态的回能值。' }
-    }
-  },
-  {
-    section: 'skill',
-    prefix: 'profiles.v2.controlEffects.sleep.',
-    map: {
-      turnResourceGain: { label: 'V2 沉睡回能', description: 'v2 中沉睡状态的回能值。' }
+      maxLevel: { label: '秘境等级上限', description: '秘境/剧情可达到的最高等级封顶（默认 100）。' },
+      roundLimit: { label: '秘境战斗回合上限', description: '超过上限直接判定平局，防止战斗无限拉锯。' },
+      cooldownMs: { label: '秘境开战冷却（毫秒）', description: '限制重复开战的冷却时长，默认 10 秒。' },
+      cooldownMessage: { label: '秘境冷却提示文案', description: '冷却期间展示给玩家的提示，例如“上一场战斗还没结束”。' }
     }
   },
   {
     section: 'pve',
-    prefix: 'profiles.v1.',
+    prefix: 'secretRealm.baseStats.',
     map: {
-      maxLevel: { label: 'PVE 等级上限', description: '秘境与剧情的等级封顶。' },
-      roundLimit: { label: 'PVE 最大回合数', description: 'PVE 战斗超出回合即判和局。' },
-      cooldownMs: { label: 'PVE 冷却时间(毫秒)', description: '限制重复开战的冷却时间。' },
-      cooldownMessage: { label: 'PVE 冷却提示', description: '冷却期间展示给玩家的提示文案。' }
+      maxHp: { label: '敌方生命基线', description: '生成秘境敌人生命的基准值（默认 920）。' },
+      physicalAttack: { label: '敌方物攻基线', description: '敌人物理攻击的起点，配合成长倍率构成伤害。' },
+      magicAttack: { label: '敌方法攻基线', description: '敌人法术攻击的起点，配合成长倍率构成伤害。' },
+      physicalDefense: { label: '敌方物防基线', description: '敌人物理防御基准，决定物伤减免。' },
+      magicDefense: { label: '敌方魔防基线', description: '敌人魔法防御基准，决定法伤减免。' },
+      speed: { label: '敌方速度基线', description: '敌人行动条增长的起点。' },
+      accuracy: { label: '敌方命中基线', description: '敌人命中评分初值。' },
+      dodge: { label: '敌方闪避基线', description: '敌人闪避评分初值。' },
+      critRate: { label: '敌方暴击率', description: '敌人暴击触发概率的基线。' },
+      critDamage: { label: '敌方暴击伤害', description: '敌人暴击伤害倍率基线。' },
+      finalDamageBonus: { label: '敌方终伤加成', description: '敌人终伤增益的基线，用于伤害结果乘算。' },
+      finalDamageReduction: { label: '敌方终伤减免', description: '敌人终伤减免的基线，用于减伤乘算。' },
+      lifeSteal: { label: '敌方吸血', description: '敌人吸血比例基线，影响续航。' },
+      controlHit: { label: '敌方控制命中', description: '敌人控制类效果的命中基线。' },
+      controlResist: { label: '敌方控制抗性', description: '敌人抵抗控制的基线。' },
+      physicalPenetration: { label: '敌方物理穿透', description: '敌人物理穿透基线，用于减防。' },
+      magicPenetration: { label: '敌方法术穿透', description: '敌人法术穿透基线，用于减防。' }
     }
   },
   {
     section: 'pve',
-    prefix: 'profiles.v1.secretRealm.baseStats.',
+    prefix: 'secretRealm.tuning.',
     map: {
-      maxHp: { label: '敌方生命基线', description: '秘境敌人的基础生命值。' },
-      physicalAttack: { label: '敌方物攻基线', description: '秘境敌人的物理攻击力基线。' },
-      magicAttack: { label: '敌方法攻基线', description: '秘境敌人的魔法攻击力基线。' },
-      physicalDefense: { label: '敌方物防基线', description: '秘境敌人的物理防御。' },
-      magicDefense: { label: '敌方魔防基线', description: '秘境敌人的魔法防御。' },
-      speed: { label: '敌方速度', description: '秘境敌人的速度基线。' },
-      accuracy: { label: '敌方命中', description: '秘境敌人的命中基线。' },
-      dodge: { label: '敌方闪避', description: '秘境敌人的闪避基线。' },
-      critRate: { label: '敌方暴击率', description: '秘境敌人的暴击概率。' },
-      critDamage: { label: '敌方暴击伤害', description: '秘境敌人的暴击伤害倍率。' },
-      finalDamageBonus: { label: '敌方终伤加成', description: '秘境敌人的终伤增益。' },
-      finalDamageReduction: { label: '敌方终伤减免', description: '秘境敌人的终伤减免。' },
-      lifeSteal: { label: '敌方吸血', description: '秘境敌人的吸血比例。' },
-      controlHit: { label: '敌方控制命中', description: '秘境敌人的控制命中基线。' },
-      controlResist: { label: '敌方控制抗性', description: '秘境敌人的控制抗性基线。' },
-      physicalPenetration: { label: '敌方物穿', description: '秘境敌人的物理穿透。' },
-      magicPenetration: { label: '敌方法穿', description: '秘境敌人的魔法穿透。' }
-    }
-  },
-  {
-    section: 'pve',
-    prefix: 'profiles.v1.secretRealm.tuning.',
-    map: {
-      baseMultiplier: { label: '楼层基础倍率', description: '秘境楼层数值的起始乘数。' },
-      floorGrowth: { label: '每层递增倍率', description: '每层增加的综合系数。' },
-      realmGrowth: { label: '每章递增倍率', description: '每个秘境章节额外增幅。' },
-      'normal.base': { label: '普通怪基础倍率', description: '普通怪在非克制下的基准倍率。' },
-      'normal.primary': { label: '普通怪主属性倍率', description: '普通怪主属性的强化倍率。' },
-      'normal.secondary': { label: '普通怪副属性倍率', description: '普通怪副属性的加成。' },
-      'normal.off': { label: '普通怪非针对倍率', description: '普通怪在非克制关系下的倍率。' },
-      'normal.weak': { label: '普通怪被克制衰减', description: '普通怪被克制时的衰减倍率。' },
-      'boss.base': { label: '首领基础倍率', description: '首领敌人的基础倍率。' },
-      'boss.primary': { label: '首领主属性倍率', description: '首领主属性加成。' },
-      'boss.secondary': { label: '首领副属性倍率', description: '首领副属性加成。' },
-      'boss.tertiary': { label: '首领次要属性倍率', description: '首领次要属性加成。' },
-      'boss.off': { label: '首领非针对倍率', description: '首领在非克制时的倍率。' },
-      'boss.weak': { label: '首领被克制衰减', description: '首领被克制时的衰减倍率。' },
-      'special.base': { label: '特殊怪基础倍率', description: '特殊怪初始加成。' },
-      'special.growth': { label: '特殊怪每层增幅', description: '特殊怪随楼层提升的增幅。' },
-      'special.boss': { label: '特殊首领额外倍率', description: '特殊首领额外提升系数。' },
-      'limits.critRate': { label: '暴击率上限', description: '秘境敌人暴击率封顶。' },
-      'limits.critDamage': { label: '暴击伤害上限', description: '秘境敌人暴击伤害封顶。' },
-      'limits.finalDamageBonus': { label: '终伤加成上限', description: '秘境敌人终伤增益上限。' },
-      'limits.finalDamageReduction': { label: '终伤减免上限', description: '秘境敌人终伤减免上限。' },
-      'limits.lifeSteal': { label: '吸血上限', description: '秘境敌人吸血比例上限。' },
-      'limits.accuracy': { label: '命中属性上限', description: '秘境敌人命中数值上限。' },
-      'limits.dodge': { label: '闪避属性上限', description: '秘境敌人闪避数值上限。' }
-    }
-  },
-  {
-    section: 'pve',
-    prefix: 'profiles.v2.',
-    map: {
-      roundLimit: { label: 'V2 PVE 最大回合数', description: 'v2 调整后的 PVE 回合上限。' },
-      'secretRealm.tuning.normal.primary': { label: 'V2 普通怪主属性倍率', description: 'v2 下调的普通怪主属性倍率。' },
-      'secretRealm.tuning.limits.finalDamageReduction': { label: 'V2 终伤减免上限', description: 'v2 调整后的终伤减免上限。' }
+      baseMultiplier: { label: '楼层基础倍率', description: '秘境楼层生成时的初始乘数（默认 1）。' },
+      floorGrowth: { label: '每层递增倍率', description: '每上升一层叠加的成长系数（默认 0.08）。' },
+      realmGrowth: { label: '每章递增倍率', description: '每个境界章节额外叠加的成长系数（默认 0.34）。' },
+      'normal.base': { label: '普通怪基础倍率', description: '普通怪在非克制关系下的基础系数。' },
+      'normal.primary': { label: '普通怪主属性倍率', description: '普通怪主属性突出时的强化系数。' },
+      'normal.secondary': { label: '普通怪副属性倍率', description: '普通怪副属性的额外系数。' },
+      'normal.off': { label: '普通怪非针对倍率', description: '普通怪在非针对/非克制时的系数。' },
+      'normal.weak': { label: '普通怪被克制衰减', description: '普通怪被克制时的衰减系数。' },
+      'boss.base': { label: '首领基础倍率', description: 'Boss 在非克制场景下的基础系数。' },
+      'boss.primary': { label: '首领主属性倍率', description: 'Boss 主属性的强化系数。' },
+      'boss.secondary': { label: '首领副属性倍率', description: 'Boss 副属性的强化系数。' },
+      'boss.tertiary': { label: '首领次要属性倍率', description: 'Boss 次要属性的附加系数。' },
+      'boss.off': { label: '首领非针对倍率', description: 'Boss 在非针对/非克制时的系数。' },
+      'boss.weak': { label: '首领被克制衰减', description: 'Boss 被克制时的衰减系数。' },
+      'special.base': { label: '特殊怪基础倍率', description: '特殊怪（如机制怪）生成的基础系数。' },
+      'special.growth': { label: '特殊怪楼层增幅', description: '特殊怪随楼层增长的额外系数。' },
+      'special.boss': { label: '特殊 Boss 额外倍率', description: '特殊 Boss 额外叠加的提升系数。' },
+      'limits.critRate': { label: '敌人暴击率上限', description: '防止敌人暴击率过高的封顶值。' },
+      'limits.critDamage': { label: '敌人暴击伤害上限', description: '防止敌人暴伤过高的封顶值。' },
+      'limits.finalDamageBonus': { label: '敌人终伤加成上限', description: '敌人终伤增益的封顶系数。' },
+      'limits.finalDamageReduction': { label: '敌人终伤减免上限', description: '敌人终伤减免的封顶系数。' },
+      'limits.lifeSteal': { label: '敌人吸血上限', description: '敌人吸血比例的上限，避免无限续航。' },
+      'limits.accuracy': { label: '敌人命中上限', description: '命中评分封顶，避免极端值。' },
+      'limits.dodge': { label: '敌人闪避上限', description: '闪避评分封顶，避免极端值。' }
     }
   },
   {
     section: 'pvp',
-    prefix: 'profiles.v1.',
+    prefix: '',
     map: {
       roundLimit: { label: 'PVP 最大回合数', description: 'PVP 战斗的最大回合数。' },
       cooldownMs: { label: '匹配冷却时间(毫秒)', description: '同一玩家发起战斗的冷却时间。' },
@@ -380,19 +343,10 @@ const FIELD_GROUP_META = [
       'tierRewards.master.title': { label: '宗师奖励-称号', description: '宗师段位称号。' },
       'tierRewards.master.coupon': { label: '宗师奖励-优惠券', description: '宗师段位券 ID。' }
     }
-  },
-  {
-    section: 'pvp',
-    prefix: 'profiles.v2.',
-    map: {
-      roundLimit: { label: 'V2 PVP 最大回合数', description: 'v2 调整后的 PVP 回合上限。' }
-    }
   }
 ];
 
-const FIELD_FALLBACKS = {
-  version: { label: '配置版本', description: '用于选择当前生效的数值版本。' }
-};
+const FIELD_FALLBACKS = {};
 
 function clone(value) {
   try {
@@ -436,8 +390,8 @@ function flattenConfig(source = {}, prefix = '') {
   const walk = (value, path) => {
     const currentPath = path;
     if (Array.isArray(value)) {
-      const slotFieldPaths = ['profiles.v1.slots', 'profiles.v2.slots'];
-      const tierFieldPaths = ['profiles.v1.tiers'];
+      const slotFieldPaths = ['slots'];
+      const tierFieldPaths = ['tiers'];
       const isSlotField = slotFieldPaths.includes(currentPath);
       const isTierField = tierFieldPaths.includes(currentPath);
       fields.push({
@@ -453,6 +407,7 @@ function flattenConfig(source = {}, prefix = '') {
     }
     if (value && typeof value === 'object') {
       Object.keys(value).forEach((key) => {
+        if (key === 'version') return;
         walk(value[key], currentPath ? `${currentPath}.${key}` : key);
       });
       return;
@@ -524,16 +479,27 @@ function toTierItems(list = []) {
   });
 }
 
+function normalizeMetaPath(path = '') {
+  if (!path) return '';
+  return path.replace(/\.profiles\.v\d+\./g, '.');
+}
+
 function resolveFieldMeta(sectionKey, path) {
   const directKey = `${sectionKey}.${path}`;
   if (FIELD_FALLBACKS[directKey]) return FIELD_FALLBACKS[directKey];
   if (FIELD_FALLBACKS[path]) return FIELD_FALLBACKS[path];
-  const group = FIELD_GROUP_META.find((item) => item.section === sectionKey && path.startsWith(item.prefix));
-  if (group) {
-    const suffix = path.replace(group.prefix, '');
-    if (group.map[suffix]) return group.map[suffix];
+  const normalizedPath = normalizeMetaPath(path);
+  const candidates = FIELD_GROUP_META.filter(
+    (item) => item.section === sectionKey && normalizedPath.startsWith(item.prefix)
+  ).sort((a, b) => (b.prefix || '').length - (a.prefix || '').length);
+  for (let i = 0; i < candidates.length; i += 1) {
+    const group = candidates[i];
+    const suffix = normalizedPath.slice((group.prefix || '').length);
+    if (group.map && Object.prototype.hasOwnProperty.call(group.map, suffix)) {
+      return group.map[suffix];
+    }
   }
-  return { label: '自定义字段', description: '请根据需要填写。' };
+  return { label: '', description: '' };
 }
 
 function parseVersionedPath(path = '') {
@@ -542,17 +508,17 @@ function parseVersionedPath(path = '') {
   return { basePath: `${match[1]}.${match[3]}`, version: Number(match[2]) };
 }
 
-function buildSections(defaults = {}, staging = {}, versions = {}) {
+function buildSections(defaults = {}, staging = {}) {
   return Object.keys(SECTION_LABELS).map((key) => {
     const base = defaults[key] || {};
     const fields = flattenConfig(base);
     const latestByPath = {};
     fields.forEach((field) => {
-      const version = (versions[key] && versions[key][field.path]) || parseVersionedPath(field.path).version;
-      const basePath = parseVersionedPath(field.path).basePath || field.path;
+      const parsed = parseVersionedPath(field.path);
+      const basePath = parsed.basePath || field.path;
       const current = latestByPath[basePath];
-      if (!current || (Number.isFinite(version) && version > (current.version || 0))) {
-        latestByPath[basePath] = { field, version: Number.isFinite(version) ? version : null };
+      if (!current || (Number.isFinite(parsed.version) && parsed.version > (current.version || 0))) {
+        latestByPath[basePath] = { field, version: Number.isFinite(parsed.version) ? parsed.version : null };
       }
     });
     const dedupedFields = Object.values(latestByPath).map(({ field, version }) => {
@@ -580,7 +546,6 @@ function buildSections(defaults = {}, staging = {}, versions = {}) {
         if (typeof field.defaultValue === 'object') return JSON.stringify(field.defaultValue);
         return field.defaultValue;
       })();
-      const versionHint = Number.isFinite(version) ? ` 当前版本:v${version}` : '';
       const currentValue = getValueByPath(staging[key] || {}, field.path);
       const slotValue =
         field.type === 'slots'
@@ -601,7 +566,7 @@ function buildSections(defaults = {}, staging = {}, versions = {}) {
       return {
         ...field,
         ...resolveFieldMeta(key, field.path),
-        defaultHint: `默认值：${defaultText}${versionHint}`,
+        defaultHint: `默认值：${defaultText}`,
         value: field.type === 'slots' ? slotValue : field.type === 'tiers' ? tierValue : currentValue,
         displayValue:
           field.type === 'json'
@@ -644,8 +609,6 @@ Page({
     defaults: {},
     activeMetadata: {},
     stagingMetadata: {},
-    fieldVersions: {},
-    baselineConfig: {},
     testReport: null,
     testRounds: 12,
     tierFieldMeta: TIER_FIELD_META
@@ -661,16 +624,13 @@ Page({
       const result = await AdminService.getBalanceConfig();
       const defaults = result && result.defaults ? result.defaults : {};
       const stagingConfig = (result && result.staging && result.staging.config) || defaults;
-      const fieldVersions = (result && result.staging && result.staging.metadata && result.staging.metadata.fieldVersions) || {};
-      const sections = buildSections(defaults, stagingConfig, fieldVersions);
+      const sections = buildSections(defaults, stagingConfig);
       const activeTab = this.data.activeTab || (sections[0] && sections[0].key) || '';
       this.setData({
         sections,
         activeTab,
         defaults,
         stagingConfig,
-        baselineConfig: stagingConfig,
-        fieldVersions,
         activeConfig: (result && result.active && result.active.config) || defaults,
         activeMetadata: (result && result.active && result.active.metadata) || {},
         stagingMetadata: (result && result.staging && result.staging.metadata) || {},
@@ -824,61 +784,20 @@ Page({
     this.setData({ activeTab: key });
   },
 
-  computeNextVersions() {
-    const flattenValues = (obj = {}, prefix = '') => {
-      const result = {};
-      const walk = (value, path) => {
-        if (Array.isArray(value) || typeof value !== 'object' || value === null) {
-          result[path] = value;
-          return;
-        }
-        Object.keys(value).forEach((key) => {
-          const nextPath = path ? `${path}.${key}` : key;
-          walk(value[key], nextPath);
-        });
-      };
-      walk(obj, prefix);
-      return result;
-    };
-
-    const currentFlat = flattenValues(this.data.stagingConfig || {});
-    const baselineFlat = flattenValues(this.data.baselineConfig || {});
-    const nextVersions = clone(this.data.fieldVersions || {});
-
-    Object.keys(currentFlat).forEach((fullPath) => {
-      const baseValue = baselineFlat[fullPath];
-      const currentValue = currentFlat[fullPath];
-      const changed = JSON.stringify(baseValue) !== JSON.stringify(currentValue);
-      const [section, ...rest] = fullPath.split('.');
-      const path = rest.join('.');
-      if (!section || !path) return;
-      if (changed) {
-        const sectionVersions = nextVersions[section] || {};
-        sectionVersions[path] = (sectionVersions[path] || 0) + 1;
-        nextVersions[section] = sectionVersions;
-      }
-    });
-
-    return nextVersions;
-  },
-
   async handleSaveDraft() {
     this.setData({ saving: true });
     try {
-      const nextVersions = this.computeNextVersions();
       const response = await AdminService.saveBalanceDraft({
-        config: this.data.stagingConfig || {},
-        fieldVersions: nextVersions
+        config: this.data.stagingConfig || {}
       });
       wx.showToast({ title: '已暂存', icon: 'success' });
       const stagingMetadata = {
         updatedBy: response.staging && response.staging.updatedBy,
         updatedByName: response.staging && response.staging.updatedByName,
-        updatedAt: new Date(),
-        fieldVersions: nextVersions
+        updatedAt: new Date()
       };
-      const sections = buildSections(this.data.defaults, this.data.stagingConfig, nextVersions);
-      this.setData({ stagingMetadata, fieldVersions: nextVersions, baselineConfig: this.data.stagingConfig, sections });
+      const sections = buildSections(this.data.defaults, this.data.stagingConfig);
+      this.setData({ stagingMetadata, sections });
     } catch (error) {
       console.error('save balance draft failed', error);
       wx.showToast({ title: error.message || '暂存失败', icon: 'none' });

@@ -52,8 +52,13 @@ const {
   readBalanceConfig,
   writeBalanceConfig,
   runWithBalanceConfig,
-  STAGING_DOC_ID,
-  ACTIVE_DOC_ID
+  STATUS_STAGING,
+  STATUS_USE,
+  STATUS_BACKUP,
+  demoteBalanceStatus: exportedDemoteBalanceStatus,
+  updateBalanceDocumentStatus,
+  updateBalanceStatusById,
+  BALANCE_CONFIG_COLLECTION
 } = require('balance/config-store');
 
 const db = cloud.database();
@@ -84,6 +89,24 @@ const DEFAULT_IMMORTAL_TOURNAMENT = {
   registrationStart: '',
   registrationEnd: ''
 };
+
+async function demoteBalanceStatus(currentStatus, nextStatus, excludeId) {
+  if (typeof exportedDemoteBalanceStatus === 'function') {
+    return exportedDemoteBalanceStatus(currentStatus, nextStatus, excludeId);
+  }
+  const snapshot = await db
+    .collection(BALANCE_CONFIG_COLLECTION)
+    .where({ status: currentStatus })
+    .limit(50)
+    .get()
+    .catch(() => ({ data: [] }));
+  const data = snapshot && snapshot.data ? snapshot.data : [];
+  if (!data.length) return;
+  const tasks = data
+    .filter((doc) => String(doc._id) !== String(excludeId || ''))
+    .map((doc) => updateBalanceStatusById(doc._id, nextStatus));
+  await Promise.all(tasks);
+}
 const DEFAULT_FEATURE_TOGGLES = {
   cashierEnabled: true,
   immortalTournament: { ...DEFAULT_IMMORTAL_TOURNAMENT },
@@ -1908,8 +1931,8 @@ async function getBalanceConfig(openid) {
   await ensureAdmin(openid);
   await ensureCollectionExists(COLLECTIONS.BALANCE_CONFIGS);
   const defaults = mergeBalanceWithDefaults({});
-  const staging = await readBalanceConfig(STAGING_DOC_ID).catch(() => ({ exists: false }));
-  const active = await readBalanceConfig(ACTIVE_DOC_ID).catch(() => ({ exists: false }));
+  const staging = await readBalanceConfig(STATUS_STAGING).catch(() => ({ exists: false }));
+  const active = await readBalanceConfig(STATUS_USE).catch(() => ({ exists: false }));
 
   const mergeEntry = (entry) => {
     if (!entry || !entry.exists) {
@@ -1936,15 +1959,19 @@ async function saveBalanceDraft(openid, updates = {}) {
     throw new Error('请提供需要暂存的平衡性配置');
   }
   const payloadConfig = updates.config && typeof updates.config === 'object' ? updates.config : updates;
-  const fieldVersions = updates.fieldVersions && typeof updates.fieldVersions === 'object' ? updates.fieldVersions : {};
   const merged = mergeBalanceWithDefaults(payloadConfig);
   const adminName = resolveMemberDisplayName(admin) || '';
-  await writeBalanceConfig(STAGING_DOC_ID, merged, {
-    updatedBy: admin._id,
-    updatedByName: adminName,
-    notes: updates.notes || '',
-    fieldVersions
-  });
+  await demoteBalanceStatus(STATUS_STAGING, STATUS_BACKUP);
+  await writeBalanceConfig(
+    STATUS_STAGING,
+    merged,
+    {
+      updatedBy: admin._id,
+      updatedByName: adminName,
+      notes: updates.notes || ''
+    },
+    { forceInsert: true }
+  );
   return {
     success: true,
     staging: { config: merged, updatedBy: admin._id, updatedByName: adminName },
@@ -2017,7 +2044,7 @@ function buildPkTestCases() {
 async function testBalanceDraft(openid, options = {}) {
   await ensureAdmin(openid);
   await ensureCollectionExists(COLLECTIONS.BALANCE_CONFIGS);
-  const staging = await readBalanceConfig(STAGING_DOC_ID);
+  const staging = await readBalanceConfig(STATUS_STAGING);
   if (!staging || !staging.exists) {
     throw new Error('暂无暂存配置，请先暂存后再测试');
   }
@@ -2084,13 +2111,17 @@ async function testBalanceDraft(openid, options = {}) {
 async function applyBalanceConfig(openid) {
   const admin = await ensureAdmin(openid);
   await ensureCollectionExists(COLLECTIONS.BALANCE_CONFIGS);
-  const staging = await readBalanceConfig(STAGING_DOC_ID);
+  const staging = await readBalanceConfig(STATUS_STAGING);
   if (!staging || !staging.exists) {
     throw new Error('暂无暂存配置，请先暂存后再应用');
   }
+  if (!staging.metadata || !staging.metadata.id) {
+    throw new Error('暂存配置缺少有效标识，请重新暂存后再试');
+  }
   const merged = mergeBalanceWithDefaults(staging.config || {});
   const adminName = resolveMemberDisplayName(admin) || '';
-  await writeBalanceConfig(ACTIVE_DOC_ID, merged, {
+  await demoteBalanceStatus(STATUS_USE, STATUS_BACKUP, staging.metadata.id);
+  await updateBalanceDocumentStatus(staging.metadata.id, STATUS_USE, {
     updatedBy: admin._id,
     updatedByName: adminName,
     notes: staging.metadata && staging.metadata.notes
