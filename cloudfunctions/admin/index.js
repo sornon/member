@@ -55,6 +55,8 @@ const {
   STATUS_STAGING,
   STATUS_USE,
   STATUS_BACKUP,
+  demoteBalanceStatus,
+  updateBalanceDocumentStatus,
   updateBalanceStatusById
 } = require('balance/config-store');
 
@@ -1940,11 +1942,17 @@ async function saveBalanceDraft(openid, updates = {}) {
   const payloadConfig = updates.config && typeof updates.config === 'object' ? updates.config : updates;
   const merged = mergeBalanceWithDefaults(payloadConfig);
   const adminName = resolveMemberDisplayName(admin) || '';
-  await writeBalanceConfig(STATUS_STAGING, merged, {
-    updatedBy: admin._id,
-    updatedByName: adminName,
-    notes: updates.notes || ''
-  });
+  await demoteBalanceStatus(STATUS_STAGING, STATUS_BACKUP);
+  await writeBalanceConfig(
+    STATUS_STAGING,
+    merged,
+    {
+      updatedBy: admin._id,
+      updatedByName: adminName,
+      notes: updates.notes || ''
+    },
+    { forceInsert: true }
+  );
   return {
     success: true,
     staging: { config: merged, updatedBy: admin._id, updatedByName: adminName },
@@ -2088,13 +2096,13 @@ async function applyBalanceConfig(openid) {
   if (!staging || !staging.exists) {
     throw new Error('暂无暂存配置，请先暂存后再应用');
   }
+  if (!staging.metadata || !staging.metadata.id) {
+    throw new Error('暂存配置缺少有效标识，请重新暂存后再试');
+  }
   const merged = mergeBalanceWithDefaults(staging.config || {});
   const adminName = resolveMemberDisplayName(admin) || '';
-  const currentActive = await readBalanceConfig(STATUS_USE);
-  if (currentActive && currentActive.exists && currentActive.metadata && currentActive.metadata.id) {
-    await updateBalanceStatusById(currentActive.metadata.id, STATUS_BACKUP);
-  }
-  await writeBalanceConfig(STATUS_USE, merged, {
+  await demoteBalanceStatus(STATUS_USE, STATUS_BACKUP, staging.metadata.id);
+  await updateBalanceDocumentStatus(staging.metadata.id, STATUS_USE, {
     updatedBy: admin._id,
     updatedByName: adminName,
     notes: staging.metadata && staging.metadata.notes
