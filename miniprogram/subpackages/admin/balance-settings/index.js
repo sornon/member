@@ -479,14 +479,25 @@ function toTierItems(list = []) {
   });
 }
 
+function normalizeMetaPath(path = '') {
+  if (!path) return '';
+  return path.replace(/\.profiles\.v\d+\./g, '.');
+}
+
 function resolveFieldMeta(sectionKey, path) {
   const directKey = `${sectionKey}.${path}`;
   if (FIELD_FALLBACKS[directKey]) return FIELD_FALLBACKS[directKey];
   if (FIELD_FALLBACKS[path]) return FIELD_FALLBACKS[path];
-  const group = FIELD_GROUP_META.find((item) => item.section === sectionKey && path.startsWith(item.prefix));
-  if (group) {
-    const suffix = path.replace(group.prefix, '');
-    if (group.map[suffix]) return group.map[suffix];
+  const normalizedPath = normalizeMetaPath(path);
+  const candidates = FIELD_GROUP_META.filter(
+    (item) => item.section === sectionKey && normalizedPath.startsWith(item.prefix)
+  ).sort((a, b) => (b.prefix || '').length - (a.prefix || '').length);
+  for (let i = 0; i < candidates.length; i += 1) {
+    const group = candidates[i];
+    const suffix = normalizedPath.slice((group.prefix || '').length);
+    if (group.map && Object.prototype.hasOwnProperty.call(group.map, suffix)) {
+      return group.map[suffix];
+    }
   }
   return { label: '', description: '' };
 }
