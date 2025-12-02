@@ -1,14 +1,13 @@
-const { setBalanceVersion, __resetBalanceCache } = require('balance/config-loader');
+const { __resetBalanceCache } = require('balance/config-loader');
 const { simulatePveBattle, simulatePvpBattle } = require('balance/simulator');
 const { resolveCombatStats } = require('combat-system');
 
 describe('balance simulator', () => {
   afterEach(() => {
-    setBalanceVersion('v1');
     __resetBalanceCache();
   });
 
-  test('v2 curves shorten PVE fights for the same build', () => {
+  test('PVE fights resolve within configured round limit', () => {
     const playerBuild = {
       stats: {
         maxHp: 1500,
@@ -32,18 +31,14 @@ describe('balance simulator', () => {
       }
     };
     const seeds = [1, 2, 3, 4, 5];
-    setBalanceVersion('v1');
-    __resetBalanceCache();
-    const roundsV1 = seeds.map((seed) => simulatePveBattle({ playerBuild, enemyConfig: enemyBuild, seed }).rounds);
-    setBalanceVersion('v2');
-    __resetBalanceCache();
-    const roundsV2 = seeds.map((seed) => simulatePveBattle({ playerBuild, enemyConfig: enemyBuild, seed }).rounds);
-    const avgV1 = roundsV1.reduce((sum, r) => sum + r, 0) / roundsV1.length;
-    const avgV2 = roundsV2.reduce((sum, r) => sum + r, 0) / roundsV2.length;
-    expect(avgV2).toBeLessThan(avgV1);
+    const rounds = seeds.map((seed) => simulatePveBattle({ playerBuild, enemyConfig: enemyBuild, seed }).rounds);
+    rounds.forEach((value) => {
+      expect(value).toBeGreaterThan(0);
+      expect(value).toBeLessThanOrEqual(20);
+    });
   });
 
-  test('v2 reduces PVP draw likelihood for tanky builds', () => {
+  test('PVP battles end in a reasonable number of rounds for tanky builds', () => {
     const tankA = {
       id: 'A',
       stats: {
@@ -69,13 +64,11 @@ describe('balance simulator', () => {
       }
     };
     const seeds = [11, 12, 13, 14, 15];
-    setBalanceVersion('v1');
-    __resetBalanceCache();
-    const drawsV1 = seeds.filter((seed) => simulatePvpBattle({ playerA: tankA, playerB: tankB, seed }).draw).length;
-    setBalanceVersion('v2');
-    __resetBalanceCache();
-    const drawsV2 = seeds.filter((seed) => simulatePvpBattle({ playerA: tankA, playerB: tankB, seed }).draw).length;
-    expect(drawsV2).toBeLessThanOrEqual(drawsV1);
+    const results = seeds.map((seed) => simulatePvpBattle({ playerA: tankA, playerB: tankB, seed }));
+    results.forEach((result) => {
+      expect(result.rounds).toBeGreaterThan(0);
+      expect(result.rounds).toBeLessThanOrEqual(15);
+    });
   });
 
   test('extreme stats are clamped to safe bounds', () => {

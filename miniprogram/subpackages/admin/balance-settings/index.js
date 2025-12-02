@@ -35,7 +35,7 @@ const TIER_FIELD_META = {
 const FIELD_GROUP_META = [
   {
     section: 'level',
-    prefix: 'profiles.v1.defaults.combatStats.',
+    prefix: 'defaults.combatStats.',
     map: {
       maxHp: { label: '最大生命值上限', description: '角色生命值基线，用于计算血量与容错。' },
       physicalAttack: { label: '物理攻击强度', description: '物理输出基线，决定物攻伤害起点。' },
@@ -71,7 +71,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.defaults.specialStats.',
+    prefix: 'defaults.specialStats.',
     map: {
       shield: { label: '初始护盾值', description: '角色创建时自带护盾。' },
       bonusDamage: { label: '额外伤害系数', description: '触发额外伤害的倍率基线。' },
@@ -87,7 +87,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.hitFormula.',
+    prefix: 'hitFormula.',
     map: {
       base: { label: '命中公式基础命中率', description: '命中概率的基础值。' },
       slope: { label: '命中成长斜率', description: '命中随属性或等级提升的斜率。' },
@@ -97,7 +97,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.penetration.',
+    prefix: 'penetration.',
     map: {
       scale: { label: '穿透系数比例', description: '穿透属性转化为减防效果的比例。' },
       max: { label: '减防率上限', description: '穿透减防的封顶值。' }
@@ -105,7 +105,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.baseDamage.',
+    prefix: 'baseDamage.',
     map: {
       minAttackRatio: { label: '攻击占比最低阈值', description: '伤害公式中攻击力占比的下限。' },
       randomMin: { label: '伤害随机浮动下限', description: '基础伤害随机区间的起点。' },
@@ -115,7 +115,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.crit.',
+    prefix: 'crit.',
     map: {
       min: { label: '暴击率下限', description: '暴击触发概率最小值。' },
       max: { label: '暴击率上限', description: '暴击触发概率最大值。' },
@@ -124,7 +124,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.finalDamage.',
+    prefix: 'finalDamage.',
     map: {
       minMultiplier: { label: '终伤总乘最低倍率', description: '终伤乘区的最低值。' },
       'bonusClamp.min': { label: '终伤加成最小截断', description: '终伤加成的最低截断值。' },
@@ -135,7 +135,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.healing.',
+    prefix: 'healing.',
     map: {
       lifeStealMax: { label: '吸血比例上限', description: '吸血系数封顶，防止无限续航。' },
       'healingBonusClamp.min': { label: '治疗加成最小截断', description: '治疗增益允许的最低值。' },
@@ -148,14 +148,14 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.mitigation.',
+    prefix: 'mitigation.',
     map: {
       damageReductionMax: { label: '减伤率上限', description: '通用减伤的封顶值。' }
     }
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.procCaps.',
+    prefix: 'procCaps.',
     map: {
       comboRateMax: { label: '连击概率上限', description: '触发概率最高 100%。' },
       blockMax: { label: '格挡概率上限', description: '格挡概率封顶。' },
@@ -164,7 +164,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.specialCaps.',
+    prefix: 'specialCaps.',
     map: {
       dodgeChanceMax: { label: '闪避概率上限', description: '附加闪避的封顶值。' },
       damageReflectionMax: { label: '反弹伤害比例上限', description: '反伤比例封顶。' }
@@ -172,24 +172,14 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'level',
-    prefix: 'profiles.v1.statFloors.',
+    prefix: 'statFloors.',
     map: {
       critDamageMin: { label: '暴击伤害下限', description: '暴击伤害倍率的最低值。' }
     }
   },
   {
-    section: 'level',
-    prefix: 'profiles.v2.',
-    map: {
-      'hitFormula.base': { label: 'V2 命中基础值', description: '在 v2 中提升命中基础率。' },
-      'baseDamage.randomMin': { label: 'V2 伤害浮动下限', description: 'v2 的基础伤害随机下限。' },
-      'baseDamage.randomRange': { label: 'V2 伤害浮动幅度', description: 'v2 的基础伤害浮动范围。' },
-      'crit.min': { label: 'V2 暴击率下限', description: 'v2 的暴击触发下限。' }
-    }
-  },
-  {
     section: 'equipment',
-    prefix: 'profiles.v1.',
+    prefix: '',
     map: {
       slots: { label: '可强化装备槽位', description: '允许强化的装备槽列表。' },
       'enhancement.base': { label: '强化基础倍率', description: '装备强化计算使用的基础系数。' }
@@ -197,7 +187,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'skill',
-    prefix: 'profiles.v1.resource.defaults.',
+    prefix: 'resource.defaults.',
     map: {
       type: { label: '资源类型', description: '技能资源的代号，如怒气/真气。' },
       baseMax: { label: '资源上限', description: '技能资源槽的最大值。' },
@@ -212,7 +202,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'skill',
-    prefix: 'profiles.v1.controlEffects.stun.',
+    prefix: 'controlEffects.stun.',
     map: {
       summary: { label: '眩晕描述', description: '状态描述文案。' },
       skip: { label: '眩晕跳过回合', description: '是否整回合跳过。' },
@@ -223,7 +213,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'skill',
-    prefix: 'profiles.v1.controlEffects.silence.',
+    prefix: 'controlEffects.silence.',
     map: {
       summary: { label: '沉默描述', description: '状态描述文案。' },
       skip: { label: '沉默跳过回合', description: '沉默时是否跳过回合。' },
@@ -234,7 +224,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'skill',
-    prefix: 'profiles.v1.controlEffects.freeze.',
+    prefix: 'controlEffects.freeze.',
     map: {
       summary: { label: '冰冻描述', description: '状态描述文案。' },
       skip: { label: '冰冻跳过回合', description: '冰冻时是否跳过回合。' },
@@ -247,7 +237,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'skill',
-    prefix: 'profiles.v1.controlEffects.sleep.',
+    prefix: 'controlEffects.sleep.',
     map: {
       summary: { label: '沉睡描述', description: '状态描述文案。' },
       skip: { label: '沉睡跳过回合', description: '沉睡时是否跳过回合。' },
@@ -259,26 +249,8 @@ const FIELD_GROUP_META = [
     }
   },
   {
-    section: 'skill',
-    prefix: 'profiles.v2.resource.defaults.',
-    map: {
-      turnGain: { label: 'V2 每回合回能', description: 'v2 版本的自然回复量。' },
-      basicAttackGain: { label: 'V2 普攻回能', description: 'v2 版本的普攻资源获取。' },
-      damageTakenGain: { label: 'V2 受伤回能系数', description: 'v2 受伤获得资源的系数。' },
-      startFraction: { label: 'V2 开局资源比例', description: 'v2 版本的起手资源比例。' },
-      'controlEffects.sleep.turnResourceGain': { label: 'V2 沉睡回能', description: 'v2 中沉睡状态的回能值。' }
-    }
-  },
-  {
-    section: 'skill',
-    prefix: 'profiles.v2.controlEffects.sleep.',
-    map: {
-      turnResourceGain: { label: 'V2 沉睡回能', description: 'v2 中沉睡状态的回能值。' }
-    }
-  },
-  {
     section: 'pve',
-    prefix: 'profiles.v1.',
+    prefix: '',
     map: {
       maxLevel: { label: 'PVE 等级上限', description: '秘境与剧情的等级封顶。' },
       roundLimit: { label: 'PVE 最大回合数', description: 'PVE 战斗超出回合即判和局。' },
@@ -288,7 +260,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'pve',
-    prefix: 'profiles.v1.secretRealm.baseStats.',
+    prefix: 'secretRealm.baseStats.',
     map: {
       maxHp: { label: '敌方生命基线', description: '秘境敌人的基础生命值。' },
       physicalAttack: { label: '敌方物攻基线', description: '秘境敌人的物理攻击力基线。' },
@@ -311,7 +283,7 @@ const FIELD_GROUP_META = [
   },
   {
     section: 'pve',
-    prefix: 'profiles.v1.secretRealm.tuning.',
+    prefix: 'secretRealm.tuning.',
     map: {
       baseMultiplier: { label: '楼层基础倍率', description: '秘境楼层数值的起始乘数。' },
       floorGrowth: { label: '每层递增倍率', description: '每层增加的综合系数。' },
@@ -340,17 +312,8 @@ const FIELD_GROUP_META = [
     }
   },
   {
-    section: 'pve',
-    prefix: 'profiles.v2.',
-    map: {
-      roundLimit: { label: 'V2 PVE 最大回合数', description: 'v2 调整后的 PVE 回合上限。' },
-      'secretRealm.tuning.normal.primary': { label: 'V2 普通怪主属性倍率', description: 'v2 下调的普通怪主属性倍率。' },
-      'secretRealm.tuning.limits.finalDamageReduction': { label: 'V2 终伤减免上限', description: 'v2 调整后的终伤减免上限。' }
-    }
-  },
-  {
     section: 'pvp',
-    prefix: 'profiles.v1.',
+    prefix: '',
     map: {
       roundLimit: { label: 'PVP 最大回合数', description: 'PVP 战斗的最大回合数。' },
       cooldownMs: { label: '匹配冷却时间(毫秒)', description: '同一玩家发起战斗的冷却时间。' },
@@ -379,13 +342,6 @@ const FIELD_GROUP_META = [
       'tierRewards.master.stones': { label: '宗师奖励-货币', description: '宗师段位奖励货币。' },
       'tierRewards.master.title': { label: '宗师奖励-称号', description: '宗师段位称号。' },
       'tierRewards.master.coupon': { label: '宗师奖励-优惠券', description: '宗师段位券 ID。' }
-    }
-  },
-  {
-    section: 'pvp',
-    prefix: 'profiles.v2.',
-    map: {
-      roundLimit: { label: 'V2 PVP 最大回合数', description: 'v2 调整后的 PVP 回合上限。' }
     }
   }
 ];
@@ -434,8 +390,8 @@ function flattenConfig(source = {}, prefix = '') {
   const walk = (value, path) => {
     const currentPath = path;
     if (Array.isArray(value)) {
-      const slotFieldPaths = ['profiles.v1.slots', 'profiles.v2.slots'];
-      const tierFieldPaths = ['profiles.v1.tiers'];
+      const slotFieldPaths = ['slots'];
+      const tierFieldPaths = ['tiers'];
       const isSlotField = slotFieldPaths.includes(currentPath);
       const isTierField = tierFieldPaths.includes(currentPath);
       fields.push({

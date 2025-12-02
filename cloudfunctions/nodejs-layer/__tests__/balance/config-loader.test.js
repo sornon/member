@@ -5,7 +5,6 @@ const path = require('path');
 const {
   getLevelCurveConfig,
   getPvpConfig,
-  setBalanceVersion,
   __resetBalanceCache
 } = require('balance/config-loader');
 
@@ -26,7 +25,6 @@ describe('balance config loader', () => {
 
   afterEach(() => {
     process.env.BALANCE_CONFIG_DIR = originalEnv;
-    setBalanceVersion('v1');
     __resetBalanceCache();
   });
 
@@ -38,28 +36,26 @@ describe('balance config loader', () => {
     expect(levelConfig.penetration.max).toBeCloseTo(0.6);
   });
 
-  test('loads versioned profile when available', () => {
+  test('loads overrides from file and merges with defaults', () => {
     const dir = createTempConfig({
       'level-curves.json': {
-        version: 'v1',
-        profiles: {
-          v1: { hitFormula: { base: 0.82 } },
-          v2: { hitFormula: { base: 0.91, max: 0.97 } }
-        }
+        hitFormula: { base: 0.91, max: 0.97 },
+        baseDamage: { randomMin: 0.93 }
       }
     });
     process.env.BALANCE_CONFIG_DIR = dir;
-    setBalanceVersion('v2');
     __resetBalanceCache();
     const levelConfig = getLevelCurveConfig();
     expect(levelConfig.hitFormula.base).toBe(0.91);
     expect(levelConfig.hitFormula.max).toBe(0.97);
+    expect(levelConfig.baseDamage.randomMin).toBe(0.93);
+    expect(levelConfig.baseDamage.randomRange).toBeCloseTo(0.2);
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
   test('uses defaults for missing fields while honoring provided overrides', () => {
     const dir = createTempConfig({
-      'pvp-config.json': { profiles: { v1: { roundLimit: 12 } } }
+      'pvp-config.json': { roundLimit: 12 }
     });
     process.env.BALANCE_CONFIG_DIR = dir;
     __resetBalanceCache();
