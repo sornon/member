@@ -488,7 +488,7 @@ function resolveFieldMeta(sectionKey, path) {
     const suffix = path.replace(group.prefix, '');
     if (group.map[suffix]) return group.map[suffix];
   }
-  return { label: '自定义字段', description: '请根据需要填写。' };
+  return { label: '', description: '' };
 }
 
 function parseVersionedPath(path = '') {
