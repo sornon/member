@@ -66,8 +66,9 @@
         "activities/index",
         "finance-report/index",
         "data-cleanup/index",
-        "system-switches/index",
-        "balance-settings/index"
+        "balance-settings/index",
+        "thanksgiving/index",
+        "system-switches/index"
       ]
     }
   ],

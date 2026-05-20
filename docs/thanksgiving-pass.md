@@ -8,6 +8,10 @@
   例如 ¥998 票价会生成 -99800 的消费记录与 +99800 灵石流水。
 - 会员档案奖励：进入活动页时会检测昵称非空且头像不为默认占位图（`avatar/default.png`），满足条件即可获赠 1 次额外砍价机会并写入 `thanksgivingProfileRewarded` 标记，防止重复发放。
 
+## 管理员监控
+- 管理端新增「感恩节活动管理」页面（管理员中心 → 感恩节活动管理），实时展示下单总数、最近订单明细、库存剩余与 `thanksgiving-pass`
+  权益使用状态分布，便于运营随时跟进购票与权益落地情况。
+
 ## 部署步骤
 1. 重新部署 `cloudfunctions/activities`：确保新建 `bhkBargainStock` 集合权限默认即可，云函数发布后会自动初始化库存文档。
 2. 若此前未发放过权益，请一并部署 `cloudfunctions/member`，以使用 `grantRight` 动作写入感恩节通行证。
