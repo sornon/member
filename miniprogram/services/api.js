@@ -1397,6 +1397,13 @@ export const AdminService = {
       activityId,
       updates
     });
+  },
+  async getThanksgivingDashboard(options = {}) {
+    const payload = { action: 'getThanksgivingDashboard' };
+    if (options && Number.isFinite(options.limit)) {
+      payload.limit = options.limit;
+    }
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   }
 };
 
