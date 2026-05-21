@@ -234,9 +234,34 @@ function buildBhkBargainConfig() {
   };
 }
 
-async function ensureBargainStockDoc(config = {}) {
+async function resolveBargainActivityRuntime(event = {}) {
+  const activityId = typeof event.id === 'string' && event.id.trim() ? event.id.trim() : BHK_BARGAIN_ACTIVITY_ID;
+  const collection = db.collection(COLLECTIONS.ACTIVITIES);
+  const doc = await collection
+    .doc(activityId)
+    .get()
+    .then((res) => (res && res.data) || null)
+    .catch(() => null);
+
+  if (doc && doc.status === 'published' && doc.activityType === 'bargain') {
+    const settings = (doc.bargainSettings && typeof doc.bargainSettings === 'object') ? doc.bargainSettings : {};
+    const config = buildBhkBargainConfig();
+    config.startPrice = Number.isFinite(settings.startPrice) ? settings.startPrice : config.startPrice;
+    config.floorPrice = Number.isFinite(settings.floorPrice) ? settings.floorPrice : config.floorPrice;
+    config.heroImage = doc.coverImage || config.heroImage;
+    config.endsAt = doc.endTime || config.endsAt;
+    return { activityId, activityDoc: doc, config };
+  }
+
+  if (activityId !== BHK_BARGAIN_ACTIVITY_ID) {
+    throw new Error('砍价活动不存在或未发布');
+  }
+  return { activityId, activityDoc: buildBhkBargainActivity(), config: buildBhkBargainConfig() };
+}
+
+async function ensureBargainStockDoc(config = {}, activityId = BHK_BARGAIN_ACTIVITY_ID) {
   await ensureCollectionExists(BHK_BARGAIN_STOCK_COLLECTION);
-  const stockRef = db.collection(BHK_BARGAIN_STOCK_COLLECTION).doc(BHK_BARGAIN_ACTIVITY_ID);
+  const stockRef = db.collection(BHK_BARGAIN_STOCK_COLLECTION).doc(activityId);
   const snapshot = await stockRef.get().catch(handleDocGetError('load bargain stock'));
   if (snapshot && snapshot.data) {
     return snapshot.data;
@@ -260,8 +285,8 @@ async function ensureBargainStockDoc(config = {}) {
   throw new Error('库存初始化失败，请稍后重试');
 }
 
-async function getBargainStock(config = {}) {
-  const doc = await ensureBargainStockDoc(config);
+async function getBargainStock(config = {}, activityId = BHK_BARGAIN_ACTIVITY_ID) {
+  const doc = await ensureBargainStockDoc(config, activityId);
   const totalStock = Number.isFinite(doc.totalStock) ? doc.totalStock : config.stock;
   const stockRemaining = Number.isFinite(doc.stockRemaining) ? doc.stockRemaining : config.stock;
   return { totalStock, stockRemaining };
@@ -922,7 +947,8 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
   const profileComplete = options.profileComplete === true;
   const { bonus: realmBonus } = resolveRealmBonus(memberBoost);
   const divineHandRemaining = memberBoost >= DIVINE_HAND_THRESHOLD ? 1 : 0;
-  const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
+  const activityId = options.activityId || BHK_BARGAIN_ACTIVITY_ID;
+  const docId = `${activityId}_${openid}`;
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
 
   const snapshot = await collection.doc(docId).get().catch(() => null);
@@ -948,7 +974,7 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
 
   const baseSpins = Number(config.baseAttempts) || 0;
   const session = {
-    activityId: BHK_BARGAIN_ACTIVITY_ID,
+    activityId,
     memberId: openid,
     currentPrice: config.startPrice,
     totalDiscount: 0,
@@ -977,7 +1003,7 @@ async function getOrCreateBargainSession(config = {}, options = {}) {
   return normalizeBargainSession({ ...rewardedSession, _id: docId }, config, {}, openid);
 }
 
-async function buildShareContext(config, targetOpenId, viewerOpenId, viewerProfile, viewerAssistGiven = 0) {
+async function buildShareContext(config, targetOpenId, viewerOpenId, viewerProfile, viewerAssistGiven = 0, activityId = BHK_BARGAIN_ACTIVITY_ID) {
   if (!targetOpenId) {
     return null;
   }
@@ -988,7 +1014,8 @@ async function buildShareContext(config, targetOpenId, viewerOpenId, viewerProfi
     memberRealm: realmName,
     openid: targetOpenId,
     memberProfile: profile,
-    profileComplete
+    profileComplete,
+    activityId
   });
   const helperRecords = Array.isArray(targetSession.helperRecords) ? targetSession.helperRecords : [];
   const ownerProfile = targetSession.memberProfile || profile || buildMemberProfile({}, targetOpenId);
@@ -1027,7 +1054,7 @@ function buildBargainPayload(config, session, overrides = {}) {
   delete publicSession.remainingDiscount;
   const realmReward = buildRealmRewardState(publicSession);
   const payload = {
-    activity: decorateActivity(buildBhkBargainActivity()),
+    activity: decorateActivity(overrides.activityDoc || buildBhkBargainActivity()),
     bargainConfig: publicConfig,
     session: { ...publicSession, realmReward, divineHandReady: realmReward.type === 'divine' && realmReward.ready },
     floorReached
@@ -1036,17 +1063,18 @@ function buildBargainPayload(config, session, overrides = {}) {
 }
 
 async function getBhkBargainStatus(event = {}) {
-  const config = buildBhkBargainConfig();
+  const { activityId, config, activityDoc } = await resolveBargainActivityRuntime(event);
   const shareId = typeof event.shareId === 'string' ? event.shareId.trim() : '';
   const { memberBoost, realmName, openid, profile, profileComplete } = await resolveMemberBoost(config);
   const session = await getOrCreateBargainSession(config, {
     memberBoost,
     memberRealm: realmName,
     openid,
+    activityId,
     memberProfile: profile,
     profileComplete
   });
-  const stockState = await getBargainStock(config);
+  const stockState = await getBargainStock(config, activityId);
   const ownedRight = await hasThanksgivingPass(openid);
   const normalizedSession = normalizeBargainSession(
     { ...session, stockRemaining: stockState.stockRemaining },
@@ -1058,38 +1086,39 @@ async function getBhkBargainStatus(event = {}) {
   if (normalizedSession.ticketOwned && !session.ticketOwned) {
     await db
       .collection(BHK_BARGAIN_COLLECTION)
-      .doc(`${BHK_BARGAIN_ACTIVITY_ID}_${openid}`)
+      .doc(`${activityId}_${openid}`)
       .update({ data: { ticketOwned: true, purchased: true, stockRemaining: stockState.stockRemaining } })
       .catch(() => null);
   }
 
   const targetShareId = shareId || normalizedSession.lastShareTarget || '';
   const shareContext = targetShareId
-    ? await buildShareContext(config, targetShareId, openid, profile, normalizedSession.assistGiven)
+    ? await buildShareContext(config, targetShareId, openid, profile, normalizedSession.assistGiven, activityId)
     : null;
 
   if (shareId && shareId !== session.lastShareTarget) {
     const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
     await db
       .collection(BHK_BARGAIN_COLLECTION)
-      .doc(`${BHK_BARGAIN_ACTIVITY_ID}_${openid}`)
+      .doc(`${activityId}_${openid}`)
       .update({ data: { lastShareTarget: shareId, updatedAt: now } })
       .catch(() => null);
   }
 
   return buildBargainPayload(config, normalizedSession, {
+    activityDoc,
     shareContext,
     stockRemaining: stockState.stockRemaining,
     totalStock: stockState.totalStock
   });
 }
 
-async function spinBhkBargain() {
-  const config = buildBhkBargainConfig();
+async function spinBhkBargain(event = {}) {
+  const { activityId, config, activityDoc } = await resolveBargainActivityRuntime(event);
   const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
-  const stockState = await getBargainStock(config);
+  const stockState = await getBargainStock(config, activityId);
   const { memberBoost, realmName, openid, profile, profileComplete } = await resolveMemberBoost(config);
-  const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
+  const docId = `${activityId}_${openid}`;
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
   const segments = normalizeSegments(config.segments);
 
@@ -1104,7 +1133,8 @@ async function spinBhkBargain() {
     memberRealm: realmName,
     openid,
     memberProfile: profile,
-    profileComplete
+    profileComplete,
+    activityId
   });
 
   await db.runTransaction(async (transaction) => {
@@ -1149,6 +1179,7 @@ async function spinBhkBargain() {
       : pickEncouragement();
 
     result = buildBargainPayload(config, updatedRecord, {
+      activityDoc,
       landingIndex,
       amount: cut,
       message,
@@ -1162,8 +1193,8 @@ async function spinBhkBargain() {
 
 async function assistBhkBargain(event = {}) {
   const shareId = typeof event.shareId === 'string' ? event.shareId.trim() : '';
-  const config = buildBhkBargainConfig();
-  const stockState = await getBargainStock(config);
+  const { activityId, config, activityDoc } = await resolveBargainActivityRuntime(event);
+  const stockState = await getBargainStock(config, activityId);
   const { memberBoost, realmName, openid, profile, profileComplete } = await resolveMemberBoost(config);
 
   if (!openid) {
@@ -1190,14 +1221,16 @@ async function assistBhkBargain(event = {}) {
     memberRealm: realmName,
     openid,
     memberProfile: profile,
-    profileComplete
+    profileComplete,
+    activityId
   });
   await getOrCreateBargainSession(config, {
     memberBoost: targetBoost,
     memberRealm: targetRealm,
     openid: shareId,
     memberProfile: targetProfile,
-    profileComplete: targetProfileComplete
+    profileComplete: targetProfileComplete,
+    activityId
   });
 
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
@@ -1205,8 +1238,8 @@ async function assistBhkBargain(event = {}) {
   let updatedTarget = null;
 
   await db.runTransaction(async (transaction) => {
-    const viewerRef = transaction.collection(BHK_BARGAIN_COLLECTION).doc(`${BHK_BARGAIN_ACTIVITY_ID}_${openid}`);
-    const targetRef = transaction.collection(BHK_BARGAIN_COLLECTION).doc(`${BHK_BARGAIN_ACTIVITY_ID}_${shareId}`);
+    const viewerRef = transaction.collection(BHK_BARGAIN_COLLECTION).doc(`${activityId}_${openid}`);
+    const targetRef = transaction.collection(BHK_BARGAIN_COLLECTION).doc(`${activityId}_${shareId}`);
 
     const [viewerSnapshot, targetSnapshot] = await Promise.all([viewerRef.get().catch(() => null), targetRef.get().catch(() => null)]);
 
@@ -1281,9 +1314,10 @@ async function assistBhkBargain(event = {}) {
     { memberBoost, memberRealm: realmName },
     openid
   );
-  const shareContext = await buildShareContext(config, shareId, openid, profile, viewerSession.assistGiven);
+  const shareContext = await buildShareContext(config, shareId, openid, profile, viewerSession.assistGiven, activityId);
 
   return buildBargainPayload(config, viewerSession, {
+    activityDoc,
     shareContext,
     assistedTarget: shareId,
     stockRemaining: stockState.stockRemaining,
@@ -1291,12 +1325,12 @@ async function assistBhkBargain(event = {}) {
   });
 }
 
-async function divineHandBhkBargain() {
-  const config = buildBhkBargainConfig();
+async function divineHandBhkBargain(event = {}) {
+  const { activityId, config, activityDoc } = await resolveBargainActivityRuntime(event);
   const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
-  const stockState = await getBargainStock(config);
+  const stockState = await getBargainStock(config, activityId);
   const { memberBoost, realmName, openid, profile, profileComplete } = await resolveMemberBoost(config);
-  const docId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
+  const docId = `${activityId}_${openid}`;
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
 
   let result = null;
@@ -1306,7 +1340,8 @@ async function divineHandBhkBargain() {
     memberRealm: realmName,
     openid,
     memberProfile: profile,
-    profileComplete
+    profileComplete,
+    activityId
   });
 
   await db.runTransaction(async (transaction) => {
@@ -1342,6 +1377,7 @@ async function divineHandBhkBargain() {
     await ref.update({ data: updatedRecord });
 
     result = buildBargainPayload(config, updatedRecord, {
+      activityDoc,
       landingIndex: displaySegments.length - 1,
       amount: cut,
       message: '神之一手！必中隐藏奖池，直达底价',
@@ -1353,8 +1389,8 @@ async function divineHandBhkBargain() {
   return result;
 }
 
-async function confirmBhkBargainPurchase() {
-  const config = buildBhkBargainConfig();
+async function confirmBhkBargainPurchase(event = {}) {
+  const { activityId, config, activityDoc } = await resolveBargainActivityRuntime(event);
   const { memberBoost, realmName, openid, profile, profileComplete } = await resolveMemberBoost(config);
 
   if (!openid) {
@@ -1366,16 +1402,17 @@ async function confirmBhkBargainPurchase() {
     memberRealm: realmName,
     openid,
     memberProfile: profile,
-    profileComplete
+    profileComplete,
+    activityId
   });
 
-  const sessionDocId = `${BHK_BARGAIN_ACTIVITY_ID}_${openid}`;
-  let stockState = await getBargainStock(config);
+  const sessionDocId = `${activityId}_${openid}`;
+  let stockState = await getBargainStock(config, activityId);
   let latestSession = null;
 
   await db.runTransaction(async (transaction) => {
     const sessionRef = transaction.collection(BHK_BARGAIN_COLLECTION).doc(sessionDocId);
-    const stockRef = transaction.collection(BHK_BARGAIN_STOCK_COLLECTION).doc(BHK_BARGAIN_ACTIVITY_ID);
+    const stockRef = transaction.collection(BHK_BARGAIN_STOCK_COLLECTION).doc(activityId);
 
     const [sessionSnapshot, stockSnapshot] = await Promise.all([
       sessionRef.get().catch(handleDocGetError('load bargain session')), // allow missing session
@@ -1431,7 +1468,7 @@ async function confirmBhkBargainPurchase() {
     const updatedSession = hasSession
       ? { ...baseSession, purchased: true, ticketOwned: true, purchasedAt: now, stockRemaining: nextRemaining, updatedAt: now }
       : {
-          activityId: BHK_BARGAIN_ACTIVITY_ID,
+          activityId,
           memberId: openid,
           currentPrice: config.startPrice,
           totalDiscount: 0,
@@ -1495,10 +1532,11 @@ async function confirmBhkBargainPurchase() {
 
   const shareId = normalizedSession.lastShareTarget || '';
   const shareContext = shareId
-    ? await buildShareContext(config, shareId, openid, profile, normalizedSession.assistGiven)
+    ? await buildShareContext(config, shareId, openid, profile, normalizedSession.assistGiven, activityId)
     : null;
 
   return buildBargainPayload(config, normalizedSession, {
+    activityDoc,
     shareContext,
     stockRemaining: stockState.stockRemaining,
     totalStock: stockState.totalStock

@@ -127,3 +127,30 @@
 ### 需注意的风险点
 1. 若业务前台后续要“按活动动态跑砍价规则”，当前 `cloudfunctions/activities` 仍有一部分基于固定活动 ID 的逻辑，需再做动态化改造后再启用。
 2. 同云环境下请避免“只回滚前端、不回滚云函数 schema 约束”的长时间分裂状态，建议按发布窗口统一升级。
+
+## 问题复盘：音乐会配置为 `concert-bargain` 后前台未进入完整砍价玩法
+
+### 现象
+- 运营已完成活动配置（`activityType=bargain` + `activityTemplate=concert-bargain`），但会员从前台活动列表进入后，未呈现与感恩节活动一致的完整砍价页能力。
+
+### 根因分析
+1. **活动列表入口已按类型跳转，但云函数仍按“固定感恩节活动 ID”执行业务**。  
+   砍价云函数原逻辑在会话键、库存键、配置读取、活动透出等环节大量使用 `BHK_BARGAIN_ACTIVITY_ID` 常量，导致新活动即使进入砍价页，也会落到旧活动上下文。
+2. **砍价配置未按活动文档动态读取**。  
+   `startPrice/floorPrice/heroImage/endTime` 等没有从当前活动的 `bargainSettings/coverImage` 读取，音乐会活动配置无法生效。
+
+### 修复方案（已开发）
+1. `cloudfunctions/activities` 新增活动运行时解析：按 `event.id` 读取活动文档；仅当 `status=published && activityType=bargain` 时进入砍价流程。
+2. 会话与库存主键改为“按活动隔离”：  
+   - 砍价会话：`${activityId}_${openid}`  
+   - 库存文档：`doc(activityId)`
+3. 砍价配置改为“活动优先”：优先使用活动文档中的 `bargainSettings.startPrice/floorPrice`、`coverImage`、`endTime`，未配置再回落默认值。
+4. 返回 payload 中的 `activity` 改为当前活动文档，确保音乐会文案与头图正确透出。
+
+### 手动部署补充（本次修复必须执行）
+1. **重新部署 `cloudfunctions/activities`（必须）**：本次问题核心在该函数，若不重发，前台仍会命中旧 ID 逻辑。
+2. 建议同时重新上传小程序并发布，确保前台页面与最新云函数参数约定一致。
+3. 发布后验收：
+   - 新建/编辑音乐会活动，确认 `activityType=bargain`、`activityTemplate=concert-bargain`、`1500/998/1` 已保存。
+   - 前台活动列表进入该活动后，检查标题、头图、价格初始值、最低价是否与音乐会配置一致。
+   - 数据库检查 `bhkBargainRecords` 新增记录键是否为 `${音乐会活动ID}_${openid}`，`bhkBargainStock` 是否使用音乐会活动 ID 作为文档键。
