@@ -9333,6 +9333,8 @@ function normalizeActivityPayload(input = {}, options = {}) {
   const partial = !!options.partial;
   const result = {};
   const has = (key) => Object.prototype.hasOwnProperty.call(input, key);
+  const hasActivityType = has('activityType');
+  const hasBargainSettings = has('bargainSettings');
 
   if (has('title') || !partial) {
     const title = trimToString(input.title);
@@ -9403,8 +9405,8 @@ function normalizeActivityPayload(input = {}, options = {}) {
     result.sortOrder = normalizeActivitySortOrder(has('sortOrder') ? input.sortOrder : 0, 0);
   }
 
-  if (has('activityType') || !partial) {
-    result.activityType = normalizeActivityType(has('activityType') ? input.activityType : 'standard');
+  if (hasActivityType || !partial) {
+    result.activityType = normalizeActivityType(hasActivityType ? input.activityType : 'standard');
   }
 
   if (has('activityTemplate')) {
@@ -9413,11 +9415,19 @@ function normalizeActivityPayload(input = {}, options = {}) {
     result.activityTemplate = '';
   }
 
-  if (has('bargainSettings') || !partial) {
+  if (hasBargainSettings || !partial) {
     result.bargainSettings = normalizeBargainSettings(
-      has('bargainSettings') ? input.bargainSettings : {},
+      hasBargainSettings ? input.bargainSettings : {},
       result.activityType || normalizeActivityType(input.activityType || 'standard')
     );
+  }
+
+  if (partial && hasActivityType && result.activityType === 'standard' && !hasBargainSettings) {
+    result.bargainSettings = null;
+  }
+
+  if (partial && hasBargainSettings && !hasActivityType && result.bargainSettings) {
+    result.activityType = 'bargain';
   }
 
   return result;
