@@ -330,7 +330,11 @@ function decorateActivity(doc = {}) {
     updatedAt: toIsoString(doc.updatedAt),
     highlight: typeof doc.highlight === 'string' ? doc.highlight : '',
     tags: normalizeStringArray(doc.tags),
-    summary: typeof doc.summary === 'string' ? doc.summary : ''
+    summary: typeof doc.summary === 'string' ? doc.summary : '',
+    activityType: typeof doc.activityType === 'string' ? doc.activityType : 'standard',
+    activityTemplate: typeof doc.activityTemplate === 'string' ? doc.activityTemplate : '',
+    bargainSettings:
+      doc.bargainSettings && typeof doc.bargainSettings === 'object' ? doc.bargainSettings : null
   };
 }
 
