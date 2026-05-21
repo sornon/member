@@ -58,3 +58,41 @@
 ## 后续扩展
 当前实现先完成“类型抽象 + 可配置化”。
 后续可继续在 `cloudfunctions/activities` 中按 `activityType/bargainSettings` 动态生成砍价规则，实现完全去硬编码化（替代仅按固定活动 ID 返回砍价配置）。
+
+## 部署配置与发布步骤（本次更新重点）
+
+### 1) 云函数部署
+- 必须重新部署 `cloudfunctions/admin`，否则管理端提交的 `activityType/activityTemplate/bargainSettings` 不会被后端识别和持久化。
+- 若后续继续推进“前台按活动配置动态砍价”，再同步部署 `cloudfunctions/activities`。
+
+### 2) 小程序端部署
+- 重新上传并发布小程序代码，确保 `miniprogram/subpackages/admin/activities` 的新表单项生效（活动类型、模板、砍价参数）。
+- 管理员端若使用了分包缓存，建议发布后在管理账号端清缓存重启，避免旧分包页面仍显示“旧版活动编辑器”。
+
+### 3) 数据库与兼容策略
+- 集合：沿用既有 `activities` 集合，无需新增集合。
+- 历史数据兼容：
+  - 未包含 `activityType` 的旧活动默认按 `standard` 处理。
+  - `activityType !== bargain` 时，`bargainSettings` 统一回写/透出为 `null`。
+- 运营创建“音乐会砍价”活动建议字段：
+  - `activityType=bargain`
+  - `activityTemplate=concert-bargain`
+  - `bargainSettings.startPrice=1500`
+  - `bargainSettings.floorPrice=998`
+  - `bargainSettings.shareRewardAttempts=1`
+  - `bargainSettings.ticketingMode=paid-ticket`（后端固定）
+
+### 4) 发布后验收清单（建议逐项执行）
+1. 进入管理后台 → 活动管理 → 新建活动，确认出现“活动类型”选择器。
+2. 选择“砍价活动（感恩节/音乐会）”后，确认出现：
+   - 活动模板
+   - 基础金额
+   - 最低价
+   - 分享奖励次数
+3. 保存后再次进入编辑，确认上述值可正确回显。
+4. 返回活动列表，确认卡片出现“类型：砍价活动”。
+5. 抽检数据库对应活动文档，确认新字段结构正确（尤其 `bargainSettings`）。
+
+### 5) 回滚方案
+- 若线上出现兼容问题，可临时将新建活动改回 `activityType=standard`，不影响原有活动基础信息创建流程。
+- 紧急回滚代码时，只需回滚 `admin` 云函数与管理端分包；数据库中新增字段为向后兼容字段，不会阻塞旧版读取。
