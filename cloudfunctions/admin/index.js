@@ -9333,6 +9333,8 @@ function normalizeActivityPayload(input = {}, options = {}) {
   const partial = !!options.partial;
   const result = {};
   const has = (key) => Object.prototype.hasOwnProperty.call(input, key);
+  const hasActivityType = has('activityType');
+  const hasBargainSettings = has('bargainSettings');
 
   if (has('title') || !partial) {
     const title = trimToString(input.title);
@@ -9403,7 +9405,67 @@ function normalizeActivityPayload(input = {}, options = {}) {
     result.sortOrder = normalizeActivitySortOrder(has('sortOrder') ? input.sortOrder : 0, 0);
   }
 
+  if (hasActivityType || !partial) {
+    result.activityType = normalizeActivityType(hasActivityType ? input.activityType : 'standard');
+  }
+
+  if (has('activityTemplate')) {
+    result.activityTemplate = normalizeActivityTemplate(input.activityTemplate);
+  } else if (!partial) {
+    result.activityTemplate = '';
+  }
+
+  if (hasBargainSettings || !partial) {
+    result.bargainSettings = normalizeBargainSettings(
+      hasBargainSettings ? input.bargainSettings : {},
+      result.activityType || normalizeActivityType(input.activityType || 'standard')
+    );
+  }
+
+  if (partial && hasActivityType && result.activityType === 'standard' && !hasBargainSettings) {
+    result.bargainSettings = null;
+  }
+
+  if (partial && hasBargainSettings && !hasActivityType && result.bargainSettings) {
+    result.activityType = 'bargain';
+  }
+
   return result;
+}
+
+function normalizeActivityType(value) {
+  const text = trimToString(value).toLowerCase();
+  if (!text) {
+    return 'standard';
+  }
+  const allowed = ['standard', 'bargain'];
+  return allowed.includes(text) ? text : 'standard';
+}
+
+function normalizeActivityTemplate(value) {
+  const text = trimToString(value).toLowerCase();
+  const allowed = ['', 'thanksgiving-bargain', 'concert-bargain'];
+  return allowed.includes(text) ? text : '';
+}
+
+function normalizeBargainSettings(settings = {}, activityType = 'standard') {
+  if (activityType !== 'bargain') {
+    return null;
+  }
+  const source = settings && typeof settings === 'object' ? settings : {};
+  const startPrice = Number(source.startPrice);
+  const floorPrice = Number(source.floorPrice);
+  const shareRewardAttempts = Number(source.shareRewardAttempts);
+  const value = {
+    startPrice: Number.isFinite(startPrice) ? Math.max(0, Math.floor(startPrice)) : 1500,
+    floorPrice: Number.isFinite(floorPrice) ? Math.max(0, Math.floor(floorPrice)) : 998,
+    shareRewardAttempts: Number.isFinite(shareRewardAttempts) ? Math.max(0, Math.floor(shareRewardAttempts)) : 1,
+    ticketingMode: 'paid-ticket'
+  };
+  if (value.floorPrice > value.startPrice) {
+    value.floorPrice = value.startPrice;
+  }
+  return value;
 }
 
 function toIsoString(value) {
@@ -9438,6 +9500,9 @@ function decorateActivityRecord(doc = {}) {
     perks: normalizeActivityStringArray(doc.perks),
     tags: normalizeActivityStringArray(doc.tags),
     sortOrder: normalizeActivitySortOrder(doc.sortOrder, 0),
+    activityType: normalizeActivityType(doc.activityType || 'standard'),
+    activityTemplate: normalizeActivityTemplate(doc.activityTemplate),
+    bargainSettings: normalizeBargainSettings(doc.bargainSettings, normalizeActivityType(doc.activityType || 'standard')),
     createdAt: toIsoString(doc.createdAt),
     updatedAt: toIsoString(doc.updatedAt),
     createdBy: trimToString(doc.createdBy || ''),

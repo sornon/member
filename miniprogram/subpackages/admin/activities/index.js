@@ -6,6 +6,10 @@ const EDITOR_STATUS_OPTIONS = [
   { value: 'draft', label: '草稿' },
   { value: 'archived', label: '归档' }
 ];
+const ACTIVITY_TYPE_OPTIONS = [
+  { value: 'standard', label: '通用活动' },
+  { value: 'bargain', label: '砍价活动（感恩节/音乐会）' }
+];
 
 function resolveStatusLabel(value) {
   const option = EDITOR_STATUS_OPTIONS.find((item) => item.value === value);
@@ -146,6 +150,10 @@ function decorateActivity(activity) {
     notes: activity.notes || '',
     perks,
     tags,
+    activityType: activity.activityType || 'standard',
+    activityTypeLabel: activity.activityType === 'bargain' ? '砍价活动' : '通用活动',
+    activityTemplate: activity.activityTemplate || '',
+    bargainSettings: activity.bargainSettings || null,
     coverImage: activity.coverImage || '',
     sortOrder: Number(activity.sortOrder || 0)
   };
@@ -168,6 +176,11 @@ function buildEditorForm(activity) {
       perksText: '',
       notes: '',
       tagsText: '',
+      activityType: 'standard',
+      activityTemplate: '',
+      bargainStartPrice: '1500',
+      bargainFloorPrice: '998',
+      shareRewardAttempts: '1',
       coverImage: '',
       sortOrder: '0'
     };
@@ -187,6 +200,20 @@ function buildEditorForm(activity) {
     perksText: Array.isArray(activity.perks) ? activity.perks.join('\n') : '',
     notes: activity.notes || '',
     tagsText: Array.isArray(activity.tags) ? activity.tags.join('\n') : '',
+    activityType: activity.activityType || 'standard',
+    activityTemplate: activity.activityTemplate || '',
+    bargainStartPrice:
+      activity.bargainSettings && Number.isFinite(activity.bargainSettings.startPrice)
+        ? `${activity.bargainSettings.startPrice}`
+        : '1500',
+    bargainFloorPrice:
+      activity.bargainSettings && Number.isFinite(activity.bargainSettings.floorPrice)
+        ? `${activity.bargainSettings.floorPrice}`
+        : '998',
+    shareRewardAttempts:
+      activity.bargainSettings && Number.isFinite(activity.bargainSettings.shareRewardAttempts)
+        ? `${activity.bargainSettings.shareRewardAttempts}`
+        : '1',
     coverImage: activity.coverImage || '',
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
@@ -202,6 +229,7 @@ Page({
     editorSaving: false,
     editorForm: buildEditorForm(null),
     editorStatusOptions: EDITOR_STATUS_OPTIONS,
+    activityTypeOptions: ACTIVITY_TYPE_OPTIONS,
     activeActivityId: '',
     editorStatusLabel: resolveStatusLabel('published'),
     editorStatusIndex: resolveStatusIndex('published')
@@ -332,6 +360,16 @@ Page({
     });
   },
 
+  handleActivityTypeChange(event) {
+    const index = Number(event.detail.value);
+    if (Number.isNaN(index) || !this.data.activityTypeOptions[index]) {
+      return;
+    }
+    this.setData({
+      'editorForm.activityType': this.data.activityTypeOptions[index].value
+    });
+  },
+
   handleEditorDateChange(event) {
     const { field } = event.currentTarget.dataset || {};
     if (!field) {
@@ -375,6 +413,17 @@ Page({
       perks: normalizePerksInput(form.perksText),
       tags: normalizeTagsInput(form.tagsText)
     };
+    payload.activityType = form.activityType || 'standard';
+    payload.activityTemplate = form.activityTemplate || '';
+    if (payload.activityType === 'bargain') {
+      payload.bargainSettings = {
+        startPrice: Number(form.bargainStartPrice || 1500),
+        floorPrice: Number(form.bargainFloorPrice || 998),
+        shareRewardAttempts: Number(form.shareRewardAttempts || 1)
+      };
+    } else {
+      payload.bargainSettings = null;
+    }
 
     Object.keys(payload).forEach((key) => {
       if (typeof payload[key] === 'string') {
