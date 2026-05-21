@@ -70,6 +70,10 @@ export function decorateActivity(activity) {
     perks,
     tags: Array.isArray(activity.tags) ? activity.tags.filter((item) => typeof item === 'string' && item.trim()) : [],
     coverImage: typeof activity.coverImage === 'string' ? activity.coverImage : '',
+    activityType: typeof activity.activityType === 'string' ? activity.activityType : 'standard',
+    activityTemplate: typeof activity.activityTemplate === 'string' ? activity.activityTemplate : '',
+    bargainSettings:
+      activity.bargainSettings && typeof activity.bargainSettings === 'object' ? activity.bargainSettings : null,
     timeRangeLabel,
     statusLabel: status.label,
     statusType: status.type
