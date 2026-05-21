@@ -61,13 +61,28 @@
 
 ## 部署配置与发布步骤（本次更新重点）
 
-### 1) 云函数部署
-- 必须重新部署 `cloudfunctions/admin`，否则管理端提交的 `activityType/activityTemplate/bargainSettings` 不会被后端识别和持久化。
-- 若后续继续推进“前台按活动配置动态砍价”，再同步部署 `cloudfunctions/activities`。
+### 1) 云函数部署（手动）
+1. 打开微信开发者工具，切换到当前云环境（建议先在测试环境验证）。
+2. 右键 `cloudfunctions/admin` → **上传并部署：云端安装依赖（不上传 node_modules）**。
+3. 再右键 `cloudfunctions/activities` → **上传并部署：云端安装依赖**（本次前台按 `activityType=bargain` 进入砍价页，需要同步上线）。
+4. 部署完成后，在云开发控制台「云函数」页确认两个函数版本时间均为本次发布时间。
 
-### 2) 小程序端部署
-- 重新上传并发布小程序代码，确保 `miniprogram/subpackages/admin/activities` 的新表单项生效（活动类型、模板、砍价参数）。
-- 管理员端若使用了分包缓存，建议发布后在管理账号端清缓存重启，避免旧分包页面仍显示“旧版活动编辑器”。
+### 2) 小程序端部署（手动）
+1. 在微信开发者工具执行「工具 → 构建 npm」（如项目启用了 npm 依赖）。
+2. 执行「上传」，填写版本号（例如 `activity-bargain-concert-20260521`）与更新说明。
+3. 在微信公众平台提交审核/发布，并在发布完成后确认线上版本号。
+4. 管理员端进入小程序后先执行一次「清缓存并重启」，避免分包缓存导致旧活动编辑器未刷新。
+
+### 2.1 创建“音乐会砍价活动”操作步骤（手动）
+1. 管理后台 → 活动管理 → 新建活动。
+2. 活动类型选择 **砍价活动（感恩节/音乐会）**。
+3. 填写 `activityTemplate=concert-bargain`。
+4. 砍价参数填写：
+   - 基础金额 `1500`
+   - 最低价 `998`
+   - 分享奖励次数 `1`
+5. 填写头图（`coverImage`）与活动文案（标题、tagline、礼遇、说明）。
+6. 发布后到前台活动列表点击该活动，确认进入砍价活动页并正确显示新头图/文案。
 
 ### 3) 数据库与兼容策略
 - 集合：沿用既有 `activities` 集合，无需新增集合。
@@ -112,3 +127,30 @@
 ### 需注意的风险点
 1. 若业务前台后续要“按活动动态跑砍价规则”，当前 `cloudfunctions/activities` 仍有一部分基于固定活动 ID 的逻辑，需再做动态化改造后再启用。
 2. 同云环境下请避免“只回滚前端、不回滚云函数 schema 约束”的长时间分裂状态，建议按发布窗口统一升级。
+
+## 问题复盘：音乐会配置为 `concert-bargain` 后前台未进入完整砍价玩法
+
+### 现象
+- 运营已完成活动配置（`activityType=bargain` + `activityTemplate=concert-bargain`），但会员从前台活动列表进入后，未呈现与感恩节活动一致的完整砍价页能力。
+
+### 根因分析
+1. **活动列表入口已按类型跳转，但云函数仍按“固定感恩节活动 ID”执行业务**。  
+   砍价云函数原逻辑在会话键、库存键、配置读取、活动透出等环节大量使用 `BHK_BARGAIN_ACTIVITY_ID` 常量，导致新活动即使进入砍价页，也会落到旧活动上下文。
+2. **砍价配置未按活动文档动态读取**。  
+   `startPrice/floorPrice/heroImage/endTime` 等没有从当前活动的 `bargainSettings/coverImage` 读取，音乐会活动配置无法生效。
+
+### 修复方案（已开发）
+1. `cloudfunctions/activities` 新增活动运行时解析：按 `event.id` 读取活动文档；仅当 `status=published && activityType=bargain` 时进入砍价流程。
+2. 会话与库存主键改为“按活动隔离”：  
+   - 砍价会话：`${activityId}_${openid}`  
+   - 库存文档：`doc(activityId)`
+3. 砍价配置改为“活动优先”：优先使用活动文档中的 `bargainSettings.startPrice/floorPrice`、`coverImage`、`endTime`，未配置再回落默认值。
+4. 返回 payload 中的 `activity` 改为当前活动文档，确保音乐会文案与头图正确透出。
+
+### 手动部署补充（本次修复必须执行）
+1. **重新部署 `cloudfunctions/activities`（必须）**：本次问题核心在该函数，若不重发，前台仍会命中旧 ID 逻辑。
+2. 建议同时重新上传小程序并发布，确保前台页面与最新云函数参数约定一致。
+3. 发布后验收：
+   - 新建/编辑音乐会活动，确认 `activityType=bargain`、`activityTemplate=concert-bargain`、`1500/998/1` 已保存。
+   - 前台活动列表进入该活动后，检查标题、头图、价格初始值、最低价是否与音乐会配置一致。
+   - 数据库检查 `bhkBargainRecords` 新增记录键是否为 `${音乐会活动ID}_${openid}`，`bhkBargainStock` 是否使用音乐会活动 ID 作为文档键。

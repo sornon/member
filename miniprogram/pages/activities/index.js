@@ -1,7 +1,16 @@
 import { ActivityService } from '../../services/api';
 import { decorateActivity } from '../../shared/activity';
 
-const BHK_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
+function resolveActivityRoute(activity = {}) {
+  if (!activity || typeof activity !== 'object') {
+    return '/pages/activities/detail/index';
+  }
+  const activityType = typeof activity.activityType === 'string' ? activity.activityType.trim() : '';
+  if (activityType === 'bargain') {
+    return '/pages/activities/bhk-bargain/index';
+  }
+  return '/pages/activities/detail/index';
+}
 
 Page({
   data: {
@@ -42,7 +51,8 @@ Page({
     if (!id) {
       return;
     }
-    const url = id === BHK_ACTIVITY_ID ? '/pages/activities/bhk-bargain/index' : '/pages/activities/detail/index';
+    const activity = Array.isArray(this.data.activities) ? this.data.activities.find((item) => item && item.id === id) : null;
+    const url = resolveActivityRoute(activity || {});
     wx.navigateTo({ url: `${url}?id=${id}` });
   }
 });

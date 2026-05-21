@@ -2,7 +2,7 @@ import { ActivityService, MemberService, WalletService } from '../../../services
 import { AVATAR_IMAGE_BASE_PATH, buildCloudAssetUrl } from '../../../shared/asset-paths';
 import { buildTitleImageUrl, normalizeTitleId } from '../../../shared/titles';
 
-const TARGET_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
+const DEFAULT_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
 const THANKSGIVING_RIGHT_ID = 'thanksgiving-pass';
 const DEFAULT_SEGMENTS = [120, 180, 200, 260, 320, 500];
 const DEFAULT_LOCATION = {
@@ -45,7 +45,7 @@ function normalizeBargainConfig(config = {}) {
   const stock = Number.isFinite(config.stock) ? config.stock : 0;
   const endsAt = config.endsAt || '';
   // 感恩节主题的背景图需固定为本地常量，避免云端沿用旧活动（如万圣节）的 heroImage 覆盖
-  const heroImage = DEFAULT_HERO_IMAGE;
+  const heroImage = (typeof config.heroImage === 'string' && config.heroImage.trim()) || DEFAULT_HERO_IMAGE;
   const perks = Array.isArray(config.perks) ? config.perks : [];
   const vipBonuses = Array.isArray(config.vipBonuses) ? config.vipBonuses : [];
   const displaySegments = Array.isArray(config.displaySegments) ? config.displaySegments : [];
@@ -281,13 +281,9 @@ Page({
 
   onLoad(options = {}) {
     const id = typeof options.id === 'string' ? options.id.trim() : '';
-    if (id && id !== TARGET_ACTIVITY_ID) {
-      wx.redirectTo({ url: `/pages/activities/detail/index?id=${id}` });
-      return;
-    }
     this.setData({ navHeight: resolveNavHeight() });
     this.shareId = typeof options.shareId === 'string' ? options.shareId.trim() : '';
-    this.activityId = TARGET_ACTIVITY_ID;
+    this.activityId = id || DEFAULT_ACTIVITY_ID;
     this._singlePageMarked = false;
     this.setupTimelineCapability();
     this.enableTimelineShare();
