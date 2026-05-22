@@ -189,3 +189,13 @@
     <button class="bhk-overlay__button" type="primary" bindtap="closeResultOverlay">知道了</button>
   </view>
 </view>
+
+<view class="bhk-overlay" wx:if="{{quizPopupVisible && currentQuizQuestion}}">
+  <view class="bhk-overlay__card bhk-quiz__card">
+    <view class="bhk-quiz__title">{{currentQuizQuestion.title}}</view>
+    <button class="bhk-quiz__option" data-answer="A" bindtap="handleQuizOptionTap">{{currentQuizQuestion.options[0]}}</button>
+    <button class="bhk-quiz__option" data-answer="B" bindtap="handleQuizOptionTap">{{currentQuizQuestion.options[1]}}</button>
+    <button class="bhk-quiz__option" data-answer="C" bindtap="handleQuizOptionTap">{{currentQuizQuestion.options[2]}}</button>
+    <button class="bhk-overlay__button" type="default" bindtap="closeQuizPopup">取消</button>
+  </view>
+</view>

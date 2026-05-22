@@ -21,9 +21,9 @@ const ENCOURAGEMENTS = [
 ];
 const DIVINE_HAND_KEYWORDS = ['结丹', '元婴', '化神', '炼虚', '合体', '大乘', '渡劫'];
 const QUIZ_QUESTIONS = [
-  { id: 1, options: ['A. 鹦鹉螺音响', 'B. 黑胶唱片播放', 'C. 现场钢琴三重奏'] },
-  { id: 2, options: ['A. 鹦鹉螺音响', 'B. Linn LP12 Majik 黑胶唱片机', 'C. Steinway & Sons Model D 手工三角钢琴'] },
-  { id: 3, options: ['A. 巴洛克歌剧序曲', 'B. 古希腊祭祀乐队', 'C. 17–18 世纪欧洲宫廷室内乐'] }
+  { id: 1, title: '以下哪种方式的听觉体验最为真实、震撼？', options: ['A. 鹦鹉螺音响', 'B. 黑胶唱片播放', 'C. 现场钢琴三重奏'] },
+  { id: 2, title: '以下哪一种最昂贵、最具收藏价值？', options: ['A. 鹦鹉螺音响', 'B. Linn LP12 Majik 黑胶唱片机', 'C. Steinway & Sons Model D 手工三角钢琴'] },
+  { id: 3, title: '交响乐最初的起源形式是什么？', options: ['A. 巴洛克歌剧序曲', 'B. 古希腊祭祀乐队', 'C. 17–18 世纪欧洲宫廷室内乐'] }
 ];
 const REALM_REWARD_RULES = [
   { keyword: '炼气', bonus: 1, label: '炼气奖励' },
@@ -282,7 +282,9 @@ Page({
     shareTimelineSupported: true,
     shareTimelineMessage: '',
     singlePageMode: false,
-    bargainAnsweredQuestions: []
+    bargainAnsweredQuestions: [],
+    quizPopupVisible: false,
+    currentQuizQuestion: null
   },
 
   onLoad(options = {}) {
@@ -759,15 +761,23 @@ Page({
       wx.showToast({ title: '题库已答完', icon: 'none' });
       return;
     }
-    const picked = await new Promise((resolve) => {
-      wx.showActionSheet({ itemList: unanswered.options, success: resolve, fail: resolve });
-    });
-    if (!picked || picked.cancel) return;
-    const answer = ['A', 'B', 'C'][picked.tapIndex] || '';
-    if (!answer) return;
+    this.setData({ quizPopupVisible: true, currentQuizQuestion: unanswered });
+  },
+
+  closeQuizPopup() {
+    this.setData({ quizPopupVisible: false, currentQuizQuestion: null });
+  },
+
+  async handleQuizOptionTap(event) {
+    const answer = (event && event.currentTarget && event.currentTarget.dataset && event.currentTarget.dataset.answer) || '';
+    const question = this.data.currentQuizQuestion;
+    if (!question || !answer) {
+      return;
+    }
+    this.closeQuizPopup();
     wx.showLoading({ title: '答题中...', mask: true });
     try {
-      const response = await ActivityService.bargainAnswerQuiz(this.activityId, unanswered.id, answer);
+      const response = await ActivityService.bargainAnswerQuiz(this.activityId, question.id, answer);
       const bargain = normalizeBargainConfig(response && response.bargainConfig);
       const session = this.normalizeSession(response && response.session, bargain);
       this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
