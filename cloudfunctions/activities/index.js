@@ -229,7 +229,18 @@ function buildBhkBargainConfig() {
         '筑基期：+3次砍价',
         '结丹及以上：神之一手',
         '分享助力：双方+1次砍价',
-        '设置名字、头像：+1次砍价'
+        '设置名字、头像：+1次砍价',
+        '答题挑战答对：+1次砍价'
+    ],
+    quizEnabled: true,
+    quizRewardAttempts: 1,
+    quizQuestions: [
+      {
+        question: '以下哪种方式的听觉体验最为真实、震撼？',
+        options: ['A. 鹦鹉螺音响', 'B. 黑胶唱片播放', 'C. 现场钢琴三重奏'],
+        answer: 'C',
+        tips: '没有任何音响或设备能够超越乐器本身发出的声音。参考市场价格：鹦鹉螺音响≈150万+人民币/对，Linn LP12 Majik≈数十万人民币，现场钢琴三重奏≈数百万至千万人民币级别。'
+      }
     ]
   };
 }
@@ -248,6 +259,11 @@ async function resolveBargainActivityRuntime(event = {}) {
     const config = buildBhkBargainConfig();
     config.startPrice = Number.isFinite(settings.startPrice) ? settings.startPrice : config.startPrice;
     config.floorPrice = Number.isFinite(settings.floorPrice) ? settings.floorPrice : config.floorPrice;
+    config.quizEnabled = settings.quizEnabled !== false;
+    config.quizRewardAttempts = 1;
+    if (Array.isArray(settings.quizQuestions)) {
+      config.quizQuestions = settings.quizQuestions;
+    }
     config.heroImage = doc.coverImage || config.heroImage;
     config.endsAt = doc.endTime || config.endsAt;
     return { activityId, activityDoc: doc, config };

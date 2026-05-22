@@ -244,6 +244,14 @@
         <text class="form-label">分享奖励次数</text>
         <input class="form-input" type="number" value="{{editorForm.shareRewardAttempts}}" data-field="shareRewardAttempts" bindinput="handleEditorInput" />
       </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">启用答题奖励</text>
+        <switch checked="{{editorForm.quizEnabled}}" bindchange="handleQuizEnabledChange" />
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain' && editorForm.quizEnabled}}" class="form-row">
+        <text class="form-label">题库(JSON)</text>
+        <textarea class="form-textarea" value="{{editorForm.quizQuestionsText}}" data-field="quizQuestionsText" bindinput="handleEditorInput" />
+      </view>
       <view class="form-row">
         <text class="form-label">发布状态</text>
         <picker

@@ -11,6 +11,16 @@ const ACTIVITY_TYPE_OPTIONS = [
   { value: 'bargain', label: '砍价活动（感恩节/音乐会）' }
 ];
 
+const DEFAULT_QUIZ_QUESTIONS = [
+  {
+    question: '以下哪种方式的听觉体验最为真实、震撼？',
+    options: ['A. 鹦鹉螺音响', 'B. 黑胶唱片播放', 'C. 现场钢琴三重奏'],
+    answer: 'C',
+    tips:
+      '没有任何音响或设备能够超越乐器本身发出的声音。参考市场价格：鹦鹉螺音响≈150万+人民币/对，Linn LP12 Majik≈数十万人民币，现场钢琴三重奏≈数百万至千万人民币级别。'
+  }
+];
+
 function resolveStatusLabel(value) {
   const option = EDITOR_STATUS_OPTIONS.find((item) => item.value === value);
   return option ? option.label : '草稿';
@@ -181,6 +191,8 @@ function buildEditorForm(activity) {
       bargainStartPrice: '1500',
       bargainFloorPrice: '998',
       shareRewardAttempts: '1',
+      quizEnabled: true,
+      quizQuestionsText: JSON.stringify(DEFAULT_QUIZ_QUESTIONS, null, 2),
       coverImage: '',
       sortOrder: '0'
     };
@@ -214,6 +226,14 @@ function buildEditorForm(activity) {
       activity.bargainSettings && Number.isFinite(activity.bargainSettings.shareRewardAttempts)
         ? `${activity.bargainSettings.shareRewardAttempts}`
         : '1',
+    quizEnabled: !(activity.bargainSettings && activity.bargainSettings.quizEnabled === false),
+    quizQuestionsText: JSON.stringify(
+      activity.bargainSettings && Array.isArray(activity.bargainSettings.quizQuestions)
+        ? activity.bargainSettings.quizQuestions
+        : DEFAULT_QUIZ_QUESTIONS,
+      null,
+      2
+    ),
     coverImage: activity.coverImage || '',
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
@@ -388,6 +408,12 @@ Page({
     this.setData({ [`editorForm.${field}`]: value });
   },
 
+  handleQuizEnabledChange(event) {
+    this.setData({
+      'editorForm.quizEnabled': !!(event.detail && event.detail.value)
+    });
+  },
+
   async handleEditorSubmit() {
     if (this.data.editorSaving) {
       return;
@@ -416,10 +442,25 @@ Page({
     payload.activityType = form.activityType || 'standard';
     payload.activityTemplate = form.activityTemplate || '';
     if (payload.activityType === 'bargain') {
+      let quizQuestions = [];
+      if (form.quizEnabled) {
+        try {
+          quizQuestions = JSON.parse(form.quizQuestionsText || '[]');
+          if (!Array.isArray(quizQuestions)) {
+            throw new Error('题目配置必须为数组');
+          }
+        } catch (error) {
+          wx.showToast({ title: '答题题目格式错误，请检查JSON', icon: 'none' });
+          return;
+        }
+      }
       payload.bargainSettings = {
         startPrice: Number(form.bargainStartPrice || 1500),
         floorPrice: Number(form.bargainFloorPrice || 998),
-        shareRewardAttempts: Number(form.shareRewardAttempts || 1)
+        shareRewardAttempts: Number(form.shareRewardAttempts || 1),
+        quizEnabled: !!form.quizEnabled,
+        quizRewardAttempts: 1,
+        quizQuestions
       };
     } else {
       payload.bargainSettings = null;

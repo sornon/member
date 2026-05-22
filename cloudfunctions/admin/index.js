@@ -9456,16 +9456,39 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
   const startPrice = Number(source.startPrice);
   const floorPrice = Number(source.floorPrice);
   const shareRewardAttempts = Number(source.shareRewardAttempts);
+  const quizEnabled = !!source.quizEnabled;
+  const quizQuestions = normalizeBargainQuizQuestions(source.quizQuestions);
   const value = {
     startPrice: Number.isFinite(startPrice) ? Math.max(0, Math.floor(startPrice)) : 1500,
     floorPrice: Number.isFinite(floorPrice) ? Math.max(0, Math.floor(floorPrice)) : 998,
     shareRewardAttempts: Number.isFinite(shareRewardAttempts) ? Math.max(0, Math.floor(shareRewardAttempts)) : 1,
+    quizEnabled,
+    quizRewardAttempts: 1,
+    quizQuestions: quizEnabled ? quizQuestions : [],
     ticketingMode: 'paid-ticket'
   };
   if (value.floorPrice > value.startPrice) {
     value.floorPrice = value.startPrice;
   }
   return value;
+}
+
+function normalizeBargainQuizQuestions(input) {
+  const source = Array.isArray(input) ? input : [];
+  return source
+    .map((item) => {
+      const rawOptions = Array.isArray(item && item.options) ? item.options : [];
+      const options = rawOptions.map((text) => trimToString(text)).filter(Boolean).slice(0, 6);
+      const answer = trimToString(item && item.answer).toUpperCase();
+      const tips = normalizeMultilineString(item && item.tips);
+      const question = trimToString(item && item.question);
+      if (!question || options.length < 2 || !answer || !tips) {
+        return null;
+      }
+      return { question, options, answer, tips };
+    })
+    .filter(Boolean)
+    .slice(0, 20);
 }
 
 function toIsoString(value) {
