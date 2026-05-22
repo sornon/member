@@ -794,9 +794,13 @@ async function answerBhkBargainQuiz(event = {}) {
     }
     const nextAnswered = alreadyAnswered ? answered : answered.concat(questionId);
     const now = new Date();
+    const writeSafeSnapshot = { ...(snapshot.data || {}) };
+    if (Object.prototype.hasOwnProperty.call(writeSafeSnapshot, '_id')) {
+      delete writeSafeSnapshot._id;
+    }
     await ref.set({
       data: {
-        ...snapshot.data,
+        ...writeSafeSnapshot,
         remainingSpins,
         quizAnsweredQuestions: nextAnswered,
         updatedAt: now
