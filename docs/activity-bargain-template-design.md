@@ -84,6 +84,15 @@
 5. 填写头图（`coverImage`）与活动文案（标题、tagline、礼遇、说明）。
 6. 发布后到前台活动列表点击该活动，确认进入砍价活动页并正确显示新头图/文案。
 
+### 2.2 新增“答题得砍价次数”部署步骤
+
+1. 上传并部署云函数 `cloudfunctions/activities`（必须先部署，新增了 `bargainAnswerQuiz` 接口）。
+2. 重新上传小程序代码，确保 `miniprogram/pages/activities/bhk-bargain` 与 `miniprogram/services/api.js` 同步上线。
+3. 发布后在“活动-test”进入砍价页，点击“答题+1次砍价”验证：
+   - 答对题目后，剩余砍价次数 +1；
+   - 答错时不加次数；
+   - 无论答对/答错都弹窗展示“正确答案 + Tips”。
+
 ### 3) 数据库与兼容策略
 - 集合：沿用既有 `activities` 集合，无需新增集合。
 - 历史数据兼容：

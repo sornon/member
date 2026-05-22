@@ -20,6 +20,11 @@ const ENCOURAGEMENTS = [
   '好友助力价格还能更低，快去求助一下吧~'
 ];
 const DIVINE_HAND_KEYWORDS = ['结丹', '元婴', '化神', '炼虚', '合体', '大乘', '渡劫'];
+const QUIZ_QUESTIONS = [
+  { id: 1, options: ['A. 鹦鹉螺音响', 'B. 黑胶唱片播放', 'C. 现场钢琴三重奏'] },
+  { id: 2, options: ['A. 鹦鹉螺音响', 'B. Linn LP12 Majik 黑胶唱片机', 'C. Steinway & Sons Model D 手工三角钢琴'] },
+  { id: 3, options: ['A. 巴洛克歌剧序曲', 'B. 古希腊祭祀乐队', 'C. 17–18 世纪欧洲宫廷室内乐'] }
+];
 const REALM_REWARD_RULES = [
   { keyword: '炼气', bonus: 1, label: '炼气奖励' },
   { keyword: '筑基', bonus: 4, label: '筑基奖励' },
@@ -276,7 +281,8 @@ Page({
     ticketOwned: false,
     shareTimelineSupported: true,
     shareTimelineMessage: '',
-    singlePageMode: false
+    singlePageMode: false,
+    bargainAnsweredQuestions: []
   },
 
   onLoad(options = {}) {
@@ -431,6 +437,7 @@ Page({
       memberId: session.memberId || this.data.memberId,
       ticketOwned
     });
+    this.setData({ bargainAnsweredQuestions: session.quizAnsweredQuestions || [] });
     this.startCountdown();
   },
 
@@ -741,6 +748,37 @@ Page({
     } catch (error) {
       console.error('[bhk-bargain] assist failed', error);
       wx.showToast({ title: error.errMsg || '助力失败', icon: 'none' });
+    } finally {
+      wx.hideLoading();
+    }
+  },
+
+  async handleQuizBargain() {
+    const unanswered = QUIZ_QUESTIONS.find((item) => !(this.data.bargainAnsweredQuestions || []).includes(item.id));
+    if (!unanswered) {
+      wx.showToast({ title: '题库已答完', icon: 'none' });
+      return;
+    }
+    const picked = await new Promise((resolve) => {
+      wx.showActionSheet({ itemList: unanswered.options, success: resolve, fail: resolve });
+    });
+    if (!picked || picked.cancel) return;
+    const answer = ['A', 'B', 'C'][picked.tapIndex] || '';
+    if (!answer) return;
+    wx.showLoading({ title: '答题中...', mask: true });
+    try {
+      const response = await ActivityService.bargainAnswerQuiz(this.activityId, unanswered.id, answer);
+      const bargain = normalizeBargainConfig(response && response.bargainConfig);
+      const session = this.normalizeSession(response && response.session, bargain);
+      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
+      const feedback = response && response.quizFeedback;
+      wx.showModal({
+        title: feedback && feedback.rewarded ? '答对啦，砍价次数 +1' : '答题结果',
+        content: `正确答案：${(feedback && feedback.correctAnswer) || 'C'}\n\nTips：${(feedback && feedback.tips) || ''}`,
+        showCancel: false
+      });
+    } catch (error) {
+      wx.showToast({ title: error.errMsg || '答题失败', icon: 'none' });
     } finally {
       wx.hideLoading();
     }
