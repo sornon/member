@@ -794,7 +794,7 @@ async function answerBhkBargainQuiz(event = {}) {
     }
     const nextAnswered = alreadyAnswered ? answered : answered.concat(questionId);
     const now = new Date();
-    transaction.set(ref, {
+    await ref.set({
       data: {
         ...snapshot.data,
         remainingSpins,
