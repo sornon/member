@@ -382,7 +382,8 @@ Page({
       divineHandReady,
       floorReached,
       stockRemaining,
-      ticketOwned: Boolean(session.ticketOwned || session.hasTicket || session.purchased)
+      ticketOwned: Boolean(session.ticketOwned || session.hasTicket || session.purchased),
+      quizAnsweredQuestions: Array.isArray(session.quizAnsweredQuestions) ? session.quizAnsweredQuestions : []
     };
   },
 
