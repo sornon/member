@@ -169,11 +169,12 @@
     </view>
 
 
-    <view class="bhk-card bhk-info" wx:if="{{quizRanking && quizRanking.length}}">
+    <view class="bhk-card bhk-info" wx:if="{{quiz && quiz.enabled}}">
       <view class="bhk-section-title">答题排行榜（Top10）</view>
-      <block wx:for="{{quizRanking}}" wx:key="rank">
+      <block wx:if="{{quizRanking && quizRanking.length}}" wx:for="{{quizRanking}}" wx:key="rank">
         <view class="bhk-info__item">第{{item.rank}}名：{{item.nickname}}（答对 {{item.correctCount}} 题）</view>
       </block>
+      <view class="bhk-info__item" wx:if="{{!quizRanking || !quizRanking.length}}">暂无排行榜数据，先答对1题后再返回查看。</view>
     </view>
 
     <view class="bhk-card bhk-info">

@@ -762,6 +762,7 @@ Page({
 
   closeQuizModal() {
     this.setData({ showQuizModal: false, quizAnswerResult: null, selectedQuizOption: '' });
+    this.fetchActivityStatus({ keepLoading: true });
   },
 
 
@@ -799,6 +800,9 @@ Page({
         },
         quizResultMessage: ''
       });
+      if (!Array.isArray(response && response.quizRanking) || !(response.quizRanking || []).length) {
+        this.fetchActivityStatus({ keepLoading: true });
+      }
     } catch (error) {
       wx.showToast({ title: (error && error.errMsg) || '答题失败', icon: 'none' });
     }
