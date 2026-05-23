@@ -810,9 +810,6 @@ Page({
         quizAnsweredIds: answeredUnion
       });
       this.setData({ quizResultMessage: '' });
-      if (!Array.isArray(response && response.quizRanking) || !(response.quizRanking || []).length) {
-        this.fetchActivityStatus({ keepLoading: true });
-      }
     } catch (error) {
       wx.showToast({ title: (error && error.errMsg) || '答题失败', icon: 'none' });
     }
