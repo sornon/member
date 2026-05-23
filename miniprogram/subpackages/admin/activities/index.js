@@ -222,7 +222,7 @@ function buildEditorForm(activity) {
       quizQuestion: '',
       quizOptionsText: '',
       quizAnswerIndex: '0',
-      quizQuestions: [buildQuestionItem({})],
+      quizExtraQuestions: [],
       sortOrder: '0'
     };
   }
@@ -319,12 +319,13 @@ function buildEditorForm(activity) {
       activity.bargainSettings && activity.bargainSettings.quizReward && Number.isFinite(activity.bargainSettings.quizReward.answerIndex)
         ? `${activity.bargainSettings.quizReward.answerIndex}`
         : '0',
-    quizQuestions:
+    quizExtraQuestions:
       activity.bargainSettings &&
       activity.bargainSettings.quizReward &&
-      Array.isArray(activity.bargainSettings.quizReward.questions)
-        ? activity.bargainSettings.quizReward.questions.map((item) => buildQuestionItem(item))
-        : [buildQuestionItem({})],
+      Array.isArray(activity.bargainSettings.quizReward.questions) &&
+      activity.bargainSettings.quizReward.questions.length > 1
+        ? activity.bargainSettings.quizReward.questions.slice(1).map((item) => buildQuestionItem(item))
+        : [],
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
 }
@@ -542,28 +543,26 @@ Page({
       [`editorForm.bargainItems[${targetIndex}].${field}`]: value
     });
   },
-  handleQuizQuestionInput(event) {
+  handleQuizExtraQuestionInput(event) {
     const { index, field } = event.currentTarget.dataset || {};
     const targetIndex = Number(index);
     if (Number.isNaN(targetIndex) || !field) return;
     const value = event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
-    this.setData({ [`editorForm.quizQuestions[${targetIndex}].${field}`]: value });
+    this.setData({ [`editorForm.quizExtraQuestions[${targetIndex}].${field}`]: value });
   },
   handleAddQuizQuestion() {
-    const current = Array.isArray(this.data.editorForm.quizQuestions) ? this.data.editorForm.quizQuestions : [];
+    const current = Array.isArray(this.data.editorForm.quizExtraQuestions) ? this.data.editorForm.quizExtraQuestions : [];
     this.setData({
-      'editorForm.quizQuestions': [...current, { question: '', optionsText: '', answerIndex: '0' }]
+      'editorForm.quizExtraQuestions': [...current, { question: '', optionsText: '', answerIndex: '0' }]
     });
   },
   handleRemoveQuizQuestion(event) {
     const { index } = event.currentTarget.dataset || {};
     const targetIndex = Number(index);
-    const current = Array.isArray(this.data.editorForm.quizQuestions) ? [...this.data.editorForm.quizQuestions] : [];
+    const current = Array.isArray(this.data.editorForm.quizExtraQuestions) ? [...this.data.editorForm.quizExtraQuestions] : [];
     if (Number.isNaN(targetIndex) || targetIndex < 0 || targetIndex >= current.length) return;
     current.splice(targetIndex, 1);
-    this.setData({
-      'editorForm.quizQuestions': current.length ? current : [{ question: '', optionsText: '', answerIndex: '0' }]
-    });
+    this.setData({ 'editorForm.quizExtraQuestions': current });
   },
 
   async handleEditorSubmit() {
@@ -630,13 +629,18 @@ Page({
           question: (form.quizQuestion || '').trim(),
           options: normalizePerksInput(form.quizOptionsText || ''),
           answerIndex: Number(form.quizAnswerIndex || 0),
-          questions: (Array.isArray(form.quizQuestions) ? form.quizQuestions : [])
-            .map((item) => ({
+          questions: [
+            {
+              question: (form.quizQuestion || '').trim(),
+              options: normalizePerksInput(form.quizOptionsText || ''),
+              answerIndex: Number(form.quizAnswerIndex || 0)
+            },
+            ...(Array.isArray(form.quizExtraQuestions) ? form.quizExtraQuestions : []).map((item) => ({
               question: ((item && item.question) || '').trim(),
               options: normalizePerksInput((item && item.optionsText) || ''),
               answerIndex: Number((item && item.answerIndex) || 0)
             }))
-            .filter((item) => item.question && item.options.length >= 2)
+          ].filter((item) => item.question && item.options.length >= 2)
         }
       };
     } else {
