@@ -5,6 +5,11 @@ import { buildTitleImageUrl, normalizeTitleId } from '../../../shared/titles';
 const DEFAULT_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
 const THANKSGIVING_RIGHT_ID = 'thanksgiving-pass';
 const DEFAULT_SEGMENTS = [120, 180, 200, 260, 320, 500];
+const DEFAULT_QUIZ_QUESTIONS = [
+  { id: 'audio-experience', question: '以下哪种方式的听觉体验最为真实、震撼？', options: ['A. 鹦鹉螺音响', 'B. 黑胶唱片播放', 'C. 现场钢琴三重奏'] },
+  { id: 'collectible-value', question: '以下哪一种最昂贵、最具收藏价值？', options: ['A. 鹦鹉螺音响', 'B. Linn LP12 Majik 黑胶唱片机', 'C. Steinway & Sons Model D 手工三角钢琴'] },
+  { id: 'symphony-origin', question: '交响乐最初的起源形式是什么？', options: ['A. 巴洛克歌剧序曲', 'B. 古希腊祭祀乐队', 'C. 17-18 世纪欧洲宫廷室内乐'] }
+];
 const DEFAULT_LOCATION = {
   name: '酒隐之茄',
   address: '北京市朝阳区百子湾路16号4号楼B座102',
@@ -63,7 +68,14 @@ function normalizeBargainConfig(config = {}) {
     vipBonuses,
     displaySegments,
     floorPrice,
-    quiz: config.quiz && typeof config.quiz === 'object' ? config.quiz : { enabled: false, rewardAttempts: 0, questions: [] }
+    quiz: (() => {
+      const quiz = config.quiz && typeof config.quiz === 'object' ? config.quiz : { enabled: false, rewardAttempts: 0, questions: [] };
+      const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
+      if (quiz.enabled && !questions.length) {
+        return { ...quiz, questions: DEFAULT_QUIZ_QUESTIONS };
+      }
+      return quiz;
+    })()
   };
 }
 

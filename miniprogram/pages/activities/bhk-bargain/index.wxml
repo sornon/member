@@ -162,9 +162,9 @@
     </view>
 
 
-    <view class="bhk-card bhk-info" wx:if="{{quiz && quiz.enabled && quiz.questions && quiz.questions.length}}">
+    <view class="bhk-card bhk-info" wx:if="{{quiz && quiz.enabled}}">
       <view class="bhk-section-title">答题加砍价次数</view>
-      <block wx:for="{{quiz.questions}}" wx:key="id">
+      <block wx:if="{{quiz.questions && quiz.questions.length}}" wx:for="{{quiz.questions}}" wx:key="id">
         <view class="bhk-info__item" style="margin-bottom: 12rpx;">{{item.question}}</view>
         <view style="display:flex;flex-wrap:wrap;gap:10rpx;">
           <block wx:for="{{item.options}}" wx:key="*this" wx:for-item="option">
@@ -173,6 +173,7 @@
           <button size="mini" type="primary" data-question-id="{{item.id}}" bindtap="handleQuizAnswer">提交答案</button>
         </view>
       </block>
+      <view class="bhk-info__item" wx:if="{{(!quiz.questions || !quiz.questions.length)}}">题库未配置，请联系管理员在活动管理中设置题目。</view>
       <view class="bhk-info__item" wx:if="{{quizResultMessage}}">{{quizResultMessage}}</view>
     </view>
 
