@@ -314,6 +314,45 @@ page {
   color: #fff;
 }
 
+.quiz-extra {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+
+.quiz-extra__card {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16rpx;
+  border-radius: 12rpx;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.52);
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.quiz-extra__title {
+  font-size: 24rpx;
+  color: rgba(226, 232, 240, 0.9);
+  font-weight: 600;
+}
+
+.quiz-extra__label {
+  font-size: 24rpx;
+  color: rgba(203, 213, 225, 0.86);
+}
+
+.quiz-extra__remove {
+  align-self: flex-end;
+}
+
+.quiz-extra__add {
+  margin-top: 8rpx;
+  align-self: flex-start;
+}
+
 .ghost-btn {
   padding: 14rpx 32rpx;
 }
