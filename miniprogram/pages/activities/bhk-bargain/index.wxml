@@ -1,6 +1,21 @@
 <custom-nav title="" theme="transparent"></custom-nav>
 <view class="bhk-hero" style="margin-top: -{{navHeight}}px; height: {{heroHeightRpx}}rpx;">
-  <image class="bhk-hero__image" src="{{heroImage}}" mode="aspectFill"></image>
+  <image wx:if="{{!heroVideoVisible}}" class="bhk-hero__image" src="{{heroImage}}" mode="aspectFill"></image>
+  <video
+    wx:if="{{heroVideoVisible}}"
+    class="bhk-hero__video"
+    src="{{heroVideoUrl}}"
+    autoplay
+    controls
+    object-fit="cover"
+    show-fullscreen-btn="true"
+    show-play-btn="true"
+    enable-play-gesture="true"
+    binderror="handleHeroVideoError"
+  ></video>
+  <view wx:if="{{heroVideoReady && !heroVideoVisible}}" class="bhk-hero__play" bindtap="handlePlayHeroVideo">
+    <view class="bhk-hero__play-icon"></view>
+  </view>
   <view wx:if="{{heroMaskEnabled}}" class="bhk-hero__mask"></view>
 </view>
 
