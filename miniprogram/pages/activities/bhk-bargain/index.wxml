@@ -6,6 +6,7 @@
     class="bhk-hero__video"
     src="{{heroVideoUrl}}"
     autoplay
+    loop
     controls
     object-fit="cover"
     show-fullscreen-btn="true"
