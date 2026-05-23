@@ -19,6 +19,9 @@ const _ = db.command;
 
 const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'wallet' });
 
+// 新增：用于识别测试环境（审核/体验/开发版）
+const TEST_ENVIRONMENTS = new Set(['develop', 'trial']);
+
 const FEATURE_TOGGLE_DOC_ID = 'feature_toggles';
 const DEFAULT_IMMORTAL_TOURNAMENT = {
   enabled: false,
@@ -606,7 +609,7 @@ exports.main = async (event, context) => {
     case 'summary':
       return getSummary(targetMemberId);
     case 'createRecharge':
-      return createRecharge(targetMemberId, event.amount);
+      return createRecharge(targetMemberId, event.amount, event);
     case 'completeRecharge':
       return completeRecharge(targetMemberId, event.transactionId);
     case 'failRecharge':
@@ -791,7 +794,7 @@ function resolveTransactionType(type, amount) {
   return 'unknown';
 }
 
-async function createRecharge(openid, amount) {
+async function createRecharge(openid, amount, event = {}) {
   const featureToggles = await loadFeatureToggles();
   if (!featureToggles.cashierEnabled) {
     throw new Error('线上充值暂不可用，请前往收款台线下充值');
@@ -822,12 +825,20 @@ async function createRecharge(openid, amount) {
     throw error;
   }
   const now = new Date();
+  // 根据请求携带的 envVersion 判断是否测试环境，
+  // 如果非 release，则将订单标记为测试订单，记录 clientEnvVersion。
+  const clientEnvVersion =
+    (event && event.clientEnvVersion) || (event && event.clientEnv && event.clientEnv.envVersion) || '';
+  const isTestOrder = TEST_ENVIRONMENTS.has(String(clientEnvVersion || '').toLowerCase());
   const record = await db.collection(COLLECTIONS.WALLET_TRANSACTIONS).add({
     data: {
       memberId: openid,
       amount: normalizedAmount,
       type: 'recharge',
-      status: 'pending',
+      // 非正式环境的充值订单标记为 test，其它为 pending
+      status: isTestOrder ? 'test' : 'pending',
+      isTestOrder,
+      clientEnvVersion: clientEnvVersion || '',
       createdAt: now,
       updatedAt: now,
       remark: '余额充值'
@@ -1160,6 +1171,17 @@ async function failRecharge(openid, transactionId, options = {}) {
       throw new Error('记录类型错误');
     }
     const currentStatus = normalizeTransactionStatus(record.status);
+    // 如果是测试订单，直接更新为 test 状态，不再更改余额
+    if (record.isTestOrder || currentStatus === 'test') {
+      await recordRef.update({
+        data: {
+          status: 'test',
+          updatedAt: now,
+          remark: '测试环境充值取消'
+        }
+      });
+      return;
+    }
     if (currentStatus === 'success') {
       outcome = { success: false, status: 'success' };
       return;
@@ -1213,6 +1235,35 @@ async function completeRecharge(openid, transactionId) {
     }
     if (record.type !== 'recharge') {
       throw new Error('记录类型错误');
+    }
+    const now = new Date();
+    // 新增：如果是测试订单，则仅更新状态，不增加余额
+    if (record.isTestOrder || record.status === 'test') {
+      await transactionRef.update({
+        data: {
+          status: 'test', // 保持 test 状态
+          updatedAt: now,
+          succeededAt: now,
+          remark: '测试环境充值，不计入余额'
+        }
+      });
+      // 标记用户为测试账号，方便后台清理
+      await db
+        .collection(COLLECTIONS.MEMBERS)
+        .doc(openid)
+        .set(
+          {
+            data: {
+              isTestUser: true,
+              testReason: '在测试环境创建充值',
+              updatedAt: now
+            }
+          },
+          { merge: true }
+        )
+        .catch(() => null);
+      result = { success: true, status: 'test' };
+      return;
     }
     if (record.status === 'success') {
       result = { success: true, message: '充值已完成' };
