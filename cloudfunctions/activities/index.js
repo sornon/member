@@ -263,6 +263,9 @@ async function resolveBargainActivityRuntime(event = {}) {
     if (config.quiz && typeof settings.quizEnabled === 'boolean') {
       config.quiz.enabled = settings.quizEnabled;
     }
+    if (config.quiz && Array.isArray(settings.quizQuestions) && settings.quizQuestions.length) {
+      config.quiz.questions = settings.quizQuestions;
+    }
     config.heroImage = doc.coverImage || config.heroImage;
     config.endsAt = doc.endTime || config.endsAt;
     return { activityId, activityDoc: doc, config };

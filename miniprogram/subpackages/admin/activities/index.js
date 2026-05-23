@@ -159,6 +159,41 @@ function decorateActivity(activity) {
   };
 }
 
+
+function normalizeQuizQuestionsText(text = '') {
+  if (typeof text !== 'string' || !text.trim()) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item = {}) => ({
+        id: (item.id || '').toString().trim(),
+        question: (item.question || '').toString().trim(),
+        options: Array.isArray(item.options) ? item.options.map((opt) => (opt || '').toString().trim()).slice(0, 3) : [],
+        answer: (item.answer || '').toString().trim().toUpperCase(),
+        tip: (item.tip || '').toString().trim()
+      }))
+      .filter((item) => item.id && item.question && item.options.length === 3 && ['A', 'B', 'C'].includes(item.answer));
+  } catch (error) {
+    return null;
+  }
+}
+
+function formatQuizQuestionsText(questions = []) {
+  if (!Array.isArray(questions) || !questions.length) {
+    return '';
+  }
+  try {
+    return JSON.stringify(questions, null, 2);
+  } catch (error) {
+    return '';
+  }
+}
+
 function buildEditorForm(activity) {
   if (!activity) {
     return {
@@ -182,6 +217,7 @@ function buildEditorForm(activity) {
       bargainFloorPrice: '998',
       shareRewardAttempts: '1',
       quizEnabled: true,
+      quizQuestionsText: '',
       coverImage: '',
       sortOrder: '0'
     };
@@ -219,6 +255,7 @@ function buildEditorForm(activity) {
       activity.bargainSettings && typeof activity.bargainSettings.quizEnabled === 'boolean'
         ? activity.bargainSettings.quizEnabled
         : true,
+    quizQuestionsText: formatQuizQuestionsText(activity.bargainSettings && activity.bargainSettings.quizQuestions),
     coverImage: activity.coverImage || '',
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
@@ -426,11 +463,17 @@ Page({
     payload.activityType = form.activityType || 'standard';
     payload.activityTemplate = form.activityTemplate || '';
     if (payload.activityType === 'bargain') {
+      const quizQuestions = normalizeQuizQuestionsText(form.quizQuestionsText);
+      if (quizQuestions === null) {
+        wx.showToast({ title: '题目JSON格式错误', icon: 'none' });
+        return;
+      }
       payload.bargainSettings = {
         startPrice: Number(form.bargainStartPrice || 1500),
         floorPrice: Number(form.bargainFloorPrice || 998),
         shareRewardAttempts: Number(form.shareRewardAttempts || 1),
-        quizEnabled: !!form.quizEnabled
+        quizEnabled: !!form.quizEnabled,
+        quizQuestions
       };
     } else {
       payload.bargainSettings = null;

@@ -9456,11 +9456,21 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
   const startPrice = Number(source.startPrice);
   const floorPrice = Number(source.floorPrice);
   const shareRewardAttempts = Number(source.shareRewardAttempts);
+  const quizQuestions = Array.isArray(source.quizQuestions) ? source.quizQuestions : [];
   const value = {
     startPrice: Number.isFinite(startPrice) ? Math.max(0, Math.floor(startPrice)) : 1500,
     floorPrice: Number.isFinite(floorPrice) ? Math.max(0, Math.floor(floorPrice)) : 998,
     shareRewardAttempts: Number.isFinite(shareRewardAttempts) ? Math.max(0, Math.floor(shareRewardAttempts)) : 1,
     quizEnabled: typeof source.quizEnabled === 'boolean' ? source.quizEnabled : true,
+    quizQuestions: quizQuestions
+      .map((item = {}) => ({
+        id: trimToString(item.id),
+        question: trimToString(item.question),
+        options: normalizeActivityStringArray(item.options).slice(0, 3),
+        answer: trimToString(item.answer).toUpperCase(),
+        tip: trimToString(item.tip)
+      }))
+      .filter((item) => item.id && item.question && item.options.length === 3 && ['A', 'B', 'C'].includes(item.answer)),
     ticketingMode: 'paid-ticket'
   };
   if (value.floorPrice > value.startPrice) {
