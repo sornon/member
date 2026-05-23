@@ -9460,6 +9460,7 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
     startPrice: Number.isFinite(startPrice) ? Math.max(0, Math.floor(startPrice)) : 1500,
     floorPrice: Number.isFinite(floorPrice) ? Math.max(0, Math.floor(floorPrice)) : 998,
     shareRewardAttempts: Number.isFinite(shareRewardAttempts) ? Math.max(0, Math.floor(shareRewardAttempts)) : 1,
+    quizEnabled: typeof source.quizEnabled === 'boolean' ? source.quizEnabled : true,
     ticketingMode: 'paid-ticket'
   };
   if (value.floorPrice > value.startPrice) {

@@ -240,6 +240,10 @@
           <input class="form-input" type="number" value="{{editorForm.bargainFloorPrice}}" data-field="bargainFloorPrice" bindinput="handleEditorInput" />
         </view>
       </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--switch">
+        <text class="form-label">答题奖励开关</text>
+        <switch checked="{{editorForm.quizEnabled}}" color="#07c160" bindchange="handleQuizSwitchChange" />
+      </view>
       <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
         <text class="form-label">分享奖励次数</text>
         <input class="form-input" type="number" value="{{editorForm.shareRewardAttempts}}" data-field="shareRewardAttempts" bindinput="handleEditorInput" />

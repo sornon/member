@@ -260,6 +260,9 @@ async function resolveBargainActivityRuntime(event = {}) {
     const config = buildBhkBargainConfig();
     config.startPrice = Number.isFinite(settings.startPrice) ? settings.startPrice : config.startPrice;
     config.floorPrice = Number.isFinite(settings.floorPrice) ? settings.floorPrice : config.floorPrice;
+    if (config.quiz && typeof settings.quizEnabled === 'boolean') {
+      config.quiz.enabled = settings.quizEnabled;
+    }
     config.heroImage = doc.coverImage || config.heroImage;
     config.endsAt = doc.endTime || config.endsAt;
     return { activityId, activityDoc: doc, config };

@@ -181,6 +181,7 @@ function buildEditorForm(activity) {
       bargainStartPrice: '1500',
       bargainFloorPrice: '998',
       shareRewardAttempts: '1',
+      quizEnabled: true,
       coverImage: '',
       sortOrder: '0'
     };
@@ -214,6 +215,10 @@ function buildEditorForm(activity) {
       activity.bargainSettings && Number.isFinite(activity.bargainSettings.shareRewardAttempts)
         ? `${activity.bargainSettings.shareRewardAttempts}`
         : '1',
+    quizEnabled:
+      activity.bargainSettings && typeof activity.bargainSettings.quizEnabled === 'boolean'
+        ? activity.bargainSettings.quizEnabled
+        : true,
     coverImage: activity.coverImage || '',
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
@@ -379,6 +384,11 @@ Page({
     this.setData({ [`editorForm.${field}`]: value });
   },
 
+  handleQuizSwitchChange(event) {
+    const checked = !!(event.detail && event.detail.value);
+    this.setData({ 'editorForm.quizEnabled': checked });
+  },
+
   handleEditorTimeChange(event) {
     const { field } = event.currentTarget.dataset || {};
     if (!field) {
@@ -419,7 +429,8 @@ Page({
       payload.bargainSettings = {
         startPrice: Number(form.bargainStartPrice || 1500),
         floorPrice: Number(form.bargainFloorPrice || 998),
-        shareRewardAttempts: Number(form.shareRewardAttempts || 1)
+        shareRewardAttempts: Number(form.shareRewardAttempts || 1),
+        quizEnabled: !!form.quizEnabled
       };
     } else {
       payload.bargainSettings = null;
