@@ -259,7 +259,7 @@
         <input class="form-input" type="number" value="{{editorForm.quizAnswerIndex}}" data-field="quizAnswerIndex" bindinput="handleEditorInput" />
       </view>
       <view wx:if="{{editorForm.activityType === 'bargain' && editorForm.quizRewardEnabled !== 'false'}}" class="form-row form-row--full">
-        <text class="form-label">多题配置</text>
+        <text class="form-label"></text>
         <view class="quiz-extra">
           <view wx:for="{{editorForm.quizExtraQuestions}}" wx:key="index" class="quiz-extra__card">
             <view class="quiz-extra__title">题目{{index + 2}}</view>
@@ -270,8 +270,8 @@
             <input class="form-input" type="number" value="{{item.answerIndex}}" data-index="{{index}}" data-field="answerIndex" bindinput="handleQuizExtraQuestionInput" />
             <button class="ghost-btn quiz-extra__remove" size="mini" data-index="{{index}}" bindtap="handleRemoveQuizQuestion">删除此题</button>
           </view>
+          <button class="submit-btn quiz-extra__add" size="mini" bindtap="handleAddQuizQuestion">+ 增加题目</button>
         </view>
-        <button class="submit-btn quiz-extra__add" size="mini" bindtap="handleAddQuizQuestion">+ 增加题目</button>
       </view>
       <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
         <text class="form-label">分享奖励次数</text>

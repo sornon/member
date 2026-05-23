@@ -319,6 +319,8 @@ page {
   display: flex;
   flex-direction: column;
   gap: 16rpx;
+  flex: 1;
+  min-width: 0;
 }
 
 .quiz-extra__card {
@@ -351,6 +353,12 @@ page {
 .quiz-extra__add {
   margin-top: 8rpx;
   align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 220rpx;
+  min-height: 72rpx;
+  visibility: visible;
 }
 
 .ghost-btn {
