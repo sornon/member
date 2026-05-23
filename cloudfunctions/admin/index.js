@@ -9361,6 +9361,14 @@ function normalizeActivityPayload(input = {}, options = {}) {
   if (has('location')) {
     result.location = trimToString(input.location);
   }
+  if (has('locationLat')) {
+    const lat = Number(input.locationLat);
+    result.locationLat = Number.isFinite(lat) ? lat : null;
+  }
+  if (has('locationLng')) {
+    const lng = Number(input.locationLng);
+    result.locationLng = Number.isFinite(lng) ? lng : null;
+  }
 
   if (has('coverImage')) {
     result.coverImage = trimToString(input.coverImage);
@@ -9577,6 +9585,8 @@ function decorateActivityRecord(doc = {}) {
     endTime: toIsoString(doc.endTime),
     priceLabel: trimToString(doc.priceLabel),
     location: trimToString(doc.location),
+    locationLat: Number.isFinite(Number(doc.locationLat)) ? Number(doc.locationLat) : null,
+    locationLng: Number.isFinite(Number(doc.locationLng)) ? Number(doc.locationLng) : null,
     coverImage: trimToString(doc.coverImage),
     highlight: trimToString(doc.highlight),
     notes: normalizeMultilineString(doc.notes),
