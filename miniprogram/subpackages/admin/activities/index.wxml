@@ -148,6 +148,16 @@
           bindinput="handleEditorInput"
         />
       </view>
+      <view class="form-row form-row--split">
+        <view class="form-item">
+          <text class="form-label">纬度</text>
+          <input class="form-input" placeholder="如 39.8943" value="{{editorForm.locationLat}}" data-field="locationLat" bindinput="handleEditorInput" />
+        </view>
+        <view class="form-item">
+          <text class="form-label">经度</text>
+          <input class="form-input" placeholder="如 116.5146" value="{{editorForm.locationLng}}" data-field="locationLng" bindinput="handleEditorInput" />
+        </view>
+      </view>
       <view class="form-row">
         <text class="form-label">亮点</text>
         <input

@@ -9361,6 +9361,14 @@ function normalizeActivityPayload(input = {}, options = {}) {
   if (has('location')) {
     result.location = trimToString(input.location);
   }
+  if (has('locationLat')) {
+    const lat = Number(input.locationLat);
+    result.locationLat = Number.isFinite(lat) ? lat : null;
+  }
+  if (has('locationLng')) {
+    const lng = Number(input.locationLng);
+    result.locationLng = Number.isFinite(lng) ? lng : null;
+  }
 
   if (has('coverImage')) {
     result.coverImage = trimToString(input.coverImage);

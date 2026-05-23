@@ -146,6 +146,8 @@ function decorateActivity(activity) {
     timeRangeLabel,
     priceLabel: activity.priceLabel || '',
     location: activity.location || '',
+    locationLat: Number.isFinite(activity.locationLat) ? activity.locationLat : null,
+    locationLng: Number.isFinite(activity.locationLng) ? activity.locationLng : null,
     highlight: activity.highlight || '',
     notes: activity.notes || '',
     perks,
@@ -195,6 +197,8 @@ function buildEditorForm(activity) {
       endTime: '23:59',
       priceLabel: '',
       location: '',
+      locationLat: '',
+      locationLng: '',
       highlight: '',
       perksText: '',
       notes: '',
@@ -237,6 +241,8 @@ function buildEditorForm(activity) {
     endTime: formatTimePart(activity.endTime),
     priceLabel: activity.priceLabel || '',
     location: activity.location || '',
+    locationLat: Number.isFinite(activity.locationLat) ? `${activity.locationLat}` : '',
+    locationLng: Number.isFinite(activity.locationLng) ? `${activity.locationLng}` : '',
     highlight: activity.highlight || '',
     perksText: Array.isArray(activity.perks) ? activity.perks.join('\n') : '',
     notes: activity.notes || '',
@@ -583,6 +589,8 @@ Page({
       endTime: combineDateTime(form.endDate, form.endTime),
       priceLabel: form.priceLabel.trim(),
       location: form.location.trim(),
+      locationLat: form.locationLat === '' ? null : Number(form.locationLat),
+      locationLng: form.locationLng === '' ? null : Number(form.locationLng),
       highlight: form.highlight.trim(),
       notes: form.notes,
       coverImage: form.coverImage.trim(),
@@ -658,6 +666,12 @@ Page({
         payload[key] = null;
       }
     });
+    if (!Number.isFinite(payload.locationLat)) {
+      payload.locationLat = null;
+    }
+    if (!Number.isFinite(payload.locationLng)) {
+      payload.locationLng = null;
+    }
 
     this.setData({ editorSaving: true });
     try {
