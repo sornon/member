@@ -1,3 +1,37 @@
+.bhk-loading-page {
+  min-height: 100vh;
+  background: #050814;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24rpx;
+}
+
+.bhk-loading-page__spinner {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 50%;
+  border: 4rpx solid rgba(255, 220, 170, 0.25);
+  border-top-color: rgba(255, 220, 170, 0.95);
+  animation: bhk-loading-spin 0.9s linear infinite;
+}
+
+.bhk-loading-page__text {
+  font-size: 28rpx;
+  color: rgba(240, 230, 201, 0.9);
+  letter-spacing: 1rpx;
+}
+
+@keyframes bhk-loading-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .bhk-hero {
   position: relative;
   width: 100%;
