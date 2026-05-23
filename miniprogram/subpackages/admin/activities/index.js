@@ -160,6 +160,24 @@ function decorateActivity(activity) {
 }
 
 function buildEditorForm(activity) {
+  const defaultBargainItems = [
+    { amount: '120', probability: '14' },
+    { amount: '180', probability: '14' },
+    { amount: '200', probability: '14' },
+    { amount: '260', probability: '14' },
+    { amount: '320', probability: '14' },
+    { amount: '500', probability: '14' },
+    { amount: '0', probability: '16' }
+  ];
+  const bargainItems =
+    activity && activity.bargainSettings && Array.isArray(activity.bargainSettings.bargainItems)
+      ? activity.bargainSettings.bargainItems
+      : [];
+  const formBargainItems = defaultBargainItems.map((item, index) => ({
+    amount: bargainItems[index] && Number.isFinite(bargainItems[index].amount) ? `${bargainItems[index].amount}` : item.amount,
+    probability:
+      bargainItems[index] && Number.isFinite(bargainItems[index].probability) ? `${bargainItems[index].probability}` : item.probability
+  }));
   if (!activity) {
     return {
       title: '',
@@ -181,6 +199,7 @@ function buildEditorForm(activity) {
       bargainStartPrice: '1500',
       bargainFloorPrice: '998',
       shareRewardAttempts: '1',
+      bargainItems: formBargainItems,
       coverImage: '',
       sortOrder: '0'
     };
@@ -214,6 +233,7 @@ function buildEditorForm(activity) {
       activity.bargainSettings && Number.isFinite(activity.bargainSettings.shareRewardAttempts)
         ? `${activity.bargainSettings.shareRewardAttempts}`
         : '1',
+    bargainItems: formBargainItems,
     coverImage: activity.coverImage || '',
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
@@ -387,6 +407,17 @@ Page({
     const value = event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
     this.setData({ [`editorForm.${field}`]: value });
   },
+  handleBargainItemInput(event) {
+    const { index, field } = event.currentTarget.dataset || {};
+    const targetIndex = Number(index);
+    if (Number.isNaN(targetIndex) || !field) {
+      return;
+    }
+    const value = event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
+    this.setData({
+      [`editorForm.bargainItems[${targetIndex}].${field}`]: value
+    });
+  },
 
   async handleEditorSubmit() {
     if (this.data.editorSaving) {
@@ -416,10 +447,24 @@ Page({
     payload.activityType = form.activityType || 'standard';
     payload.activityTemplate = form.activityTemplate || '';
     if (payload.activityType === 'bargain') {
+      const bargainItems = Array.isArray(form.bargainItems) ? form.bargainItems : [];
+      const normalizedItems = bargainItems.map((item) => ({
+        amount: Number((item && item.amount) || 0),
+        probability: Number((item && item.probability) || 0)
+      }));
+      const probabilitySum = normalizedItems.reduce(
+        (sum, item) => sum + (Number.isFinite(item.probability) ? item.probability : 0),
+        0
+      );
+      if (probabilitySum !== 100) {
+        wx.showToast({ title: '砍价项概率总和必须为100%', icon: 'none' });
+        return;
+      }
       payload.bargainSettings = {
         startPrice: Number(form.bargainStartPrice || 1500),
         floorPrice: Number(form.bargainFloorPrice || 998),
-        shareRewardAttempts: Number(form.shareRewardAttempts || 1)
+        shareRewardAttempts: Number(form.shareRewardAttempts || 1),
+        bargainItems: normalizedItems
       };
     } else {
       payload.bargainSettings = null;

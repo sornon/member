@@ -9462,6 +9462,29 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
     shareRewardAttempts: Number.isFinite(shareRewardAttempts) ? Math.max(0, Math.floor(shareRewardAttempts)) : 1,
     ticketingMode: 'paid-ticket'
   };
+  const defaultItems = [
+    { amount: 120, probability: 14 },
+    { amount: 180, probability: 14 },
+    { amount: 200, probability: 14 },
+    { amount: 260, probability: 14 },
+    { amount: 320, probability: 14 },
+    { amount: 500, probability: 14 },
+    { amount: 0, probability: 16 }
+  ];
+  const normalizedItems = Array.isArray(source.bargainItems) ? source.bargainItems.slice(0, defaultItems.length) : [];
+  value.bargainItems = defaultItems.map((item, index) => {
+    const sourceItem = normalizedItems[index] && typeof normalizedItems[index] === 'object' ? normalizedItems[index] : {};
+    const amount = Number(sourceItem.amount);
+    const probability = Number(sourceItem.probability);
+    return {
+      amount: Number.isFinite(amount) ? Math.max(0, Math.floor(amount)) : item.amount,
+      probability: Number.isFinite(probability) ? Math.max(0, Math.floor(probability)) : item.probability
+    };
+  });
+  const probabilitySum = value.bargainItems.reduce((sum, item) => sum + (Number(item.probability) || 0), 0);
+  if (probabilitySum !== 100) {
+    throw new Error('砍价概率总和必须为100%');
+  }
   if (value.floorPrice > value.startPrice) {
     value.floorPrice = value.startPrice;
   }

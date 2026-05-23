@@ -211,12 +211,22 @@ function buildRealmBonusConfig() {
 }
 
 function buildBhkBargainConfig() {
+  const bargainItems = [
+    { amount: 120, probability: 14 },
+    { amount: 180, probability: 14 },
+    { amount: 200, probability: 14 },
+    { amount: 260, probability: 14 },
+    { amount: 320, probability: 14 },
+    { amount: 500, probability: 14 },
+    { amount: 0, probability: 16 }
+  ];
   return {
     startPrice: 3500,
     floorPrice: 998,
     baseAttempts: 3,
     vipBonuses: buildRealmBonusConfig(),
-    segments: [120, 180, 200, 260, 320, 500, 0],
+    segments: bargainItems.map((item) => item.amount),
+    bargainItems,
     assistRewardRange: { min: 60, max: 180 },
     assistAttemptCap: null,
     stock: 15,
@@ -234,6 +244,39 @@ function buildBhkBargainConfig() {
   };
 }
 
+function normalizeBargainItems(items = []) {
+  const source = Array.isArray(items) ? items : [];
+  return source
+    .map((item) => {
+      const amount = Number(item && item.amount);
+      const probability = Number(item && item.probability);
+      return {
+        amount: Number.isFinite(amount) ? Math.max(0, Math.floor(amount)) : 0,
+        probability: Number.isFinite(probability) ? Math.max(0, Math.floor(probability)) : 0
+      };
+    })
+    .filter((item) => item.probability > 0);
+}
+
+function pickBargainItemByProbability(items = []) {
+  const normalized = normalizeBargainItems(items);
+  if (!normalized.length) {
+    return null;
+  }
+  const total = normalized.reduce((sum, item) => sum + item.probability, 0);
+  if (total <= 0) {
+    return null;
+  }
+  let cursor = Math.random() * total;
+  for (let i = 0; i < normalized.length; i += 1) {
+    cursor -= normalized[i].probability;
+    if (cursor < 0) {
+      return { ...normalized[i] };
+    }
+  }
+  return { ...normalized[normalized.length - 1] };
+}
+
 async function resolveBargainActivityRuntime(event = {}) {
   const activityId = typeof event.id === 'string' && event.id.trim() ? event.id.trim() : BHK_BARGAIN_ACTIVITY_ID;
   const collection = db.collection(COLLECTIONS.ACTIVITIES);
@@ -248,6 +291,10 @@ async function resolveBargainActivityRuntime(event = {}) {
     const config = buildBhkBargainConfig();
     config.startPrice = Number.isFinite(settings.startPrice) ? settings.startPrice : config.startPrice;
     config.floorPrice = Number.isFinite(settings.floorPrice) ? settings.floorPrice : config.floorPrice;
+    if (Array.isArray(settings.bargainItems) && settings.bargainItems.length) {
+      config.bargainItems = normalizeBargainItems(settings.bargainItems);
+      config.segments = config.bargainItems.map((item) => item.amount);
+    }
     config.heroImage = doc.coverImage || config.heroImage;
     config.endsAt = doc.endTime || config.endsAt;
     return { activityId, activityDoc: doc, config };
@@ -1152,8 +1199,11 @@ async function spinBhkBargain(event = {}) {
       throw new Error('抽奖次数不足');
     }
 
-    const sliceIndex = Math.floor(Math.random() * segments.length);
-    const slice = segments[sliceIndex] || 0;
+    const picked = pickBargainItemByProbability(config.bargainItems) || {
+      amount: segments[Math.floor(Math.random() * segments.length)] || 0
+    };
+    const sliceIndex = Math.max(0, segments.findIndex((item) => item === picked.amount));
+    const slice = picked.amount || 0;
     const availableCut = Math.max(0, record.currentPrice - config.floorPrice);
     const rawCut = Math.max(0, slice);
     const cut = Math.min(rawCut, availableCut);
