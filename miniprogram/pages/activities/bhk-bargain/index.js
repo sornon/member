@@ -452,7 +452,7 @@ Page({
       showQuizModal: false,
       selectedQuizOption: '',
       quizAnswerResult: null,
-    quizRanking: [],
+      quizRanking: Array.isArray(extras.quizRanking) ? extras.quizRanking : this.data.quizRanking,
       mapLocation,
       shareContext,
       memberId: session.memberId || this.data.memberId,
@@ -642,9 +642,9 @@ Page({
       this.applySession(session, bargain, activity, {
         shareContext: response && response.shareContext,
         ticketOwned: this.data.ticketOwned,
-        stockRemaining: this.data.stockRemaining
+        stockRemaining: this.data.stockRemaining,
+        quizRanking: response && response.quizRanking
       });
-      if (Array.isArray(response && response.quizRanking)) { this.setData({ quizRanking: response.quizRanking }); }
     } catch (error) {
       console.error('[bhk-bargain] fetch activity failed', error);
       if (isCloudPermissionDenied(error)) {
@@ -783,8 +783,9 @@ Page({
       const session = this.normalizeSession(response && response.session, bargain);
       const result = response && response.quizResult ? response.quizResult : {};
       const currentQuestion = this.data.activeQuizQuestion;
-      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
-      if (Array.isArray(response && response.quizRanking)) { this.setData({ quizRanking: response.quizRanking }); }
+      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity, {
+        quizRanking: response && response.quizRanking
+      });
       const tip = (result.tip || '').trim();
       this.setData({
         showQuizModal: true,
@@ -874,9 +875,9 @@ Page({
       this.applySession(session, bargain, activity, {
         shareContext: response && response.shareContext,
         ticketOwned: this.data.ticketOwned,
-        stockRemaining: this.data.stockRemaining
+        stockRemaining: this.data.stockRemaining,
+        quizRanking: response && response.quizRanking
       });
-      if (Array.isArray(response && response.quizRanking)) { this.setData({ quizRanking: response.quizRanking }); }
 
       if (session.ticketOwned) {
         wx.showToast({ title: '已获得通行证，无需重复购票', icon: 'none' });
