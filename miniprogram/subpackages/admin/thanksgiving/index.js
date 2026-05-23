@@ -10,9 +10,14 @@ function normalizeActivities(list = []) {
       status: item.status || 'draft',
       statusLabel: item.statusLabel || '草稿',
       periodLabel: item.periodLabel || '未设置活动时间',
+      activityType: item.activityType || 'standard',
       template: item.template || '',
       summary: item.summary || ''
     }));
+}
+
+function isBargainActivity(activity = {}) {
+  return activity.activityType === 'bargain' || activity.template === 'thanksgiving-bargain' || activity.template === 'concert-bargain';
 }
 
 Page({
@@ -31,7 +36,7 @@ Page({
     try {
       const result = await AdminService.listActivities({ includeArchived: true });
       const all = normalizeActivities(result && result.activities);
-      const activities = all.filter((item) => item.template === 'thanksgiving-bargain' || item.status !== 'archived');
+      const activities = all.filter((item) => isBargainActivity(item));
       this.setData({ loading: false, activities });
     } catch (error) {
       console.error('[admin/bargain] load activities failed', error);
