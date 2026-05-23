@@ -319,14 +319,34 @@ async function ensureBargainStockDoc(config = {}, activityId = BHK_BARGAIN_ACTIV
   await ensureCollectionExists(BHK_BARGAIN_STOCK_COLLECTION);
   const stockRef = db.collection(BHK_BARGAIN_STOCK_COLLECTION).doc(activityId);
   const snapshot = await stockRef.get().catch(handleDocGetError('load bargain stock'));
+  const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
+  const configuredStock = Number.isFinite(config.stock) ? Math.max(0, Math.floor(config.stock)) : 0;
+
   if (snapshot && snapshot.data) {
-    return snapshot.data;
+    const current = snapshot.data;
+    const currentTotal = Number.isFinite(current.totalStock) ? Math.max(0, Math.floor(current.totalStock)) : configuredStock;
+    const currentRemaining = Number.isFinite(current.stockRemaining) ? Math.max(0, Math.floor(current.stockRemaining)) : configuredStock;
+    const sold = Number.isFinite(current.sold) ? Math.max(0, Math.floor(current.sold)) : Math.max(0, currentTotal - currentRemaining);
+
+    if (currentTotal !== configuredStock) {
+      const nextRemaining = Math.max(0, configuredStock - sold);
+      await stockRef.update({
+        data: {
+          totalStock: configuredStock,
+          stockRemaining: nextRemaining,
+          sold,
+          updatedAt: now
+        }
+      });
+      return { ...current, totalStock: configuredStock, stockRemaining: nextRemaining, sold };
+    }
+
+    return current;
   }
 
-  const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
   const doc = {
-    totalStock: config.stock,
-    stockRemaining: config.stock,
+    totalStock: configuredStock,
+    stockRemaining: configuredStock,
     sold: 0,
     updatedAt: now
   };
