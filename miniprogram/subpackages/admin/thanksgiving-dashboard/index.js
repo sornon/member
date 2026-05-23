@@ -10,8 +10,9 @@ function buildRightsSummary(breakdown = []) {
 
 function normalizeOrders(orders = []) {
   if (!Array.isArray(orders)) return [];
-  return orders.map((item) => ({
+  return orders.map((item, index) => ({
     ...item,
+    orderKey: item.orderId || item.memberId || `order-${index}`,
     displayName: item.displayName || '未命名会员',
     amountLabel: item.amountLabel || '¥0.00',
     purchasedAtLabel: item.purchasedAtLabel || formatDateTime(item.purchasedAt) || '—',

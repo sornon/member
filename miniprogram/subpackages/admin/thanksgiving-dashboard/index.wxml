@@ -41,7 +41,7 @@
   <view class="section">
     <view class="section-title">实时下单明细</view>
     <view wx:if="{{orders.length}}" class="order-list">
-      <view wx:for="{{orders}}" wx:key="{{item.orderId || item.memberId || index}}" class="order-card">
+      <view wx:for="{{orders}}" wx:key="orderKey" class="order-card">
         <view class="order-header">
           <view class="order-member">{{item.displayName}}</view>
           <view class="order-amount">{{item.amountLabel || '¥0.00'}}</view>
