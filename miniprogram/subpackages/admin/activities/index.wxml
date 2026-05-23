@@ -271,6 +271,22 @@
           <view class="picker-value">{{editorForm.heroMaskEnabled === 'false' ? '关闭' : '开启'}}</view>
         </picker>
       </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">礼遇与规则模块</text>
+        <picker mode="selector" range="{{['开启','关闭']}}" value="{{editorForm.infoSectionEnabled === 'false' ? 1 : 0}}" bindchange="handleInfoSectionEnabledChange">
+          <view class="picker-value">{{editorForm.infoSectionEnabled === 'false' ? '关闭' : '开启'}}</view>
+        </picker>
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain' && editorForm.infoSectionEnabled !== 'false'}}" class="form-row form-row--full">
+        <text class="form-label">礼遇与规则内容</text>
+        <textarea
+          class="form-textarea"
+          placeholder="每行填写一条前台展示文案"
+          value="{{editorForm.infoSectionContent}}"
+          data-field="infoSectionContent"
+          bindinput="handleEditorTextArea"
+        ></textarea>
+      </view>
       <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--full">
         <text class="form-label">砍价项配置（概率总和100%）</text>
         <view class="bargain-items">

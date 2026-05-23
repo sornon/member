@@ -31,6 +31,15 @@ const DEFAULT_HERO_HEIGHT_RPX = 1000;
 const DEFAULT_PAGE_BACKGROUND_COLOR = '#050814';
 const DEFAULT_CARD_BACKGROUND_COLOR = 'rgba(13, 18, 35, 0.9)';
 const DEFAULT_HERO_MASK_ENABLED = true;
+const DEFAULT_INFO_SECTION_ENABLED = true;
+const DEFAULT_INFO_SECTION_CONTENT = [
+  '持"感恩节活动"会员权益任意时间到店使用。',
+  '软饮畅饮，伴手礼 BHK56 雪茄一支。',
+  '余票与倒计时实时更新，售罄即止。',
+  '票券不可转售或退款。',
+  '购票消费可同时提升修为和灵石。',
+  '本次活动是修仙晋升的大好机会，不容错过！'
+];
 
 function resolveNavHeight() {
   const app = getApp();
@@ -58,6 +67,12 @@ function normalizeBargainConfig(config = {}) {
   const pageBackgroundColor = (typeof config.pageBackgroundColor === 'string' && config.pageBackgroundColor.trim()) || DEFAULT_PAGE_BACKGROUND_COLOR;
   const cardBackgroundColor = (typeof config.cardBackgroundColor === 'string' && config.cardBackgroundColor.trim()) || DEFAULT_CARD_BACKGROUND_COLOR;
   const heroMaskEnabled = typeof config.heroMaskEnabled === 'boolean' ? config.heroMaskEnabled : DEFAULT_HERO_MASK_ENABLED;
+  const infoSectionEnabled =
+    typeof config.infoSectionEnabled === 'boolean' ? config.infoSectionEnabled : DEFAULT_INFO_SECTION_ENABLED;
+  const infoSectionContent =
+    typeof config.infoSectionContent === 'string' && config.infoSectionContent.trim()
+      ? config.infoSectionContent.trim()
+      : DEFAULT_INFO_SECTION_CONTENT.join('\n');
   return {
     startPrice,
     baseAttempts,
@@ -74,8 +89,20 @@ function normalizeBargainConfig(config = {}) {
     heroHeightRpx,
     pageBackgroundColor,
     cardBackgroundColor,
-    heroMaskEnabled
+    heroMaskEnabled,
+    infoSectionEnabled,
+    infoSectionContent
   };
+}
+
+function toMultilineItems(text = '') {
+  if (typeof text !== 'string') {
+    return [];
+  }
+  return text
+    .split(/\r?\n+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function formatCountdownText(targetTimestamp) {
@@ -301,6 +328,8 @@ Page({
     cardBackgroundColor: DEFAULT_CARD_BACKGROUND_COLOR,
     heroMaskEnabled: DEFAULT_HERO_MASK_ENABLED,
     perks: [],
+    infoSectionEnabled: DEFAULT_INFO_SECTION_ENABLED,
+    infoSectionItems: DEFAULT_INFO_SECTION_CONTENT,
     mapLocation: DEFAULT_LOCATION,
     shareContext: null,
     memberId: '',
@@ -466,6 +495,8 @@ Page({
       cardBackgroundColor: bargain.cardBackgroundColor || DEFAULT_CARD_BACKGROUND_COLOR,
       heroMaskEnabled: typeof bargain.heroMaskEnabled === 'boolean' ? bargain.heroMaskEnabled : DEFAULT_HERO_MASK_ENABLED,
       perks: bargain.perks,
+      infoSectionEnabled: typeof bargain.infoSectionEnabled === 'boolean' ? bargain.infoSectionEnabled : DEFAULT_INFO_SECTION_ENABLED,
+      infoSectionItems: toMultilineItems(bargain.infoSectionContent),
       mapLocation,
       shareContext,
       memberId: session.memberId || this.data.memberId,

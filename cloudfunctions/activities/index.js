@@ -236,6 +236,9 @@ function buildBhkBargainConfig() {
     pageBackgroundColor: '#050814',
     cardBackgroundColor: 'rgba(13, 18, 35, 0.9)',
     heroMaskEnabled: true,
+    infoSectionEnabled: true,
+    infoSectionContent:
+      '持"感恩节活动"会员权益任意时间到店使用。\n软饮畅饮，伴手礼 BHK56 雪茄一支。\n余票与倒计时实时更新，售罄即止。\n票券不可转售或退款。\n购票消费可同时提升修为和灵石。\n本次活动是修仙晋升的大好机会，不容错过！',
     mysteryLabel: '???',
     perks: [
         '基础砍价：3次',
@@ -335,6 +338,11 @@ async function resolveBargainActivityRuntime(event = {}) {
       ? settings.cardBackgroundColor.trim()
       : config.cardBackgroundColor;
     config.heroMaskEnabled = typeof settings.heroMaskEnabled === 'boolean' ? settings.heroMaskEnabled : config.heroMaskEnabled;
+    config.infoSectionEnabled = typeof settings.infoSectionEnabled === 'boolean' ? settings.infoSectionEnabled : config.infoSectionEnabled;
+    config.infoSectionContent =
+      typeof settings.infoSectionContent === 'string' && settings.infoSectionContent.trim()
+        ? settings.infoSectionContent.trim()
+        : config.infoSectionContent;
     config.endsAt = doc.endTime || config.endsAt;
     return { activityId, activityDoc: doc, config };
   }
