@@ -1,6 +1,13 @@
 <custom-nav title="" theme="transparent"></custom-nav>
 <view class="bhk-hero" style="margin-top: -{{navHeight}}px; height: {{heroHeightRpx}}rpx;">
-  <image wx:if="{{!heroVideoVisible}}" class="bhk-hero__image" src="{{heroImage}}" mode="aspectFill"></image>
+  <image
+    wx:if="{{!heroVideoVisible}}"
+    class="bhk-hero__image"
+    src="{{heroImage}}"
+    mode="aspectFill"
+    bindload="handleHeroImageLoad"
+    binderror="handleHeroImageError"
+  ></image>
   <video
     wx:if="{{heroVideoVisible}}"
     class="bhk-hero__video"
@@ -23,7 +30,7 @@
 </view>
 
 <view class="bhk-page" style="background: {{pageBackgroundColor}};">
-  <block wx:if="{{loading}}">
+  <block wx:if="{{loading || !heroImageLoaded}}">
     <view class="bhk-card bhk-state" style="background: {{cardBackgroundColor}};">活动情报加载中...</view>
   </block>
   <block wx:elif="{{!activity}}">

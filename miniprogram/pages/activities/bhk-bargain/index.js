@@ -295,6 +295,7 @@ Page({
     heroVideoUrl: '',
     heroVideoReady: false,
     heroVideoVisible: false,
+    heroImageLoaded: false,
     heroHeightRpx: DEFAULT_HERO_HEIGHT_RPX,
     pageBackgroundColor: DEFAULT_PAGE_BACKGROUND_COLOR,
     cardBackgroundColor: DEFAULT_CARD_BACKGROUND_COLOR,
@@ -459,6 +460,7 @@ Page({
       heroVideoUrl: buildHeroMovUrl(bargain.heroImage || DEFAULT_HERO_IMAGE),
       heroVideoReady: Boolean(buildHeroMovUrl(bargain.heroImage || DEFAULT_HERO_IMAGE)),
       heroVideoVisible: false,
+      heroImageLoaded: false,
       heroHeightRpx: bargain.heroHeightRpx || DEFAULT_HERO_HEIGHT_RPX,
       pageBackgroundColor: bargain.pageBackgroundColor || DEFAULT_PAGE_BACKGROUND_COLOR,
       cardBackgroundColor: bargain.cardBackgroundColor || DEFAULT_CARD_BACKGROUND_COLOR,
@@ -478,6 +480,17 @@ Page({
       return;
     }
     this.setData({ heroVideoVisible: true });
+  },
+
+  handleHeroImageLoad() {
+    if (!this.data.heroImageLoaded) {
+      this.setData({ heroImageLoaded: true });
+    }
+  },
+
+  handleHeroImageError() {
+    console.warn('[bhk-bargain] hero image load failed', this.data.heroImage);
+    this.setData({ heroImageLoaded: true });
   },
 
   handleHeroVideoError(event) {
