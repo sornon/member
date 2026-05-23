@@ -33,8 +33,8 @@ const BASE_ACTIONS = [
   },
   {
     icon: '🦃',
-    label: '感恩节活动管理',
-    description: '查看感恩节下单、库存与权益',
+    label: '砍价活动管理',
+    description: '查看砍价活动下单、库存与权益',
     url: '/subpackages/admin/thanksgiving/index'
   },
   {

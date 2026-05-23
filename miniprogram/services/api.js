@@ -1411,6 +1411,9 @@ export const AdminService = {
     if (options && Number.isFinite(options.limit)) {
       payload.limit = options.limit;
     }
+    if (options && typeof options.activityId === 'string' && options.activityId.trim()) {
+      payload.activityId = options.activityId.trim();
+    }
     return callCloud(CLOUD_FUNCTIONS.ADMIN, payload);
   }
 };

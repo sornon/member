@@ -85,9 +85,10 @@ const DEFAULT_FEATURE_TOGGLES = {
   equipmentEnhancement: { ...DEFAULT_EQUIPMENT_ENHANCEMENT }
 };
 const THANKSGIVING_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
+const DEFAULT_BARGAIN_RIGHT_ID = 'thanksgiving-pass';
 const BHK_BARGAIN_COLLECTION = 'bhkBargainRecords';
 const BHK_BARGAIN_STOCK_COLLECTION = 'bhkBargainStock';
-const THANKSGIVING_RIGHT_ID = 'thanksgiving-pass';
+const THANKSGIVING_RIGHT_ID = DEFAULT_BARGAIN_RIGHT_ID;
 const THANKSGIVING_DASHBOARD_LIMIT = 50;
 const DRINK_VOUCHER_RIGHT_ID = 'right_realm_qi_drink';
 const CUBANEY_VOUCHER_RIGHT_ID = 'right_realm_core_cubaney_voucher';
@@ -2950,10 +2951,13 @@ async function getThanksgivingDashboard(openid, options = {}) {
     ? Math.max(5, Math.min(THANKSGIVING_DASHBOARD_LIMIT, Math.floor(limitInput)))
     : THANKSGIVING_DASHBOARD_LIMIT;
 
-  const stockRef = db.collection(BHK_BARGAIN_STOCK_COLLECTION).doc(THANKSGIVING_ACTIVITY_ID);
+  const activityId = normalizeMemberIdValue(options.activityId) || THANKSGIVING_ACTIVITY_ID;
+  const rightId = typeof options.rightId === 'string' && options.rightId.trim() ? options.rightId.trim() : DEFAULT_BARGAIN_RIGHT_ID;
+
+  const stockRef = db.collection(BHK_BARGAIN_STOCK_COLLECTION).doc(activityId);
   const purchasedQuery = db
     .collection(BHK_BARGAIN_COLLECTION)
-    .where({ activityId: THANKSGIVING_ACTIVITY_ID, ticketOwned: true });
+    .where({ activityId, ticketOwned: true });
 
   const [stockSnapshot, orderCountResult, orderSnapshot, masterRightsMap] = await Promise.all([
     stockRef.get().catch(() => null),
@@ -2987,7 +2991,7 @@ async function getThanksgivingDashboard(openid, options = {}) {
   const rightsSnapshot = memberIds.length
     ? await db
         .collection(COLLECTIONS.MEMBER_RIGHTS)
-        .where({ memberId: _.in(memberIds), rightId: THANKSGIVING_RIGHT_ID })
+        .where({ memberId: _.in(memberIds), rightId })
         .get()
         .catch(() => ({ data: [] }))
     : { data: [] };
@@ -3041,7 +3045,7 @@ async function getThanksgivingDashboard(openid, options = {}) {
       purchasedAtLabel: formatDateTimeLabel(purchaseTime),
       rightStatus: rightEntry ? rightEntry.status : 'pending',
       rightStatusLabel: rightEntry ? rightEntry.statusLabel : '未发放',
-      rightId: rightEntry ? rightEntry.rightId : THANKSGIVING_RIGHT_ID,
+      rightId: rightEntry ? rightEntry.rightId : rightId,
       ticketOwned: Boolean(record.ticketOwned || record.purchased)
     };
   });
