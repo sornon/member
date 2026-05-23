@@ -274,6 +274,9 @@ Page({
     quiz: { enabled: false, rewardAttempts: 0, questions: [] },
     selectedQuizOption: '',
     quizResultMessage: '',
+    showQuizModal: false,
+    activeQuizQuestionIndex: -1,
+    activeQuizQuestion: null,
     divineHandReady: false,
     floorReached: false,
     spinning: false,
@@ -443,6 +446,10 @@ Page({
       heroImage: bargain.heroImage || DEFAULT_HERO_IMAGE,
       perks: bargain.perks,
       quiz: bargain.quiz || { enabled: false, rewardAttempts: 0, questions: [] },
+      activeQuizQuestionIndex: -1,
+      activeQuizQuestion: null,
+      showQuizModal: false,
+      selectedQuizOption: '',
       mapLocation,
       shareContext,
       memberId: session.memberId || this.data.memberId,
@@ -732,13 +739,34 @@ Page({
   },
 
 
+  handleOpenQuizModal() {
+    const questions = (this.data.quiz && this.data.quiz.questions) || [];
+    if (!questions.length) {
+      wx.showToast({ title: '题库未配置', icon: 'none' });
+      return;
+    }
+    let nextIndex = this.data.activeQuizQuestionIndex;
+    nextIndex = (nextIndex + 1) % questions.length;
+    this.setData({
+      showQuizModal: true,
+      activeQuizQuestionIndex: nextIndex,
+      activeQuizQuestion: questions[nextIndex],
+      selectedQuizOption: ''
+    });
+  },
+
+  closeQuizModal() {
+    this.setData({ showQuizModal: false });
+  },
+
+
   handleQuizOptionTap(event) {
     const value = event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset.value : '';
     this.setData({ selectedQuizOption: value });
   },
 
   async handleQuizAnswer(event) {
-    const questionId = event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset.questionId : '';
+    const questionId = (this.data.activeQuizQuestion && this.data.activeQuizQuestion.id) || '';
     const answer = this.data.selectedQuizOption;
     if (!questionId || !answer) {
       wx.showToast({ title: '请先选择答案', icon: 'none' });
@@ -752,6 +780,7 @@ Page({
       this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
       this.setData({
         selectedQuizOption: '',
+        showQuizModal: false,
         quizResultMessage: `正确答案：${result.correctAnswer || '-'}。${result.tip || ''}${result.awarded ? '（奖励+1次砍价）' : ''}`
       });
       wx.showToast({ title: result.correct ? '回答正确' : '回答完成', icon: 'none' });

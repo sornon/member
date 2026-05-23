@@ -164,15 +164,7 @@
 
     <view class="bhk-card bhk-info" wx:if="{{quiz && quiz.enabled}}">
       <view class="bhk-section-title">答题加砍价次数</view>
-      <block wx:if="{{quiz.questions && quiz.questions.length}}" wx:for="{{quiz.questions}}" wx:key="id">
-        <view class="bhk-info__item" style="margin-bottom: 12rpx;">{{item.question}}</view>
-        <view style="display:flex;flex-wrap:wrap;gap:10rpx;">
-          <block wx:for="{{item.options}}" wx:key="*this" wx:for-item="option">
-            <button size="mini" data-value="{{option[0]}}" bindtap="handleQuizOptionTap">{{option}}</button>
-          </block>
-          <button size="mini" type="primary" data-question-id="{{item.id}}" bindtap="handleQuizAnswer">提交答案</button>
-        </view>
-      </block>
+      <button class="bhk-share__button" type="primary" bindtap="handleOpenQuizModal">去答题</button>
       <view class="bhk-info__item" wx:if="{{(!quiz.questions || !quiz.questions.length)}}">题库未配置，请联系管理员在活动管理中设置题目。</view>
       <view class="bhk-info__item" wx:if="{{quizResultMessage}}">{{quizResultMessage}}</view>
     </view>
@@ -189,6 +181,20 @@
       </view>
     </view>
   </block>
+</view>
+
+
+<view class="bhk-overlay" wx:if="{{showQuizModal && activeQuizQuestion}}">
+  <view class="bhk-overlay__card">
+    <view class="bhk-overlay__title">{{activeQuizQuestion.question}}</view>
+    <view style="display:flex;flex-direction:column;gap:10rpx;margin:16rpx 0;">
+      <block wx:for="{{activeQuizQuestion.options}}" wx:key="*this" wx:for-item="option">
+        <button size="mini" data-value="{{option[0]}}" bindtap="handleQuizOptionTap">{{option}}</button>
+      </block>
+    </view>
+    <button class="bhk-overlay__button" type="primary" bindtap="handleQuizAnswer">提交答案</button>
+    <button class="bhk-overlay__button" style="margin-top:12rpx;background:#666;" bindtap="closeQuizModal">取消</button>
+  </view>
 </view>
 
 <view class="bhk-footer" wx:if="{{activity}}">
