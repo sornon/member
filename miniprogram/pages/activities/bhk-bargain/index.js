@@ -279,6 +279,7 @@ Page({
     activeQuizQuestion: null,
     quizAnswerResult: null,
     quizRanking: [],
+    quizAnsweredIds: [],
     divineHandReady: false,
     floorReached: false,
     spinning: false,
@@ -395,7 +396,8 @@ Page({
       divineHandReady,
       floorReached,
       stockRemaining,
-      ticketOwned: Boolean(session.ticketOwned || session.hasTicket || session.purchased)
+      ticketOwned: Boolean(session.ticketOwned || session.hasTicket || session.purchased),
+      quizAnsweredIds: Array.isArray(session.quizAnsweredIds) ? session.quizAnsweredIds : this.data.quizAnsweredIds
     };
   },
 
@@ -456,7 +458,8 @@ Page({
       mapLocation,
       shareContext,
       memberId: session.memberId || this.data.memberId,
-      ticketOwned
+      ticketOwned,
+      quizAnsweredIds: Array.isArray(session.quizAnsweredIds) ? session.quizAnsweredIds : this.data.quizAnsweredIds
     });
     this.startCountdown();
   },
@@ -749,12 +752,18 @@ Page({
       wx.showToast({ title: '题库未配置', icon: 'none' });
       return;
     }
-    const previousIndex = Number.isFinite(this.data.activeQuizQuestionIndex) ? this.data.activeQuizQuestionIndex : -1;
-    const nextIndex = (previousIndex + 1) % questions.length;
+    const answeredIds = Array.isArray(this.data.quizAnsweredIds) ? this.data.quizAnsweredIds : [];
+    const unanswered = questions.filter((item) => item && item.id && !answeredIds.includes(item.id));
+    if (!unanswered.length) {
+      wx.showModal({ title: '提示', content: '暂无更多题目', showCancel: false });
+      return;
+    }
+    const question = unanswered[0];
+    const index = questions.findIndex((item) => item && item.id === question.id);
     this.setData({
       showQuizModal: true,
-      activeQuizQuestionIndex: nextIndex,
-      activeQuizQuestion: questions[nextIndex],
+      activeQuizQuestionIndex: index,
+      activeQuizQuestion: question,
       selectedQuizOption: '',
       quizAnswerResult: null
     });
