@@ -397,11 +397,7 @@ Page({
       floorReached,
       stockRemaining,
       ticketOwned: Boolean(session.ticketOwned || session.hasTicket || session.purchased),
-      quizAnsweredIds: Array.isArray(extras.quizAnsweredIds)
-        ? extras.quizAnsweredIds
-        : Array.isArray(session.quizAnsweredIds)
-          ? session.quizAnsweredIds
-          : this.data.quizAnsweredIds
+      quizAnsweredIds: Array.isArray(session.quizAnsweredIds) ? session.quizAnsweredIds : this.data.quizAnsweredIds
     };
   },
 
@@ -463,11 +459,7 @@ Page({
       shareContext,
       memberId: session.memberId || this.data.memberId,
       ticketOwned,
-      quizAnsweredIds: Array.isArray(extras.quizAnsweredIds)
-        ? extras.quizAnsweredIds
-        : Array.isArray(session.quizAnsweredIds)
-          ? session.quizAnsweredIds
-          : this.data.quizAnsweredIds
+      quizAnsweredIds: Array.isArray(session.quizAnsweredIds) ? session.quizAnsweredIds : this.data.quizAnsweredIds
     });
     this.startCountdown();
   },

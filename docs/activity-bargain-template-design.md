@@ -399,3 +399,17 @@
    - 提交答案后弹窗不自动关闭，题目下方显示正确答案和Tips；
    - 关闭弹窗后再点“去答题”，会进入下一道题；
    - 全部题做完后提示“暂无更多题目”。
+
+
+### 报错修复：`ReferenceError: extras is not defined`
+**现象**：活动页加载时报错，提示：`normalizeSession` 内 `extras is not defined`。
+
+**根因**：`normalizeSession(session, bargain)` 这个函数没有 `extras` 参数，但代码误用了 `extras.quizAnsweredIds`。
+
+**修复**：改为仅使用 `session.quizAnsweredIds`（无则回退页面已有数据）。
+
+#### 小白部署步骤
+1. 上传小程序前端代码（`miniprogram/pages/activities/bhk-bargain/index.js`）。
+2. 开发者工具点击“清缓存并编译”。
+3. 真机退出小程序后重进 `活动-test`。
+4. 观察控制台不再出现 `extras is not defined`。
