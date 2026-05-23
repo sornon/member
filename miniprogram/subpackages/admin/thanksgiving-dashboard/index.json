@@ -1,5 +1,5 @@
 {
-  "navigationBarTitleText": "砍价活动管理",
+  "navigationBarTitleText": "砍价活动监控",
   "usingComponents": {
     "custom-nav": "/components/custom-nav/custom-nav",
     "custom-nav-placeholder": "/components/custom-nav-placeholder/custom-nav-placeholder"

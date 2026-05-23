@@ -67,6 +67,7 @@
         "finance-report/index",
         "data-cleanup/index",
         "thanksgiving/index",
+        "thanksgiving-dashboard/index",
         "system-switches/index"
       ]
     }
