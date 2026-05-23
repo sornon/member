@@ -283,3 +283,22 @@
 - 若提交答案报云函数错误：
   - 到云函数日志按 `callId` 排查；
   - 再次部署 `cloudfunctions/activities`（云端安装依赖）。
+
+
+### 报错修复：`quizRanking is not defined`（小白版）
+如果你在活动页看到以下报错：
+- `ReferenceError: quizRanking is not defined`
+
+说明云函数 `activities` 版本不是最新，或线上代码里 `buildBargainPayload` 没有正确传入排行榜数据。
+
+#### 一步一步修复
+1. 打开微信开发者工具。
+2. 找到 `cloudfunctions/activities`。
+3. 右键选择 **上传并部署：云端安装依赖**。
+4. 等待部署成功后，打开云函数日志确认最新时间。
+5. 小程序端点击 **清缓存并编译**。
+6. 真机上完全退出小程序，再重新进入 `活动-test`。
+
+#### 验证点
+- 页面可正常打开，不再出现 `quizRanking is not defined`。
+- “答题排行榜（Top10）”可以正常显示（至少空列表不报错）。

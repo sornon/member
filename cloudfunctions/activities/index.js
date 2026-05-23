@@ -1169,7 +1169,7 @@ function buildBargainPayload(config, session, overrides = {}) {
     activity: decorateActivity(overrides.activityDoc || buildBhkBargainActivity()),
     bargainConfig: publicConfig,
     session: { ...publicSession, realmReward, divineHandReady: realmReward.type === 'divine' && realmReward.ready },
-    quizRanking,
+    quizRanking: Array.isArray(overrides.quizRanking) ? overrides.quizRanking : [],
     floorReached
   };
   return { ...payload, ...overrides };
@@ -1204,6 +1204,8 @@ async function getBhkBargainStatus(event = {}) {
       .catch(() => null);
   }
 
+  const quizRanking = await listQuizRanking(activityId, 10);
+
   const targetShareId = shareId || normalizedSession.lastShareTarget || '';
   const shareContext = targetShareId
     ? await buildShareContext(config, targetShareId, openid, profile, normalizedSession.assistGiven, activityId)
@@ -1222,7 +1224,8 @@ async function getBhkBargainStatus(event = {}) {
     activityDoc,
     shareContext,
     stockRemaining: stockState.stockRemaining,
-    totalStock: stockState.totalStock
+    totalStock: stockState.totalStock,
+    quizRanking
   });
 }
 
@@ -1434,7 +1437,8 @@ async function assistBhkBargain(event = {}) {
     shareContext,
     assistedTarget: shareId,
     stockRemaining: stockState.stockRemaining,
-    totalStock: stockState.totalStock
+    totalStock: stockState.totalStock,
+    quizRanking
   });
 }
 
@@ -1652,6 +1656,7 @@ async function confirmBhkBargainPurchase(event = {}) {
     activityDoc,
     shareContext,
     stockRemaining: stockState.stockRemaining,
-    totalStock: stockState.totalStock
+    totalStock: stockState.totalStock,
+    quizRanking
   });
 }
