@@ -780,9 +780,12 @@ Page({
       const bargain = normalizeBargainConfig(response && response.bargainConfig);
       const session = this.normalizeSession(response && response.session, bargain);
       const result = response && response.quizResult ? response.quizResult : {};
+      const currentQuestion = this.data.activeQuizQuestion;
       this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
       const tip = (result.tip || '').trim();
       this.setData({
+        showQuizModal: true,
+        activeQuizQuestion: currentQuestion,
         selectedQuizOption: '',
         quizAnswerResult: {
           correct: !!result.correct,
@@ -790,7 +793,7 @@ Page({
           tip,
           awarded: !!result.awarded
         },
-        quizResultMessage: `正确答案：${result.correctAnswer || '-'}。${tip}${result.awarded ? '（奖励+1次砍价）' : ''}`
+        quizResultMessage: ''
       });
     } catch (error) {
       wx.showToast({ title: (error && error.errMsg) || '答题失败', icon: 'none' });
