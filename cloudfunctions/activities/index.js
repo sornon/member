@@ -245,17 +245,21 @@ function buildBhkBargainConfig() {
 }
 
 function normalizeBargainItems(items = []) {
-  const source = Array.isArray(items) ? items : [];
-  return source
-    .map((item) => {
-      const amount = Number(item && item.amount);
-      const probability = Number(item && item.probability);
+  const fallback = (buildBhkBargainConfig().bargainItems || []).map((item) => ({
+    amount: Number(item.amount) || 0,
+    probability: Number(item.probability) || 0
+  }));
+  const source = Array.isArray(items) ? items.slice(0, fallback.length) : [];
+  return fallback
+    .map((item, index) => {
+      const sourceItem = source[index] && typeof source[index] === 'object' ? source[index] : {};
+      const amount = Number(sourceItem.amount);
+      const probability = Number(sourceItem.probability);
       return {
-        amount: Number.isFinite(amount) ? Math.max(0, Math.floor(amount)) : 0,
-        probability: Number.isFinite(probability) ? Math.max(0, Math.floor(probability)) : 0
+        amount: Number.isFinite(amount) ? Math.max(0, Math.floor(amount)) : item.amount,
+        probability: Number.isFinite(probability) ? Math.max(0, Math.floor(probability)) : item.probability
       };
-    })
-    .filter((item) => item.probability > 0);
+    });
 }
 
 function pickBargainItemByProbability(items = []) {
@@ -292,8 +296,12 @@ async function resolveBargainActivityRuntime(event = {}) {
     config.startPrice = Number.isFinite(settings.startPrice) ? settings.startPrice : config.startPrice;
     config.floorPrice = Number.isFinite(settings.floorPrice) ? settings.floorPrice : config.floorPrice;
     if (Array.isArray(settings.bargainItems) && settings.bargainItems.length) {
-      config.bargainItems = normalizeBargainItems(settings.bargainItems);
-      config.segments = config.bargainItems.map((item) => item.amount);
+      const normalizedItems = normalizeBargainItems(settings.bargainItems);
+      const probabilitySum = normalizedItems.reduce((sum, item) => sum + (Number(item.probability) || 0), 0);
+      if (probabilitySum === 100) {
+        config.bargainItems = normalizedItems;
+        config.segments = config.bargainItems.map((item) => item.amount);
+      }
     }
     config.heroImage = doc.coverImage || config.heroImage;
     config.endsAt = doc.endTime || config.endsAt;
