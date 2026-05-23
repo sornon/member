@@ -32,6 +32,8 @@ const DEFAULT_PAGE_BACKGROUND_COLOR = '#050814';
 const DEFAULT_CARD_BACKGROUND_COLOR = 'rgba(13, 18, 35, 0.9)';
 const DEFAULT_HERO_MASK_ENABLED = true;
 const DEFAULT_INFO_SECTION_ENABLED = true;
+const DEFAULT_ACTIVITY_TAG_1 = '顶级雪茄';
+const DEFAULT_ACTIVITY_TAG_2 = '感恩节回馈';
 const DEFAULT_INFO_SECTION_CONTENT = [
   '持"感恩节活动"会员权益任意时间到店使用。',
   '软饮畅饮，伴手礼 BHK56 雪茄一支。',
@@ -73,6 +75,10 @@ function normalizeBargainConfig(config = {}) {
     typeof config.infoSectionContent === 'string' && config.infoSectionContent.trim()
       ? config.infoSectionContent.trim()
       : DEFAULT_INFO_SECTION_CONTENT.join('\n');
+  const activityTag1 = typeof config.activityTag1 === 'string' ? config.activityTag1.trim() : DEFAULT_ACTIVITY_TAG_1;
+  const activityTag2 = typeof config.activityTag2 === 'string' ? config.activityTag2.trim() : DEFAULT_ACTIVITY_TAG_2;
+  const activityTag1Enabled = typeof config.activityTag1Enabled === 'boolean' ? config.activityTag1Enabled : Boolean(activityTag1);
+  const activityTag2Enabled = typeof config.activityTag2Enabled === 'boolean' ? config.activityTag2Enabled : Boolean(activityTag2);
   return {
     startPrice,
     baseAttempts,
@@ -91,7 +97,11 @@ function normalizeBargainConfig(config = {}) {
     cardBackgroundColor,
     heroMaskEnabled,
     infoSectionEnabled,
-    infoSectionContent
+    infoSectionContent,
+    activityTag1,
+    activityTag2,
+    activityTag1Enabled,
+    activityTag2Enabled
   };
 }
 
@@ -278,6 +288,20 @@ function resolveTimelineCapability() {
   return { supported: true, envVersion };
 }
 
+
+
+function buildBannerSubtitle(bargain = {}, stockRemaining = 0) {
+  const tags = [];
+  if (bargain.activityTag1Enabled && bargain.activityTag1) {
+    tags.push(bargain.activityTag1);
+  }
+  tags.push(`限量 ${bargain.stock || stockRemaining || 0} 席`);
+  if (bargain.activityTag2Enabled && bargain.activityTag2) {
+    tags.push(bargain.activityTag2);
+  }
+  return tags.join(' · ');
+}
+
 function isCloudPermissionDenied(error) {
   const code = typeof error === 'object' && error ? error.errCode : null;
   const message = (error && (error.errMsg || error.message || '')) || '';
@@ -337,7 +361,8 @@ Page({
     ticketOwned: false,
     shareTimelineSupported: true,
     shareTimelineMessage: '',
-    singlePageMode: false
+    singlePageMode: false,
+    bannerSubtitle: ''
   },
 
   onLoad(options = {}) {
@@ -500,7 +525,8 @@ Page({
       mapLocation,
       shareContext,
       memberId: session.memberId || this.data.memberId,
-      ticketOwned
+      ticketOwned,
+      bannerSubtitle: buildBannerSubtitle(bargain, stockRemaining)
     });
     this.startCountdown();
   },

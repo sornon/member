@@ -239,6 +239,10 @@ function buildBhkBargainConfig() {
     infoSectionEnabled: true,
     infoSectionContent:
       '持"感恩节活动"会员权益任意时间到店使用。\n软饮畅饮，伴手礼 BHK56 雪茄一支。\n余票与倒计时实时更新，售罄即止。\n票券不可转售或退款。\n购票消费可同时提升修为和灵石。\n本次活动是修仙晋升的大好机会，不容错过！',
+    activityTag1: '顶级雪茄',
+    activityTag1Enabled: true,
+    activityTag2: '感恩节回馈',
+    activityTag2Enabled: true,
     mysteryLabel: '???',
     perks: [
         '基础砍价：3次',
