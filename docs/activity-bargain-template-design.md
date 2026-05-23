@@ -170,3 +170,29 @@
 3. 编译小程序，确认活动页可见“答题加砍价次数”模块。
 4. 在管理端把活动模板设置为 `concert-bargain` 并发布活动。
 5. 若不想用答题玩法，将 `quiz.enabled` 设为 `false` 后重新部署云函数即可。
+
+
+## 故障修复：活动页黑屏（Unexpected token 265:4）
+
+### 现象
+- 打开 `pages/activities/bhk-bargain/index` 后黑屏。
+- 控制台报错：`Unexpected token, expected "," (265:4)`。
+
+### 根因
+- `miniprogram/pages/activities/bhk-bargain/index.js` 的 `data` 对象中，`quizResultMessage` 后缺少逗号，导致 JS 语法错误，页面模块加载失败。
+
+### 修复内容
+- 在 `quizResultMessage: ''` 后补上逗号，恢复对象字面量语法正确性。
+
+### 小白部署步骤（修复黑屏）
+1. 打开微信开发者工具并拉取最新代码。
+2. 确认文件 `miniprogram/pages/activities/bhk-bargain/index.js` 中 `quizResultMessage` 后有逗号。
+3. 在微信开发者工具点击 **编译**，确认不再出现 `Unexpected token`。
+4. 右键云函数 `cloudfunctions/activities`，选择 **上传并部署：云端安装依赖**。
+5. 点击小程序 **上传**，填写版本号和“修复活动页黑屏”说明，提交审核/发布。
+6. 发布后用测试账号进入活动 `-test`，确认页面可正常打开。
+
+### 验收清单
+- 页面可打开，不再白屏/黑屏。
+- 控制台无 `Unexpected token` 报错。
+- “答题奖励开关”为滑动开关，关闭时不显示答题模块。

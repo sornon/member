@@ -261,7 +261,7 @@ Page({
     realmReward: normalizeRealmReward(),
     quiz: { enabled: false, rewardAttempts: 0, questions: [] },
     selectedQuizOption: '',
-    quizResultMessage: ''
+    quizResultMessage: '',
     divineHandReady: false,
     floorReached: false,
     spinning: false,
