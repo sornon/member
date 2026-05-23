@@ -9462,6 +9462,30 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
     shareRewardAttempts: Number.isFinite(shareRewardAttempts) ? Math.max(0, Math.floor(shareRewardAttempts)) : 1,
     ticketingMode: 'paid-ticket'
   };
+  const defaultItems = [120, 160, 200, 240, 280, 320, 400, 500].map((amount) => ({ amount, probability: 1 }));
+  const itemSource = Array.isArray(source.items) ? source.items : Array.isArray(source.segments) ? source.segments : [];
+  const normalizedItems = itemSource
+    .map((item) => {
+      if (item && typeof item === 'object') {
+        const amountNum = Number(item.amount);
+        const probabilityNum = Number(item.probability);
+        if (!Number.isFinite(amountNum)) {
+          return null;
+        }
+        return {
+          amount: Math.max(0, Math.floor(amountNum)),
+          probability: Number.isFinite(probabilityNum) ? Math.max(0, probabilityNum) : 1
+        };
+      }
+      const amountNum = Number(item);
+      if (!Number.isFinite(amountNum)) {
+        return null;
+      }
+      return { amount: Math.max(0, Math.floor(amountNum)), probability: 1 };
+    })
+    .filter(Boolean)
+    .slice(0, 8);
+  value.items = normalizedItems.length ? normalizedItems : defaultItems;
   if (value.floorPrice > value.startPrice) {
     value.floorPrice = value.startPrice;
   }
