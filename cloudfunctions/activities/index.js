@@ -233,6 +233,8 @@ function buildBhkBargainConfig() {
     endsAt: '2025-12-01T16:00:00.000Z',
     heroImage: buildCloudAssetUrl('background', 'cover-20251126.jpg'),
     heroHeightRpx: 1000,
+    pageBackgroundColor: '#050814',
+    cardBackgroundColor: 'rgba(13, 18, 35, 0.9)',
     mysteryLabel: '???',
     perks: [
         '基础砍价：3次',
@@ -325,6 +327,12 @@ async function resolveBargainActivityRuntime(event = {}) {
       config.heroImage = doc.coverImage || config.heroImage;
     }
     config.heroHeightRpx = Number.isFinite(settings.heroHeightRpx) ? Math.max(420, Math.floor(settings.heroHeightRpx)) : 1000;
+    config.pageBackgroundColor = typeof settings.pageBackgroundColor === 'string' && settings.pageBackgroundColor.trim()
+      ? settings.pageBackgroundColor.trim()
+      : config.pageBackgroundColor;
+    config.cardBackgroundColor = typeof settings.cardBackgroundColor === 'string' && settings.cardBackgroundColor.trim()
+      ? settings.cardBackgroundColor.trim()
+      : config.cardBackgroundColor;
     config.endsAt = doc.endTime || config.endsAt;
     return { activityId, activityDoc: doc, config };
   }

@@ -9463,6 +9463,8 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
   const heroImagePath = normalizedHeroImagePath
     ? `/${normalizedHeroImagePath.replace(/^\/+/, '')}`
     : '/assets/background/articalday.jpg';
+  const pageBackgroundColor = trimToString(source.pageBackgroundColor) || '#050814';
+  const cardBackgroundColor = trimToString(source.cardBackgroundColor) || 'rgba(13, 18, 35, 0.9)';
   const value = {
     startPrice: Number.isFinite(startPrice) ? Math.max(0, Math.floor(startPrice)) : 1500,
     floorPrice: Number.isFinite(floorPrice) ? Math.max(0, Math.floor(floorPrice)) : 998,
@@ -9470,6 +9472,8 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
     stock: Number.isFinite(stock) ? Math.max(0, Math.floor(stock)) : 15,
     heroImagePath,
     heroHeightRpx: Number.isFinite(heroHeightRpx) ? Math.max(420, Math.floor(heroHeightRpx)) : 1000,
+    pageBackgroundColor,
+    cardBackgroundColor,
     ticketingMode: 'paid-ticket'
   };
   const defaultItems = [

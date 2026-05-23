@@ -204,6 +204,8 @@ function buildEditorForm(activity) {
       coverImage: '',
       heroImagePath: '/assets/background/articalday.jpg',
       heroHeightRpx: '1000',
+      pageBackgroundColor: '#050814',
+      cardBackgroundColor: 'rgba(13, 18, 35, 0.9)',
       sortOrder: '0'
     };
   }
@@ -250,6 +252,14 @@ function buildEditorForm(activity) {
       activity.bargainSettings && Number.isFinite(activity.bargainSettings.heroHeightRpx)
         ? `${activity.bargainSettings.heroHeightRpx}`
         : '1000',
+    pageBackgroundColor:
+      activity.bargainSettings && typeof activity.bargainSettings.pageBackgroundColor === 'string'
+        ? activity.bargainSettings.pageBackgroundColor
+        : '#050814',
+    cardBackgroundColor:
+      activity.bargainSettings && typeof activity.bargainSettings.cardBackgroundColor === 'string'
+        ? activity.bargainSettings.cardBackgroundColor
+        : 'rgba(13, 18, 35, 0.9)',
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
 }
@@ -482,7 +492,9 @@ Page({
         stock: Number(form.bargainStock || 15),
         bargainItems: normalizedItems,
         heroImagePath: (form.heroImagePath || '').trim(),
-        heroHeightRpx: Number(form.heroHeightRpx || 1000)
+        heroHeightRpx: Number(form.heroHeightRpx || 1000),
+        pageBackgroundColor: (form.pageBackgroundColor || '').trim(),
+        cardBackgroundColor: (form.cardBackgroundColor || '').trim()
       };
     } else {
       payload.bargainSettings = null;

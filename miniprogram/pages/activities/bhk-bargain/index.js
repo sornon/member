@@ -28,6 +28,8 @@ const REALM_REWARD_RULES = [
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_HERO_IMAGE = buildCloudAssetUrl('background', 'activity-20251127-3.jpg');
 const DEFAULT_HERO_HEIGHT_RPX = 1000;
+const DEFAULT_PAGE_BACKGROUND_COLOR = '#050814';
+const DEFAULT_CARD_BACKGROUND_COLOR = 'rgba(13, 18, 35, 0.9)';
 
 function resolveNavHeight() {
   const app = getApp();
@@ -52,6 +54,8 @@ function normalizeBargainConfig(config = {}) {
   const displaySegments = Array.isArray(config.displaySegments) ? config.displaySegments : [];
   const floorPrice = Number.isFinite(config.floorPrice) ? Math.max(0, config.floorPrice) : 998;
   const heroHeightRpx = Number.isFinite(config.heroHeightRpx) ? Math.max(420, Math.floor(config.heroHeightRpx)) : DEFAULT_HERO_HEIGHT_RPX;
+  const pageBackgroundColor = (typeof config.pageBackgroundColor === 'string' && config.pageBackgroundColor.trim()) || DEFAULT_PAGE_BACKGROUND_COLOR;
+  const cardBackgroundColor = (typeof config.cardBackgroundColor === 'string' && config.cardBackgroundColor.trim()) || DEFAULT_CARD_BACKGROUND_COLOR;
   return {
     startPrice,
     baseAttempts,
@@ -65,7 +69,9 @@ function normalizeBargainConfig(config = {}) {
     vipBonuses,
     displaySegments,
     floorPrice,
-    heroHeightRpx
+    heroHeightRpx,
+    pageBackgroundColor,
+    cardBackgroundColor
   };
 }
 
@@ -272,6 +278,8 @@ Page({
     showRules: false,
     heroImage: DEFAULT_HERO_IMAGE,
     heroHeightRpx: DEFAULT_HERO_HEIGHT_RPX,
+    pageBackgroundColor: DEFAULT_PAGE_BACKGROUND_COLOR,
+    cardBackgroundColor: DEFAULT_CARD_BACKGROUND_COLOR,
     perks: [],
     mapLocation: DEFAULT_LOCATION,
     shareContext: null,
@@ -430,6 +438,8 @@ Page({
       countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
       heroImage: bargain.heroImage || DEFAULT_HERO_IMAGE,
       heroHeightRpx: bargain.heroHeightRpx || DEFAULT_HERO_HEIGHT_RPX,
+      pageBackgroundColor: bargain.pageBackgroundColor || DEFAULT_PAGE_BACKGROUND_COLOR,
+      cardBackgroundColor: bargain.cardBackgroundColor || DEFAULT_CARD_BACKGROUND_COLOR,
       perks: bargain.perks,
       mapLocation,
       shareContext,
