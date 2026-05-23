@@ -79,6 +79,13 @@ function normalizeBargainConfig(config = {}) {
   const activityTag2 = typeof config.activityTag2 === 'string' ? config.activityTag2.trim() : DEFAULT_ACTIVITY_TAG_2;
   const activityTag1Enabled = typeof config.activityTag1Enabled === 'boolean' ? config.activityTag1Enabled : Boolean(activityTag1);
   const activityTag2Enabled = typeof config.activityTag2Enabled === 'boolean' ? config.activityTag2Enabled : Boolean(activityTag2);
+  const quizRewardRaw = config.quizReward && typeof config.quizReward === 'object' ? config.quizReward : {};
+  const quizReward = {
+    enabled: Boolean(quizRewardRaw.enabled),
+    question: typeof quizRewardRaw.question === 'string' ? quizRewardRaw.question.trim() : '',
+    options: Array.isArray(quizRewardRaw.options) ? quizRewardRaw.options.map((item) => `${item || ''}`.trim()).filter(Boolean) : [],
+    answerIndex: Number.isFinite(quizRewardRaw.answerIndex) ? quizRewardRaw.answerIndex : -1
+  };
   return {
     startPrice,
     baseAttempts,
@@ -101,7 +108,8 @@ function normalizeBargainConfig(config = {}) {
     activityTag1,
     activityTag2,
     activityTag1Enabled,
-    activityTag2Enabled
+    activityTag2Enabled,
+    quizReward
   };
 }
 
@@ -363,6 +371,7 @@ Page({
     shareTimelineMessage: '',
     singlePageMode: false,
     bannerSubtitle: ''
+    ,quizReward: { enabled: false, question: '', options: [], answerIndex: -1 }
   },
 
   onLoad(options = {}) {
@@ -527,6 +536,7 @@ Page({
       memberId: session.memberId || this.data.memberId,
       ticketOwned,
       bannerSubtitle: buildBannerSubtitle(bargain, stockRemaining)
+      ,quizReward: bargain.quizReward || { enabled: false, question: '', options: [], answerIndex: -1 }
     });
     this.startCountdown();
   },
@@ -871,6 +881,30 @@ Page({
     } finally {
       wx.hideLoading();
     }
+  },
+  async handleQuizRewardTap() {
+    const quiz = this.data.quizReward || {};
+    if (!quiz.enabled) return;
+    if (!quiz.question || !Array.isArray(quiz.options) || !quiz.options.length) {
+      wx.showToast({ title: '题目未配置', icon: 'none' });
+      return;
+    }
+    const that = this;
+    wx.showActionSheet({
+      itemList: quiz.options,
+      success: async (res) => {
+        try {
+          const resp = await ActivityService.bargainQuizAnswer(this.activityId, res.tapIndex);
+          const bargain = normalizeBargainConfig(resp && resp.bargainConfig);
+          const session = this.normalizeSession(resp && resp.session, bargain);
+          that.applySession(session, bargain, resp && resp.activity ? resp.activity : that.data.activity);
+          const result = resp && resp.quizResult;
+          wx.showToast({ title: result && result.correct ? (result.rewarded ? '回答正确，已+1次' : '回答正确') : '回答错误，请重试', icon: 'none' });
+        } catch (error) {
+          wx.showToast({ title: error.errMsg || '答题失败', icon: 'none' });
+        }
+      }
+    });
   },
 
   handlePurchase() {

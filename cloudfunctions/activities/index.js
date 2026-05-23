@@ -109,6 +109,8 @@ exports.main = async (event = {}) => {
       return divineHandBhkBargain(event || {});
     case 'bargainConfirmPurchase':
       return confirmBhkBargainPurchase(event || {});
+    case 'bargainQuizAnswer':
+      return answerBhkBargainQuiz(event || {});
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -255,6 +257,19 @@ function buildBhkBargainConfig() {
   };
 }
 
+function normalizeQuizConfig(source = {}) {
+  const enabled = Boolean(source && source.enabled);
+  const question = typeof source.question === 'string' ? source.question.trim() : '';
+  const options = Array.isArray(source.options) ? source.options.map((item) => `${item || ''}`.trim()).filter(Boolean).slice(0, 6) : [];
+  const answerIndex = Number(source.answerIndex);
+  return {
+    enabled,
+    question,
+    options,
+    answerIndex: Number.isFinite(answerIndex) ? Math.max(0, Math.floor(answerIndex)) : -1
+  };
+}
+
 function normalizeBargainItems(items = []) {
   const fallback = (buildBhkBargainConfig().bargainItems || []).map((item) => ({
     amount: Number(item.amount) || 0,
@@ -353,6 +368,7 @@ async function resolveBargainActivityRuntime(event = {}) {
       typeof settings.activityTag1Enabled === 'boolean' ? settings.activityTag1Enabled : config.activityTag1Enabled;
     config.activityTag2Enabled =
       typeof settings.activityTag2Enabled === 'boolean' ? settings.activityTag2Enabled : config.activityTag2Enabled;
+    config.quizReward = normalizeQuizConfig(settings.quizReward || {});
     config.endsAt = doc.endTime || config.endsAt;
     return { activityId, activityDoc: doc, config };
   }
@@ -1454,6 +1470,34 @@ async function assistBhkBargain(event = {}) {
     stockRemaining: stockState.stockRemaining,
     totalStock: stockState.totalStock
   });
+}
+
+async function answerBhkBargainQuiz(event = {}) {
+  const { activityId, config, activityDoc } = await resolveBargainActivityRuntime(event);
+  const { memberBoost, realmName, openid, profile, profileComplete } = await resolveMemberBoost(config);
+  const quiz = normalizeQuizConfig(config.quizReward || {});
+  if (!quiz.enabled) {
+    throw new Error('答题奖励未开启');
+  }
+  if (!quiz.question || quiz.options.length < 2 || quiz.answerIndex < 0 || quiz.answerIndex >= quiz.options.length) {
+    throw new Error('答题配置不完整');
+  }
+  const selectedIndex = Number(event.selectedIndex);
+  if (!Number.isFinite(selectedIndex)) {
+    throw new Error('请选择答案');
+  }
+  const session = await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName, openid, activityId, memberProfile: profile, profileComplete });
+  if (session.quizRewarded) {
+    return buildBargainPayload(config, session, { activityDoc, quizResult: { correct: true, rewarded: false, alreadyRewarded: true } });
+  }
+  if (selectedIndex !== quiz.answerIndex) {
+    return buildBargainPayload(config, session, { activityDoc, quizResult: { correct: false, rewarded: false, alreadyRewarded: false } });
+  }
+  const ref = db.collection(BHK_BARGAIN_COLLECTION).doc(`${activityId}_${openid}`);
+  const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
+  const updated = { ...session, remainingSpins: Math.max(0, (session.remainingSpins || 0) + 1), quizRewarded: true, updatedAt: now };
+  await ref.update({ data: updated });
+  return buildBargainPayload(config, updated, { activityDoc, quizResult: { correct: true, rewarded: true, alreadyRewarded: false } });
 }
 
 async function divineHandBhkBargain(event = {}) {

@@ -386,6 +386,11 @@
   border: 1rpx dashed rgba(255, 211, 149, 0.4);
   color: #fcead1;
 }
+.bhk-price-card__perk--quiz {
+  border-style: solid;
+  border-color: rgba(125, 211, 252, 0.6);
+  color: #d7f0ff;
+}
 
 .bhk-turntable__header {
   display: flex;

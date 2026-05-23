@@ -241,6 +241,24 @@
         </view>
       </view>
       <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">答题奖励</text>
+        <picker mode="selector" range="{{['开启','关闭']}}" value="{{editorForm.quizRewardEnabled === 'false' ? 1 : 0}}" bindchange="handleQuizRewardEnabledChange">
+          <view class="picker-value">{{editorForm.quizRewardEnabled === 'false' ? '关闭' : '开启'}}</view>
+        </picker>
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain' && editorForm.quizRewardEnabled !== 'false'}}" class="form-row">
+        <text class="form-label">题目</text>
+        <input class="form-input" value="{{editorForm.quizQuestion}}" data-field="quizQuestion" bindinput="handleEditorInput" />
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain' && editorForm.quizRewardEnabled !== 'false'}}" class="form-row form-row--full">
+        <text class="form-label">选项（每行一个）</text>
+        <textarea class="form-textarea" value="{{editorForm.quizOptionsText}}" data-field="quizOptionsText" bindinput="handleEditorTextArea"></textarea>
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain' && editorForm.quizRewardEnabled !== 'false'}}" class="form-row">
+        <text class="form-label">正确答案序号（从0开始）</text>
+        <input class="form-input" type="number" value="{{editorForm.quizAnswerIndex}}" data-field="quizAnswerIndex" bindinput="handleEditorInput" />
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
         <text class="form-label">分享奖励次数</text>
         <input class="form-input" type="number" value="{{editorForm.shareRewardAttempts}}" data-field="shareRewardAttempts" bindinput="handleEditorInput" />
       </view>

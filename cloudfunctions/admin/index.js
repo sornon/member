@@ -9491,6 +9491,7 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
     activityTag1Enabled,
     activityTag2,
     activityTag2Enabled,
+    quizReward: normalizeBargainQuizReward(source.quizReward),
     ticketingMode: 'paid-ticket'
   };
   const defaultItems = [
@@ -9520,6 +9521,19 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
     value.floorPrice = value.startPrice;
   }
   return value;
+}
+
+function normalizeBargainQuizReward(source = {}) {
+  const options = Array.isArray(source && source.options)
+    ? source.options.map((item) => trimToString(item)).filter(Boolean).slice(0, 6)
+    : [];
+  const answerIndex = Number(source && source.answerIndex);
+  return {
+    enabled: Boolean(source && source.enabled),
+    question: trimToString(source && source.question),
+    options,
+    answerIndex: Number.isFinite(answerIndex) ? Math.max(0, Math.floor(answerIndex)) : -1
+  };
 }
 
 function toIsoString(value) {
