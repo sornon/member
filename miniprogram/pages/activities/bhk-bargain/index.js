@@ -435,15 +435,10 @@ Page({
     const hasValidCoords =
       Number.isFinite(latitude) &&
       Number.isFinite(longitude) &&
-      longitude > 115 &&
-      longitude < 118 &&
-      latitude > 39 &&
-      latitude < 41;
-    const isLegacyShanghai = /上海|长宁/.test(`${address}${name}`);
-
-    if (isLegacyShanghai) {
-      return DEFAULT_LOCATION;
-    }
+      longitude >= -180 &&
+      longitude <= 180 &&
+      latitude >= -90 &&
+      latitude <= 90;
 
     if (hasValidCoords) {
       return { name: name || DEFAULT_LOCATION.name, address: address || DEFAULT_LOCATION.address, latitude, longitude };
