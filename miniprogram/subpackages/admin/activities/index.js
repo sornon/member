@@ -160,6 +160,11 @@ function decorateActivity(activity) {
 }
 
 function buildEditorForm(activity) {
+  const buildQuestionItem = (item = {}) => ({
+    question: item && typeof item.question === 'string' ? item.question : '',
+    optionsText: Array.isArray(item && item.options) ? item.options.join('\n') : '',
+    answerIndex: Number.isFinite(item && item.answerIndex) ? `${item.answerIndex}` : '0'
+  });
   const defaultBargainItems = [
     { amount: '120', probability: '14' },
     { amount: '180', probability: '14' },
@@ -217,7 +222,7 @@ function buildEditorForm(activity) {
       quizQuestion: '',
       quizOptionsText: '',
       quizAnswerIndex: '0',
-      quizQuestionsText: '',
+      quizQuestions: [buildQuestionItem({})],
       sortOrder: '0'
     };
   }
@@ -314,17 +319,12 @@ function buildEditorForm(activity) {
       activity.bargainSettings && activity.bargainSettings.quizReward && Number.isFinite(activity.bargainSettings.quizReward.answerIndex)
         ? `${activity.bargainSettings.quizReward.answerIndex}`
         : '0',
-    quizQuestionsText:
+    quizQuestions:
       activity.bargainSettings &&
       activity.bargainSettings.quizReward &&
       Array.isArray(activity.bargainSettings.quizReward.questions)
-        ? activity.bargainSettings.quizReward.questions
-            .map((item) => {
-              const opts = Array.isArray(item.options) ? item.options : [];
-              return [item.question || '', ...opts, `${Number(item.answerIndex || 0)}`].join('|');
-            })
-            .join('\n')
-        : '',
+        ? activity.bargainSettings.quizReward.questions.map((item) => buildQuestionItem(item))
+        : [buildQuestionItem({})],
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
 }
@@ -542,6 +542,29 @@ Page({
       [`editorForm.bargainItems[${targetIndex}].${field}`]: value
     });
   },
+  handleQuizQuestionInput(event) {
+    const { index, field } = event.currentTarget.dataset || {};
+    const targetIndex = Number(index);
+    if (Number.isNaN(targetIndex) || !field) return;
+    const value = event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
+    this.setData({ [`editorForm.quizQuestions[${targetIndex}].${field}`]: value });
+  },
+  handleAddQuizQuestion() {
+    const current = Array.isArray(this.data.editorForm.quizQuestions) ? this.data.editorForm.quizQuestions : [];
+    this.setData({
+      'editorForm.quizQuestions': [...current, { question: '', optionsText: '', answerIndex: '0' }]
+    });
+  },
+  handleRemoveQuizQuestion(event) {
+    const { index } = event.currentTarget.dataset || {};
+    const targetIndex = Number(index);
+    const current = Array.isArray(this.data.editorForm.quizQuestions) ? [...this.data.editorForm.quizQuestions] : [];
+    if (Number.isNaN(targetIndex) || targetIndex < 0 || targetIndex >= current.length) return;
+    current.splice(targetIndex, 1);
+    this.setData({
+      'editorForm.quizQuestions': current.length ? current : [{ question: '', optionsText: '', answerIndex: '0' }]
+    });
+  },
 
   async handleEditorSubmit() {
     if (this.data.editorSaving) {
@@ -607,18 +630,13 @@ Page({
           question: (form.quizQuestion || '').trim(),
           options: normalizePerksInput(form.quizOptionsText || ''),
           answerIndex: Number(form.quizAnswerIndex || 0),
-          questions: (form.quizQuestionsText || '')
-            .split(/\r?\n+/)
-            .map((line) => line.trim())
-            .filter(Boolean)
-            .map((line) => {
-              const parts = line.split('|').map((item) => item.trim());
-              const question = parts[0] || '';
-              const answerIndex = Number(parts[parts.length - 1] || 0);
-              const options = parts.slice(1, -1).filter(Boolean);
-              return { question, options, answerIndex: Number.isFinite(answerIndex) ? answerIndex : 0 };
-            })
-            .filter((item) => item.question && Array.isArray(item.options) && item.options.length >= 2)
+          questions: (Array.isArray(form.quizQuestions) ? form.quizQuestions : [])
+            .map((item) => ({
+              question: ((item && item.question) || '').trim(),
+              options: normalizePerksInput((item && item.optionsText) || ''),
+              answerIndex: Number((item && item.answerIndex) || 0)
+            }))
+            .filter((item) => item.question && item.options.length >= 2)
         }
       };
     } else {

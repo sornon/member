@@ -259,8 +259,17 @@
         <input class="form-input" type="number" value="{{editorForm.quizAnswerIndex}}" data-field="quizAnswerIndex" bindinput="handleEditorInput" />
       </view>
       <view wx:if="{{editorForm.activityType === 'bargain' && editorForm.quizRewardEnabled !== 'false'}}" class="form-row form-row--full">
-        <text class="form-label">多题配置（每行：题目|选项1|选项2|...|正确答案序号）</text>
-        <textarea class="form-textarea" value="{{editorForm.quizQuestionsText}}" data-field="quizQuestionsText" bindinput="handleEditorTextArea"></textarea>
+        <text class="form-label">多题配置</text>
+        <view wx:for="{{editorForm.quizQuestions}}" wx:key="index" class="bargain-items__row" style="display:block;padding:16rpx 0;border-bottom:1rpx solid rgba(255,255,255,0.08);">
+          <text class="form-label">题目{{index + 1}}</text>
+          <input class="form-input" value="{{item.question}}" data-index="{{index}}" data-field="question" bindinput="handleQuizQuestionInput" placeholder="请输入题目" />
+          <text class="form-label">选项（每行一个）</text>
+          <textarea class="form-textarea" value="{{item.optionsText}}" data-index="{{index}}" data-field="optionsText" bindinput="handleQuizQuestionInput"></textarea>
+          <text class="form-label">正确答案序号（从0开始）</text>
+          <input class="form-input" type="number" value="{{item.answerIndex}}" data-index="{{index}}" data-field="answerIndex" bindinput="handleQuizQuestionInput" />
+          <button class="editor-submit editor-cancel" size="mini" data-index="{{index}}" bindtap="handleRemoveQuizQuestion">删除此题</button>
+        </view>
+        <button class="editor-submit" size="mini" bindtap="handleAddQuizQuestion">+ 增加题目</button>
       </view>
       <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
         <text class="form-label">分享奖励次数</text>
