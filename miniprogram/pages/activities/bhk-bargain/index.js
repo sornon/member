@@ -91,6 +91,18 @@ function formatCountdownText(targetTimestamp) {
   return `${hours}:${minutes}:${seconds}`;
 }
 
+function buildHeroMovUrl(heroImage = '') {
+  if (typeof heroImage !== 'string' || !heroImage.trim()) {
+    return '';
+  }
+  const [baseUrl, queryString = ''] = heroImage.split('?');
+  const movBaseUrl = baseUrl.replace(/\.[^.\/]+$/, '.MOV');
+  if (!movBaseUrl || movBaseUrl === baseUrl) {
+    return '';
+  }
+  return queryString ? `${movBaseUrl}?${queryString}` : movBaseUrl;
+}
+
 function resolveRealmTier(realmName = '', memberBoost = 0) {
   const normalized = (realmName || '').trim();
   if (!normalized) {
@@ -280,6 +292,10 @@ Page({
     activeSegmentIndex: -1,
     showRules: false,
     heroImage: DEFAULT_HERO_IMAGE,
+    heroVideoUrl: '',
+    heroVideoReady: false,
+    heroVideoVisible: false,
+    heroImageLoaded: false,
     heroHeightRpx: DEFAULT_HERO_HEIGHT_RPX,
     pageBackgroundColor: DEFAULT_PAGE_BACKGROUND_COLOR,
     cardBackgroundColor: DEFAULT_CARD_BACKGROUND_COLOR,
@@ -441,6 +457,10 @@ Page({
       countdownTarget,
       countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
       heroImage: bargain.heroImage || DEFAULT_HERO_IMAGE,
+      heroVideoUrl: buildHeroMovUrl(bargain.heroImage || DEFAULT_HERO_IMAGE),
+      heroVideoReady: Boolean(buildHeroMovUrl(bargain.heroImage || DEFAULT_HERO_IMAGE)),
+      heroVideoVisible: false,
+      heroImageLoaded: false,
       heroHeightRpx: bargain.heroHeightRpx || DEFAULT_HERO_HEIGHT_RPX,
       pageBackgroundColor: bargain.pageBackgroundColor || DEFAULT_PAGE_BACKGROUND_COLOR,
       cardBackgroundColor: bargain.cardBackgroundColor || DEFAULT_CARD_BACKGROUND_COLOR,
@@ -452,6 +472,36 @@ Page({
       ticketOwned
     });
     this.startCountdown();
+  },
+
+  handlePlayHeroVideo() {
+    if (!this.data.heroVideoReady || !this.data.heroVideoUrl) {
+      wx.showToast({ title: '未找到头图对应视频', icon: 'none' });
+      return;
+    }
+    this.setData({ heroVideoVisible: true });
+  },
+
+  handleHeroImageLoad() {
+    if (!this.data.heroImageLoaded) {
+      this.setData({ heroImageLoaded: true });
+    }
+  },
+
+  handleHeroImageError() {
+    console.warn('[bhk-bargain] hero image load failed', this.data.heroImage);
+    this.setData({ heroImageLoaded: true });
+  },
+
+  handleHeroVideoError(event) {
+    const detail = (event && event.detail) || {};
+    console.warn('[bhk-bargain] hero video play failed', detail);
+    wx.showModal({
+      title: '视频播放失败',
+      content: '该 MOV 文件可能编码不受当前设备支持，建议转码为 H.264 + AAC 的 MP4 或 MOV 后重试。',
+      showCancel: false
+    });
+    this.setData({ heroVideoVisible: false });
   },
 
   clearMarquee() {
