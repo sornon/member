@@ -277,6 +277,7 @@ Page({
     showQuizModal: false,
     activeQuizQuestionIndex: -1,
     activeQuizQuestion: null,
+    quizAnswerResult: null,
     divineHandReady: false,
     floorReached: false,
     spinning: false,
@@ -450,6 +451,7 @@ Page({
       activeQuizQuestion: null,
       showQuizModal: false,
       selectedQuizOption: '',
+      quizAnswerResult: null,
       mapLocation,
       shareContext,
       memberId: session.memberId || this.data.memberId,
@@ -751,12 +753,13 @@ Page({
       showQuizModal: true,
       activeQuizQuestionIndex: nextIndex,
       activeQuizQuestion: questions[nextIndex],
-      selectedQuizOption: ''
+      selectedQuizOption: '',
+      quizAnswerResult: null
     });
   },
 
   closeQuizModal() {
-    this.setData({ showQuizModal: false });
+    this.setData({ showQuizModal: false, quizAnswerResult: null, selectedQuizOption: '' });
   },
 
 
@@ -778,12 +781,17 @@ Page({
       const session = this.normalizeSession(response && response.session, bargain);
       const result = response && response.quizResult ? response.quizResult : {};
       this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
+      const tip = (result.tip || '').trim();
       this.setData({
         selectedQuizOption: '',
-        showQuizModal: false,
-        quizResultMessage: `正确答案：${result.correctAnswer || '-'}。${result.tip || ''}${result.awarded ? '（奖励+1次砍价）' : ''}`
+        quizAnswerResult: {
+          correct: !!result.correct,
+          correctAnswer: result.correctAnswer || '-',
+          tip,
+          awarded: !!result.awarded
+        },
+        quizResultMessage: `正确答案：${result.correctAnswer || '-'}。${tip}${result.awarded ? '（奖励+1次砍价）' : ''}`
       });
-      wx.showToast({ title: result.correct ? '回答正确' : '回答完成', icon: 'none' });
     } catch (error) {
       wx.showToast({ title: (error && error.errMsg) || '答题失败', icon: 'none' });
     }

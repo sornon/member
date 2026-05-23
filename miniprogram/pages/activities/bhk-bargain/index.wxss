@@ -803,3 +803,11 @@
 .bhk-overlay__rule {
   padding: 8rpx 0;
 }
+
+
+.quiz-option-btn--active {
+  background: linear-gradient(135deg, #ffcf6a, #ff9f3f) !important;
+  color: #2a1200 !important;
+  border: 1rpx solid rgba(255, 213, 140, 0.9) !important;
+  font-weight: 700;
+}
