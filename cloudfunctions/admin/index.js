@@ -9585,6 +9585,8 @@ function decorateActivityRecord(doc = {}) {
     endTime: toIsoString(doc.endTime),
     priceLabel: trimToString(doc.priceLabel),
     location: trimToString(doc.location),
+    locationLat: Number.isFinite(Number(doc.locationLat)) ? Number(doc.locationLat) : null,
+    locationLng: Number.isFinite(Number(doc.locationLng)) ? Number(doc.locationLng) : null,
     coverImage: trimToString(doc.coverImage),
     highlight: trimToString(doc.highlight),
     notes: normalizeMultilineString(doc.notes),
