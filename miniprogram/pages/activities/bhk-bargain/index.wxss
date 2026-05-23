@@ -393,7 +393,7 @@
 }
 
 .bhk-quiz-modal { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; }
-.bhk-quiz-modal__mask { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6); }
+.bhk-quiz-modal__mask { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.78); }
 .bhk-quiz-modal__panel { position: relative; width: 86%; background: #101a2d; border-radius: 20rpx; padding: 28rpx; z-index: 1; }
 .bhk-quiz-modal__title { color: #ffd480; font-size: 32rpx; font-weight: 700; margin-bottom: 18rpx; }
 .bhk-quiz-modal__question { color: #fcead1; font-size: 28rpx; margin-bottom: 20rpx; }

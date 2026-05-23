@@ -896,12 +896,13 @@ Page({
   async handleQuizRewardTap() {
     const quiz = this.data.quizReward || {};
     if (!quiz.enabled) return;
-    if (!quiz.question || !Array.isArray(quiz.options) || !quiz.options.length) {
+    const hasMultiQuestions = Array.isArray(quiz.questions) && quiz.questions.length > 0;
+    const hasSingleQuestion = !!quiz.question && Array.isArray(quiz.options) && quiz.options.length >= 2;
+    if (!hasMultiQuestions && !hasSingleQuestion) {
       wx.showToast({ title: '题目未配置', icon: 'none' });
       return;
     }
-    const that = this;
-    that.setData({ quizModalVisible: true, quizCurrentIndex: 0, quizSelectedIndex: -1 });
+    this.setData({ quizModalVisible: true, quizCurrentIndex: 0, quizSelectedIndex: -1 });
   },
   handleQuizMaskTap() {
     this.setData({ quizModalVisible: false, quizSelectedIndex: -1 });
@@ -934,8 +935,10 @@ Page({
       const session = this.normalizeSession(resp && resp.session, bargain);
       this.applySession(session, bargain, resp && resp.activity ? resp.activity : this.data.activity);
       const result = resp && resp.quizResult;
+      this.setData({ quizModalVisible: false, quizSelectedIndex: -1 });
       wx.showToast({ title: result && result.correct ? (result.rewarded ? '回答正确，已+1次' : '本题已领取') : '回答错误，请重试', icon: 'none' });
     } catch (error) {
+      this.setData({ quizModalVisible: false, quizSelectedIndex: -1 });
       wx.showToast({ title: error.errMsg || '答题失败', icon: 'none' });
     }
   },

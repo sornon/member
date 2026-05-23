@@ -212,7 +212,6 @@
 <view wx:if="{{quizModalVisible}}" class="bhk-quiz-modal">
   <view class="bhk-quiz-modal__mask" bindtap="handleQuizMaskTap"></view>
   <view class="bhk-quiz-modal__panel">
-    <view class="bhk-quiz-modal__title">答题增加砍价次数</view>
     <view class="bhk-quiz-modal__question">
       {{(quizReward.questions && quizReward.questions.length ? quizReward.questions[quizCurrentIndex].question : quizReward.question) || '未配置题目'}}
     </view>
