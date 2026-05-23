@@ -27,6 +27,7 @@ const REALM_REWARD_RULES = [
 ];
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 const DEFAULT_HERO_IMAGE = buildCloudAssetUrl('background', 'activity-20251127-3.jpg');
+const DEFAULT_HERO_HEIGHT_RPX = 1000;
 
 function resolveNavHeight() {
   const app = getApp();
@@ -50,6 +51,7 @@ function normalizeBargainConfig(config = {}) {
   const vipBonuses = Array.isArray(config.vipBonuses) ? config.vipBonuses : [];
   const displaySegments = Array.isArray(config.displaySegments) ? config.displaySegments : [];
   const floorPrice = Number.isFinite(config.floorPrice) ? Math.max(0, config.floorPrice) : 998;
+  const heroHeightRpx = Number.isFinite(config.heroHeightRpx) ? Math.max(420, Math.floor(config.heroHeightRpx)) : DEFAULT_HERO_HEIGHT_RPX;
   return {
     startPrice,
     baseAttempts,
@@ -62,7 +64,8 @@ function normalizeBargainConfig(config = {}) {
     perks,
     vipBonuses,
     displaySegments,
-    floorPrice
+    floorPrice,
+    heroHeightRpx
   };
 }
 
@@ -268,6 +271,7 @@ Page({
     activeSegmentIndex: -1,
     showRules: false,
     heroImage: DEFAULT_HERO_IMAGE,
+    heroHeightRpx: DEFAULT_HERO_HEIGHT_RPX,
     perks: [],
     mapLocation: DEFAULT_LOCATION,
     shareContext: null,
@@ -425,6 +429,7 @@ Page({
       countdownTarget,
       countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
       heroImage: bargain.heroImage || DEFAULT_HERO_IMAGE,
+      heroHeightRpx: bargain.heroHeightRpx || DEFAULT_HERO_HEIGHT_RPX,
       perks: bargain.perks,
       mapLocation,
       shareContext,

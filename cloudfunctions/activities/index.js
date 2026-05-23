@@ -232,6 +232,7 @@ function buildBhkBargainConfig() {
     stock: 15,
     endsAt: '2025-12-01T16:00:00.000Z',
     heroImage: buildCloudAssetUrl('background', 'cover-20251126.jpg'),
+    heroHeightRpx: 1000,
     mysteryLabel: '???',
     perks: [
         '基础砍价：3次',
@@ -304,7 +305,13 @@ async function resolveBargainActivityRuntime(event = {}) {
         config.segments = config.bargainItems.map((item) => item.amount);
       }
     }
-    config.heroImage = doc.coverImage || config.heroImage;
+    const heroImagePath = typeof settings.heroImagePath === 'string' ? settings.heroImagePath.trim() : '';
+    if (heroImagePath) {
+      config.heroImage = buildCloudAssetUrl(heroImagePath.replace(/^\/+/, ''));
+    } else {
+      config.heroImage = doc.coverImage || config.heroImage;
+    }
+    config.heroHeightRpx = Number.isFinite(settings.heroHeightRpx) ? Math.max(420, Math.floor(settings.heroHeightRpx)) : 1000;
     config.endsAt = doc.endTime || config.endsAt;
     return { activityId, activityDoc: doc, config };
   }

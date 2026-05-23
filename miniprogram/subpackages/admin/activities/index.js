@@ -202,6 +202,8 @@ function buildEditorForm(activity) {
       bargainStock: '15',
       bargainItems: formBargainItems,
       coverImage: '',
+      heroImagePath: '/assets/background/articalday.jpg',
+      heroHeightRpx: '1000',
       sortOrder: '0'
     };
   }
@@ -240,6 +242,14 @@ function buildEditorForm(activity) {
         : '15',
     bargainItems: formBargainItems,
     coverImage: activity.coverImage || '',
+    heroImagePath:
+      activity.bargainSettings && typeof activity.bargainSettings.heroImagePath === 'string'
+        ? activity.bargainSettings.heroImagePath
+        : '/assets/background/articalday.jpg',
+    heroHeightRpx:
+      activity.bargainSettings && Number.isFinite(activity.bargainSettings.heroHeightRpx)
+        ? `${activity.bargainSettings.heroHeightRpx}`
+        : '1000',
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
 }
@@ -470,7 +480,9 @@ Page({
         floorPrice: Number(form.bargainFloorPrice || 998),
         shareRewardAttempts: Number(form.shareRewardAttempts || 1),
         stock: Number(form.bargainStock || 15),
-        bargainItems: normalizedItems
+        bargainItems: normalizedItems,
+        heroImagePath: (form.heroImagePath || '').trim(),
+        heroHeightRpx: Number(form.heroHeightRpx || 1000)
       };
     } else {
       payload.bargainSettings = null;
