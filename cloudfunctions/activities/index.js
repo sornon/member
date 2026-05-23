@@ -10,6 +10,7 @@ const DEFAULT_LIMIT = 100;
 const BHK_BARGAIN_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
 const BHK_BARGAIN_COLLECTION = 'bhkBargainRecords';
 const BHK_BARGAIN_STOCK_COLLECTION = 'bhkBargainStock';
+const BHK_BARGAIN_QUIZ_RANK_COLLECTION = 'bhkBargainQuizRank';
 const THANKSGIVING_RIGHT_ID = 'thanksgiving-pass';
 const THANKSGIVING_TICKET_REMARK = '感恩节活动门票';
 const DEFAULT_AVATAR = buildCloudAssetUrl('avatar', 'default.png');
@@ -109,6 +110,8 @@ exports.main = async (event = {}) => {
       return divineHandBhkBargain(event || {});
     case 'bargainConfirmPurchase':
       return confirmBhkBargainPurchase(event || {});
+    case 'bargainQuizAnswer':
+      return answerBhkBargainQuiz(event || {});
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -229,8 +232,18 @@ function buildBhkBargainConfig() {
         '筑基期：+3次砍价',
         '结丹及以上：神之一手',
         '分享助力：双方+1次砍价',
-        '设置名字、头像：+1次砍价'
-    ]
+        '设置名字、头像：+1次砍价',
+        '答题奖励：答对1题 +1次砍价'
+    ],
+    quiz: {
+      enabled: true,
+      rewardAttempts: 1,
+      questions: [
+        { id: 'audio-experience', question: '以下哪种方式的听觉体验最为真实、震撼？', options: ['A. 鹦鹉螺音响', 'B. 黑胶唱片播放', 'C. 现场钢琴三重奏'], answer: 'C', tip: '没有任何音响或设备能够超越乐器本身发出的声音。参考价格：鹦鹉螺约150万+/对，Linn LP12约数十万，现场钢琴三重奏可达数百万至千万级。' },
+        { id: 'collectible-value', question: '以下哪一种最昂贵、最具收藏价值？', options: ['A. 鹦鹉螺音响', 'B. Linn LP12 Majik 黑胶唱片机', 'C. Steinway & Sons Model D 手工三角钢琴'], answer: 'C', tip: '再好的工业化产品也比不上百年以上的手工钢琴。参考价格：鹦鹉螺约150万+/对，Linn LP12约数十万，Steinway Model D约300万-500万。' },
+        { id: 'symphony-origin', question: '交响乐最初的起源形式是什么？', options: ['A. 巴洛克歌剧序曲', 'B. 古希腊祭祀乐队', 'C. 17-18 世纪欧洲宫廷室内乐'], answer: 'C', tip: '现代交响乐最早源于欧洲宫廷室内乐，主要用于宴会和音乐欣赏。' }
+      ]
+    }
   };
 }
 
@@ -248,6 +261,12 @@ async function resolveBargainActivityRuntime(event = {}) {
     const config = buildBhkBargainConfig();
     config.startPrice = Number.isFinite(settings.startPrice) ? settings.startPrice : config.startPrice;
     config.floorPrice = Number.isFinite(settings.floorPrice) ? settings.floorPrice : config.floorPrice;
+    if (config.quiz && typeof settings.quizEnabled === 'boolean') {
+      config.quiz.enabled = settings.quizEnabled;
+    }
+    if (config.quiz && Array.isArray(settings.quizQuestions) && settings.quizQuestions.length) {
+      config.quiz.questions = settings.quizQuestions;
+    }
     config.heroImage = doc.coverImage || config.heroImage;
     config.endsAt = doc.endTime || config.endsAt;
     return { activityId, activityDoc: doc, config };
@@ -738,12 +757,114 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
       : '',
     chargeOrderAmount: Number.isFinite(record.chargeOrderAmount) ? record.chargeOrderAmount : 0,
     chargeOrderCreatedAt: record.chargeOrderCreatedAt || null,
-    thanksgivingProfileRewarded: Boolean(record.thanksgivingProfileRewarded)
+    thanksgivingProfileRewarded: Boolean(record.thanksgivingProfileRewarded),
+    quizAnsweredIds: Array.isArray(record.quizAnsweredIds) ? record.quizAnsweredIds : []
   };
 
   return { ...normalized, ...overrides };
 }
 
+
+
+
+
+async function incrementQuizRanking(activityId = BHK_BARGAIN_ACTIVITY_ID, openid = '', profile = {}, delta = 1) {
+  if (!openid || delta <= 0) {
+    return null;
+  }
+  await ensureCollectionExists(BHK_BARGAIN_QUIZ_RANK_COLLECTION);
+  const docId = `${activityId}_${openid}`;
+  const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
+  const nickname = (profile && (profile.nickname || profile.nickName || profile.name)) || '神秘会员';
+  const avatar = (profile && (profile.avatar || profile.avatarUrl)) || '';
+  const ref = db.collection(BHK_BARGAIN_QUIZ_RANK_COLLECTION).doc(docId);
+  const snapshot = await ref.get().catch(() => null);
+  if (snapshot && snapshot.data) {
+    await ref.update({ data: { correctCount: _.inc(delta), nickname, avatar, updatedAt: now } });
+    const latest = await ref.get().catch(() => null);
+    const count = latest && latest.data && Number.isFinite(latest.data.correctCount) ? latest.data.correctCount : delta;
+    return { memberId: openid, nickname, avatar, correctCount: count };
+  }
+  await ref.set({ data: { activityId, memberId: openid, nickname, avatar, correctCount: delta, createdAt: now, updatedAt: now } });
+  return { memberId: openid, nickname, avatar, correctCount: delta };
+}
+
+async function listQuizRanking(activityId = BHK_BARGAIN_ACTIVITY_ID, limit = 10) {
+  await ensureCollectionExists(BHK_BARGAIN_QUIZ_RANK_COLLECTION);
+  const snapshot = await db
+    .collection(BHK_BARGAIN_QUIZ_RANK_COLLECTION)
+    .where({ activityId })
+    .orderBy('correctCount', 'desc')
+    .limit(Math.max(1, Math.min(10, Number(limit) || 10)))
+    .get()
+    .catch((error) => {
+      console.error('[bargain-quiz-rank] list failed', error);
+      return { data: [] };
+    });
+  return (snapshot.data || []).map((item, index) => ({
+    rank: index + 1,
+    memberId: item.memberId || '',
+    nickname: item.nickname || '神秘会员',
+    avatar: item.avatar || '',
+    correctCount: Number.isFinite(item.correctCount) ? item.correctCount : 0
+  }));
+}
+function buildPublicQuizConfig(config = {}) {
+  const quiz = config.quiz && typeof config.quiz === 'object' ? config.quiz : {};
+  if (!quiz.enabled) return { enabled: false, rewardAttempts: 0, questions: [] };
+  const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
+  return {
+    enabled: true,
+    rewardAttempts: Number.isFinite(quiz.rewardAttempts) ? Math.max(1, Math.floor(quiz.rewardAttempts)) : 1,
+    questions: questions.map((item = {}) => ({ id: item.id, question: item.question, options: item.options || [] }))
+  };
+}
+
+async function answerBhkBargainQuiz(event = {}) {
+  const openid = getOpenId();
+  if (!openid) throw new Error('请先登录后再答题');
+  const answer = String(event.answer || '').trim().toUpperCase();
+  const questionId = String(event.questionId || '').trim();
+  const { activityId, config, activityDoc } = await resolveBargainActivityRuntime(event);
+  const quiz = config.quiz || {};
+  if (!quiz.enabled) throw new Error('答题玩法未开启');
+  const question = (quiz.questions || []).find((q) => q.id === questionId);
+  if (!question) throw new Error('题目不存在');
+
+  const session = await getOrCreateBargainSession(config, { openid, activityId });
+  const answeredIds = Array.isArray(session.quizAnsweredIds) ? session.quizAnsweredIds : [];
+  const correct = answer === String(question.answer || '').trim().toUpperCase();
+  let awarded = false;
+  if (!answeredIds.includes(questionId) && correct) {
+    awarded = true;
+    await db.collection(BHK_BARGAIN_COLLECTION).doc(session.id).update({
+      data: {
+        remainingSpins: _.inc(Number(quiz.rewardAttempts) || 1),
+        quizAnsweredIds: _.push([questionId]),
+        updatedAt: new Date()
+      }
+    });
+  }
+  let selfRanking = null;
+  if (correct) {
+    selfRanking = await incrementQuizRanking(activityId, openid, session.memberProfile || {}, 1);
+  }
+  const latest = await db.collection(BHK_BARGAIN_COLLECTION).doc(session.id).get().then(r=>r.data).catch(()=>session);
+  let ranking = await listQuizRanking(activityId, 10);
+  if (selfRanking && !ranking.some((item) => item && item.memberId === openid)) {
+    ranking = [{ rank: 0, memberId: openid, nickname: selfRanking.nickname || '神秘会员', avatar: selfRanking.avatar || '', correctCount: selfRanking.correctCount || 1 }, ...ranking]
+      .sort((a, b) => (b.correctCount || 0) - (a.correctCount || 0))
+      .slice(0, 10)
+      .map((item, index) => ({ ...item, rank: index + 1 }));
+  }
+  return {
+    activity: decorateActivity(activityDoc || buildBhkBargainActivity()),
+    bargainConfig: { ...config, quiz: buildPublicQuizConfig(config) },
+    session: normalizeBargainSession(latest, config, {}, openid),
+    quizResult: { correct, awarded, correctAnswer: question.answer, tip: question.tip, questionId },
+    quizRanking: ranking
+  };
+}
 async function ensureThanksgivingChargeOrder(openid, sessionDocId, amountInCents = 0) {
   const normalizedAmount = Math.max(0, Math.round(Number(amountInCents || 0)));
   if (!openid || !sessionDocId || !normalizedAmount) {
@@ -1047,7 +1168,7 @@ function buildBargainPayload(config, session, overrides = {}) {
   const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
   const floorReached = (session.currentPrice || 0) <= config.floorPrice;
   const totalStock = Number.isFinite(overrides.totalStock) ? overrides.totalStock : config.stock;
-  const publicConfig = { ...config, stock: totalStock, displaySegments };
+  const publicConfig = { ...config, stock: totalStock, displaySegments, quiz: buildPublicQuizConfig(config) };
   delete publicConfig.floorPrice;
   const stockRemaining = Number.isFinite(overrides.stockRemaining)
     ? overrides.stockRemaining
@@ -1061,6 +1182,7 @@ function buildBargainPayload(config, session, overrides = {}) {
     activity: decorateActivity(overrides.activityDoc || buildBhkBargainActivity()),
     bargainConfig: publicConfig,
     session: { ...publicSession, realmReward, divineHandReady: realmReward.type === 'divine' && realmReward.ready },
+    quizRanking: Array.isArray(overrides.quizRanking) ? overrides.quizRanking : [],
     floorReached
   };
   return { ...payload, ...overrides };
@@ -1095,6 +1217,8 @@ async function getBhkBargainStatus(event = {}) {
       .catch(() => null);
   }
 
+  const quizRanking = await listQuizRanking(activityId, 10);
+
   const targetShareId = shareId || normalizedSession.lastShareTarget || '';
   const shareContext = targetShareId
     ? await buildShareContext(config, targetShareId, openid, profile, normalizedSession.assistGiven, activityId)
@@ -1113,7 +1237,8 @@ async function getBhkBargainStatus(event = {}) {
     activityDoc,
     shareContext,
     stockRemaining: stockState.stockRemaining,
-    totalStock: stockState.totalStock
+    totalStock: stockState.totalStock,
+    quizRanking
   });
 }
 
@@ -1325,7 +1450,8 @@ async function assistBhkBargain(event = {}) {
     shareContext,
     assistedTarget: shareId,
     stockRemaining: stockState.stockRemaining,
-    totalStock: stockState.totalStock
+    totalStock: stockState.totalStock,
+    quizRanking
   });
 }
 
@@ -1543,6 +1669,7 @@ async function confirmBhkBargainPurchase(event = {}) {
     activityDoc,
     shareContext,
     stockRemaining: stockState.stockRemaining,
-    totalStock: stockState.totalStock
+    totalStock: stockState.totalStock,
+    quizRanking
   });
 }

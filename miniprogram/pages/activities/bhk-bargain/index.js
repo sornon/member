@@ -5,6 +5,11 @@ import { buildTitleImageUrl, normalizeTitleId } from '../../../shared/titles';
 const DEFAULT_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
 const THANKSGIVING_RIGHT_ID = 'thanksgiving-pass';
 const DEFAULT_SEGMENTS = [120, 180, 200, 260, 320, 500];
+const DEFAULT_QUIZ_QUESTIONS = [
+  { id: 'audio-experience', question: '以下哪种方式的听觉体验最为真实、震撼？', options: ['A. 鹦鹉螺音响', 'B. 黑胶唱片播放', 'C. 现场钢琴三重奏'] },
+  { id: 'collectible-value', question: '以下哪一种最昂贵、最具收藏价值？', options: ['A. 鹦鹉螺音响', 'B. Linn LP12 Majik 黑胶唱片机', 'C. Steinway & Sons Model D 手工三角钢琴'] },
+  { id: 'symphony-origin', question: '交响乐最初的起源形式是什么？', options: ['A. 巴洛克歌剧序曲', 'B. 古希腊祭祀乐队', 'C. 17-18 世纪欧洲宫廷室内乐'] }
+];
 const DEFAULT_LOCATION = {
   name: '酒隐之茄',
   address: '北京市朝阳区百子湾路16号4号楼B座102',
@@ -62,7 +67,15 @@ function normalizeBargainConfig(config = {}) {
     perks,
     vipBonuses,
     displaySegments,
-    floorPrice
+    floorPrice,
+    quiz: (() => {
+      const quiz = config.quiz && typeof config.quiz === 'object' ? config.quiz : { enabled: false, rewardAttempts: 0, questions: [] };
+      const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
+      if (quiz.enabled && !questions.length) {
+        return { ...quiz, questions: DEFAULT_QUIZ_QUESTIONS };
+      }
+      return quiz;
+    })()
   };
 }
 
@@ -258,6 +271,15 @@ Page({
     memberTitleImage: '',
     memberTitleName: '',
     realmReward: normalizeRealmReward(),
+    quiz: { enabled: false, rewardAttempts: 0, questions: [] },
+    selectedQuizOption: '',
+    quizResultMessage: '',
+    showQuizModal: false,
+    activeQuizQuestionIndex: -1,
+    activeQuizQuestion: null,
+    quizAnswerResult: null,
+    quizRanking: [],
+    quizAnsweredIds: [],
     divineHandReady: false,
     floorReached: false,
     spinning: false,
@@ -374,7 +396,8 @@ Page({
       divineHandReady,
       floorReached,
       stockRemaining,
-      ticketOwned: Boolean(session.ticketOwned || session.hasTicket || session.purchased)
+      ticketOwned: Boolean(session.ticketOwned || session.hasTicket || session.purchased),
+      quizAnsweredIds: Array.isArray(session.quizAnsweredIds) ? session.quizAnsweredIds : this.data.quizAnsweredIds
     };
   },
 
@@ -426,10 +449,17 @@ Page({
       countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
       heroImage: bargain.heroImage || DEFAULT_HERO_IMAGE,
       perks: bargain.perks,
+      quiz: bargain.quiz || { enabled: false, rewardAttempts: 0, questions: [] },
+      activeQuizQuestion: typeof extras.activeQuizQuestion === 'undefined' ? null : extras.activeQuizQuestion,
+      showQuizModal: typeof extras.showQuizModal === 'boolean' ? extras.showQuizModal : false,
+      selectedQuizOption: typeof extras.selectedQuizOption === 'string' ? extras.selectedQuizOption : '',
+      quizAnswerResult: typeof extras.quizAnswerResult === 'undefined' ? null : extras.quizAnswerResult,
+      quizRanking: Array.isArray(extras.quizRanking) ? extras.quizRanking : this.data.quizRanking,
       mapLocation,
       shareContext,
       memberId: session.memberId || this.data.memberId,
-      ticketOwned
+      ticketOwned,
+      quizAnsweredIds: Array.isArray(session.quizAnsweredIds) ? session.quizAnsweredIds : this.data.quizAnsweredIds
     });
     this.startCountdown();
   },
@@ -615,7 +645,8 @@ Page({
       this.applySession(session, bargain, activity, {
         shareContext: response && response.shareContext,
         ticketOwned: this.data.ticketOwned,
-        stockRemaining: this.data.stockRemaining
+        stockRemaining: this.data.stockRemaining,
+        quizRanking: response && response.quizRanking
       });
     } catch (error) {
       console.error('[bhk-bargain] fetch activity failed', error);
@@ -714,6 +745,76 @@ Page({
     }
   },
 
+
+  handleOpenQuizModal() {
+    const questions = (this.data.quiz && this.data.quiz.questions) || [];
+    if (!questions.length) {
+      wx.showToast({ title: '题库未配置', icon: 'none' });
+      return;
+    }
+    const answeredIds = Array.isArray(this.data.quizAnsweredIds) ? this.data.quizAnsweredIds : [];
+    const unanswered = questions.filter((item) => item && item.id && !answeredIds.includes(item.id));
+    if (!unanswered.length) {
+      wx.showModal({ title: '提示', content: '暂无更多题目', showCancel: false });
+      return;
+    }
+    const question = unanswered[0];
+    const index = questions.findIndex((item) => item && item.id === question.id);
+    this.setData({
+      showQuizModal: true,
+      activeQuizQuestionIndex: index,
+      activeQuizQuestion: question,
+      selectedQuizOption: '',
+      quizAnswerResult: null
+    });
+  },
+
+  closeQuizModal() {
+    this.setData({ showQuizModal: false, quizAnswerResult: null, selectedQuizOption: '' });
+    this.fetchActivityStatus({ keepLoading: true });
+  },
+
+
+  handleQuizOptionTap(event) {
+    const value = event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset.value : '';
+    this.setData({ selectedQuizOption: value });
+  },
+
+  async handleQuizAnswer(event) {
+    const questionId = (this.data.activeQuizQuestion && this.data.activeQuizQuestion.id) || '';
+    const answer = this.data.selectedQuizOption;
+    if (!questionId || !answer) {
+      wx.showToast({ title: '请先选择答案', icon: 'none' });
+      return;
+    }
+    try {
+      const response = await ActivityService.bargainQuizAnswer(this.activityId, questionId, answer);
+      const bargain = normalizeBargainConfig(response && response.bargainConfig);
+      const session = this.normalizeSession(response && response.session, bargain);
+      const result = response && response.quizResult ? response.quizResult : {};
+      const currentQuestion = this.data.activeQuizQuestion;
+      const answeredUnion = Array.from(new Set([...(Array.isArray(this.data.quizAnsweredIds) ? this.data.quizAnsweredIds : []), questionId]));
+      const tip = (result.tip || '').trim();
+      const answerResult = {
+        correct: !!result.correct,
+        correctAnswer: result.correctAnswer || '-',
+        tip,
+        awarded: !!result.awarded
+      };
+      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity, {
+        quizRanking: response && response.quizRanking,
+        showQuizModal: true,
+        activeQuizQuestion: currentQuestion,
+        selectedQuizOption: '',
+        quizAnswerResult: answerResult,
+        quizAnsweredIds: answeredUnion
+      });
+      this.setData({ quizResultMessage: '' });
+    } catch (error) {
+      wx.showToast({ title: (error && error.errMsg) || '答题失败', icon: 'none' });
+    }
+  },
+
   toggleRules() {
     this.setData({ showRules: !this.data.showRules });
   },
@@ -785,7 +886,8 @@ Page({
       this.applySession(session, bargain, activity, {
         shareContext: response && response.shareContext,
         ticketOwned: this.data.ticketOwned,
-        stockRemaining: this.data.stockRemaining
+        stockRemaining: this.data.stockRemaining,
+        quizRanking: response && response.quizRanking
       });
 
       if (session.ticketOwned) {

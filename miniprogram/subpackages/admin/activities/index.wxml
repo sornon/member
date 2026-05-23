@@ -240,6 +240,37 @@
           <input class="form-input" type="number" value="{{editorForm.bargainFloorPrice}}" data-field="bargainFloorPrice" bindinput="handleEditorInput" />
         </view>
       </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--switch">
+        <text class="form-label">答题奖励开关</text>
+        <switch checked="{{editorForm.quizEnabled}}" color="#07c160" bindchange="handleQuizSwitchChange" />
+      </view>
+
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">答题题库（分项填写）</text>
+      </view>
+            <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">第1题</text>
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row"><input class="form-input" placeholder="题目" value="{{editorForm.quizQ1Question}}" data-field="quizQ1Question" bindinput="handleEditorInput" /></view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--split"><view class="form-item"><input class="form-input" placeholder="A 选项" value="{{editorForm.quizQ1OptionA}}" data-field="quizQ1OptionA" bindinput="handleEditorInput" /></view><view class="form-item"><input class="form-input" placeholder="B 选项" value="{{editorForm.quizQ1OptionB}}" data-field="quizQ1OptionB" bindinput="handleEditorInput" /></view></view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--split"><view class="form-item"><input class="form-input" placeholder="C 选项" value="{{editorForm.quizQ1OptionC}}" data-field="quizQ1OptionC" bindinput="handleEditorInput" /></view><view class="form-item"><input class="form-input" placeholder="正确答案(A/B/C)" value="{{editorForm.quizQ1Answer}}" data-field="quizQ1Answer" bindinput="handleEditorInput" /></view></view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row"><input class="form-input" placeholder="Tips（可选）" value="{{editorForm.quizQ1Tip}}" data-field="quizQ1Tip" bindinput="handleEditorInput" /></view>
+
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">第2题</text>
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row"><input class="form-input" placeholder="题目" value="{{editorForm.quizQ2Question}}" data-field="quizQ2Question" bindinput="handleEditorInput" /></view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--split"><view class="form-item"><input class="form-input" placeholder="A 选项" value="{{editorForm.quizQ2OptionA}}" data-field="quizQ2OptionA" bindinput="handleEditorInput" /></view><view class="form-item"><input class="form-input" placeholder="B 选项" value="{{editorForm.quizQ2OptionB}}" data-field="quizQ2OptionB" bindinput="handleEditorInput" /></view></view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--split"><view class="form-item"><input class="form-input" placeholder="C 选项" value="{{editorForm.quizQ2OptionC}}" data-field="quizQ2OptionC" bindinput="handleEditorInput" /></view><view class="form-item"><input class="form-input" placeholder="正确答案(A/B/C)" value="{{editorForm.quizQ2Answer}}" data-field="quizQ2Answer" bindinput="handleEditorInput" /></view></view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row"><input class="form-input" placeholder="Tips（可选）" value="{{editorForm.quizQ2Tip}}" data-field="quizQ2Tip" bindinput="handleEditorInput" /></view>
+
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">第3题</text>
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row"><input class="form-input" placeholder="题目" value="{{editorForm.quizQ3Question}}" data-field="quizQ3Question" bindinput="handleEditorInput" /></view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--split"><view class="form-item"><input class="form-input" placeholder="A 选项" value="{{editorForm.quizQ3OptionA}}" data-field="quizQ3OptionA" bindinput="handleEditorInput" /></view><view class="form-item"><input class="form-input" placeholder="B 选项" value="{{editorForm.quizQ3OptionB}}" data-field="quizQ3OptionB" bindinput="handleEditorInput" /></view></view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--split"><view class="form-item"><input class="form-input" placeholder="C 选项" value="{{editorForm.quizQ3OptionC}}" data-field="quizQ3OptionC" bindinput="handleEditorInput" /></view><view class="form-item"><input class="form-input" placeholder="正确答案(A/B/C)" value="{{editorForm.quizQ3Answer}}" data-field="quizQ3Answer" bindinput="handleEditorInput" /></view></view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row"><input class="form-input" placeholder="Tips（可选）" value="{{editorForm.quizQ3Tip}}" data-field="quizQ3Tip" bindinput="handleEditorInput" /></view>
       <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
         <text class="form-label">分享奖励次数</text>
         <input class="form-input" type="number" value="{{editorForm.shareRewardAttempts}}" data-field="shareRewardAttempts" bindinput="handleEditorInput" />

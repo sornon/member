@@ -928,6 +928,14 @@ export const ActivityService = {
       id
     });
   },
+  async bargainQuizAnswer(id, questionId, answer) {
+    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
+      action: 'bargainQuizAnswer',
+      id,
+      questionId,
+      answer
+    });
+  },
   async bargainAssist(id, options = {}) {
     const payload = {
       action: 'bargainAssist',

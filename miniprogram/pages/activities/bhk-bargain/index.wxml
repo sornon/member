@@ -161,11 +161,25 @@
       <view wx:if="{{shareTimelineMessage}}" class="bhk-share__hint">{{shareTimelineMessage}}</view>
     </view>
 
+
+    <view class="bhk-card bhk-info" wx:if="{{quiz && quiz.enabled}}">
+      <view class="bhk-section-title">答题加砍价次数</view>
+      <button class="bhk-share__button" type="primary" bindtap="handleOpenQuizModal">去答题</button>
+      <view class="bhk-info__item" wx:if="{{(!quiz.questions || !quiz.questions.length)}}">题库未配置，请联系管理员在活动管理中设置题目。</view>
+    </view>
+
+
+    <view class="bhk-card bhk-info" wx:if="{{quiz && quiz.enabled}}">
+      <view class="bhk-section-title">答题排行榜（Top10）</view>
+      <block wx:if="{{quizRanking && quizRanking.length}}" wx:for="{{quizRanking}}" wx:key="rank">
+        <view class="bhk-info__item">第{{item.rank}}名：{{item.nickname}}（答对 {{item.correctCount}} 题）</view>
+      </block>
+      <view class="bhk-info__item" wx:if="{{!quizRanking || !quizRanking.length}}">暂无排行榜数据，先答对1题后再返回查看。</view>
+    </view>
+
     <view class="bhk-card bhk-info">
       <view class="bhk-section-title">礼遇与规则</view>
       <view class="bhk-info__list">
-        <view class="bhk-info__item">持"感恩节活动"会员权益任意时间到店使用。</view>
-        <view class="bhk-info__item">软饮畅饮，伴手礼 BHK56 雪茄一支。</view>
         <view class="bhk-info__item">余票与倒计时实时更新，售罄即止。</view>
         <view class="bhk-info__item">票券不可转售或退款。</view>
         <view class="bhk-info__item">购票消费可同时提升修为和灵石。</view>
@@ -173,6 +187,28 @@
       </view>
     </view>
   </block>
+</view>
+
+
+<view class="bhk-overlay" wx:if="{{showQuizModal && activeQuizQuestion}}">
+  <view class="bhk-overlay__card">
+    <view class="bhk-overlay__title">{{activeQuizQuestion.question}}</view>
+    <view style="display:flex;flex-direction:column;gap:10rpx;margin:16rpx 0;">
+      <block wx:for="{{activeQuizQuestion.options}}" wx:key="*this" wx:for-item="option">
+        <button size="mini" class="quiz-option-btn {{selectedQuizOption===option[0]?'quiz-option-btn--active':''}}" data-value="{{option[0]}}" bindtap="handleQuizOptionTap">{{option}}</button>
+      </block>
+    </view>
+        <block wx:if="{{!quizAnswerResult}}">
+      <button class="bhk-overlay__button" type="primary" bindtap="handleQuizAnswer">提交答案</button>
+      <button class="bhk-overlay__button" style="margin-top:12rpx;background:#666;" bindtap="closeQuizModal">取消</button>
+    </block>
+    <block wx:else>
+      <view class="bhk-info__item">正确答案：{{quizAnswerResult.correctAnswer}}</view>
+      <view class="bhk-info__item" wx:if="{{quizAnswerResult.tip}}">Tips：{{quizAnswerResult.tip}}</view>
+      <view class="bhk-info__item" wx:if="{{quizAnswerResult.awarded}}">已奖励 +1 次砍价</view>
+      <button class="bhk-overlay__button" type="primary" bindtap="closeQuizModal">我知道了</button>
+    </block>
+  </view>
 </view>
 
 <view class="bhk-footer" wx:if="{{activity}}">

@@ -159,6 +159,58 @@ function decorateActivity(activity) {
   };
 }
 
+
+function normalizeQuizAnswer(value = '') {
+  const answer = (value || '').toString().trim().toUpperCase();
+  return ['A', 'B', 'C'].includes(answer) ? answer : '';
+}
+
+function buildQuizQuestionFormFields(questions = []) {
+  const list = Array.isArray(questions) ? questions.slice(0, 3) : [];
+  const fields = {};
+  for (let i = 0; i < 3; i += 1) {
+    const item = list[i] || {};
+    const idx = i + 1;
+    fields[`quizQ${idx}Id`] = (item.id || `q${idx}`).toString();
+    fields[`quizQ${idx}Question`] = (item.question || '').toString();
+    fields[`quizQ${idx}OptionA`] = Array.isArray(item.options) ? (item.options[0] || '').toString() : '';
+    fields[`quizQ${idx}OptionB`] = Array.isArray(item.options) ? (item.options[1] || '').toString() : '';
+    fields[`quizQ${idx}OptionC`] = Array.isArray(item.options) ? (item.options[2] || '').toString() : '';
+    fields[`quizQ${idx}Answer`] = normalizeQuizAnswer(item.answer || '');
+    fields[`quizQ${idx}Tip`] = (item.tip || '').toString();
+  }
+  return fields;
+}
+
+function buildQuizQuestionsFromForm(form = {}) {
+  const questions = [];
+  for (let i = 1; i <= 3; i += 1) {
+    const id = (form[`quizQ${i}Id`] || `q${i}`).toString().trim();
+    const question = (form[`quizQ${i}Question`] || '').toString().trim();
+    const optionA = (form[`quizQ${i}OptionA`] || '').toString().trim();
+    const optionB = (form[`quizQ${i}OptionB`] || '').toString().trim();
+    const optionC = (form[`quizQ${i}OptionC`] || '').toString().trim();
+    const answer = normalizeQuizAnswer(form[`quizQ${i}Answer`]);
+    const tip = (form[`quizQ${i}Tip`] || '').toString().trim();
+
+    const hasAny = question || optionA || optionB || optionC || answer || tip;
+    if (!hasAny) {
+      continue;
+    }
+    if (!question || !optionA || !optionB || !optionC || !answer) {
+      return { error: `第${i}题请填写完整：题目、A/B/C选项、正确答案` };
+    }
+    questions.push({
+      id,
+      question,
+      options: [optionA, optionB, optionC],
+      answer,
+      tip
+    });
+  }
+  return { questions };
+}
+
 function buildEditorForm(activity) {
   if (!activity) {
     return {
@@ -181,6 +233,8 @@ function buildEditorForm(activity) {
       bargainStartPrice: '1500',
       bargainFloorPrice: '998',
       shareRewardAttempts: '1',
+      quizEnabled: true,
+      ...buildQuizQuestionFormFields([]),
       coverImage: '',
       sortOrder: '0'
     };
@@ -214,6 +268,11 @@ function buildEditorForm(activity) {
       activity.bargainSettings && Number.isFinite(activity.bargainSettings.shareRewardAttempts)
         ? `${activity.bargainSettings.shareRewardAttempts}`
         : '1',
+    quizEnabled:
+      activity.bargainSettings && typeof activity.bargainSettings.quizEnabled === 'boolean'
+        ? activity.bargainSettings.quizEnabled
+        : true,
+    ...buildQuizQuestionFormFields(activity.bargainSettings && activity.bargainSettings.quizQuestions),
     coverImage: activity.coverImage || '',
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
@@ -379,6 +438,11 @@ Page({
     this.setData({ [`editorForm.${field}`]: value });
   },
 
+  handleQuizSwitchChange(event) {
+    const checked = !!(event.detail && event.detail.value);
+    this.setData({ 'editorForm.quizEnabled': checked });
+  },
+
   handleEditorTimeChange(event) {
     const { field } = event.currentTarget.dataset || {};
     if (!field) {
@@ -416,10 +480,18 @@ Page({
     payload.activityType = form.activityType || 'standard';
     payload.activityTemplate = form.activityTemplate || '';
     if (payload.activityType === 'bargain') {
+      const quizBuildResult = buildQuizQuestionsFromForm(form);
+      if (quizBuildResult.error) {
+        wx.showToast({ title: quizBuildResult.error, icon: 'none' });
+        return;
+      }
+      const quizQuestions = quizBuildResult.questions;
       payload.bargainSettings = {
         startPrice: Number(form.bargainStartPrice || 1500),
         floorPrice: Number(form.bargainFloorPrice || 998),
-        shareRewardAttempts: Number(form.shareRewardAttempts || 1)
+        shareRewardAttempts: Number(form.shareRewardAttempts || 1),
+        quizEnabled: !!form.quizEnabled,
+        quizQuestions
       };
     } else {
       payload.bargainSettings = null;
