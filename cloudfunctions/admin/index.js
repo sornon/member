@@ -9457,11 +9457,19 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
   const floorPrice = Number(source.floorPrice);
   const shareRewardAttempts = Number(source.shareRewardAttempts);
   const stock = Number(source.stock);
+  const heroHeightRpx = Number(source.heroHeightRpx);
+  const rawHeroImagePath = trimToString(source.heroImagePath);
+  const normalizedHeroImagePath = rawHeroImagePath.replace(/\\/g, '/').trim();
+  const heroImagePath = normalizedHeroImagePath
+    ? `/${normalizedHeroImagePath.replace(/^\/+/, '')}`
+    : '/assets/background/articalday.jpg';
   const value = {
     startPrice: Number.isFinite(startPrice) ? Math.max(0, Math.floor(startPrice)) : 1500,
     floorPrice: Number.isFinite(floorPrice) ? Math.max(0, Math.floor(floorPrice)) : 998,
     shareRewardAttempts: Number.isFinite(shareRewardAttempts) ? Math.max(0, Math.floor(shareRewardAttempts)) : 1,
     stock: Number.isFinite(stock) ? Math.max(0, Math.floor(stock)) : 15,
+    heroImagePath,
+    heroHeightRpx: Number.isFinite(heroHeightRpx) ? Math.max(420, Math.floor(heroHeightRpx)) : 1000,
     ticketingMode: 'paid-ticket'
   };
   const defaultItems = [

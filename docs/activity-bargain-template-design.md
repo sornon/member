@@ -154,3 +154,25 @@
    - 新建/编辑音乐会活动，确认 `activityType=bargain`、`activityTemplate=concert-bargain`、`1500/998/1` 已保存。
    - 前台活动列表进入该活动后，检查标题、头图、价格初始值、最低价是否与音乐会配置一致。
    - 数据库检查 `bhkBargainRecords` 新增记录键是否为 `${音乐会活动ID}_${openid}`，`bhkBargainStock` 是否使用音乐会活动 ID 作为文档键。
+
+
+## 问题复盘（2026-05-23）：音乐会头图路径配置未生效
+
+### 现象
+- 后台活动管理已填写 `bargainSettings.heroImagePath=/assets/background/articalday.jpg`，但前台仍显示旧图：`.../assets/background/cover-20251126.jpg`。
+
+### 根因
+1. 后台管理端表单虽然新增了 `heroImagePath/heroHeightRpx` 并提交到 `payload.bargainSettings`；
+2. 但 `cloudfunctions/admin` 的 `normalizeBargainSettings` 白名单未包含这两个字段，保存时被规范化逻辑丢弃；
+3. `cloudfunctions/activities` 读取活动配置时拿不到 `heroImagePath`，只能回退到 `doc.coverImage` 或默认 `cover-20251126.jpg`。
+
+### 修复
+- 在 `cloudfunctions/admin/index.js` 的 `normalizeBargainSettings` 中补充：
+  - `heroImagePath`：标准化为以 `/` 开头的云存储相对路径，默认 `/assets/background/articalday.jpg`；
+  - `heroHeightRpx`：最小值保护 420，默认 1000。
+- 保持 `cloudfunctions/activities` 现有读取逻辑：优先 `heroImagePath`，再回退 `coverImage`。
+
+### 回归建议
+1. 管理后台编辑音乐会砍价活动并保存；
+2. 云开发数据库检查活动文档 `bargainSettings.heroImagePath` 是否已落库；
+3. 前台打开活动页，确认头图 URL 为 `/assets/background/articalday.jpg` 对应云地址。
