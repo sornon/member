@@ -9469,6 +9469,12 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
   const infoSectionEnabled =
     typeof source.infoSectionEnabled === 'boolean' ? source.infoSectionEnabled : source.infoSectionEnabled !== 'false';
   const infoSectionContent = normalizeMultilineString(source.infoSectionContent);
+  const activityTag1 = trimToString(source.activityTag1);
+  const activityTag2 = trimToString(source.activityTag2);
+  const activityTag1Enabled =
+    typeof source.activityTag1Enabled === 'boolean' ? source.activityTag1Enabled : source.activityTag1Enabled !== 'false';
+  const activityTag2Enabled =
+    typeof source.activityTag2Enabled === 'boolean' ? source.activityTag2Enabled : source.activityTag2Enabled !== 'false';
   const value = {
     startPrice: Number.isFinite(startPrice) ? Math.max(0, Math.floor(startPrice)) : 1500,
     floorPrice: Number.isFinite(floorPrice) ? Math.max(0, Math.floor(floorPrice)) : 998,
@@ -9481,6 +9487,10 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
     heroMaskEnabled,
     infoSectionEnabled,
     infoSectionContent,
+    activityTag1,
+    activityTag1Enabled,
+    activityTag2,
+    activityTag2Enabled,
     ticketingMode: 'paid-ticket'
   };
   const defaultItems = [

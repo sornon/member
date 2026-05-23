@@ -347,6 +347,12 @@ async function resolveBargainActivityRuntime(event = {}) {
       typeof settings.infoSectionContent === 'string' && settings.infoSectionContent.trim()
         ? settings.infoSectionContent.trim()
         : config.infoSectionContent;
+    config.activityTag1 = typeof settings.activityTag1 === 'string' ? settings.activityTag1.trim() : config.activityTag1;
+    config.activityTag2 = typeof settings.activityTag2 === 'string' ? settings.activityTag2.trim() : config.activityTag2;
+    config.activityTag1Enabled =
+      typeof settings.activityTag1Enabled === 'boolean' ? settings.activityTag1Enabled : config.activityTag1Enabled;
+    config.activityTag2Enabled =
+      typeof settings.activityTag2Enabled === 'boolean' ? settings.activityTag2Enabled : config.activityTag2Enabled;
     config.endsAt = doc.endTime || config.endsAt;
     return { activityId, activityDoc: doc, config };
   }
