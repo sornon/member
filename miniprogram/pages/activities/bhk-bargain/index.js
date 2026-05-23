@@ -442,6 +442,7 @@ Page({
       countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
       heroImage: bargain.heroImage || DEFAULT_HERO_IMAGE,
       perks: bargain.perks,
+      quiz: bargain.quiz || { enabled: false, rewardAttempts: 0, questions: [] },
       mapLocation,
       shareContext,
       memberId: session.memberId || this.data.memberId,
