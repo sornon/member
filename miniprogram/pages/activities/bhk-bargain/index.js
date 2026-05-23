@@ -447,7 +447,6 @@ Page({
       heroImage: bargain.heroImage || DEFAULT_HERO_IMAGE,
       perks: bargain.perks,
       quiz: bargain.quiz || { enabled: false, rewardAttempts: 0, questions: [] },
-      activeQuizQuestionIndex: -1,
       activeQuizQuestion: null,
       showQuizModal: false,
       selectedQuizOption: '',
@@ -747,8 +746,8 @@ Page({
       wx.showToast({ title: '题库未配置', icon: 'none' });
       return;
     }
-    let nextIndex = this.data.activeQuizQuestionIndex;
-    nextIndex = (nextIndex + 1) % questions.length;
+    const previousIndex = Number.isFinite(this.data.activeQuizQuestionIndex) ? this.data.activeQuizQuestionIndex : -1;
+    const nextIndex = (previousIndex + 1) % questions.length;
     this.setData({
       showQuizModal: true,
       activeQuizQuestionIndex: nextIndex,
