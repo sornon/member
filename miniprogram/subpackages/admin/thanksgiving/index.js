@@ -11,13 +11,17 @@ function normalizeActivities(list = []) {
       statusLabel: item.statusLabel || '草稿',
       periodLabel: item.periodLabel || '未设置活动时间',
       activityType: item.activityType || 'standard',
-      template: item.template || '',
+      activityTemplate: item.activityTemplate || item.template || '',
       summary: item.summary || ''
     }));
 }
 
 function isBargainActivity(activity = {}) {
-  return activity.activityType === 'bargain' || activity.template === 'thanksgiving-bargain' || activity.template === 'concert-bargain';
+  return (
+    activity.activityType === 'bargain' ||
+    activity.activityTemplate === 'thanksgiving-bargain' ||
+    activity.activityTemplate === 'concert-bargain'
+  );
 }
 
 Page({
