@@ -213,6 +213,10 @@ function buildEditorForm(activity) {
       activityTag1Enabled: 'true',
       activityTag2: '',
       activityTag2Enabled: 'true',
+      quizRewardEnabled: 'false',
+      quizQuestion: '',
+      quizOptionsText: '',
+      quizAnswerIndex: '0',
       sortOrder: '0'
     };
   }
@@ -295,6 +299,22 @@ function buildEditorForm(activity) {
       activity.bargainSettings && typeof activity.bargainSettings.activityTag2Enabled === 'boolean'
         ? `${activity.bargainSettings.activityTag2Enabled}`
         : 'true',
+    quizRewardEnabled:
+      activity.bargainSettings && activity.bargainSettings.quizReward && typeof activity.bargainSettings.quizReward.enabled === 'boolean'
+        ? `${activity.bargainSettings.quizReward.enabled}`
+        : 'false',
+    quizQuestion:
+      activity.bargainSettings && activity.bargainSettings.quizReward && typeof activity.bargainSettings.quizReward.question === 'string'
+        ? activity.bargainSettings.quizReward.question
+        : '',
+    quizOptionsText:
+      activity.bargainSettings && activity.bargainSettings.quizReward && Array.isArray(activity.bargainSettings.quizReward.options)
+        ? activity.bargainSettings.quizReward.options.join('\n')
+        : '',
+    quizAnswerIndex:
+      activity.bargainSettings && activity.bargainSettings.quizReward && Number.isFinite(activity.bargainSettings.quizReward.answerIndex)
+        ? `${activity.bargainSettings.quizReward.answerIndex}`
+        : '0',
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
 }
@@ -486,6 +506,12 @@ Page({
       'editorForm.activityTag2Enabled': index === 1 ? 'false' : 'true'
     });
   },
+  handleQuizRewardEnabledChange(event) {
+    const index = Number(event.detail.value);
+    this.setData({
+      'editorForm.quizRewardEnabled': index === 1 ? 'false' : 'true'
+    });
+  },
 
   handleEditorTimeChange(event) {
     const { field } = event.currentTarget.dataset || {};
@@ -564,8 +590,29 @@ Page({
         activityTag1: (form.activityTag1 || '').trim(),
         activityTag1Enabled: `${form.activityTag1Enabled}` !== 'false',
         activityTag2: (form.activityTag2 || '').trim(),
-        activityTag2Enabled: `${form.activityTag2Enabled}` !== 'false'
+        activityTag2Enabled: `${form.activityTag2Enabled}` !== 'false',
+        quizReward: {
+          enabled: `${form.quizRewardEnabled}` !== 'false',
+          question: (form.quizQuestion || '').trim(),
+          options: (form.quizOptionsText || '').split('\n').map((i) => i.trim()).filter(Boolean),
+          answerIndex: Number(form.quizAnswerIndex || 0)
+        }
       };
+      if (payload.bargainSettings.quizReward.enabled) {
+        const { question, options, answerIndex } = payload.bargainSettings.quizReward;
+        if (!question) {
+          wx.showToast({ title: '请输入答题题目', icon: 'none' });
+          return;
+        }
+        if (!Array.isArray(options) || options.length < 2) {
+          wx.showToast({ title: '答题选项至少2个', icon: 'none' });
+          return;
+        }
+        if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex >= options.length) {
+          wx.showToast({ title: '正确答案下标不合法', icon: 'none' });
+          return;
+        }
+      }
     } else {
       payload.bargainSettings = null;
     }

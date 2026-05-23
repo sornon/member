@@ -362,7 +362,8 @@ Page({
     shareTimelineSupported: true,
     shareTimelineMessage: '',
     singlePageMode: false,
-    bannerSubtitle: ''
+    bannerSubtitle: '',
+    quizReward: { enabled: false, question: '', options: [], rewarded: false }
   },
 
   onLoad(options = {}) {
@@ -524,11 +525,38 @@ Page({
       infoSectionItems: toMultilineItems(bargain.infoSectionContent),
       mapLocation,
       shareContext,
+      quizReward: extras.quizReward || this.data.quizReward,
       memberId: session.memberId || this.data.memberId,
       ticketOwned,
       bannerSubtitle: buildBannerSubtitle(bargain, stockRemaining)
     });
     this.startCountdown();
+  },
+
+
+  async handleQuizRewardTap() {
+    const quizReward = this.data.quizReward || {};
+    if (!quizReward.enabled) { return; }
+    if (quizReward.rewarded) { wx.showToast({ title: '答题奖励已领取', icon: 'none' }); return; }
+    const options = Array.isArray(quizReward.options) ? quizReward.options : [];
+    if (options.length < 2) { wx.showToast({ title: '题目配置异常', icon: 'none' }); return; }
+    wx.showActionSheet({
+      itemList: options,
+      success: async (res) => {
+        wx.showLoading({ title: '提交中...', mask: true });
+        try {
+          const response = await ActivityService.bargainAnswerQuiz(this.activityId, Number(res.tapIndex));
+          const activity = response && response.activity ? response.activity : this.data.activity;
+          const bargain = normalizeBargainConfig(response && response.bargainConfig);
+          const session = this.normalizeSession(response && response.session, bargain);
+          this.applySession(session, bargain, activity, { quizReward: response && response.quizReward, shareContext: response && response.shareContext });
+          const correct = Boolean(response && response.quizResult && response.quizResult.correct);
+          wx.showToast({ title: correct ? '回答正确，已+1次砍价' : '回答错误，可重试', icon: 'none' });
+        } catch (error) {
+          wx.showToast({ title: (error && (error.errMsg || error.message)) || '答题失败', icon: 'none' });
+        } finally { wx.hideLoading(); }
+      }
+    });
   },
 
   handlePlayHeroVideo() {
@@ -741,6 +769,7 @@ Page({
       const session = this.normalizeSession(response && response.session, bargain);
       this.applySession(session, bargain, activity, {
         shareContext: response && response.shareContext,
+        quizReward: response && response.quizReward,
         ticketOwned: this.data.ticketOwned,
         stockRemaining: this.data.stockRemaining
       });
@@ -911,6 +940,7 @@ Page({
       const session = this.normalizeSession(response && response.session, bargain);
       this.applySession(session, bargain, activity, {
         shareContext: response && response.shareContext,
+        quizReward: response && response.quizReward,
         ticketOwned: this.data.ticketOwned,
         stockRemaining: this.data.stockRemaining
       });
