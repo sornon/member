@@ -792,10 +792,12 @@ async function listQuizRanking(activityId = BHK_BARGAIN_ACTIVITY_ID, limit = 10)
     .collection(BHK_BARGAIN_QUIZ_RANK_COLLECTION)
     .where({ activityId })
     .orderBy('correctCount', 'desc')
-    .orderBy('updatedAt', 'asc')
     .limit(Math.max(1, Math.min(10, Number(limit) || 10)))
     .get()
-    .catch(() => ({ data: [] }));
+    .catch((error) => {
+      console.error('[bargain-quiz-rank] list failed', error);
+      return { data: [] };
+    });
   return (snapshot.data || []).map((item, index) => ({
     rank: index + 1,
     nickname: item.nickname || '神秘会员',
