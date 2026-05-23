@@ -241,6 +241,40 @@
         </view>
       </view>
       <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">答题奖励</text>
+        <picker mode="selector" range="{{['开启','关闭']}}" value="{{editorForm.quizRewardEnabled === 'false' ? 1 : 0}}" bindchange="handleQuizRewardEnabledChange">
+          <view class="picker-value">{{editorForm.quizRewardEnabled === 'false' ? '关闭' : '开启'}}</view>
+        </picker>
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain' && editorForm.quizRewardEnabled !== 'false'}}" class="form-row form-row--full">
+        <text class="form-label"></text>
+        <view class="quiz-extra">
+          <view class="quiz-extra__card">
+            <view class="quiz-extra__title">题目1</view>
+            <input class="form-input" value="{{editorForm.quizQuestion}}" data-field="quizQuestion" bindinput="handleEditorInput" />
+            <text class="quiz-extra__label">选项（每行一个）</text>
+            <textarea class="form-textarea" value="{{editorForm.quizOptionsText}}" data-field="quizOptionsText" bindinput="handleEditorTextArea"></textarea>
+            <text class="quiz-extra__label">正确答案序号（从0开始）</text>
+            <input class="form-input" type="number" value="{{editorForm.quizAnswerIndex}}" data-field="quizAnswerIndex" bindinput="handleEditorInput" />
+          </view>
+        </view>
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain' && editorForm.quizRewardEnabled !== 'false'}}" class="form-row form-row--full">
+        <text class="form-label"></text>
+        <view class="quiz-extra">
+          <view wx:for="{{editorForm.quizExtraQuestions}}" wx:key="index" class="quiz-extra__card">
+            <view class="quiz-extra__title">题目{{index + 2}}</view>
+            <input class="form-input" value="{{item.question}}" data-index="{{index}}" data-field="question" bindinput="handleQuizExtraQuestionInput" placeholder="请输入题目" />
+            <text class="quiz-extra__label">选项（每行一个）</text>
+            <textarea class="form-textarea" value="{{item.optionsText}}" data-index="{{index}}" data-field="optionsText" bindinput="handleQuizExtraQuestionInput"></textarea>
+            <text class="quiz-extra__label">正确答案序号（从0开始）</text>
+            <input class="form-input" type="number" value="{{item.answerIndex}}" data-index="{{index}}" data-field="answerIndex" bindinput="handleQuizExtraQuestionInput" />
+            <button class="ghost-btn quiz-extra__remove" size="mini" data-index="{{index}}" bindtap="handleRemoveQuizQuestion">删除此题</button>
+          </view>
+          <button class="submit-btn quiz-extra__add" size="mini" bindtap="handleAddQuizQuestion">+ 增加题目</button>
+        </view>
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
         <text class="form-label">分享奖励次数</text>
         <input class="form-input" type="number" value="{{editorForm.shareRewardAttempts}}" data-field="shareRewardAttempts" bindinput="handleEditorInput" />
       </view>

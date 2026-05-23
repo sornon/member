@@ -314,6 +314,53 @@ page {
   color: #fff;
 }
 
+.quiz-extra {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  flex: 1;
+  min-width: 0;
+}
+
+.quiz-extra__card {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8rpx 0;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.quiz-extra__title {
+  font-size: 24rpx;
+  color: rgba(226, 232, 240, 0.9);
+  font-weight: 600;
+}
+
+.quiz-extra__label {
+  font-size: 24rpx;
+  color: rgba(203, 213, 225, 0.86);
+}
+
+.quiz-extra__remove {
+  align-self: flex-end;
+}
+
+.quiz-extra__add {
+  margin-top: 8rpx;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 220rpx;
+  min-height: 72rpx;
+  visibility: visible;
+}
+
 .ghost-btn {
   padding: 14rpx 32rpx;
 }

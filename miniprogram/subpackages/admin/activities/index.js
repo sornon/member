@@ -160,6 +160,11 @@ function decorateActivity(activity) {
 }
 
 function buildEditorForm(activity) {
+  const buildQuestionItem = (item = {}) => ({
+    question: item && typeof item.question === 'string' ? item.question : '',
+    optionsText: Array.isArray(item && item.options) ? item.options.join('\n') : '',
+    answerIndex: Number.isFinite(item && item.answerIndex) ? `${item.answerIndex}` : '0'
+  });
   const defaultBargainItems = [
     { amount: '120', probability: '14' },
     { amount: '180', probability: '14' },
@@ -213,6 +218,11 @@ function buildEditorForm(activity) {
       activityTag1Enabled: 'true',
       activityTag2: '',
       activityTag2Enabled: 'true',
+      quizRewardEnabled: 'false',
+      quizQuestion: '',
+      quizOptionsText: '',
+      quizAnswerIndex: '0',
+      quizExtraQuestions: [],
       sortOrder: '0'
     };
   }
@@ -295,6 +305,27 @@ function buildEditorForm(activity) {
       activity.bargainSettings && typeof activity.bargainSettings.activityTag2Enabled === 'boolean'
         ? `${activity.bargainSettings.activityTag2Enabled}`
         : 'true',
+    quizRewardEnabled:
+      activity.bargainSettings && activity.bargainSettings.quizReward && activity.bargainSettings.quizReward.enabled ? 'true' : 'false',
+    quizQuestion:
+      activity.bargainSettings && activity.bargainSettings.quizReward && activity.bargainSettings.quizReward.question
+        ? activity.bargainSettings.quizReward.question
+        : '',
+    quizOptionsText:
+      activity.bargainSettings && activity.bargainSettings.quizReward && Array.isArray(activity.bargainSettings.quizReward.options)
+        ? activity.bargainSettings.quizReward.options.join('\n')
+        : '',
+    quizAnswerIndex:
+      activity.bargainSettings && activity.bargainSettings.quizReward && Number.isFinite(activity.bargainSettings.quizReward.answerIndex)
+        ? `${activity.bargainSettings.quizReward.answerIndex}`
+        : '0',
+    quizExtraQuestions:
+      activity.bargainSettings &&
+      activity.bargainSettings.quizReward &&
+      Array.isArray(activity.bargainSettings.quizReward.questions) &&
+      activity.bargainSettings.quizReward.questions.length > 1
+        ? activity.bargainSettings.quizReward.questions.slice(1).map((item) => buildQuestionItem(item))
+        : [],
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
 }
@@ -486,6 +517,12 @@ Page({
       'editorForm.activityTag2Enabled': index === 1 ? 'false' : 'true'
     });
   },
+  handleQuizRewardEnabledChange(event) {
+    const index = Number(event.detail.value);
+    this.setData({
+      'editorForm.quizRewardEnabled': index === 1 ? 'false' : 'true'
+    });
+  },
 
   handleEditorTimeChange(event) {
     const { field } = event.currentTarget.dataset || {};
@@ -505,6 +542,27 @@ Page({
     this.setData({
       [`editorForm.bargainItems[${targetIndex}].${field}`]: value
     });
+  },
+  handleQuizExtraQuestionInput(event) {
+    const { index, field } = event.currentTarget.dataset || {};
+    const targetIndex = Number(index);
+    if (Number.isNaN(targetIndex) || !field) return;
+    const value = event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
+    this.setData({ [`editorForm.quizExtraQuestions[${targetIndex}].${field}`]: value });
+  },
+  handleAddQuizQuestion() {
+    const current = Array.isArray(this.data.editorForm.quizExtraQuestions) ? this.data.editorForm.quizExtraQuestions : [];
+    this.setData({
+      'editorForm.quizExtraQuestions': [...current, { question: '', optionsText: '', answerIndex: '0' }]
+    });
+  },
+  handleRemoveQuizQuestion(event) {
+    const { index } = event.currentTarget.dataset || {};
+    const targetIndex = Number(index);
+    const current = Array.isArray(this.data.editorForm.quizExtraQuestions) ? [...this.data.editorForm.quizExtraQuestions] : [];
+    if (Number.isNaN(targetIndex) || targetIndex < 0 || targetIndex >= current.length) return;
+    current.splice(targetIndex, 1);
+    this.setData({ 'editorForm.quizExtraQuestions': current });
   },
 
   async handleEditorSubmit() {
@@ -549,6 +607,7 @@ Page({
         return;
       }
       payload.bargainSettings = {
+        ...(payload.bargainSettings || {}),
         startPrice: Number(form.bargainStartPrice || 1500),
         floorPrice: Number(form.bargainFloorPrice || 998),
         shareRewardAttempts: Number(form.shareRewardAttempts || 1),
@@ -564,7 +623,25 @@ Page({
         activityTag1: (form.activityTag1 || '').trim(),
         activityTag1Enabled: `${form.activityTag1Enabled}` !== 'false',
         activityTag2: (form.activityTag2 || '').trim(),
-        activityTag2Enabled: `${form.activityTag2Enabled}` !== 'false'
+        activityTag2Enabled: `${form.activityTag2Enabled}` !== 'false',
+        quizReward: {
+          enabled: `${form.quizRewardEnabled}` === 'true',
+          question: (form.quizQuestion || '').trim(),
+          options: normalizePerksInput(form.quizOptionsText || ''),
+          answerIndex: Number(form.quizAnswerIndex || 0),
+          questions: [
+            {
+              question: (form.quizQuestion || '').trim(),
+              options: normalizePerksInput(form.quizOptionsText || ''),
+              answerIndex: Number(form.quizAnswerIndex || 0)
+            },
+            ...(Array.isArray(form.quizExtraQuestions) ? form.quizExtraQuestions : []).map((item) => ({
+              question: ((item && item.question) || '').trim(),
+              options: normalizePerksInput((item && item.optionsText) || ''),
+              answerIndex: Number((item && item.answerIndex) || 0)
+            }))
+          ].filter((item) => item.question && item.options.length >= 2)
+        }
       };
     } else {
       payload.bargainSettings = null;

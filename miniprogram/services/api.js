@@ -943,6 +943,14 @@ export const ActivityService = {
       action: 'bargainConfirmPurchase',
       id
     });
+  },
+  async bargainQuizAnswer(id, selectedIndex, questionIndex = 0) {
+    return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
+      action: 'bargainQuizAnswer',
+      id,
+      selectedIndex,
+      questionIndex
+    });
   }
 };
 

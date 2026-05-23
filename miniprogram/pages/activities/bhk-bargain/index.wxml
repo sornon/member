@@ -136,6 +136,9 @@
       </view>
       <view class="bhk-price-card__perks" wx:if="{{perks.length}}">
         <view class="bhk-price-card__perk" wx:for="{{perks}}" wx:key="perk">{{item}}</view>
+        <view wx:if="{{quizReward.enabled}}" class="bhk-price-card__perk bhk-price-card__perk--quiz" bindtap="handleQuizRewardTap">
+          答题增加砍价次数（点击开始答题）
+        </view>
       </view>
     </view>
 
@@ -204,6 +207,33 @@
       </view>
     </view>
   </block>
+</view>
+
+<view wx:if="{{quizModalVisible}}" class="bhk-quiz-modal">
+  <view class="bhk-quiz-modal__mask" bindtap="handleQuizMaskTap"></view>
+  <view class="bhk-quiz-modal__panel">
+    <view class="bhk-quiz-modal__question">
+      {{(quizReward.questions && quizReward.questions.length ? quizReward.questions[quizCurrentIndex].question : quizReward.question) || '未配置题目'}}
+    </view>
+    <view class="bhk-quiz-modal__options">
+      <view
+        wx:for="{{quizReward.questions && quizReward.questions.length ? quizReward.questions[quizCurrentIndex].options : quizReward.options}}"
+        wx:key="index"
+        class="bhk-quiz-modal__option {{quizSelectedIndex===index ? 'bhk-quiz-modal__option--active' : ''}}"
+        data-index="{{index}}"
+        bindtap="handleQuizOptionTap"
+      >{{item}}</view>
+    </view>
+    <view class="bhk-quiz-modal__actions">
+      <button class="bhk-quiz-modal__btn" bindtap="handleQuizCancel">取消</button>
+      <button
+        wx:if="{{quizReward.questions && quizReward.questions.length && quizCurrentIndex < quizReward.questions.length - 1}}"
+        class="bhk-quiz-modal__btn"
+        bindtap="handleQuizNext"
+      >下一题</button>
+      <button class="bhk-quiz-modal__btn bhk-quiz-modal__btn--primary" bindtap="handleQuizSubmit">提交</button>
+    </view>
+  </view>
 </view>
 
 <view class="bhk-footer" wx:if="{{activity}}">

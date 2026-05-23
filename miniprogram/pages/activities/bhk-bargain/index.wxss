@@ -386,6 +386,23 @@
   border: 1rpx dashed rgba(255, 211, 149, 0.4);
   color: #fcead1;
 }
+.bhk-price-card__perk--quiz {
+  border-style: solid;
+  border-color: rgba(125, 211, 252, 0.6);
+  color: #d7f0ff;
+}
+
+.bhk-quiz-modal { position: fixed; inset: 0; z-index: 2000; display: flex; align-items: center; justify-content: center; }
+.bhk-quiz-modal__mask { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.78); }
+.bhk-quiz-modal__panel { position: relative; width: 86%; background: #101a2d; border-radius: 20rpx; padding: 28rpx; z-index: 1; }
+.bhk-quiz-modal__title { color: #ffd480; font-size: 32rpx; font-weight: 700; margin-bottom: 18rpx; }
+.bhk-quiz-modal__question { color: #fcead1; font-size: 28rpx; margin-bottom: 20rpx; }
+.bhk-quiz-modal__options { display: flex; flex-direction: column; gap: 12rpx; }
+.bhk-quiz-modal__option { padding: 16rpx; border: 1rpx solid rgba(255,255,255,0.25); border-radius: 12rpx; color: #fff; }
+.bhk-quiz-modal__option--active { border-color: #ffd480; background: rgba(255, 212, 128, 0.12); }
+.bhk-quiz-modal__actions { margin-top: 24rpx; display: flex; gap: 12rpx; justify-content: flex-end; }
+.bhk-quiz-modal__btn { font-size: 26rpx; }
+.bhk-quiz-modal__btn--primary { background: #ffd480; color: #3a2500; }
 
 .bhk-turntable__header {
   display: flex;
