@@ -109,6 +109,8 @@ exports.main = async (event = {}) => {
       return divineHandBhkBargain(event || {});
     case 'bargainConfirmPurchase':
       return confirmBhkBargainPurchase(event || {});
+    case 'bargainAnswerQuiz':
+      return answerBhkBargainQuiz(event || {});
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -1190,6 +1192,18 @@ function buildBargainPayload(config, session, overrides = {}) {
   return { ...payload, ...overrides };
 }
 
+function normalizeQuizConfig(settings = {}) {
+  const quiz = settings && typeof settings.quizReward === 'object' ? settings.quizReward : {};
+  const enabled = Boolean(quiz.enabled);
+  const question = typeof quiz.question === 'string' ? quiz.question.trim() : '';
+  const options = Array.isArray(quiz.options)
+    ? quiz.options.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean).slice(0, 6)
+    : [];
+  const answerIndex = Number.isFinite(quiz.answerIndex) ? Math.floor(quiz.answerIndex) : -1;
+  const valid = enabled && question && options.length >= 2 && answerIndex >= 0 && answerIndex < options.length;
+  return { enabled, question, options, answerIndex, valid };
+}
+
 async function getBhkBargainStatus(event = {}) {
   const { activityId, config, activityDoc } = await resolveBargainActivityRuntime(event);
   const shareId = typeof event.shareId === 'string' ? event.shareId.trim() : '';
@@ -1233,11 +1247,67 @@ async function getBhkBargainStatus(event = {}) {
       .catch(() => null);
   }
 
+  const quizConfig = normalizeQuizConfig(activityDoc && activityDoc.bargainSettings);
   return buildBargainPayload(config, normalizedSession, {
     activityDoc,
     shareContext,
+    quizReward: {
+      enabled: quizConfig.valid,
+      question: quizConfig.valid ? quizConfig.question : '',
+      options: quizConfig.valid ? quizConfig.options : [],
+      rewarded: Boolean(normalizedSession.quizRewarded)
+    },
     stockRemaining: stockState.stockRemaining,
     totalStock: stockState.totalStock
+  });
+}
+
+async function answerBhkBargainQuiz(event = {}) {
+  const { activityId, config, activityDoc } = await resolveBargainActivityRuntime(event);
+  const quizConfig = normalizeQuizConfig(activityDoc && activityDoc.bargainSettings);
+  if (!quizConfig.valid) {
+    throw new Error('答题奖励未开启');
+  }
+  const selectedIndex = Number(event.selectedIndex);
+  if (!Number.isFinite(selectedIndex)) {
+    throw new Error('请选择答案');
+  }
+  const { memberBoost, realmName, openid, profile, profileComplete } = await resolveMemberBoost(config);
+  const docId = `${activityId}_${openid}`;
+  await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName, openid, memberProfile: profile, profileComplete, activityId });
+  const stockState = await getBargainStock(config, activityId);
+  const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
+  let finalSession = null;
+  await db.runTransaction(async (transaction) => {
+    const ref = transaction.collection(BHK_BARGAIN_COLLECTION).doc(docId);
+    const snapshot = await ref.get().catch(() => null);
+    if (!snapshot || !snapshot.data) {
+      throw new Error('答题会话不存在');
+    }
+    const record = normalizeBargainSession(snapshot.data, config, { memberBoost, memberRealm: realmName }, openid);
+    const correct = Math.floor(selectedIndex) === quizConfig.answerIndex;
+    if (correct && !record.quizRewarded) {
+      record.quizRewarded = true;
+      record.remainingSpins = Math.max(0, (record.remainingSpins || 0) + 1);
+    }
+    record.updatedAt = now;
+    await ref.update({ data: record });
+    finalSession = record;
+  });
+  return buildBargainPayload(config, { ...finalSession, stockRemaining: stockState.stockRemaining }, {
+    activityDoc,
+    stockRemaining: stockState.stockRemaining,
+    totalStock: stockState.totalStock,
+    quizReward: {
+      enabled: true,
+      question: quizConfig.question,
+      options: quizConfig.options,
+      rewarded: Boolean(finalSession && finalSession.quizRewarded)
+    },
+    quizResult: {
+      correct: Math.floor(selectedIndex) === quizConfig.answerIndex,
+      rewarded: Boolean(finalSession && finalSession.quizRewarded)
+    }
   });
 }
 

@@ -955,6 +955,13 @@ export const AdminService = {
       pageSize
     });
   },
+  async bargainAnswerQuiz(id, selectedIndex) {
+    return callFunction({
+      action: 'bargainAnswerQuiz',
+      id,
+      selectedIndex
+    });
+  },
   async getMemberDetail(memberId, options = {}) {
     const payload = {
       action: 'getMemberDetail',

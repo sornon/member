@@ -136,6 +136,9 @@
       </view>
       <view class="bhk-price-card__perks" wx:if="{{perks.length}}">
         <view class="bhk-price-card__perk" wx:for="{{perks}}" wx:key="perk">{{item}}</view>
+        <view wx:if="{{quizReward.enabled}}" class="bhk-price-card__perk" bindtap="handleQuizRewardTap">
+          {{quizReward.rewarded ? '答题奖励：已获得1次砍价次数' : '答题奖励：答对1题可+1次砍价（点击答题）'}}
+        </view>
       </view>
     </view>
 
