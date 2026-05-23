@@ -16,6 +16,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 const _ = db.command;
+const WECHAT_REVIEW_RECHARGE_AMOUNT = 500000;
 
 const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'wallet' });
 
@@ -791,6 +792,17 @@ function resolveTransactionType(type, amount) {
   return 'unknown';
 }
 
+function buildTestRoleUpdate(member, amount) {
+  if (Number(amount) !== WECHAT_REVIEW_RECHARGE_AMOUNT) {
+    return null;
+  }
+  const roles = Array.isArray(member && member.roles) ? member.roles.filter(Boolean) : [];
+  if (roles.includes('test')) {
+    return null;
+  }
+  return Array.from(new Set([...roles, 'test']));
+}
+
 async function createRecharge(openid, amount) {
   const featureToggles = await loadFeatureToggles();
   if (!featureToggles.cashierEnabled) {
@@ -1229,11 +1241,17 @@ async function completeRecharge(openid, transactionId) {
       }
     });
 
+    const memberDoc = await transaction.collection(COLLECTIONS.MEMBERS).doc(openid).get().catch(() => null);
+    const member = memberDoc && memberDoc.data ? memberDoc.data : {};
     const memberUpdate = {
       cashBalance: _.inc(amount),
       totalRecharge: _.inc(amount),
       updatedAt: new Date()
     };
+    const testRoles = buildTestRoleUpdate(member, amount);
+    if (testRoles) {
+      memberUpdate.roles = testRoles;
+    }
     if (experienceGain > 0) {
       memberUpdate.experience = _.inc(experienceGain);
     }

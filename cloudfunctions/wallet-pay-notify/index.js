@@ -11,6 +11,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 const _ = db.command;
+const WECHAT_REVIEW_RECHARGE_AMOUNT = 500000;
 
 const WECHAT_PAYMENT_SECURITY = {
   apiV3Key: (process.env.WECHAT_PAY_API_V3_KEY || '').trim()
@@ -159,11 +160,19 @@ async function handleSuccessfulTransaction(transactionId, payload) {
 
     if (record.status !== 'success') {
       const experienceGain = calculateExperienceGain(amount);
+      const memberDoc = await transaction.collection(COLLECTIONS.MEMBERS).doc(record.memberId).get().catch(() => null);
+      const member = memberDoc && memberDoc.data ? memberDoc.data : {};
       const memberUpdates = {
         cashBalance: _.inc(amount),
         totalRecharge: _.inc(amount),
         updatedAt: now
       };
+      if (Number(amount) === WECHAT_REVIEW_RECHARGE_AMOUNT) {
+        const roles = Array.isArray(member.roles) ? member.roles.filter(Boolean) : [];
+        if (!roles.includes('test')) {
+          memberUpdates.roles = Array.from(new Set([...roles, 'test']));
+        }
+      }
       if (experienceGain > 0) {
         memberUpdates.experience = _.inc(experienceGain);
       }
