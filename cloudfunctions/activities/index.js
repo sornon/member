@@ -770,7 +770,7 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
 
 async function incrementQuizRanking(activityId = BHK_BARGAIN_ACTIVITY_ID, openid = '', profile = {}, delta = 1) {
   if (!openid || delta <= 0) {
-    return;
+    return null;
   }
   await ensureCollectionExists(BHK_BARGAIN_QUIZ_RANK_COLLECTION);
   const docId = `${activityId}_${openid}`;
@@ -781,9 +781,12 @@ async function incrementQuizRanking(activityId = BHK_BARGAIN_ACTIVITY_ID, openid
   const snapshot = await ref.get().catch(() => null);
   if (snapshot && snapshot.data) {
     await ref.update({ data: { correctCount: _.inc(delta), nickname, avatar, updatedAt: now } });
-    return;
+    const latest = await ref.get().catch(() => null);
+    const count = latest && latest.data && Number.isFinite(latest.data.correctCount) ? latest.data.correctCount : delta;
+    return { memberId: openid, nickname, avatar, correctCount: count };
   }
   await ref.set({ data: { activityId, memberId: openid, nickname, avatar, correctCount: delta, createdAt: now, updatedAt: now } });
+  return { memberId: openid, nickname, avatar, correctCount: delta };
 }
 
 async function listQuizRanking(activityId = BHK_BARGAIN_ACTIVITY_ID, limit = 10) {
@@ -800,6 +803,7 @@ async function listQuizRanking(activityId = BHK_BARGAIN_ACTIVITY_ID, limit = 10)
     });
   return (snapshot.data || []).map((item, index) => ({
     rank: index + 1,
+    memberId: item.memberId || '',
     nickname: item.nickname || '神秘会员',
     avatar: item.avatar || '',
     correctCount: Number.isFinite(item.correctCount) ? item.correctCount : 0
@@ -841,11 +845,18 @@ async function answerBhkBargainQuiz(event = {}) {
       }
     });
   }
+  let selfRanking = null;
   if (correct) {
-    await incrementQuizRanking(activityId, openid, session.memberProfile || {}, 1);
+    selfRanking = await incrementQuizRanking(activityId, openid, session.memberProfile || {}, 1);
   }
   const latest = await db.collection(BHK_BARGAIN_COLLECTION).doc(session.id).get().then(r=>r.data).catch(()=>session);
-  const ranking = await listQuizRanking(activityId, 10);
+  let ranking = await listQuizRanking(activityId, 10);
+  if (selfRanking && !ranking.some((item) => item && item.memberId === openid)) {
+    ranking = [{ rank: 0, memberId: openid, nickname: selfRanking.nickname || '神秘会员', avatar: selfRanking.avatar || '', correctCount: selfRanking.correctCount || 1 }, ...ranking]
+      .sort((a, b) => (b.correctCount || 0) - (a.correctCount || 0))
+      .slice(0, 10)
+      .map((item, index) => ({ ...item, rank: index + 1 }));
+  }
   return {
     activity: decorateActivity(activityDoc || buildBhkBargainActivity()),
     bargainConfig: { ...config, quiz: buildPublicQuizConfig(config) },
