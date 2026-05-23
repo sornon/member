@@ -231,3 +231,19 @@
 3. 在微信开发者工具点“清缓存并编译”；真机端退出小程序后重进。
 4. 管理端确认对应活动：`activityType=bargain` 且 `quizEnabled=true`。
 5. 再进入 `活动-test` 页面，检查是否出现“答题加砍价次数”模块。
+
+
+### 提交答案报错 `ensureBhkBargainSession is not defined` 的修复部署
+
+该错误说明线上 `cloudfunctions/activities` 仍在旧代码分支，`bargainQuizAnswer` 内调用了不存在的方法。
+
+**修复后代码行为**：改为调用现有方法 `getOrCreateBargainSession(config, { openid, activityId })`。
+
+**请按以下步骤重新部署：**
+1. 微信开发者工具右键 `cloudfunctions/activities`。
+2. 选择 **上传并部署：云端安装依赖**。
+3. 等待部署成功后，在云函数日志确认最新发布时间。
+4. 小程序端“清缓存并编译”，真机退出后重进。
+5. 重新进入 `活动-test`，点击答题提交验证。
+
+若仍报错，请截图云函数日志中的 `callId` 和最新 `errMsg`。

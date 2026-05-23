@@ -787,7 +787,7 @@ async function answerBhkBargainQuiz(event = {}) {
   const question = (quiz.questions || []).find((q) => q.id === questionId);
   if (!question) throw new Error('题目不存在');
 
-  const session = await ensureBhkBargainSession(openid, config, { activityId, activityDoc });
+  const session = await getOrCreateBargainSession(config, { openid, activityId });
   const answeredIds = Array.isArray(session.quizAnsweredIds) ? session.quizAnsweredIds : [];
   const correct = answer === String(question.answer || '').trim().toUpperCase();
   let awarded = false;
