@@ -893,7 +893,13 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
       : '',
     chargeOrderAmount: Number.isFinite(record.chargeOrderAmount) ? record.chargeOrderAmount : 0,
     chargeOrderCreatedAt: record.chargeOrderCreatedAt || null,
-    thanksgivingProfileRewarded: Boolean(record.thanksgivingProfileRewarded)
+    thanksgivingProfileRewarded: Boolean(record.thanksgivingProfileRewarded),
+    quizRewarded: Boolean(record.quizRewarded),
+    quizRewardedQuestionIndexes: Array.isArray(record.quizRewardedQuestionIndexes)
+      ? record.quizRewardedQuestionIndexes
+          .filter((item) => Number.isFinite(Number(item)))
+          .map((item) => Math.max(0, Math.floor(Number(item))))
+      : []
   };
 
   return { ...normalized, ...overrides };
