@@ -9524,6 +9524,20 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
 }
 
 function normalizeBargainQuizReward(source = {}) {
+  const normalizeQuestion = (item = {}) => {
+    const options = Array.isArray(item.options)
+      ? item.options.map((opt) => trimToString(opt)).filter(Boolean).slice(0, 6)
+      : [];
+    const answerIndex = Number(item.answerIndex);
+    return {
+      question: trimToString(item.question),
+      options,
+      answerIndex: Number.isFinite(answerIndex) ? Math.max(0, Math.floor(answerIndex)) : -1
+    };
+  };
+  const questions = Array.isArray(source && source.questions)
+    ? source.questions.map((item) => normalizeQuestion(item)).filter((item) => item.question)
+    : [];
   const options = Array.isArray(source && source.options)
     ? source.options.map((item) => trimToString(item)).filter(Boolean).slice(0, 6)
     : [];
@@ -9532,7 +9546,8 @@ function normalizeBargainQuizReward(source = {}) {
     enabled: Boolean(source && source.enabled),
     question: trimToString(source && source.question),
     options,
-    answerIndex: Number.isFinite(answerIndex) ? Math.max(0, Math.floor(answerIndex)) : -1
+    answerIndex: Number.isFinite(answerIndex) ? Math.max(0, Math.floor(answerIndex)) : -1,
+    questions
   };
 }
 

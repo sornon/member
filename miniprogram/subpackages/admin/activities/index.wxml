@@ -258,6 +258,10 @@
         <text class="form-label">正确答案序号（从0开始）</text>
         <input class="form-input" type="number" value="{{editorForm.quizAnswerIndex}}" data-field="quizAnswerIndex" bindinput="handleEditorInput" />
       </view>
+      <view wx:if="{{editorForm.activityType === 'bargain' && editorForm.quizRewardEnabled !== 'false'}}" class="form-row form-row--full">
+        <text class="form-label">多题配置（每行：题目|选项1|选项2|...|正确答案序号）</text>
+        <textarea class="form-textarea" value="{{editorForm.quizQuestionsText}}" data-field="quizQuestionsText" bindinput="handleEditorTextArea"></textarea>
+      </view>
       <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
         <text class="form-label">分享奖励次数</text>
         <input class="form-input" type="number" value="{{editorForm.shareRewardAttempts}}" data-field="shareRewardAttempts" bindinput="handleEditorInput" />

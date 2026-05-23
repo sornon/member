@@ -258,6 +258,20 @@ function buildBhkBargainConfig() {
 }
 
 function normalizeQuizConfig(source = {}) {
+  const normalizeQuestion = (item = {}) => {
+    const options = Array.isArray(item.options)
+      ? item.options.map((opt) => `${opt || ''}`.trim()).filter(Boolean).slice(0, 6)
+      : [];
+    const answerIndex = Number(item.answerIndex);
+    return {
+      question: typeof item.question === 'string' ? item.question.trim() : '',
+      options,
+      answerIndex: Number.isFinite(answerIndex) ? Math.max(0, Math.floor(answerIndex)) : -1
+    };
+  };
+  const questions = Array.isArray(source.questions)
+    ? source.questions.map((item) => normalizeQuestion(item)).filter((item) => item.question)
+    : [];
   const enabled = Boolean(source && source.enabled);
   const question = typeof source.question === 'string' ? source.question.trim() : '';
   const options = Array.isArray(source.options) ? source.options.map((item) => `${item || ''}`.trim()).filter(Boolean).slice(0, 6) : [];
@@ -266,7 +280,8 @@ function normalizeQuizConfig(source = {}) {
     enabled,
     question,
     options,
-    answerIndex: Number.isFinite(answerIndex) ? Math.max(0, Math.floor(answerIndex)) : -1
+    answerIndex: Number.isFinite(answerIndex) ? Math.max(0, Math.floor(answerIndex)) : -1,
+    questions
   };
 }
 
@@ -1479,7 +1494,18 @@ async function answerBhkBargainQuiz(event = {}) {
   if (!quiz.enabled) {
     throw new Error('答题奖励未开启');
   }
-  if (!quiz.question || quiz.options.length < 2 || quiz.answerIndex < 0 || quiz.answerIndex >= quiz.options.length) {
+  const questions = Array.isArray(quiz.questions) && quiz.questions.length
+    ? quiz.questions
+    : [{ question: quiz.question, options: quiz.options, answerIndex: quiz.answerIndex }];
+  const questionIndex = Number.isFinite(Number(event.questionIndex)) ? Math.max(0, Math.floor(Number(event.questionIndex))) : 0;
+  const targetQuestion = questions[questionIndex];
+  if (
+    !targetQuestion ||
+    !targetQuestion.question ||
+    targetQuestion.options.length < 2 ||
+    targetQuestion.answerIndex < 0 ||
+    targetQuestion.answerIndex >= targetQuestion.options.length
+  ) {
     throw new Error('答题配置不完整');
   }
   const selectedIndex = Number(event.selectedIndex);
@@ -1487,17 +1513,28 @@ async function answerBhkBargainQuiz(event = {}) {
     throw new Error('请选择答案');
   }
   const session = await getOrCreateBargainSession(config, { memberBoost, memberRealm: realmName, openid, activityId, memberProfile: profile, profileComplete });
-  if (session.quizRewarded) {
-    return buildBargainPayload(config, session, { activityDoc, quizResult: { correct: true, rewarded: false, alreadyRewarded: true } });
+  const rewardedIndexes = Array.isArray(session.quizRewardedQuestionIndexes)
+    ? session.quizRewardedQuestionIndexes.filter((idx) => Number.isFinite(idx)).map((idx) => Math.floor(idx))
+    : session.quizRewarded
+      ? [0]
+      : [];
+  if (rewardedIndexes.includes(questionIndex)) {
+    return buildBargainPayload(config, session, { activityDoc, quizResult: { correct: true, rewarded: false, alreadyRewarded: true, questionIndex } });
   }
-  if (selectedIndex !== quiz.answerIndex) {
-    return buildBargainPayload(config, session, { activityDoc, quizResult: { correct: false, rewarded: false, alreadyRewarded: false } });
+  if (selectedIndex !== targetQuestion.answerIndex) {
+    return buildBargainPayload(config, session, { activityDoc, quizResult: { correct: false, rewarded: false, alreadyRewarded: false, questionIndex } });
   }
   const ref = db.collection(BHK_BARGAIN_COLLECTION).doc(`${activityId}_${openid}`);
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
-  const updated = { ...session, remainingSpins: Math.max(0, (session.remainingSpins || 0) + 1), quizRewarded: true, updatedAt: now };
+  const updated = {
+    ...session,
+    remainingSpins: Math.max(0, (session.remainingSpins || 0) + 1),
+    quizRewarded: true,
+    quizRewardedQuestionIndexes: [...rewardedIndexes, questionIndex],
+    updatedAt: now
+  };
   await ref.update({ data: updated });
-  return buildBargainPayload(config, updated, { activityDoc, quizResult: { correct: true, rewarded: true, alreadyRewarded: false } });
+  return buildBargainPayload(config, updated, { activityDoc, quizResult: { correct: true, rewarded: true, alreadyRewarded: false, questionIndex } });
 }
 
 async function divineHandBhkBargain(event = {}) {

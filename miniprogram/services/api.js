@@ -944,11 +944,12 @@ export const ActivityService = {
       id
     });
   },
-  async bargainQuizAnswer(id, selectedIndex) {
+  async bargainQuizAnswer(id, selectedIndex, questionIndex = 0) {
     return callCloud(CLOUD_FUNCTIONS.ACTIVITIES, {
       action: 'bargainQuizAnswer',
       id,
-      selectedIndex
+      selectedIndex,
+      questionIndex
     });
   }
 };

@@ -209,6 +209,34 @@
   </block>
 </view>
 
+<view wx:if="{{quizModalVisible}}" class="bhk-quiz-modal">
+  <view class="bhk-quiz-modal__mask" bindtap="handleQuizMaskTap"></view>
+  <view class="bhk-quiz-modal__panel">
+    <view class="bhk-quiz-modal__title">答题增加砍价次数</view>
+    <view class="bhk-quiz-modal__question">
+      {{(quizReward.questions && quizReward.questions.length ? quizReward.questions[quizCurrentIndex].question : quizReward.question) || '未配置题目'}}
+    </view>
+    <view class="bhk-quiz-modal__options">
+      <view
+        wx:for="{{quizReward.questions && quizReward.questions.length ? quizReward.questions[quizCurrentIndex].options : quizReward.options}}"
+        wx:key="index"
+        class="bhk-quiz-modal__option {{quizSelectedIndex===index ? 'bhk-quiz-modal__option--active' : ''}}"
+        data-index="{{index}}"
+        bindtap="handleQuizOptionTap"
+      >{{item}}</view>
+    </view>
+    <view class="bhk-quiz-modal__actions">
+      <button class="bhk-quiz-modal__btn" bindtap="handleQuizCancel">取消</button>
+      <button
+        wx:if="{{quizReward.questions && quizReward.questions.length && quizCurrentIndex < quizReward.questions.length - 1}}"
+        class="bhk-quiz-modal__btn"
+        bindtap="handleQuizNext"
+      >下一题</button>
+      <button class="bhk-quiz-modal__btn bhk-quiz-modal__btn--primary" bindtap="handleQuizSubmit">提交</button>
+    </view>
+  </view>
+</view>
+
 <view class="bhk-footer" wx:if="{{activity}}">
   <view class="bhk-footer__price">¥{{currentPrice}}</view>
   <view class="bhk-footer__note">{{ticketOwned ? '已持通行证，可在权益中查看' : '仅剩' + stockRemaining + '张'}}</view>

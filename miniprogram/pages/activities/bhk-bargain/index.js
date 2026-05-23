@@ -80,11 +80,19 @@ function normalizeBargainConfig(config = {}) {
   const activityTag1Enabled = typeof config.activityTag1Enabled === 'boolean' ? config.activityTag1Enabled : Boolean(activityTag1);
   const activityTag2Enabled = typeof config.activityTag2Enabled === 'boolean' ? config.activityTag2Enabled : Boolean(activityTag2);
   const quizRewardRaw = config.quizReward && typeof config.quizReward === 'object' ? config.quizReward : {};
+  const questions = Array.isArray(quizRewardRaw.questions)
+    ? quizRewardRaw.questions.map((item) => ({
+        question: typeof item.question === 'string' ? item.question.trim() : '',
+        options: Array.isArray(item.options) ? item.options.map((opt) => `${opt || ''}`.trim()).filter(Boolean) : [],
+        answerIndex: Number.isFinite(item.answerIndex) ? item.answerIndex : -1
+      })).filter((item) => item.question && item.options.length >= 2)
+    : [];
   const quizReward = {
     enabled: Boolean(quizRewardRaw.enabled),
     question: typeof quizRewardRaw.question === 'string' ? quizRewardRaw.question.trim() : '',
     options: Array.isArray(quizRewardRaw.options) ? quizRewardRaw.options.map((item) => `${item || ''}`.trim()).filter(Boolean) : [],
-    answerIndex: Number.isFinite(quizRewardRaw.answerIndex) ? quizRewardRaw.answerIndex : -1
+    answerIndex: Number.isFinite(quizRewardRaw.answerIndex) ? quizRewardRaw.answerIndex : -1,
+    questions
   };
   return {
     startPrice,
@@ -370,8 +378,11 @@ Page({
     shareTimelineSupported: true,
     shareTimelineMessage: '',
     singlePageMode: false,
-    bannerSubtitle: ''
-    ,quizReward: { enabled: false, question: '', options: [], answerIndex: -1 }
+    bannerSubtitle: '',
+    quizReward: { enabled: false, question: '', options: [], answerIndex: -1, questions: [] },
+    quizModalVisible: false,
+    quizCurrentIndex: 0,
+    quizSelectedIndex: -1
   },
 
   onLoad(options = {}) {
@@ -535,8 +546,8 @@ Page({
       shareContext,
       memberId: session.memberId || this.data.memberId,
       ticketOwned,
-      bannerSubtitle: buildBannerSubtitle(bargain, stockRemaining)
-      ,quizReward: bargain.quizReward || { enabled: false, question: '', options: [], answerIndex: -1 }
+      bannerSubtitle: buildBannerSubtitle(bargain, stockRemaining),
+      quizReward: bargain.quizReward || { enabled: false, question: '', options: [], answerIndex: -1, questions: [] }
     });
     this.startCountdown();
   },
@@ -890,21 +901,43 @@ Page({
       return;
     }
     const that = this;
-    wx.showActionSheet({
-      itemList: quiz.options,
-      success: async (res) => {
-        try {
-          const resp = await ActivityService.bargainQuizAnswer(this.activityId, res.tapIndex);
-          const bargain = normalizeBargainConfig(resp && resp.bargainConfig);
-          const session = this.normalizeSession(resp && resp.session, bargain);
-          that.applySession(session, bargain, resp && resp.activity ? resp.activity : that.data.activity);
-          const result = resp && resp.quizResult;
-          wx.showToast({ title: result && result.correct ? (result.rewarded ? '回答正确，已+1次' : '回答正确') : '回答错误，请重试', icon: 'none' });
-        } catch (error) {
-          wx.showToast({ title: error.errMsg || '答题失败', icon: 'none' });
-        }
-      }
-    });
+    that.setData({ quizModalVisible: true, quizCurrentIndex: 0, quizSelectedIndex: -1 });
+  },
+  handleQuizMaskTap() {
+    this.setData({ quizModalVisible: false, quizSelectedIndex: -1 });
+  },
+  handleQuizOptionTap(event) {
+    const { index } = event.currentTarget.dataset || {};
+    this.setData({ quizSelectedIndex: Number(index) });
+  },
+  handleQuizCancel() {
+    this.setData({ quizModalVisible: false, quizSelectedIndex: -1 });
+  },
+  handleQuizNext() {
+    const questions = (this.data.quizReward && this.data.quizReward.questions) || [];
+    if (this.data.quizCurrentIndex < questions.length - 1) {
+      this.setData({ quizCurrentIndex: this.data.quizCurrentIndex + 1, quizSelectedIndex: -1 });
+    }
+  },
+  async handleQuizSubmit() {
+    const quiz = this.data.quizReward || {};
+    const questions = Array.isArray(quiz.questions) && quiz.questions.length ? quiz.questions : [quiz];
+    const current = questions[this.data.quizCurrentIndex] || null;
+    if (!current) return;
+    if (!Number.isFinite(this.data.quizSelectedIndex) || this.data.quizSelectedIndex < 0) {
+      wx.showToast({ title: '请选择一个答案', icon: 'none' });
+      return;
+    }
+    try {
+      const resp = await ActivityService.bargainQuizAnswer(this.activityId, this.data.quizSelectedIndex, this.data.quizCurrentIndex);
+      const bargain = normalizeBargainConfig(resp && resp.bargainConfig);
+      const session = this.normalizeSession(resp && resp.session, bargain);
+      this.applySession(session, bargain, resp && resp.activity ? resp.activity : this.data.activity);
+      const result = resp && resp.quizResult;
+      wx.showToast({ title: result && result.correct ? (result.rewarded ? '回答正确，已+1次' : '本题已领取') : '回答错误，请重试', icon: 'none' });
+    } catch (error) {
+      wx.showToast({ title: error.errMsg || '答题失败', icon: 'none' });
+    }
   },
 
   handlePurchase() {

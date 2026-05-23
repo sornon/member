@@ -217,6 +217,7 @@ function buildEditorForm(activity) {
       quizQuestion: '',
       quizOptionsText: '',
       quizAnswerIndex: '0',
+      quizQuestionsText: '',
       sortOrder: '0'
     };
   }
@@ -313,6 +314,17 @@ function buildEditorForm(activity) {
       activity.bargainSettings && activity.bargainSettings.quizReward && Number.isFinite(activity.bargainSettings.quizReward.answerIndex)
         ? `${activity.bargainSettings.quizReward.answerIndex}`
         : '0',
+    quizQuestionsText:
+      activity.bargainSettings &&
+      activity.bargainSettings.quizReward &&
+      Array.isArray(activity.bargainSettings.quizReward.questions)
+        ? activity.bargainSettings.quizReward.questions
+            .map((item) => {
+              const opts = Array.isArray(item.options) ? item.options : [];
+              return [item.question || '', ...opts, `${Number(item.answerIndex || 0)}`].join('|');
+            })
+            .join('\n')
+        : '',
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
 }
@@ -573,6 +585,7 @@ Page({
         return;
       }
       payload.bargainSettings = {
+        ...(payload.bargainSettings || {}),
         startPrice: Number(form.bargainStartPrice || 1500),
         floorPrice: Number(form.bargainFloorPrice || 998),
         shareRewardAttempts: Number(form.shareRewardAttempts || 1),
@@ -593,7 +606,19 @@ Page({
           enabled: `${form.quizRewardEnabled}` === 'true',
           question: (form.quizQuestion || '').trim(),
           options: normalizePerksInput(form.quizOptionsText || ''),
-          answerIndex: Number(form.quizAnswerIndex || 0)
+          answerIndex: Number(form.quizAnswerIndex || 0),
+          questions: (form.quizQuestionsText || '')
+            .split(/\r?\n+/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .map((line) => {
+              const parts = line.split('|').map((item) => item.trim());
+              const question = parts[0] || '';
+              const answerIndex = Number(parts[parts.length - 1] || 0);
+              const options = parts.slice(1, -1).filter(Boolean);
+              return { question, options, answerIndex: Number.isFinite(answerIndex) ? answerIndex : 0 };
+            })
+            .filter((item) => item.question && Array.isArray(item.options) && item.options.length >= 2)
         }
       };
     } else {
