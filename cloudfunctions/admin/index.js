@@ -5966,47 +5966,58 @@ async function reconcileMemberLevelRewardsAfterExperienceRollback(memberId, leve
 async function listTestMembers() {
   const collection = db.collection(COLLECTIONS.MEMBERS);
   const pageSize = 100;
-  let skip = 0;
-  const members = [];
+  const membersMap = new Map();
 
-  while (true) {
-    let snapshot;
-    try {
-      snapshot = await collection
-        .where({ roles: _.all(['test']) })
-        .orderBy('_id', 'asc')
-        .skip(skip)
-        .limit(pageSize)
-        .field({ _id: true, roles: true })
-        .get();
-    } catch (error) {
-      if (isNotFoundError(error)) {
+  async function collectMembersByFilter(filter) {
+    let skip = 0;
+    while (true) {
+      let snapshot;
+      try {
+        snapshot = await collection
+          .where(filter)
+          .orderBy('_id', 'asc')
+          .skip(skip)
+          .limit(pageSize)
+          .field({ _id: true, roles: true, isTestUser: true })
+          .get();
+      } catch (error) {
+        if (isNotFoundError(error)) {
+          break;
+        }
+        console.error('[admin] list test members failed', filter, error);
         break;
       }
-      console.error('[admin] list test members failed', error);
-      break;
-    }
 
-    const docs = (snapshot && Array.isArray(snapshot.data)) ? snapshot.data : [];
-    if (!docs.length) {
-      break;
-    }
-
-    docs.forEach((doc) => {
-      const id = normalizeMemberIdValue(doc && doc._id);
-      const roles = Array.isArray(doc && doc.roles) ? doc.roles.filter(Boolean) : [];
-      if (id && roles.includes('test') && !roles.some((role) => ADMIN_ROLES.includes(role))) {
-        members.push({ _id: id, roles });
+      const docs = snapshot && Array.isArray(snapshot.data) ? snapshot.data : [];
+      if (!docs.length) {
+        break;
       }
-    });
 
-    if (docs.length < pageSize) {
-      break;
+      docs.forEach((doc) => {
+        const id = normalizeMemberIdValue(doc && doc._id);
+        const roles = Array.isArray(doc && doc.roles) ? doc.roles.filter(Boolean) : [];
+        const isTestUser = Boolean(doc && doc.isTestUser);
+        if (!id || roles.some((role) => ADMIN_ROLES.includes(role))) {
+          return;
+        }
+        if (roles.includes('test') || isTestUser) {
+          membersMap.set(id, { _id: id, roles, isTestUser });
+        }
+      });
+
+      if (docs.length < pageSize) {
+        break;
+      }
+      skip += pageSize;
     }
-    skip += pageSize;
   }
 
-  return members;
+  // 兼容旧逻辑：roles 含 test 的账号
+  await collectMembersByFilter({ roles: _.all(['test']) });
+  // 新逻辑：充值流程标记过 isTestUser 的账号
+  await collectMembersByFilter({ isTestUser: true });
+
+  return Array.from(membersMap.values());
 }
 
 async function summarizeTestMemberAssociations(memberIds) {
