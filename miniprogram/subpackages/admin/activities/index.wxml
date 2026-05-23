@@ -287,6 +287,30 @@
           bindinput="handleEditorTextArea"
         ></textarea>
       </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--split">
+        <view class="form-item">
+          <text class="form-label">活动标签1</text>
+          <input class="form-input" value="{{editorForm.activityTag1}}" data-field="activityTag1" bindinput="handleEditorInput" placeholder="如：顶级雪茄" />
+        </view>
+        <view class="form-item">
+          <text class="form-label">活动标签1开关</text>
+          <picker mode="selector" range="{{['开启','关闭']}}" value="{{editorForm.activityTag1Enabled === 'false' ? 1 : 0}}" bindchange="handleActivityTag1EnabledChange">
+            <view class="picker-value">{{editorForm.activityTag1Enabled === 'false' ? '关闭' : '开启'}}</view>
+          </picker>
+        </view>
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--split">
+        <view class="form-item">
+          <text class="form-label">活动标签2</text>
+          <input class="form-input" value="{{editorForm.activityTag2}}" data-field="activityTag2" bindinput="handleEditorInput" placeholder="如：感恩节回馈" />
+        </view>
+        <view class="form-item">
+          <text class="form-label">活动标签2开关</text>
+          <picker mode="selector" range="{{['开启','关闭']}}" value="{{editorForm.activityTag2Enabled === 'false' ? 1 : 0}}" bindchange="handleActivityTag2EnabledChange">
+            <view class="picker-value">{{editorForm.activityTag2Enabled === 'false' ? '关闭' : '开启'}}</view>
+          </picker>
+        </view>
+      </view>
       <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--full">
         <text class="form-label">砍价项配置（概率总和100%）</text>
         <view class="bargain-items">

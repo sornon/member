@@ -209,6 +209,10 @@ function buildEditorForm(activity) {
       heroMaskEnabled: 'true',
       infoSectionEnabled: 'true',
       infoSectionContent: '',
+      activityTag1: '',
+      activityTag1Enabled: 'true',
+      activityTag2: '',
+      activityTag2Enabled: 'true',
       sortOrder: '0'
     };
   }
@@ -275,6 +279,22 @@ function buildEditorForm(activity) {
       activity.bargainSettings && typeof activity.bargainSettings.infoSectionContent === 'string'
         ? activity.bargainSettings.infoSectionContent
         : '',
+    activityTag1:
+      activity.bargainSettings && typeof activity.bargainSettings.activityTag1 === 'string'
+        ? activity.bargainSettings.activityTag1
+        : '',
+    activityTag1Enabled:
+      activity.bargainSettings && typeof activity.bargainSettings.activityTag1Enabled === 'boolean'
+        ? `${activity.bargainSettings.activityTag1Enabled}`
+        : 'true',
+    activityTag2:
+      activity.bargainSettings && typeof activity.bargainSettings.activityTag2 === 'string'
+        ? activity.bargainSettings.activityTag2
+        : '',
+    activityTag2Enabled:
+      activity.bargainSettings && typeof activity.bargainSettings.activityTag2Enabled === 'boolean'
+        ? `${activity.bargainSettings.activityTag2Enabled}`
+        : 'true',
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
 }
@@ -453,6 +473,20 @@ Page({
     });
   },
 
+  handleActivityTag1EnabledChange(event) {
+    const index = Number(event.detail.value);
+    this.setData({
+      'editorForm.activityTag1Enabled': index === 1 ? 'false' : 'true'
+    });
+  },
+
+  handleActivityTag2EnabledChange(event) {
+    const index = Number(event.detail.value);
+    this.setData({
+      'editorForm.activityTag2Enabled': index === 1 ? 'false' : 'true'
+    });
+  },
+
   handleEditorTimeChange(event) {
     const { field } = event.currentTarget.dataset || {};
     if (!field) {
@@ -526,7 +560,11 @@ Page({
         cardBackgroundColor: (form.cardBackgroundColor || '').trim(),
         heroMaskEnabled: `${form.heroMaskEnabled}` !== 'false',
         infoSectionEnabled: `${form.infoSectionEnabled}` !== 'false',
-        infoSectionContent: form.infoSectionContent || ''
+        infoSectionContent: form.infoSectionContent || '',
+        activityTag1: (form.activityTag1 || '').trim(),
+        activityTag1Enabled: `${form.activityTag1Enabled}` !== 'false',
+        activityTag2: (form.activityTag2 || '').trim(),
+        activityTag2Enabled: `${form.activityTag2Enabled}` !== 'false'
       };
     } else {
       payload.bargainSettings = null;
