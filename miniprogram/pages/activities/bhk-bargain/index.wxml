@@ -7,10 +7,12 @@
     src="{{heroVideoUrl}}"
     autoplay
     loop
-    controls
+    controls="{{false}}"
     object-fit="cover"
-    show-fullscreen-btn="true"
-    show-play-btn="true"
+    show-fullscreen-btn="{{false}}"
+    show-play-btn="{{false}}"
+    show-center-play-btn="{{false}}"
+    show-mute-btn="{{false}}"
     enable-play-gesture="true"
     binderror="handleHeroVideoError"
   ></video>
