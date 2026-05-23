@@ -199,6 +199,7 @@ function buildEditorForm(activity) {
       bargainStartPrice: '1500',
       bargainFloorPrice: '998',
       shareRewardAttempts: '1',
+      bargainStock: '15',
       bargainItems: formBargainItems,
       coverImage: '',
       sortOrder: '0'
@@ -233,6 +234,10 @@ function buildEditorForm(activity) {
       activity.bargainSettings && Number.isFinite(activity.bargainSettings.shareRewardAttempts)
         ? `${activity.bargainSettings.shareRewardAttempts}`
         : '1',
+    bargainStock:
+      activity.bargainSettings && Number.isFinite(activity.bargainSettings.stock)
+        ? `${activity.bargainSettings.stock}`
+        : '15',
     bargainItems: formBargainItems,
     coverImage: activity.coverImage || '',
     sortOrder: `${Number(activity.sortOrder || 0)}`
@@ -464,6 +469,7 @@ Page({
         startPrice: Number(form.bargainStartPrice || 1500),
         floorPrice: Number(form.bargainFloorPrice || 998),
         shareRewardAttempts: Number(form.shareRewardAttempts || 1),
+        stock: Number(form.bargainStock || 15),
         bargainItems: normalizedItems
       };
     } else {

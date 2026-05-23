@@ -9456,10 +9456,12 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
   const startPrice = Number(source.startPrice);
   const floorPrice = Number(source.floorPrice);
   const shareRewardAttempts = Number(source.shareRewardAttempts);
+  const stock = Number(source.stock);
   const value = {
     startPrice: Number.isFinite(startPrice) ? Math.max(0, Math.floor(startPrice)) : 1500,
     floorPrice: Number.isFinite(floorPrice) ? Math.max(0, Math.floor(floorPrice)) : 998,
     shareRewardAttempts: Number.isFinite(shareRewardAttempts) ? Math.max(0, Math.floor(shareRewardAttempts)) : 1,
+    stock: Number.isFinite(stock) ? Math.max(0, Math.floor(stock)) : 15,
     ticketingMode: 'paid-ticket'
   };
   const defaultItems = [

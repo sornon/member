@@ -295,6 +295,7 @@ async function resolveBargainActivityRuntime(event = {}) {
     const config = buildBhkBargainConfig();
     config.startPrice = Number.isFinite(settings.startPrice) ? settings.startPrice : config.startPrice;
     config.floorPrice = Number.isFinite(settings.floorPrice) ? settings.floorPrice : config.floorPrice;
+    config.stock = Number.isFinite(settings.stock) ? Math.max(0, Math.floor(settings.stock)) : config.stock;
     if (Array.isArray(settings.bargainItems) && settings.bargainItems.length) {
       const normalizedItems = normalizeBargainItems(settings.bargainItems);
       const probabilitySum = normalizedItems.reduce((sum, item) => sum + (Number(item.probability) || 0), 0);
