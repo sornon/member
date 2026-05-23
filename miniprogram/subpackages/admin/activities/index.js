@@ -506,6 +506,12 @@ Page({
       'editorForm.activityTag2Enabled': index === 1 ? 'false' : 'true'
     });
   },
+  handleQuizRewardEnabledChange(event) {
+    const index = Number(event.detail.value);
+    this.setData({
+      'editorForm.quizRewardEnabled': index === 1 ? 'false' : 'true'
+    });
+  },
 
   handleEditorTimeChange(event) {
     const { field } = event.currentTarget.dataset || {};
@@ -592,6 +598,21 @@ Page({
           answerIndex: Number(form.quizAnswerIndex || 0)
         }
       };
+      if (payload.bargainSettings.quizReward.enabled) {
+        const { question, options, answerIndex } = payload.bargainSettings.quizReward;
+        if (!question) {
+          wx.showToast({ title: '请输入答题题目', icon: 'none' });
+          return;
+        }
+        if (!Array.isArray(options) || options.length < 2) {
+          wx.showToast({ title: '答题选项至少2个', icon: 'none' });
+          return;
+        }
+        if (!Number.isInteger(answerIndex) || answerIndex < 0 || answerIndex >= options.length) {
+          wx.showToast({ title: '正确答案下标不合法', icon: 'none' });
+          return;
+        }
+      }
     } else {
       payload.bargainSettings = null;
     }

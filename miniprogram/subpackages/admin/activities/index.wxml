@@ -328,7 +328,7 @@
       </view>
       <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
         <text class="form-label">答题奖励开关</text>
-        <picker mode="selector" range="{{['开启','关闭']}}" value="{{editorForm.quizRewardEnabled === 'false' ? 1 : 0}}" data-field="quizRewardEnabled" bindchange="handleEditorInput">
+        <picker mode="selector" range="{{['开启','关闭']}}" value="{{editorForm.quizRewardEnabled === 'false' ? 1 : 0}}" bindchange="handleQuizRewardEnabledChange">
           <view class="picker-value">{{editorForm.quizRewardEnabled === 'false' ? '关闭' : '开启'}}</view>
         </picker>
       </view>

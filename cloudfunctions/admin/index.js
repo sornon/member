@@ -9475,6 +9475,14 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
     typeof source.activityTag1Enabled === 'boolean' ? source.activityTag1Enabled : source.activityTag1Enabled !== 'false';
   const activityTag2Enabled =
     typeof source.activityTag2Enabled === 'boolean' ? source.activityTag2Enabled : source.activityTag2Enabled !== 'false';
+  const sourceQuizReward = source.quizReward && typeof source.quizReward === 'object' ? source.quizReward : {};
+  const quizRewardEnabled =
+    typeof sourceQuizReward.enabled === 'boolean' ? sourceQuizReward.enabled : sourceQuizReward.enabled === 'true';
+  const quizQuestion = trimToString(sourceQuizReward.question);
+  const quizOptions = Array.isArray(sourceQuizReward.options)
+    ? sourceQuizReward.options.map((item) => trimToString(item)).filter(Boolean).slice(0, 6)
+    : [];
+  const quizAnswerIndex = Number(sourceQuizReward.answerIndex);
   const value = {
     startPrice: Number.isFinite(startPrice) ? Math.max(0, Math.floor(startPrice)) : 1500,
     floorPrice: Number.isFinite(floorPrice) ? Math.max(0, Math.floor(floorPrice)) : 998,
@@ -9491,6 +9499,12 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
     activityTag1Enabled,
     activityTag2,
     activityTag2Enabled,
+    quizReward: {
+      enabled: quizRewardEnabled,
+      question: quizQuestion,
+      options: quizOptions,
+      answerIndex: Number.isFinite(quizAnswerIndex) ? Math.floor(quizAnswerIndex) : 0
+    },
     ticketingMode: 'paid-ticket'
   };
   const defaultItems = [
@@ -9518,6 +9532,23 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
   }
   if (value.floorPrice > value.startPrice) {
     value.floorPrice = value.startPrice;
+  }
+  if (value.quizReward.enabled) {
+    if (!value.quizReward.question) {
+      throw new Error('答题奖励题目不能为空');
+    }
+    if (!Array.isArray(value.quizReward.options) || value.quizReward.options.length < 2) {
+      throw new Error('答题奖励选项至少2个');
+    }
+    if (
+      !Number.isInteger(value.quizReward.answerIndex) ||
+      value.quizReward.answerIndex < 0 ||
+      value.quizReward.answerIndex >= value.quizReward.options.length
+    ) {
+      throw new Error('答题奖励答案配置无效');
+    }
+  } else {
+    value.quizReward = { enabled: false, question: '', options: [], answerIndex: 0 };
   }
   return value;
 }
