@@ -168,6 +168,14 @@
       <view class="bhk-info__item" wx:if="{{(!quiz.questions || !quiz.questions.length)}}">题库未配置，请联系管理员在活动管理中设置题目。</view>
     </view>
 
+
+    <view class="bhk-card bhk-info" wx:if="{{quizRanking && quizRanking.length}}">
+      <view class="bhk-section-title">答题排行榜（Top10）</view>
+      <block wx:for="{{quizRanking}}" wx:key="rank">
+        <view class="bhk-info__item">第{{item.rank}}名：{{item.nickname}}（答对 {{item.correctCount}} 题）</view>
+      </block>
+    </view>
+
     <view class="bhk-card bhk-info">
       <view class="bhk-section-title">礼遇与规则</view>
       <view class="bhk-info__list">

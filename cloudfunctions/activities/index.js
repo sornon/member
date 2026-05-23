@@ -10,6 +10,7 @@ const DEFAULT_LIMIT = 100;
 const BHK_BARGAIN_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
 const BHK_BARGAIN_COLLECTION = 'bhkBargainRecords';
 const BHK_BARGAIN_STOCK_COLLECTION = 'bhkBargainStock';
+const BHK_BARGAIN_QUIZ_RANK_COLLECTION = 'bhkBargainQuizRank';
 const THANKSGIVING_RIGHT_ID = 'thanksgiving-pass';
 const THANKSGIVING_TICKET_REMARK = '感恩节活动门票';
 const DEFAULT_AVATAR = buildCloudAssetUrl('avatar', 'default.png');
@@ -765,6 +766,43 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
 
 
 
+
+
+async function incrementQuizRanking(activityId = BHK_BARGAIN_ACTIVITY_ID, openid = '', profile = {}, delta = 1) {
+  if (!openid || delta <= 0) {
+    return;
+  }
+  await ensureCollectionExists(BHK_BARGAIN_QUIZ_RANK_COLLECTION);
+  const docId = `${activityId}_${openid}`;
+  const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
+  const nickname = (profile && (profile.nickname || profile.nickName || profile.name)) || '神秘会员';
+  const avatar = (profile && (profile.avatar || profile.avatarUrl)) || '';
+  const ref = db.collection(BHK_BARGAIN_QUIZ_RANK_COLLECTION).doc(docId);
+  const snapshot = await ref.get().catch(() => null);
+  if (snapshot && snapshot.data) {
+    await ref.update({ data: { correctCount: _.inc(delta), nickname, avatar, updatedAt: now } });
+    return;
+  }
+  await ref.set({ data: { activityId, memberId: openid, nickname, avatar, correctCount: delta, createdAt: now, updatedAt: now } });
+}
+
+async function listQuizRanking(activityId = BHK_BARGAIN_ACTIVITY_ID, limit = 10) {
+  await ensureCollectionExists(BHK_BARGAIN_QUIZ_RANK_COLLECTION);
+  const snapshot = await db
+    .collection(BHK_BARGAIN_QUIZ_RANK_COLLECTION)
+    .where({ activityId })
+    .orderBy('correctCount', 'desc')
+    .orderBy('updatedAt', 'asc')
+    .limit(Math.max(1, Math.min(10, Number(limit) || 10)))
+    .get()
+    .catch(() => ({ data: [] }));
+  return (snapshot.data || []).map((item, index) => ({
+    rank: index + 1,
+    nickname: item.nickname || '神秘会员',
+    avatar: item.avatar || '',
+    correctCount: Number.isFinite(item.correctCount) ? item.correctCount : 0
+  }));
+}
 function buildPublicQuizConfig(config = {}) {
   const quiz = config.quiz && typeof config.quiz === 'object' ? config.quiz : {};
   if (!quiz.enabled) return { enabled: false, rewardAttempts: 0, questions: [] };
@@ -801,12 +839,17 @@ async function answerBhkBargainQuiz(event = {}) {
       }
     });
   }
+  if (correct) {
+    await incrementQuizRanking(activityId, openid, session.memberProfile || {}, 1);
+  }
   const latest = await db.collection(BHK_BARGAIN_COLLECTION).doc(session.id).get().then(r=>r.data).catch(()=>session);
+  const ranking = await listQuizRanking(activityId, 10);
   return {
     activity: decorateActivity(activityDoc || buildBhkBargainActivity()),
     bargainConfig: { ...config, quiz: buildPublicQuizConfig(config) },
     session: normalizeBargainSession(latest, config, {}, openid),
-    quizResult: { correct, awarded, correctAnswer: question.answer, tip: question.tip, questionId }
+    quizResult: { correct, awarded, correctAnswer: question.answer, tip: question.tip, questionId },
+    quizRanking: ranking
   };
 }
 async function ensureThanksgivingChargeOrder(openid, sessionDocId, amountInCents = 0) {
@@ -1126,6 +1169,7 @@ function buildBargainPayload(config, session, overrides = {}) {
     activity: decorateActivity(overrides.activityDoc || buildBhkBargainActivity()),
     bargainConfig: publicConfig,
     session: { ...publicSession, realmReward, divineHandReady: realmReward.type === 'divine' && realmReward.ready },
+    quizRanking,
     floorReached
   };
   return { ...payload, ...overrides };

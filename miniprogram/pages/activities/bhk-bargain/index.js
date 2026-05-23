@@ -278,6 +278,7 @@ Page({
     activeQuizQuestionIndex: -1,
     activeQuizQuestion: null,
     quizAnswerResult: null,
+    quizRanking: [],
     divineHandReady: false,
     floorReached: false,
     spinning: false,
@@ -451,6 +452,7 @@ Page({
       showQuizModal: false,
       selectedQuizOption: '',
       quizAnswerResult: null,
+    quizRanking: [],
       mapLocation,
       shareContext,
       memberId: session.memberId || this.data.memberId,
@@ -642,6 +644,7 @@ Page({
         ticketOwned: this.data.ticketOwned,
         stockRemaining: this.data.stockRemaining
       });
+      if (Array.isArray(response && response.quizRanking)) { this.setData({ quizRanking: response.quizRanking }); }
     } catch (error) {
       console.error('[bhk-bargain] fetch activity failed', error);
       if (isCloudPermissionDenied(error)) {
@@ -781,6 +784,7 @@ Page({
       const result = response && response.quizResult ? response.quizResult : {};
       const currentQuestion = this.data.activeQuizQuestion;
       this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
+      if (Array.isArray(response && response.quizRanking)) { this.setData({ quizRanking: response.quizRanking }); }
       const tip = (result.tip || '').trim();
       this.setData({
         showQuizModal: true,
@@ -872,6 +876,7 @@ Page({
         ticketOwned: this.data.ticketOwned,
         stockRemaining: this.data.stockRemaining
       });
+      if (Array.isArray(response && response.quizRanking)) { this.setData({ quizRanking: response.quizRanking }); }
 
       if (session.ticketOwned) {
         wx.showToast({ title: '已获得通行证，无需重复购票', icon: 'none' });
