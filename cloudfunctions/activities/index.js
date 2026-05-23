@@ -263,6 +263,18 @@ function normalizeBargainItems(items = []) {
     });
 }
 
+
+function normalizeCloudAssetRelativePath(path = '') {
+  if (typeof path !== 'string') {
+    return '';
+  }
+  const trimmed = path.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed.replace(/^assets\//i, '');
+}
+
 function pickBargainItemByProbability(items = []) {
   const normalized = normalizeBargainItems(items);
   if (!normalized.length) {
@@ -307,7 +319,8 @@ async function resolveBargainActivityRuntime(event = {}) {
     }
     const heroImagePath = typeof settings.heroImagePath === 'string' ? settings.heroImagePath.trim() : '';
     if (heroImagePath) {
-      config.heroImage = buildCloudAssetUrl(heroImagePath.replace(/^\/+/, ''));
+      const normalizedHeroImagePath = normalizeCloudAssetRelativePath(heroImagePath);
+      config.heroImage = normalizedHeroImagePath ? buildCloudAssetUrl(normalizedHeroImagePath) : config.heroImage;
     } else {
       config.heroImage = doc.coverImage || config.heroImage;
     }
