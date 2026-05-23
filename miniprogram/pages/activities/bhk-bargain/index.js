@@ -30,6 +30,7 @@ const DEFAULT_HERO_IMAGE = buildCloudAssetUrl('background', 'activity-20251127-3
 const DEFAULT_HERO_HEIGHT_RPX = 1000;
 const DEFAULT_PAGE_BACKGROUND_COLOR = '#050814';
 const DEFAULT_CARD_BACKGROUND_COLOR = 'rgba(13, 18, 35, 0.9)';
+const DEFAULT_HERO_MASK_ENABLED = true;
 
 function resolveNavHeight() {
   const app = getApp();
@@ -56,6 +57,7 @@ function normalizeBargainConfig(config = {}) {
   const heroHeightRpx = Number.isFinite(config.heroHeightRpx) ? Math.max(420, Math.floor(config.heroHeightRpx)) : DEFAULT_HERO_HEIGHT_RPX;
   const pageBackgroundColor = (typeof config.pageBackgroundColor === 'string' && config.pageBackgroundColor.trim()) || DEFAULT_PAGE_BACKGROUND_COLOR;
   const cardBackgroundColor = (typeof config.cardBackgroundColor === 'string' && config.cardBackgroundColor.trim()) || DEFAULT_CARD_BACKGROUND_COLOR;
+  const heroMaskEnabled = typeof config.heroMaskEnabled === 'boolean' ? config.heroMaskEnabled : DEFAULT_HERO_MASK_ENABLED;
   return {
     startPrice,
     baseAttempts,
@@ -71,7 +73,8 @@ function normalizeBargainConfig(config = {}) {
     floorPrice,
     heroHeightRpx,
     pageBackgroundColor,
-    cardBackgroundColor
+    cardBackgroundColor,
+    heroMaskEnabled
   };
 }
 
@@ -280,6 +283,7 @@ Page({
     heroHeightRpx: DEFAULT_HERO_HEIGHT_RPX,
     pageBackgroundColor: DEFAULT_PAGE_BACKGROUND_COLOR,
     cardBackgroundColor: DEFAULT_CARD_BACKGROUND_COLOR,
+    heroMaskEnabled: DEFAULT_HERO_MASK_ENABLED,
     perks: [],
     mapLocation: DEFAULT_LOCATION,
     shareContext: null,
@@ -440,6 +444,7 @@ Page({
       heroHeightRpx: bargain.heroHeightRpx || DEFAULT_HERO_HEIGHT_RPX,
       pageBackgroundColor: bargain.pageBackgroundColor || DEFAULT_PAGE_BACKGROUND_COLOR,
       cardBackgroundColor: bargain.cardBackgroundColor || DEFAULT_CARD_BACKGROUND_COLOR,
+      heroMaskEnabled: typeof bargain.heroMaskEnabled === 'boolean' ? bargain.heroMaskEnabled : DEFAULT_HERO_MASK_ENABLED,
       perks: bargain.perks,
       mapLocation,
       shareContext,

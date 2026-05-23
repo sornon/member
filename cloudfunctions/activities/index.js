@@ -235,6 +235,7 @@ function buildBhkBargainConfig() {
     heroHeightRpx: 1000,
     pageBackgroundColor: '#050814',
     cardBackgroundColor: 'rgba(13, 18, 35, 0.9)',
+    heroMaskEnabled: true,
     mysteryLabel: '???',
     perks: [
         '基础砍价：3次',
@@ -333,6 +334,7 @@ async function resolveBargainActivityRuntime(event = {}) {
     config.cardBackgroundColor = typeof settings.cardBackgroundColor === 'string' && settings.cardBackgroundColor.trim()
       ? settings.cardBackgroundColor.trim()
       : config.cardBackgroundColor;
+    config.heroMaskEnabled = typeof settings.heroMaskEnabled === 'boolean' ? settings.heroMaskEnabled : config.heroMaskEnabled;
     config.endsAt = doc.endTime || config.endsAt;
     return { activityId, activityDoc: doc, config };
   }
