@@ -160,6 +160,11 @@ function decorateActivity(activity) {
 }
 
 function buildEditorForm(activity) {
+  const bargainItems =
+    activity && activity.bargainSettings && Array.isArray(activity.bargainSettings.items)
+      ? activity.bargainSettings.items.slice(0, 8)
+      : [];
+  const defaultBargainAmounts = [120, 160, 200, 240, 280, 320, 400, 500];
   if (!activity) {
     return {
       title: '',
@@ -181,6 +186,11 @@ function buildEditorForm(activity) {
       bargainStartPrice: '1500',
       bargainFloorPrice: '998',
       shareRewardAttempts: '1',
+      bargainItems: defaultBargainAmounts.map((amount, index) => ({
+        key: `${index}`,
+        amount: `${amount}`,
+        probability: '1'
+      })),
       coverImage: '',
       sortOrder: '0'
     };
@@ -214,6 +224,14 @@ function buildEditorForm(activity) {
       activity.bargainSettings && Number.isFinite(activity.bargainSettings.shareRewardAttempts)
         ? `${activity.bargainSettings.shareRewardAttempts}`
         : '1',
+    bargainItems: defaultBargainAmounts.map((amount, index) => {
+      const item = bargainItems[index] || {};
+      return {
+        key: `${index}`,
+        amount: Number.isFinite(Number(item.amount)) ? `${Number(item.amount)}` : `${amount}`,
+        probability: Number.isFinite(Number(item.probability)) ? `${Number(item.probability)}` : '1'
+      };
+    }),
     coverImage: activity.coverImage || '',
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
@@ -334,6 +352,13 @@ Page({
     const value = event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
     this.setData({ [`editorForm.${field}`]: value });
   },
+  handleBargainItemInput(event) {
+    const { index, field } = event.currentTarget.dataset || {};
+    const idx = Number(index);
+    if (Number.isNaN(idx) || !field) return;
+    const value = event.detail && typeof event.detail.value === 'string' ? event.detail.value : '';
+    this.setData({ [`editorForm.bargainItems[${idx}].${field}`]: value });
+  },
 
   handleEditorTextArea(event) {
     const { field } = event.currentTarget.dataset || {};
@@ -419,7 +444,13 @@ Page({
       payload.bargainSettings = {
         startPrice: Number(form.bargainStartPrice || 1500),
         floorPrice: Number(form.bargainFloorPrice || 998),
-        shareRewardAttempts: Number(form.shareRewardAttempts || 1)
+        shareRewardAttempts: Number(form.shareRewardAttempts || 1),
+        items: (Array.isArray(form.bargainItems) ? form.bargainItems : [])
+          .map((item) => ({
+            amount: Number(item.amount || 0),
+            probability: Number(item.probability || 0)
+          }))
+          .filter((item) => Number.isFinite(item.amount))
       };
     } else {
       payload.bargainSettings = null;

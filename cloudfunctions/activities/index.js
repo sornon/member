@@ -216,7 +216,16 @@ function buildBhkBargainConfig() {
     floorPrice: 998,
     baseAttempts: 3,
     vipBonuses: buildRealmBonusConfig(),
-    segments: [120, 180, 200, 260, 320, 500, 0],
+    items: [
+      { amount: 120, probability: 1 },
+      { amount: 160, probability: 1 },
+      { amount: 200, probability: 1 },
+      { amount: 240, probability: 1 },
+      { amount: 280, probability: 1 },
+      { amount: 320, probability: 1 },
+      { amount: 400, probability: 1 },
+      { amount: 500, probability: 1 }
+    ],
     assistRewardRange: { min: 60, max: 180 },
     assistAttemptCap: null,
     stock: 15,
@@ -248,6 +257,7 @@ async function resolveBargainActivityRuntime(event = {}) {
     const config = buildBhkBargainConfig();
     config.startPrice = Number.isFinite(settings.startPrice) ? settings.startPrice : config.startPrice;
     config.floorPrice = Number.isFinite(settings.floorPrice) ? settings.floorPrice : config.floorPrice;
+    config.items = normalizeBargainItems(settings.items, settings.segments);
     config.heroImage = doc.coverImage || config.heroImage;
     config.endsAt = doc.endTime || config.endsAt;
     return { activityId, activityDoc: doc, config };
@@ -527,9 +537,33 @@ function normalizeSegments(segments = []) {
     .filter((value) => Number.isFinite(value));
 }
 
+function normalizeBargainItems(items = [], fallbackSegments = []) {
+  const source = Array.isArray(items) && items.length ? items : fallbackSegments;
+  return source
+    .map((item) => {
+      if (item && typeof item === 'object') {
+        const amount = Number(item.amount);
+        const probability = Number(item.probability);
+        if (!Number.isFinite(amount)) {
+          return null;
+        }
+        return {
+          amount: Math.max(0, Math.floor(amount)),
+          probability: Number.isFinite(probability) ? Math.max(0, probability) : 1
+        };
+      }
+      const amount = Number(item);
+      if (!Number.isFinite(amount)) {
+        return null;
+      }
+      return { amount: Math.max(0, Math.floor(amount)), probability: 1 };
+    })
+    .filter(Boolean);
+}
+
 function buildDisplaySegments(segments = [], mysteryLabel = '???') {
-  const normalized = normalizeSegments(segments);
-  const display = normalized.map((amount) => ({ amount, label: `-¥${amount}` }));
+  const normalized = normalizeBargainItems(segments);
+  const display = normalized.map((item) => ({ amount: item.amount, label: `-¥${item.amount}` }));
   display.push({ amount: null, label: mysteryLabel || '???', isMystery: true });
   return display;
 }
@@ -1044,7 +1078,7 @@ async function buildShareContext(config, targetOpenId, viewerOpenId, viewerProfi
 }
 
 function buildBargainPayload(config, session, overrides = {}) {
-  const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
+  const displaySegments = buildDisplaySegments(config.items || config.segments, config.mysteryLabel);
   const floorReached = (session.currentPrice || 0) <= config.floorPrice;
   const totalStock = Number.isFinite(overrides.totalStock) ? overrides.totalStock : config.stock;
   const publicConfig = { ...config, stock: totalStock, displaySegments };
@@ -1119,14 +1153,14 @@ async function getBhkBargainStatus(event = {}) {
 
 async function spinBhkBargain(event = {}) {
   const { activityId, config, activityDoc } = await resolveBargainActivityRuntime(event);
-  const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
+  const displaySegments = buildDisplaySegments(config.items || config.segments, config.mysteryLabel);
   const stockState = await getBargainStock(config, activityId);
   const { memberBoost, realmName, openid, profile, profileComplete } = await resolveMemberBoost(config);
   const docId = `${activityId}_${openid}`;
   const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
-  const segments = normalizeSegments(config.segments);
+  const items = normalizeBargainItems(config.items, config.segments);
 
-  if (!segments.length) {
+  if (!items.length) {
     throw new Error('暂无抽奖配置');
   }
 
@@ -1152,8 +1186,21 @@ async function spinBhkBargain(event = {}) {
       throw new Error('抽奖次数不足');
     }
 
-    const sliceIndex = Math.floor(Math.random() * segments.length);
-    const slice = segments[sliceIndex] || 0;
+    const totalWeight = items.reduce((sum, item) => sum + (Number.isFinite(item.probability) ? Math.max(0, item.probability) : 0), 0);
+    let sliceIndex = 0;
+    if (totalWeight > 0) {
+      let cursor = Math.random() * totalWeight;
+      for (let index = 0; index < items.length; index += 1) {
+        cursor -= Math.max(0, Number(items[index].probability) || 0);
+        if (cursor <= 0) {
+          sliceIndex = index;
+          break;
+        }
+      }
+    } else {
+      sliceIndex = Math.floor(Math.random() * items.length);
+    }
+    const slice = Number(items[sliceIndex] && items[sliceIndex].amount) || 0;
     const availableCut = Math.max(0, record.currentPrice - config.floorPrice);
     const rawCut = Math.max(0, slice);
     const cut = Math.min(rawCut, availableCut);

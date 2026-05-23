@@ -265,6 +265,43 @@ page {
   justify-content: flex-end;
   margin-top: 8rpx;
 }
+.bargain-items {
+  flex: 1;
+  padding: 12rpx;
+  border: 1px solid rgba(148, 163, 184, 0.26);
+  border-radius: 12rpx;
+  background: rgba(15, 23, 42, 0.55);
+}
+.bargain-items__header,
+.bargain-items__row {
+  display: grid;
+  grid-template-columns: 72rpx 1fr 1fr;
+  gap: 10rpx;
+  align-items: center;
+}
+.bargain-items__header {
+  font-size: 22rpx;
+  color: rgba(203, 213, 225, 0.78);
+  padding: 4rpx 6rpx 10rpx;
+}
+.bargain-items__row {
+  margin-bottom: 8rpx;
+}
+.bargain-items__index {
+  text-align: center;
+  font-size: 24rpx;
+  color: rgba(226, 232, 240, 0.9);
+}
+.bargain-items__input {
+  min-height: 64rpx;
+  background: rgba(30, 41, 59, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 10rpx;
+  padding: 10rpx 16rpx;
+  color: #e2e8f0;
+  font-size: 24rpx;
+  box-sizing: border-box;
+}
 
 .submit-btn {
   flex: none;
