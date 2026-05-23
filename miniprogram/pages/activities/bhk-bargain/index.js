@@ -62,7 +62,8 @@ function normalizeBargainConfig(config = {}) {
     perks,
     vipBonuses,
     displaySegments,
-    floorPrice
+    floorPrice,
+    quiz: config.quiz && typeof config.quiz === 'object' ? config.quiz : { enabled: false, rewardAttempts: 0, questions: [] }
   };
 }
 
@@ -258,6 +259,9 @@ Page({
     memberTitleImage: '',
     memberTitleName: '',
     realmReward: normalizeRealmReward(),
+    quiz: { enabled: false, rewardAttempts: 0, questions: [] },
+    selectedQuizOption: '',
+    quizResultMessage: ''
     divineHandReady: false,
     floorReached: false,
     spinning: false,
@@ -711,6 +715,35 @@ Page({
       wx.showToast({ title: error.errMsg || '神之一手不可用', icon: 'none' });
       this.clearMarquee();
       this.setData({ spinning: false });
+    }
+  },
+
+
+  handleQuizOptionTap(event) {
+    const value = event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset.value : '';
+    this.setData({ selectedQuizOption: value });
+  },
+
+  async handleQuizAnswer(event) {
+    const questionId = event.currentTarget && event.currentTarget.dataset ? event.currentTarget.dataset.questionId : '';
+    const answer = this.data.selectedQuizOption;
+    if (!questionId || !answer) {
+      wx.showToast({ title: '请先选择答案', icon: 'none' });
+      return;
+    }
+    try {
+      const response = await ActivityService.bargainQuizAnswer(this.activityId, questionId, answer);
+      const bargain = normalizeBargainConfig(response && response.bargainConfig);
+      const session = this.normalizeSession(response && response.session, bargain);
+      const result = response && response.quizResult ? response.quizResult : {};
+      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity);
+      this.setData({
+        selectedQuizOption: '',
+        quizResultMessage: `正确答案：${result.correctAnswer || '-'}。${result.tip || ''}${result.awarded ? '（奖励+1次砍价）' : ''}`
+      });
+      wx.showToast({ title: result.correct ? '回答正确' : '回答完成', icon: 'none' });
+    } catch (error) {
+      wx.showToast({ title: (error && error.errMsg) || '答题失败', icon: 'none' });
     }
   },
 

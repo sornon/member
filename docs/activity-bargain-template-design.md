@@ -154,3 +154,19 @@
    - 新建/编辑音乐会活动，确认 `activityType=bargain`、`activityTemplate=concert-bargain`、`1500/998/1` 已保存。
    - 前台活动列表进入该活动后，检查标题、头图、价格初始值、最低价是否与音乐会配置一致。
    - 数据库检查 `bhkBargainRecords` 新增记录键是否为 `${音乐会活动ID}_${openid}`，`bhkBargainStock` 是否使用音乐会活动 ID 作为文档键。
+
+
+## Concert 模版新增：答题奖励砍价次数（可开关）
+- 新增 `bargainConfig.quiz.enabled` 开关：
+  - `true`：启用答题玩法，需配置题目。
+  - `false`：关闭答题玩法，无需配置题目。
+- 新增 `bargainConfig.quiz.rewardAttempts`：每题答对奖励次数（默认 1）。
+- 新增 `bargainConfig.quiz.questions[]`：`id/question/options/answer/tip`。
+- 交互规则：无论用户答对或答错，前端都显示“正确答案 + Tips”；仅答对时增加砍价次数。
+
+### 小白部署步骤（一步一步）
+1. 打开微信开发者工具，导入项目。
+2. 右键上传并部署云函数 `cloudfunctions/activities`（必须勾选“云端安装依赖”）。
+3. 编译小程序，确认活动页可见“答题加砍价次数”模块。
+4. 在管理端把活动模板设置为 `concert-bargain` 并发布活动。
+5. 若不想用答题玩法，将 `quiz.enabled` 设为 `false` 后重新部署云函数即可。

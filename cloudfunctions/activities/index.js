@@ -109,6 +109,8 @@ exports.main = async (event = {}) => {
       return divineHandBhkBargain(event || {});
     case 'bargainConfirmPurchase':
       return confirmBhkBargainPurchase(event || {});
+    case 'bargainQuizAnswer':
+      return answerBhkBargainQuiz(event || {});
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -229,8 +231,18 @@ function buildBhkBargainConfig() {
         '筑基期：+3次砍价',
         '结丹及以上：神之一手',
         '分享助力：双方+1次砍价',
-        '设置名字、头像：+1次砍价'
-    ]
+        '设置名字、头像：+1次砍价',
+        '答题奖励：答对1题 +1次砍价'
+    ],
+    quiz: {
+      enabled: true,
+      rewardAttempts: 1,
+      questions: [
+        { id: 'audio-experience', question: '以下哪种方式的听觉体验最为真实、震撼？', options: ['A. 鹦鹉螺音响', 'B. 黑胶唱片播放', 'C. 现场钢琴三重奏'], answer: 'C', tip: '没有任何音响或设备能够超越乐器本身发出的声音。参考价格：鹦鹉螺约150万+/对，Linn LP12约数十万，现场钢琴三重奏可达数百万至千万级。' },
+        { id: 'collectible-value', question: '以下哪一种最昂贵、最具收藏价值？', options: ['A. 鹦鹉螺音响', 'B. Linn LP12 Majik 黑胶唱片机', 'C. Steinway & Sons Model D 手工三角钢琴'], answer: 'C', tip: '再好的工业化产品也比不上百年以上的手工钢琴。参考价格：鹦鹉螺约150万+/对，Linn LP12约数十万，Steinway Model D约300万-500万。' },
+        { id: 'symphony-origin', question: '交响乐最初的起源形式是什么？', options: ['A. 巴洛克歌剧序曲', 'B. 古希腊祭祀乐队', 'C. 17-18 世纪欧洲宫廷室内乐'], answer: 'C', tip: '现代交响乐最早源于欧洲宫廷室内乐，主要用于宴会和音乐欣赏。' }
+      ]
+    }
   };
 }
 
@@ -738,12 +750,59 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
       : '',
     chargeOrderAmount: Number.isFinite(record.chargeOrderAmount) ? record.chargeOrderAmount : 0,
     chargeOrderCreatedAt: record.chargeOrderCreatedAt || null,
-    thanksgivingProfileRewarded: Boolean(record.thanksgivingProfileRewarded)
+    thanksgivingProfileRewarded: Boolean(record.thanksgivingProfileRewarded),
+    quizAnsweredIds: Array.isArray(record.quizAnsweredIds) ? record.quizAnsweredIds : []
   };
 
   return { ...normalized, ...overrides };
 }
 
+
+
+function buildPublicQuizConfig(config = {}) {
+  const quiz = config.quiz && typeof config.quiz === 'object' ? config.quiz : {};
+  if (!quiz.enabled) return { enabled: false, rewardAttempts: 0, questions: [] };
+  const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
+  return {
+    enabled: true,
+    rewardAttempts: Number.isFinite(quiz.rewardAttempts) ? Math.max(1, Math.floor(quiz.rewardAttempts)) : 1,
+    questions: questions.map((item = {}) => ({ id: item.id, question: item.question, options: item.options || [] }))
+  };
+}
+
+async function answerBhkBargainQuiz(event = {}) {
+  const openid = getOpenId();
+  if (!openid) throw new Error('请先登录后再答题');
+  const answer = String(event.answer || '').trim().toUpperCase();
+  const questionId = String(event.questionId || '').trim();
+  const { activityId, config, activityDoc } = await resolveBargainActivityRuntime(event);
+  const quiz = config.quiz || {};
+  if (!quiz.enabled) throw new Error('答题玩法未开启');
+  const question = (quiz.questions || []).find((q) => q.id === questionId);
+  if (!question) throw new Error('题目不存在');
+
+  const session = await ensureBhkBargainSession(openid, config, { activityId, activityDoc });
+  const answeredIds = Array.isArray(session.quizAnsweredIds) ? session.quizAnsweredIds : [];
+  const correct = answer === String(question.answer || '').trim().toUpperCase();
+  let awarded = false;
+  if (!answeredIds.includes(questionId) && correct) {
+    awarded = true;
+    await db.collection(BHK_BARGAIN_COLLECTION).doc(session.id).update({
+      data: {
+        remainingSpins: _.inc(Number(quiz.rewardAttempts) || 1),
+        quizAnsweredIds: _.push([questionId]),
+        updatedAt: new Date()
+      }
+    });
+  }
+  const latest = await db.collection(BHK_BARGAIN_COLLECTION).doc(session.id).get().then(r=>r.data).catch(()=>session);
+  return {
+    activity: decorateActivity(activityDoc || buildBhkBargainActivity()),
+    bargainConfig: { ...config, quiz: buildPublicQuizConfig(config) },
+    session: normalizeBargainSession(latest, config, {}, openid),
+    quizResult: { correct, awarded, correctAnswer: question.answer, tip: question.tip, questionId }
+  };
+}
 async function ensureThanksgivingChargeOrder(openid, sessionDocId, amountInCents = 0) {
   const normalizedAmount = Math.max(0, Math.round(Number(amountInCents || 0)));
   if (!openid || !sessionDocId || !normalizedAmount) {
@@ -1047,7 +1106,7 @@ function buildBargainPayload(config, session, overrides = {}) {
   const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
   const floorReached = (session.currentPrice || 0) <= config.floorPrice;
   const totalStock = Number.isFinite(overrides.totalStock) ? overrides.totalStock : config.stock;
-  const publicConfig = { ...config, stock: totalStock, displaySegments };
+  const publicConfig = { ...config, stock: totalStock, displaySegments, quiz: buildPublicQuizConfig(config) };
   delete publicConfig.floorPrice;
   const stockRemaining = Number.isFinite(overrides.stockRemaining)
     ? overrides.stockRemaining
