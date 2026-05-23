@@ -1692,7 +1692,7 @@ Page({
       member,
       this.globalBackground
     );
-    const shouldShowVideo = dynamicEnabled && !!video;
+    const shouldShowVideo = dynamicEnabled && !!video && !(this.failedBackgroundVideos && this.failedBackgroundVideos.has(video));
     const hasError = shouldShowVideo ? (options.resetError ? false : !!this.data.backgroundVideoError) : false;
     const showVideo = hasError ? false : shouldShowVideo;
     this.setData({
@@ -1967,6 +1967,13 @@ Page({
   },
 
   handleBackgroundVideoError() {
+    const brokenVideo = this.data.backgroundVideo;
+    if (brokenVideo) {
+      if (!this.failedBackgroundVideos) {
+        this.failedBackgroundVideos = new Set();
+      }
+      this.failedBackgroundVideos.add(brokenVideo);
+    }
     if (!this.data.backgroundVideoError) {
       wx.showToast({ title: '未找到动态背景，已使用静态背景', icon: 'none' });
     }
@@ -1975,6 +1982,9 @@ Page({
       showBackgroundVideo: false,
       showBackgroundOverlay: true
     });
+    if (this.data.member) {
+      this.updateBackgroundDisplay(this.data.member, { resetError: false });
+    }
   },
 
   attachMemberRealtime() {

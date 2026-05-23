@@ -109,6 +109,8 @@ exports.main = async (event = {}) => {
       return divineHandBhkBargain(event || {});
     case 'bargainConfirmPurchase':
       return confirmBhkBargainPurchase(event || {});
+    case 'bargainAnswerQuiz':
+      return answerBhkBargainQuiz(event || {});
     default:
       throw new Error(`Unknown action: ${action}`);
   }
@@ -846,8 +848,82 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
     chargeOrderCreatedAt: record.chargeOrderCreatedAt || null,
     thanksgivingProfileRewarded: Boolean(record.thanksgivingProfileRewarded)
   };
+  normalized.quizAnsweredQuestions = Array.isArray(record.quizAnsweredQuestions) ? record.quizAnsweredQuestions : [];
 
   return { ...normalized, ...overrides };
+}
+
+const BARGAIN_QUIZ_BANK = [
+  {
+    id: 1,
+    answer: 'C',
+    tips:
+      '没有任何音响或设备能够超越乐器本身发出的声音。参考市场价格：鹦鹉螺音响（Nautilus）≈150万+人民币/对，Linn LP12 Majik 黑胶唱片机≈数十万人民币，现场钢琴三重奏（以顶级三角钢琴演奏）≈数百万至千万人民币级别。'
+  },
+  {
+    id: 2,
+    answer: 'C',
+    tips:
+      '再好的工业化产品也比不上百年以上的手工钢琴。参考市场价格：鹦鹉螺音响（Nautilus）≈150万+人民币/对，Linn LP12 Majik 黑胶唱片机≈数十万人民币，Steinway & Sons Model D 手工三角钢琴≈300万-500万人民币。'
+  },
+  {
+    id: 3,
+    answer: 'C',
+    tips:
+      '现代交响乐最早源于欧洲宫廷的室内乐，主要用于宴会和音乐欣赏。歌剧序曲和古希腊乐队虽知名，但并非交响乐的直接起源。'
+  }
+];
+
+async function answerBhkBargainQuiz(event = {}) {
+  const { activityId, config, activityDoc } = await resolveBargainActivityRuntime(event);
+  const openid = getOpenId();
+  if (!openid) throw new Error('请先登录后再答题');
+  const questionId = Number(event.questionId);
+  const picked = BARGAIN_QUIZ_BANK.find((item) => item.id === questionId);
+  if (!picked) throw new Error('题目不存在');
+  const selectedAnswer = String(event.answer || '').trim().toUpperCase();
+  const isCorrect = selectedAnswer === picked.answer;
+  const docId = `${activityId}_${openid}`;
+  await getOrCreateBargainSession(config, { activityId });
+  let finalSession = null;
+  await db.runTransaction(async (transaction) => {
+    const ref = transaction.collection(BHK_BARGAIN_COLLECTION).doc(docId);
+    const snapshot = await ref.get().catch(handleDocGetError('load bargain session'));
+    const record = normalizeBargainSession(snapshot.data || {}, config, {}, openid);
+    const answered = Array.isArray(record.quizAnsweredQuestions) ? record.quizAnsweredQuestions : [];
+    const alreadyAnswered = answered.includes(questionId);
+    let remainingSpins = record.remainingSpins;
+    let quizRewarded = false;
+    if (isCorrect && !alreadyAnswered) {
+      remainingSpins += 1;
+      quizRewarded = true;
+    }
+    const nextAnswered = alreadyAnswered ? answered : answered.concat(questionId);
+    const now = new Date();
+    const writeSafeSnapshot = { ...(snapshot.data || {}) };
+    if (Object.prototype.hasOwnProperty.call(writeSafeSnapshot, '_id')) {
+      delete writeSafeSnapshot._id;
+    }
+    await ref.set({
+      data: {
+        ...writeSafeSnapshot,
+        remainingSpins,
+        quizAnsweredQuestions: nextAnswered,
+        updatedAt: now
+      }
+    });
+    finalSession = normalizeBargainSession(
+      { ...(snapshot.data || {}), remainingSpins, quizAnsweredQuestions: nextAnswered },
+      config,
+      {},
+      openid
+    );
+    finalSession.quizRewarded = quizRewarded;
+  });
+  return buildBargainPayload(config, finalSession, {
+    activityDoc,
+    quizFeedback: { questionId, correctAnswer: picked.answer, tips: picked.tips, isCorrect: Boolean(isCorrect), rewarded: Boolean(finalSession.quizRewarded) }
+  });
 }
 
 async function ensureThanksgivingChargeOrder(openid, sessionDocId, amountInCents = 0) {

@@ -803,3 +803,26 @@
 .bhk-overlay__rule {
   padding: 8rpx 0;
 }
+
+.bhk-quiz__card {
+  width: 88%;
+  text-align: left;
+}
+
+.bhk-quiz__title {
+  font-size: 32rpx;
+  color: #ffd480;
+  font-weight: 700;
+  line-height: 1.5;
+  margin-bottom: 18rpx;
+}
+
+.bhk-quiz__option {
+  margin-top: 12rpx;
+  border-radius: 16rpx;
+  background: rgba(255, 211, 149, 0.12);
+  color: #ffeedd;
+  border: 1rpx solid rgba(255, 211, 149, 0.35);
+  text-align: left;
+  padding-left: 20rpx;
+}
