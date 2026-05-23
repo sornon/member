@@ -232,6 +232,10 @@ function buildBhkBargainConfig() {
     stock: 15,
     endsAt: '2025-12-01T16:00:00.000Z',
     heroImage: buildCloudAssetUrl('background', 'cover-20251126.jpg'),
+    heroHeightRpx: 1000,
+    pageBackgroundColor: '#050814',
+    cardBackgroundColor: 'rgba(13, 18, 35, 0.9)',
+    heroMaskEnabled: true,
     mysteryLabel: '???',
     perks: [
         '基础砍价：3次',
@@ -260,6 +264,18 @@ function normalizeBargainItems(items = []) {
         probability: Number.isFinite(probability) ? Math.max(0, Math.floor(probability)) : item.probability
       };
     });
+}
+
+
+function normalizeCloudAssetRelativePath(path = '') {
+  if (typeof path !== 'string') {
+    return '';
+  }
+  const trimmed = path.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed.replace(/^assets\//i, '');
 }
 
 function pickBargainItemByProbability(items = []) {
@@ -304,7 +320,21 @@ async function resolveBargainActivityRuntime(event = {}) {
         config.segments = config.bargainItems.map((item) => item.amount);
       }
     }
-    config.heroImage = doc.coverImage || config.heroImage;
+    const heroImagePath = typeof settings.heroImagePath === 'string' ? settings.heroImagePath.trim() : '';
+    if (heroImagePath) {
+      const normalizedHeroImagePath = normalizeCloudAssetRelativePath(heroImagePath);
+      config.heroImage = normalizedHeroImagePath ? buildCloudAssetUrl(normalizedHeroImagePath) : config.heroImage;
+    } else {
+      config.heroImage = doc.coverImage || config.heroImage;
+    }
+    config.heroHeightRpx = Number.isFinite(settings.heroHeightRpx) ? Math.max(420, Math.floor(settings.heroHeightRpx)) : 1000;
+    config.pageBackgroundColor = typeof settings.pageBackgroundColor === 'string' && settings.pageBackgroundColor.trim()
+      ? settings.pageBackgroundColor.trim()
+      : config.pageBackgroundColor;
+    config.cardBackgroundColor = typeof settings.cardBackgroundColor === 'string' && settings.cardBackgroundColor.trim()
+      ? settings.cardBackgroundColor.trim()
+      : config.cardBackgroundColor;
+    config.heroMaskEnabled = typeof settings.heroMaskEnabled === 'boolean' ? settings.heroMaskEnabled : config.heroMaskEnabled;
     config.endsAt = doc.endTime || config.endsAt;
     return { activityId, activityDoc: doc, config };
   }

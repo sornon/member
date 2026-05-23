@@ -248,6 +248,29 @@
         <text class="form-label">门票总数</text>
         <input class="form-input" type="number" value="{{editorForm.bargainStock}}" data-field="bargainStock" bindinput="handleEditorInput" />
       </view>
+
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">头图云存储相对路径</text>
+        <input class="form-input" value="{{editorForm.heroImagePath}}" data-field="heroImagePath" bindinput="handleEditorInput" placeholder="/assets/background/articalday.jpg" />
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">头图高度(rpx)</text>
+        <input class="form-input" type="number" value="{{editorForm.heroHeightRpx}}" data-field="heroHeightRpx" bindinput="handleEditorInput" />
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">页面背景色</text>
+        <input class="form-input" value="{{editorForm.pageBackgroundColor}}" data-field="pageBackgroundColor" bindinput="handleEditorInput" placeholder="#050814 / rgba(...)" />
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">卡片背景色</text>
+        <input class="form-input" value="{{editorForm.cardBackgroundColor}}" data-field="cardBackgroundColor" bindinput="handleEditorInput" placeholder="rgba(13, 18, 35, 0.9)" />
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">头图遮罩</text>
+        <picker mode="selector" range="{{['开启','关闭']}}" value="{{editorForm.heroMaskEnabled === 'false' ? 1 : 0}}" bindchange="handleHeroMaskEnabledChange">
+          <view class="picker-value">{{editorForm.heroMaskEnabled === 'false' ? '关闭' : '开启'}}</view>
+        </picker>
+      </view>
       <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--full">
         <text class="form-label">砍价项配置（概率总和100%）</text>
         <view class="bargain-items">
