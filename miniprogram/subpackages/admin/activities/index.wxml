@@ -244,6 +244,21 @@
         <text class="form-label">分享奖励次数</text>
         <input class="form-input" type="number" value="{{editorForm.shareRewardAttempts}}" data-field="shareRewardAttempts" bindinput="handleEditorInput" />
       </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row form-row--full">
+        <text class="form-label">砍价项配置（概率总和100%）</text>
+        <view class="bargain-items">
+          <view class="bargain-items__header">
+            <text class="bargain-items__cell">序号</text>
+            <text class="bargain-items__cell">砍价金额</text>
+            <text class="bargain-items__cell">概率(%)</text>
+          </view>
+          <view wx:for="{{editorForm.bargainItems}}" wx:key="index" class="bargain-items__row">
+            <text class="bargain-items__cell">{{index + 1}}</text>
+            <input class="bargain-items__input" type="number" value="{{item.amount}}" data-index="{{index}}" data-field="amount" bindinput="handleBargainItemInput" />
+            <input class="bargain-items__input" type="number" value="{{item.probability}}" data-index="{{index}}" data-field="probability" bindinput="handleBargainItemInput" />
+          </view>
+        </view>
+      </view>
       <view class="form-row">
         <text class="form-label">发布状态</text>
         <picker
