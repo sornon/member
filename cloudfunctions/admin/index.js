@@ -9466,6 +9466,9 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
   const pageBackgroundColor = trimToString(source.pageBackgroundColor) || '#050814';
   const cardBackgroundColor = trimToString(source.cardBackgroundColor) || 'rgba(13, 18, 35, 0.9)';
   const heroMaskEnabled = typeof source.heroMaskEnabled === 'boolean' ? source.heroMaskEnabled : source.heroMaskEnabled !== 'false';
+  const infoSectionEnabled =
+    typeof source.infoSectionEnabled === 'boolean' ? source.infoSectionEnabled : source.infoSectionEnabled !== 'false';
+  const infoSectionContent = normalizeMultilineString(source.infoSectionContent);
   const value = {
     startPrice: Number.isFinite(startPrice) ? Math.max(0, Math.floor(startPrice)) : 1500,
     floorPrice: Number.isFinite(floorPrice) ? Math.max(0, Math.floor(floorPrice)) : 998,
@@ -9476,6 +9479,8 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
     pageBackgroundColor,
     cardBackgroundColor,
     heroMaskEnabled,
+    infoSectionEnabled,
+    infoSectionContent,
     ticketingMode: 'paid-ticket'
   };
   const defaultItems = [

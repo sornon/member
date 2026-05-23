@@ -197,15 +197,10 @@
       <view wx:if="{{shareTimelineMessage}}" class="bhk-share__hint">{{shareTimelineMessage}}</view>
     </view>
 
-    <view class="bhk-card bhk-info" style="background: {{cardBackgroundColor}};">
+    <view wx:if="{{infoSectionEnabled && infoSectionItems.length}}" class="bhk-card bhk-info" style="background: {{cardBackgroundColor}};">
       <view class="bhk-section-title">礼遇与规则</view>
       <view class="bhk-info__list">
-        <view class="bhk-info__item">持"感恩节活动"会员权益任意时间到店使用。</view>
-        <view class="bhk-info__item">软饮畅饮，伴手礼 BHK56 雪茄一支。</view>
-        <view class="bhk-info__item">余票与倒计时实时更新，售罄即止。</view>
-        <view class="bhk-info__item">票券不可转售或退款。</view>
-        <view class="bhk-info__item">购票消费可同时提升修为和灵石。</view>
-        <view class="bhk-info__item">本次活动是修仙晋升的<text style="color:tomato;">大好机会，不容错过！</text></view>
+        <view class="bhk-info__item" wx:for="{{infoSectionItems}}" wx:key="index">{{item}}</view>
       </view>
     </view>
   </block>

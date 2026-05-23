@@ -207,6 +207,8 @@ function buildEditorForm(activity) {
       pageBackgroundColor: '#050814',
       cardBackgroundColor: 'rgba(13, 18, 35, 0.9)',
       heroMaskEnabled: 'true',
+      infoSectionEnabled: 'true',
+      infoSectionContent: '',
       sortOrder: '0'
     };
   }
@@ -265,6 +267,14 @@ function buildEditorForm(activity) {
       activity.bargainSettings && typeof activity.bargainSettings.heroMaskEnabled === 'boolean'
         ? `${activity.bargainSettings.heroMaskEnabled}`
         : 'true',
+    infoSectionEnabled:
+      activity.bargainSettings && typeof activity.bargainSettings.infoSectionEnabled === 'boolean'
+        ? `${activity.bargainSettings.infoSectionEnabled}`
+        : 'true',
+    infoSectionContent:
+      activity.bargainSettings && typeof activity.bargainSettings.infoSectionContent === 'string'
+        ? activity.bargainSettings.infoSectionContent
+        : '',
     sortOrder: `${Number(activity.sortOrder || 0)}`
   };
 }
@@ -436,6 +446,12 @@ Page({
       'editorForm.heroMaskEnabled': index === 1 ? 'false' : 'true'
     });
   },
+  handleInfoSectionEnabledChange(event) {
+    const index = Number(event.detail.value);
+    this.setData({
+      'editorForm.infoSectionEnabled': index === 1 ? 'false' : 'true'
+    });
+  },
 
   handleEditorTimeChange(event) {
     const { field } = event.currentTarget.dataset || {};
@@ -508,7 +524,9 @@ Page({
         heroHeightRpx: Number(form.heroHeightRpx || 1000),
         pageBackgroundColor: (form.pageBackgroundColor || '').trim(),
         cardBackgroundColor: (form.cardBackgroundColor || '').trim(),
-        heroMaskEnabled: `${form.heroMaskEnabled}` !== 'false'
+        heroMaskEnabled: `${form.heroMaskEnabled}` !== 'false',
+        infoSectionEnabled: `${form.infoSectionEnabled}` !== 'false',
+        infoSectionContent: form.infoSectionContent || ''
       };
     } else {
       payload.bargainSettings = null;
