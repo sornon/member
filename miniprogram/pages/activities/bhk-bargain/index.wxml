@@ -1,6 +1,13 @@
 <custom-nav title="" theme="transparent"></custom-nav>
 <block wx:if="{{loading || !heroImageLoaded}}">
   <view class="bhk-loading-page">
+    <image
+      class="bhk-loading-page__preload-image"
+      src="{{heroImage}}"
+      mode="aspectFill"
+      bindload="handleHeroImageLoad"
+      binderror="handleHeroImageError"
+    ></image>
     <view class="bhk-loading-page__spinner"></view>
     <view class="bhk-loading-page__text">活动情报加载中...</view>
   </view>

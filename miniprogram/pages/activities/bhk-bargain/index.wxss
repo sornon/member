@@ -8,6 +8,16 @@
   gap: 24rpx;
 }
 
+.bhk-loading-page__preload-image {
+  position: fixed;
+  width: 2rpx;
+  height: 2rpx;
+  opacity: 0;
+  pointer-events: none;
+  left: -9999rpx;
+  top: -9999rpx;
+}
+
 .bhk-loading-page__spinner {
   width: 56rpx;
   height: 56rpx;
