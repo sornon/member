@@ -397,7 +397,11 @@ Page({
       floorReached,
       stockRemaining,
       ticketOwned: Boolean(session.ticketOwned || session.hasTicket || session.purchased),
-      quizAnsweredIds: Array.isArray(session.quizAnsweredIds) ? session.quizAnsweredIds : this.data.quizAnsweredIds
+      quizAnsweredIds: Array.isArray(extras.quizAnsweredIds)
+        ? extras.quizAnsweredIds
+        : Array.isArray(session.quizAnsweredIds)
+          ? session.quizAnsweredIds
+          : this.data.quizAnsweredIds
     };
   },
 
@@ -450,16 +454,20 @@ Page({
       heroImage: bargain.heroImage || DEFAULT_HERO_IMAGE,
       perks: bargain.perks,
       quiz: bargain.quiz || { enabled: false, rewardAttempts: 0, questions: [] },
-      activeQuizQuestion: null,
-      showQuizModal: false,
-      selectedQuizOption: '',
-      quizAnswerResult: null,
+      activeQuizQuestion: typeof extras.activeQuizQuestion === 'undefined' ? null : extras.activeQuizQuestion,
+      showQuizModal: typeof extras.showQuizModal === 'boolean' ? extras.showQuizModal : false,
+      selectedQuizOption: typeof extras.selectedQuizOption === 'string' ? extras.selectedQuizOption : '',
+      quizAnswerResult: typeof extras.quizAnswerResult === 'undefined' ? null : extras.quizAnswerResult,
       quizRanking: Array.isArray(extras.quizRanking) ? extras.quizRanking : this.data.quizRanking,
       mapLocation,
       shareContext,
       memberId: session.memberId || this.data.memberId,
       ticketOwned,
-      quizAnsweredIds: Array.isArray(session.quizAnsweredIds) ? session.quizAnsweredIds : this.data.quizAnsweredIds
+      quizAnsweredIds: Array.isArray(extras.quizAnsweredIds)
+        ? extras.quizAnsweredIds
+        : Array.isArray(session.quizAnsweredIds)
+          ? session.quizAnsweredIds
+          : this.data.quizAnsweredIds
     });
     this.startCountdown();
   },
@@ -793,22 +801,23 @@ Page({
       const session = this.normalizeSession(response && response.session, bargain);
       const result = response && response.quizResult ? response.quizResult : {};
       const currentQuestion = this.data.activeQuizQuestion;
-      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity, {
-        quizRanking: response && response.quizRanking
-      });
+      const answeredUnion = Array.from(new Set([...(Array.isArray(this.data.quizAnsweredIds) ? this.data.quizAnsweredIds : []), questionId]));
       const tip = (result.tip || '').trim();
-      this.setData({
+      const answerResult = {
+        correct: !!result.correct,
+        correctAnswer: result.correctAnswer || '-',
+        tip,
+        awarded: !!result.awarded
+      };
+      this.applySession(session, bargain, response && response.activity ? response.activity : this.data.activity, {
+        quizRanking: response && response.quizRanking,
         showQuizModal: true,
         activeQuizQuestion: currentQuestion,
         selectedQuizOption: '',
-        quizAnswerResult: {
-          correct: !!result.correct,
-          correctAnswer: result.correctAnswer || '-',
-          tip,
-          awarded: !!result.awarded
-        },
-        quizResultMessage: ''
+        quizAnswerResult: answerResult,
+        quizAnsweredIds: answeredUnion
       });
+      this.setData({ quizResultMessage: '' });
       if (!Array.isArray(response && response.quizRanking) || !(response.quizRanking || []).length) {
         this.fetchActivityStatus({ keepLoading: true });
       }
