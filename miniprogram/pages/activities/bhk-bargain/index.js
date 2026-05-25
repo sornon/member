@@ -43,6 +43,11 @@ const DEFAULT_INFO_SECTION_CONTENT = [
   '本次活动是修仙晋升的大好机会，不容错过！'
 ];
 
+
+function sleep(ms = 0) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
+
 function resolveNavHeight() {
   const app = getApp();
   const { customNav = {}, safeArea = {} } = (app && app.globalData) || {};
@@ -1061,38 +1066,44 @@ Page({
   },
 
   async handlePostPaymentSuccess() {
-    let confirmSucceeded = false;
-    try {
-      const response = await ActivityService.bargainConfirmPurchase(this.activityId);
-      const activity = response && response.activity ? response.activity : this.data.activity;
-      const bargain = normalizeBargainConfig(response && response.bargainConfig);
-      const session = this.normalizeSession(response && response.session, bargain);
-      this.applySession(session, bargain, activity, {
-        shareContext: response && response.shareContext,
-        ticketOwned: true,
-        stockRemaining: session.stockRemaining
-      });
-      confirmSucceeded = true;
-    } catch (error) {
-      console.error('[bhk-bargain] confirm purchase failed', error);
-      const errMsg = (error && (error.errMsg || error.message)) || '';
-      const soldOut = errMsg.includes('售罄') || errMsg.includes('stock');
-      wx.showToast({ title: soldOut ? '席位已售罄，订单未扣减库存' : '购票状态同步失败', icon: 'none' });
-      if (!soldOut) {
-        this.setData({
-          ticketOwned: true,
-          stockRemaining: Math.max(0, Number.isFinite(this.data.stockRemaining) ? this.data.stockRemaining - 1 : 0)
-        });
-        confirmSucceeded = true;
+    let response = null;
+    let lastError = null;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        response = await ActivityService.bargainConfirmPurchase(this.activityId);
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        console.error('[bhk-bargain] confirm purchase failed', { attempt: attempt + 1, error });
+        if (attempt < 2) {
+          await sleep(300 * (attempt + 1));
+        }
       }
     }
-    if (confirmSucceeded) {
-      try {
-        await this.ensureThanksgivingRight();
-      } catch (error) {
-        console.error('[bhk-bargain] sync right failed', error);
-        wx.showToast({ title: '权益同步异常，请稍后在权益页查看', icon: 'none' });
-      }
+
+    if (lastError || !response) {
+      const errMsg = (lastError && (lastError.errMsg || lastError.message)) || '';
+      const soldOut = errMsg.includes('售罄') || errMsg.includes('stock');
+      wx.showToast({ title: soldOut ? '席位已售罄，购票未生效' : '购票状态同步失败，请联系客服处理', icon: 'none' });
+      return;
+    }
+
+    const activity = response && response.activity ? response.activity : this.data.activity;
+    const bargain = normalizeBargainConfig(response && response.bargainConfig);
+    const session = this.normalizeSession(response && response.session, bargain);
+    this.applySession(session, bargain, activity, {
+      shareContext: response && response.shareContext,
+      ticketOwned: true,
+      stockRemaining: session.stockRemaining
+    });
+
+    try {
+      await this.ensureThanksgivingRight();
+    } catch (error) {
+      console.error('[bhk-bargain] sync right failed', error);
+      wx.showToast({ title: '权益同步异常，请稍后在权益页查看', icon: 'none' });
     }
   },
 
