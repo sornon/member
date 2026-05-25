@@ -1487,7 +1487,7 @@ async function assistBhkBargain(event = {}) {
     { memberBoost, memberRealm: realmName },
     openid
   );
-  const shareContext = await buildShareContext(config, shareId, openid, profile, viewerSession.assistGiven, activityId);
+  const shareContext = await buildShareContext(config, openid, openid, profile, viewerSession.assistGiven, activityId);
 
   return buildBargainPayload(config, viewerSession, {
     activityDoc,
