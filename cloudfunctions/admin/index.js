@@ -2996,7 +2996,15 @@ async function createRightsMaster(openid, payload = {}) {
   const existing = await ref.get().catch(() => null);
   if (existing && existing.data) throw new Error('权益ID已存在');
   const now = new Date();
-  await ref.set({ data: { ...normalized, _id: normalized.rightId, createdAt: now, updatedAt: now, createdBy: openid, updatedBy: openid } });
+  await ref.set({
+    data: {
+      ...normalized,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: openid,
+      updatedBy: openid
+    }
+  });
   return { success: true };
 }
 
