@@ -97,3 +97,29 @@
 - 顶部返回交互由 custom-nav 左侧圆形半透明箭头统一提供；
 - 首屏不再出现“第二导航”导致的错觉遮挡；
 - 与活动管理、管理员中心保持一致的导航层级与交互节奏。
+
+## 复盘补充：为何权益管理页始终没有圆形返回箭头
+
+### 最终根因（已定位）
+不是样式细节问题，而是 **页面缺失 `index.json` 的组件声明**：
+
+- `subpackages/admin/rights-master/index.wxml` 虽然写了 `<custom-nav ... />`；
+- 但该页面目录下没有 `index.json`，因此没有声明：
+  - `custom-nav: /components/custom-nav/custom-nav`
+  - `custom-nav-placeholder: /components/custom-nav-placeholder/custom-nav-placeholder`
+- 结果是 WXML 中的 `custom-nav` 未被注册为组件，调试器里呈现为空节点（`<>`），导致：
+  - 左侧圆形返回箭头不显示；
+  - nav placeholder 不生效，内容没有顶部留白，视觉上被系统区遮挡。
+
+### 这次为何反复出错（自我复盘）
+1. 之前多次把问题误判为“页面样式层级/按钮摆放”，只改了 UI 结构，没有先验证组件是否真正挂载。
+2. 没有第一时间对比同目录其他后台页的 `index.json` 组件声明，遗漏了最关键的注册步骤。
+3. 缺少“开发者工具 WXML 结构验收”闭环：若看到 `<components/custom-nav/custom-nav>` 不存在，应立即回查 page json。
+
+### 最终修复
+- 新增 `miniprogram/subpackages/admin/rights-master/index.json`，完整复用后台页通用组件声明与占位配置。
+
+### 验收标准
+- 开发者工具 WXML 树出现 `<components/custom-nav/custom-nav>` 节点；
+- 顶部显示统一的左箭头半透明圆形返回按钮；
+- 内容区自动拥有 nav placeholder 顶部留白，不再贴顶遮挡。
