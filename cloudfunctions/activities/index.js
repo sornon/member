@@ -1256,10 +1256,15 @@ async function getBhkBargainStatus(event = {}) {
       .catch(() => null);
   }
 
-  const targetShareId = shareId || normalizedSession.lastShareTarget || '';
-  const shareContext = targetShareId
-    ? await buildShareContext(config, targetShareId, openid, profile, normalizedSession.assistGiven, activityId)
-    : null;
+  const targetShareId = shareId || openid;
+  const shareContext = await buildShareContext(
+    config,
+    targetShareId,
+    openid,
+    profile,
+    normalizedSession.assistGiven,
+    activityId
+  );
 
   if (shareId && shareId !== session.lastShareTarget) {
     const now = typeof db.serverDate === 'function' ? db.serverDate() : new Date();
@@ -1482,7 +1487,7 @@ async function assistBhkBargain(event = {}) {
     { memberBoost, memberRealm: realmName },
     openid
   );
-  const shareContext = await buildShareContext(config, shareId, openid, profile, viewerSession.assistGiven, activityId);
+  const shareContext = await buildShareContext(config, openid, openid, profile, viewerSession.assistGiven, activityId);
 
   return buildBargainPayload(config, viewerSession, {
     activityDoc,
@@ -1748,10 +1753,14 @@ async function confirmBhkBargainPurchase(event = {}) {
 
   await ensureThanksgivingChargeOrder(openid, sessionDocId, normalizedChargeAmount);
 
-  const shareId = normalizedSession.lastShareTarget || '';
-  const shareContext = shareId
-    ? await buildShareContext(config, shareId, openid, profile, normalizedSession.assistGiven, activityId)
-    : null;
+  const shareContext = await buildShareContext(
+    config,
+    openid,
+    openid,
+    profile,
+    normalizedSession.assistGiven,
+    activityId
+  );
 
   return buildBargainPayload(config, normalizedSession, {
     activityDoc,
