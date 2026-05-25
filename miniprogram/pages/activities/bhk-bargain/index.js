@@ -451,10 +451,11 @@ Page({
   },
 
   normalizeMapLocation(activity = {}) {
-    const address = activity.locationAddress || activity.location || DEFAULT_LOCATION.address;
-    const name = activity.locationName || activity.location || DEFAULT_LOCATION.name;
-    const latitude = Number(activity.locationLat);
-    const longitude = Number(activity.locationLng);
+    const safeActivity = activity && typeof activity === 'object' ? activity : {};
+    const address = safeActivity.locationAddress || safeActivity.location || DEFAULT_LOCATION.address;
+    const name = safeActivity.locationName || safeActivity.location || DEFAULT_LOCATION.name;
+    const latitude = Number(safeActivity.locationLat);
+    const longitude = Number(safeActivity.locationLng);
     const hasValidCoords =
       Number.isFinite(latitude) &&
       Number.isFinite(longitude) &&
