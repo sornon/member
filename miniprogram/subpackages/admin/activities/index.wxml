@@ -251,6 +251,18 @@
         </view>
       </view>
       <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
+        <text class="form-label">活动权益发放</text>
+        <picker mode="selector" range="{{['开启','关闭']}}" value="{{editorForm.rewardRightEnabled === 'false' ? 1 : 0}}" bindchange="handleRewardRightEnabledChange">
+          <view class="picker-value">{{editorForm.rewardRightEnabled === 'false' ? '关闭' : '开启'}}</view>
+        </picker>
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain' && editorForm.rewardRightEnabled !== 'false'}}" class="form-row">
+        <text class="form-label">选择权益</text>
+        <picker mode="selector" range="{{rightsMasterOptions}}" range-key="label" value="0" bindchange="handleRewardRightChange">
+          <view class="picker-value">{{editorForm.rewardRightName || editorForm.rewardRightId || '请选择权益'}}</view>
+        </picker>
+      </view>
+      <view wx:if="{{editorForm.activityType === 'bargain'}}" class="form-row">
         <text class="form-label">答题奖励</text>
         <picker mode="selector" range="{{['开启','关闭']}}" value="{{editorForm.quizRewardEnabled === 'false' ? 1 : 0}}" bindchange="handleQuizRewardEnabledChange">
           <view class="picker-value">{{editorForm.quizRewardEnabled === 'false' ? '关闭' : '开启'}}</view>

@@ -1,0 +1,25 @@
+page { background: #0f172a; }
+.page { min-height: 100vh; padding: 24rpx 24rpx 120rpx; box-sizing: border-box; background: transparent; color: #e2e8f0; }
+.section-block { background: rgba(15, 23, 42, 0.88); border-radius: 18rpx; border: 1px solid rgba(148, 163, 184, 0.2); padding: 24rpx; margin-bottom: 24rpx; box-shadow: 0 16rpx 32rpx rgba(2, 6, 23, 0.4); }
+.block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
+.block-title { font-size: 32rpx; font-weight: 600; }
+.block-actions { display: flex; gap: 16rpx; }
+.icon-btn, .mini-btn { background: rgba(30, 41, 59, 0.75); color: rgba(226, 232, 240, 0.92); border-radius: 12rpx; border: 1px solid rgba(148, 163, 184, 0.28); }
+.icon-btn::after, .mini-btn::after, .submit-btn::after { display: none; }
+.field { width: 100%; background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 12rpx; color: #e2e8f0; padding: 16rpx 20rpx; margin-bottom: 12rpx; box-sizing: border-box; }
+.field--textarea { min-height: 140rpx; }
+.picker-row { display: flex; gap: 16rpx; margin-bottom: 16rpx; }
+.picker-item { flex: 1; }
+.picker-label { font-size: 24rpx; color: rgba(203, 213, 225, 0.9); margin-bottom: 8rpx; display: block; }
+.picker-value { background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 12rpx; padding: 14rpx 18rpx; }
+.submit-btn { background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: #fff; border: none; border-radius: 12rpx; }
+.state-hint { padding: 120rpx 24rpx 60rpx; text-align: center; color: rgba(203, 213, 225, 0.8); display: flex; flex-direction: column; gap: 16rpx; align-items: center; }
+.state-hint--empty { color: rgba(148, 163, 184, 0.75); padding-top: 48rpx; }
+.list { display: flex; flex-direction: column; gap: 16rpx; }
+.item { background: rgba(15, 23, 42, 0.92); border-radius: 16rpx; padding: 20rpx; border: 1px solid rgba(148, 163, 184, 0.2); display: flex; justify-content: space-between; gap: 16rpx; }
+.item-main { flex: 1; }
+.item-name { font-size: 30rpx; font-weight: 600; }
+.item-meta { margin-top: 8rpx; font-size: 24rpx; color: rgba(203, 213, 225, 0.85); }
+.item-desc { margin-top: 8rpx; font-size: 24rpx; color: rgba(148, 163, 184, 0.9); white-space: pre-wrap; }
+.item-actions { display: flex; flex-direction: column; gap: 10rpx; }
+.mini-btn--danger { color: #fecaca; border-color: rgba(239, 68, 68, 0.4); }

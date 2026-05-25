@@ -68,6 +68,7 @@
         "data-cleanup/index",
         "thanksgiving/index",
         "thanksgiving-dashboard/index",
+        "rights-master/index",
         "system-switches/index"
       ]
     }

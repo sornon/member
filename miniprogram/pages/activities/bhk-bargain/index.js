@@ -3,7 +3,7 @@ import { AVATAR_IMAGE_BASE_PATH, buildCloudAssetUrl } from '../../../shared/asse
 import { buildTitleImageUrl, normalizeTitleId } from '../../../shared/titles';
 
 const DEFAULT_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
-const THANKSGIVING_RIGHT_ID = 'thanksgiving-pass';
+const DEFAULT_TICKET_RIGHT_ID = 'thanksgiving-pass';
 const DEFAULT_SEGMENTS = [120, 180, 200, 260, 320, 500];
 const DEFAULT_LOCATION = {
   name: '酒隐之茄',
@@ -42,6 +42,11 @@ const DEFAULT_INFO_SECTION_CONTENT = [
   '购票消费可同时提升修为和灵石。',
   '本次活动是修仙晋升的大好机会，不容错过！'
 ];
+
+
+function sleep(ms = 0) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
+}
 
 function resolveNavHeight() {
   const app = getApp();
@@ -117,7 +122,13 @@ function normalizeBargainConfig(config = {}) {
     activityTag2,
     activityTag1Enabled,
     activityTag2Enabled,
-    quizReward
+    quizReward,
+    rewardRightEnabled: typeof config.rewardRightEnabled === 'boolean' ? config.rewardRightEnabled : true,
+    rewardRightId: (typeof config.rewardRightId === 'string' && config.rewardRightId.trim()) || DEFAULT_TICKET_RIGHT_ID,
+    rewardRightName: (typeof config.rewardRightName === 'string' && config.rewardRightName.trim()) || '活动门票权益',
+    rewardRightDescription:
+      (typeof config.rewardRightDescription === 'string' && config.rewardRightDescription.trim()) ||
+      '活动门票权益，支付成功后自动发放。'
   };
 }
 
@@ -724,8 +735,9 @@ Page({
     }
     try {
       const rights = await MemberService.getRights();
+      const targetRightId = (this.data.bargainConfig && this.data.bargainConfig.rewardRightId) || DEFAULT_TICKET_RIGHT_ID;
       const hasTicket = Array.isArray(rights)
-        ? rights.some((item) => (item.rightId || item.key || '').trim() === THANKSGIVING_RIGHT_ID)
+        ? rights.some((item) => (item.rightId || item.key || '').trim() === targetRightId)
         : false;
       if (hasTicket) {
         this._rightSynced = true;
@@ -1061,38 +1073,44 @@ Page({
   },
 
   async handlePostPaymentSuccess() {
-    let confirmSucceeded = false;
-    try {
-      const response = await ActivityService.bargainConfirmPurchase(this.activityId);
-      const activity = response && response.activity ? response.activity : this.data.activity;
-      const bargain = normalizeBargainConfig(response && response.bargainConfig);
-      const session = this.normalizeSession(response && response.session, bargain);
-      this.applySession(session, bargain, activity, {
-        shareContext: response && response.shareContext,
-        ticketOwned: true,
-        stockRemaining: session.stockRemaining
-      });
-      confirmSucceeded = true;
-    } catch (error) {
-      console.error('[bhk-bargain] confirm purchase failed', error);
-      const errMsg = (error && (error.errMsg || error.message)) || '';
-      const soldOut = errMsg.includes('售罄') || errMsg.includes('stock');
-      wx.showToast({ title: soldOut ? '席位已售罄，订单未扣减库存' : '购票状态同步失败', icon: 'none' });
-      if (!soldOut) {
-        this.setData({
-          ticketOwned: true,
-          stockRemaining: Math.max(0, Number.isFinite(this.data.stockRemaining) ? this.data.stockRemaining - 1 : 0)
-        });
-        confirmSucceeded = true;
+    let response = null;
+    let lastError = null;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        response = await ActivityService.bargainConfirmPurchase(this.activityId);
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        console.error('[bhk-bargain] confirm purchase failed', { attempt: attempt + 1, error });
+        if (attempt < 2) {
+          await sleep(300 * (attempt + 1));
+        }
       }
     }
-    if (confirmSucceeded) {
-      try {
-        await this.ensureThanksgivingRight();
-      } catch (error) {
-        console.error('[bhk-bargain] sync right failed', error);
-        wx.showToast({ title: '权益同步异常，请稍后在权益页查看', icon: 'none' });
-      }
+
+    if (lastError || !response) {
+      const errMsg = (lastError && (lastError.errMsg || lastError.message)) || '';
+      const soldOut = errMsg.includes('售罄') || errMsg.includes('stock');
+      wx.showToast({ title: soldOut ? '席位已售罄，购票未生效' : '购票状态同步失败，请联系客服处理', icon: 'none' });
+      return;
+    }
+
+    const activity = response && response.activity ? response.activity : this.data.activity;
+    const bargain = normalizeBargainConfig(response && response.bargainConfig);
+    const session = this.normalizeSession(response && response.session, bargain);
+    this.applySession(session, bargain, activity, {
+      shareContext: response && response.shareContext,
+      ticketOwned: true,
+      stockRemaining: session.stockRemaining
+    });
+
+    try {
+      await this.ensureThanksgivingRight();
+    } catch (error) {
+      console.error('[bhk-bargain] sync right failed', error);
+      wx.showToast({ title: '权益同步异常，请稍后在权益页查看', icon: 'none' });
     }
   },
 
@@ -1103,11 +1121,11 @@ Page({
     this._grantingRight = true;
     try {
       const result = await MemberService.grantRight({
-        rightId: THANKSGIVING_RIGHT_ID,
-        key: THANKSGIVING_RIGHT_ID,
-        title: '感恩节通行证',
-        name: '感恩节通行证',
-        description: 'BHK56 感恩节限量品鉴会门票，含活动简介与入场凭证。',
+        rightId: ((this.data.bargainConfig && this.data.bargainConfig.rewardRightId) || DEFAULT_TICKET_RIGHT_ID),
+        key: ((this.data.bargainConfig && this.data.bargainConfig.rewardRightId) || DEFAULT_TICKET_RIGHT_ID),
+        title: (this.data.bargainConfig && this.data.bargainConfig.rewardRightName) || '活动门票权益',
+        name: (this.data.bargainConfig && this.data.bargainConfig.rewardRightName) || '活动门票权益',
+        description: (this.data.bargainConfig && this.data.bargainConfig.rewardRightDescription) || '活动门票权益，支付成功后自动发放。',
         remarks: '支付成功后自动发放，凭此权益入场。',
         status: 'active',
         meta: {
