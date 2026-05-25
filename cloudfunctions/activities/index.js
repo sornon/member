@@ -920,7 +920,7 @@ function normalizeBargainSession(record = {}, config = {}, overrides = {}, openi
   return { ...normalized, ...overrides };
 }
 
-async function ensureThanksgivingChargeOrder(openid, sessionDocId, amountInCents = 0) {
+async function ensureThanksgivingChargeOrder(openid, sessionDocId, amountInCents = 0, options = {}) {
   const normalizedAmount = Math.max(0, Math.round(Number(amountInCents || 0)));
   if (!openid || !sessionDocId || !normalizedAmount) {
     return null;
@@ -928,6 +928,16 @@ async function ensureThanksgivingChargeOrder(openid, sessionDocId, amountInCents
 
   const now = new Date();
   let chargeOrderId = '';
+
+  const rewardRightName =
+    typeof options.rewardRightName === 'string' && options.rewardRightName.trim()
+      ? options.rewardRightName.trim()
+      : '';
+  const activityName =
+    typeof options.activityName === 'string' && options.activityName.trim()
+      ? options.activityName.trim()
+      : '';
+  const fallbackRemark = rewardRightName || activityName || THANKSGIVING_TICKET_REMARK;
 
   await db.runTransaction(async (transaction) => {
     const sessionRef = transaction.collection(BHK_BARGAIN_COLLECTION).doc(sessionDocId);
@@ -958,13 +968,13 @@ async function ensureThanksgivingChargeOrder(openid, sessionDocId, amountInCents
     const balanceBefore = resolveCashBalance(member);
     const balanceAfter = balanceBefore - normalizedAmount;
     const debtIncurred = balanceAfter < 0;
-    const walletRemark = THANKSGIVING_TICKET_REMARK;
+    const walletRemark = fallbackRemark;
 
     const orderPayload = {
       status: 'paid',
       items: [
         {
-          name: THANKSGIVING_TICKET_REMARK,
+          name: walletRemark,
           price: normalizedAmount,
           quantity: 1,
           amount: normalizedAmount,
@@ -1767,7 +1777,10 @@ async function confirmBhkBargainPurchase(event = {}) {
     Math.max(0, Math.round(Number(normalizedSession.currentPrice || 0) * 100)) ||
     Math.max(0, Math.round(Number(config.floorPrice || 0) * 100));
 
-  await ensureThanksgivingChargeOrder(openid, sessionDocId, normalizedChargeAmount);
+  await ensureThanksgivingChargeOrder(openid, sessionDocId, normalizedChargeAmount, {
+    rewardRightName: config && config.rewardRightEnabled ? config.rewardRightName : '',
+    activityName: activityDoc && typeof activityDoc.title === 'string' ? activityDoc.title : ''
+  });
 
   const shareContext = await buildShareContext(
     config,
