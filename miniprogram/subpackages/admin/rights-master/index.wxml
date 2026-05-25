@@ -3,16 +3,10 @@
 <view class="page">
   <view class="section-block">
     <view class="block-header">
-      <view class="block-title">权益模板管理</view>
+      <view class="block-title">{{editingId ? '编辑权益' : '新增权益'}}</view>
       <view class="block-actions">
         <button class="icon-btn" size="mini" bindtap="startCreate">＋ 新建权益</button>
       </view>
-    </view>
-  </view>
-
-  <view class="section-block">
-    <view class="block-header">
-      <view class="block-title">{{editingId ? '编辑权益' : '新增权益'}}</view>
     </view>
     <input class="field" placeholder="权益ID（如 chamber-music-ticket）" value="{{form.rightId}}" data-field="rightId" bindinput="onInput" />
     <input class="field" placeholder="权益名称" value="{{form.name}}" data-field="name" bindinput="onInput" />
