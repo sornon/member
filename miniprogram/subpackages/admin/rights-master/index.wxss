@@ -1,22 +1,24 @@
-page { background: #0b1120; }
-.admin-rights { min-height: 100vh; padding: 24rpx 32rpx; background: #0b1120; color: #e2e8f0; }
-.toolbar { display:flex; justify-content:space-between; margin-bottom: 20rpx; }
-.ghost-btn { background: rgba(15,23,42,.85); color:#e2e8f0; border:1px solid rgba(148,163,184,.3); border-radius:16rpx; padding: 0 24rpx; }
-.panel { background: rgba(15,23,42,.85); border:1px solid rgba(148,163,184,.2); border-radius:20rpx; padding:24rpx; margin-bottom:16rpx; }
-.panel-title { font-size:32rpx; font-weight:600; margin-bottom:16rpx; }
-.field { width:100%; background: rgba(15,23,42,.8); border:1px solid rgba(148,163,184,.3); border-radius: 16rpx; color:#f8fafc; padding:18rpx 20rpx; margin-bottom:12rpx; }
-.field--textarea { min-height: 130rpx; }
-.picker-row { display:flex; gap:12rpx; margin-bottom: 16rpx; }
-.picker-item { flex:1; }
-.picker-label { display:block; color:#94a3b8; margin-bottom:8rpx; font-size:24rpx; }
-.picker-value { background: rgba(15,23,42,.8); border:1px solid rgba(148,163,184,.3); border-radius:16rpx; padding:16rpx 18rpx; }
-.save-btn { background: linear-gradient(135deg,#3b82f6,#8b5cf6); color:#fff; border:none; border-radius:16rpx; }
-.state { text-align:center; color:#94a3b8; padding: 30rpx 0; }
-.item { display:flex; justify-content:space-between; gap:16rpx; padding:18rpx 0; border-bottom:1px solid rgba(148,163,184,.2); }
-.item:last-child { border-bottom: none; }
-.item-name { font-size:30rpx; font-weight:600; }
-.item-meta { margin-top:6rpx; font-size:24rpx; color:#94a3b8; }
-.item-desc { margin-top:6rpx; font-size:24rpx; color:#cbd5e1; }
-.item-actions { display:flex; flex-direction:column; gap:10rpx; }
-.mini-btn { background: rgba(30,41,59,.9); color:#e2e8f0; border:1px solid rgba(148,163,184,.25); }
-.mini-btn--danger { color:#fecaca; border-color: rgba(239,68,68,.4); }
+page { background: #0f172a; }
+.admin-rights { min-height: 100vh; padding: 24rpx 24rpx 120rpx; box-sizing: border-box; color: #e2e8f0; }
+.section-block { background: rgba(15, 23, 42, 0.88); border-radius: 18rpx; border: 1px solid rgba(148, 163, 184, 0.2); padding: 24rpx; margin-bottom: 24rpx; box-shadow: 0 16rpx 32rpx rgba(2, 6, 23, 0.4); }
+.block-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
+.block-title { font-size: 32rpx; font-weight: 600; }
+.block-actions { display: flex; gap: 16rpx; }
+.icon-btn, .mini-btn { background: rgba(30, 41, 59, 0.75); color: rgba(226, 232, 240, 0.92); border-radius: 12rpx; border: 1px solid rgba(148, 163, 184, 0.28); }
+.icon-btn::after, .mini-btn::after, .submit-btn::after { display: none; }
+.field { width: 100%; background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 12rpx; color: #e2e8f0; padding: 16rpx 20rpx; margin-bottom: 12rpx; box-sizing: border-box; }
+.field--textarea { min-height: 140rpx; }
+.picker-row { display: flex; gap: 16rpx; margin-bottom: 16rpx; }
+.picker-item { flex: 1; }
+.picker-label { font-size: 24rpx; color: rgba(203, 213, 225, 0.9); margin-bottom: 8rpx; display: block; }
+.picker-value { background: rgba(15, 23, 42, 0.92); border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 12rpx; padding: 14rpx 18rpx; }
+.submit-btn { background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: #fff; border: none; border-radius: 12rpx; }
+.state { text-align: center; padding: 48rpx 0; color: rgba(148, 163, 184, 0.75); }
+.list { display: flex; flex-direction: column; gap: 16rpx; }
+.item { background: rgba(15, 23, 42, 0.92); border-radius: 16rpx; padding: 20rpx; border: 1px solid rgba(148, 163, 184, 0.2); display: flex; justify-content: space-between; gap: 16rpx; }
+.item-main { flex: 1; }
+.item-name { font-size: 30rpx; font-weight: 600; }
+.item-meta { margin-top: 8rpx; font-size: 24rpx; color: rgba(203, 213, 225, 0.85); }
+.item-desc { margin-top: 8rpx; font-size: 24rpx; color: rgba(148, 163, 184, 0.9); white-space: pre-wrap; }
+.item-actions { display: flex; flex-direction: column; gap: 10rpx; }
+.mini-btn--danger { color: #fecaca; border-color: rgba(239, 68, 68, 0.4); }

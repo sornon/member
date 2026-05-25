@@ -1,13 +1,20 @@
 <custom-nav title="权益管理" theme="dark"></custom-nav>
 
 <view class="admin-rights">
-  <view class="toolbar">
-    <button class="ghost-btn" bindtap="handleBack">返回</button>
-    <button class="ghost-btn" bindtap="startCreate">新建</button>
+  <view class="section-block">
+    <view class="block-header">
+      <view class="block-title">权益模板管理</view>
+      <view class="block-actions">
+        <button class="icon-btn" size="mini" bindtap="handleBack">返回</button>
+        <button class="icon-btn" size="mini" bindtap="startCreate">＋ 新建权益</button>
+      </view>
+    </view>
   </view>
 
-  <view class="panel">
-    <view class="panel-title">{{editingId ? '编辑权益' : '新增权益'}}</view>
+  <view class="section-block">
+    <view class="block-header">
+      <view class="block-title">{{editingId ? '编辑权益' : '新增权益'}}</view>
+    </view>
     <input class="field" placeholder="权益ID（如 chamber-music-ticket）" value="{{form.rightId}}" data-field="rightId" bindinput="onInput" />
     <input class="field" placeholder="权益名称" value="{{form.name}}" data-field="name" bindinput="onInput" />
     <textarea class="field field--textarea" placeholder="权益描述" value="{{form.description}}" data-field="description" bindinput="onInput"></textarea>
@@ -27,11 +34,13 @@
       </view>
     </view>
 
-    <button class="save-btn" bindtap="save">保存</button>
+    <button class="submit-btn" bindtap="save">保存</button>
   </view>
 
-  <view class="panel">
-    <view class="panel-title">权益列表</view>
+  <view class="section-block">
+    <view class="block-header">
+      <view class="block-title">权益列表</view>
+    </view>
     <view wx:if="{{loading}}" class="state">加载中...</view>
     <view wx:elif="{{!rights.length}}" class="state">暂无权益</view>
     <view wx:else class="list">
