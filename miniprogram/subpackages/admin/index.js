@@ -80,6 +80,12 @@ const BASE_ACTIONS = [
     url: '/subpackages/admin/guild/index'
   },
   {
+    icon: '🎫',
+    label: '权益管理',
+    description: '管理权益模板并供活动配置选择',
+    url: '/subpackages/admin/rights-master/index'
+  },
+  {
     icon: '⚙️',
     label: '系统设置',
     description: '系统全局配置功能',
