@@ -1406,6 +1406,18 @@ export const AdminService = {
       updates
     });
   },
+  async listRightsMaster() {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, { action: 'listRightsMaster' });
+  },
+  async createRightsMaster(payload = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, { action: 'createRightsMaster', payload });
+  },
+  async updateRightsMaster(rightId, payload = {}) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, { action: 'updateRightsMaster', rightId, payload });
+  },
+  async deleteRightsMaster(rightId) {
+    return callCloud(CLOUD_FUNCTIONS.ADMIN, { action: 'deleteRightsMaster', rightId });
+  },
   async getThanksgivingDashboard(options = {}) {
     const payload = { action: 'getThanksgivingDashboard' };
     if (options && Number.isFinite(options.limit)) {

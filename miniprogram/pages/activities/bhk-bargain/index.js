@@ -3,7 +3,7 @@ import { AVATAR_IMAGE_BASE_PATH, buildCloudAssetUrl } from '../../../shared/asse
 import { buildTitleImageUrl, normalizeTitleId } from '../../../shared/titles';
 
 const DEFAULT_ACTIVITY_ID = '479859146924a70404e4f40e1530f51d';
-const THANKSGIVING_RIGHT_ID = 'thanksgiving-pass';
+const DEFAULT_TICKET_RIGHT_ID = 'thanksgiving-pass';
 const DEFAULT_SEGMENTS = [120, 180, 200, 260, 320, 500];
 const DEFAULT_LOCATION = {
   name: '酒隐之茄',
@@ -122,7 +122,13 @@ function normalizeBargainConfig(config = {}) {
     activityTag2,
     activityTag1Enabled,
     activityTag2Enabled,
-    quizReward
+    quizReward,
+    rewardRightEnabled: typeof config.rewardRightEnabled === 'boolean' ? config.rewardRightEnabled : true,
+    rewardRightId: (typeof config.rewardRightId === 'string' && config.rewardRightId.trim()) || DEFAULT_TICKET_RIGHT_ID,
+    rewardRightName: (typeof config.rewardRightName === 'string' && config.rewardRightName.trim()) || '活动门票权益',
+    rewardRightDescription:
+      (typeof config.rewardRightDescription === 'string' && config.rewardRightDescription.trim()) ||
+      '活动门票权益，支付成功后自动发放。'
   };
 }
 
@@ -729,8 +735,9 @@ Page({
     }
     try {
       const rights = await MemberService.getRights();
+      const targetRightId = (this.data.bargainConfig && this.data.bargainConfig.rewardRightId) || DEFAULT_TICKET_RIGHT_ID;
       const hasTicket = Array.isArray(rights)
-        ? rights.some((item) => (item.rightId || item.key || '').trim() === THANKSGIVING_RIGHT_ID)
+        ? rights.some((item) => (item.rightId || item.key || '').trim() === targetRightId)
         : false;
       if (hasTicket) {
         this._rightSynced = true;
@@ -1114,11 +1121,11 @@ Page({
     this._grantingRight = true;
     try {
       const result = await MemberService.grantRight({
-        rightId: THANKSGIVING_RIGHT_ID,
-        key: THANKSGIVING_RIGHT_ID,
-        title: '感恩节通行证',
-        name: '感恩节通行证',
-        description: 'BHK56 感恩节限量品鉴会门票，含活动简介与入场凭证。',
+        rightId: ((this.data.bargainConfig && this.data.bargainConfig.rewardRightId) || DEFAULT_TICKET_RIGHT_ID),
+        key: ((this.data.bargainConfig && this.data.bargainConfig.rewardRightId) || DEFAULT_TICKET_RIGHT_ID),
+        title: (this.data.bargainConfig && this.data.bargainConfig.rewardRightName) || '活动门票权益',
+        name: (this.data.bargainConfig && this.data.bargainConfig.rewardRightName) || '活动门票权益',
+        description: (this.data.bargainConfig && this.data.bargainConfig.rewardRightDescription) || '活动门票权益，支付成功后自动发放。',
         remarks: '支付成功后自动发放，凭此权益入场。',
         status: 'active',
         meta: {

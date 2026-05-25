@@ -431,6 +431,10 @@ const ACTIONS = {
   LIST_MEMBER_RIGHTS: 'listMemberRights',
   UPDATE_MEMBER_RIGHT_STATUS: 'updateMemberRightStatus',
   REMOVE_MEMBER_RIGHT: 'removeMemberRight',
+  LIST_RIGHTS_MASTER: 'listRightsMaster',
+  CREATE_RIGHTS_MASTER: 'createRightsMaster',
+  UPDATE_RIGHTS_MASTER: 'updateRightsMaster',
+  DELETE_RIGHTS_MASTER: 'deleteRightsMaster',
   BUMP_CACHE_VERSION: 'bumpCacheVersion',
   RESET_IMMORTAL_TOURNAMENT: 'resetImmortalTournament',
   REFRESH_IMMORTAL_TOURNAMENT_PLAYERS: 'refreshImmortalTournamentPlayers',
@@ -546,6 +550,10 @@ const ACTION_ALIASES = {
   memberrights: ACTIONS.LIST_MEMBER_RIGHTS,
   updatememberrightstatus: ACTIONS.UPDATE_MEMBER_RIGHT_STATUS,
   removememberright: ACTIONS.REMOVE_MEMBER_RIGHT,
+  listrightsmaster: ACTIONS.LIST_RIGHTS_MASTER,
+  createrightsmaster: ACTIONS.CREATE_RIGHTS_MASTER,
+  updaterightsmaster: ACTIONS.UPDATE_RIGHTS_MASTER,
+  deleterightsmaster: ACTIONS.DELETE_RIGHTS_MASTER,
   bumpcacheversion: ACTIONS.BUMP_CACHE_VERSION,
   refreshcache: ACTIONS.BUMP_CACHE_VERSION,
   updatecacheversion: ACTIONS.BUMP_CACHE_VERSION,
@@ -895,6 +903,11 @@ const ACTION_HANDLERS = {
     updateMemberRightStatus(openid, event.memberId, event.rightEntryId || event.rightId || '', event.status),
   [ACTIONS.REMOVE_MEMBER_RIGHT]: (openid, event) =>
     removeMemberRight(openid, event.memberId, event.rightEntryId || event.rightId || ''),
+  [ACTIONS.LIST_RIGHTS_MASTER]: (openid) => listRightsMaster(openid),
+  [ACTIONS.CREATE_RIGHTS_MASTER]: (openid, event) => createRightsMaster(openid, event && event.payload ? event.payload : event),
+  [ACTIONS.UPDATE_RIGHTS_MASTER]: (openid, event) =>
+    updateRightsMaster(openid, event.rightId || event.id || '', event && event.payload ? event.payload : event),
+  [ACTIONS.DELETE_RIGHTS_MASTER]: (openid, event) => deleteRightsMaster(openid, event.rightId || event.id || ''),
   [ACTIONS.LIST_TRADE_ORDERS]: (openid, event) =>
     listTradeOrders(openid, {
       page: event.page || 1,
@@ -2941,6 +2954,72 @@ function buildMemberRightEntry(item, masterMap = {}, now = Date.now()) {
     meta: mergedMeta,
     roomUsageCredits: Number.isFinite(usageCredits) ? usageCredits : 0
   };
+}
+
+function normalizeRightsMasterPayload(payload = {}, { partial = false } = {}) {
+  const source = payload && typeof payload === 'object' ? payload : {};
+  const has = (key) => Object.prototype.hasOwnProperty.call(source, key);
+  const rightId = trimToString(source.rightId || source.id).toLowerCase().replace(/\s+/g, '-');
+  const result = {};
+  if ((has('rightId') || has('id') || !partial) && rightId) {
+    result.rightId = rightId;
+  }
+  if (has('name') || !partial) result.name = trimToString(source.name);
+  if (has('description') || !partial) result.description = trimToString(source.description);
+  if (has('status') || !partial) {
+    const status = trimToString(source.status).toLowerCase();
+    result.status = status === 'inactive' ? 'inactive' : 'active';
+  }
+  if (has('type') || !partial) result.type = trimToString(source.type) || 'ticket';
+  return result;
+}
+
+async function listRightsMaster(openid) {
+  await ensureAdmin(openid);
+  const snapshot = await db.collection(COLLECTIONS.RIGHTS_MASTER).limit(500).get().catch(() => ({ data: [] }));
+  const rights = (snapshot.data || []).map((item) => ({
+    id: item._id,
+    rightId: item._id,
+    name: trimToString(item.name),
+    description: trimToString(item.description),
+    status: trimToString(item.status) || 'active',
+    type: trimToString(item.type) || 'ticket'
+  }));
+  return { rights };
+}
+
+async function createRightsMaster(openid, payload = {}) {
+  await ensureAdmin(openid);
+  const normalized = normalizeRightsMasterPayload(payload);
+  if (!normalized.rightId || !normalized.name) throw new Error('权益ID和名称不能为空');
+  const ref = db.collection(COLLECTIONS.RIGHTS_MASTER).doc(normalized.rightId);
+  const existing = await ref.get().catch(() => null);
+  if (existing && existing.data) throw new Error('权益ID已存在');
+  const now = new Date();
+  await ref.set({ data: { ...normalized, _id: normalized.rightId, createdAt: now, updatedAt: now, createdBy: openid, updatedBy: openid } });
+  return { success: true };
+}
+
+async function updateRightsMaster(openid, rightId, payload = {}) {
+  await ensureAdmin(openid);
+  const id = trimToString(rightId);
+  if (!id) throw new Error('缺少权益ID');
+  const normalized = normalizeRightsMasterPayload(payload, { partial: true });
+  delete normalized.rightId;
+  normalized.updatedAt = new Date();
+  normalized.updatedBy = openid;
+  await db.collection(COLLECTIONS.RIGHTS_MASTER).doc(id).update({ data: normalized });
+  return { success: true };
+}
+
+async function deleteRightsMaster(openid, rightId) {
+  await ensureAdmin(openid);
+  const id = trimToString(rightId);
+  if (!id) throw new Error('缺少权益ID');
+  const usingCount = await db.collection(COLLECTIONS.ACTIVITIES).where({ 'bargainSettings.rewardRightId': id }).count().catch(() => ({ total: 0 }));
+  if ((usingCount.total || 0) > 0) throw new Error('该权益正在被活动引用，不能删除');
+  await db.collection(COLLECTIONS.RIGHTS_MASTER).doc(id).remove();
+  return { success: true };
 }
 
 async function getThanksgivingDashboard(openid, options = {}) {
@@ -9498,6 +9577,11 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
     typeof source.activityTag1Enabled === 'boolean' ? source.activityTag1Enabled : source.activityTag1Enabled !== 'false';
   const activityTag2Enabled =
     typeof source.activityTag2Enabled === 'boolean' ? source.activityTag2Enabled : source.activityTag2Enabled !== 'false';
+  const rewardRightEnabled =
+    typeof source.rewardRightEnabled === 'boolean' ? source.rewardRightEnabled : source.rewardRightEnabled === 'true';
+  const rewardRightId = trimToString(source.rewardRightId || '');
+  const rewardRightName = trimToString(source.rewardRightName || '');
+  const rewardRightDescription = trimToString(source.rewardRightDescription || '');
   const value = {
     startPrice: Number.isFinite(startPrice) ? Math.max(0, Math.floor(startPrice)) : 1500,
     floorPrice: Number.isFinite(floorPrice) ? Math.max(0, Math.floor(floorPrice)) : 998,
@@ -9514,6 +9598,10 @@ function normalizeBargainSettings(settings = {}, activityType = 'standard') {
     activityTag1Enabled,
     activityTag2,
     activityTag2Enabled,
+    rewardRightEnabled,
+    rewardRightId,
+    rewardRightName,
+    rewardRightDescription,
     quizReward: normalizeBargainQuizReward(source.quizReward),
     ticketingMode: 'paid-ticket'
   };

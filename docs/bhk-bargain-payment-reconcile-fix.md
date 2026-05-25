@@ -50,3 +50,28 @@
      - 充值 `+金额`
      - 消费 `-同金额`
    - 验证权益中心已出现「感恩节通行证」。
+
+## 新增：活动权益改为可配置（不再固定“感恩节通行证”）
+
+### 目标
+- 砍价活动支付成功后，发放的权益名称/ID改为活动配置驱动，而非前端写死。
+
+### 本次实现
+1. `activities` 云函数扩展 `bargainConfig`：新增
+   - `rewardRightEnabled`
+   - `rewardRightId`
+   - `rewardRightName`
+   - `rewardRightDescription`
+2. 活动运行时会从 `activity.bargainSettings` 读取上述字段并覆盖默认值。
+3. 前台砍价页发权益逻辑改为读取 `bargainConfig.rewardRight*` 动态发放。
+4. 后台 `admin` 云函数新增权益主数据 CRUD 接口：
+   - `listRightsMaster`
+   - `createRightsMaster`
+   - `updateRightsMaster`
+   - `deleteRightsMaster`
+
+### 部署
+- 需同步部署：
+  - `cloudfunctions/activities`
+  - `cloudfunctions/admin`
+  - 小程序前端（至少 `miniprogram/pages/activities/bhk-bargain` 与 `miniprogram/services/api.js`）

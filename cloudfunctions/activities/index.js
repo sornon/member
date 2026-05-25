@@ -253,7 +253,11 @@ function buildBhkBargainConfig() {
         '结丹及以上：神之一手',
         '分享助力：双方+1次砍价',
         '设置名字、头像：+1次砍价'
-    ]
+    ],
+    rewardRightEnabled: true,
+    rewardRightId: THANKSGIVING_RIGHT_ID,
+    rewardRightName: '感恩节通行证',
+    rewardRightDescription: 'BHK56 感恩节限量品鉴会门票，含活动简介与入场凭证。'
   };
 }
 
@@ -373,6 +377,10 @@ async function resolveBargainActivityRuntime(event = {}) {
       : config.cardBackgroundColor;
     config.heroMaskEnabled = typeof settings.heroMaskEnabled === 'boolean' ? settings.heroMaskEnabled : config.heroMaskEnabled;
     config.infoSectionEnabled = typeof settings.infoSectionEnabled === 'boolean' ? settings.infoSectionEnabled : config.infoSectionEnabled;
+    config.rewardRightEnabled = typeof settings.rewardRightEnabled === 'boolean' ? settings.rewardRightEnabled : config.rewardRightEnabled;
+    config.rewardRightId = typeof settings.rewardRightId === 'string' && settings.rewardRightId.trim() ? settings.rewardRightId.trim() : config.rewardRightId;
+    config.rewardRightName = typeof settings.rewardRightName === 'string' && settings.rewardRightName.trim() ? settings.rewardRightName.trim() : config.rewardRightName;
+    config.rewardRightDescription = typeof settings.rewardRightDescription === 'string' && settings.rewardRightDescription.trim() ? settings.rewardRightDescription.trim() : config.rewardRightDescription;
     config.infoSectionContent =
       typeof settings.infoSectionContent === 'string' && settings.infoSectionContent.trim()
         ? settings.infoSectionContent.trim()
@@ -459,6 +467,13 @@ async function hasThanksgivingPass(memberId) {
     .get()
     .catch(() => ({ data: [] }));
 
+  return Array.isArray(rights.data) && rights.data.length > 0;
+}
+
+async function hasActivityRewardRight(memberId, rightId) {
+  if (!memberId || !rightId) return false;
+  await ensureCollectionExists(COLLECTIONS.MEMBER_RIGHTS);
+  const rights = await db.collection(COLLECTIONS.MEMBER_RIGHTS).where({ memberId, rightId, status: _.neq('revoked') }).limit(1).get().catch(() => ({ data: [] }));
   return Array.isArray(rights.data) && rights.data.length > 0;
 }
 
@@ -1240,7 +1255,8 @@ async function getBhkBargainStatus(event = {}) {
     profileComplete
   });
   const stockState = await getBargainStock(config, activityId);
-  const ownedRight = await hasThanksgivingPass(openid);
+  const targetRightId = (config && config.rewardRightEnabled && config.rewardRightId) ? config.rewardRightId : THANKSGIVING_RIGHT_ID;
+  const ownedRight = await hasActivityRewardRight(openid, targetRightId);
   const normalizedSession = normalizeBargainSession(
     { ...session, stockRemaining: stockState.stockRemaining },
     config,
