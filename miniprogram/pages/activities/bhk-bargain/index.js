@@ -529,6 +529,10 @@ Page({
           ? bargain.stock
           : this.data.stockRemaining;
 
+    const nextHeroImage = bargain.heroImage || DEFAULT_HERO_IMAGE;
+    const nextHeroVideoUrl = buildHeroMovUrl(nextHeroImage);
+    const keepHeroLoaded = this.data.heroImageLoaded && this.data.heroImage === nextHeroImage;
+
     this.setData({
       loading: false,
       activity,
@@ -549,11 +553,11 @@ Page({
       floorPrice: bargain.floorPrice,
       countdownTarget,
       countdown: countdownTarget ? formatCountdownText(countdownTarget) : '敬请期待',
-      heroImage: bargain.heroImage || DEFAULT_HERO_IMAGE,
-      heroVideoUrl: buildHeroMovUrl(bargain.heroImage || DEFAULT_HERO_IMAGE),
-      heroVideoReady: Boolean(buildHeroMovUrl(bargain.heroImage || DEFAULT_HERO_IMAGE)),
+      heroImage: nextHeroImage,
+      heroVideoUrl: nextHeroVideoUrl,
+      heroVideoReady: Boolean(nextHeroVideoUrl),
       heroVideoVisible: false,
-      heroImageLoaded: false,
+      heroImageLoaded: keepHeroLoaded,
       heroHeightRpx: bargain.heroHeightRpx || DEFAULT_HERO_HEIGHT_RPX,
       pageBackgroundColor: bargain.pageBackgroundColor || DEFAULT_PAGE_BACKGROUND_COLOR,
       cardBackgroundColor: bargain.cardBackgroundColor || DEFAULT_CARD_BACKGROUND_COLOR,

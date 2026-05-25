@@ -194,6 +194,11 @@
   color: #ffe9c7;
 }
 
+
+.bhk-banner__pill--nowrap {
+  white-space: nowrap;
+}
+
 .bhk-banner__pill--accent {
   background: linear-gradient(135deg, rgba(255, 202, 120, 0.38), rgba(255, 140, 80, 0.4));
   color: #2a1200;
