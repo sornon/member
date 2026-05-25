@@ -34,6 +34,31 @@ function normalizeTitleId(id) {
   return id.trim();
 }
 
+async function loadRightsMasterMap() {
+  const collection = db.collection(COLLECTIONS.RIGHTS_MASTER);
+  const PAGE_SIZE = 100;
+  const masterMap = {};
+  let fetched = 0;
+  while (true) {
+    const snapshot = await collection
+      .skip(fetched)
+      .limit(PAGE_SIZE)
+      .get()
+      .catch(() => ({ data: [] }));
+    const items = Array.isArray(snapshot.data) ? snapshot.data : [];
+    if (!items.length) break;
+    items.forEach((item) => {
+      if (!item || typeof item._id !== 'string') return;
+      const id = item._id.trim();
+      if (!id) return;
+      masterMap[id] = item;
+    });
+    fetched += items.length;
+    if (items.length < PAGE_SIZE) break;
+  }
+  return masterMap;
+}
+
 function isNotFoundError(error) {
   if (!error) {
     return false;
@@ -381,6 +406,18 @@ async function resolveBargainActivityRuntime(event = {}) {
     config.rewardRightId = typeof settings.rewardRightId === 'string' && settings.rewardRightId.trim() ? settings.rewardRightId.trim() : config.rewardRightId;
     config.rewardRightName = typeof settings.rewardRightName === 'string' && settings.rewardRightName.trim() ? settings.rewardRightName.trim() : config.rewardRightName;
     config.rewardRightDescription = typeof settings.rewardRightDescription === 'string' && settings.rewardRightDescription.trim() ? settings.rewardRightDescription.trim() : config.rewardRightDescription;
+    if (config.rewardRightId && (!config.rewardRightName || !config.rewardRightDescription)) {
+      const masterMap = await loadRightsMasterMap();
+      const masterRight = masterMap[config.rewardRightId];
+      if (masterRight) {
+        if (!config.rewardRightName && typeof masterRight.name === 'string' && masterRight.name.trim()) {
+          config.rewardRightName = masterRight.name.trim();
+        }
+        if (!config.rewardRightDescription && typeof masterRight.description === 'string' && masterRight.description.trim()) {
+          config.rewardRightDescription = masterRight.description.trim();
+        }
+      }
+    }
     config.infoSectionContent =
       typeof settings.infoSectionContent === 'string' && settings.infoSectionContent.trim()
         ? settings.infoSectionContent.trim()
