@@ -223,6 +223,10 @@ function buildEditorForm(activity) {
       activityTag2: '',
       activityTag2Enabled: 'true',
       quizRewardEnabled: 'false',
+      rewardRightEnabled: 'false',
+      rewardRightId: '',
+      rewardRightName: '',
+      rewardRightDescription: '',
       quizQuestion: '',
       quizOptionsText: '',
       quizAnswerIndex: '0',
@@ -313,6 +317,20 @@ function buildEditorForm(activity) {
         : 'true',
     quizRewardEnabled:
       activity.bargainSettings && activity.bargainSettings.quizReward && activity.bargainSettings.quizReward.enabled ? 'true' : 'false',
+    rewardRightEnabled:
+      activity.bargainSettings && activity.bargainSettings.rewardRightEnabled ? 'true' : 'false',
+    rewardRightId:
+      activity.bargainSettings && typeof activity.bargainSettings.rewardRightId === 'string'
+        ? activity.bargainSettings.rewardRightId
+        : '',
+    rewardRightName:
+      activity.bargainSettings && typeof activity.bargainSettings.rewardRightName === 'string'
+        ? activity.bargainSettings.rewardRightName
+        : '',
+    rewardRightDescription:
+      activity.bargainSettings && typeof activity.bargainSettings.rewardRightDescription === 'string'
+        ? activity.bargainSettings.rewardRightDescription
+        : '',
     quizQuestion:
       activity.bargainSettings && activity.bargainSettings.quizReward && activity.bargainSettings.quizReward.question
         ? activity.bargainSettings.quizReward.question
@@ -349,11 +367,20 @@ Page({
     activityTypeOptions: ACTIVITY_TYPE_OPTIONS,
     activeActivityId: '',
     editorStatusLabel: resolveStatusLabel('published'),
-    editorStatusIndex: resolveStatusIndex('published')
+    editorStatusIndex: resolveStatusIndex('published'),
+    rightsMasterOptions: []
   },
 
   onShow() {
     this.fetchActivities();
+    this.fetchRightsMasterOptions();
+  },
+  async fetchRightsMasterOptions() {
+    try {
+      const res = await AdminService.listRightsMaster();
+      const rights = Array.isArray(res && res.rights) ? res.rights : [];
+      this.setData({ rightsMasterOptions: rights.map((r) => ({ value: r.rightId, label: `${r.name}（${r.rightId}）`, name: r.name, description: r.description || '' })) });
+    } catch (e) {}
   },
 
   async fetchActivities() {
@@ -529,6 +556,20 @@ Page({
       'editorForm.quizRewardEnabled': index === 1 ? 'false' : 'true'
     });
   },
+  handleRewardRightEnabledChange(event) {
+    const index = Number(event.detail.value);
+    this.setData({ 'editorForm.rewardRightEnabled': index === 1 ? 'false' : 'true' });
+  },
+  handleRewardRightChange(event) {
+    const index = Number(event.detail.value);
+    const option = this.data.rightsMasterOptions[index];
+    if (!option) return;
+    this.setData({
+      'editorForm.rewardRightId': option.value,
+      'editorForm.rewardRightName': option.name || '',
+      'editorForm.rewardRightDescription': option.description || ''
+    });
+  },
 
   handleEditorTimeChange(event) {
     const { field } = event.currentTarget.dataset || {};
@@ -632,6 +673,10 @@ Page({
         activityTag1Enabled: `${form.activityTag1Enabled}` !== 'false',
         activityTag2: (form.activityTag2 || '').trim(),
         activityTag2Enabled: `${form.activityTag2Enabled}` !== 'false',
+        rewardRightEnabled: `${form.rewardRightEnabled}` === 'true',
+        rewardRightId: (form.rewardRightId || '').trim(),
+        rewardRightName: (form.rewardRightName || '').trim(),
+        rewardRightDescription: (form.rewardRightDescription || '').trim(),
         quizReward: {
           enabled: `${form.quizRewardEnabled}` === 'true',
           question: (form.quizQuestion || '').trim(),
