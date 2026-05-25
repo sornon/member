@@ -747,7 +747,7 @@ Page({
     }
     try {
       const rights = await MemberService.getRights();
-      const targetRightId = resolveRewardRightId(this.data.bargainConfig, this.activityId);
+      const targetRightId = resolveRewardRightId(this.data.bargain, this.activityId);
       const hasTicket = Array.isArray(rights)
         ? rights.some((item) => (item.rightId || item.key || '').trim() === targetRightId)
         : false;
@@ -1133,11 +1133,11 @@ Page({
     this._grantingRight = true;
     try {
       const result = await MemberService.grantRight({
-        rightId: resolveRewardRightId(this.data.bargainConfig, this.activityId),
-        key: resolveRewardRightId(this.data.bargainConfig, this.activityId),
-        title: (this.data.bargainConfig && this.data.bargainConfig.rewardRightName) || '活动门票权益',
-        name: (this.data.bargainConfig && this.data.bargainConfig.rewardRightName) || '活动门票权益',
-        description: (this.data.bargainConfig && this.data.bargainConfig.rewardRightDescription) || '活动门票权益，支付成功后自动发放。',
+        rightId: resolveRewardRightId(this.data.bargain, this.activityId),
+        key: resolveRewardRightId(this.data.bargain, this.activityId),
+        title: (this.data.bargain && this.data.bargain.rewardRightName) || '活动门票权益',
+        name: (this.data.bargain && this.data.bargain.rewardRightName) || '活动门票权益',
+        description: (this.data.bargain && this.data.bargain.rewardRightDescription) || '活动门票权益，支付成功后自动发放。',
         remarks: '支付成功后自动发放，凭此权益入场。',
         status: 'active',
         meta: {
