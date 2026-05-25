@@ -123,3 +123,27 @@
 - 开发者工具 WXML 树出现 `<components/custom-nav/custom-nav>` 节点；
 - 顶部显示统一的左箭头半透明圆形返回按钮；
 - 内容区自动拥有 nav placeholder 顶部留白，不再贴顶遮挡。
+
+## 新增修复：砍价购票后钱包流水名称错误
+
+### 问题现象
+- 用户在砍价活动完成购票后，钱包消费流水 `remark` 仍显示固定文案「感恩节活动门票」。
+- 该文案与活动配置不一致，无法准确反映当前活动发放的权益名称。
+
+### 根因
+- `cloudfunctions/activities` 中创建消费流水时，`walletRemark` 被固定为常量 `THANKSGIVING_TICKET_REMARK`。
+- 即使活动后台已配置 `rewardRightName`（活动权益名称），消费流水也不会读取该配置。
+
+### 修复策略
+1. 为 `ensureThanksgivingChargeOrder` 增加 `options` 入参，接收：
+   - `rewardRightName`
+   - `activityName`
+2. 统一流水文案优先级：
+   - 优先使用活动发放的权益名称 `rewardRightName`
+   - 若为空则回退活动名称 `activityName`
+   - 若仍为空再回退历史默认值 `THANKSGIVING_TICKET_REMARK`
+3. 在 `bargainConfirmPurchase` 调用处传入运行时活动配置与活动标题，确保流水名称随活动配置动态变化。
+
+### 结果
+- 钱包消费流水、订单条目名称、灵石流水描述将与活动权益配置保持一致；
+- 当未配置权益名称时，自动显示活动名称，符合“权益名优先、活动名兜底”的业务规则。
