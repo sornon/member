@@ -5,7 +5,6 @@
     <view class="block-header">
       <view class="block-title">权益模板管理</view>
       <view class="block-actions">
-        <button class="icon-btn" size="mini" bindtap="handleBack">返回</button>
         <button class="icon-btn" size="mini" bindtap="startCreate">＋ 新建权益</button>
       </view>
     </view>

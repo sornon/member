@@ -41,14 +41,6 @@ Page({
     }
   },
 
-  handleBack() {
-    if (getCurrentPages().length > 1) {
-      wx.navigateBack();
-      return;
-    }
-    wx.switchTab({ url: '/pages/index/index' });
-  },
-
   onInput(event) {
     const { field } = event.currentTarget.dataset || {};
     if (!field) return;
