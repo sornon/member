@@ -43,6 +43,18 @@ const DEFAULT_INFO_SECTION_CONTENT = [
   '本次活动是修仙晋升的大好机会，不容错过！'
 ];
 
+function resolveRewardRightId(config = {}, activityId = '') {
+  const configuredId = typeof config.rewardRightId === 'string' ? config.rewardRightId.trim() : '';
+  if (configuredId && configuredId !== DEFAULT_TICKET_RIGHT_ID) {
+    return configuredId;
+  }
+  const normalizedActivityId = typeof activityId === 'string' ? activityId.trim() : '';
+  if (normalizedActivityId && normalizedActivityId !== 'thanksgiving-bargain') {
+    return `bargain-ticket-${normalizedActivityId}`;
+  }
+  return configuredId || DEFAULT_TICKET_RIGHT_ID;
+}
+
 
 function sleep(ms = 0) {
   return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
@@ -735,7 +747,7 @@ Page({
     }
     try {
       const rights = await MemberService.getRights();
-      const targetRightId = (this.data.bargainConfig && this.data.bargainConfig.rewardRightId) || DEFAULT_TICKET_RIGHT_ID;
+      const targetRightId = resolveRewardRightId(this.data.bargain, this.activityId);
       const hasTicket = Array.isArray(rights)
         ? rights.some((item) => (item.rightId || item.key || '').trim() === targetRightId)
         : false;
@@ -1121,11 +1133,11 @@ Page({
     this._grantingRight = true;
     try {
       const result = await MemberService.grantRight({
-        rightId: ((this.data.bargainConfig && this.data.bargainConfig.rewardRightId) || DEFAULT_TICKET_RIGHT_ID),
-        key: ((this.data.bargainConfig && this.data.bargainConfig.rewardRightId) || DEFAULT_TICKET_RIGHT_ID),
-        title: (this.data.bargainConfig && this.data.bargainConfig.rewardRightName) || '活动门票权益',
-        name: (this.data.bargainConfig && this.data.bargainConfig.rewardRightName) || '活动门票权益',
-        description: (this.data.bargainConfig && this.data.bargainConfig.rewardRightDescription) || '活动门票权益，支付成功后自动发放。',
+        rightId: resolveRewardRightId(this.data.bargain, this.activityId),
+        key: resolveRewardRightId(this.data.bargain, this.activityId),
+        title: (this.data.bargain && this.data.bargain.rewardRightName) || '活动门票权益',
+        name: (this.data.bargain && this.data.bargain.rewardRightName) || '活动门票权益',
+        description: (this.data.bargain && this.data.bargain.rewardRightDescription) || '活动门票权益，支付成功后自动发放。',
         remarks: '支付成功后自动发放，凭此权益入场。',
         status: 'active',
         meta: {
