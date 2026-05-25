@@ -1,2 +1,118 @@
 import { AdminService } from '../../../services/api';
-Page({data:{loading:false,rights:[],form:{rightId:'',name:'',description:'',status:'active',type:'ticket'},editingId:''},onShow(){this.loadRights();},async loadRights(){this.setData({loading:true});try{const r=await AdminService.listRightsMaster();this.setData({rights:Array.isArray(r&&r.rights)?r.rights:[],loading:false});}catch(e){this.setData({loading:false});wx.showToast({title:e.errMsg||e.message||'加载失败',icon:'none'});}},onInput(e){const{field}=e.currentTarget.dataset;this.setData({[`form.${field}`]:e.detail.value||''});},onStatusChange(e){this.setData({'form.status':Number(e.detail.value)===1?'inactive':'active'});},onTypeChange(e){this.setData({'form.type':Number(e.detail.value)===1?'coupon':'ticket'});},startEdit(e){const i=e.currentTarget.dataset.item;this.setData({editingId:i.id,form:{rightId:i.rightId,name:i.name||'',description:i.description||'',status:i.status||'active',type:i.type||'ticket'}});},async save(){const{editingId,form}=this.data;if(!form.rightId||!form.name)return wx.showToast({title:'请填写权益ID和名称',icon:'none'});try{if(editingId)await AdminService.updateRightsMaster(editingId,form);else await AdminService.createRightsMaster(form);wx.showToast({title:'保存成功',icon:'success'});this.setData({editingId:'',form:{rightId:'',name:'',description:'',status:'active',type:'ticket'}});this.loadRights();}catch(e){wx.showToast({title:e.errMsg||e.message||'保存失败',icon:'none'});}},async remove(e){const{id}=e.currentTarget.dataset;try{await AdminService.deleteRightsMaster(id);wx.showToast({title:'已删除',icon:'success'});this.loadRights();}catch(err){wx.showToast({title:err.errMsg||err.message||'删除失败',icon:'none'});}}});
+
+const STATUS_OPTIONS = ['active', 'inactive'];
+const TYPE_OPTIONS = ['ticket', 'coupon'];
+
+function buildEmptyForm() {
+  return {
+    rightId: '',
+    name: '',
+    description: '',
+    status: 'active',
+    type: 'ticket'
+  };
+}
+
+Page({
+  data: {
+    loading: false,
+    rights: [],
+    form: buildEmptyForm(),
+    editingId: '',
+    statusOptions: STATUS_OPTIONS,
+    typeOptions: TYPE_OPTIONS
+  },
+
+  onShow() {
+    this.loadRights();
+  },
+
+  async loadRights() {
+    this.setData({ loading: true });
+    try {
+      const res = await AdminService.listRightsMaster();
+      this.setData({
+        rights: Array.isArray(res && res.rights) ? res.rights : [],
+        loading: false
+      });
+    } catch (error) {
+      this.setData({ loading: false });
+      wx.showToast({ title: error.errMsg || error.message || '加载失败', icon: 'none' });
+    }
+  },
+
+  handleBack() {
+    if (getCurrentPages().length > 1) {
+      wx.navigateBack();
+      return;
+    }
+    wx.switchTab({ url: '/pages/index/index' });
+  },
+
+  onInput(event) {
+    const { field } = event.currentTarget.dataset || {};
+    if (!field) return;
+    this.setData({ [`form.${field}`]: (event.detail && event.detail.value) || '' });
+  },
+
+  onStatusChange(event) {
+    const index = Number(event.detail.value);
+    this.setData({ 'form.status': STATUS_OPTIONS[index] || 'active' });
+  },
+
+  onTypeChange(event) {
+    const index = Number(event.detail.value);
+    this.setData({ 'form.type': TYPE_OPTIONS[index] || 'ticket' });
+  },
+
+  startCreate() {
+    this.setData({ editingId: '', form: buildEmptyForm() });
+  },
+
+  startEdit(event) {
+    const item = (event.currentTarget.dataset && event.currentTarget.dataset.item) || {};
+    this.setData({
+      editingId: item.id || '',
+      form: {
+        rightId: item.rightId || '',
+        name: item.name || '',
+        description: item.description || '',
+        status: item.status || 'active',
+        type: item.type || 'ticket'
+      }
+    });
+  },
+
+  async save() {
+    const { editingId, form } = this.data;
+    if (!form.rightId || !form.name) {
+      wx.showToast({ title: '请填写权益ID和名称', icon: 'none' });
+      return;
+    }
+
+    try {
+      if (editingId) {
+        await AdminService.updateRightsMaster(editingId, form);
+      } else {
+        await AdminService.createRightsMaster(form);
+      }
+      wx.showToast({ title: '保存成功', icon: 'success' });
+      this.startCreate();
+      this.loadRights();
+    } catch (error) {
+      wx.showToast({ title: error.errMsg || error.message || '保存失败', icon: 'none' });
+    }
+  },
+
+  async remove(event) {
+    const { id } = event.currentTarget.dataset || {};
+    if (!id) return;
+    try {
+      await AdminService.deleteRightsMaster(id);
+      wx.showToast({ title: '已删除', icon: 'success' });
+      this.loadRights();
+    } catch (error) {
+      wx.showToast({ title: error.errMsg || error.message || '删除失败', icon: 'none' });
+    }
+  }
+});
