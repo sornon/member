@@ -1,6 +1,6 @@
 <custom-nav title="权益管理" theme="dark"></custom-nav>
 
-<view class="admin-rights">
+<view class="page">
   <view class="section-block">
     <view class="block-header">
       <view class="block-title">权益模板管理</view>
@@ -41,8 +41,8 @@
     <view class="block-header">
       <view class="block-title">权益列表</view>
     </view>
-    <view wx:if="{{loading}}" class="state">加载中...</view>
-    <view wx:elif="{{!rights.length}}" class="state">暂无权益</view>
+    <view wx:if="{{loading}}" class="state-hint">加载中，请稍候...</view>
+    <view wx:elif="{{!rights.length}}" class="state-hint state-hint--empty">暂无权益</view>
     <view wx:else class="list">
       <view wx:for="{{rights}}" wx:key="id" class="item">
         <view class="item-main">
