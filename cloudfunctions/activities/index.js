@@ -1229,6 +1229,19 @@ async function buildShareContext(config, targetOpenId, viewerOpenId, viewerProfi
   return { ownerId: targetOpenId, assisted, canAssist, helpers };
 }
 
+
+function resolveRewardRightId(config = {}, activityId = '') {
+  const configuredId = typeof config.rewardRightId === 'string' ? config.rewardRightId.trim() : '';
+  if (configuredId && configuredId !== THANKSGIVING_RIGHT_ID) {
+    return configuredId;
+  }
+  const normalizedActivityId = typeof activityId === 'string' ? activityId.trim() : '';
+  if (normalizedActivityId && normalizedActivityId !== BHK_BARGAIN_ACTIVITY_ID) {
+    return `bargain-ticket-${normalizedActivityId}`;
+  }
+  return configuredId || THANKSGIVING_RIGHT_ID;
+}
+
 function buildBargainPayload(config, session, overrides = {}) {
   const displaySegments = buildDisplaySegments(config.segments, config.mysteryLabel);
   const floorReached = (session.currentPrice || 0) <= config.floorPrice;
@@ -1265,7 +1278,7 @@ async function getBhkBargainStatus(event = {}) {
     profileComplete
   });
   const stockState = await getBargainStock(config, activityId);
-  const targetRightId = (config && config.rewardRightEnabled && config.rewardRightId) ? config.rewardRightId : THANKSGIVING_RIGHT_ID;
+  const targetRightId = resolveRewardRightId(config, activityId);
   const ownedRight = await hasActivityRewardRight(openid, targetRightId);
   const normalizedSession = normalizeBargainSession(
     { ...session, stockRemaining: stockState.stockRemaining },
