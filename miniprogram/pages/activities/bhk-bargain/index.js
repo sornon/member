@@ -44,7 +44,8 @@ const DEFAULT_INFO_SECTION_CONTENT = [
 ];
 
 function resolveRewardRightId(config = {}, activityId = '') {
-  const configuredId = typeof config.rewardRightId === 'string' ? config.rewardRightId.trim() : '';
+  const safeConfig = config && typeof config === 'object' ? config : {};
+  const configuredId = typeof safeConfig.rewardRightId === 'string' ? safeConfig.rewardRightId.trim() : '';
   if (configuredId && configuredId !== DEFAULT_TICKET_RIGHT_ID) {
     return configuredId;
   }

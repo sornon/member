@@ -1268,7 +1268,8 @@ async function buildShareContext(config, targetOpenId, viewerOpenId, viewerProfi
 
 
 function resolveRewardRightId(config = {}, activityId = '') {
-  const configuredId = typeof config.rewardRightId === 'string' ? config.rewardRightId.trim() : '';
+  const safeConfig = config && typeof config === 'object' ? config : {};
+  const configuredId = typeof safeConfig.rewardRightId === 'string' ? safeConfig.rewardRightId.trim() : '';
   if (configuredId && configuredId !== THANKSGIVING_RIGHT_ID) {
     return configuredId;
   }
