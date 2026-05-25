@@ -26,12 +26,6 @@ const BASE_ACTIONS = [
     url: '/subpackages/admin/menu-catalog/index'
   },
   {
-    icon: '🎯',
-    label: '活动管理',
-    description: '配置会员端活动展示',
-    url: '/subpackages/admin/activities/index'
-  },
-  {
     icon: '🦃',
     label: '砍价活动管理',
     description: '查看砍价活动下单、库存与权益',
@@ -84,6 +78,12 @@ const BASE_ACTIONS = [
     label: '权益管理',
     description: '管理权益模板并供活动配置选择',
     url: '/subpackages/admin/rights-master/index'
+  },
+  {
+    icon: '🎯',
+    label: '活动管理',
+    description: '配置会员端活动展示',
+    url: '/subpackages/admin/activities/index'
   },
   {
     icon: '⚙️',
