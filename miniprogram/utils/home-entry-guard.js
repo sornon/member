@@ -57,7 +57,7 @@ function blockAndBack() {
     if (getCurrentPages().length > 1) {
       wx.navigateBack({ delta: 1 });
     } else {
-      wx.switchTab({ url: '/pages/index/index' });
+      wx.reLaunch({ url: '/pages/index/index' });
     }
   }, 150);
 }
