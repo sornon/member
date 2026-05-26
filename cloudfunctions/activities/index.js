@@ -372,7 +372,7 @@ async function resolveBargainActivityRuntime(event = {}) {
     .then((res) => (res && res.data) || null)
     .catch(() => null);
 
-  if (doc && doc.status === 'published' && doc.activityType === 'bargain') {
+  if (doc && doc.activityType === 'bargain') {
     const settings = (doc.bargainSettings && typeof doc.bargainSettings === 'object') ? doc.bargainSettings : {};
     const config = buildBhkBargainConfig();
     config.startPrice = Number.isFinite(settings.startPrice) ? settings.startPrice : config.startPrice;
@@ -597,9 +597,16 @@ async function listPublicActivities(options = {}) {
   const decorated = (snapshot.data || []).map((item) => decorateActivity(item));
 
   if (!decorated.find((item) => item && item.id === BHK_BARGAIN_ACTIVITY_ID)) {
-    const bhk = decorateActivity(buildBhkBargainActivity());
-    if (bhk) {
-      decorated.push({ ...bhk, sortOrder: Number.MAX_SAFE_INTEGER });
+    const bhkDoc = await collection
+      .doc(BHK_BARGAIN_ACTIVITY_ID)
+      .get()
+      .then((res) => (res && res.data) || null)
+      .catch(() => null);
+    if (!bhkDoc) {
+      const bhk = decorateActivity(buildBhkBargainActivity());
+      if (bhk) {
+        decorated.push({ ...bhk, sortOrder: Number.MAX_SAFE_INTEGER });
+      }
     }
   }
 
@@ -641,7 +648,7 @@ async function getActivityDetail(options = {}) {
     });
 
   if (!doc || doc.status !== 'published') {
-    if (id === BHK_BARGAIN_ACTIVITY_ID) {
+    if (!doc && id === BHK_BARGAIN_ACTIVITY_ID) {
       return {
         activity: decorateActivity(buildBhkBargainActivity()),
         bargainConfig: buildBhkBargainConfig()
