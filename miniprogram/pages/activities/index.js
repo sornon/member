@@ -1,5 +1,6 @@
 import { ActivityService } from '../../services/api';
 import { decorateActivity } from '../../shared/activity';
+const { ensureHomeEntryEnabled } = require('../../utils/home-entry-guard');
 
 function resolveActivityRoute(activity = {}) {
   if (!activity || typeof activity !== 'object') {
@@ -14,12 +15,23 @@ function resolveActivityRoute(activity = {}) {
 
 Page({
   data: {
+    homeEntryBlocked: false,
     loading: true,
     activities: [],
     error: ''
   },
 
+  onLoad() {
+    if (!ensureHomeEntryEnabled('activities')) {
+      this.setData({ homeEntryBlocked: true });
+      return;
+    }
+  },
+
   onShow() {
+    if (this.data.homeEntryBlocked) {
+      return;
+    }
     this.fetchActivities();
   },
 

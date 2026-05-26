@@ -1,4 +1,5 @@
 import { PveService } from '../../services/api';
+const { ensureHomeEntryEnabled } = require('../../utils/home-entry-guard');
 
 function normalizeEquipmentLootEntries(lootList = []) {
   if (!Array.isArray(lootList) || !lootList.length) {
@@ -100,6 +101,7 @@ function decorateSecretRealmProfile(profile = {}) {
 
 Page({
   data: {
+    homeEntryBlocked: false,
     loading: true,
     profile: null,
     battleResult: null,
@@ -107,7 +109,17 @@ Page({
     selectedEnemyId: ''
   },
 
+  onLoad() {
+    if (!ensureHomeEntryEnabled('secretRealm')) {
+      this.setData({ homeEntryBlocked: true });
+      return;
+    }
+  },
+
   onShow() {
+    if (this.data.homeEntryBlocked) {
+      return;
+    }
     this.fetchProfile();
   },
 

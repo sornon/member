@@ -1,11 +1,13 @@
 import { StoneService } from '../../services/api';
 import { formatStones } from '../../utils/format';
+const { ensureHomeEntryEnabled } = require('../../utils/home-entry-guard');
 
 const DEFAULT_CATEGORY_KEY = 'general';
 const DEFAULT_CATEGORY_LABEL = '奇珍异宝';
 
 Page({
   data: {
+    homeEntryBlocked: false,
     loading: true,
     items: [],
     categories: [],
@@ -20,7 +22,17 @@ Page({
     error: ''
   },
 
+  onLoad() {
+    if (!ensureHomeEntryEnabled('mall')) {
+      this.setData({ homeEntryBlocked: true });
+      return;
+    }
+  },
+
   onShow() {
+    if (this.data.homeEntryBlocked) {
+      return;
+    }
     this.bootstrap();
   },
 
