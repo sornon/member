@@ -1,6 +1,7 @@
 import { TradingService, PveService } from '../../services/api';
 import { formatStones } from '../../utils/format';
 import { sanitizeEquipmentProfile, buildEquipmentIconPaths } from '../../utils/equipment';
+const { ensureHomeEntryEnabled } = require('../../utils/home-entry-guard');
 
 const LISTING_STATUS_LABELS = {
   active: '在售',
@@ -579,6 +580,7 @@ function buildBidDisplay(bid, config, detailLookup = null) {
 
 Page({
   data: {
+    homeEntryBlocked: false,
     loading: false,
     error: '',
     activeTab: 'market',
@@ -621,6 +623,10 @@ Page({
   },
 
   onLoad() {
+    if (!ensureHomeEntryEnabled('trading')) {
+      this.setData({ homeEntryBlocked: true });
+      return;
+    }
     this.fetchDashboard();
   },
 

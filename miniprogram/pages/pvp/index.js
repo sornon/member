@@ -1,6 +1,7 @@
 import { MemberService, PvpService } from '../../services/api';
 const { SHARE_COVER_IMAGE_URL } = require('../../shared/common.js');
 const { buildCloudAssetUrl } = require('../../shared/asset-paths.js');
+const { ensureHomeEntryEnabled } = require('../../utils/home-entry-guard');
 const {
   decorateLeaderboardEntries,
   DEFAULT_AVATAR: DEFAULT_LEADERBOARD_AVATAR
@@ -31,6 +32,7 @@ function sanitizeLeaderboardPreview(entries) {
 
 Page({
   data: {
+    homeEntryBlocked: false,
     loading: true,
     profile: null,
     season: null,
@@ -49,6 +51,10 @@ Page({
   },
 
   onLoad(options = {}) {
+    if (!ensureHomeEntryEnabled('pvp')) {
+      this.setData({ homeEntryBlocked: true });
+      return;
+    }
     this._ensureMemberPromise = null;
     const nextState = {};
     if (options.targetId) {
@@ -73,6 +79,9 @@ Page({
   },
 
   onShow() {
+    if (this.data.homeEntryBlocked) {
+      return;
+    }
     const globalBattle = app && app.globalData ? app.globalData.lastPvpBattle : null;
     if (globalBattle) {
       this.setData({ battleResult: globalBattle.battle || null });

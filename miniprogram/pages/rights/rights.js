@@ -1,15 +1,27 @@
 import { MemberService, ReservationService } from '../../services/api';
 import { formatDate } from '../../utils/format';
+const { ensureHomeEntryEnabled } = require('../../utils/home-entry-guard');
 
 Page({
   data: {
+    homeEntryBlocked: false,
     loading: true,
     rights: [],
     member: null,
     redeemingRightId: ''
   },
 
+  onLoad() {
+    if (!ensureHomeEntryEnabled('rights')) {
+      this.setData({ homeEntryBlocked: true });
+      return;
+    }
+  },
+
   onShow() {
+    if (this.data.homeEntryBlocked) {
+      return;
+    }
     this.fetchRights();
   },
 

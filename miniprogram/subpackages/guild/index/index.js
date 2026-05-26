@@ -1,4 +1,5 @@
 import { GuildService } from '../../../services/api';
+const { ensureHomeEntryEnabled } = require('../../../utils/home-entry-guard');
 const {
   resolveGuildActionTicket,
   decorateGuildLeaderboardEntries,
@@ -115,6 +116,7 @@ function decorateMembership(membership) {
 
 Page({
   data: {
+    homeEntryBlocked: false,
     loading: true,
     error: '',
     guild: null,
@@ -129,7 +131,17 @@ Page({
     donationSelectedAmount: DONATION_PRESETS[0],
     donationOptions: DONATION_OPTIONS
   },
+  onLoad() {
+    if (!ensureHomeEntryEnabled('guild')) {
+      this.setData({ homeEntryBlocked: true });
+      return;
+    }
+  },
+
   onShow() {
+    if (this.data.homeEntryBlocked) {
+      return;
+    }
     this.loadOverview();
   },
   onPullDownRefresh() {
