@@ -372,7 +372,7 @@ async function resolveBargainActivityRuntime(event = {}) {
     .then((res) => (res && res.data) || null)
     .catch(() => null);
 
-  if (doc && doc.status === 'published' && doc.activityType === 'bargain') {
+  if (doc && doc.activityType === 'bargain') {
     const settings = (doc.bargainSettings && typeof doc.bargainSettings === 'object') ? doc.bargainSettings : {};
     const config = buildBhkBargainConfig();
     config.startPrice = Number.isFinite(settings.startPrice) ? settings.startPrice : config.startPrice;
