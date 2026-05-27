@@ -11,6 +11,20 @@
     />
     <button class="search-button" bindtap="handleSearch">搜索</button>
   </view>
+  <view class="sort-bar">
+    <text class="sort-label">累计充值排序</text>
+    <view class="sort-options">
+      <view
+        wx:for="{{rechargeSortOptions}}"
+        wx:key="value"
+        class="sort-option {{rechargeSort === item.value ? 'sort-option--active' : ''}}"
+        data-value="{{item.value}}"
+        bindtap="handleRechargeSortChange"
+      >
+        {{item.label}}
+      </view>
+    </view>
+  </view>
 
   <view wx:if="{{loading && !members.length}}" class="loading">加载中...</view>
   <view wx:elif="{{!members.length}}" class="empty">未找到相关会员</view>

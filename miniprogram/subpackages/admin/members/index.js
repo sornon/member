@@ -8,6 +8,12 @@ const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 Page({
   data: {
     keyword: '',
+    rechargeSort: '',
+    rechargeSortOptions: [
+      { value: '', label: '默认排序' },
+      { value: 'asc', label: '累计充值升序' },
+      { value: 'desc', label: '累计充值降序' }
+    ],
     members: [],
     loading: false,
     total: 0,
@@ -41,12 +47,21 @@ Page({
     this.fetchMembers(true);
   },
 
+  handleRechargeSortChange(event) {
+    const { value = '' } = event.currentTarget.dataset || {};
+    if (value === this.data.rechargeSort) return;
+    this.setData({ rechargeSort: value }, () => {
+      this.fetchMembers(true);
+    });
+  },
+
   async fetchMembers(reset = false) {
     const nextPage = reset ? 1 : this.data.page;
     this.setData({ loading: true, error: '' });
     try {
       const response = await AdminService.listMembers({
         keyword: this.data.keyword.trim(),
+        rechargeSort: this.data.rechargeSort,
         page: nextPage,
         pageSize: this.data.pageSize
       });
