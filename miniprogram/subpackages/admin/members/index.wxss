@@ -22,6 +22,8 @@ page {
 
 .sort-bar {
   margin-bottom: 24rpx;
+  position: relative;
+  z-index: 20;
 }
 
 .sort-label {
@@ -31,25 +33,61 @@ page {
   margin-bottom: 12rpx;
 }
 
-.sort-options {
+.sort-picker {
+  width: 100%;
   display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-}
-
-.sort-option {
-  padding: 12rpx 20rpx;
-  border-radius: 999rpx;
-  font-size: 24rpx;
-  color: #cbd5f5;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+  padding: 18rpx 24rpx;
+  border-radius: 16rpx;
+  font-size: 26rpx;
+  color: #e2e8f0;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(15, 23, 42, 0.7);
 }
 
-.sort-option--active {
-  color: #fff;
-  border-color: transparent;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+.sort-arrow {
+  color: #94a3b8;
+  font-size: 22rpx;
+}
+
+.sort-menu-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 21;
+}
+
+.sort-menu {
+  position: absolute;
+  top: calc(100% + 10rpx);
+  left: 0;
+  width: 100%;
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 16rpx;
+  overflow: hidden;
+  z-index: 22;
+  box-shadow: 0 16rpx 40rpx rgba(0, 0, 0, 0.35);
+}
+
+.sort-menu-item {
+  padding: 20rpx 24rpx;
+  font-size: 26rpx;
+  color: #cbd5f5;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.sort-menu-item:last-child {
+  border-bottom: none;
+}
+
+.sort-menu-item--active {
+  color: #f97316;
+  background: rgba(30, 41, 59, 0.9);
 }
 
 .search-input {
