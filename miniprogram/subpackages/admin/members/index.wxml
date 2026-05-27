@@ -13,9 +13,22 @@
   </view>
   <view class="sort-bar">
     <text class="sort-label">排序方式</text>
-    <picker mode="selector" range="{{sortOptions}}" range-key="label" value="{{sortIndex}}" bindchange="handleSortChange">
-      <view class="sort-picker">{{sortOptions[sortIndex].label}}</view>
-    </picker>
+    <view class="sort-picker" bindtap="handleSortToggle">
+      <text>{{sortOptions[sortIndex].label}}</text>
+      <text class="sort-arrow">{{showSortMenu ? '▲' : '▼'}}</text>
+    </view>
+    <view wx:if="{{showSortMenu}}" class="sort-menu-mask" bindtap="handleSortMenuClose"></view>
+    <view wx:if="{{showSortMenu}}" class="sort-menu">
+      <view
+        wx:for="{{sortOptions}}"
+        wx:key="value"
+        data-index="{{index}}"
+        bindtap="handleSortSelect"
+        class="sort-menu-item {{sortIndex === index ? 'sort-menu-item--active' : ''}}"
+      >
+        {{item.label}}
+      </view>
+    </view>
   </view>
 
   <view wx:if="{{loading && !members.length}}" class="loading">加载中...</view>
