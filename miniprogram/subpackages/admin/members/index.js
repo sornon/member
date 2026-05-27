@@ -8,12 +8,15 @@ const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
 Page({
   data: {
     keyword: '',
-    rechargeSort: '',
-    rechargeSortOptions: [
+    sortBy: '',
+    sortOptions: [
       { value: '', label: '默认排序' },
-      { value: 'asc', label: '累计充值升序' },
-      { value: 'desc', label: '累计充值降序' }
+      { value: 'rechargeAsc', label: '累计充值升序' },
+      { value: 'rechargeDesc', label: '累计充值降序' },
+      { value: 'activeDesc', label: '最近活跃时间排序' },
+      { value: 'registerDesc', label: '注册时间排序' }
     ],
+    sortIndex: 0,
     members: [],
     loading: false,
     total: 0,
@@ -47,10 +50,12 @@ Page({
     this.fetchMembers(true);
   },
 
-  handleRechargeSortChange(event) {
-    const { value = '' } = event.currentTarget.dataset || {};
-    if (value === this.data.rechargeSort) return;
-    this.setData({ rechargeSort: value }, () => {
+  handleSortChange(event) {
+    const index = Number(event.detail.value || 0);
+    const option = this.data.sortOptions[index] || this.data.sortOptions[0];
+    const nextSortBy = option ? option.value : '';
+    if (nextSortBy === this.data.sortBy) return;
+    this.setData({ sortBy: nextSortBy, sortIndex: index }, () => {
       this.fetchMembers(true);
     });
   },
@@ -61,7 +66,7 @@ Page({
     try {
       const response = await AdminService.listMembers({
         keyword: this.data.keyword.trim(),
-        rechargeSort: this.data.rechargeSort,
+        sortBy: this.data.sortBy,
         page: nextPage,
         pageSize: this.data.pageSize
       });

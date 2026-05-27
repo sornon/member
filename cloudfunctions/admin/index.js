@@ -851,7 +851,7 @@ const ACTION_HANDLERS = {
       event.keyword || '',
       event.page || 1,
       event.pageSize || 20,
-      event.rechargeSort || ''
+      event.sortBy || ''
     ),
   [ACTIONS.GET_MEMBER_DETAIL]: (openid, event) =>
     getMemberDetail(openid, event.memberId, event || {}),
@@ -2621,11 +2621,11 @@ async function resetPvpProfilesForSeason(season, summary) {
   );
 }
 
-async function listMembers(openid, keyword, page, pageSize, rechargeSort = '') {
+async function listMembers(openid, keyword, page, pageSize, sortBy = '') {
   await ensureAdmin(openid);
   const limit = Math.min(Math.max(pageSize, 1), 50);
   const skip = Math.max(page - 1, 0) * limit;
-  const normalizedRechargeSort = rechargeSort === 'asc' || rechargeSort === 'desc' ? rechargeSort : '';
+  const normalizedSortBy = typeof sortBy === 'string' ? sortBy.trim() : '';
 
   const regex = keyword
     ? db.RegExp({
@@ -2645,13 +2645,21 @@ async function listMembers(openid, keyword, page, pageSize, rechargeSort = '') {
     );
   }
 
+  let sortedQuery = baseQuery;
+  if (normalizedSortBy === 'rechargeAsc') {
+    sortedQuery = baseQuery.orderBy('totalRecharge', 'asc').orderBy('createdAt', 'desc');
+  } else if (normalizedSortBy === 'rechargeDesc') {
+    sortedQuery = baseQuery.orderBy('totalRecharge', 'desc').orderBy('createdAt', 'desc');
+  } else if (normalizedSortBy === 'activeDesc') {
+    sortedQuery = baseQuery.orderBy('updatedAt', 'desc').orderBy('createdAt', 'desc');
+  } else if (normalizedSortBy === 'registerDesc') {
+    sortedQuery = baseQuery.orderBy('createdAt', 'desc');
+  } else {
+    sortedQuery = baseQuery.orderBy('createdAt', 'desc');
+  }
+
   const [snapshot, countResult, levels] = await Promise.all([
-    (normalizedRechargeSort
-      ? baseQuery.orderBy('totalRecharge', normalizedRechargeSort).orderBy('createdAt', 'desc')
-      : baseQuery.orderBy('createdAt', 'desc'))
-      .skip(skip)
-      .limit(limit)
-      .get(),
+    sortedQuery.skip(skip).limit(limit).get(),
     baseQuery.count(),
     loadLevels()
   ]);

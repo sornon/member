@@ -31,25 +31,15 @@ page {
   margin-bottom: 12rpx;
 }
 
-.sort-options {
-  display: flex;
-  gap: 12rpx;
-  flex-wrap: wrap;
-}
-
-.sort-option {
-  padding: 10rpx 20rpx;
-  border-radius: 999rpx;
-  font-size: 24rpx;
-  color: #cbd5f5;
+.sort-picker {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 18rpx 24rpx;
+  border-radius: 16rpx;
+  font-size: 26rpx;
+  color: #e2e8f0;
   border: 1px solid rgba(148, 163, 184, 0.35);
   background: rgba(15, 23, 42, 0.7);
-}
-
-.sort-option--active {
-  color: #fff;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-  border-color: transparent;
 }
 
 .search-input {
