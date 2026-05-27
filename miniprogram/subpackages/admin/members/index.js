@@ -17,7 +17,6 @@ Page({
       { value: 'registerDesc', label: '注册时间排序' }
     ],
     sortIndex: 0,
-    showSortMenu: false,
     members: [],
     loading: false,
     total: 0,
@@ -51,24 +50,12 @@ Page({
     this.fetchMembers(true);
   },
 
-  handleSortToggle() {
-    this.setData({ showSortMenu: !this.data.showSortMenu });
-  },
-
-  handleSortMenuClose() {
-    if (!this.data.showSortMenu) return;
-    this.setData({ showSortMenu: false });
-  },
-
   handleSortSelect(event) {
     const index = Number(event.currentTarget.dataset.index || 0);
     const option = this.data.sortOptions[index] || this.data.sortOptions[0];
     const nextSortBy = option ? option.value : '';
-    if (nextSortBy === this.data.sortBy) {
-      this.setData({ showSortMenu: false });
-      return;
-    }
-    this.setData({ sortBy: nextSortBy, sortIndex: index, showSortMenu: false }, () => {
+    if (nextSortBy === this.data.sortBy) return;
+    this.setData({ sortBy: nextSortBy, sortIndex: index }, () => {
       this.fetchMembers(true);
     });
   },
