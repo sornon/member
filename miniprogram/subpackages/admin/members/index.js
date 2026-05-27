@@ -4,6 +4,7 @@ const { AVATAR_IMAGE_BASE_PATH } = require('../../../shared/asset-paths.js');
 
 const PAGE_SIZE = 20;
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
+const SORT_STORAGE_KEY = 'admin_members_sort_by';
 
 Page({
   data: {
@@ -29,6 +30,7 @@ Page({
   },
 
   onShow() {
+    this.restoreSortPreference();
     this.fetchMembers(true);
   },
 
@@ -69,8 +71,34 @@ Page({
       return;
     }
     this.setData({ sortBy: nextSortBy, sortIndex: index, showSortMenu: false }, () => {
+      this.persistSortPreference(nextSortBy);
       this.fetchMembers(true);
     });
+  },
+
+  restoreSortPreference() {
+    let storedSortBy = '';
+    try {
+      const value = wx.getStorageSync(SORT_STORAGE_KEY);
+      storedSortBy = typeof value === 'string' ? value : '';
+    } catch (error) {
+      console.warn('[admin:members:sort:restore]', error);
+      storedSortBy = '';
+    }
+    const sortIndex = this.data.sortOptions.findIndex((option) => option.value === storedSortBy);
+    if (sortIndex < 0) {
+      this.setData({ sortBy: '', sortIndex: 0 });
+      return;
+    }
+    this.setData({ sortBy: storedSortBy, sortIndex });
+  },
+
+  persistSortPreference(sortBy) {
+    try {
+      wx.setStorageSync(SORT_STORAGE_KEY, sortBy || '');
+    } catch (error) {
+      console.warn('[admin:members:sort:persist]', error);
+    }
   },
 
   async fetchMembers(reset = false) {
