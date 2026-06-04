@@ -45,24 +45,50 @@ const {
   DEFAULT_GLOBAL_BACKGROUND,
   cloneGlobalBackground
 } = require('system-settings');
+const { getPvpConfig } = require('balance/config-loader');
+const { ensureActiveRuntimeConfig } = require('balance/config-store');
 
 const db = cloud.database();
 const _ = db.command;
 
 const proxyHelpers = createProxyHelpers(cloud, { loggerTag: 'pvp' });
 
+function mergeDeep(base = {}, override = {}) {
+  const result = Array.isArray(base) ? base.slice() : { ...base };
+  if (!override || typeof override !== 'object') {
+    return result;
+  }
+  Object.keys(override).forEach((key) => {
+    const baseValue = result[key];
+    const overrideValue = override[key];
+    if (overrideValue && typeof overrideValue === 'object' && !Array.isArray(overrideValue)) {
+      result[key] = mergeDeep(baseValue || {}, overrideValue);
+    } else {
+      result[key] = overrideValue;
+    }
+  });
+  return result;
+}
+
+let pvpBalanceConfig = getPvpConfig();
+
 let globalBackgroundOverride = cloneGlobalBackground(DEFAULT_GLOBAL_BACKGROUND);
 
-const DEFAULT_SEASON_LENGTH_DAYS = 56;
-const MATCH_ROUND_LIMIT = 15;
-const LEADERBOARD_CACHE_SIZE = 100;
-const LEADERBOARD_CACHE_SCHEMA_VERSION = 2;
-const RECENT_MATCH_LIMIT = 10;
-const DEFAULT_RATING = 1200;
-const BATTLE_COOLDOWN_MS = 10 * 1000;
-const BATTLE_COOLDOWN_MESSAGE = '您的上一场战斗还没结束，请稍后再战';
+let DEFAULT_SEASON_LENGTH_DAYS = pvpBalanceConfig.seasonLengthDays || 56;
+let MATCH_ROUND_LIMIT = pvpBalanceConfig.roundLimit || 15;
+let LEADERBOARD_CACHE_SIZE = pvpBalanceConfig.leaderboardCacheSize || 100;
+let LEADERBOARD_CACHE_SCHEMA_VERSION = pvpBalanceConfig.leaderboardSchemaVersion || 2;
+let RECENT_MATCH_LIMIT = pvpBalanceConfig.recentMatchLimit || 10;
+let DEFAULT_RATING = pvpBalanceConfig.defaultRating || 1200;
+let BATTLE_COOLDOWN_MS = Number.isFinite(pvpBalanceConfig.cooldownMs)
+  ? pvpBalanceConfig.cooldownMs
+  : 10 * 1000;
+let BATTLE_COOLDOWN_MESSAGE =
+  typeof pvpBalanceConfig.cooldownMessage === 'string' && pvpBalanceConfig.cooldownMessage
+    ? pvpBalanceConfig.cooldownMessage
+    : '您的上一场战斗还没结束，请稍后再战';
 
-const PVP_TIERS = [
+const DEFAULT_PVP_TIERS = [
   { id: 'bronze', name: '青铜', min: 0, max: 999, color: '#c4723a', rewardKey: 'bronze' },
   { id: 'silver', name: '白银', min: 1000, max: 1499, color: '#c0c0c0', rewardKey: 'silver' },
   { id: 'gold', name: '黄金', min: 1500, max: 1999, color: '#d4af37', rewardKey: 'gold' },
@@ -71,7 +97,7 @@ const PVP_TIERS = [
   { id: 'master', name: '宗师', min: 2800, max: Infinity, color: '#f472b6', rewardKey: 'master' }
 ];
 
-const TIER_REWARD_MAP = {
+const BASE_TIER_REWARDS = {
   bronze: { stones: 50, title: '青铜试剑者', coupon: null },
   silver: { stones: 80, title: '白银破阵者', coupon: 'coupon_pvp_silver' },
   gold: { stones: 120, title: '黄金斗剑士', coupon: 'coupon_pvp_gold' },
@@ -80,10 +106,43 @@ const TIER_REWARD_MAP = {
   master: { stones: 320, title: '宗师武曲星', coupon: 'coupon_pvp_master' }
 };
 
-const tierMap = PVP_TIERS.reduce((acc, tier) => {
+let PVP_TIERS = Array.isArray(pvpBalanceConfig.tiers) && pvpBalanceConfig.tiers.length
+  ? pvpBalanceConfig.tiers
+  : DEFAULT_PVP_TIERS;
+
+let TIER_REWARD_MAP = mergeDeep(BASE_TIER_REWARDS, pvpBalanceConfig.tierRewards || {});
+
+let tierMap = PVP_TIERS.reduce((acc, tier) => {
   acc[tier.id] = tier;
   return acc;
 }, {});
+
+function hydratePvpBalanceConfig(config = getPvpConfig()) {
+  pvpBalanceConfig = config || getPvpConfig();
+  DEFAULT_SEASON_LENGTH_DAYS = pvpBalanceConfig.seasonLengthDays || 56;
+  MATCH_ROUND_LIMIT = pvpBalanceConfig.roundLimit || 15;
+  LEADERBOARD_CACHE_SIZE = pvpBalanceConfig.leaderboardCacheSize || 100;
+  LEADERBOARD_CACHE_SCHEMA_VERSION = pvpBalanceConfig.leaderboardSchemaVersion || 2;
+  RECENT_MATCH_LIMIT = pvpBalanceConfig.recentMatchLimit || 10;
+  DEFAULT_RATING = pvpBalanceConfig.defaultRating || 1200;
+  BATTLE_COOLDOWN_MS = Number.isFinite(pvpBalanceConfig.cooldownMs)
+    ? pvpBalanceConfig.cooldownMs
+    : 10 * 1000;
+  BATTLE_COOLDOWN_MESSAGE =
+    typeof pvpBalanceConfig.cooldownMessage === 'string' && pvpBalanceConfig.cooldownMessage
+      ? pvpBalanceConfig.cooldownMessage
+      : '您的上一场战斗还没结束，请稍后再战';
+  PVP_TIERS = Array.isArray(pvpBalanceConfig.tiers) && pvpBalanceConfig.tiers.length
+    ? pvpBalanceConfig.tiers
+    : DEFAULT_PVP_TIERS;
+  TIER_REWARD_MAP = mergeDeep(BASE_TIER_REWARDS, pvpBalanceConfig.tierRewards || {});
+  tierMap = PVP_TIERS.reduce((acc, tier) => {
+    acc[tier.id] = tier;
+    return acc;
+  }, {});
+}
+
+hydratePvpBalanceConfig();
 
 const REQUIRED_PVP_COLLECTIONS = [
   COLLECTIONS.PVP_PROFILES,
@@ -218,6 +277,11 @@ function normalizeTitleCatalog(list = []) {
 let collectionsReady = false;
 let ensuringCollectionsPromise = null;
 
+async function refreshPvpBalanceConfig() {
+  await ensureActiveRuntimeConfig({ force: false });
+  hydratePvpBalanceConfig(getPvpConfig());
+}
+
 function resolveDateInput(value) {
   if (!value) {
     return null;
@@ -255,6 +319,7 @@ exports.main = async (event = {}) => {
     await proxyHelpers.recordProxyAction(proxySession, OPENID, action, event || {});
   }
 
+  await refreshPvpBalanceConfig();
   await ensurePvpCollections();
 
   switch (action) {
