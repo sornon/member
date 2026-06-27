@@ -15,7 +15,17 @@ Page({
     pageSize: PAGE_SIZE,
     finished: false,
     error: '',
-    defaultAvatar: DEFAULT_AVATAR
+    defaultAvatar: DEFAULT_AVATAR,
+    memberSort: '',
+    memberSortIndex: 0,
+    memberSortOptions: [
+      { value: '', label: '默认排序' },
+      { value: 'rechargeDesc', label: '累计充值降序' },
+      { value: 'createdAtDesc', label: '注册时间排序' },
+      { value: 'updatedAtDesc', label: '上次登录时间排序' }
+    ],
+    memberSortLabel: '默认排序',
+    sortDropdownVisible: false
   },
 
   onShow() {
@@ -41,14 +51,37 @@ Page({
     this.fetchMembers(true);
   },
 
+  handleMemberSortToggle() {
+    this.setData({ sortDropdownVisible: !this.data.sortDropdownVisible });
+  },
+
+  handleMemberSortSelect(event) {
+    const index = Number(event.currentTarget.dataset.index || 0);
+    const option = this.data.memberSortOptions[index] || this.data.memberSortOptions[0];
+    const memberSort = option.value || '';
+    const nextState = {
+      sortDropdownVisible: false,
+      memberSort,
+      memberSortIndex: index,
+      memberSortLabel: option.label || '默认排序'
+    };
+    if (memberSort === this.data.memberSort) {
+      this.setData(nextState);
+      return;
+    }
+    this.setData(nextState);
+    this.fetchMembers(true);
+  },
+
   async fetchMembers(reset = false) {
     const nextPage = reset ? 1 : this.data.page;
-    this.setData({ loading: true, error: '' });
+    this.setData({ loading: true, error: '', sortDropdownVisible: false });
     try {
       const response = await AdminService.listMembers({
         keyword: this.data.keyword.trim(),
         page: nextPage,
-        pageSize: this.data.pageSize
+        pageSize: this.data.pageSize,
+        sortBy: this.data.memberSort
       });
       const incoming = (response.members || []).map((member) => ({
         ...member,

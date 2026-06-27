@@ -40,6 +40,78 @@ page {
   font-size: 28rpx;
 }
 
+.sort-panel {
+  position: relative;
+  z-index: 10;
+  margin: -8rpx 0 24rpx;
+  padding: 20rpx;
+  background: rgba(15, 23, 42, 0.62);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 18rpx;
+}
+
+.sort-label {
+  margin-bottom: 14rpx;
+  font-size: 24rpx;
+  color: #94a3b8;
+}
+
+.sort-picker {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 72rpx;
+  padding: 0 22rpx;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 16rpx;
+  background: rgba(30, 41, 59, 0.72);
+  color: #f8fafc;
+}
+
+.sort-picker__value {
+  font-size: 26rpx;
+}
+
+.sort-picker__arrow {
+  color: #94a3b8;
+  font-size: 28rpx;
+  transition: transform 0.2s ease;
+}
+
+.sort-picker__arrow--open {
+  transform: rotate(180deg);
+}
+
+.sort-dropdown {
+  position: absolute;
+  left: 20rpx;
+  right: 20rpx;
+  top: 124rpx;
+  z-index: 20;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 16rpx;
+  background: #f8fafc;
+  box-shadow: 0 18rpx 42rpx rgba(15, 23, 42, 0.3);
+}
+
+.sort-dropdown__item {
+  padding: 24rpx 28rpx;
+  color: #334155;
+  font-size: 28rpx;
+  line-height: 1.35;
+  background: #f8fafc;
+}
+
+.sort-dropdown__item + .sort-dropdown__item {
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.sort-dropdown__item--active {
+  color: #f97316;
+  font-weight: 600;
+}
+
 .loading,
 .empty,
 .end {
