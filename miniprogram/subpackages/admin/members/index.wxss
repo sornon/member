@@ -89,22 +89,22 @@ page {
   top: 124rpx;
   z-index: 20;
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.22);
+  border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 16rpx;
-  background: #f8fafc;
-  box-shadow: 0 18rpx 42rpx rgba(15, 23, 42, 0.3);
+  background: #0f172a;
+  box-shadow: 0 18rpx 42rpx rgba(2, 6, 23, 0.45);
 }
 
 .sort-dropdown__item {
   padding: 24rpx 28rpx;
-  color: #334155;
+  color: #cbd5e1;
   font-size: 28rpx;
   line-height: 1.35;
-  background: #f8fafc;
+  background: rgba(15, 23, 42, 0.96);
 }
 
 .sort-dropdown__item + .sort-dropdown__item {
-  border-top: 1px solid rgba(226, 232, 240, 0.9);
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
 }
 
 .sort-dropdown__item--active {
