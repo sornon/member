@@ -846,7 +846,13 @@ function normalizeAction(action) {
 
 const ACTION_HANDLERS = {
   [ACTIONS.LIST_MEMBERS]: (openid, event) =>
-    listMembers(openid, event.keyword || '', event.page || 1, event.pageSize || 20),
+    listMembers(
+      openid,
+      event.keyword || '',
+      event.page || 1,
+      event.pageSize || 20,
+      event.sortBy || ''
+    ),
   [ACTIONS.GET_MEMBER_DETAIL]: (openid, event) =>
     getMemberDetail(openid, event.memberId, event || {}),
   [ACTIONS.UPDATE_MEMBER]: (openid, event) =>
@@ -2615,10 +2621,11 @@ async function resetPvpProfilesForSeason(season, summary) {
   );
 }
 
-async function listMembers(openid, keyword, page, pageSize) {
+async function listMembers(openid, keyword, page, pageSize, sortBy = '') {
   await ensureAdmin(openid);
   const limit = Math.min(Math.max(pageSize, 1), 50);
   const skip = Math.max(page - 1, 0) * limit;
+  const normalizedSortBy = typeof sortBy === 'string' ? sortBy.trim() : '';
 
   const regex = keyword
     ? db.RegExp({
@@ -2638,12 +2645,19 @@ async function listMembers(openid, keyword, page, pageSize) {
     );
   }
 
+  let sortedQuery = baseQuery;
+  if (normalizedSortBy === 'rechargeAsc') {
+    sortedQuery = baseQuery.orderBy('totalRecharge', 'asc');
+  } else if (normalizedSortBy === 'rechargeDesc') {
+    sortedQuery = baseQuery.orderBy('totalRecharge', 'desc');
+  } else if (normalizedSortBy === 'activeDesc') {
+    sortedQuery = baseQuery.orderBy('updatedAt', 'desc');
+  } else {
+    sortedQuery = baseQuery.orderBy('createdAt', 'desc');
+  }
+
   const [snapshot, countResult, levels] = await Promise.all([
-    baseQuery
-      .orderBy('createdAt', 'desc')
-      .skip(skip)
-      .limit(limit)
-      .get(),
+    sortedQuery.skip(skip).limit(limit).get(),
     baseQuery.count(),
     loadLevels()
   ]);

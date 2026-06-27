@@ -955,12 +955,13 @@ export const ActivityService = {
 };
 
 export const AdminService = {
-  async listMembers({ keyword = '', page = 1, pageSize = 20 } = {}) {
+  async listMembers({ keyword = '', page = 1, pageSize = 20, sortBy = '' } = {}) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'listMembers',
       keyword,
       page,
-      pageSize
+      pageSize,
+      sortBy
     });
   },
   async getMemberDetail(memberId, options = {}) {
