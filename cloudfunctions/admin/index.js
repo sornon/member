@@ -2645,17 +2645,19 @@ async function listMembers(openid, keyword, page, pageSize, sortBy = '') {
     );
   }
 
-  const shouldUseNormalizedSort = [
-    'rechargeAsc',
-    'rechargeDesc',
-    'activeDesc',
-    'registerDesc'
-  ].includes(normalizedSortBy);
+  let sortedQuery = baseQuery;
+  if (normalizedSortBy === 'rechargeAsc') {
+    sortedQuery = baseQuery.orderBy('totalRecharge', 'asc');
+  } else if (normalizedSortBy === 'rechargeDesc') {
+    sortedQuery = baseQuery.orderBy('totalRecharge', 'desc');
+  } else if (normalizedSortBy === 'activeDesc') {
+    sortedQuery = baseQuery.orderBy('updatedAt', 'desc');
+  } else {
+    sortedQuery = baseQuery.orderBy('createdAt', 'desc');
+  }
 
   const [snapshot, countResult, levels] = await Promise.all([
-    shouldUseNormalizedSort
-      ? listMembersWithNormalizedSort(baseQuery, normalizedSortBy, skip, limit)
-      : baseQuery.orderBy('createdAt', 'desc').skip(skip).limit(limit).get(),
+    sortedQuery.skip(skip).limit(limit).get(),
     baseQuery.count(),
     loadLevels()
   ]);
@@ -2668,96 +2670,6 @@ async function listMembers(openid, keyword, page, pageSize, sortBy = '') {
     page,
     pageSize: limit
   };
-}
-
-async function listMembersWithNormalizedSort(baseQuery, sortBy, skip, limit) {
-  const batchSize = 100;
-  const maxBatches = 200;
-  let offset = 0;
-  let guard = 0;
-  const members = [];
-
-  while (guard < maxBatches) {
-    const snapshot = await baseQuery.orderBy('_id', 'asc').skip(offset).limit(batchSize).get();
-    const docs = Array.isArray(snapshot.data) ? snapshot.data : [];
-    if (!docs.length) {
-      break;
-    }
-    members.push(...docs);
-    if (docs.length < batchSize) {
-      break;
-    }
-    offset += batchSize;
-    guard += 1;
-  }
-
-  members.sort((a, b) => compareMembersForAdminSort(a, b, sortBy));
-  return { data: members.slice(skip, skip + limit) };
-}
-
-function compareMembersForAdminSort(a, b, sortBy) {
-  if (sortBy === 'rechargeAsc' || sortBy === 'rechargeDesc') {
-    const direction = sortBy === 'rechargeAsc' ? 1 : -1;
-    const aRecharge = normalizeAmountFen(a && a.totalRecharge);
-    const bRecharge = normalizeAmountFen(b && b.totalRecharge);
-    if (aRecharge !== bRecharge) {
-      return (aRecharge - bRecharge) * direction;
-    }
-  } else if (sortBy === 'activeDesc') {
-    const aActive = resolveMemberActiveTime(a);
-    const bActive = resolveMemberActiveTime(b);
-    if (aActive !== bActive) {
-      return bActive - aActive;
-    }
-  } else if (sortBy === 'registerDesc') {
-    const aCreated = resolveDateTime(a && a.createdAt);
-    const bCreated = resolveDateTime(b && b.createdAt);
-    if (aCreated !== bCreated) {
-      return bCreated - aCreated;
-    }
-  }
-
-  const aCreated = resolveDateTime(a && a.createdAt);
-  const bCreated = resolveDateTime(b && b.createdAt);
-  if (aCreated !== bCreated) {
-    return bCreated - aCreated;
-  }
-  return String(a && a._id ? a._id : '').localeCompare(String(b && b._id ? b._id : ''));
-}
-
-function resolveMemberActiveTime(member) {
-  if (!member || typeof member !== 'object') {
-    return 0;
-  }
-  return (
-    resolveDateTime(member.lastActiveAt) ||
-    resolveDateTime(member.lastLoginAt) ||
-    resolveDateTime(member.updatedAt) ||
-    resolveDateTime(member.lastConsumptionAt) ||
-    resolveDateTime(member.lastOrderAt) ||
-    resolveDateTime(member.lastTransactionAt) ||
-    resolveDateTime(member.createdAt)
-  );
-}
-
-function resolveDateTime(value) {
-  if (!value) return 0;
-  let date = null;
-  if (value instanceof Date) {
-    date = value;
-  } else if (typeof value === 'string' || typeof value === 'number') {
-    date = new Date(value);
-  } else if (value && typeof value.toDate === 'function') {
-    try {
-      date = value.toDate();
-    } catch (err) {
-      date = null;
-    }
-  }
-  if (!date || Number.isNaN(date.getTime())) {
-    return 0;
-  }
-  return date.getTime();
 }
 
 async function getMemberDetail(openid, memberId, options = {}) {
