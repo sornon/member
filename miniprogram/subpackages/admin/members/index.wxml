@@ -14,15 +14,18 @@
 
   <view class="sort-panel">
     <view class="sort-label">会员列表排序</view>
-    <view class="sort-options">
-      <view
-        wx:for="{{memberSortOptions}}"
-        wx:key="value"
-        class="sort-chip {{memberSort === item.value ? 'sort-chip--active' : ''}}"
-        data-value="{{item.value}}"
-        bindtap="handleMemberSortTap"
-      >{{item.label}}</view>
-    </view>
+    <picker
+      mode="selector"
+      range="{{memberSortOptions}}"
+      range-key="label"
+      value="{{memberSortIndex}}"
+      bindchange="handleMemberSortChange"
+    >
+      <view class="sort-picker">
+        <text class="sort-picker__value">{{memberSortLabel}}</text>
+        <text class="sort-picker__arrow">⌄</text>
+      </view>
+    </picker>
   </view>
 
   <view wx:if="{{loading && !members.length}}" class="loading">加载中...</view>

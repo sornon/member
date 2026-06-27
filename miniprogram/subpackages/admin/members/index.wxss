@@ -54,27 +54,25 @@ page {
   color: #94a3b8;
 }
 
-.sort-options {
+.sort-picker {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-}
-
-.sort-chip {
-  padding: 12rpx 20rpx;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 72rpx;
+  padding: 0 22rpx;
   border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 999rpx;
-  color: #cbd5e1;
-  font-size: 24rpx;
-  line-height: 1.4;
+  border-radius: 16rpx;
   background: rgba(30, 41, 59, 0.72);
+  color: #f8fafc;
 }
 
-.sort-chip--active {
-  color: #fff;
-  border-color: rgba(96, 165, 250, 0.7);
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.92), rgba(139, 92, 246, 0.92));
-  box-shadow: 0 10rpx 24rpx rgba(59, 130, 246, 0.22);
+.sort-picker__value {
+  font-size: 26rpx;
+}
+
+.sort-picker__arrow {
+  color: #94a3b8;
+  font-size: 28rpx;
 }
 
 .loading,

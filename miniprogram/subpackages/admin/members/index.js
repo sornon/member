@@ -17,12 +17,14 @@ Page({
     error: '',
     defaultAvatar: DEFAULT_AVATAR,
     memberSort: '',
+    memberSortIndex: 0,
     memberSortOptions: [
       { value: '', label: '默认排序' },
       { value: 'rechargeDesc', label: '累计充值降序' },
       { value: 'createdAtDesc', label: '注册时间排序' },
       { value: 'updatedAtDesc', label: '上次登录时间排序' }
-    ]
+    ],
+    memberSortLabel: '默认排序'
   },
 
   onShow() {
@@ -48,12 +50,16 @@ Page({
     this.fetchMembers(true);
   },
 
-  handleMemberSortTap(event) {
-    const { value = '' } = event.currentTarget.dataset || {};
-    const allowedSorts = ['', 'rechargeDesc', 'createdAtDesc', 'updatedAtDesc'];
-    const memberSort = allowedSorts.includes(value) ? value : '';
+  handleMemberSortChange(event) {
+    const index = Number(event.detail.value || 0);
+    const option = this.data.memberSortOptions[index] || this.data.memberSortOptions[0];
+    const memberSort = option.value || '';
     if (memberSort === this.data.memberSort) return;
-    this.setData({ memberSort });
+    this.setData({
+      memberSort,
+      memberSortIndex: index,
+      memberSortLabel: option.label || '默认排序'
+    });
     this.fetchMembers(true);
   },
 
