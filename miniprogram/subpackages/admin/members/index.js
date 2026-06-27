@@ -4,6 +4,35 @@ const { AVATAR_IMAGE_BASE_PATH } = require('../../../shared/asset-paths.js');
 
 const PAGE_SIZE = 20;
 const DEFAULT_AVATAR = `${AVATAR_IMAGE_BASE_PATH}/default.png`;
+const MEMBER_SORT_STORAGE_KEY = 'admin:members:sort';
+
+function findMemberSortOption(options, value) {
+  return options.find((option) => option.value === value) || options[0];
+}
+
+function readStoredMemberSort(options) {
+  if (typeof wx === 'undefined' || !wx || typeof wx.getStorageSync !== 'function') {
+    return options[0];
+  }
+  try {
+    const storedValue = wx.getStorageSync(MEMBER_SORT_STORAGE_KEY);
+    return findMemberSortOption(options, storedValue || '');
+  } catch (error) {
+    console.warn('[admin:members:sort:read]', error);
+    return options[0];
+  }
+}
+
+function writeStoredMemberSort(value) {
+  if (typeof wx === 'undefined' || !wx || typeof wx.setStorageSync !== 'function') {
+    return;
+  }
+  try {
+    wx.setStorageSync(MEMBER_SORT_STORAGE_KEY, value || '');
+  } catch (error) {
+    console.warn('[admin:members:sort:write]', error);
+  }
+}
 
 Page({
   data: {
@@ -26,6 +55,16 @@ Page({
     ],
     memberSortLabel: '默认排序',
     sortDropdownVisible: false
+  },
+
+  onLoad() {
+    const option = readStoredMemberSort(this.data.memberSortOptions);
+    const index = this.data.memberSortOptions.findIndex((item) => item.value === option.value);
+    this.setData({
+      memberSort: option.value || '',
+      memberSortIndex: index >= 0 ? index : 0,
+      memberSortLabel: option.label || '默认排序'
+    });
   },
 
   onShow() {
@@ -67,9 +106,11 @@ Page({
     };
     if (memberSort === this.data.memberSort) {
       this.setData(nextState);
+      writeStoredMemberSort(memberSort);
       return;
     }
     this.setData(nextState);
+    writeStoredMemberSort(memberSort);
     this.fetchMembers(true);
   },
 
