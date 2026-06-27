@@ -16,11 +16,12 @@ Page({
     finished: false,
     error: '',
     defaultAvatar: DEFAULT_AVATAR,
-    rechargeSort: '',
-    rechargeSortOptions: [
+    memberSort: '',
+    memberSortOptions: [
       { value: '', label: '默认排序' },
-      { value: 'asc', label: '累计充值升序' },
-      { value: 'desc', label: '累计充值降序' }
+      { value: 'rechargeDesc', label: '累计充值降序' },
+      { value: 'createdAtDesc', label: '注册时间排序' },
+      { value: 'updatedAtDesc', label: '上次登录时间排序' }
     ]
   },
 
@@ -47,11 +48,12 @@ Page({
     this.fetchMembers(true);
   },
 
-  handleRechargeSortTap(event) {
+  handleMemberSortTap(event) {
     const { value = '' } = event.currentTarget.dataset || {};
-    const rechargeSort = value === 'asc' || value === 'desc' ? value : '';
-    if (rechargeSort === this.data.rechargeSort) return;
-    this.setData({ rechargeSort });
+    const allowedSorts = ['', 'rechargeDesc', 'createdAtDesc', 'updatedAtDesc'];
+    const memberSort = allowedSorts.includes(value) ? value : '';
+    if (memberSort === this.data.memberSort) return;
+    this.setData({ memberSort });
     this.fetchMembers(true);
   },
 
@@ -63,7 +65,7 @@ Page({
         keyword: this.data.keyword.trim(),
         page: nextPage,
         pageSize: this.data.pageSize,
-        rechargeSort: this.data.rechargeSort
+        sortBy: this.data.memberSort
       });
       const incoming = (response.members || []).map((member) => ({
         ...member,

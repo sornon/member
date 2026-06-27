@@ -947,12 +947,13 @@ export const ActivityService = {
 };
 
 export const AdminService = {
-  async listMembers({ keyword = '', page = 1, pageSize = 20, rechargeSort = '' } = {}) {
+  async listMembers({ keyword = '', page = 1, pageSize = 20, sortBy = '', rechargeSort = '' } = {}) {
     return callCloud(CLOUD_FUNCTIONS.ADMIN, {
       action: 'listMembers',
       keyword,
       page,
       pageSize,
+      sortBy,
       rechargeSort
     });
   },

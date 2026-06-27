@@ -13,14 +13,14 @@
   </view>
 
   <view class="sort-panel">
-    <view class="sort-label">累计充值排序</view>
+    <view class="sort-label">会员列表排序</view>
     <view class="sort-options">
       <view
-        wx:for="{{rechargeSortOptions}}"
+        wx:for="{{memberSortOptions}}"
         wx:key="value"
-        class="sort-chip {{rechargeSort === item.value ? 'sort-chip--active' : ''}}"
+        class="sort-chip {{memberSort === item.value ? 'sort-chip--active' : ''}}"
         data-value="{{item.value}}"
-        bindtap="handleRechargeSortTap"
+        bindtap="handleMemberSortTap"
       >{{item.label}}</view>
     </view>
   </view>
