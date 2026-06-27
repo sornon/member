@@ -24,7 +24,8 @@ Page({
       { value: 'createdAtDesc', label: '注册时间排序' },
       { value: 'updatedAtDesc', label: '上次登录时间排序' }
     ],
-    memberSortLabel: '默认排序'
+    memberSortLabel: '默认排序',
+    sortDropdownVisible: false
   },
 
   onShow() {
@@ -50,22 +51,31 @@ Page({
     this.fetchMembers(true);
   },
 
-  handleMemberSortChange(event) {
-    const index = Number(event.detail.value || 0);
+  handleMemberSortToggle() {
+    this.setData({ sortDropdownVisible: !this.data.sortDropdownVisible });
+  },
+
+  handleMemberSortSelect(event) {
+    const index = Number(event.currentTarget.dataset.index || 0);
     const option = this.data.memberSortOptions[index] || this.data.memberSortOptions[0];
     const memberSort = option.value || '';
-    if (memberSort === this.data.memberSort) return;
-    this.setData({
+    const nextState = {
+      sortDropdownVisible: false,
       memberSort,
       memberSortIndex: index,
       memberSortLabel: option.label || '默认排序'
-    });
+    };
+    if (memberSort === this.data.memberSort) {
+      this.setData(nextState);
+      return;
+    }
+    this.setData(nextState);
     this.fetchMembers(true);
   },
 
   async fetchMembers(reset = false) {
     const nextPage = reset ? 1 : this.data.page;
-    this.setData({ loading: true, error: '' });
+    this.setData({ loading: true, error: '', sortDropdownVisible: false });
     try {
       const response = await AdminService.listMembers({
         keyword: this.data.keyword.trim(),

@@ -14,18 +14,19 @@
 
   <view class="sort-panel">
     <view class="sort-label">会员列表排序</view>
-    <picker
-      mode="selector"
-      range="{{memberSortOptions}}"
-      range-key="label"
-      value="{{memberSortIndex}}"
-      bindchange="handleMemberSortChange"
-    >
-      <view class="sort-picker">
-        <text class="sort-picker__value">{{memberSortLabel}}</text>
-        <text class="sort-picker__arrow">⌄</text>
-      </view>
-    </picker>
+    <view class="sort-picker" bindtap="handleMemberSortToggle">
+      <text class="sort-picker__value">{{memberSortLabel}}</text>
+      <text class="sort-picker__arrow {{sortDropdownVisible ? 'sort-picker__arrow--open' : ''}}">⌄</text>
+    </view>
+    <view wx:if="{{sortDropdownVisible}}" class="sort-dropdown">
+      <view
+        wx:for="{{memberSortOptions}}"
+        wx:key="value"
+        class="sort-dropdown__item {{memberSortIndex === index ? 'sort-dropdown__item--active' : ''}}"
+        data-index="{{index}}"
+        catchtap="handleMemberSortSelect"
+      >{{item.label}}</view>
+    </view>
   </view>
 
   <view wx:if="{{loading && !members.length}}" class="loading">加载中...</view>
