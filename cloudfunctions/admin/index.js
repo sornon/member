@@ -837,7 +837,7 @@ function normalizeAction(action) {
 
 const ACTION_HANDLERS = {
   [ACTIONS.LIST_MEMBERS]: (openid, event) =>
-    listMembers(openid, event.keyword || '', event.page || 1, event.pageSize || 20),
+    listMembers(openid, event.keyword || '', event.page || 1, event.pageSize || 20, event.rechargeSort || ''),
   [ACTIONS.GET_MEMBER_DETAIL]: (openid, event) =>
     getMemberDetail(openid, event.memberId, event || {}),
   [ACTIONS.UPDATE_MEMBER]: (openid, event) =>
@@ -2601,10 +2601,11 @@ async function resetPvpProfilesForSeason(season, summary) {
   );
 }
 
-async function listMembers(openid, keyword, page, pageSize) {
+async function listMembers(openid, keyword, page, pageSize, rechargeSort = '') {
   await ensureAdmin(openid);
   const limit = Math.min(Math.max(pageSize, 1), 50);
   const skip = Math.max(page - 1, 0) * limit;
+  const normalizedRechargeSort = rechargeSort === 'asc' || rechargeSort === 'desc' ? rechargeSort : '';
 
   const regex = keyword
     ? db.RegExp({
@@ -2624,9 +2625,12 @@ async function listMembers(openid, keyword, page, pageSize) {
     );
   }
 
+  const orderedQuery = normalizedRechargeSort
+    ? baseQuery.orderBy('totalRecharge', normalizedRechargeSort).orderBy('createdAt', 'desc')
+    : baseQuery.orderBy('createdAt', 'desc');
+
   const [snapshot, countResult, levels] = await Promise.all([
-    baseQuery
-      .orderBy('createdAt', 'desc')
+    orderedQuery
       .skip(skip)
       .limit(limit)
       .get(),

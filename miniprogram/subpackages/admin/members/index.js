@@ -15,7 +15,13 @@ Page({
     pageSize: PAGE_SIZE,
     finished: false,
     error: '',
-    defaultAvatar: DEFAULT_AVATAR
+    defaultAvatar: DEFAULT_AVATAR,
+    rechargeSort: '',
+    rechargeSortOptions: [
+      { value: '', label: '默认排序' },
+      { value: 'asc', label: '累计充值升序' },
+      { value: 'desc', label: '累计充值降序' }
+    ]
   },
 
   onShow() {
@@ -41,6 +47,14 @@ Page({
     this.fetchMembers(true);
   },
 
+  handleRechargeSortTap(event) {
+    const { value = '' } = event.currentTarget.dataset || {};
+    const rechargeSort = value === 'asc' || value === 'desc' ? value : '';
+    if (rechargeSort === this.data.rechargeSort) return;
+    this.setData({ rechargeSort });
+    this.fetchMembers(true);
+  },
+
   async fetchMembers(reset = false) {
     const nextPage = reset ? 1 : this.data.page;
     this.setData({ loading: true, error: '' });
@@ -48,7 +62,8 @@ Page({
       const response = await AdminService.listMembers({
         keyword: this.data.keyword.trim(),
         page: nextPage,
-        pageSize: this.data.pageSize
+        pageSize: this.data.pageSize,
+        rechargeSort: this.data.rechargeSort
       });
       const incoming = (response.members || []).map((member) => ({
         ...member,

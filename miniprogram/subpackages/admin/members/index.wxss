@@ -40,6 +40,43 @@ page {
   font-size: 28rpx;
 }
 
+.sort-panel {
+  margin: -8rpx 0 24rpx;
+  padding: 20rpx;
+  background: rgba(15, 23, 42, 0.62);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 18rpx;
+}
+
+.sort-label {
+  margin-bottom: 14rpx;
+  font-size: 24rpx;
+  color: #94a3b8;
+}
+
+.sort-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+
+.sort-chip {
+  padding: 12rpx 20rpx;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 999rpx;
+  color: #cbd5e1;
+  font-size: 24rpx;
+  line-height: 1.4;
+  background: rgba(30, 41, 59, 0.72);
+}
+
+.sort-chip--active {
+  color: #fff;
+  border-color: rgba(96, 165, 250, 0.7);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.92), rgba(139, 92, 246, 0.92));
+  box-shadow: 0 10rpx 24rpx rgba(59, 130, 246, 0.22);
+}
+
 .loading,
 .empty,
 .end {
